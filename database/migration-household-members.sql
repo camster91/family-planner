@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS "HouseholdMember" (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "HouseholdMember_id_family_id_key" ON "HouseholdMember" ("id", "family_id");
 CREATE INDEX IF NOT EXISTS "HouseholdMember_family_id_archived_at_idx" ON "HouseholdMember" ("family_id", "archived_at");
+-- Detached profiles retain a private erasure owner, never an access grant.
+ALTER TABLE "HouseholdMember" ADD COLUMN IF NOT EXISTS "erasure_user_id" TEXT REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+CREATE INDEX IF NOT EXISTS "HouseholdMember_erasure_user_id_idx" ON "HouseholdMember" ("erasure_user_id");
 
 CREATE TABLE IF NOT EXISTS "HouseholdMemberLegacyMapping" (
   "user_id" TEXT PRIMARY KEY,
@@ -60,4 +63,24 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS household_member_family_immutable ON "HouseholdMember";
 CREATE TRIGGER household_member_family_immutable BEFORE UPDATE OF family_id ON "HouseholdMember"
 FOR EACH ROW EXECUTE FUNCTION guard_household_member_family();
+
+CREATE OR REPLACE FUNCTION guard_household_member_erasure_owner() RETURNS trigger AS $$
+BEGIN
+  IF NEW.erasure_user_id IS NOT NULL AND NEW.archived_at IS NULL THEN
+    RAISE EXCEPTION 'Erasure ownership requires an archived member' USING ERRCODE = '23514';
+  END IF;
+  IF TG_OP = 'UPDATE' AND OLD.erasure_user_id IS NOT NULL AND NEW.erasure_user_id IS DISTINCT FROM OLD.erasure_user_id THEN
+    RAISE EXCEPTION 'Erasure ownership cannot be transferred' USING ERRCODE = '23514';
+  END IF;
+  IF NEW.erasure_user_id IS NOT NULL AND (TG_OP = 'INSERT' OR NEW.erasure_user_id IS DISTINCT FROM OLD.erasure_user_id) THEN
+    IF NOT EXISTS (SELECT 1 FROM "User" WHERE id = NEW.erasure_user_id AND family_id = NEW.family_id) THEN
+      RAISE EXCEPTION 'Erasure ownership requires current same-household membership' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS household_member_erasure_owner_guard ON "HouseholdMember";
+CREATE TRIGGER household_member_erasure_owner_guard BEFORE INSERT OR UPDATE ON "HouseholdMember"
+FOR EACH ROW EXECUTE FUNCTION guard_household_member_erasure_owner();
 COMMIT;
