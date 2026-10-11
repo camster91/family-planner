@@ -94,6 +94,7 @@ const CHORE_FOREIGN = `${PREFIX}-chore-foreign`;
 const CHORE_B = `${PREFIX}-chore-b`;
 const RECURRING_TEMPLATE = `${PREFIX}-recurring-template`;
 const CHORE_RECURRING = `${PREFIX}-chore-recurring`;
+const LEGACY_UNSTACKED = `${PREFIX}-legacy-unstacked-remove`;
 const STOPPED_ANCHOR = `${PREFIX}-stopped-anchor`;
 const LEGACY_OCCURRENCE = `${PREFIX}-legacy-occurrence`;
 const ORPHAN_OCCURRENCE = `${PREFIX}-orphan-occurrence`;
@@ -595,6 +596,79 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
     ).toMatchObject({
       routine_stack_id: STACK_A,
     });
+  });
+
+  it("rejects removals from a new stack without changing a legacy chore", async () => {
+    const label = `${PREFIX}-new-stack-removal-rejected`;
+    await db.chore.create({
+      data: {
+        id: LEGACY_UNSTACKED,
+        family_id: FAMILY_A,
+        title: "Legacy unstacked step",
+        assigned_to: CHILD_A,
+        due_date: OCCURRENCE,
+        created_by: PARENT_A,
+        routine: "Legacy grouping",
+        routine_order: 4,
+        routine_stack_id: null,
+        frequency: "once",
+        weekly_days: [],
+      },
+    });
+
+    try {
+      const beforeChore = await db.chore.findUniqueOrThrow({
+        where: { id: LEGACY_UNSTACKED },
+      });
+      const beforeChoreCount = await db.chore.count({
+        where: { family_id: FAMILY_A },
+      });
+      const beforeStackCount = await db.routineStack.count({
+        where: { family_id: FAMILY_A },
+      });
+      const beforeReceiptCount = await db.idempotencyRecord.count({
+        where: { family_id: FAMILY_A },
+      });
+
+      await expect(
+        mutateRoutineStack(
+          db,
+          {
+            ...newDraft(label),
+            remove_chore_ids: [LEGACY_UNSTACKED],
+          },
+          actorA,
+        ),
+      ).rejects.toMatchObject({
+        status: 400,
+        code: "ROUTINE_STACK_INVALID_DRAFT",
+      });
+
+      expect(
+        await db.chore.findUniqueOrThrow({ where: { id: LEGACY_UNSTACKED } }),
+      ).toEqual(beforeChore);
+      expect(await db.chore.count({ where: { family_id: FAMILY_A } })).toBe(
+        beforeChoreCount,
+      );
+      expect(
+        await db.routineStack.count({ where: { family_id: FAMILY_A } }),
+      ).toBe(beforeStackCount);
+      expect(
+        await db.idempotencyRecord.count({ where: { family_id: FAMILY_A } }),
+      ).toBe(beforeReceiptCount);
+    } finally {
+      // Keep the fixture safe even if a pre-fix implementation unexpectedly
+      // creates the new stack and step before the assertion fails.
+      await db.chore.deleteMany({
+        where: { family_id: FAMILY_A, routine: label },
+      });
+      await db.routineStack.deleteMany({
+        where: { family_id: FAMILY_A, label },
+      });
+      await db.chore.deleteMany({
+        where: { id: LEGACY_UNSTACKED, family_id: FAMILY_A },
+      });
+    }
   });
 
   it("stacks, reorders, and un-stacks a generated occurrence without changing its series history", async () => {
