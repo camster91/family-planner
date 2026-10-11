@@ -1,28 +1,13 @@
 [
   {
     "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "10.00",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Add",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
     "text": "Allowance",
     "count": 1
   },
   {
     "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Amount",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
     "text": "Cancel",
-    "count": 2
+    "count": 1
   },
   {
     "file": "src/app/dashboard/allowance/page.tsx",
@@ -31,22 +16,7 @@
   },
   {
     "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Choose a family member",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "For",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
     "text": "Mark paid",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "New allowance",
     "count": 1
   },
   {
@@ -76,32 +46,12 @@
   },
   {
     "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Reason",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
     "text": "Recently paid",
     "count": 1
   },
   {
     "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Save",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Saving…",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
     "text": "Track weekly allowance and money owed between members. Kids can see what they have coming.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Weekly allowance",
     "count": 1
   },
   {
@@ -5192,21 +5142,6 @@
   {
     "file": "src/components/ui/search-field.tsx",
     "text": "Clear",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Loading family members…",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Try again",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "No household members are available.",
     "count": 1
   }
 ]
