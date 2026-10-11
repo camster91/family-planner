@@ -4670,31 +4670,6 @@
     "count": 1
   },
   {
-    "file": "src/components/fridge/TodayBoard.tsx",
-    "text": "Exit fridge mode",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/TodayBoard.tsx",
-    "text": "Fridge mode",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/TodayBoard.tsx",
-    "text": "Loading today&apos;s board",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/TodayBoard.tsx",
-    "text": "Time:",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/TodayBoard.tsx",
-    "text": "Today",
-    "count": 2
-  },
-  {
     "file": "src/components/fridge/use-soon-region.tsx",
     "text": "more to use soon",
     "count": 1
