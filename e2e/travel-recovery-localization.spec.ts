@@ -186,7 +186,9 @@ for (const locale of ["en", "es"] as const) {
       else await expect(page.locator("html")).not.toHaveClass(/dark/);
 
       // Successful HTTP with an unusable body is unavailable until a normal retry.
-      await expect(page.getByRole("alert")).toContainText(copy.unavailable);
+      await expect(
+        page.getByRole("alert").filter({ hasText: copy.unavailable }),
+      ).toBeVisible();
       await expect(page.getByRole("switch")).toHaveCount(0);
       await page.getByRole("button", { name: copy.retry, exact: true }).click();
       const toggle = page.getByRole("switch", {
@@ -257,6 +259,10 @@ for (const locale of ["en", "es"] as const) {
       expect(travelPatches).toBe(3);
       expect(travelGets).toBe(4);
       await assertSurface(page);
+      await info.attach("travel-recovery-screen", {
+        body: await page.screenshot(),
+        contentType: "image/png",
+      });
       await info.attach("travel-recovery-localization-scope", {
         body: JSON.stringify({
           project: info.project.name,
@@ -279,7 +285,8 @@ for (const locale of ["en", "es"] as const) {
             "44px",
             "no overflow",
           ],
-          execution: "authored; not executed in this source-only handoff",
+          execution:
+            "rendered journey; synthetic domain responses with guarded fixture auth and feature changes",
         }),
         contentType: "application/json",
       });
