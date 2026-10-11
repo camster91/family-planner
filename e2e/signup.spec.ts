@@ -46,6 +46,28 @@ import { E2E_ANCHOR } from "./support/env";
 import { expect, loginViaUi, test } from "./support/test";
 
 const PROJECTS = ["phone-390x844", "desktop-1366x768"];
+// The shared Playwright projects use 198.51.100.10 through .15. Keep this journey in
+// its own per-project buckets so earlier login-heavy suites cannot consume the
+// registration/login allowance before a new-household run starts.
+const SIGNUP_CLIENT_IPS = {
+  "phone-390x844": "198.51.100.220",
+  "desktop-1366x768": "198.51.100.221",
+} as const;
+
+function signupClientIp(testInfo: TestInfo): string {
+  const ip =
+    SIGNUP_CLIENT_IPS[testInfo.project.name as keyof typeof SIGNUP_CLIENT_IPS];
+  if (!ip)
+    throw new Error(
+      `No dedicated signup client address for ${testInfo.project.name}`,
+    );
+  return ip;
+}
+
+function signupHeaders(testInfo: TestInfo): Record<string, string> {
+  return { "X-Forwarded-For": signupClientIp(testInfo) };
+}
+
 // Generated per run so no credential literal lives in the repository: one
 // upper-case letter, one lower-case letter and one digit, then random bytes.
 function makeTestSecret(): string {
@@ -129,7 +151,10 @@ async function openContext(
     timezoneId: use.timezoneId,
     colorScheme: "light",
     reducedMotion: "reduce",
-    extraHTTPHeaders: use.extraHTTPHeaders,
+    extraHTTPHeaders: {
+      ...(use.extraHTTPHeaders ?? {}),
+      ...signupHeaders(testInfo),
+    },
   });
   const page = await context.newPage();
   await page.clock.install({ time: E2E_ANCHOR });
@@ -178,7 +203,7 @@ async function registerViaUi(page: Page, who: { name: string; email: string }) {
  * stored, so the spec swaps in the hash of a token it knows (same expiry) and
  * follows the emailed link to the confirm page and presses the button.
  */
-async function verifyEmailViaLink(page: Page, email: string) {
+async function verifyEmailViaLink(page: Page, email: string, clientIp: string) {
   const token = crypto.randomBytes(32).toString("hex");
   const hash = crypto.createHash("sha256").update(token).digest("hex");
   const updated = await withDb(async (db) => {
@@ -202,6 +227,7 @@ async function verifyEmailViaLink(page: Page, email: string) {
 
   // The emailed link only forwards to the confirm page; it never uses the token.
   const res = await page.request.get(`/api/auth/verify-email?token=${token}`, {
+    headers: { "X-Forwarded-For": clientIp },
     maxRedirects: 0,
   });
   expect(res.status()).toBeGreaterThanOrEqual(300);
@@ -257,6 +283,10 @@ test.describe("new household sign-up journey", () => {
     browser,
   }, testInfo) => {
     test.setTimeout(180_000);
+    const clientIp = signupClientIp(testInfo);
+    // The page fixture inherits the shared project bucket; replace it before
+    // the first navigation so every UI auth request uses this journey's IP.
+    await page.setExtraHTTPHeaders(signupHeaders(testInfo));
     const x = names(testInfo);
     let familyId = "";
     let inviteCode = "";
@@ -277,7 +307,7 @@ test.describe("new household sign-up journey", () => {
     });
 
     await test.step("parent verifies the email address", async () => {
-      await verifyEmailViaLink(page, x.parent.email);
+      await verifyEmailViaLink(page, x.parent.email, clientIp);
     });
 
     await test.step("parent signs in and creates the household", async () => {
@@ -402,7 +432,7 @@ test.describe("new household sign-up journey", () => {
     try {
       await test.step("child registers, verifies and joins with the code", async () => {
         await registerViaUi(kid, x.child);
-        await verifyEmailViaLink(kid, x.child.email);
+        await verifyEmailViaLink(kid, x.child.email, clientIp);
         await loginViaUi(kid, x.child.email, PASSWORD);
         await kid.waitForURL(/\/dashboard$/);
         await kid.getByRole("button", { name: "Get Started" }).click();
