@@ -411,9 +411,8 @@ export const HOUSEHOLD_HANDOVER_COLUMNS: ReadonlyArray<readonly [string, string]
   ['shoppingList', 'created_by'],
   ['habit', 'created_by'],
   ['familyGoal', 'created_by'],
-  // Routine stacks are household content. Preserve the cross-member stack
-  // identity by handing its optional creator reference to the successor.
-  ['routineStack', 'created_by'],
+  // RoutineStack.created_by records the original actor, not transferable ownership.
+  // Ordinary membership changes preserve it; User erasure uses its SetNull FK.
 ]
 
 /** Nullable references to a leaving member: cleared. Shared with member removal. */
@@ -531,6 +530,9 @@ async function handOverAndDetach(
   for (const [model, column] of HOUSEHOLD_CLEARED_REFERENCES) {
     await tx[model].updateMany({ where: { [column]: userId }, data: { [column]: null } })
   }
+  // Permanent account erasure anonymizes the original actor without changing stack identity.
+  // This is intentionally separate from ordinary household member removal.
+  await tx.routineStack.updateMany({ where: { created_by: userId }, data: { created_by: null } })
   await tx.$executeRaw`
     UPDATE "Message" SET "read_by" = array_remove("read_by", ${userId})
     WHERE "family_id" = ${familyId} AND ${userId} = ANY("read_by")

@@ -427,10 +427,10 @@ describe('deleteMemberAccount', () => {
       ['allowance', 'allow-a', 'from_user_id'],
       ['familyLocation', 'loc-a', 'user_id'],
       ['calendarSubscription', 'sub-a', 'created_by'],
-      ['routineStack', 'routine-stack-a', 'created_by'],
     ] as const) {
       expect([model, db.find(model, id)?.[column]]).toEqual([model, 'parent-a2'])
     }
+    expect(db.find('routineStack', 'routine-stack-a')).toMatchObject({ created_by: null })
     expect(db.find('familyMeal', 'meal-a')).toMatchObject({ cook_id: null })
     expect(db.find('pickup', 'pickup-a')).toMatchObject({ assigned_to: null })
     // Personal rows and credentials are gone.
