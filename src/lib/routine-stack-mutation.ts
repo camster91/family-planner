@@ -240,6 +240,10 @@ export async function mutateRoutineStackInTx<T extends object>(
 
   const tx = rawTx as unknown as RuntimeTransaction;
   const requestHash = hashIdempotentRequest("routine-stack.mutate", draft);
+  // The route owns the canonical user lock; acquire the household lock before
+  // touching the receipt so household deletion cannot snapshot around this
+  // mutation. This matches the shared user -> household lock order.
+  await lockHousehold(tx, actor.familyId);
   if (options.recordId) {
     await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${options.recordId} FOR UPDATE`;
     const record = asRecord(
@@ -301,8 +305,7 @@ export async function mutateRoutineStackInTx<T extends object>(
   }
 
   // Household deletion acquires this advisory lock before its Family row lock.
-  // Match that order so a routine mutation cannot race the deletion snapshot.
-  await lockHousehold(tx, actor.familyId);
+  // Match that order before taking the Family row lock as well.
   await lockFamily(tx, actor.familyId);
   let stack = draft.stack_id
     ? asRecord(
@@ -390,15 +393,18 @@ export async function mutateRoutineStackInTx<T extends object>(
   for (const row of existingRows) {
     if (!sameDate(row.due_date, draft.occurrence_date))
       throw conflict("The selected step is from a different occurrence.");
-    if (
-      stack &&
-      row.routine_stack_id &&
-      row.routine_stack_id !== stack.id &&
-      !draft.remove_chore_ids.includes(String(row.id))
-    )
-      throw conflict();
+    const rowId = String(row.id);
+    const isRemoval = draft.remove_chore_ids.includes(rowId);
+    if (stack?.id) {
+      if (row.routine_stack_id && row.routine_stack_id !== stack.id)
+        throw conflict("A selected step belongs to another routine.");
+      if (isRemoval && row.routine_stack_id !== stack.id)
+        throw conflict("Only steps in this routine can be removed.");
+    } else if (row.routine_stack_id) {
+      throw conflict("A step already belongs to another routine.");
+    }
   }
-  if (draft.steps.length === 0 && draft.remove_chore_ids.length === 0)
+  if (draft.steps.length === 0)
     throw invalid("A routine needs at least one step.");
 
   const hadExistingStack = Boolean(stack?.id);

@@ -13,9 +13,13 @@ function makeTx(initial: { stack?: Row; chores?: Row[]; record?: Row } = {}) {
     chores: initial.chores ?? [],
     record: initial.record ?? null,
     writes: [] as string[],
+    queries: [] as string[],
   };
   const tx = {
-    $queryRaw: async () => [{ id: "family-a" }],
+    $queryRaw: async (strings: TemplateStringsArray) => {
+      state.queries.push(Array.from(strings).join("?"));
+      return [{ id: "family-a" }];
+    },
     family: { findFirst: async () => ({ id: "family-a" }) },
     routineStack: {
       findFirst: async () => state.stack,
@@ -167,6 +171,13 @@ describe("routine stack transaction coordinator", () => {
       routine_order: 1,
     });
     expect(state.record).toMatchObject({ response_status: 200 });
+    expect(
+      state.queries.findIndex((query) =>
+        query.includes("pg_advisory_xact_lock"),
+      ),
+    ).toBeLessThan(
+      state.queries.findIndex((query) => query.includes('"IdempotencyRecord"')),
+    );
   });
 
   it("replays a completed key without re-running the chore write", async () => {
@@ -311,6 +322,58 @@ describe("routine stack transaction coordinator", () => {
         userId: "parent-a",
         role: "parent",
       }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(state.writes).toEqual([]);
+  });
+
+  it("rejects foreign-stack rows for both a new stack and a different existing stack", async () => {
+    const foreign = existingChore({ routine_stack_id: "stack-b" });
+    const { tx: newStackTx } = makeTx({ chores: [foreign] });
+    await expect(
+      mutateRoutineStackInTx(
+        newStackTx,
+        input({ stack_id: null, expected_fingerprint: "" }),
+        { familyId: "family-a", userId: "parent-a", role: "parent" },
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+
+    const { tx: existingStackTx } = makeTx({
+      stack: { id: "stack-a", family_id: "family-a", version: 2 },
+      chores: [foreign],
+    });
+    await expect(
+      mutateRoutineStackInTx(
+        existingStackTx,
+        input({ expected_fingerprint: fingerprintRoutineStackSnapshot([]) }),
+        { familyId: "family-a", userId: "parent-a", role: "parent" },
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("does not allow an occurrence routine to become empty", async () => {
+    const first = existingChore();
+    const second = existingChore({
+      id: "chore-b",
+      title: "Pack bag",
+      routine_order: 2,
+    });
+    const { tx, state } = makeTx({
+      stack: { id: "stack-a", family_id: "family-a", version: 2 },
+      chores: [first, second],
+    });
+    await expect(
+      mutateRoutineStackInTx(
+        tx,
+        input({
+          steps: [],
+          remove_chore_ids: ["chore-a", "chore-b"],
+          expected_fingerprint: fingerprintRoutineStackSnapshot([
+            first as never,
+            second as never,
+          ]),
+        }),
+        { familyId: "family-a", userId: "parent-a", role: "parent" },
+      ),
     ).rejects.toMatchObject({ status: 400 });
     expect(state.writes).toEqual([]);
   });
