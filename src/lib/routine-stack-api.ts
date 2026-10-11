@@ -1,4 +1,12 @@
 import { parseDateOnly } from "@/lib/dates";
+import {
+  afterChoreCursor,
+  choreOrderBy,
+  decodeChoreCursor,
+  encodeChoreCursor,
+  CHORE_PAGE_MAX,
+  type ChoreCursor,
+} from "@/lib/chore-paging";
 import { hashIdempotentRequest, IDEMPOTENCY_TTL_MS } from "@/lib/idempotency";
 import { lockHousehold, lockUser } from "@/lib/household-lock";
 import {
@@ -64,6 +72,14 @@ export type RoutineStackReadDb = {
   routineStack: { findFirst(args: object): Promise<any> };
   chore: { findMany(args: object): Promise<any[]> };
   householdMember: { findMany(args: object): Promise<any[]> };
+};
+
+export type RoutineStackCandidateDb = {
+  chore: { findMany(args: object): Promise<any[]> };
+  householdMember: { findMany(args: object): Promise<any[]> };
+  householdMemberLegacyMapping: { findMany(args: object): Promise<any[]> };
+  householdMemberAccountLink: { findMany(args: object): Promise<any[]> };
+  user: { findMany(args: object): Promise<any[]> };
 };
 
 export type RoutineStackWriteDb = {
@@ -161,6 +177,290 @@ export type ParentRoutineStackRead = {
   }[];
   compact: ReturnType<typeof projectRoutineStackResponse>;
 };
+
+const ROUTINE_STACK_CANDIDATE_SELECT = {
+  id: true,
+  title: true,
+  description: true,
+  assigned_to: true,
+  assigned_member_id: true,
+  member_subject_erased: true,
+  due_date: true,
+  recurrence_id: true,
+  is_template: true,
+  routine: true,
+  routine_order: true,
+  status: true,
+  frequency: true,
+  weekly_days: true,
+  difficulty: true,
+  icon: true,
+  routine_stack_id: true,
+} as const;
+
+type CandidateChore = {
+  id: string;
+  title: string;
+  description: string | null;
+  assigned_to: string;
+  assigned_member_id: string | null;
+  member_subject_erased: boolean;
+  due_date: Date;
+  recurrence_id: string | null;
+  is_template: boolean;
+  routine: string | null;
+  routine_order: number | null;
+  status: string;
+  frequency: string;
+  weekly_days: number[];
+  difficulty: string | null;
+  icon: string | null;
+  routine_stack_id: string | null;
+};
+
+type CandidateMember = {
+  id: string;
+  archived_at: Date | null;
+  erasure_user_id: string | null;
+};
+
+type CandidateAccount = { id: string; name: string; role: string };
+type CandidateIdentityRef = {
+  user_id: string;
+  member_id: string;
+  family_id: string;
+};
+
+export type ParentRoutineStackCandidates = {
+  occurrence_date: string;
+  candidates: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    assigned_to: string;
+    assigned_member_id: string | null;
+    due_date: string;
+    recurrence_id: string | null;
+    is_template: false;
+    routine: string | null;
+    routine_order: number | null;
+    status: string;
+    frequency: string;
+    weekly_days: number[];
+    difficulty: string | null;
+    icon: string | null;
+  }>;
+  assignmentOptions: Array<{
+    accountId: string;
+    name: string;
+    role: string;
+  }>;
+  hasMore: boolean;
+  nextCursor: string | null;
+};
+
+export type RoutineStackCandidatePage = {
+  limit?: number;
+  cursor?: ChoreCursor | null;
+};
+
+const activeSeriesFrequencies = new Set(["daily", "weekly", "monthly"]);
+
+function candidateAnchorIsValid(anchor: {
+  id: string;
+  family_id: string;
+  recurrence_id: string | null;
+  is_template: boolean;
+  frequency: string;
+}): boolean {
+  const self = anchor.recurrence_id === anchor.id;
+  const active =
+    anchor.is_template && activeSeriesFrequencies.has(anchor.frequency);
+  const stopped = !anchor.is_template && anchor.frequency === "once";
+  return self && (active || stopped);
+}
+
+function identityRefsByUser(
+  refs: readonly CandidateIdentityRef[],
+  familyId: string,
+  members: ReadonlyMap<string, CandidateMember>,
+) {
+  const byUser = new Map<string, Set<string>>();
+  const blocked = new Set<string>();
+  for (const ref of refs) {
+    const existing = byUser.get(ref.user_id) ?? new Set<string>();
+    existing.add(ref.member_id);
+    byUser.set(ref.user_id, existing);
+    const member = members.get(ref.member_id);
+    if (ref.family_id !== familyId || !member) blocked.add(ref.user_id);
+    if (member && (member.archived_at || member.erasure_user_id)) {
+      blocked.add(ref.user_id);
+    }
+  }
+  for (const [userId, memberIds] of byUser) {
+    if (memberIds.size !== 1) blocked.add(userId);
+  }
+  return { byUser, blocked };
+}
+
+/**
+ * Read the bounded parent-only catalog used to start or extend a routine.
+ * Account IDs are returned from the User table; member IDs are only echoed
+ * from existing chore rows and are never inferred from names or accounts.
+ */
+export async function readParentRoutineStackCandidates(
+  db: RoutineStackCandidateDb,
+  actor: ParentRoutineStackActor,
+  occurrenceDate: string,
+  page: RoutineStackCandidatePage = {},
+): Promise<ParentRoutineStackCandidates | null> {
+  if (actor.role !== "parent") return null;
+  const bounds = occurrenceBounds(occurrenceDate);
+  if (!bounds) return null;
+  const limit = page.limit ?? CHORE_PAGE_MAX;
+  if (!Number.isInteger(limit) || limit < 1 || limit > CHORE_PAGE_MAX) {
+    return null;
+  }
+
+  const users = (await db.user.findMany({
+    where: { family_id: actor.familyId },
+    select: { id: true, name: true, role: true },
+    orderBy: { name: "asc" },
+  })) as CandidateAccount[];
+  const userIds = users.map((user) => user.id);
+  const [members, legacyMappings, accountLinks, rows] = await Promise.all([
+    db.householdMember.findMany({
+      where: { family_id: actor.familyId },
+      select: { id: true, archived_at: true, erasure_user_id: true },
+    }),
+    userIds.length
+      ? db.householdMemberLegacyMapping.findMany({
+          where: { user_id: { in: userIds } },
+          select: { user_id: true, member_id: true, family_id: true },
+        })
+      : Promise.resolve([]),
+    userIds.length
+      ? db.householdMemberAccountLink.findMany({
+          where: { user_id: { in: userIds } },
+          select: { user_id: true, member_id: true, family_id: true },
+        })
+      : Promise.resolve([]),
+    db.chore.findMany({
+      where: {
+        family_id: actor.familyId,
+        routine_stack_id: null,
+        is_template: false,
+        due_date: { gte: bounds.start, lt: bounds.end },
+        ...(page.cursor ? { AND: [afterChoreCursor(page.cursor, "asc")] } : {}),
+      },
+      select: ROUTINE_STACK_CANDIDATE_SELECT,
+      orderBy: choreOrderBy("asc"),
+      take: limit + 1,
+    }),
+  ]);
+
+  const memberMap = new Map(
+    (members as CandidateMember[]).map((member) => [member.id, member]),
+  );
+  const refs = [
+    ...(legacyMappings as CandidateIdentityRef[]),
+    ...(accountLinks as CandidateIdentityRef[]),
+  ];
+  const { byUser, blocked } = identityRefsByUser(
+    refs,
+    actor.familyId,
+    memberMap,
+  );
+  const eligibleAccounts = users.filter((user) => !blocked.has(user.id));
+  const eligibleAccountIds = new Set(eligibleAccounts.map((user) => user.id));
+  const eligibleMemberIds = new Set(
+    [...memberMap.values()]
+      .filter((member) => !member.archived_at && !member.erasure_user_id)
+      .map((member) => member.id),
+  );
+  const rawRows = rows as CandidateChore[];
+  const pageRows = rawRows.slice(0, limit);
+  const recurrenceIds = [
+    ...new Set(
+      pageRows.flatMap((row) =>
+        typeof row.recurrence_id === "string" ? [row.recurrence_id] : [],
+      ),
+    ),
+  ];
+  const anchors = recurrenceIds.length
+    ? ((await db.chore.findMany({
+        where: { family_id: actor.familyId, id: { in: recurrenceIds } },
+        select: {
+          id: true,
+          family_id: true,
+          recurrence_id: true,
+          is_template: true,
+          frequency: true,
+        },
+      })) as Array<{
+        id: string;
+        family_id: string;
+        recurrence_id: string | null;
+        is_template: boolean;
+        frequency: string;
+      }>)
+    : [];
+  const validAnchors = new Set(
+    anchors.filter(candidateAnchorIsValid).map((anchor) => anchor.id),
+  );
+  const candidates = pageRows
+    .filter((row) => {
+      if (row.is_template || row.routine_stack_id || row.member_subject_erased)
+        return false;
+      if (!eligibleAccountIds.has(row.assigned_to)) return false;
+      if (
+        row.assigned_member_id !== null &&
+        (!eligibleMemberIds.has(row.assigned_member_id) ||
+          byUser.get(row.assigned_to)?.size !== 1 ||
+          !byUser.get(row.assigned_to)?.has(row.assigned_member_id))
+      ) {
+        return false;
+      }
+      if (typeof row.recurrence_id === "string") {
+        if (!row.recurrence_id || !validAnchors.has(row.recurrence_id))
+          return false;
+      }
+      return true;
+    })
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      assigned_to: row.assigned_to,
+      assigned_member_id: row.assigned_member_id,
+      due_date: row.due_date.toISOString(),
+      recurrence_id: row.recurrence_id,
+      is_template: false as const,
+      routine: row.routine,
+      routine_order: row.routine_order,
+      status: row.status,
+      frequency: row.frequency,
+      weekly_days: row.weekly_days,
+      difficulty: row.difficulty,
+      icon: row.icon,
+    }));
+  const hasMore = rawRows.length > limit;
+  const nextCursor = hasMore
+    ? encodeChoreCursor(pageRows[pageRows.length - 1])
+    : null;
+
+  return {
+    occurrence_date: occurrenceDate,
+    candidates,
+    assignmentOptions: eligibleAccounts.map((user) => ({
+      accountId: user.id,
+      name: user.name,
+      role: user.role,
+    })),
+    hasMore,
+    nextCursor,
+  };
+}
 
 /** Read one dated stack for the parent editor; all resource predicates include family_id. */
 export async function readParentRoutineStack(
