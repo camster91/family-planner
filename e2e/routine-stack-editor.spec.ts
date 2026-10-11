@@ -10,6 +10,7 @@
  */
 import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import pg from "pg";
 import type { BrowserContext, Page, TestInfo } from "@playwright/test";
@@ -99,17 +100,24 @@ type Fixture = {
 };
 
 function fixtureFor(info: TestInfo, locale: Locale): Fixture {
-  const suffix = `${info.project.name}_${locale}_${info.testId}`
-    .replace(/[^a-zA-Z0-9_]/g, "_")
-    .slice(-52);
-  const prefix = `fx_e2e_rs_${suffix}`;
+  const identity = `${info.project.name}_${locale}_${info.testId}`;
+  const suffix = identity.replace(/[^a-zA-Z0-9_]/g, "_").slice(-52);
+  // User IDs also pass through the offline queue namespace, whose canonical
+  // identifier limit is 64 characters. A compact digest preserves unique
+  // ownership without weakening that production limit.
+  const token = createHash("sha256")
+    .update(identity)
+    .digest("hex")
+    .slice(0, 24);
+  const prefix = `fx_e2e_rs_${token}`;
   const email = (id: string) => `${id.replace(/_/g, "-")}@example.test`;
   const family = `${prefix}_family`;
   const parent = `${prefix}_parent`;
   const child = `${prefix}_child`;
   // Keep the visible label within the canonical 40-character API limit while
-  // retaining the full per-test marker in every owned row ID above.
-  const label = `QA routine ${suffix.slice(-29)}`;
+  // retaining the compact unique marker in every owned row ID above.
+  // Leave seven characters for the real edit journey's " edited" suffix.
+  const label = `QA routine ${token.slice(0, 22)}`;
   return {
     prefix,
     family,
@@ -583,6 +591,7 @@ for (const locale of LOCALES) {
         try {
           await loopbackGuard(childContext, baseURL!);
           const childPage = await childContext.newPage();
+          await childPage.clock.install({ time: E2E_ANCHOR });
           await loginViaUi(childPage, fixture.childEmail);
           await assertUiLogin(childPage, fixture.child, "child");
           await setLocale(childContext, locale);
@@ -610,9 +619,11 @@ for (const locale of LOCALES) {
         );
         await expectSurface(page, info, locale, "real-edit");
         const editor = page.getByTestId("routine-stack-editor");
-        await editor
-          .getByLabel(copy[locale].label)
-          .fill(`${fixture.label} edited`);
+        const editedLabel = `${fixture.label} edited`;
+        await editor.getByLabel(copy[locale].label).fill(editedLabel);
+        await expect(editor.getByLabel(copy[locale].label)).toHaveValue(
+          editedLabel,
+        );
         await editor
           .locator('select[id^="routine-assignee-"]')
           .first()
@@ -631,12 +642,23 @@ for (const locale of LOCALES) {
         await editor
           .getByRole("button", { name: copy[locale].save, exact: true })
           .click();
-        expect((await reorderResponse).status()).toBe(200);
+        const reorderResult = await reorderResponse;
+        const reorderBody = await reorderResult.text();
+        expect(reorderResult.status(), reorderBody).toBe(200);
+        const editedRead = await browserFetch(
+          page,
+          `/api/chores/stacks?stack_id=${encodeURIComponent(stackId)}&occurrence_date=${DATE}`,
+        );
+        expect(editedRead.status, editedRead.body).toBe(200);
+        expect(JSON.parse(editedRead.body).stack.label).toBe(editedLabel);
 
         await page.goto(
           `/dashboard/chores/routines?stack_id=${encodeURIComponent(stackId)}&occurrence_date=${DATE}`,
         );
         await expect(page.getByTestId("routine-stack-editor")).toBeVisible();
+        await expect(page.getByLabel(copy[locale].label)).toHaveValue(
+          editedLabel,
+        );
         const remove = page.getByRole("button", {
           name: copy[locale].remove(fixture.parentTitle),
           exact: true,
