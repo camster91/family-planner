@@ -61,6 +61,8 @@ export interface AssistantTodayUseSoon {
   place: string;
   expiresOn: string;
   dateKind: "best_before" | "use_by";
+  status: "expired" | "today" | "soon";
+  label: string;
 }
 
 export interface AssistantTodayWeather {

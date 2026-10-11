@@ -92,23 +92,13 @@ describe("loadAssistantTodayRows", () => {
     expect(db.event.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ family_id: "family-a" }),
-        select: expect.not.objectContaining({
-          id: true,
-          description: true,
-          location: true,
-          created_by: true,
-        }),
+        select: expect.objectContaining({ id: true }),
       }),
     );
     expect(db.chore.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ family_id: "family-a" }),
-        select: expect.not.objectContaining({
-          id: true,
-          description: true,
-          points: true,
-          notes: true,
-        }),
+        select: expect.objectContaining({ id: true }),
       }),
     );
     expect(db.listItem.findMany).toHaveBeenCalledWith(
@@ -116,13 +106,37 @@ describe("loadAssistantTodayRows", () => {
         where: expect.objectContaining({
           list: { family_id: "family-a", type: "grocery" },
         }),
-        select: expect.not.objectContaining({
-          id: true,
-          notes: true,
-          price: true,
-        }),
+        select: expect.objectContaining({ id: true }),
       }),
     );
+    const eventSelect = (db.event.findMany as jest.Mock).mock.calls[0][0]
+      .select;
+    const choreSelect = (db.chore.findMany as jest.Mock).mock.calls[0][0]
+      .select;
+    const grocerySelect = (db.listItem.findMany as jest.Mock).mock.calls[0][0]
+      .select;
+    expect(eventSelect).not.toEqual(
+      expect.objectContaining({
+        description: true,
+        location: true,
+        created_by: true,
+      }),
+    );
+    expect(choreSelect).not.toEqual(
+      expect.objectContaining({
+        description: true,
+        points: true,
+        notes: true,
+      }),
+    );
+    expect(grocerySelect).not.toEqual(
+      expect.objectContaining({
+        notes: true,
+        price: true,
+      }),
+    );
+    expect(eventSelect.source_subscription).toEqual({ select: { id: true } });
+    expect(eventSelect.source_connection).toEqual({ select: { id: true } });
   });
 
   it("applies the authenticated teen predicate and filters any mismatched fixture row", async () => {

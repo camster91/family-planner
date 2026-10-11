@@ -21,7 +21,8 @@ native capability.
 - Events, chores, dinner, open groceries and use-soon rows are bounded,
   deterministically ordered by the existing Today reader, and projected
   without record IDs, emails, member IDs, provider URLs, notes, descriptions,
-  feature blobs or other private fields.
+  feature blobs or other private fields. Use-soon follows the canonical
+  three-day expiry window, fixed status/label vocabulary and use-by exclusion.
 - Teen assignee and dinner-cook labels are reduced to `You` or
   `Another household member`. Parent labels remain the names already visible
   on the person Today board.
@@ -46,5 +47,7 @@ native capability.
   shared-device or elevated-device assistant route requires its own reviewed
   contract.
 - Real PostgreSQL isolation, route negatives and browser/native evidence are
-  release gates for the later activation slice; these unit tests use no live
-  database and make no production-readiness claim.
+  release gates for the later activation slice. The focused unit tests use
+  mocks; the separate PostgreSQL suite is explicitly skipped unless both the
+  integration flag and disposable fixture-target guard are present. No
+  production-readiness claim is made.

@@ -134,9 +134,11 @@ The following rules are binding:
 - Groceries contain the visible item text, quantity and safe list label for the
   bounded open rows already used by Today. They never include item/list IDs,
   creator IDs, notes or hidden checked rows.
-- Use-soon contains only the existing board-safe name, place and human expiry
-  state. It is omitted when the inventory feature is off or the read is
-  uncertain. A count or omission is never expanded into guessed item details.
+- Use-soon contains only the existing board-safe name, place, date kind and
+  canonical human expiry state/status. It uses the existing three-day window
+  and excludes past use-by rows. It is omitted when the inventory feature is
+  off or the read is uncertain. A count or omission is never expanded into
+  guessed item details.
 - Weather contains only the existing opt-in coarse label and display forecast
   fields. Coordinates, request IPs and provider internals stay server-side.
 - The context does not include `links`, `display.photos`, `version`, emails,

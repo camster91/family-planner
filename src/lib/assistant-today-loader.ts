@@ -7,7 +7,16 @@
  * return type contains a record or member id.
  */
 import type { PrismaClient } from "@prisma/client";
-import { addUTCDays, startOfTodayUTC, toDateOnlyUTC } from "@/lib/dates";
+import { addUTCDays, toDateOnlyUTC } from "@/lib/dates";
+import { addDaysToKey } from "@/lib/local-day-key";
+import { zonedWallTimeToUtc } from "@/lib/calendar-import/timezone";
+import {
+  DEFAULT_USE_SOON_DAYS,
+  asDateKind,
+  expiryLabel,
+  expiryStatus,
+  isUseSoonStatus,
+} from "@/lib/inventory-display";
 import type {
   AssistantTodayChore,
   AssistantTodayDinner,
@@ -23,7 +32,6 @@ const MAX_GROCERIES = 20;
 const MAX_USE_SOON = 20;
 const MAX_TEXT_BYTES = 512;
 const MAX_SOURCE_BYTES = 128;
-const QUERY_DAYS_AFTER_TODAY = 4;
 
 export type AssistantTodayLoaderRole = "parent" | "teen";
 
@@ -118,17 +126,47 @@ function localDateTimeFor(date: Date, timeZone: string): string {
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
+function dateOnlyStart(dateKey: string): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function localDayWindow(
+  serverNow: Date,
+  timeZone: string,
+): {
+  localDate: string;
+  localStart: Date;
+  localEnd: Date;
+  dateStart: Date;
+  dateEnd: Date;
+} {
+  const localDate = localDateFor(serverNow, timeZone);
+  const localEndDate = addDaysToKey(localDate, 1);
+  const wallMidnight = (dateKey: string) => {
+    const [year, month, day] = dateKey.split("-").map(Number);
+    return zonedWallTimeToUtc(
+      { year, month, day, hour: 0, minute: 0, second: 0 },
+      timeZone,
+    );
+  };
+  return {
+    localDate,
+    localStart: wallMidnight(localDate),
+    localEnd: wallMidnight(localEndDate),
+    dateStart: dateOnlyStart(localDate),
+    dateEnd: dateOnlyStart(localEndDate),
+  };
+}
+
 function eventIsOnLocalDay(
   event: { start_time: Date; end_time: Date },
-  localDate: string,
-  timeZone: string,
-  now: Date,
+  localStart: Date,
+  localEnd: Date,
 ): boolean {
   return (
-    localDateFor(event.start_time, timeZone) === localDate ||
-    localDateFor(event.end_time, timeZone) === localDate ||
-    (event.start_time.getTime() <= now.getTime() &&
-      event.end_time.getTime() > now.getTime())
+    event.start_time.getTime() < localEnd.getTime() &&
+    event.end_time.getTime() > localStart.getTime()
   );
 }
 
@@ -143,12 +181,6 @@ function safePlace(value: string | null | undefined): string {
   }
 }
 
-function safeDateKind(
-  value: string | null | undefined,
-): "best_before" | "use_by" {
-  return value === "use_by" ? "use_by" : "best_before";
-}
-
 /**
  * Read and project only the Today fields that the assistant contract permits.
  * Parent reads are household-scoped; teen chore reads are actor-scoped in the
@@ -158,10 +190,9 @@ export async function loadAssistantTodayRows(
   db: AssistantTodayLoaderDb,
   input: LoadAssistantTodayRowsInput,
 ): Promise<AssistantTodayLoadedRows> {
-  const localDate = localDateFor(input.serverNow, input.viewerTimeZone);
-  const dayStart = startOfTodayUTC(input.serverNow);
-  const queryStart = addUTCDays(dayStart, -1);
-  const queryEnd = addUTCDays(dayStart, QUERY_DAYS_AFTER_TODAY);
+  const day = localDayWindow(input.serverNow, input.viewerTimeZone);
+  const { localDate, localStart, localEnd, dateStart, dateEnd } = day;
+  const inventoryHorizon = addUTCDays(dateStart, DEFAULT_USE_SOON_DAYS);
 
   const namesPromise =
     input.role === "parent" && input.features.chores
@@ -177,20 +208,23 @@ export async function loadAssistantTodayRows(
     ? db.event.findMany({
         where: {
           family_id: input.familyId,
-          end_time: { gt: input.serverNow },
-          start_time: { lt: queryEnd },
+          // Query the actual local-day overlap before applying the cap. The
+          // bounds are timezone/DST-aware instants, not a fixed 24h UTC span.
+          end_time: { gt: localStart },
+          start_time: { lt: localEnd },
         },
         select: {
+          id: true,
           title: true,
           start_time: true,
           end_time: true,
           is_task: true,
-          // Presence supplies a fixed source label. The arbitrary source name
-          // never enters the projection, and no source id is selected.
-          source_subscription: { select: { name: true } },
-          source_connection: { select: { calendar_name: true } },
+          // Presence supplies a fixed source label. Only an opaque relation
+          // id is selected; arbitrary source names never enter the projection.
+          source_subscription: { select: { id: true } },
+          source_connection: { select: { id: true } },
         },
-        orderBy: [{ start_time: "asc" }],
+        orderBy: [{ start_time: "asc" }, { id: "asc" }],
         take: MAX_EVENTS * 3,
       })
     : Promise.resolve([]);
@@ -199,16 +233,19 @@ export async function loadAssistantTodayRows(
     ? db.chore.findMany({
         where: {
           family_id: input.familyId,
-          due_date: { gte: queryStart, lt: queryEnd },
+          // Chores are date-only values stored at UTC midnight. Query the
+          // exact viewer day so adjacent-day rows cannot consume the limit.
+          due_date: { gte: dateStart, lt: dateEnd },
           ...(input.role === "teen" ? { assigned_to: input.userId } : {}),
         },
         select: {
+          id: true,
           title: true,
           due_date: true,
           status: true,
           assigned_to: true,
         },
-        orderBy: [{ due_date: "asc" }, { created_at: "asc" }],
+        orderBy: [{ due_date: "asc" }, { created_at: "asc" }, { id: "asc" }],
         take: input.role === "teen" ? MAX_CHORES : MAX_CHORES * 2,
       })
     : Promise.resolve([]);
@@ -218,15 +255,18 @@ export async function loadAssistantTodayRows(
         where: {
           family_id: input.familyId,
           meal_type: "dinner",
-          date: { gte: queryStart, lt: queryEnd },
+          date: { gte: dateStart, lt: dateEnd },
         },
         select: {
+          id: true,
           date: true,
           recipe_name: true,
           cook: { select: { id: true, name: true, family_id: true } },
-          recipe: { select: { title: true, prep_time: true } },
+          recipe: {
+            select: { title: true, prep_time: true, family_id: true },
+          },
         },
-        orderBy: [{ date: "asc" }, { created_at: "asc" }],
+        orderBy: [{ date: "asc" }, { created_at: "asc" }, { id: "asc" }],
         take: 20,
       })
     : Promise.resolve([]);
@@ -238,11 +278,12 @@ export async function loadAssistantTodayRows(
           list: { family_id: input.familyId, type: "grocery" },
         },
         select: {
+          id: true,
           content: true,
           quantity: true,
           list: { select: { name: true } },
         },
-        orderBy: [{ created_at: "asc" }],
+        orderBy: [{ created_at: "asc" }, { id: "asc" }],
         take: MAX_GROCERIES,
       })
     : Promise.resolve([]);
@@ -252,19 +293,25 @@ export async function loadAssistantTodayRows(
         where: {
           family_id: input.familyId,
           status: "active",
-          expires_on: { not: null, lte: addUTCDays(dayStart, 4) },
+          expires_on: { not: null, lte: inventoryHorizon },
           OR: [
             { date_kind: { not: "use_by" } },
-            { expires_on: { gte: queryStart } },
+            { expires_on: { gte: dateStart } },
           ],
         },
         select: {
+          id: true,
           name: true,
           location: true,
           expires_on: true,
           date_kind: true,
         },
-        orderBy: [{ expires_on: "asc" }, { name: "asc" }],
+        orderBy: [
+          { expires_on: "asc" },
+          { date_kind: "desc" },
+          { name: "asc" },
+          { id: "asc" },
+        ],
         take: MAX_USE_SOON,
       })
     : Promise.resolve([]);
@@ -281,14 +328,7 @@ export async function loadAssistantTodayRows(
   const namesById = new Map(names.map((member) => [member.id, member.name]));
 
   const events: AssistantTodayEvent[] = eventRows
-    .filter((event) =>
-      eventIsOnLocalDay(
-        event,
-        localDate,
-        input.viewerTimeZone,
-        input.serverNow,
-      ),
-    )
+    .filter((event) => eventIsOnLocalDay(event, localStart, localEnd))
     .slice(0, MAX_EVENTS)
     .map((event) => ({
       title: boundedText(event.title),
@@ -323,10 +363,12 @@ export async function loadAssistantTodayRows(
   const dinnerRow = dinnerRows.find(
     (dinner) => toDateOnlyUTC(dinner.date) === localDate,
   );
+  const linkedRecipe =
+    dinnerRow?.recipe?.family_id === input.familyId ? dinnerRow.recipe : null;
   const dinner: AssistantTodayDinner | null = dinnerRow
     ? {
         title:
-          boundedText(dinnerRow.recipe?.title || dinnerRow.recipe_name) || null,
+          boundedText(linkedRecipe?.title || dinnerRow.recipe_name) || null,
         cook: dinnerRow.cook
           ? input.role === "parent"
             ? dinnerRow.cook.family_id === input.familyId
@@ -338,9 +380,9 @@ export async function loadAssistantTodayRows(
               : "Another household member"
           : null,
         prepMinutes:
-          typeof dinnerRow.recipe?.prep_time === "number" &&
-          Number.isFinite(dinnerRow.recipe.prep_time)
-            ? dinnerRow.recipe.prep_time
+          typeof linkedRecipe?.prep_time === "number" &&
+          Number.isFinite(linkedRecipe.prep_time)
+            ? linkedRecipe.prep_time
             : null,
       }
     : null;
@@ -354,18 +396,27 @@ export async function loadAssistantTodayRows(
     list: boundedText(item.list.name),
   }));
 
-  const useSoon: AssistantTodayUseSoon[] = useSoonRows.flatMap((item) =>
-    item.expires_on
-      ? [
-          {
-            item: boundedText(item.name),
-            place: safePlace(item.location),
-            expiresOn: toDateOnlyUTC(item.expires_on),
-            dateKind: safeDateKind(item.date_kind),
-          },
-        ]
-      : [],
-  );
+  const useSoon: AssistantTodayUseSoon[] = useSoonRows.flatMap((item) => {
+    if (!item.expires_on) return [];
+    const dateKind = asDateKind(item.date_kind);
+    const expiry = expiryStatus(
+      item.expires_on,
+      dateStart,
+      DEFAULT_USE_SOON_DAYS,
+      dateKind,
+    );
+    if (!isUseSoonStatus(expiry.status) || expiry.daysLeft === null) return [];
+    return [
+      {
+        item: boundedText(item.name),
+        place: safePlace(item.location),
+        expiresOn: toDateOnlyUTC(item.expires_on),
+        dateKind,
+        status: expiry.status,
+        label: expiryLabel(expiry.status, expiry.daysLeft, dateKind),
+      },
+    ];
+  });
 
   return { events, chores, dinner, groceries, useSoon };
 }

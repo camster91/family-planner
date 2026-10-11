@@ -47,6 +47,8 @@ function rows(
         place: "fridge",
         expiresOn: "2026-10-12",
         dateKind: "use_by",
+        status: "soon",
+        label: "Use by tomorrow",
       },
     ],
     ...overrides,
