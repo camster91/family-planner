@@ -28,6 +28,10 @@ The following additions were prepared against merged source `9058d58`. They pres
 
 The study component family is an editable design aid. Its instances receive explicit state text; selecting its `State` property alone does not supply state-specific copy. The existing journey maps cover loading/error branches separately. #150 remains open for the original distance and acceptance criteria; #163 owns original graphic assets.
 
+## Member setup review — 2026-10-11
+
+[Adaptive member setup](MEMBER_SETUP.md) extends the existing composition page with original phone, portrait-tablet and shared-fridge proposals for #480: add everyone by name, email optional, verified account linking later and shared attribution without privilege. [Review board 71:267](https://www.figma.com/design/s0qsOr91Au0OJ70SCZEWb4?node-id=71-267). Static editable designs were visually inspected after reflow repairs; canonical implementation, full state coverage, journey acceptance and native evidence remain open.
+
 ## Required design artifacts
 
 - reference/moodboard board with borrow/avoid notes;
