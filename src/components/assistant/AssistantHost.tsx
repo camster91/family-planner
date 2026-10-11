@@ -11,9 +11,10 @@ type AssistantPanelTab = "chat" | "report" | "reports";
 
 function AssistantLoading() {
   const { t } = useTranslation();
+  const msg = (key: AssistantMessage) => t(key, undefined, assistantMessages);
   return (
     <span role="status" aria-live="polite" className="sr-only">
-      {t("loading", undefined, assistantMessages)}
+      {msg("loading")}
     </span>
   );
 }
