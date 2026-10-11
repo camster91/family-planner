@@ -60,7 +60,19 @@ export default function FeaturesPage() {
             ? featureDisplay(feature.requires).title
             : undefined
           const display = featureDisplay(feature.key)
-          return [display.title, display.description, title, subtitle, needsTitle]
+          // Search accepts the canonical English metadata as an alias while
+          // the row itself remains localized. This keeps a familiar query
+          // such as "budget" useful on a Spanish device without replacing
+          // the rendered title "Presupuesto".
+          return [
+            display.title,
+            display.description,
+            feature.title,
+            feature.description,
+            title,
+            subtitle,
+            needsTitle,
+          ]
             .filter(Boolean)
             .some((value) =>
               value!.toLocaleLowerCase().includes(normalizedQuery),

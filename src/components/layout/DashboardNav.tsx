@@ -38,7 +38,7 @@ import {
 } from "@/lib/nav-items";
 import { isFeatureEnabled } from "@/lib/features";
 import { useTranslation } from "@/i18n";
-import { useFeatureDisplayCopy } from "@/i18n/feature-display";
+import { useFeatureNavTitle } from "@/i18n/feature-nav";
 import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
 import {
   navigationMessages,
@@ -52,7 +52,7 @@ interface DashboardNavProps {
 
 export default function DashboardNav({ user }: DashboardNavProps) {
   const { t } = useTranslation();
-  const featureDisplay = useFeatureDisplayCopy();
+  const featureNavTitle = useFeatureNavTitle();
   const msg = (
     key: NavigationMessage,
     params?: Record<string, string | number>,
@@ -99,7 +99,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
         .map((item) => ({
           ...item,
           label: navItemDisplayName(item, {
-            [item.featureKey!]: featureDisplay(item.featureKey!).title,
+            [item.featureKey!]: featureNavTitle(item.featureKey!),
           }),
         }))
     : [];
