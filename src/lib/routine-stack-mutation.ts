@@ -352,11 +352,7 @@ export async function mutateRoutineStackInTx<T extends object>(
   ) {
     throw conflict();
   }
-  if (
-    currentStackRows.some(
-      (row) => row.is_template === true || Boolean(row.recurrence_id),
-    )
-  ) {
+  if (currentStackRows.some((row) => row.is_template === true)) {
     throw invalid(
       "Recurring chore templates must be edited outside an occurrence routine.",
     );
@@ -383,11 +379,7 @@ export async function mutateRoutineStackInTx<T extends object>(
     existingRows.map((row) => [String(row.id), row]),
   );
   if (existingRows.length !== selectedIds.length) throw genericNotFound();
-  if (
-    existingRows.some(
-      (row) => row.is_template === true || Boolean(row.recurrence_id),
-    )
-  ) {
+  if (existingRows.some((row) => row.is_template === true)) {
     throw invalid(
       "Recurring chore templates must be edited outside an occurrence routine.",
     );
@@ -397,6 +389,17 @@ export async function mutateRoutineStackInTx<T extends object>(
       throw conflict("The selected step is from a different occurrence.");
     const rowId = String(row.id);
     const isRemoval = draft.remove_chore_ids.includes(rowId);
+    // A removal is addressed by the locked stable chore id and the expected
+    // snapshot, so it does not need to repeat the series id in the draft.
+    // Retained rows must echo the locked recurrence identity so a stale or
+    // cross-series payload cannot silently re-home an occurrence.
+    if (!isRemoval) {
+      const submittedRecurrenceId =
+        draft.steps.find((step) => step.chore_id === rowId)?.recurrence_id ??
+        null;
+      if (submittedRecurrenceId !== (row.recurrence_id ?? null))
+        throw conflict("The selected step's series identity changed.");
+    }
     if (stack?.id) {
       if (row.routine_stack_id && row.routine_stack_id !== stack.id)
         throw conflict("A selected step belongs to another routine.");

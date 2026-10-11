@@ -122,10 +122,19 @@ export function normalizeRoutineStackDraft(input: unknown): RoutineStackDraft {
 
   const seen = new Set<string>();
   for (const step of parsed.data.steps) {
-    if (step.is_template || step.recurrence_id) {
+    if (step.is_template) {
       throw new RoutineStackValidationError(
         "ROUTINE_STACK_RECURRENCE_UNSUPPORTED",
         "Routine stacks can edit one occurrence at a time; recurring templates are not supported yet.",
+      );
+    }
+    // A generated occurrence may carry its canonical series id, but a new
+    // current-occurrence step cannot invent a recurring series. Future-series
+    // creation remains an explicit, separately reviewed scope.
+    if (!step.chore_id && (step.recurrence_id || step.frequency !== "once")) {
+      throw new RoutineStackValidationError(
+        "ROUTINE_STACK_RECURRENCE_UNSUPPORTED",
+        "New routine steps must be one-time occurrences; recurring steps need a separate series edit.",
       );
     }
     if (step.chore_id && seen.has(step.chore_id)) {
