@@ -53,6 +53,7 @@ describeWithDatabase("event capture receipts against Postgres", () => {
   const OTHER_PARENT = "capture-event-receipt-other-parent";
   const priorSharedDeviceEnabled = process.env.SHARED_DEVICE_ENABLED;
   let priorIdempotencyRandom: (() => number) | undefined;
+  let fixtureGuardPassed = false;
   let setupSucceeded = false;
   let sequence = 0;
 
@@ -128,6 +129,7 @@ describeWithDatabase("event capture receipts against Postgres", () => {
 
   beforeAll(async () => {
     assertFixtureTargetAllowed(process.env);
+    fixtureGuardPassed = true;
     process.env.SHARED_DEVICE_ENABLED = "1";
 
     const mod = await import("@/lib/prisma");
@@ -208,25 +210,35 @@ describeWithDatabase("event capture receipts against Postgres", () => {
   afterAll(async () => {
     const database = db;
     const idempotency = idem;
+    let cleanupError: unknown;
     try {
-      if (setupSucceeded && database) {
+      if (fixtureGuardPassed && database) {
         await database.user.updateMany({
           where: { id: PARENT },
           data: { family_id: FAMILY },
         });
         await cleanup();
       }
+    } catch (error) {
+      cleanupError = error;
     } finally {
-      if (idempotency && priorIdempotencyRandom) {
-        idempotency.idempotencyRuntime.random = priorIdempotencyRandom;
+      try {
+        if (idempotency && priorIdempotencyRandom) {
+          idempotency.idempotencyRuntime.random = priorIdempotencyRandom;
+        }
+        if (priorSharedDeviceEnabled === undefined) {
+          delete process.env.SHARED_DEVICE_ENABLED;
+        } else {
+          process.env.SHARED_DEVICE_ENABLED = priorSharedDeviceEnabled;
+        }
+        await database?.$disconnect();
+      } catch (error) {
+        cleanupError ??= error;
       }
-      if (priorSharedDeviceEnabled === undefined) {
-        delete process.env.SHARED_DEVICE_ENABLED;
-      } else {
-        process.env.SHARED_DEVICE_ENABLED = priorSharedDeviceEnabled;
-      }
-      await database?.$disconnect();
     }
+    // If beforeAll failed, keep that original setup error visible instead of
+    // replacing it with a best-effort cleanup failure.
+    if (cleanupError && setupSucceeded) throw cleanupError;
   });
 
   it("reports real event present and removed receipt states", async () => {
@@ -320,11 +332,12 @@ describeWithDatabase("event capture receipts against Postgres", () => {
     const opaque = await GET(
       receiptRequest(PARENT, opaqueKey, "event.create", opaqueHash),
     );
-    expect(await opaque.json()).toEqual({
+    const opaqueBodyResponse = await opaque.json();
+    expect(opaqueBodyResponse).toEqual({
       state: "committed",
       current: "unknown",
     });
-    expect(JSON.stringify(await opaque.json())).not.toContain("must-not-leak");
+    expect(JSON.stringify(opaqueBodyResponse)).not.toContain("must-not-leak");
   });
 
   it("rejects action/hash conflicts and keeps an in-progress POST retryable", async () => {

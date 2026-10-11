@@ -55,6 +55,7 @@ describeWithDatabase("events POST capture against Postgres", () => {
   const OTHER_PARENT = "evt-route-int-other-parent";
   const priorSharedDeviceEnabled = process.env.SHARED_DEVICE_ENABLED;
   let priorIdempotencyRandom: (() => number) | undefined;
+  let fixtureGuardPassed = false;
   let setupSucceeded = false;
   let sequence = 0;
 
@@ -110,6 +111,7 @@ describeWithDatabase("events POST capture against Postgres", () => {
     // Refuse non-disposable targets before importing the Prisma singleton or
     // opening a database connection. This suite is never a production probe.
     assertFixtureTargetAllowed(process.env);
+    fixtureGuardPassed = true;
     process.env.SHARED_DEVICE_ENABLED = "1";
 
     const mod = await import("@/lib/prisma");
@@ -185,27 +187,35 @@ describeWithDatabase("events POST capture against Postgres", () => {
   afterAll(async () => {
     const database = db;
     const idempotency = idem;
+    let cleanupError: unknown;
     try {
       // If beforeAll failed, leave its original error visible rather than
       // allowing partial cleanup to replace it. The connection still closes.
-      if (setupSucceeded && database) {
+      if (fixtureGuardPassed && database) {
         await database.user.updateMany({
           where: { id: PARENT },
           data: { family_id: FAMILY },
         });
         await cleanup();
       }
+    } catch (error) {
+      cleanupError = error;
     } finally {
-      if (idempotency && priorIdempotencyRandom) {
-        idempotency.idempotencyRuntime.random = priorIdempotencyRandom;
+      try {
+        if (idempotency && priorIdempotencyRandom) {
+          idempotency.idempotencyRuntime.random = priorIdempotencyRandom;
+        }
+        if (priorSharedDeviceEnabled === undefined) {
+          delete process.env.SHARED_DEVICE_ENABLED;
+        } else {
+          process.env.SHARED_DEVICE_ENABLED = priorSharedDeviceEnabled;
+        }
+        await database?.$disconnect();
+      } catch (error) {
+        cleanupError ??= error;
       }
-      if (priorSharedDeviceEnabled === undefined) {
-        delete process.env.SHARED_DEVICE_ENABLED;
-      } else {
-        process.env.SHARED_DEVICE_ENABLED = priorSharedDeviceEnabled;
-      }
-      await database?.$disconnect();
     }
+    if (cleanupError && setupSucceeded) throw cleanupError;
   });
 
   it("converges concurrent same-key POSTs to one event and one activity", async () => {
