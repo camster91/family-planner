@@ -3,6 +3,7 @@ import * as React from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
+import { ROUTINE_NAME_MAX } from "@/lib/routine-icons";
 import RoutineStackEditor from "../RoutineStackEditor";
 
 const back = jest.fn();
@@ -114,6 +115,18 @@ function renderEditor() {
     </I18nProvider>,
   );
 }
+
+it("uses the canonical routine-name limit in the editor", async () => {
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) return response(candidates);
+    return response(saveResponse);
+  });
+
+  renderEditor();
+  const label = await screen.findByLabelText("Routine name");
+  expect(label).toHaveProperty("maxLength", ROUTINE_NAME_MAX);
+});
 
 beforeEach(() => {
   searchParams = new URLSearchParams();

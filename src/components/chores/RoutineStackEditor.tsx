@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { Dialog } from "@/components/ui/dialog";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import { ROUTINE_NAME_MAX } from "@/lib/routine-icons";
 import {
   routineStackMessages,
   type RoutineStackMessage,
@@ -823,7 +824,7 @@ export default function RoutineStackEditor({
               disabled={editingLocked}
               className="input-field w-full min-h-[44px]"
               placeholder={msg("labelPlaceholder")}
-              maxLength={200}
+              maxLength={ROUTINE_NAME_MAX}
             />
           </div>
 

@@ -107,6 +107,9 @@ function fixtureFor(info: TestInfo, locale: Locale): Fixture {
   const family = `${prefix}_family`;
   const parent = `${prefix}_parent`;
   const child = `${prefix}_child`;
+  // Keep the visible label within the canonical 40-character API limit while
+  // retaining the full per-test marker in every owned row ID above.
+  const label = `QA routine ${suffix.slice(-29)}`;
   return {
     prefix,
     family,
@@ -114,7 +117,7 @@ function fixtureFor(info: TestInfo, locale: Locale): Fixture {
     child,
     parentEmail: email(parent),
     childEmail: email(child),
-    label: `QA routine ${suffix}`,
+    label,
     memberParent: `${prefix}_member_parent`,
     memberChild: `${prefix}_member_child`,
     existingChild: `${prefix}_existing_child`,
@@ -547,8 +550,9 @@ for (const locale of LOCALES) {
           .getByRole("button", { name: copy[locale].save, exact: true })
           .click();
         const response = await saveResponse;
-        expect(response.status()).toBe(200);
-        const body = (await response.json()) as {
+        const responseBody = await response.text();
+        expect(response.status(), responseBody).toBe(200);
+        const body = JSON.parse(responseBody) as {
           stack_id?: string;
           fingerprint?: string;
         };
