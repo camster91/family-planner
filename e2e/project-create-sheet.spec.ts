@@ -144,7 +144,7 @@ for (const locale of ["en", "es"] as const) {
       let originalFeatures: Record<string, unknown> | undefined;
       let featureChanged = false;
       let mode: CreateMode = "failure";
-      let releasePending: (() => void) | undefined;
+      let releasePending: ((continueRequest: boolean) => void) | undefined;
 
       await installLoopbackGuard(context, blockedWrites, ownedProjectIds);
       await page.addInitScript(
@@ -165,10 +165,11 @@ for (const locale of ["en", "es"] as const) {
           });
           return;
         }
-        await new Promise<void>((resolve) => {
+        const continueRequest = await new Promise<boolean>((resolve) => {
           releasePending = resolve;
         });
-        await route.continue();
+        if (continueRequest) await route.continue();
+        else await route.abort();
       });
 
       try {
@@ -250,7 +251,7 @@ for (const locale of ["en", "es"] as const) {
               response.url().endsWith("/api/projects") &&
               response.request().method() === "POST",
           );
-          releasePending?.();
+          releasePending?.(true);
           const [projectResponse] = await Promise.all([
             projectResponsePromise,
             pendingClick,
@@ -310,7 +311,7 @@ for (const locale of ["en", "es"] as const) {
           contentType: "application/json",
         });
       } finally {
-        releasePending?.();
+        releasePending?.(false);
         await page.unrouteAll({ behavior: "ignoreErrors" });
         const cleanupErrors: unknown[] = [];
         for (const projectId of ownedProjectIds) {
