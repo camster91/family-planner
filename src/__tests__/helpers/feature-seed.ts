@@ -1,4 +1,4 @@
-import { FEATURES, type FamilyFeatures } from "../../src/lib/features";
+import { FEATURES, type FamilyFeatures } from "../../lib/features";
 
 /**
  * The dashboard has both a raw JSON script seed and an escaped copy in the

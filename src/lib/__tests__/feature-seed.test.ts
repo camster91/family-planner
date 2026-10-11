@@ -1,7 +1,7 @@
 import {
   escapeFeatureSeedForRsc,
   replaceFeatureSeed,
-} from "../../../e2e/support/feature-seed";
+} from "../../__tests__/helpers/feature-seed";
 import { FEATURES, type FamilyFeatures } from "../features";
 
 const ALL_ON: FamilyFeatures = Object.fromEntries(
