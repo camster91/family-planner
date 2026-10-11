@@ -84,6 +84,13 @@ function parseChoreList(value: unknown): Chore[] | null {
   return chores.every((chore): chore is Chore => chore !== null) ? chores : null
 }
 
+// A 4xx response is a definitive refusal from the canonical API. A 5xx,
+// redirect-like, or otherwise unknown status may mean the server committed the
+// patch before the response was lost, so it must be reconciled before retrying.
+function isDefinitiveTravelRefusal(status: number) {
+  return Number.isInteger(status) && status >= 400 && status < 500
+}
+
 export default function TravelPage() {
   return (
     <FeatureGate featureKey="travel">
@@ -117,6 +124,14 @@ function TravelPageInner() {
       addToast({ type: 'error', title: text(title), message: text('networkError') })
     },
     [addToast, text]
+  )
+
+  const handleWriteFailure = React.useCallback(
+    (res: Response, message: TravelMessage) => {
+      if (isDefinitiveTravelRefusal(res.status)) notifyFailure(message)
+      else setWriteUnconfirmed(true)
+    },
+    [notifyFailure]
   )
 
   const fetchTravel = React.useCallback(async (options: { preserveDraft?: boolean; reconcile?: boolean } = {}) => {
@@ -219,9 +234,7 @@ function TravelPageInner() {
         } else {
           setWriteUnconfirmed(true)
         }
-      } else {
-        notifyFailure('toggleFailed')
-      }
+      } else handleWriteFailure(res, 'toggleFailed')
     } catch {
       setWriteUnconfirmed(true)
     } finally {
@@ -252,9 +265,7 @@ function TravelPageInner() {
         } else {
           setWriteUnconfirmed(true)
         }
-      } else {
-        notifyFailure('detailsFailed')
-      }
+      } else handleWriteFailure(res, 'detailsFailed')
     } catch {
       setWriteUnconfirmed(true)
     } finally {

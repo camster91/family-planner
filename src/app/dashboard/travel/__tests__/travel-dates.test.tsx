@@ -45,6 +45,7 @@ let travelBodyOverride: unknown
 let choreBodyOverride: unknown
 let patchBodyOverride: unknown
 let patchNetworkFailures: number
+let patchStatus: number | null
 
 // The runner's zone is not ours to pick, so simulate a viewer west of UTC:
 // any local-time formatting (no explicit timeZone) lands in Toronto.
@@ -65,6 +66,7 @@ beforeEach(() => {
   choreBodyOverride = undefined
   patchBodyOverride = undefined
   patchNetworkFailures = 0
+  patchStatus = null
   global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
     if (url.startsWith('/api/chores')) {
       choreUrls.push(url)
@@ -81,6 +83,7 @@ beforeEach(() => {
         patchNetworkFailures -= 1
         throw new Error('temporary network failure')
       }
+      if (patchStatus !== null) return { ok: false, status: patchStatus, json: async () => ({ error: 'temporary travel failure' }) }
       return { ok: true, json: async () => patchBodyOverride ?? { ...travelState, ...body } }
     }
     if (travelLoadFailures > 0) {
@@ -307,4 +310,51 @@ it('blocks after a network-unknown save until current state is checked', async (
   await waitFor(() => expect(screen.queryByText("We couldn't confirm the change")).toBeNull())
   expect(destination).toHaveValue('Lisbon')
   expect(patches).toHaveLength(1)
+})
+
+it('treats a 503 toggle response as unknown and reconciles before retrying', async () => {
+  travelState = INACTIVE
+  patchStatus = 503
+  renderPage()
+
+  const toggle = await screen.findByRole('switch', { name: 'Turn on travel mode' })
+  await userEvent.click(toggle)
+
+  expect(await screen.findByText("We couldn't confirm the change")).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Check current state' })).toBeEnabled()
+  expect(screen.getByRole('switch', { name: 'Turn on travel mode' })).toBeDisabled()
+  expect(patches).toHaveLength(1)
+
+  patchStatus = null
+  await userEvent.click(screen.getByRole('button', { name: 'Check current state' }))
+  await waitFor(() => expect(screen.queryByText("We couldn't confirm the change")).toBeNull())
+  expect(screen.getByRole('switch', { name: 'Turn on travel mode' })).toBeEnabled()
+  expect(patches).toHaveLength(1)
+})
+
+it('treats a 503 details response as unknown and retries only after reconciliation', async () => {
+  travelState = ACTIVE
+  patchStatus = 503
+  renderPage()
+
+  await screen.findByRole('switch', { name: 'Turn off travel mode' })
+  const destination = screen.getByLabelText('Destination') as HTMLInputElement
+  await userEvent.clear(destination)
+  await userEvent.type(destination, 'Lisbon')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+  expect(await screen.findByText("We couldn't confirm the change")).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Check current state' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  expect(destination).toHaveValue('Lisbon')
+  expect(patches).toHaveLength(1)
+
+  patchStatus = null
+  travelBodyOverride = { ...ACTIVE, travel_destination: 'Rome' }
+  await userEvent.click(screen.getByRole('button', { name: 'Check current state' }))
+  await waitFor(() => expect(screen.queryByText("We couldn't confirm the change")).toBeNull())
+  expect(destination).toHaveValue('Lisbon')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  await waitFor(() => expect(patches).toHaveLength(2))
+  expect(patches[1].travel_destination).toBe('Lisbon')
 })
