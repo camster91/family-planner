@@ -34,6 +34,14 @@ context:
 - `src/app/api/device/today/route.ts` serves the shared-device audience through
   a device credential. It is not an assistant route and must remain the only
   non-elevated device Today read surface.
+
+The assistant broker follows the same Today field semantics but uses its own
+allowlisted reads. It must not call `loadTodayBoard`/`buildTodayBoard`: those
+visual reads also load ambient settings/photos and can optionally refresh
+weather. `src/lib/assistant-today-loader.ts` selects only the fields needed by
+the provider projection, and applies the teen assignee predicate in the
+database query before any sibling chore row can enter the projection.
+
 - `src/lib/api-auth.ts` authenticates the person and current household, while
   `src/lib/device-refusal.ts` rejects a live paired-device request before the
   lingering person cookie is read. Any new person assistant request must use
@@ -274,10 +282,12 @@ document.
 
 Planned files:
 
-- `src/lib/assistant-today-context.ts`: narrow role-aware projection over
-  `loadTodayBoard`/`buildTodayBoard`, with strict time-zone/freshness checks,
-  redaction and deterministic bounds. Do not duplicate Prisma domain reads
-  without a measured reason.
+- `src/lib/assistant-today-context.ts`: narrow role-aware projection over the
+  dedicated loader, with strict time-zone/freshness checks, redaction and
+  deterministic bounds.
+- `src/lib/assistant-today-loader.ts`: direct, family-scoped allowlisted Today
+  selects. It must stay separate from ambient/photo/weather board loading and
+  must keep teen chores actor-scoped in SQL.
 - `src/lib/assistant-context-schema.ts`: versioned Zod input/output and the
   prompt-safe context envelope. IDs, URLs, feature blobs and private fields
   must be impossible in the provider projection type.

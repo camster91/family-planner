@@ -1,0 +1,221 @@
+import {
+  loadAssistantTodayRows,
+  type AssistantTodayLoaderDb,
+} from "@/lib/assistant-today-loader";
+
+const NOW = new Date("2026-10-11T15:30:00.000Z");
+const FEATURES = {
+  calendar: true,
+  chores: true,
+  lists: true,
+  meals: true,
+  inventory: true,
+};
+
+function dbFor(): AssistantTodayLoaderDb {
+  return {
+    user: {
+      findMany: jest.fn().mockResolvedValue([
+        { id: "parent-id", name: "Parent" },
+        { id: "sibling-id", name: "Sibling" },
+      ]),
+    },
+    event: {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          title: `<instruction>${"é".repeat(400)}</instruction>`,
+          start_time: new Date("2026-10-11T14:00:00.000Z"),
+          end_time: new Date("2026-10-11T16:00:00.000Z"),
+          is_task: false,
+          source_subscription: { name: "secret calendar URL" },
+          source_connection: null,
+        },
+      ]),
+    },
+    chore: {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          title: "Sibling private chore",
+          due_date: new Date("2026-10-11T00:00:00.000Z"),
+          status: "pending",
+          assigned_to: "sibling-id",
+        },
+        {
+          title: "Own chore",
+          due_date: new Date("2026-10-11T00:00:00.000Z"),
+          status: "completed",
+          assigned_to: "teen-id",
+        },
+      ]),
+    },
+    familyMeal: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    listItem: {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          content: "Milk",
+          quantity: 1,
+          list: { name: "Groceries" },
+        },
+      ]),
+    },
+    inventoryItem: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+  } as unknown as AssistantTodayLoaderDb;
+}
+
+describe("loadAssistantTodayRows", () => {
+  it("uses family-scoped allowlisted selects and projects no ids or private text", async () => {
+    const db = dbFor();
+    const loaded = await loadAssistantTodayRows(db, {
+      familyId: "family-a",
+      userId: "parent-id",
+      role: "parent",
+      features: FEATURES,
+      serverNow: NOW,
+      viewerTimeZone: "America/Toronto",
+    });
+
+    expect(loaded.events[0]).toMatchObject({ source: "Subscribed calendar" });
+    expect(
+      Buffer.byteLength(loaded.events[0].title, "utf8"),
+    ).toBeLessThanOrEqual(512);
+    expect(loaded.chores.map((chore) => chore.assignee)).toEqual([
+      "Sibling",
+      "A household member",
+    ]);
+    expect(JSON.stringify(loaded)).not.toContain("sibling-id");
+    expect(JSON.stringify(loaded)).not.toContain("secret calendar URL");
+
+    expect(db.event.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ family_id: "family-a" }),
+        select: expect.not.objectContaining({
+          id: true,
+          description: true,
+          location: true,
+          created_by: true,
+        }),
+      }),
+    );
+    expect(db.chore.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ family_id: "family-a" }),
+        select: expect.not.objectContaining({
+          id: true,
+          description: true,
+          points: true,
+          notes: true,
+        }),
+      }),
+    );
+    expect(db.listItem.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          list: { family_id: "family-a", type: "grocery" },
+        }),
+        select: expect.not.objectContaining({
+          id: true,
+          notes: true,
+          price: true,
+        }),
+      }),
+    );
+  });
+
+  it("applies the authenticated teen predicate and filters any mismatched fixture row", async () => {
+    const db = dbFor();
+    const loaded = await loadAssistantTodayRows(db, {
+      familyId: "family-a",
+      userId: "teen-id",
+      role: "teen",
+      features: FEATURES,
+      serverNow: NOW,
+      viewerTimeZone: "America/Toronto",
+    });
+
+    expect(db.user.findMany).not.toHaveBeenCalled();
+    expect(db.chore.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          family_id: "family-a",
+          assigned_to: "teen-id",
+        }),
+      }),
+    );
+    expect(loaded.chores).toEqual([
+      {
+        title: "Own chore",
+        dueDay: "2026-10-11",
+        status: "done",
+        assignee: "You",
+      },
+    ]);
+  });
+
+  it("keeps a local-time boundary correct without widening the household query", async () => {
+    const db = dbFor();
+    (db.event.findMany as jest.Mock).mockResolvedValue([
+      {
+        title: "Late local event",
+        start_time: new Date("2026-10-12T00:15:00.000Z"),
+        end_time: new Date("2026-10-12T01:00:00.000Z"),
+        is_task: true,
+        source_subscription: null,
+        source_connection: null,
+      },
+      {
+        title: "Next local day",
+        start_time: new Date("2026-10-12T04:30:00.000Z"),
+        end_time: new Date("2026-10-12T05:00:00.000Z"),
+        is_task: false,
+        source_subscription: null,
+        source_connection: null,
+      },
+    ]);
+    const loaded = await loadAssistantTodayRows(db, {
+      familyId: "family-a",
+      userId: "parent-id",
+      role: "parent",
+      features: FEATURES,
+      serverNow: new Date("2026-10-12T00:30:00.000Z"),
+      viewerTimeZone: "America/Toronto",
+    });
+
+    expect(loaded.events.map((event) => event.title)).toEqual([
+      "Late local event",
+    ]);
+    expect(db.event.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ family_id: "family-a" }),
+      }),
+    );
+  });
+
+  it("does not query disabled sections", async () => {
+    const db = dbFor();
+    await loadAssistantTodayRows(db, {
+      familyId: "family-a",
+      userId: "parent-id",
+      role: "parent",
+      features: {
+        calendar: false,
+        chores: false,
+        lists: false,
+        meals: false,
+        inventory: false,
+      },
+      serverNow: NOW,
+      viewerTimeZone: "America/Toronto",
+    });
+
+    expect(db.user.findMany).not.toHaveBeenCalled();
+    expect(db.event.findMany).not.toHaveBeenCalled();
+    expect(db.chore.findMany).not.toHaveBeenCalled();
+    expect(db.familyMeal.findMany).not.toHaveBeenCalled();
+    expect(db.listItem.findMany).not.toHaveBeenCalled();
+    expect(db.inventoryItem.findMany).not.toHaveBeenCalled();
+  });
+});

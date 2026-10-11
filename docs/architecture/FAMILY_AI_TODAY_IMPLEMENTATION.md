@@ -8,7 +8,11 @@ native capability.
 ## Implemented
 
 - `src/lib/assistant-today-context.ts` authenticates its expected actor against
-  fresh `User` and `Family` rows before loading the current Today board.
+  fresh `User` and `Family` rows before invoking the narrow loader.
+- `src/lib/assistant-today-loader.ts` uses direct, family-scoped allowlisted
+  selects. It never calls the visual Today board, ambient settings/photos or
+  weather-capable code. Teen chore SQL is constrained to the authenticated
+  actor before projection; parent reads remain household-scoped.
 - Child claims and paired/shared-device surfaces return unavailable before any
   database call. A mismatched current role or household returns unavailable.
 - The projection uses `normalizeFeatures` followed by `effectiveFeatures` and
