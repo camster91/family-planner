@@ -517,7 +517,7 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
     expect(migrationVerified).toBe(true);
   });
 
-  it("hands a creator's routine identity to the successor and preserves another member's chore", async () => {
+  it("anonymizes the erased routine creator and preserves another member's chore", async () => {
     const result = await accountDeletion.deleteMemberAccount(PARENT_A, {
       db,
       uploadDir: path.join(process.cwd(), ".tmp-routine-stack-integration"),
@@ -529,7 +529,7 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
       where: { id: STACK_A },
     });
     const chore = await db.chore.findUniqueOrThrow({ where: { id: CHORE_A } });
-    expect(stack.created_by).toBe(OTHER_PARENT_A);
+    expect(stack.created_by).toBeNull();
     expect(chore.created_by).toBe(OTHER_PARENT_A);
     expect(chore.assigned_to).toBe(CHILD_A);
     expect(await db.user.findUnique({ where: { id: PARENT_A } })).toBeNull();
