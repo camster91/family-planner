@@ -37,7 +37,7 @@ import {
 } from "@/lib/nav-items";
 import { isFeatureEnabled } from "@/lib/features";
 import { useTranslation } from "@/i18n";
-import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery";
+import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
 import {
   navigationMessages,
   navigationTabKey,

@@ -6,10 +6,23 @@
  * deliberately excluded. The server receipt remains authoritative.
  */
 
+import {
+  CAPTURE_RECOVERY_ACTIVE_STORAGE_KEY,
+  CAPTURE_RECOVERY_STORAGE_PREFIX,
+  captureRecoveryStorageKey,
+  type RecoveryStorage,
+} from './capture-recovery-storage'
+
+export {
+  CAPTURE_RECOVERY_ACTIVE_STORAGE_KEY,
+  CAPTURE_RECOVERY_STORAGE_PREFIX,
+  captureRecoveryStorageKey,
+  clearCaptureRecoveryStorage,
+  type RecoveryStorage,
+} from './capture-recovery-storage'
+
 export const CAPTURE_RECOVERY_RETENTION_MS = 6 * 24 * 60 * 60 * 1000
 export const CAPTURE_RECOVERY_MAX_OPERATIONS = 20
-const STORAGE_PREFIX = 'family-planner:capture-recovery:v1:'
-const ACTIVE_STORAGE_KEY = `${STORAGE_PREFIX}active`
 
 export type CaptureRecoveryAction = 'event.create' | 'capture.grocery.add'
 export type CaptureRecoveryKind = 'event' | 'listitem'
@@ -24,12 +37,6 @@ export interface CaptureRecoveryEnvelope {
   kind: CaptureRecoveryKind
   createdAt: number
   photo: boolean
-}
-
-export interface RecoveryStorage {
-  getItem(key: string): string | null
-  setItem(key: string, value: string): void
-  removeItem(key: string): void
 }
 
 function isAction(value: unknown): value is CaptureRecoveryAction {
@@ -67,10 +74,6 @@ function safeStorage(storage?: RecoveryStorage | null): RecoveryStorage | null {
   }
 }
 
-export function captureRecoveryStorageKey(userId: string, familyId: string): string {
-  return `${STORAGE_PREFIX}${encodeURIComponent(userId)}:${encodeURIComponent(familyId)}`
-}
-
 /** Mark the current account namespace and remove a prior account's envelopes. */
 export function activateCaptureRecoveryStorage(
   storage: RecoveryStorage | null | undefined,
@@ -81,37 +84,17 @@ export function activateCaptureRecoveryStorage(
   if (!target || !userId || !familyId) return null
   const key = captureRecoveryStorageKey(userId, familyId)
   try {
-    const previous = target.getItem(ACTIVE_STORAGE_KEY)
-    if (previous && previous !== key && previous.startsWith(STORAGE_PREFIX)) target.removeItem(previous)
-    target.setItem(ACTIVE_STORAGE_KEY, key)
+    const previous = target.getItem(CAPTURE_RECOVERY_ACTIVE_STORAGE_KEY)
+    if (
+      previous &&
+      previous !== key &&
+      previous.startsWith(CAPTURE_RECOVERY_STORAGE_PREFIX)
+    )
+      target.removeItem(previous)
+    target.setItem(CAPTURE_RECOVERY_ACTIVE_STORAGE_KEY, key)
     return key
   } catch {
     return null
-  }
-}
-
-/**
- * Drop the active capture-recovery namespace when a session ends. Capture
- * envelopes contain normalized household content, so logout must remove both
- * the active-account marker and its namespace rather than waiting for the
- * next account to mount CaptureBox.
- */
-export function clearCaptureRecoveryStorage(
-  storage: RecoveryStorage | null | undefined,
-  userId?: string,
-  familyId?: string,
-): void {
-  const target = safeStorage(storage)
-  if (!target) return
-  try {
-    const active = target.getItem(ACTIVE_STORAGE_KEY)
-    const keys = new Set<string>()
-    if (userId && familyId) keys.add(captureRecoveryStorageKey(userId, familyId))
-    if (active && active.startsWith(STORAGE_PREFIX) && active !== ACTIVE_STORAGE_KEY) keys.add(active)
-    for (const key of keys) target.removeItem(key)
-    target.removeItem(ACTIVE_STORAGE_KEY)
-  } catch {
-    // Storage is optional; logout should continue even if private mode denies removal.
   }
 }
 
