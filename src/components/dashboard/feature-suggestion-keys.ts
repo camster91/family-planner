@@ -1,4 +1,4 @@
-import { isFeatureEnabled, type FamilyFeatures, type FeatureKey } from '@/lib/features'
+import { isFeatureEnabled, type FamilyFeatures, type FeatureKey } from '@/lib/feature-flags'
 
 /** Keep the lightweight eligibility check separate from the icon/card module. */
 export const FEATURE_SUGGESTION_KEYS: readonly FeatureKey[] = ['rewards', 'budget', 'messages', 'notes']
