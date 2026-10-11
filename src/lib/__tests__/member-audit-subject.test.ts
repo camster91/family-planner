@@ -72,8 +72,17 @@ describe("member audit-subject expand contract", () => {
       "ARRAY[member_attnum, family_attnum]::SMALLINT[]",
     );
     expect(migration).toContain(
-      "ARRAY[family_attnum, subject_attnum]::int2vector",
+      "existing.indkey::text <> format('%s %s', family_attnum, subject_attnum)",
     );
+    expect(migration).toContain("existing.indnkeyatts <> 2");
+    expect(migration).toContain(
+      "existing.indcollation::text <> format('%s %s', family_collation, subject_collation)",
+    );
+    expect(migration).toContain(
+      "existing.indclass::text <> format('%s %s', text_opclass, text_opclass)",
+    );
+    expect(migration).toContain("existing.indoption::text <> '0 0'");
+    expect(migration).toContain("existing.amname <> 'btree'");
     expect(migration).not.toMatch(
       /ALTER TABLE[\s\S]*?ADD COLUMN IF NOT EXISTS/,
     );

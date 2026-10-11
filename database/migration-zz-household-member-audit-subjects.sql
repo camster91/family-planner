@@ -154,23 +154,36 @@ DECLARE
   table_oid OID;
   family_attnum SMALLINT;
   subject_attnum SMALLINT;
+  family_collation OID;
+  subject_collation OID;
+  text_opclass OID;
   existing RECORD;
 BEGIN
   FOREACH table_name IN ARRAY ARRAY['Activity', 'DeviceAuditEvent'] LOOP
     index_name := table_name || '_family_id_subject_member_id_idx';
     table_oid := to_regclass(format('%I', table_name));
-    SELECT attnum INTO family_attnum FROM pg_attribute
+    SELECT attnum, attcollation INTO family_attnum, family_collation FROM pg_attribute
       WHERE attrelid = table_oid AND attname = 'family_id' AND NOT attisdropped;
-    SELECT attnum INTO subject_attnum FROM pg_attribute
+    SELECT attnum, attcollation INTO subject_attnum, subject_collation FROM pg_attribute
       WHERE attrelid = table_oid AND attname = 'subject_member_id' AND NOT attisdropped;
     IF family_attnum IS NULL OR subject_attnum IS NULL THEN
       RAISE EXCEPTION '% index columns are missing', table_name USING ERRCODE = '42703';
     END IF;
+    SELECT oc.oid INTO text_opclass
+    FROM pg_opclass oc
+    JOIN pg_am am ON am.oid = oc.opcmethod
+    JOIN pg_namespace n ON n.oid = oc.opcnamespace
+    WHERE am.amname = 'btree' AND n.nspname = 'pg_catalog' AND oc.opcname = 'text_ops';
+    IF text_opclass IS NULL THEN
+      RAISE EXCEPTION 'pg_catalog.text_ops is missing' USING ERRCODE = '42704';
+    END IF;
     SELECT i.indrelid, i.indkey, i.indisvalid, i.indisready, i.indpred, i.indexprs,
-           i.indisunique, c.relkind
+           i.indisunique, i.indnatts, i.indnkeyatts, i.indcollation,
+           i.indclass, i.indoption, am.amname, c.relkind
     INTO existing
     FROM pg_class c
     JOIN pg_index i ON i.indexrelid = c.oid
+    JOIN pg_am am ON am.oid = c.relam
     WHERE c.relname = index_name
       AND c.relnamespace = (SELECT relnamespace FROM pg_class WHERE oid = table_oid);
     IF NOT FOUND THEN
@@ -178,7 +191,15 @@ BEGIN
         'CREATE INDEX %I ON %I (family_id, subject_member_id)', index_name, table_name
       );
     ELSIF existing.indrelid <> table_oid
-      OR existing.indkey <> ARRAY[family_attnum, subject_attnum]::int2vector
+      -- int2vector can carry a zero-based array lower bound after catalog
+      -- round-trips, so compare its canonical ordered text representation
+      -- rather than array equality (which would reject a valid index).
+      OR existing.indkey::text <> format('%s %s', family_attnum, subject_attnum)
+      OR existing.indnatts <> 2 OR existing.indnkeyatts <> 2
+      OR existing.indcollation::text <> format('%s %s', family_collation, subject_collation)
+      OR existing.indclass::text <> format('%s %s', text_opclass, text_opclass)
+      OR existing.indoption::text <> '0 0'
+      OR existing.amname <> 'btree'
       OR NOT existing.indisvalid OR NOT existing.indisready
       OR existing.indpred IS NOT NULL OR existing.indexprs IS NOT NULL
       OR existing.indisunique OR existing.relkind <> 'i' THEN
