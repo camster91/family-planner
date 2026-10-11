@@ -296,7 +296,7 @@ test.beforeAll(async () => {
       await db.query(
         `INSERT INTO "FamilyMeal" (id, family_id, date, meal_type, recipe_name, notes, cook_id, created_by, created_at)
          VALUES ($1, $2, $3, 'dinner', $4, 'FRIDGE-CANARY-MEAL-NOTE', $5, $5, $6)`,
-        [id, A.family, dateOnly(days), recipe, A.parent, now],
+        [id, A.family, dateOnly(days).toISOString(), recipe, A.parent, now],
       );
     }
     await db.query(
@@ -876,8 +876,8 @@ test.describe("Today board: Family A child", () => {
   test("opens the shared board with only links a child can use", async ({
     page,
   }, testInfo) => {
-    await openBoard(page);
-    await expect(page).toHaveURL(/\/dashboard\/today$/);
+    await openBoard(page, "/dashboard/today?mode=fridge");
+    await expect(page).toHaveURL(/\/dashboard\/today\?mode=fridge$/);
     await expect(region(page, "dinner")).toContainText(DINNER_TODAY);
     await expect(
       region(page, "chores").getByTestId("chore-person"),
@@ -908,7 +908,7 @@ test.describe("Today board: Family A child", () => {
     expect(placesRes.status()).toBe(403);
 
     await expectNoCanaries(page);
-    await axeScan(page, testInfo, "/dashboard/today (child)");
+    await axeScan(page, testInfo, "/dashboard/today?mode=fridge (child)");
   });
 });
 

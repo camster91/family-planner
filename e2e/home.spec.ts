@@ -343,6 +343,17 @@ test.describe("Family A child", () => {
   }) => {
     await page.goto("/dashboard/today");
     await expect(summary(page)).toHaveText("You have 1 chore left");
+    // Personal home keeps the child's task once; the remaining household tile shows Taylor.
+    await expect(page.getByTestId("home-summary")).toContainText(
+      "Tidy bedroom",
+    );
+    await expect(page.getByText("Tidy bedroom", { exact: true })).toHaveCount(
+      1,
+    );
+    await expect(page.getByTestId("region-chores")).toContainText("Taylor");
+    await expect(page.getByTestId("region-chores")).not.toContainText(
+      "Tidy bedroom",
+    );
     await expect(
       page.getByTestId("home-summary").getByRole("link"),
     ).toHaveCount(0);
