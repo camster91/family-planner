@@ -1,5 +1,14 @@
 "use client";
-import { WEEKDAYS } from "@/lib/chore-weekdays";
+import { useTranslation } from "@/i18n";
+import { useLocalNow } from "@/components/ui/use-hydrated";
+import { formatDateOnly, parseDateOnly, toDateOnlyLocal } from "@/lib/dates";
+import {
+  formatWeeklyDays,
+  nextSelectedWeekday,
+  normalizedWeekdays,
+  WEEKDAYS,
+} from "@/lib/chore-weekdays";
+import { choreScheduleMessages } from "@/i18n/chore-schedule";
 
 export type WeeklyDaysPickerCopy = {
   legend?: string;
@@ -22,6 +31,34 @@ export function WeeklyDaysPicker({
   copy?: WeeklyDaysPickerCopy;
 }) {
   const labels = { ...defaultCopy, ...copy };
+  const { locale, t } = useTranslation();
+  const now = useLocalNow();
+  const selectedDays = normalizedWeekdays(days);
+  const today = now ? parseDateOnly(toDateOnlyLocal(now)) : null;
+  const nextDate = today
+    ? nextSelectedWeekday(today, selectedDays, true)
+    : null;
+  const daySummary = formatWeeklyDays(selectedDays, locale);
+  const dateSummary = nextDate
+    ? formatDateOnly(nextDate, undefined, locale === "es" ? "es-ES" : "en-CA")
+    : null;
+  const summaryKey = dateSummary
+    ? "choreSchedule.weeklySummary"
+    : "choreSchedule.weeklyDays";
+  const summaryTemplate = dateSummary
+    ? choreScheduleMessages[locale].weeklySummary
+    : choreScheduleMessages[locale].weeklyDays;
+  const translatedSummary =
+    daySummary && t(summaryKey, { days: daySummary, date: dateSummary ?? "" });
+  // A picker can be rendered in a focused unit test without the app provider.
+  // Keep that isolated surface readable while the real app uses typed i18n.
+  const summary =
+    daySummary &&
+    (translatedSummary === summaryKey
+      ? summaryTemplate
+          .replace("{days}", daySummary)
+          .replace("{date}", dateSummary ?? "")
+      : translatedSummary);
   return (
     <fieldset className="space-y-2">
       <legend className="label-apple">{labels.legend}</legend>
@@ -49,6 +86,16 @@ export function WeeklyDaysPicker({
           </label>
         ))}
       </div>
+      {summary && (
+        <p
+          className="text-footnote text-label-secondary"
+          role="status"
+          aria-live="polite"
+          data-testid="weekly-schedule-summary"
+        >
+          {summary}
+        </p>
+      )}
     </fieldset>
   );
 }
