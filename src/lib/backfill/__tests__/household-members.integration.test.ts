@@ -121,6 +121,15 @@ dbDescribe('household member foundation rehearsal', () => {
     await expect(db.query('UPDATE "User" SET family_id = $1 WHERE id = $2', [B, C])).rejects.toMatchObject({ code: '23503' })
   })
 
+  it('deletes a household after mapping/link creation without foreign-key trigger ordering failures', async () => {
+    await rehearseHouseholdMembers(db, A, true)
+    await db.query('INSERT INTO "HouseholdMemberAccountLink" (member_id,user_id,family_id,verified_at) VALUES ($1,$2,$3,CURRENT_TIMESTAMP)', [memberIdForLegacyUser(A, C), C, A])
+    await db.query('DELETE FROM "Family" WHERE id = $1', [A])
+    expect(await counts()).toEqual({ members: 0, mappings: 0, links: 0 })
+    expect((await db.query('SELECT family_id FROM "User" WHERE id = $1', [C])).rows).toEqual([{ family_id: null }])
+    expect((await db.query('SELECT id FROM "Family" WHERE id = $1', [B])).rowCount).toBe(1)
+  })
+
   it('rolls back a failure between profile and mapping insertion', async () => {
     const before = await legacyHashes()
     const failing = { query: (text: string, values?: unknown[]) => text.startsWith('INSERT INTO "HouseholdMemberLegacyMapping"') ? Promise.reject(new Error('Injected mapping failure')) : db.query(text, values) }

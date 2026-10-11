@@ -2,6 +2,8 @@
 
 This slice adds independent household-person IDs without enabling profile-only setup, assignment, login or shared-device selection. Existing User fields, account authentication, chores, points and recorded actors remain unchanged. The application's startup migration creates three empty additive tables. It never runs a backfill.
 
+The existing explicit whole-household deletion plan includes links, mappings and profiles in child-before-parent order after device credentials. Its two-household fake and PostgreSQL tests seed the new tables and verify household deletion coverage. This does not enable member-only erasure or change the separate account-deletion contract.
+
 HouseholdMember stores presentation fields and an immutable household. HouseholdMemberLegacyMapping records the deterministic legacy conversion, not authorization. HouseholdMemberAccountLink is reserved for an explicitly verified future link flow. Composite foreign keys enforce the same household for both references. A database timestamp alone is not account-owner verification.
 
 ## Disposable rehearsal
@@ -17,13 +19,15 @@ The default dry run rolls back. Explicit apply creates members and mappings in o
 
 ## Evidence and limits
 
-Nineteen focused checks cover the inventory contract, argument/identity behavior and twelve disposable PostgreSQL cases: repeated SQL, dry run, apply and rerun, unchanged legacy rows, foreign-household/unassigned references, duplicate links, name-only schema rows, immutable household, unmanaged account moves, injected rollback, concurrency, conflicting mappings and invalid/nonfixture accounts. The complete custom startup migration path and Prisma validation/generation also passed against disposable data.
+Twenty focused checks cover the inventory contract, argument/identity behavior and thirteen disposable PostgreSQL cases: repeated SQL, dry run, apply and rerun, unchanged legacy rows, foreign-household/unassigned references, duplicate links, name-only schema rows, immutable household, unmanaged account moves, family deletion after mapping/link creation, injected rollback, concurrency, conflicting mappings and invalid/nonfixture accounts. The complete custom startup migration path and Prisma validation/generation also passed against disposable data.
 
 These checks do not establish account-owner linking, name-only application journeys, shared-device attribution, complete erasure, old-client compatibility, production rollout or native device readiness. Browser tests are not claimed for this schema/tool-only slice.
 
 ## Activation dependencies and recovery
 
 Before production backfill, implement common membership transitions: mappings intentionally prevent an unmanaged User household move. Review the per-domain erasure ledger: deleting User cascades mapping/link rows but leaves the member's identifying profile. Neither cascade nor profile archive constitutes permanent erasure. Do not activate this slice until deletion, unlink/revocation, replay and recovery cannot resurrect erased information.
+
+The two account-side composite foreign keys are deferred until transaction completion in the SQL migration so family deletion can clear account membership and cascade profiles in either trigger order. Prisma cannot express that deferral; use the custom migration and database regression check. Member removal must explicitly transition mappings/links before clearing membership. Cross-table legacy-mapping/account-link agreement is not enforced by the current unique keys: the future linking transaction must reject conflicting identities under a common lock and verify account ownership. Dormant table presence is not evidence that linking is ready.
 
 Before profile-only writes, migrate every member-subject domain and non-FK identity, verify dual writes/readers, old queued operations and explicit client capability negotiation, and provide original adaptive onboarding/member UX evidence. Selecting a parent-looking profile must never grant parent account authority. Keep private account, finance, medical and provider data outside shared selection.
 

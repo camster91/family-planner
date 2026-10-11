@@ -42,6 +42,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS "HouseholdMemberLegacyMapping_member_id_family
 CREATE UNIQUE INDEX IF NOT EXISTS "HouseholdMemberAccountLink_user_id_family_id_key" ON "HouseholdMemberAccountLink" ("user_id", "family_id");
 CREATE UNIQUE INDEX IF NOT EXISTS "HouseholdMemberAccountLink_member_id_family_id_key" ON "HouseholdMemberAccountLink" ("member_id", "family_id");
 
+-- Family deletion clears User.family_id and cascades HouseholdMember rows.
+-- Check the account side after both actions, rather than depending on trigger order.
+-- Ordinary membership moves still fail at transaction commit while mappings exist.
+ALTER TABLE "HouseholdMemberLegacyMapping" ALTER CONSTRAINT "HouseholdMemberLegacyMapping_user_id_family_id_fkey" DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE "HouseholdMemberAccountLink" ALTER CONSTRAINT "HouseholdMemberAccountLink_user_id_family_id_fkey" DEFERRABLE INITIALLY DEFERRED;
+
 -- A household person never moves between families by changing a foreign key.
 CREATE OR REPLACE FUNCTION guard_household_member_family() RETURNS trigger AS $$
 BEGIN
