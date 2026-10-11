@@ -12,6 +12,17 @@ import {
 import { FIXTURE_EMAILS, FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { E2E_ANCHOR } from "./support/env";
 
+async function withFixtureDb<T>(fn: (db: pg.Client) => Promise<T>): Promise<T> {
+  assertFixtureTargetAllowed(process.env);
+  const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await db.connect();
+  try {
+    return await fn(db);
+  } finally {
+    await db.end();
+  }
+}
+
 test("Routines keeps Today actionable and other repeating chores dated, grouped and canonical", async ({
   page,
   context,
@@ -31,7 +42,21 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
   const title = `QA weekly routine ${randomUUID()}`;
   const ownedIds: string[] = [];
   let testFailure: unknown;
+  let metricsEnabled: boolean | undefined;
   try {
+    await withFixtureDb(async (db) => {
+      const family = await db.query<{ beta_metrics_enabled: boolean }>(
+        'SELECT beta_metrics_enabled FROM "Family" WHERE id = $1',
+        [FIXTURE_IDS.familyA.family],
+      );
+      expect(family.rowCount).toBe(1);
+      metricsEnabled = family.rows[0].beta_metrics_enabled;
+      // Keep opt-in counters intact; no metrics are produced by this QA run.
+      await db.query(
+        'UPDATE "Family" SET beta_metrics_enabled = false WHERE id = $1',
+        [FIXTURE_IDS.familyA.family],
+      );
+    });
     const created = await browserSend(page, "POST", "/api/chores/create", {
       title,
       assigned_to: FIXTURE_IDS.familyA.teen,
@@ -121,21 +146,16 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
     // assertions fail. This read is fixture-guarded and scoped to this run's
     // unique title and household; all deletions still use the canonical API.
     const cleanupFailures: unknown[] = [];
-    let db: pg.Client | undefined;
     try {
-      assertFixtureTargetAllowed(process.env);
-      db = new pg.Client({ connectionString: process.env.DATABASE_URL });
-      await db.connect();
-      const rows = await db.query<{ id: string }>(
-        'SELECT id FROM "Chore" WHERE family_id = $1 AND title = $2',
-        [FIXTURE_IDS.familyA.family, title],
-      );
-      ownedIds.push(...rows.rows.map((row) => row.id));
+      await withFixtureDb(async (db) => {
+        const rows = await db.query<{ id: string }>(
+          'SELECT id FROM "Chore" WHERE family_id = $1 AND title = $2',
+          [FIXTURE_IDS.familyA.family, title],
+        );
+        ownedIds.push(...rows.rows.map((row) => row.id));
+      });
     } catch (error) {
       cleanupFailures.push(error);
-    } finally {
-      if (db)
-        await db.end().catch((error: unknown) => cleanupFailures.push(error));
     }
     for (const choreId of new Set(ownedIds)) {
       try {
@@ -145,6 +165,33 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
         expect(removed.status).toBe(200);
       } catch (error) {
         // Attempt later deletions even if one fails; retain the original error.
+        cleanupFailures.push(error);
+      }
+    }
+    try {
+      await withFixtureDb(async (db) => {
+        // Notifications/activity have no chore FK. Match only this run's UUID.
+        await db.query(
+          'DELETE FROM "Activity" WHERE family_id = $1 AND title LIKE $2',
+          [FIXTURE_IDS.familyA.family, `%"${title}"%`],
+        );
+        await db.query(
+          'DELETE FROM "Notification" WHERE user_id = $1 AND message LIKE $2',
+          [FIXTURE_IDS.familyA.teen, `%"${title}"%`],
+        );
+      });
+    } catch (error) {
+      cleanupFailures.push(error);
+    }
+    if (metricsEnabled !== undefined) {
+      try {
+        await withFixtureDb((db) =>
+          db.query(
+            'UPDATE "Family" SET beta_metrics_enabled = $2 WHERE id = $1',
+            [FIXTURE_IDS.familyA.family, metricsEnabled],
+          ),
+        );
+      } catch (error) {
         cleanupFailures.push(error);
       }
     }
