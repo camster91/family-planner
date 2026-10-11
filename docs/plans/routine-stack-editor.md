@@ -1,6 +1,6 @@
 # Routine stack editor v1 contract
 
-**Status:** implementation plan only; no runtime, schema, API, role-policy, database, build, or browser changes are included in this worktree.
+**Status:** implementation candidate. This worktree includes the additive schema, parent-only API, editor and focused/rendered evidence; publication remains gated on the repository's fresh-migration, release and hosted checks.
 
 **Base:** `a8195ba330341695922734de20ca225e57921fd8` (`codex/routine-stack-editor-spec-20261011`)
 
@@ -27,7 +27,7 @@ The editor supports two explicit targets:
 1. **This occurrence:** reorder or unstack only the selected date’s rows. This is the safe default and never changes a recurring template.
 2. **This series’ future occurrences:** a parent may opt in after reviewing a plain-language schedule summary. The implementation must validate every participating template/occurrence and preserve completed, verified, started, check-pending and otherwise historical rows. A schedule change or removal never silently marks a skipped step complete.
 
-Pause/resume, automatic anchors, timers, streaks, notifications, drag-only ordering, and a new Routine/RoutineStep table are outside v1. Schedule-aware collapse is allowed only for a durable stack identity plus occurrence date; label-only legacy groups remain a follow-up until an explicit migration.
+Pause/resume, automatic anchors, timers, streaks, notifications, drag-only ordering, and a separate Routine/RoutineStep model are outside v1. Schedule-aware collapse is allowed only for a durable stack identity plus occurrence date; label-only legacy groups remain a follow-up until an explicit migration.
 
 ## Canonical identity and grouping
 
@@ -39,7 +39,7 @@ The existing presentation grouping is not sufficient as a mutation identity. A r
 - **Series identity:** each step’s canonical `recurrence_id` and template row. A set of rows with the same label is not automatically one series or one stack.
 - **Display order:** `routine_order` after normalization. Duplicate or missing order values are repaired only as part of an explicit parent save, never by a read.
 
-The additive identity/model proposal is recorded here for a later implementation and migration; this planning change does not add a schema. The model must provide a durable stack identity, display label, schedule/lifecycle state, version/fingerprint, per-step membership/order/assignee, and the relationship to each canonical chore/template. Existing `Chore` rows remain the completion, verification, recurrence and history records. A compact stack read may carry a unique member dictionary plus per-step member IDs rather than repeating names, while the child/teen read model omits other members' details.
+The additive identity/model is implemented by this candidate and is still migration-only: there is no backfill or label-based merge. The model provides a durable stack identity, display label, version/fingerprint, creator and timestamps, while each canonical chore remains the completion, verification, recurrence and history record. A compact stack read carries a unique member dictionary plus per-step member IDs rather than repeating names, while the child/teen read model remains outside this parent editor.
 
 Legacy rows with no stack identity are not silently merged. An explicit parent migration can select the exact chore IDs, show every selected assignee/date/series, and assign them to one new stack. A normalized-label/date collision, duplicate order, missing series, or mixed incompatible schedule is ambiguous: present the candidates separately and require an explicit selection or leave them as legacy groups. Never create a durable identity on a read, infer membership from matching labels, or use a name/email match to migrate ownership. Migration is additive and reversible at the presentation level; it does not delete rows, rewrite history, or activate a profile.
 
@@ -63,9 +63,9 @@ The server remains authoritative for every assignment. The current coordinator r
 
 The parent-only `GET /api/chores/stacks/candidates?occurrence_date=YYYY-MM-DD` catalog is the first-stack entry point. It is bounded and explicitly paged with `hasMore`/`nextCursor`; it returns only current-date, unstacked, non-template rows plus `{ accountId, name, role }` options from the household's account-backed users. It excludes archived, erased, dormant, malformed dual-identity and foreign rows. The account option's `accountId` is the legacy `assigned_to` value; the routine subject `members[].id` is a separate `HouseholdMember` ID and must never be substituted for it. A blank first draft still saves with `stack_id: null` and an empty expected fingerprint. The catalog is read-only and does not infer a stack or expose mapping details.
 
-## Mutation contract for the future implementation
+## Mutation contract for the current occurrence
 
-The implementation should introduce one narrow stack-mutation coordinator behind the existing person-session and chore authorization rules. This document does not add that route. It defines the contract so a later code change does not compose several independent `PATCH /api/chores` calls in the browser.
+The candidate introduces one narrow stack-mutation coordinator behind the existing person-session and chore authorization rules. It keeps the operation out of the browser's independent `PATCH /api/chores` calls and supports only the current occurrence; future-series editing remains explicitly unsupported.
 
 ### Request shape
 
@@ -160,29 +160,29 @@ If a future product decision adds an all-age read-only week view, it must be a s
 
 Add a typed EN/ES dictionary for editor labels, statuses, scope choices, per-step assignee labels, conflict/retry text, accessibility names and schedule summaries. Keep chore titles, descriptions, member names, verification notes, photo metadata and other user-authored values unchanged. Dates and weekdays use the existing locale-aware formatter. No routine label or status may be used as a privacy boundary. Short forms and stack disclosures must work in both locales at phone, portrait tablet, fridge landscape and desktop widths; collapsing a group uses the actual durable stack/occurrence identity, never a normalized label or member name.
 
-## Implementation packages for a later code slice
+## Implementation package boundaries
 
-The following package boundaries are intentionally recorded here without editing them in this planning change:
+The candidate implements the following boundaries; future-series editing, legacy migration preview and child/teen routine DTOs remain separate work:
 
-1. **Contract/transaction helper:** a pure routine-stack draft/normalization/fingerprint module plus a server transaction coordinator that reuses chore schemas, household locks, recurring-series helpers, idempotency and family predicates. Define the additive stack/step identity, legacy-label migration preview, ambiguous-candidate refusal, explicit per-step ownership, and future-series pending-row policy before any schema work. Keep the in-domain receipt atomic with the write and enforce the compact `<8 KiB` response for 99 steps.
-2. **Parent route and sheet:** a parent-gated Routines entry point and a kept-mounted editor using the existing `ChoreFormSection`, Dialog/FormSheet, focus restoration and 44px tokens. The route must render the same canonical `RoutineStacks` result after commit.
-3. **Role-safe read models:** preserve the current parent family read and child/teen assigned-to self read. Add an own-step DTO for child/teen projections rather than reusing the broad family query used by Kid Home. Resolve assignees with the canonical in-transaction eligibility check, keep sticky-erased subjects erased, and test same-family siblings plus two-household negatives.
-4. **Typed copy:** editor and stack status keys in the existing EN/ES route dictionary; user-authored values remain data.
-5. **Legacy migration and grouping:** an explicit parent-only selection/preview that creates durable identity for selected legacy chore IDs, never merges ambiguous labels, and proves rollback leaves legacy rows/history intact. Group collapse tests must use real stack IDs and dated occurrences, with the existing recurrence-ID fallback only for rows still unstacked.
-6. **Verification:** focused transaction/isolation/idempotency tests, including deterministic same-key row reuse, post-commit response-loss replay, transaction rollback, receipt size at 99 steps and `<8 KiB`, future pending unstack/history preservation, member eligibility/tombstone cases, and mounted sheet tests for draft retention and focus. Then guarded EN/ES phone/portrait/fridge/desktop rendered coverage.
+1. **Contract/transaction helper:** implemented in the pure draft/fingerprint module and server coordinator, with chore schemas, household locks, idempotency, family predicates, explicit per-step ownership and an atomic compact receipt. Legacy-label migration preview and future-series policy remain separate.
+2. **Parent route and sheet:** implemented as a parent-gated Routines entry point and kept-mounted editor using the existing form-sheet, focus restoration and 44px tokens. The route renders the canonical `RoutineStacks` result after commit.
+3. **Role-safe read models:** the parent family read and child/teen assigned-to self read remain separate. The parent editor resolves assignees with the canonical in-transaction eligibility check and keeps sticky-erased subjects erased; a new child/teen routine DTO remains future work.
+4. **Typed copy:** editor copy is in the EN/ES routine dictionary; user-authored values remain data. The existing board status copy still follows the broader chores localization work.
+5. **Legacy migration and grouping:** durable stack IDs and dated occurrence grouping are implemented. An explicit parent-only preview/migration for legacy chore IDs remains future work and must never merge ambiguous labels.
+6. **Verification:** focused transaction/isolation/idempotency tests, mounted sheet tests and guarded EN/ES responsive checks are included. Fresh empty-database migration, hosted release checks and final publication remain release-owner gates.
 
-## Bounded first implementation design (not runtime work in this plan)
+## Bounded first implementation record
 
-The first code slice should establish one current-occurrence coordinator behind a dormant parent-only route. It must prove the durable identity and atomic retry contract before adding future-series editing or the full sheet. The slice is additive and must leave legacy grouping/readers and old clients working.
+The first code slice establishes one current-occurrence coordinator behind a parent-only route. It proves the durable identity and atomic retry contract before future-series editing. The slice is additive and leaves legacy grouping/readers and old clients working.
 
-1. **Schema and migration:** add an additive `RoutineStack` identity record to `prisma/schema.prisma` with `family_id`, display label, monotonic version/fingerprint, creator and timestamps; add nullable `Chore.routine_stack_id` with a household-scoped foreign key/index. Keep `Chore` as the step record and keep `routine`, `routine_order`, `due_date`, `recurrence_id`, `assigned_to` and `assigned_member_id` authoritative. Mirror the expand-only DDL in a new `database/migration-routine-stacks.sql` and the ordered/idempotent section of `scripts/migrate.js`. Do not backfill or merge label-only rows; generated recurrence copies remain unchanged until an explicit identity-propagation step is separately reviewed.
-2. **Pure contract and transaction:** add a small `src/lib/routine-stack.ts` for draft normalization, stable fingerprint input and the compact response projection. Add a route-owned transaction function (for example `src/lib/routine-stack-mutation.ts`) used by `src/app/api/chores/stacks/route.ts`: authenticate and parent-gate before details, lock the family/stack/step rows, lock and re-read the idempotency record, validate the dual assignment fields with `src/lib/chore-member-subject.ts`, then create/update/unstack existing `Chore` rows and write the receipt before commit. The first route supports only one selected occurrence; future-series and migration-preview branches return an explicit bounded unsupported response until separately implemented.
-3. **Compatibility and rollback:** return only stack/version, step IDs/order, assignee IDs and a compact member dictionary from the mutation. Read the full authorized parent projection separately. Leave `RoutineStacks`, existing create/PATCH routes, recurrence generation and old nullable-field clients untouched; no read path assigns a stack identity. Gate the route/editor behind the existing feature/config mechanism and make removal of the new route/schema reader safe for legacy rows.
-4. **Focused proof before UI:** add pure tests in `src/lib/__tests__/routine-stack.test.ts` for normalization, duplicate/99-step limits, stable fingerprints, UTF-8 byte sizing and user-authored data exclusion. Add route tests in `src/app/api/chores/stacks/__tests__/route.test.ts` for parent/teen/child/device roles, same-family sibling and second-household denial, feature-off, stale fingerprint, foreign IDs, canonical/legacy dual assignment and draft-safe errors. Add a guarded integration suite beside it for transaction rollback, same-key concurrency, post-commit response-loss replay, changed payload, exact row reuse and future member/archive/erasure refusal. No browser or rendered acceptance belongs to this first slice; the existing six-size matrix follows after the coordinator and parent sheet exist.
+1. **Schema and migration:** implemented in `prisma/schema.prisma`, `database/migration-routine-stacks.sql` and the ordered/idempotent section of `scripts/migrate.js`. It is expand-only: no label-only backfill or merge, and generated recurrence copies remain unchanged.
+2. **Pure contract and transaction:** implemented in `src/lib/routine-stack.ts`, `src/lib/routine-stack-mutation.ts` and `src/app/api/chores/stacks/route.ts`. The route supports one selected occurrence; future-series and migration-preview branches return bounded unsupported responses.
+3. **Compatibility and rollback:** the mutation returns a compact response and the authorized parent read is separate. Existing `RoutineStacks`, chore routes, recurrence generation and old clients remain compatible with nullable `routine_stack_id`. Rolling back application code must retain the additive table, column, indexes and foreign key; legacy rows remain readable.
+4. **Proof and remaining gates:** focused transaction, authorization, idempotency and mounted editor tests plus guarded EN/ES six-size rendered checks are included. Fresh empty-database migration, hosted release checks and final publication remain release-owner gates.
 
-## Acceptance matrix for implementation
+## Acceptance matrix for release review
 
-A later implementation is ready for independent review only when all of these are demonstrated against one exact source/build identity:
+The implementation is ready for independent release review only when all of these are demonstrated against one exact source/build identity:
 
 | Area | Required evidence |
 | --- | --- |
@@ -205,4 +205,4 @@ A later implementation is ready for independent review only when all of these ar
 - `docs/architecture/AUTHORIZATION.md` and `docs/ROLE_AND_ISOLATION_MATRIX.md` — family ownership and role policy.
 - `src/lib/routine-icons.ts`, `src/lib/validations.ts`, `src/lib/recurringChores.ts`, `src/app/api/chores/route.ts`, `prisma/schema.prisma` — executable current model and constraints.
 
-This document is a design/contract reference. It does not claim that a builder, a new coordinator route, all-age navigation, rendered responsive behavior, or database conflict handling exists in the current source.
+This document records the implemented current-occurrence candidate and its deliberate limits. It does not claim future-series editing, legacy migration preview, all-age navigation, or a production release; those require separate scope and evidence.

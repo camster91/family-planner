@@ -659,6 +659,37 @@ describe("routine stack transaction coordinator", () => {
     ).rejects.toMatchObject({ status: 409 });
   });
 
+  it("rejects removals from a new stack before writing anything", async () => {
+    const legacy = existingChore({
+      routine_stack_id: null,
+      routine: "Legacy grouping",
+      routine_order: 4,
+    });
+    const { tx, state } = makeTx({ chores: [legacy] });
+
+    await expect(
+      mutateRoutineStackInTx(
+        tx,
+        input({
+          stack_id: null,
+          steps: [],
+          remove_chore_ids: ["chore-a"],
+          expected_fingerprint: "",
+        }),
+        { familyId: "family-a", userId: "parent-a", role: "parent" },
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: "ROUTINE_STACK_INVALID_DRAFT",
+    });
+    expect(state.writes).toEqual([]);
+    expect(legacy).toMatchObject({
+      routine_stack_id: null,
+      routine: "Legacy grouping",
+      routine_order: 4,
+    });
+  });
+
   it("does not allow an occurrence routine to become empty", async () => {
     const first = existingChore();
     const second = existingChore({

@@ -240,6 +240,9 @@ export async function mutateRoutineStackInTx<T extends object>(
     };
   }
   if (draft.family_id !== actor.familyId) throw genericNotFound();
+  if (draft.stack_id === null && draft.remove_chore_ids.length > 0) {
+    throw invalid("A new routine cannot remove existing steps.");
+  }
 
   const tx = rawTx as unknown as RuntimeTransaction;
   const requestHash = hashIdempotentRequest("routine-stack.mutate", draft);
