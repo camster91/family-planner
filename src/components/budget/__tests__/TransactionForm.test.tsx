@@ -73,3 +73,92 @@ it('clears the category when the type changes, so it is not saved under the wron
     expect.objectContaining({ type: 'income', category_id: null, amount: 50 })
   )
 })
+
+it('shows a category recovery state instead of a false empty result', async () => {
+  let attempts = 0
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+    if (url.startsWith('/api/budget/categories')) {
+      attempts += 1
+      if (attempts === 1) return { ok: false, status: 503 } as Response
+      return { ok: true, status: 200, json: async () => ({ categories: CATEGORIES.filter((c) => c.type === 'expense') }) } as Response
+    }
+    return { ok: true, status: 200, json: async () => ({}) } as Response
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<TransactionForm onClose={noop} onSuccess={noop} />)
+
+  expect((await screen.findByRole('alert')).textContent).toContain('Categories could not be refreshed')
+  expect(screen.queryByText(/No expense categories yet/)).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Retry categories' }))
+  await screen.findByRole('option', { name: /Food/ })
+})
+
+it('keeps category recovery truthful for a network failure', async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+    if (url.startsWith('/api/budget/categories')) throw new Error('offline')
+    return { ok: true, status: 200, json: async () => ({}) } as Response
+  }) as unknown as typeof fetch
+
+  render(<TransactionForm onClose={noop} onSuccess={noop} />)
+  expect((await screen.findByRole('alert')).textContent).toContain('Check your connection')
+  expect(screen.queryByText(/No expense categories yet/)).toBeNull()
+})
+
+it('does not let a slower old category request win after switching type', async () => {
+  const resolvers: Array<(value: Response) => void> = []
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+    return new Promise<Response>((resolve) => {
+      resolvers.push(resolve)
+    })
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<TransactionForm onClose={noop} onSuccess={noop} />)
+  await user.click(screen.getByRole('button', { name: /Income/ }))
+  await waitFor(() => expect(resolvers).toHaveLength(2))
+
+  resolvers[0]({ ok: true, status: 200, json: async () => ({ categories: CATEGORIES.filter((c) => c.type === 'expense') }) } as Response)
+  expect(screen.queryByRole('option', { name: /Food/ })).toBeNull()
+  resolvers[1]({ ok: true, status: 200, json: async () => ({ categories: CATEGORIES.filter((c) => c.type === 'income') }) } as Response)
+  expect(await screen.findByRole('option', { name: /Pay/ })).toBeTruthy()
+})
+
+it('blocks dismissal while a transaction save is pending and preserves the draft', async () => {
+  let resolveSave: (value: Response) => void = () => {}
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+    if (url.startsWith('/api/budget/categories')) {
+      return { ok: true, status: 200, json: async () => ({ categories: CATEGORIES.filter((c) => c.type === 'expense') }) } as Response
+    }
+    return new Promise<Response>((resolve) => {
+      resolveSave = resolve
+    })
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<TransactionForm onClose={noop} onSuccess={noop} />)
+  await screen.findByRole('option', { name: /Food/ })
+  await user.type(screen.getByLabelText('Amount'), '50')
+  await user.click(screen.getByRole('button', { name: 'Add Transaction' }))
+
+  expect(calls.filter((call) => call.method === 'POST')).toHaveLength(1)
+  expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
+  expect((screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(true)
+  await user.keyboard('{Escape}')
+  expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('50')
+
+  resolveSave({ ok: true, status: 200, json: async () => ({}) } as Response)
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(false))
+})
