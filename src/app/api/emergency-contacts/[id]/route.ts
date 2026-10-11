@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
+import { refusePairedDevice } from '@/lib/device-route'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
@@ -11,6 +12,9 @@ export const dynamic = 'force-dynamic'
 // PATCH - Update an emergency contact
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
@@ -76,6 +80,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 // DELETE - Remove an emergency contact
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 

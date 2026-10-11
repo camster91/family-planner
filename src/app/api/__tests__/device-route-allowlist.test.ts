@@ -30,7 +30,7 @@ jest.mock("@/lib/prisma", () => ({
 }));
 
 import fs from "fs";
-import { FOREIGN } from "@/__tests__/helpers/two-household";
+import { FAMILY_A, FOREIGN } from "@/__tests__/helpers/two-household";
 import path from "path";
 import {
   H1_CANARIES,
@@ -155,6 +155,209 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   "DELETE /api/family/members/[id]": [403],
 };
 
+/**
+ * Private person routes that must reject a live paired tablet before the
+ * lingering person session can authenticate it. Keep this list explicit so a
+ * new private domain cannot silently inherit the combined-cookie gap (#510).
+ */
+const PRIVATE_PERSON_ROUTES = [
+  {
+    route: "GET /api/budget/categories",
+    module: "../budget/categories/route",
+    method: "GET",
+    path: "/api/budget/categories",
+  },
+  {
+    route: "POST /api/budget/categories",
+    module: "../budget/categories/route",
+    method: "POST",
+    path: "/api/budget/categories",
+  },
+  {
+    route: "PATCH /api/budget/categories/[id]",
+    module: "../budget/categories/[id]/route",
+    method: "PATCH",
+    path: "/api/budget/categories/unknown-id",
+  },
+  {
+    route: "DELETE /api/budget/categories/[id]",
+    module: "../budget/categories/[id]/route",
+    method: "DELETE",
+    path: "/api/budget/categories/unknown-id",
+  },
+  {
+    route: "GET /api/budget/stats",
+    module: "../budget/stats/route",
+    method: "GET",
+    path: "/api/budget/stats",
+  },
+  {
+    route: "GET /api/budget/transactions",
+    module: "../budget/transactions/route",
+    method: "GET",
+    path: "/api/budget/transactions",
+  },
+  {
+    route: "POST /api/budget/transactions",
+    module: "../budget/transactions/route",
+    method: "POST",
+    path: "/api/budget/transactions",
+  },
+  {
+    route: "PATCH /api/budget/transactions/[id]",
+    module: "../budget/transactions/[id]/route",
+    method: "PATCH",
+    path: "/api/budget/transactions/unknown-id",
+  },
+  {
+    route: "DELETE /api/budget/transactions/[id]",
+    module: "../budget/transactions/[id]/route",
+    method: "DELETE",
+    path: "/api/budget/transactions/unknown-id",
+  },
+  {
+    route: "GET /api/messages",
+    module: "../messages/route",
+    method: "GET",
+    path: "/api/messages",
+  },
+  {
+    route: "POST /api/messages",
+    module: "../messages/route",
+    method: "POST",
+    path: "/api/messages",
+  },
+  {
+    route: "PATCH /api/messages",
+    module: "../messages/route",
+    method: "PATCH",
+    path: "/api/messages",
+  },
+  {
+    route: "GET /api/analytics",
+    module: "../analytics/route",
+    method: "GET",
+    path: "/api/analytics",
+  },
+  {
+    route: "GET /api/locations",
+    module: "../locations/route",
+    method: "GET",
+    path: "/api/locations",
+  },
+  {
+    route: "POST /api/locations",
+    module: "../locations/route",
+    method: "POST",
+    path: "/api/locations",
+  },
+  {
+    route: "DELETE /api/locations/[id]",
+    module: "../locations/[id]/route",
+    method: "DELETE",
+    path: "/api/locations/unknown-id",
+  },
+  {
+    route: "GET /api/handoff",
+    module: "../handoff/route",
+    method: "GET",
+    path: "/api/handoff",
+  },
+  {
+    route: "POST /api/handoff",
+    module: "../handoff/route",
+    method: "POST",
+    path: "/api/handoff",
+  },
+  {
+    route: "PATCH /api/handoff/[id]",
+    module: "../handoff/[id]/route",
+    method: "PATCH",
+    path: "/api/handoff/unknown-id",
+  },
+  {
+    route: "DELETE /api/handoff/[id]",
+    module: "../handoff/[id]/route",
+    method: "DELETE",
+    path: "/api/handoff/unknown-id",
+  },
+  {
+    route: "POST /api/handoff/[id]/regenerate-token",
+    module: "../handoff/[id]/regenerate-token/route",
+    method: "POST",
+    path: "/api/handoff/unknown-id/regenerate-token",
+  },
+  {
+    route: "GET /api/emergency-contacts",
+    module: "../emergency-contacts/route",
+    method: "GET",
+    path: "/api/emergency-contacts",
+  },
+  {
+    route: "POST /api/emergency-contacts",
+    module: "../emergency-contacts/route",
+    method: "POST",
+    path: "/api/emergency-contacts",
+  },
+  {
+    route: "PATCH /api/emergency-contacts/[id]",
+    module: "../emergency-contacts/[id]/route",
+    method: "PATCH",
+    path: "/api/emergency-contacts/unknown-id",
+  },
+  {
+    route: "DELETE /api/emergency-contacts/[id]",
+    module: "../emergency-contacts/[id]/route",
+    method: "DELETE",
+    path: "/api/emergency-contacts/unknown-id",
+  },
+  {
+    route: "GET /api/sick-days",
+    module: "../sick-days/route",
+    method: "GET",
+    path: "/api/sick-days",
+  },
+  {
+    route: "POST /api/sick-days",
+    module: "../sick-days/route",
+    method: "POST",
+    path: "/api/sick-days",
+  },
+  {
+    route: "PATCH /api/sick-days/[id]",
+    module: "../sick-days/[id]/route",
+    method: "PATCH",
+    path: "/api/sick-days/unknown-id",
+  },
+  {
+    route: "DELETE /api/sick-days/[id]",
+    module: "../sick-days/[id]/route",
+    method: "DELETE",
+    path: "/api/sick-days/unknown-id",
+  },
+] as const;
+
+// Keep the existing all-route device-only allowlist in sync with the focused
+// combined-cookie regression above. These handlers now intentionally return
+// the explicit refusal response even when no person session is supplied.
+for (const { route } of PRIVATE_PERSON_ROUTES) {
+  DEVICE_REFUSED_ROUTES[route] = [403];
+}
+
+function enableAuditedPrivateFeatures() {
+  const family = db.find("family", FAMILY_A)!;
+  family.features = {
+    budget: true,
+    messages: true,
+    analytics: true,
+    gamification: true,
+    locations: true,
+    handoff: true,
+    emergency: true,
+    "sick-days": true,
+  };
+}
+
 function routeFiles(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
@@ -267,6 +470,66 @@ describe("device cookie route allowlist", () => {
       expect(seen).toContain(route);
     }
   });
+
+  it("refuses every private feature route when a paired device also carries a valid parent session", async () => {
+    const failures: string[] = [];
+
+    for (const entry of PRIVATE_PERSON_ROUTES) {
+      db.reset();
+      enableSharedDevice();
+      // Turn on the audited domains so the regression proves the device guard,
+      // rather than stopping at a feature-disabled response.
+      enableAuditedPrivateFeatures();
+      const fx = seedDevices();
+      const csrf = "c".repeat(64);
+      const mod = require(entry.module);
+      const res = await mod[entry.method](
+        deviceReq({
+          method: entry.method,
+          path: entry.path,
+          cookies: { ...fx.d1.cookies, csrf_token: csrf },
+          headers: { "x-csrf-token": csrf },
+          as: "parentA",
+        }),
+        { params: Promise.resolve({ id: "unknown-id" }) },
+      );
+      const text = await bodyText(res);
+      if (res?.status !== 403 || !text.includes("DEVICE_WRITE_NOT_ALLOWED")) {
+        failures.push(`${entry.route}: status ${res?.status}, body ${text}`);
+      }
+      const leaked = H1_CANARIES.filter((canary) => text.includes(canary));
+      if (leaked.length)
+        failures.push(`${entry.route}: leaked ${leaked.join(", ")}`);
+      if (db.writes.length)
+        failures.push(`${entry.route}: wrote ${JSON.stringify(db.writes)}`);
+    }
+
+    expect(failures).toEqual([]);
+  });
+
+  it.each(["revoked", "expired", "switch-off"] as const)(
+    "keeps a clean person session working when the paired credential is %s",
+    async (state) => {
+      db.reset();
+      enableAuditedPrivateFeatures();
+      const fx = seedDevices();
+      if (state === "revoked") {
+        db.find("householdDevice", fx.d1.deviceId)!.revoked_at = new Date();
+      } else if (state === "expired") {
+        const session = db.find("deviceSession", fx.d1.sessionId)!;
+        session.access_expires_at = new Date(Date.now() - 60_000);
+        session.refresh_expires_at = new Date(Date.now() - 60_000);
+      } else {
+        disableSharedDevice();
+      }
+
+      const res = await require("../messages/route").GET(
+        deviceReq({ cookies: fx.d1.cookies, as: "parentA" }),
+      );
+      expect(res.status).toBe(200);
+      expect(await bodyText(res)).toContain("Home hello");
+    },
+  );
 
   it("calendar sync routes (#264) refuse a device cookie with 401 even when sync is configured", async () => {
     const {

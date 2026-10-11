@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
+import { refusePairedDevice } from '@/lib/device-route'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
 import { isKidRole } from '@/lib/kid-access'
@@ -11,8 +12,11 @@ type SessionUser = { id: string; email: string; role?: string; family_id?: strin
 const SEVERITIES = ['mild', 'moderate', 'severe'] as const
 const TEMPERATURE_UNITS = ['C', 'F'] as const
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const { id } = await params
     const user = (await getServerUser()) as SessionUser | null
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -128,7 +132,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const deviceRefusal = await refusePairedDevice(_request)
+  if (deviceRefusal) return deviceRefusal
+
   const { id } = await params
   const user = (await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
