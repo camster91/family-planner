@@ -213,6 +213,74 @@ it("requires a discard confirmation before reloading after a definitive conflict
   expect(postCount).toBe(1);
 });
 
+it("treats an identity conflict as a localized definitive reload", async () => {
+  searchParams = new URLSearchParams(
+    "stack_id=stack-a&occurrence_date=2026-10-11",
+  );
+  let postCount = 0;
+  let readCount = 0;
+  fetchMock.mockImplementation(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/candidates")) return response(candidates);
+      if (url.includes("/api/chores/stacks?") && !init?.method) {
+        readCount += 1;
+        return response(existing);
+      }
+      postCount += 1;
+      return response(
+        {
+          error: {
+            code: "IDENTITY_CONFLICT",
+            message:
+              "Household member identity needs review before this change.",
+          },
+        },
+        409,
+      );
+    },
+  );
+
+  const user = userEvent.setup();
+  render(
+    <I18nProvider locale="es">
+      <RoutineStackEditor familyId="family-a" mode="page" />
+    </I18nProvider>,
+  );
+  await screen.findByText("Brush teeth");
+  const label = screen.getByLabelText("Nombre de la rutina");
+  await user.clear(label);
+  await user.type(label, "Borrador de identidad");
+  await user.click(screen.getByRole("button", { name: "Guardar rutina" }));
+
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "cambió en otro lugar",
+  );
+  expect(
+    screen.queryByRole("button", { name: "Reintentar guardado" }),
+  ).toBeNull();
+  const reload = screen.getByRole("button", {
+    name: "Cargar la rutina más reciente",
+  });
+  await user.click(reload);
+  const discard = screen.getByRole("alertdialog");
+  expect(discard).toBeTruthy();
+  await user.click(
+    within(discard).getByRole("button", { name: "Seguir editando" }),
+  );
+  expect(screen.getByDisplayValue("Borrador de identidad")).toBeTruthy();
+
+  await user.click(reload);
+  await user.click(
+    within(screen.getByRole("alertdialog")).getByRole("button", {
+      name: "Cargar la rutina más reciente",
+    }),
+  );
+  await waitFor(() => expect(readCount).toBe(2));
+  expect(screen.queryByDisplayValue("Borrador de identidad")).toBeNull();
+  expect(postCount).toBe(1);
+});
+
 it("retries malformed success with the same immutable bytes and key", async () => {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   let postCount = 0;
@@ -222,7 +290,9 @@ it("retries malformed success with the same immutable bytes and key", async () =
       calls.push({ url, init });
       if (url.includes("/candidates")) return response(candidates);
       postCount += 1;
-      return response(postCount === 1 ? { stack_id: "incomplete" } : saveResponse);
+      return response(
+        postCount === 1 ? { stack_id: "incomplete" } : saveResponse,
+      );
     },
   );
 
@@ -232,7 +302,10 @@ it("retries malformed success with the same immutable bytes and key", async () =
   await user.click(screen.getByRole("button", { name: "Add" }));
   await user.click(screen.getByRole("button", { name: "Save routine" }));
   expect(await screen.findByText(/could not confirm whether/i)).toBeTruthy();
-  expect(screen.getByLabelText("Routine name")).toHaveProperty("disabled", true);
+  expect(screen.getByLabelText("Routine name")).toHaveProperty(
+    "disabled",
+    true,
+  );
   await user.click(screen.getByRole("button", { name: "Retry save" }));
 
   await waitFor(() => expect(postCount).toBe(2));
@@ -266,7 +339,10 @@ it("treats an in-flight idempotency 409 as uncertain and retries the same packet
 
   expect(await screen.findByText(/could not confirm whether/i)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Retry save" })).toBeTruthy();
-  expect(screen.getByLabelText("Routine name")).toHaveProperty("disabled", true);
+  expect(screen.getByLabelText("Routine name")).toHaveProperty(
+    "disabled",
+    true,
+  );
 
   await user.click(screen.getByRole("button", { name: "Retry save" }));
   await waitFor(() => expect(postCount).toBe(2));

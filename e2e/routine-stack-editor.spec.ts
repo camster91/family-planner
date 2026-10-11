@@ -392,6 +392,25 @@ async function setLocale(context: BrowserContext, locale: Locale) {
   );
 }
 
+async function assertUiLogin(
+  page: Page,
+  expectedUserId: string,
+  expectedRole: "parent" | "child",
+) {
+  // loginViaUi performs the real form submission. Wait for its canonical
+  // dashboard arrival before navigating again; a premature goto can abort the
+  // redirect and leave the first protected page blank on slower builds.
+  await expect(page).toHaveURL(/\/dashboard(?:\/.*)?$/);
+  const auth = await browserFetch(page, "/api/auth/me");
+  expect(auth.status, auth.body).toBe(200);
+  const user = JSON.parse(auth.body).user as {
+    id?: unknown;
+    role?: unknown;
+  };
+  expect(user.id).toBe(expectedUserId);
+  expect(user.role).toBe(expectedRole);
+}
+
 async function expectSurface(
   page: Page,
   info: TestInfo,
@@ -506,6 +525,7 @@ for (const locale of LOCALES) {
         await seedFixture(fixture);
         await context.clearCookies();
         await loginViaUi(page, fixture.parentEmail);
+        await assertUiLogin(page, fixture.parent, "parent");
         await setLocale(context, locale);
         await page.goto("/dashboard/chores");
         await runtimeIdentity(page, info, locale);
@@ -557,6 +577,7 @@ for (const locale of LOCALES) {
           await loopbackGuard(childContext, baseURL!);
           const childPage = await childContext.newPage();
           await loginViaUi(childPage, fixture.childEmail);
+          await assertUiLogin(childPage, fixture.child, "child");
           await setLocale(childContext, locale);
           await childPage.goto("/dashboard/today");
           const denied = await browserFetch(
@@ -660,6 +681,7 @@ for (const locale of LOCALES) {
         await seedFixture(fixture);
         await context.clearCookies();
         await loginViaUi(page, fixture.parentEmail);
+        await assertUiLogin(page, fixture.parent, "parent");
         await setLocale(context, locale);
         await page.goto(`/dashboard/chores/routines?occurrence_date=${DATE}`);
         await runtimeIdentity(page, info, locale);
@@ -725,6 +747,7 @@ for (const locale of LOCALES) {
         await seedFixture(fixture);
         await context.clearCookies();
         await loginViaUi(page, fixture.parentEmail);
+        await assertUiLogin(page, fixture.parent, "parent");
         await setLocale(context, locale);
         await page.route("**/api/chores/stacks/candidates**", async (route) => {
           if (route.request().method() !== "GET") return route.continue();
@@ -831,6 +854,7 @@ for (const locale of LOCALES) {
         await seedFixture(fixture);
         await context.clearCookies();
         await loginViaUi(page, fixture.parentEmail);
+        await assertUiLogin(page, fixture.parent, "parent");
         await setLocale(context, locale);
         await page.route("**/api/chores/stacks", async (route) => {
           if (route.request().method() === "POST") {

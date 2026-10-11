@@ -645,7 +645,10 @@ export default function RoutineStackEditor({
       } catch (error) {
         const requestError =
           error instanceof RoutineEditorRequestError ? error : null;
-        if (requestError?.code === "ROUTINE_STACK_CONFLICT") {
+        if (
+          requestError?.code === "ROUTINE_STACK_CONFLICT" ||
+          requestError?.code === "IDENTITY_CONFLICT"
+        ) {
           setSubmissionState({ phase: "conflict", packet });
           setSaveError(localizedRequestError(error, msg, "conflict"));
         } else if (
