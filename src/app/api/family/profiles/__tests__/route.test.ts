@@ -86,9 +86,15 @@ afterEach(() => jest.restoreAllMocks());
 describe("GET /api/family/profiles", () => {
   it("returns only the current household and a strict public DTO", async () => {
     db.rows("householdMember").push(
+      profile("profile-a-active-alpha", FAMILY_A, "Aaron"),
       profile("profile-a", FAMILY_A),
       {
         ...profile("profile-a-archived", FAMILY_A, "Old child"),
+        archived_at: new Date("2026-09-02T00:00:00Z"),
+        revision: 2,
+      },
+      {
+        ...profile("profile-a-archived-alpha", FAMILY_A, "Aaron"),
         archived_at: new Date("2026-09-02T00:00:00Z"),
         revision: 2,
       },
@@ -123,9 +129,11 @@ describe("GET /api/family/profiles", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     const body = await bodyOf(response);
-    expect(body.profiles).toHaveLength(2);
+    expect(body.profiles).toHaveLength(4);
     expect(body.profiles.map((item: { id: string }) => item.id)).toEqual([
+      "profile-a-active-alpha",
       "profile-a",
+      "profile-a-archived-alpha",
       "profile-a-archived",
     ]);
     expect(Object.keys(body.profiles[0]).sort()).toEqual([
@@ -140,8 +148,8 @@ describe("GET /api/family/profiles", () => {
     expect(JSON.stringify(body)).not.toContain(FAMILY_B);
     expect(JSON.stringify(body)).not.toContain("FOREIGN");
     expect(JSON.stringify(body)).not.toContain("secret");
-    expect(body.profiles[0]).toEqual(profile("profile-a", FAMILY_A));
-    expect(body.profiles[1].archived_at).toBe("2026-09-02T00:00:00.000Z");
+    expect(body.profiles[1]).toEqual(profile("profile-a", FAMILY_A));
+    expect(body.profiles[2].archived_at).toBe("2026-09-02T00:00:00.000Z");
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
@@ -150,6 +158,11 @@ describe("GET /api/family/profiles", () => {
           account_link: { is: null },
           erasure_user_id: null,
         },
+        orderBy: [
+          { archived_at: { sort: "asc", nulls: "first" } },
+          { name: "asc" },
+          { id: "asc" },
+        ],
       }),
     );
   });

@@ -652,9 +652,25 @@ function sortRows(rows: Row[], orderBy: any): Row[] {
   const orders = Array.isArray(orderBy) ? orderBy : [orderBy]
   return [...rows].sort((a, b) => {
     for (const o of orders) {
-      const [key, dir] = Object.entries(o)[0] as [string, string]
-      const c = cmp(a[key], b[key])
-      if (c !== 0) return dir === 'desc' ? -c : c
+      const [key, rawDirection] = Object.entries(o)[0] as [
+        string,
+        string | { sort?: string; nulls?: string },
+      ]
+      const direction =
+        typeof rawDirection === 'string' ? rawDirection : rawDirection.sort ?? 'asc'
+      const nulls =
+        typeof rawDirection === 'string' ? undefined : rawDirection.nulls
+      let c: number
+      const aIsNull = a[key] == null
+      const bIsNull = b[key] == null
+      if (aIsNull || bIsNull) {
+        const nullsFirst = nulls !== 'last'
+        if (aIsNull && bIsNull) c = 0
+        else c = aIsNull === nullsFirst ? -1 : 1
+      } else {
+        c = cmp(a[key], b[key])
+      }
+      if (c !== 0) return direction === 'desc' ? -c : c
     }
     return 0
   })

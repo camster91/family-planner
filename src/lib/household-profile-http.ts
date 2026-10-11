@@ -286,7 +286,11 @@ export async function listProfiles(
         archived_at: true,
         revision: true,
       },
-      orderBy: [{ archived_at: "asc" }, { name: "asc" }, { id: "asc" }],
+      orderBy: [
+        { archived_at: { sort: "asc", nulls: "first" } },
+        { name: "asc" },
+        { id: "asc" },
+      ],
     });
     const dtos = profiles.map(toProfileDto);
     if (dtos.some((profile): profile is null => profile === null)) {
