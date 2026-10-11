@@ -390,8 +390,10 @@ function FeatureRow({
         <Icon className="w-5 h-5 text-white" aria-hidden="true" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 text-body text-label-primary">
-          <span className="min-w-0 truncate">{feature.title}</span>
+        <div className="flex items-start gap-1.5 text-body text-label-primary">
+          <span className="min-w-0 flex-1 break-words leading-tight">
+            {feature.title}
+          </span>
           {disabled && (
             <Lock
               className="h-3.5 w-3.5 shrink-0 text-label-tertiary"
@@ -407,7 +409,7 @@ function FeatureRow({
         </div>
         <div
           id={descriptionId}
-          className="text-footnote text-label-secondary truncate"
+          className="text-footnote text-label-secondary break-words line-clamp-2"
         >
           {feature.description}
         </div>
