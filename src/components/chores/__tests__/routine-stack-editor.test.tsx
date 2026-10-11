@@ -283,6 +283,16 @@ it("treats an identity conflict as a localized definitive reload", async () => {
   });
   expect(reloadConfirm.className).toEqual(expect.stringContaining("w-full"));
   expect(reloadConfirm.className).toEqual(expect.stringContaining("sm:w-auto"));
+  expect(reloadConfirm.className).toEqual(expect.stringContaining("min-w-0"));
+  expect(reloadConfirm.className).toEqual(
+    expect.stringContaining("whitespace-normal"),
+  );
+  expect(reloadConfirm.className).toEqual(
+    expect.stringContaining("break-words"),
+  );
+  expect(reloadConfirm.parentElement?.className).toEqual(
+    expect.stringContaining("flex-col"),
+  );
   await user.click(
     within(discard).getByRole("button", { name: "Seguir editando" }),
   );
