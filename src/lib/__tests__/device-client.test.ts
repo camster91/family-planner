@@ -98,6 +98,19 @@ const REFRESH = '/api/device/session/refresh'
 const TODAY = '/api/device/today'
 const ME = '/api/device/me'
 
+describe('member protocol negotiation', () => {
+  it('forwards the explicit profile protocol while leaving legacy requests unchanged', async () => {
+    const t = setup(() => json(200, { ok: true }))
+    await expect(t.client.request(TODAY, { headers: { 'X-Member-Protocol': '2' } })).resolves.toEqual({ ok: true })
+    const profileCall = t.calls.find((call) => call.path === TODAY)!
+    expect((profileCall.init.headers as Record<string, string>)['X-Member-Protocol']).toBe('2')
+
+    await expect(t.client.request(ME)).resolves.toEqual({ ok: true })
+    const legacyCall = t.calls.find((call) => call.path === ME)!
+    expect((legacyCall.init.headers as Record<string, string>)['X-Member-Protocol']).toBeUndefined()
+  })
+})
+
 describe('pairing code input', () => {
   it('normalises case, separators and look-alike letters', () => {
     expect(normaliseCodeInput(' abcd-efgh ')).toBe('ABCDEFGH')

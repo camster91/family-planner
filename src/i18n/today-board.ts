@@ -59,6 +59,10 @@ export const todayBoardEnglish = {
   weather: "Weather",
   setupLoading: "Loading setup options",
   setupError: "Setup options could not load.",
+  protocolCompatibilityTitle: "This family plan needs a refresh",
+  protocolCompatibilityBody:
+    "A newer family profile is waiting to be shown. Refresh to load it safely. Pending work is kept.",
+  refreshBoard: "Refresh family plan",
 } as const;
 
 export type TodayBoardMessage = keyof typeof todayBoardEnglish;
@@ -122,6 +126,10 @@ export const todayBoardSpanish: TodayBoardMessages = {
   weather: "Tiempo",
   setupLoading: "Cargando las opciones de configuración",
   setupError: "No se pudieron cargar las opciones de configuración.",
+  protocolCompatibilityTitle: "Este plan familiar necesita actualizarse",
+  protocolCompatibilityBody:
+    "Hay un perfil familiar nuevo esperando para mostrarse. Actualiza para cargarlo de forma segura. El trabajo pendiente se conserva.",
+  refreshBoard: "Actualizar el plan familiar",
 };
 
 export const todayBoardMessages = {

@@ -297,13 +297,24 @@ function fakeClient() {
   return { client: { request, subscribe: () => () => undefined } as unknown as DeviceClient, request }
 }
 
-function DeviceBoard({ client, enabled = true }: { client: DeviceClient; enabled?: boolean }) {
-  const d = data({ links: { calendar: null, chores: null, meals: null, lists: null, features: null } })
+function DeviceBoard({
+  client,
+  enabled = true,
+  board,
+  memberProtocol = 1,
+}: {
+  client: DeviceClient
+  enabled?: boolean
+  board?: TodayBoardData
+  memberProtocol?: 1 | 2
+}) {
+  const d = board ?? data({ links: { calendar: null, chores: null, meals: null, lists: null, features: null } })
   const { actions, actor, picker } = useDeviceBoardActions({
     client,
     enabled,
     features: { chores: true, lists: true },
     members: d.members,
+    memberProtocol,
     afterChange: () => undefined,
   })
   return (
@@ -391,5 +402,101 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
     await settle()
     expect(within(chores()).getByText('Water plants')).toBeTruthy()
     expect(screen.getByRole('alert').textContent).toContain('turned off')
+  })
+
+  it('uses the explicit protocol-2 profile selection for a profile-only chore', async () => {
+    const profile = {
+      id: 'profile:casey',
+      name: 'Casey Child',
+      color: 'green' as const,
+      subject: {
+        kind: 'profile' as const,
+        memberId: 'profile-casey',
+        name: 'Casey Child',
+        color: 'green' as const,
+      },
+    }
+    const profileBoard = data({
+      memberProtocol: 2,
+      members: [profile],
+      chores: [{ id: 'profile-chore', title: 'Put away blocks', dueDay: TODAY, status: 'pending', subject: profile.subject }],
+    })
+    const fc = fakeClient()
+    render(
+      <ToastProvider>
+        <DeviceBoard client={fc.client} board={profileBoard} memberProtocol={2} />
+      </ToastProvider>
+    )
+    await settle()
+    fireEvent.click(within(chores()).getByRole('button', { name: /Mark Put away blocks done/ }))
+    await settle()
+    const dialog = screen.getByTestId('who-is-this')
+    expect(within(dialog).getByRole('button', { name: 'Casey Child' })).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Casey Child' }))
+    await settle()
+    expect(fc.request).toHaveBeenCalledWith('/api/device/chores/profile-chore/complete', {
+      method: 'POST',
+      body: { protocol: 2, selection: { memberId: 'profile-casey' } },
+      headers: { 'Idempotency-Key': expect.stringMatching(/^[0-9a-f-]{36}$/) },
+    })
+  })
+
+  it('keeps profile-only chores read-only for a protocol-1 tablet', async () => {
+    const profile = {
+      id: 'profile:casey',
+      name: 'Casey Child',
+      color: 'green' as const,
+      subject: {
+        kind: 'profile' as const,
+        memberId: 'profile-casey',
+        name: 'Casey Child',
+        color: 'green' as const,
+      },
+    }
+    const fc = fakeClient()
+    render(
+      <ToastProvider>
+        <DeviceBoard
+          client={fc.client}
+          memberProtocol={1}
+          board={data({
+            members: [profile],
+            chores: [{ id: 'profile-chore', title: 'Put away blocks', dueDay: TODAY, status: 'pending', subject: profile.subject }],
+          })}
+        />
+      </ToastProvider>
+    )
+    await settle()
+    expect(within(chores()).getByText('Put away blocks')).toBeInTheDocument()
+    expect(within(chores()).queryByRole('button', { name: /Mark Put away blocks done/ })).toBeNull()
+    expect(fc.request).not.toHaveBeenCalled()
+  })
+})
+
+describe('profile protocol compatibility', () => {
+  it('shows a localized recovery surface without rendering partial board rows', async () => {
+    const onRefresh = jest.fn()
+    await renderBoard({
+      data: data({
+        members: [{ id: 'profile:casey', name: 'Casey', subject: { kind: 'profile', memberId: 'casey', name: 'Casey', color: 'green' } }],
+        chores: [{ id: 'profile-chore', title: 'Pack bag', dueDay: TODAY, status: 'pending', subject: { kind: 'profile', memberId: 'casey', name: 'Casey', color: 'green' } }],
+        protocolError: {
+          code: 'MEMBER_PROTOCOL_UNAVAILABLE',
+          recovery: 'refresh-and-retain-pending',
+          requiredProtocol: 2,
+          receivedProtocol: 1,
+        },
+      }),
+      onRefresh,
+    })
+
+    expect(screen.getByTestId('today-board-compatibility')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'This family plan needs a refresh' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Pending work is kept.')
+    expect(screen.queryByTestId('board-grid')).toBeNull()
+    expect(screen.queryByText('Pack bag')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh family plan' }))
+    expect(onRefresh).toHaveBeenCalledTimes(1)
   })
 })

@@ -27,7 +27,9 @@ import {
 } from "@/lib/routine-icons";
 import { ROTATION_MIN } from "@/lib/chore-rotation";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import { canonicalBodySignature } from "@/lib/request-signature";
 import {
+  findActiveHouseholdProfile,
   readApiErrorCode,
   readHouseholdProfiles,
   type HouseholdProfile,
@@ -36,6 +38,9 @@ import { useProfileSetupText } from "@/i18n/profile-setup";
 
 type Difficulty = "easy" | "medium" | "hard";
 type Frequency = "once" | "daily" | "weekly" | "monthly";
+type AssignmentTarget =
+  | { kind: "account"; id: string }
+  | { kind: "profile"; id: string };
 
 const difficultyOptions: {
   value: Difficulty;
@@ -62,8 +67,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
   // Points & streaks off (#248): the field is hidden and the default is sent,
   // so XP keeps accruing in the background if the family turns it back on.
   const gamification = useFeatureEnabled("gamification");
-  const [assignedTo, setAssignedTo] = useState("");
-  const [profileTargetId, setProfileTargetId] = useState<string | null>(null);
+  const [assignmentTarget, setAssignmentTarget] = useState<AssignmentTarget>({ kind: "account", id: "" });
   const [profileOptions, setProfileOptions] = useState<HouseholdProfile[]>([]);
   const [dueDate, setDueDate] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
@@ -81,7 +85,13 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const profileText = useProfileSetupText();
-  const profileIdempotencyKey = useRef<string | null>(null);
+  const profileIdempotencyKey = useRef<{ key: string; signature: string } | null>(null);
+  const profileAmbiguousKeys = useRef(new Map<string, string>());
+  const assignedTo = assignmentTarget.kind === "account" ? assignmentTarget.id : "";
+  const profileTargetId = assignmentTarget.kind === "profile" ? assignmentTarget.id : null;
+  const profileTargetMissing = Boolean(
+    profileTargetId && !findActiveHouseholdProfile(profileOptions, profileTargetId),
+  );
   useEffect(() => { onBusyChange?.(loading || photoUploading); }, [loading, photoUploading, onBusyChange]);
   // Picture routines (#272).
   const [icon, setIcon] = useState<string | null>(null);
@@ -91,23 +101,25 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
   const [takeTurns, setTakeTurns] = useState(false);
   const [rotation, setRotation] = useState<string[]>([]);
   const rotating = frequency !== "once" && takeTurns;
-  const submitHint = missingFieldsHint([
-    ...(title.trim() ? [] : ["a title"]),
-    ...(frequency === "weekly"
-      ? weeklyDays.length
-        ? []
-        : ["at least one weekday"]
-      : dueDate
-        ? []
-        : ["a due date"]),
-    ...(rotating
-      ? rotation.length < ROTATION_MIN
-        ? [`at least ${ROTATION_MIN} people to take turns`]
-        : []
-      : assignedTo || profileTargetId
-        ? []
-        : ["who does it"]),
-  ]);
+  const submitHint = profileTargetMissing
+    ? profileText("profileTargetRefresh")
+    : missingFieldsHint([
+        ...(title.trim() ? [] : ["a title"]),
+        ...(frequency === "weekly"
+          ? weeklyDays.length
+            ? []
+            : ["at least one weekday"]
+          : dueDate
+            ? []
+            : ["a due date"]),
+        ...(rotating
+          ? rotation.length < ROTATION_MIN
+            ? [`at least ${ROTATION_MIN} people to take turns`]
+            : []
+          : assignedTo || profileTargetId
+            ? []
+            : ["who does it"]),
+      ]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -133,9 +145,17 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
             const requested = new URLSearchParams(window.location.search).get(
               "member",
             );
-            setAssignedTo(
-              data.members.find((m: { id: string }) => m.id === requested)
-                ?.id ?? data.members[0].id,
+            setAssignmentTarget((current) =>
+              current.kind === "profile"
+                ? current
+                : current.id
+                  ? current
+                  : {
+                    kind: "account",
+                    id:
+                      data.members.find((m: { id: string }) => m.id === requested)
+                        ?.id ?? data.members[0].id,
+                    },
             );
           }
         }
@@ -173,20 +193,22 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
       setError("Choose at least one weekday");
       return;
     }
+    const profileTarget =
+      assignmentTarget.kind === "profile"
+        ? findActiveHouseholdProfile(profileOptions, assignmentTarget.id)
+        : null;
+    const isProfileTarget = assignmentTarget.kind === "profile";
+    if (isProfileTarget && !profileTarget) {
+      setError(profileText("profileTargetRefresh"));
+      return;
+    }
     setLoading(true);
     setError(null);
 
     try {
-      const profileTarget = profileTargetId
-        ? profileOptions.find((profile) => profile.id === profileTargetId)
-        : null;
-      const isProfileTarget = Boolean(profileTarget);
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       let requestBody: Record<string, unknown>;
       if (profileTarget) {
-        const key = profileIdempotencyKey.current ?? newIdempotencyKey();
-        profileIdempotencyKey.current = key;
-        headers[IDEMPOTENCY_HEADER] = key;
         requestBody = {
           protocol: 2,
           selection: { memberId: profileTarget.id },
@@ -198,6 +220,13 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           frequency: "once",
           photo_url: photoUrl,
         };
+        const signature = canonicalBodySignature(requestBody);
+        const key =
+          profileIdempotencyKey.current?.signature === signature
+            ? profileIdempotencyKey.current.key
+            : profileAmbiguousKeys.current.get(signature) ?? newIdempotencyKey();
+        profileIdempotencyKey.current = { key, signature };
+        headers[IDEMPOTENCY_HEADER] = key;
       } else {
         requestBody = {
           title,
@@ -235,9 +264,16 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         if (isProfileTarget) {
           const code = readApiErrorCode(data);
           if (code === "MEMBER_PROTOCOL_UNAVAILABLE") {
+            profileAmbiguousKeys.current.delete(profileIdempotencyKey.current?.signature ?? "");
             profileIdempotencyKey.current = null;
             setError(profileText("profileTargetUnsupported"));
           } else {
+            if (res.status >= 500 && profileIdempotencyKey.current) {
+              profileAmbiguousKeys.current.set(
+                profileIdempotencyKey.current.signature,
+                profileIdempotencyKey.current.key,
+              );
+            }
             setError(profileText("profileTargetError"));
           }
         } else {
@@ -246,11 +282,20 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         return;
       }
 
-      if (isProfileTarget) profileIdempotencyKey.current = null;
+      if (isProfileTarget && profileIdempotencyKey.current) {
+        profileAmbiguousKeys.current.delete(profileIdempotencyKey.current.signature);
+        profileIdempotencyKey.current = null;
+      }
       router.push("/dashboard/chores");
       router.refresh();
     } catch (err) {
-      setError("An unexpected error occurred");
+      if (isProfileTarget && profileIdempotencyKey.current) {
+        profileAmbiguousKeys.current.set(
+          profileIdempotencyKey.current.signature,
+          profileIdempotencyKey.current.key,
+        );
+      }
+      setError(isProfileTarget ? profileText("profileTargetError") : "An unexpected error occurred");
       console.error(err);
     } finally {
       setLoading(false);
@@ -315,13 +360,12 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                   onChange={(e) => {
                     const value = e.target.value;
                     if (value.startsWith("profile:")) {
-                      setProfileTargetId(value.slice("profile:".length));
+                      setAssignmentTarget({ kind: "profile", id: value.slice("profile:".length) });
                       setFrequency("once");
                       setTakeTurns(false);
                       setRotation([]);
                     } else {
-                      setProfileTargetId(null);
-                      setAssignedTo(value);
+                      setAssignmentTarget({ kind: "account", id: value });
                     }
                   }}
                   className="input-apple"

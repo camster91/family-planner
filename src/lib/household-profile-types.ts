@@ -31,6 +31,13 @@ export function readHouseholdProfiles(value: unknown): HouseholdProfile[] | null
   return profiles;
 }
 
+export function findActiveHouseholdProfile(
+  profiles: HouseholdProfile[],
+  id: string,
+): HouseholdProfile | null {
+  return profiles.find((profile) => profile.id === id && !profile.archived_at) ?? null;
+}
+
 export function readApiErrorCode(value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
   const error = (value as { error?: unknown }).error;

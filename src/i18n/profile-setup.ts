@@ -42,6 +42,7 @@ export const profileSetupEnglish = {
     "This server cannot create a profile chore yet. Your chore details are still here; try again later or choose an account.",
   profileTargetError:
     "The profile chore could not be created. Your details are still here; check your connection and try again.",
+  profileTargetRefresh: "That profile is no longer available. Refresh profiles and choose again.",
   profileTargetUnavailable: "Name-only profiles are unavailable on this server.",
 } as const;
 
@@ -84,6 +85,7 @@ export const profileSetupSpanish = {
     "Este servidor todavía no puede crear una tarea para un perfil. Tus datos siguen aquí; inténtalo más tarde o elige una cuenta.",
   profileTargetError:
     "No se pudo crear la tarea del perfil. Tus datos siguen aquí; comprueba la conexión e inténtalo de nuevo.",
+  profileTargetRefresh: "Ese perfil ya no está disponible. Actualiza los perfiles y elige de nuevo.",
   profileTargetUnavailable: "Los perfiles con solo nombre no están disponibles en este servidor.",
 } as const;
 

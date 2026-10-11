@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { Dialog } from '@/components/ui/dialog'
-import type { BoardMember } from '@/app/dashboard/today/today-board-data'
+import type { BoardChore, BoardMember, BoardSubject } from '@/app/dashboard/today/today-board-data'
 import type { BoardActions, ActionResult } from '@/components/fridge/board-actions'
 import { DeviceApiError, type DeviceClient } from '@/lib/device-client'
 import { newIdempotencyKey } from '@/lib/idempotency-key'
@@ -19,6 +19,33 @@ export const ACTOR_IDLE_MS = 2 * 60 * 1000
 export interface DeviceActorChoice {
   id: string
   name: string
+}
+
+/**
+ * The tablet's credential-bearing actor is separate from the subject of a
+ * chore. Account subjects keep the legacy id; profile subjects are explicit
+ * and can never be sent through `actingMemberId`.
+ */
+export type DeviceSubjectChoice = { kind: 'account'; id: string; name: string } | { kind: 'profile'; memberId: string; name: string }
+
+function subjectForMember(member: BoardMember): BoardSubject {
+  if (member.subject) return member.subject
+  return { kind: 'account', accountId: member.id, name: member.name }
+}
+
+function profileIdForMember(member: BoardMember): string | null {
+  const subject = subjectForMember(member)
+  return subject.kind === 'profile' ? subject.memberId : null
+}
+
+function profileIdForChore(chore: BoardChore | null): string | null {
+  if (!chore) return null
+  if (chore.subject?.kind === 'profile') return chore.subject.memberId
+  // Keep older DTOs safe during a rolling deploy. This branch is only a
+  // profile subject when the server names the field explicitly; it is never
+  // inferred from the legacy account assignee id.
+  if ('assigneeProfileId' in chore && typeof chore.assigneeProfileId === 'string') return chore.assigneeProfileId
+  return null
 }
 
 function writeErrorText(error: unknown): string {
@@ -51,41 +78,48 @@ export function useDeviceBoardActions({
   enabled,
   features,
   members,
-  afterChange,
+  memberProtocol = 1,
+  afterChange
 }: {
   client: DeviceClient | null
   enabled: boolean
   features: { chores: boolean; lists: boolean } | null
   members: BoardMember[]
+  /** Profile subjects are only actionable after the server explicitly opts this tablet into protocol 2. */
+  memberProtocol?: 1 | 2
   afterChange: () => void
 }): {
   actions: BoardActions | undefined
   actor: DeviceActorChoice | null
+  subject: DeviceSubjectChoice | null
   forgetActor: () => void
   picker: React.ReactNode
 } {
   const { t } = useTranslation()
-  const [actor, setActor] = React.useState<DeviceActorChoice | null>(null)
-  const actorRef = React.useRef<DeviceActorChoice | null>(null)
+  const [subject, setSubject] = React.useState<DeviceSubjectChoice | null>(null)
+  const subjectRef = React.useRef<DeviceSubjectChoice | null>(null)
   const lastTapRef = React.useRef(0)
   const [pickerOpen, setPickerOpen] = React.useState(false)
+  const [pickerMode, setPickerMode] = React.useState<'account' | 'profile'>('account')
+  const [requiredProfileId, setRequiredProfileId] = React.useState<string | null>(null)
+  const pendingChoreRef = React.useRef<BoardChore | null>(null)
   const resolver = React.useRef<((ok: boolean) => void) | null>(null)
   const afterRef = React.useRef(afterChange)
   afterRef.current = afterChange
 
-  const chooseActor = React.useCallback((next: DeviceActorChoice | null) => {
-    actorRef.current = next
-    setActor(next)
+  const chooseSubject = React.useCallback((next: DeviceSubjectChoice | null) => {
+    subjectRef.current = next
+    setSubject(next)
   }, [])
 
   // Forget the member after two idle minutes, so the next person is asked again.
   React.useEffect(() => {
-    if (!actor) return
+    if (!subject) return
     const id = window.setInterval(() => {
-      if (Date.now() - lastTapRef.current >= ACTOR_IDLE_MS) chooseActor(null)
+      if (Date.now() - lastTapRef.current >= ACTOR_IDLE_MS) chooseSubject(null)
     }, 5000)
     return () => window.clearInterval(id)
-  }, [actor, chooseActor])
+  }, [subject, chooseSubject])
 
   const settle = React.useCallback((ok: boolean) => {
     const resolve = resolver.current
@@ -100,14 +134,40 @@ export function useDeviceBoardActions({
   const actions = React.useMemo<BoardActions | undefined>(() => {
     if (!client || (!choresOn && !listsOn)) return undefined
     const mine = new Set<string>()
-    const actingMemberId = () => actorRef.current?.id ?? ''
+    const membersByProfileId = new Map(
+      members
+        .map((member) => {
+          const profileId = profileIdForMember(member)
+          return profileId ? ([profileId, member] as const) : null
+        })
+        .filter((entry): entry is readonly [string, BoardMember] => entry !== null)
+    )
+    const accountMembers = members.filter((member) => !profileIdForMember(member))
 
-    const post = async (path: string): Promise<ActionResult> => {
+    const accountId = () => (subjectRef.current?.kind === 'account' ? subjectRef.current.id : '')
+    const subjectForChore = (chore: BoardChore): DeviceSubjectChoice | null => {
+      const profileId = profileIdForChore(chore)
+      if (profileId) {
+        const profile = membersByProfileId.get(profileId)
+        return profile ? { kind: 'profile', memberId: profileId, name: profile.name } : null
+      }
+      const selected = subjectRef.current
+      return selected?.kind === 'account' ? selected : null
+    }
+
+    const post = async (path: string, chore: BoardChore): Promise<ActionResult> => {
+      const selected = subjectForChore(chore)
+      if (!selected) {
+        return {
+          ok: false,
+          message: 'Choose the assigned family member, then try again.'
+        }
+      }
       try {
         await client.request(path, {
           method: 'POST',
-          body: { actingMemberId: actingMemberId() },
-          headers: { 'Idempotency-Key': newIdempotencyKey() },
+          body: selected.kind === 'profile' ? { protocol: 2, selection: { memberId: selected.memberId } } : { actingMemberId: selected.id },
+          headers: { 'Idempotency-Key': newIdempotencyKey() }
         })
         return { ok: true }
       } catch (error) {
@@ -116,10 +176,12 @@ export function useDeviceBoardActions({
     }
 
     return {
-      canCompleteChore: () => choresOn,
       canTickGroceries: listsOn,
       prepare: () => {
-        if (actorRef.current && Date.now() - lastTapRef.current < ACTOR_IDLE_MS) {
+        const targetProfileId = profileIdForChore(pendingChoreRef.current)
+        const selected = subjectRef.current
+        const selectionMatches = targetProfileId ? memberProtocol === 2 && selected?.kind === 'profile' && selected.memberId === targetProfileId : selected?.kind === 'account'
+        if (selectionMatches && Date.now() - lastTapRef.current < ACTOR_IDLE_MS) {
           lastTapRef.current = Date.now()
           return Promise.resolve(true)
         }
@@ -129,26 +191,50 @@ export function useDeviceBoardActions({
             if (ok) lastTapRef.current = Date.now()
             resolve(ok)
           }
+          setPickerMode(targetProfileId ? 'profile' : 'account')
+          setRequiredProfileId(targetProfileId)
           setPickerOpen(true)
         })
       },
-      completeChore: (chore) => post(`/api/device/chores/${encodeURIComponent(chore.id)}/complete`),
-      undoChore: (chore) => post(`/api/device/chores/${encodeURIComponent(chore.id)}/uncomplete`),
+      canCompleteChore: (chore) => {
+        pendingChoreRef.current = chore
+        const profileId = profileIdForChore(chore)
+        if (profileId) return choresOn && memberProtocol === 2 && membersByProfileId.has(profileId)
+        return choresOn && accountMembers.length > 0
+      },
+      completeChore: (chore) => {
+        pendingChoreRef.current = null
+        return post(`/api/device/chores/${encodeURIComponent(chore.id)}/complete`, chore)
+      },
+      undoChore: (chore) => {
+        pendingChoreRef.current = null
+        return post(`/api/device/chores/${encodeURIComponent(chore.id)}/uncomplete`, chore)
+      },
       choreDoneNote: () => 'A parent will check it.',
-      actorLabel: () => actorRef.current?.name.trim().split(/\s+/)[0] ?? null,
+      actorLabel: () => (subjectRef.current?.kind === 'account' ? subjectRef.current.name.trim().split(/\s+/)[0] : null),
       async setGroceryChecked(item, checked) {
+        const selected = subjectRef.current
+        if (selected?.kind !== 'account') {
+          return {
+            ok: false,
+            message: 'Choose a family account before updating groceries.'
+          }
+        }
         try {
           const op = await getDeviceQueue(client).enqueue('device.list-item.set-checked', {
             itemId: item.id,
             checked,
-            actingMemberId: actingMemberId(),
+            actingMemberId: accountId()
           })
           mine.add(op.id)
           return { ok: true }
         } catch (error) {
           if (error instanceof QueueError && error.code === 'COMPATIBLE_CLIENT_REQUIRED') return { ok: false, message: t('groceries.compatibleClient') }
           if (error instanceof QueueError && error.code === 'QUEUE_FULL') {
-            return { ok: false, message: 'Too many changes are waiting for the Wi-Fi. Try again when it is back.' }
+            return {
+              ok: false,
+              message: 'Too many changes are waiting for the Wi-Fi. Try again when it is back.'
+            }
           }
           return { ok: false, message: 'Something went wrong. Try again.' }
         }
@@ -167,57 +253,79 @@ export function useDeviceBoardActions({
           }
         })
       },
-      afterChange: () => afterRef.current(),
+      afterChange: () => afterRef.current()
     }
-  }, [client, choresOn, listsOn, t])
+  }, [client, choresOn, listsOn, t, members, memberProtocol])
 
   const picker = (
     <WhoIsThisDialog
       open={pickerOpen}
       members={members}
+      mode={pickerMode}
+      requiredProfileId={requiredProfileId}
       onPick={(m) => {
-        chooseActor(m)
+        chooseSubject(m)
         settle(true)
       }}
       onClose={() => settle(false)}
     />
   )
 
-  return { actions, actor, forgetActor: () => chooseActor(null), picker }
+  const actor = subject?.kind === 'account' ? subject : null
+  return {
+    actions,
+    actor,
+    subject,
+    forgetActor: () => chooseSubject(null),
+    picker
+  }
 }
 
 /** "Who's this?" (O-5): names and board colours only (§9.1). */
 function WhoIsThisDialog({
   open,
   members,
+  mode,
+  requiredProfileId,
   onPick,
-  onClose,
+  onClose
 }: {
   open: boolean
   members: BoardMember[]
-  onPick: (member: DeviceActorChoice) => void
+  mode: 'account' | 'profile'
+  requiredProfileId: string | null
+  onPick: (member: DeviceSubjectChoice) => void
   onClose: () => void
 }) {
+  const choices = members.filter((member) => {
+    const profileId = profileIdForMember(member)
+    return mode === 'profile' ? profileId === requiredProfileId : profileId === null
+  })
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title="Who's this?"
+      title={mode === 'profile' ? 'Who is this chore for?' : "Who's this?"}
       testId="who-is-this"
-      description="Pick your name so the family knows who made the change."
+      description={mode === 'profile' ? 'Choose the family profile completing this chore.' : 'Pick your name so the family knows who made the change.'}
     >
       <ul className="grid gap-3 sm:grid-cols-2" aria-label="Family members">
-        {members.map((m) => (
+        {choices.map((m) => (
           <li key={m.id}>
             <button
               type="button"
-              onClick={() => onPick({ id: m.id, name: m.name })}
+              onClick={() => {
+                const profileId = profileIdForMember(m)
+                onPick(profileId ? { kind: 'profile', memberId: profileId, name: m.name } : { kind: 'account', id: m.id, name: m.name })
+              }}
               className={`flex min-h-[56px] w-full items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-4 text-left text-[19px] font-semibold text-label-primary active:bg-[var(--surface-fill)] ${focusRing}`}
             >
               <span
                 aria-hidden="true"
                 className="h-5 w-5 shrink-0 rounded-full"
-                style={{ backgroundColor: m.color ? MEMBER_COLOR_CSS[m.color as MemberColorKey] : 'var(--surface-fill)' }}
+                style={{
+                  backgroundColor: m.color ? MEMBER_COLOR_CSS[m.color as MemberColorKey] : 'var(--surface-fill)'
+                }}
               />
               <span className="min-w-0 break-words">{m.name}</span>
             </button>

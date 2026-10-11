@@ -70,4 +70,34 @@ describe("ProfileSetupPanel", () => {
     expect(secondKey).toBe(firstKey);
     expect(screen.getByText("Jamie")).toBeTruthy();
   });
+
+  it("starts a new command key when the draft changes after an ambiguous failure", async () => {
+    const user = userEvent.setup();
+    const calls: Array<{ init?: RequestInit }> = [];
+    let saveAttempts = 0;
+    global.fetch = jest.fn(async (_url: string, init?: RequestInit) => {
+      calls.push({ init });
+      if (init?.method !== "POST") return { ok: true, status: 200, json: async () => ({ profiles: [] }) };
+      saveAttempts += 1;
+      if (saveAttempts === 1) throw new Error("connection lost after send");
+      return { ok: true, status: 201, json: async () => ({ profile: { ...profile, name: "Taylor" } }) };
+    }) as unknown as typeof fetch;
+    renderPanel();
+
+    await user.click(screen.getByRole("button", { name: "Add a household profile" }));
+    await screen.findByLabelText("Name");
+    await user.type(screen.getByLabelText("Name"), "Jamie");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    await screen.findByText("Check your connection and try again. Your entry is still here.");
+    const firstKey = (calls[1].init?.headers as Record<string, string>)["Idempotency-Key"];
+
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Taylor");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    await waitFor(() => expect(screen.getByText("Profile saved.")).toBeTruthy());
+    const secondKey = (calls[2].init?.headers as Record<string, string>)["Idempotency-Key"];
+    expect(secondKey).toBeTruthy();
+    expect(secondKey).not.toBe(firstKey);
+    expect(JSON.parse(String(calls[2].init?.body)).name).toBe("Taylor");
+  });
 });

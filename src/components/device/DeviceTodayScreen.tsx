@@ -36,7 +36,7 @@ const PROACTIVE_CHECK_MS = 60 * 1000
  * act directly after "Who's this?" (SHARED_DEVICE.md §9.2), and parent mode
  * offers the board settings on the tablet itself (no photos, O-15).
  */
-export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie: boolean }) {
+export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 }: { hasAccessCookie: boolean; memberProtocol?: 1 | 2 }) {
   const client = useDeviceClient()
   const [me, setMe] = React.useState<DeviceMe | null>(null)
   const [elevation, setElevation] = React.useState<ElevationSession | null>(null)
@@ -58,7 +58,7 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
     }
   }, [client])
 
-  const { data, error: loadError, cached, cacheUnavailable, load: loadBoard, checkVersion } = useDeviceBoardSnapshot({ client, hasAccessCookie, loadIdentity: loadMe })
+  const { data, error: loadError, cached, cacheUnavailable, load: loadBoard, checkVersion } = useDeviceBoardSnapshot({ client, hasAccessCookie, memberProtocol, loadIdentity: loadMe })
 
   const refreshBoard = React.useCallback(() => void loadBoard(), [loadBoard])
   const { actions, actor, forgetActor, picker } = useDeviceBoardActions({
@@ -66,6 +66,7 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
     enabled: Boolean(data) && !cached && Boolean(me?.deviceWrites),
     features: me ? { chores: me.features.chores, lists: me.features.lists } : null,
     members: data?.members ?? [],
+    memberProtocol,
     afterChange: refreshBoard,
   })
   const settingsTransport = React.useMemo(() => (client ? deviceSettingsTransport(client) : null), [client])

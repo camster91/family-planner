@@ -1,19 +1,23 @@
-import { withRouteTelemetry } from '@/lib/route-telemetry'
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily } from '@/lib/api-auth'
-import { checkRateLimit } from '@/lib/rate-limit-db'
-import { loadTodayBoard } from '@/app/dashboard/today/board-snapshot'
-import { logRouteError } from '@/lib/api-error'
-import { getRequestId } from '@/lib/request-id'
+import { withRouteTelemetry } from "@/lib/route-telemetry";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { authenticateWithFamily } from "@/lib/api-auth";
+import { checkRateLimit } from "@/lib/rate-limit-db";
+import { loadTodayBoard } from "@/app/dashboard/today/board-snapshot";
+import {
+  requestedMemberProtocol,
+  profileChoreLegacyWriteRefusal,
+} from "@/lib/chore-profile";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 /** Per member: about one check every 3 s, far above the board's 25 s poll (two tabs, fast wake-ups). */
-const BOARD_VERSION_LIMIT = 1200
-const BOARD_VERSION_WINDOW_MS = 60 * 60 * 1000
+const BOARD_VERSION_LIMIT = 1200;
+const BOARD_VERSION_WINDOW_MS = 60 * 60 * 1000;
 
-const NO_STORE = { 'Cache-Control': 'private, no-store' }
+const NO_STORE = { "Cache-Control": "private, no-store" };
 
 /**
  * GET /api/family/board-version (#271): the change version of the Today board
@@ -24,28 +28,53 @@ const NO_STORE = { 'Cache-Control': 'private, no-store' }
  * from the caller's household. Person sessions only: a paired tablet cookie
  * is not a session (401) and uses GET /api/device/today/version instead.
  */
-export const GET = withRouteTelemetry('/api/family/board-version', handleGET)
+export const GET = withRouteTelemetry("/api/family/board-version", handleGET);
 
 async function handleGET(request: NextRequest) {
   try {
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const limit = await checkRateLimit(`board-version:${auth.user.id}`, BOARD_VERSION_LIMIT, BOARD_VERSION_WINDOW_MS)
+    const limit = await checkRateLimit(
+      `board-version:${auth.user.id}`,
+      BOARD_VERSION_LIMIT,
+      BOARD_VERSION_WINDOW_MS,
+    );
     if (!limit.allowed) {
       return NextResponse.json(
-        { error: 'Too many requests' },
+        { error: "Too many requests" },
         {
           status: 429,
-          headers: { ...NO_STORE, 'Retry-After': String(Math.max(1, Math.ceil(limit.retryAfterMs / 1000))) },
-        }
-      )
+          headers: {
+            ...NO_STORE,
+            "Retry-After": String(
+              Math.max(1, Math.ceil(limit.retryAfterMs / 1000)),
+            ),
+          },
+        },
+      );
     }
 
-    const board = await loadTodayBoard(prisma!, { familyId: auth.user.family_id, role: auth.user.role })
-    return NextResponse.json({ version: board.version }, { headers: NO_STORE })
+    const board = await loadTodayBoard(prisma!, {
+      familyId: auth.user.family_id,
+      role: auth.user.role,
+      memberProtocol: requestedMemberProtocol(request),
+    });
+    if (board.protocolError)
+      return NextResponse.json(profileChoreLegacyWriteRefusal(), {
+        status: 409,
+        headers: NO_STORE,
+      });
+    return NextResponse.json({ version: board.version }, { headers: NO_STORE });
   } catch (error) {
-    logRouteError('GET /api/family/board-version', error, getRequestId(request))
-    return NextResponse.json({ error: 'Could not check for changes' }, { status: 500, headers: NO_STORE })
+    logRouteError(
+      "GET /api/family/board-version",
+      error,
+      getRequestId(request),
+    );
+    return NextResponse.json(
+      { error: "Could not check for changes" },
+      { status: 500, headers: NO_STORE },
+    );
   }
 }

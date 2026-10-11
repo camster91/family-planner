@@ -5,6 +5,7 @@ import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import { canonicalBodySignature } from "@/lib/request-signature";
 import {
   isHouseholdProfile,
   readApiErrorCode,
@@ -35,7 +36,8 @@ export function ProfileSetupPanel() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const idempotencyKey = useRef<string | null>(null);
+  const idempotencyKey = useRef<{ key: string; signature: string } | null>(null);
+  const ambiguousKeys = useRef(new Map<string, string>());
 
   async function loadProfiles() {
     setState("loading");
@@ -79,14 +81,18 @@ export function ProfileSetupPanel() {
     setSaving(true);
     setError(null);
     setNotice(null);
-    const key = idempotencyKey.current ?? newIdempotencyKey();
-    idempotencyKey.current = key;
     const parsedAge = age.trim() ? Number(age) : null;
     const body = {
       name: trimmedName,
       role,
       ...(parsedAge === null ? {} : { age: parsedAge }),
     };
+    const signature = canonicalBodySignature(body);
+    const key =
+      idempotencyKey.current?.signature === signature
+        ? idempotencyKey.current.key
+        : ambiguousKeys.current.get(signature) ?? newIdempotencyKey();
+    idempotencyKey.current = { key, signature };
     try {
       const response = await fetch("/api/family/profiles", {
         method: "POST",
@@ -97,23 +103,28 @@ export function ProfileSetupPanel() {
       if (!response.ok) {
         if (response.status === 409 && responseErrorCode(payload) === "PROFILE_SETUP_UNSUPPORTED") {
           setState("unsupported");
+          ambiguousKeys.current.delete(signature);
           idempotencyKey.current = null;
         } else {
+          if (response.status >= 500) ambiguousKeys.current.set(signature, key);
           setError(response.status >= 500 ? text("networkError") : text("saveError"));
         }
         return;
       }
       const profile = payload && typeof payload === "object" ? (payload as { profile?: unknown }).profile : undefined;
       if (!isHouseholdProfile(profile)) {
+        ambiguousKeys.current.set(signature, key);
         setError(text("invalidResponse"));
         return;
       }
       setProfiles((current) => [...current, profile]);
       setName("");
       setAge("");
+      ambiguousKeys.current.delete(signature);
       idempotencyKey.current = null;
       setNotice(text("profileSaved"));
     } catch {
+      ambiguousKeys.current.set(signature, key);
       setError(text("networkError"));
     } finally {
       setSaving(false);
@@ -181,11 +192,11 @@ export function ProfileSetupPanel() {
             <form onSubmit={saveProfile} className="space-y-4" aria-label={text("addAnother")}>
               <div>
                 <label htmlFor="profile-name" className="label-apple">{text("nameLabel")}</label>
-                <input id="profile-name" value={name} maxLength={100} onChange={(event) => setName(event.target.value)} placeholder={text("namePlaceholder")} className="input-apple" required />
+                <input id="profile-name" value={name} maxLength={100} onChange={(event) => setName(event.target.value)} placeholder={text("namePlaceholder")} className="input-apple" required disabled={saving} />
               </div>
               <div>
                 <label htmlFor="profile-role" className="label-apple">{text("roleLabel")}</label>
-                <select id="profile-role" value={role} onChange={(event) => setRole(event.target.value as HouseholdProfileRole)} className="input-apple">
+                <select id="profile-role" value={role} onChange={(event) => setRole(event.target.value as HouseholdProfileRole)} className="input-apple" disabled={saving}>
                   <option value="child">{text("roleChild")}</option>
                   <option value="teen">{text("roleTeen")}</option>
                   <option value="parent">{text("roleParent")}</option>
@@ -193,7 +204,7 @@ export function ProfileSetupPanel() {
               </div>
               <div>
                 <label htmlFor="profile-age" className="label-apple">{text("ageLabel")}</label>
-                <input id="profile-age" type="number" min={role === "parent" ? 18 : role === "teen" ? 13 : 0} max={role === "parent" ? 120 : 17} value={age} onChange={(event) => setAge(event.target.value)} className="input-apple" />
+                <input id="profile-age" type="number" min={role === "parent" ? 18 : role === "teen" ? 13 : 0} max={role === "parent" ? 120 : 17} value={age} onChange={(event) => setAge(event.target.value)} className="input-apple" disabled={saving} />
               </div>
               {error && <p role="alert" className="text-body text-[var(--danger-text)]">{error}</p>}
               {notice && <p role="status" className="text-body text-success-text">{notice}</p>}
