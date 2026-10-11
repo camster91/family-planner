@@ -53,7 +53,7 @@ it("honors explicit copy overrides for the picker chrome and day labels", () => 
   render(
     <I18nProvider locale="es">
       <WeeklyDaysPicker
-        days={[1]}
+        days={[1, 2]}
         onChange={jest.fn()}
         copy={{
           legend: "Custom repeat",
@@ -67,4 +67,5 @@ it("honors explicit copy overrides for the picker chrome and day labels", () => 
   expect(screen.getByText("Custom repeat")).toBeTruthy();
   expect(screen.getByText("Pick a day")).toBeTruthy();
   expect(screen.getByText("Monday override")).toBeTruthy();
+  expect(screen.getByRole("checkbox", { name: "Martes" })).toBeTruthy();
 });

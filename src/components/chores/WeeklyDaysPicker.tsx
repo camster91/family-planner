@@ -32,7 +32,7 @@ export function WeeklyDaysPicker({
   const labels = {
     legend: copy?.legend ?? localeCopy.weeklyLegend ?? defaultCopy.legend,
     hint: copy?.hint ?? localeCopy.weeklyHint ?? defaultCopy.hint,
-    weekdays: copy?.weekdays ?? localeCopy.weekdayNames,
+    weekdays: { ...localeCopy.weekdayNames, ...copy?.weekdays },
   };
   const selectedDays = normalizedWeekdays(days);
   const daySummary = formatWeeklyDays(selectedDays, locale);
