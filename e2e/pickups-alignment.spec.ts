@@ -421,12 +421,14 @@ for (const locale of ["en", "es"] as const) {
         await expect(dialog).toBeVisible();
         await save.click();
         await expect.poll(() => posts).toBe(2);
-        await expect(save).toBeDisabled();
+        const saving = dialog.getByRole("button", {
+          name: copy.saving,
+          exact: true,
+        });
+        await expect(saving).toBeDisabled();
         await page.keyboard.press("Escape");
         await expect(dialog).toBeVisible();
-        await expect(
-          dialog.getByRole("button", { name: copy.save, exact: true }),
-        ).toBeDisabled();
+        await expect(saving).toBeDisabled();
         expect(
           dialog.getByRole("button", { name: copy.closeForm, exact: true }),
         ).toHaveCount(0);
@@ -447,7 +449,12 @@ for (const locale of ["en", "es"] as const) {
         await expect(toggle).toHaveAttribute("aria-checked", "false");
         await toggle.click();
         await expect.poll(() => patches).toBe(1);
-        await toggle.click();
+        await expect(toggle).toHaveAttribute("aria-disabled", "true");
+        // The control intentionally exposes aria-disabled rather than native
+        // disabled so the row remains in the focus order. Dispatching the
+        // second activation directly avoids Playwright waiting on a moving
+        // optimistic row while still exercising the synchronous latch.
+        await toggle.dispatchEvent("click");
         expect(patches).toBe(1);
         expect(patchBodies).toEqual([{ completed: true }]);
         releasePatch?.();
