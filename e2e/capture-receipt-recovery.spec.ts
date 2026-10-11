@@ -123,6 +123,11 @@ async function runtimeIdentity(
 }
 
 async function checkActionGeometry(page: Page, action: Locator): Promise<void> {
+  // Recovery controls are inline with the full CaptureBox and may be below
+  // the current viewport after a receipt reload. Bring the exact control
+  // into view before measuring it; this keeps the geometry and hit-test
+  // assertions about reachable controls rather than first-fold placement.
+  await action.scrollIntoViewIfNeeded();
   const box = await action.boundingBox();
   const viewport = page.viewportSize();
   expect(box).not.toBeNull();
@@ -834,7 +839,10 @@ test.describe("capture receipt recovery", () => {
           .filter({ hasText: "1 event could not be saved" }),
       ).toContainText("1 event could not be saved");
       await expect(
-        page.getByText("Synthetic photo failure", { exact: true }),
+        page
+          .getByText("Found 2 events", { exact: true })
+          .locator("..")
+          .getByText("Synthetic photo failure", { exact: true }),
       ).toBeVisible();
       expect(photoPostCount).toBe(2);
       const envelope = await readEnvelope(page, storageKey);
