@@ -21,6 +21,7 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<GroceryMessage | null>(null);
   const queueRef = React.useRef<OfflineQueue | null>(null);
+  const busyRef = React.useRef(false);
   const generation = React.useRef(0);
 
   React.useEffect(() => {
@@ -67,8 +68,13 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
 
   const run = async (id: string, discard: boolean) => {
     const queue = queueRef.current;
-    if (!queue || busy) return;
+    if (!queue || busyRef.current) return;
+    if (discard) {
+      const current = queue.list().find((op) => op.id === id);
+      if (!current || current.state === "syncing") return;
+    }
     const current = generation.current;
+    busyRef.current = true;
     setBusy(true);
     setMessage(null);
     try {
@@ -80,8 +86,17 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
     } catch {
       if (generation.current === current) setMessage("tickUpdateFailed");
     } finally {
+      busyRef.current = false;
       if (generation.current === current) setBusy(false);
     }
+  };
+
+  const canOpenDiscard = (id: string) => {
+    if (busyRef.current) return false;
+    const queue = queueRef.current;
+    if (!queue) return false;
+    const current = queue.list().find((op) => op.id === id);
+    return Boolean(current && current.state !== "syncing");
   };
 
   return (
@@ -182,8 +197,10 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
                   <button
                     type="button"
                     className="btn-secondary min-h-11"
-                    disabled={busy || op.state === "syncing"}
-                    onClick={() => setConfirm(op.id)}
+                    aria-disabled={busy || op.state === "syncing"}
+                    onClick={() => {
+                      if (canOpenDiscard(op.id)) setConfirm(op.id);
+                    }}
                     aria-label={t("groceries.discardChange", {
                       index: index + 1,
                     })}
