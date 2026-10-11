@@ -5,10 +5,10 @@ import { Plane, MapPin, Calendar } from 'lucide-react'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { LargeHeader } from '@/components/ui/large-header'
 import { cn } from '@/lib/utils'
-import { useTranslation } from '@/i18n'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { useToast } from '@/components/ui/toast'
-import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
-import { formatDateOnly, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
+import { formatDateOnly, parseDateOnly, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
+import { useTravelText, type TravelMessage } from '@/i18n/travel'
 
 interface TravelState {
   travel_mode_active: boolean
@@ -25,6 +25,72 @@ interface Chore {
   assignee: { name: string } | null
 }
 
+const ISO_DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isTravelDate(value: unknown): value is string | null {
+  if (value === null) return true
+  if (typeof value !== 'string') return false
+  if (parseDateOnly(value)) return true
+  return ISO_DATE_TIME_RE.test(value) && Boolean(parseDateOnly(value.slice(0, 10))) && !Number.isNaN(new Date(value).getTime())
+}
+
+function parseTravelState(value: unknown): TravelState | null {
+  if (!isRecord(value)) return null
+  if (
+    typeof value.travel_mode_active !== 'boolean' ||
+    !isTravelDate(value.travel_start_date) ||
+    !isTravelDate(value.travel_end_date) ||
+    (value.travel_destination !== null && typeof value.travel_destination !== 'string')
+  ) {
+    return null
+  }
+  return {
+    travel_mode_active: value.travel_mode_active,
+    travel_start_date: value.travel_start_date,
+    travel_end_date: value.travel_end_date,
+    travel_destination: value.travel_destination,
+  }
+}
+
+function parseChore(value: unknown): Chore | null {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    typeof value.title !== 'string' ||
+    typeof value.status !== 'string' ||
+    typeof value.due_date !== 'string' ||
+    !isTravelDate(value.due_date)
+  ) {
+    return null
+  }
+  const assignee = value.assignee
+  if (assignee !== null && (!isRecord(assignee) || typeof assignee.name !== 'string')) return null
+  return {
+    id: value.id,
+    title: value.title,
+    due_date: value.due_date,
+    status: value.status,
+    assignee: assignee as { name: string } | null,
+  }
+}
+
+function parseChoreList(value: unknown): Chore[] | null {
+  if (!isRecord(value) || !Array.isArray(value.chores)) return null
+  const chores = value.chores.map(parseChore)
+  return chores.every((chore): chore is Chore => chore !== null) ? chores : null
+}
+
+// A 4xx response is a definitive refusal from the canonical API. A 5xx,
+// redirect-like, or otherwise unknown status may mean the server committed the
+// patch before the response was lost, so it must be reconciled before retrying.
+function isDefinitiveTravelRefusal(status: number) {
+  return Number.isInteger(status) && status >= 400 && status < 500
+}
+
 export default function TravelPage() {
   return (
     <FeatureGate featureKey="travel">
@@ -34,57 +100,105 @@ export default function TravelPage() {
 }
 
 function TravelPageInner() {
-  const { t } = useTranslation()
+  const text = useTravelText()
+  const displayLocale = useDisplayLocale()
   const [travel, setTravel] = React.useState<TravelState | null>(null)
   const [loading, setLoading] = React.useState(true)
+  const [loadError, setLoadError] = React.useState(false)
+  const [writeUnconfirmed, setWriteUnconfirmed] = React.useState(false)
+  const [checkingState, setCheckingState] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [destination, setDestination] = React.useState('')
   const [startDate, setStartDate] = React.useState('')
   const [endDate, setEndDate] = React.useState('')
   const [pendingChores, setPendingChores] = React.useState<Chore[]>([])
+  const [choresLoading, setChoresLoading] = React.useState(false)
+  const [choresError, setChoresError] = React.useState(false)
+  const mutationRef = React.useRef(false)
+  const travelRequestRef = React.useRef(0)
+  const choresRequestRef = React.useRef(0)
 
-  // KidHome pattern: a refused or failed request says so in a toast instead
-  // of doing nothing (or leaving an unhandled rejection when offline).
   const { addToast } = useToast()
-  const failed = React.useCallback(
-    async (title: string, res?: Response) => {
-      addToast({ type: 'error', title, message: res ? await responseErrorMessage(res) : OFFLINE_MESSAGE })
+  const notifyFailure = React.useCallback(
+    (title: TravelMessage) => {
+      addToast({ type: 'error', title: text(title), message: text('networkError') })
     },
-    [addToast]
+    [addToast, text]
   )
 
-  const fetchTravel = React.useCallback(async () => {
+  const handleWriteFailure = React.useCallback(
+    (res: Response, message: TravelMessage) => {
+      if (isDefinitiveTravelRefusal(res.status)) notifyFailure(message)
+      else setWriteUnconfirmed(true)
+    },
+    [notifyFailure]
+  )
+
+  const fetchTravel = React.useCallback(async (options: { preserveDraft?: boolean; reconcile?: boolean } = {}) => {
+    const preserveDraft = options.preserveDraft ?? false
+    const reconcile = options.reconcile ?? false
+    const requestId = ++travelRequestRef.current
+    setLoading(true)
+    if (reconcile) setCheckingState(true)
     try {
       const res = await fetch('/api/family/travel')
       if (res.ok) {
         const data = await res.json()
-        setTravel(data)
-        setDestination(data.travel_destination ?? '')
-        setStartDate(data.travel_start_date ? toDateOnlyUTC(data.travel_start_date) : '')
-        setEndDate(data.travel_end_date ? toDateOnlyUTC(data.travel_end_date) : '')
+        if (requestId !== travelRequestRef.current) return
+        const parsed = parseTravelState(data)
+        if (!parsed) {
+          setLoadError(true)
+          return
+        }
+        setTravel(parsed)
+        setLoadError(false)
+        if (!preserveDraft) {
+          setDestination(parsed.travel_destination ?? '')
+          setStartDate(parsed.travel_start_date ? toDateOnlyUTC(parsed.travel_start_date) : '')
+          setEndDate(parsed.travel_end_date ? toDateOnlyUTC(parsed.travel_end_date) : '')
+        }
+        if (reconcile) setWriteUnconfirmed(false)
       } else {
-        await failed("Couldn't load travel mode", res)
+        if (requestId === travelRequestRef.current) setLoadError(true)
       }
     } catch {
-      await failed("Couldn't load travel mode")
+      if (requestId === travelRequestRef.current) setLoadError(true)
     } finally {
-      setLoading(false)
+      if (requestId === travelRequestRef.current) setLoading(false)
+      if (reconcile && requestId === travelRequestRef.current) setCheckingState(false)
     }
-  }, [failed])
+  }, [])
+
+  const checkCurrentState = React.useCallback(() => {
+    void fetchTravel({ preserveDraft: true, reconcile: true })
+  }, [fetchTravel])
 
   // Only the trip's chores: the due-date window, not every household chore.
   const tripStart = travel?.travel_mode_active ? travel.travel_start_date : null
   const tripEnd = travel?.travel_mode_active ? travel.travel_end_date : null
   const fetchChores = React.useCallback(async () => {
-    if (!tripStart || !tripEnd) return setPendingChores([])
+    const requestId = ++choresRequestRef.current
+    if (!tripStart || !tripEnd) {
+      setPendingChores([])
+      setChoresError(false)
+      setChoresLoading(false)
+      return
+    }
+    setChoresLoading(true)
+    setChoresError(false)
     try {
       const range = new URLSearchParams({ from: toDateOnlyUTC(tripStart), to: toDateOnlyUTC(tripEnd) })
       const res = await fetch(`/api/chores?${range}`)
-      if (res.ok) {
-        const data = await res.json()
-        setPendingChores(data.chores ?? [])
-      }
-    } catch {}
+      if (!res.ok) throw new Error('travel chores load failed')
+      const data = await res.json()
+      const parsed = parseChoreList(data)
+      if (!parsed) throw new Error('travel chores response malformed')
+      if (requestId === choresRequestRef.current) setPendingChores(parsed)
+    } catch {
+      if (requestId === choresRequestRef.current) setChoresError(true)
+    } finally {
+      if (requestId === choresRequestRef.current) setChoresLoading(false)
+    }
   }, [tripStart, tripEnd])
 
   React.useEffect(() => {
@@ -96,7 +210,8 @@ function TravelPageInner() {
   }, [fetchChores])
 
   const handleToggle = async () => {
-    if (!travel) return
+    if (!travel || loading || loadError || writeUnconfirmed || mutationRef.current) return
+    mutationRef.current = true
     setSaving(true)
     try {
       const res = await fetch('/api/family/travel', {
@@ -113,18 +228,24 @@ function TravelPageInner() {
       })
       if (res.ok) {
         const data = await res.json()
-        setTravel(data)
-      } else {
-        await failed("Couldn't change travel mode", res)
-      }
+        const parsed = parseTravelState(data)
+        if (parsed) {
+          setTravel(parsed)
+        } else {
+          setWriteUnconfirmed(true)
+        }
+      } else handleWriteFailure(res, 'toggleFailed')
     } catch {
-      await failed("Couldn't change travel mode")
+      setWriteUnconfirmed(true)
     } finally {
+      mutationRef.current = false
       setSaving(false)
     }
   }
 
   const handleSaveDetails = async () => {
+    if (!travel || loading || loadError || writeUnconfirmed || mutationRef.current) return
+    mutationRef.current = true
     setSaving(true)
     try {
       const res = await fetch('/api/family/travel', {
@@ -138,13 +259,17 @@ function TravelPageInner() {
       })
       if (res.ok) {
         const data = await res.json()
-        setTravel(data)
-      } else {
-        await failed("Couldn't save the trip details", res)
-      }
+        const parsed = parseTravelState(data)
+        if (parsed) {
+          setTravel(parsed)
+        } else {
+          setWriteUnconfirmed(true)
+        }
+      } else handleWriteFailure(res, 'detailsFailed')
     } catch {
-      await failed("Couldn't save the trip details")
+      setWriteUnconfirmed(true)
     } finally {
+      mutationRef.current = false
       setSaving(false)
     }
   }
@@ -165,52 +290,106 @@ function TravelPageInner() {
 
   const formatDate = (d: string | null) => {
     if (!d) return null
-    return formatDateOnly(d, { month: 'short', day: 'numeric', year: 'numeric' })
+    return formatDateOnly(d, { month: 'short', day: 'numeric', year: 'numeric' }, displayLocale)
   }
 
-  if (loading) {
+  if (loading && !travel) {
     return (
-      <div className="space-y-6 max-w-2xl mx-auto px-4">
+      <div className="space-y-6 max-w-2xl mx-auto px-4" aria-busy="true" aria-label={text('refreshing')}>
         <div className="h-24 rounded-2xl bg-[var(--surface-fill)] animate-pulse" />
+      </div>
+    )
+  }
+
+  if (!travel) {
+    return (
+      <div className="space-y-6 max-w-2xl mx-auto px-4 pb-20">
+        <LargeHeader title={text('title')} subtitle={text('subtitle')} className="px-0" />
+        <div className="card-apple p-4" role="alert">
+          <p className="text-body font-semibold text-label-primary">{text('loadErrorTitle')}</p>
+          <p className="text-footnote text-label-secondary mt-1">{text('loadErrorDescription')}</p>
+          <button
+            type="button"
+            onClick={() => void fetchTravel()}
+            disabled={loading}
+            className="btn-tinted mt-3 min-h-[44px]"
+          >
+            {loading ? text('refreshing') : text('retry')}
+          </button>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto px-4 pb-20">
+      {writeUnconfirmed && (
+        <div className="card-apple flex flex-wrap items-center justify-between gap-3 p-4" role="alert">
+          <div>
+            <p className="text-body font-semibold text-label-primary">{text('writeUnconfirmedTitle')}</p>
+            <p className="text-footnote text-label-secondary">{text('writeUnconfirmedDescription')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={checkCurrentState}
+            disabled={checkingState || loading}
+            className="btn-tinted min-h-[44px]"
+          >
+            {checkingState ? text('checkingState') : text('checkCurrentState')}
+          </button>
+        </div>
+      )}
+      {loadError && !writeUnconfirmed && (
+        <div className="card-apple flex flex-wrap items-center justify-between gap-3 p-4" role="alert">
+          <div>
+            <p className="text-body font-semibold text-label-primary">{text('loadErrorTitle')}</p>
+            <p className="text-footnote text-label-secondary">{text('loadErrorDescription')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void fetchTravel()}
+            disabled={loading}
+            className="btn-tinted min-h-[44px]"
+          >
+            {loading ? text('refreshing') : text('retry')}
+          </button>
+        </div>
+      )}
       {isActive && travel?.travel_end_date && (
         <div className="bg-[var(--accent-tint)] rounded-2xl px-4 py-3 flex items-center gap-3">
           <Plane className="w-5 h-5 text-[var(--accent)]" />
           <span className="text-subhead font-semibold text-[var(--accent)]">
-            {t('travel.awayBanner', { date: formatDate(travel.travel_end_date) ?? '' })}
+            {text('awayBanner', { date: formatDate(travel.travel_end_date) ?? '' })}
           </span>
         </div>
       )}
 
       <LargeHeader
-        title={t('travel.title')}
-        subtitle={t('travel.subtitle')}
+        title={text('title')}
+        subtitle={text('subtitle')}
         className="px-0"
       />
 
       <div className="card-apple p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-headline text-label-primary">{t('travel.travelMode')}</p>
+            <p className="text-headline text-label-primary">{text('travelMode')}</p>
             <p className="text-footnote text-label-secondary mt-0.5">
-              {isActive ? 'ON' : 'OFF'}
+              {isActive ? text('on') : text('off')}
             </p>
           </div>
           <button
             type="button"
             onClick={handleToggle}
-            disabled={saving}
+            disabled={saving || loading || loadError || writeUnconfirmed}
             className={cn(
-              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300',
+              'relative inline-flex h-11 min-h-[44px] w-12 items-center rounded-full transition-colors duration-300',
               isActive ? 'bg-[var(--accent-fill)]' : 'bg-[var(--surface-fill-secondary)]'
             )}
             style={{ transition: 'background 300ms var(--spring-default)' }}
-            aria-label={isActive ? 'Turn off travel mode' : 'Turn on travel mode'}
+            role="switch"
+            aria-checked={isActive}
+            aria-label={isActive ? text('turnOff') : text('turnOn')}
           >
             <span
               className={cn(
@@ -227,22 +406,22 @@ function TravelPageInner() {
             <div>
               <label htmlFor="travel-destination" className="text-subhead text-label-secondary mb-1.5 block">
                 <MapPin className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" />
-                {t('travel.destination')}
+                {text('destination')}
               </label>
               <input
                 id="travel-destination"
                 type="text"
                 value={destination}
                 onChange={e => setDestination(e.target.value)}
-                placeholder="e.g. Costa Rica"
+                placeholder={text('destinationPlaceholder')}
                 className="w-full input-apple"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label htmlFor="travel-start-date" className="text-subhead text-label-secondary mb-1.5 block">
-                  <Calendar className="w-3.5 h-3.5 inline mr-1" />
-                  {t('travel.startDate')}
+                  <Calendar className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" />
+                  {text('startDate')}
                 </label>
                 <input
                   id="travel-start-date"
@@ -254,8 +433,8 @@ function TravelPageInner() {
               </div>
               <div>
                 <label htmlFor="travel-end-date" className="text-subhead text-label-secondary mb-1.5 block">
-                  <Calendar className="w-3.5 h-3.5 inline mr-1" />
-                  {t('travel.endDate')}
+                  <Calendar className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" />
+                  {text('endDate')}
                 </label>
                 <input
                   id="travel-end-date"
@@ -269,10 +448,10 @@ function TravelPageInner() {
             <button
               type="button"
               onClick={handleSaveDetails}
-              disabled={saving}
-              className="btn-filled w-full"
+              disabled={saving || loading || loadError || writeUnconfirmed}
+              className="btn-filled w-full min-h-[44px]"
             >
-              {saving ? t('common.saving') : t('travel.save')}
+              {saving ? text('saving') : text('save')}
             </button>
           </div>
         )}
@@ -281,17 +460,34 @@ function TravelPageInner() {
       {!isActive && (
         <div className="text-center py-8">
           <Plane className="w-10 h-10 text-label-tertiary mx-auto mb-3" />
-          <p className="text-body text-label-secondary">{t('travel.emptyState')}</p>
+          <p className="text-body text-label-secondary">{text('emptyState')}</p>
         </div>
       )}
 
       {isActive && (
         <div className="space-y-3">
-          <p className="section-header">{t('travel.whileAway')}</p>
-          {pendingInWindow.length > 0 ? (
+          <p className="section-header">{text('whileAway')}</p>
+          {choresLoading ? (
+            <div className="card-apple px-4 py-6 text-center" role="status" aria-busy="true">
+              <p className="text-body text-label-secondary">{text('choresLoading')}</p>
+            </div>
+          ) : choresError ? (
+            <div className="card-apple px-4 py-6 text-center" role="alert">
+              <p className="text-body font-semibold text-label-primary">{text('choresLoadErrorTitle')}</p>
+              <p className="text-footnote text-label-secondary mt-1">{text('choresLoadErrorDescription')}</p>
+              <button
+                type="button"
+                onClick={() => void fetchChores()}
+                disabled={choresLoading}
+                className="btn-tinted mt-3 min-h-[44px]"
+              >
+                {choresLoading ? text('refreshing') : text('retryChores')}
+              </button>
+            </div>
+          ) : pendingInWindow.length > 0 ? (
             <div className="card-apple divide-y divide-[var(--surface-separator)]">
               <div className="px-4 py-3 flex items-center justify-between">
-                <span className="text-body text-label-primary">{t('travel.pendingChores')}</span>
+                <span className="text-body text-label-primary">{text('pendingChores')}</span>
                 <span className="text-headline text-[var(--accent)]">{pendingInWindow.length}</span>
               </div>
               {pendingInWindow.slice(0, 5).map(chore => (
@@ -299,18 +495,18 @@ function TravelPageInner() {
                   <div className="flex-1 min-w-0">
                     <p className="text-body text-label-primary truncate">{chore.title}</p>
                     <p className="text-footnote text-label-secondary">
-                      {chore.assignee?.name ?? 'Unassigned'}
+                      {chore.assignee?.name ?? text('unassigned')}
                     </p>
                   </div>
                   <span className="text-footnote text-label-tertiary">
-                    {formatDateOnly(chore.due_date)}
+                    {formatDateOnly(chore.due_date, undefined, displayLocale)}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
             <div className="card-apple px-4 py-6 text-center">
-              <p className="text-body text-label-secondary">{t('travel.noPendingChores')}</p>
+              <p className="text-body text-label-secondary">{text('noPendingChores')}</p>
             </div>
           )}
         </div>

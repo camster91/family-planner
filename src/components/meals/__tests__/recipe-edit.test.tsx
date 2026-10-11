@@ -289,7 +289,12 @@ it.each([
     });
     expect(within(dialog).getByRole("button", { name: "Close" })).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toContain(
-      outcome === "refusal" ? "Permission refused" : "may have been saved",
+      outcome === "refusal"
+        ? "The recipe was not accepted. Check your entries and permissions."
+        : "may have been saved",
+    );
+    expect(screen.getByRole("alert").textContent).not.toContain(
+      "Permission refused",
     );
     await act(async () => {
       save();

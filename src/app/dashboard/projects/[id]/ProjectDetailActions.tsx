@@ -4,25 +4,36 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Pencil, Archive, Trash2, MoreHorizontal, CheckCircle2, RotateCcw } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
+import { Dialog } from '@/components/ui/dialog'
+import { useTranslation } from '@/i18n'
+import { useProjectDeleteText } from '@/i18n/project-delete'
 
 interface ProjectDetailActionsProps {
   projectId: string
+  projectName: string
   projectStatus: 'active' | 'completed' | 'archived'
   isParent: boolean
 }
 
 export function ProjectDetailActions({
   projectId,
+  projectName,
   projectStatus,
   isParent,
 }: ProjectDetailActionsProps) {
   const router = useRouter()
   const { addToast } = useToast()
+  const { t } = useTranslation()
+  const projectDeleteText = useProjectDeleteText()
   const [menuOpen, setMenuOpen] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState<'failed' | 'network' | null>(null)
   const menuId = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null)
+  const deletingRef = useRef(false)
 
   // Menu keyboard support: focus the first item on open, Escape closes and
   // returns focus to the trigger, arrow keys move between items.
@@ -77,24 +88,39 @@ export function ProjectDetailActions({
     }
   }
 
+  const openDeleteConfirmation = () => {
+    if (deletingRef.current) return
+    setDeleteError(null)
+    setMenuOpen(false)
+    setDeleteOpen(true)
+  }
+
+  const closeDeleteConfirmation = () => {
+    if (deletingRef.current) return
+    setDeleteError(null)
+    setDeleteOpen(false)
+    window.requestAnimationFrame(() => triggerRef.current?.focus())
+  }
+
   const deleteProject = async () => {
-    if (!confirm('Are you sure you want to delete this project? This will also delete all its tasks and cannot be undone.')) return
+    if (deletingRef.current) return
+    deletingRef.current = true
     setLoading('delete')
+    setDeleteError(null)
     try {
       const res = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' })
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to delete project')
+        setDeleteError('failed')
+        return
       }
-      addToast({ type: 'success', title: 'Project deleted' })
+      addToast({ type: 'success', title: projectDeleteText('deleteSuccess') })
+      setDeleteOpen(false)
       router.push('/dashboard/projects')
       router.refresh()
-    } catch (error) {
-      addToast({
-        type: 'error',
-        title: 'Failed to delete',
-        message: error instanceof Error ? error.message : 'Please try again.',
-      })
+    } catch {
+      setDeleteError('network')
+    } finally {
+      deletingRef.current = false
       setLoading(null)
     }
   }
@@ -147,9 +173,9 @@ export function ProjectDetailActions({
 
   if (isParent) {
     actions.push({
-      label: 'Delete',
+      label: projectDeleteText('deleteAction'),
       icon: Trash2,
-      onClick: deleteProject,
+      onClick: openDeleteConfirmation,
       loading: loading === 'delete',
       className: 'text-danger-text hover:bg-[var(--danger-tint)]',
     })
@@ -195,6 +221,52 @@ export function ProjectDetailActions({
             ))}
           </div>
         </>
+      )}
+
+      {deleteOpen && (
+        <Dialog
+          open
+          role="alertdialog"
+          testId="delete-project-dialog"
+          title={projectDeleteText('deleteTitle', { name: projectName })}
+          description={projectDeleteText('deleteDescription', { name: projectName })}
+          initialFocusRef={cancelDeleteRef}
+          onClose={loading === 'delete' ? undefined : closeDeleteConfirmation}
+          closeLabel={projectDeleteText('deleteClose')}
+        >
+          <div aria-busy={loading === 'delete'}>
+            {deleteError && (
+              <p role="alert" className="mb-4 text-sm text-danger-text">
+                {deleteError === 'network'
+                  ? projectDeleteText('deleteNetworkError')
+                  : projectDeleteText('deleteFailed')}
+              </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-3">
+              <button
+                ref={cancelDeleteRef}
+                type="button"
+                disabled={loading === 'delete'}
+                onClick={closeDeleteConfirmation}
+                className="min-h-[44px] min-w-[44px] rounded-lg border border-input px-4 text-foreground disabled:opacity-60"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={loading === 'delete'}
+                onClick={deleteProject}
+                className="btn-destructive min-h-[44px] min-w-[44px] px-4 disabled:opacity-60"
+              >
+                {loading === 'delete'
+                  ? projectDeleteText('deleteDeleting')
+                  : deleteError
+                    ? t('routeState.tryAgain')
+                    : t('common.delete')}
+              </button>
+            </div>
+          </div>
+        </Dialog>
       )}
     </div>
   )
