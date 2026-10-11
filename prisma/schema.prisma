@@ -1004,7 +1004,7 @@ model Activity {
   // Relations
   family         Family         @relation(fields: [family_id], references: [id], onDelete: Cascade)
   user           User           @relation("UserActivities", fields: [user_id], references: [id], onDelete: Cascade)
-  subject_member HouseholdMember? @relation("ActivitySubjectMember", fields: [subject_member_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction)
+  subject_member HouseholdMember? @relation("ActivitySubjectMember", fields: [subject_member_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction, map: "Activity_subject_member_fkey")
 
   @@index([family_id])
   @@index([family_id, created_at])
@@ -1522,7 +1522,7 @@ model DeviceAuditEvent {
   family         Family           @relation(fields: [family_id], references: [id], onDelete: Cascade)
   device         HouseholdDevice? @relation(fields: [device_id], references: [id], onDelete: SetNull)
   actor          User?            @relation("DeviceAuditActor", fields: [actor_user_id], references: [id], onDelete: SetNull)
-  subject_member HouseholdMember? @relation("DeviceAuditSubjectMember", fields: [subject_member_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction)
+  subject_member HouseholdMember? @relation("DeviceAuditSubjectMember", fields: [subject_member_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction, map: "DeviceAuditEvent_subject_member_fkey")
 
   @@index([family_id, created_at])
   @@index([device_id, created_at])

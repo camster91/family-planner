@@ -20,6 +20,9 @@ describe("member audit-subject expand contract", () => {
       expect(block).toContain("references: [id, family_id]");
       expect(block).toContain("onDelete: NoAction");
       expect(block).toContain("onUpdate: NoAction");
+      expect(block).toContain(
+        `map: "${model === "Activity" ? "Activity" : "DeviceAuditEvent"}_subject_member_fkey"`,
+      );
     }
     expect(schema).toMatch(/user\s+User\s+@relation\("UserActivities"/);
     expect(schema).toMatch(/actor\s+User\?\s+@relation\("DeviceAuditActor"/);
