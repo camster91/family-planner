@@ -176,6 +176,8 @@ export function CaptureBox({
   const [unavailable, setUnavailable] = React.useState(false)
   const [availability, setAvailability] = React.useState<'loading' | CaptureAvailability>('loading')
   const [checkingAvailability, setCheckingAvailability] = React.useState(false)
+  const availabilityRef = React.useRef<'loading' | CaptureAvailability>('loading')
+  const focusAfterAvailabilityRef = React.useRef(false)
   // D4 (#102): children may not use capture; the API says so via `allowed`.
   const [childBlocked, setChildBlocked] = React.useState(false)
   const [photoBusy, setPhotoBusy] = React.useState(false)
@@ -265,6 +267,7 @@ export function CaptureBox({
   // network/5xx/malformed response is transient so the launcher can recover
   // without a full page reload.
   const checkAvailability = React.useCallback(async () => {
+    const recoveringFromTransientFailure = availabilityRef.current === 'retry'
     setCheckingAvailability(true)
     try {
       const response = await fetch('/api/capture')
@@ -293,6 +296,7 @@ export function CaptureBox({
         onAvailabilityChange?.('unavailable')
         return
       }
+      if (recoveringFromTransientFailure) focusAfterAvailabilityRef.current = true
       setAvailability('available')
       onAvailabilityChange?.('available')
       if (data.userId && data.familyId) {
@@ -316,6 +320,17 @@ export function CaptureBox({
   React.useEffect(() => {
     void checkAvailability()
   }, [checkAvailability])
+
+  React.useEffect(() => {
+    availabilityRef.current = availability
+  }, [availability])
+
+  React.useEffect(() => {
+    if (availability !== 'available' || !focusAfterAvailabilityRef.current) return
+    focusAfterAvailabilityRef.current = false
+    if (!open) return
+    textInputRef.current?.focus()
+  }, [availability, open])
 
   async function checkRecovery(row: CaptureRecoveryEnvelope) {
     if (!row.requestHash) {

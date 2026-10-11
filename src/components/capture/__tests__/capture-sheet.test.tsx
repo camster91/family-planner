@@ -184,9 +184,54 @@ it("keeps the launcher recoverable after a transient availability failure", asyn
     }),
   ).toBeVisible();
   expect(
+    within(dialog).getByRole("textbox", {
+      name: "What would you like to add?",
+    }),
+  ).toHaveFocus();
+  expect(
     within(dialog).getByRole("button", { name: "Retry Dentist" }),
   ).toBeVisible();
   expect(attempts).toBe(2);
+});
+
+it("does not focus the capture input when a closed sheet finishes retrying", async () => {
+  let resolveRetry!: (value: Response) => void;
+  let attempts = 0;
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    if (String(input) !== "/api/capture")
+      throw new Error(`unexpected ${String(input)}`);
+    attempts += 1;
+    if (attempts === 1) throw new Error("offline");
+    return new Promise<Response>((resolve) => {
+      resolveRetry = resolve;
+    });
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  mount();
+  const launcher = await screen.findByRole("button", {
+    name: "Open quick add",
+  });
+  await user.click(launcher);
+  const dialog = screen.getByRole("dialog", { name: "Quick add" });
+  await user.click(within(dialog).getByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(attempts).toBe(2));
+  await user.click(
+    within(dialog).getByRole("button", { name: "Close quick add" }),
+  );
+  expect(launcher).toHaveFocus();
+
+  await act(async () => {
+    resolveRetry(
+      response(200, {
+        configured: true,
+        allowed: true,
+        userId: "user-a",
+        familyId: "family-a",
+      }),
+    );
+  });
+  expect(launcher).toHaveFocus();
 });
 
 it("hides the launcher for an explicit authenticated refusal", async () => {
