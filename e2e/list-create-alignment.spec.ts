@@ -533,7 +533,7 @@ for (const locale of ["en", "es"] as const) {
         await expect(refused).toContainText(copy.refusalTitle);
         await expect(refused).toContainText(copy.refusalDescription);
         await expect(
-          page.getByRole("link", { name: copy.back }),
+          refused.getByRole("link", { name: copy.back }),
         ).toHaveAttribute("href", "/dashboard/lists");
         await expect(page.getByLabel(copy.name)).toHaveCount(0);
         await expect(
