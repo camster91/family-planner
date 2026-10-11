@@ -45,6 +45,12 @@ export default function FeaturesPage() {
   const groups = groupFeatures(FEATURES)
   const normalizedQuery = query.trim().toLocaleLowerCase()
 
+  React.useEffect(() => {
+    if (window.matchMedia?.('(max-width: 767px)').matches) {
+      setExpanded({ core: false, planning: true, family: false })
+    }
+  }, [])
+
   const groupRows = GROUP_ORDER.map((key) => {
     const title = copy(GROUP_COPY[key].title)
     const subtitle = copy(GROUP_COPY[key].subtitle)
@@ -117,6 +123,9 @@ export default function FeaturesPage() {
     setExpanded((current) => ({ ...current, [key]: true }))
     const section = document.getElementById(`feature-group-${key}`)
     section?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+    document
+      .getElementById(`feature-group-heading-${key}`)
+      ?.focus({ preventScroll: true })
   }
 
   function setAllGroups(open: boolean) {
@@ -153,6 +162,7 @@ export default function FeaturesPage() {
             value={query}
             onChange={setQuery}
             placeholder={copy('searchPlaceholder')}
+            clearLabel={copy('clearSearch')}
           />
         </label>
         <div className="flex items-center justify-between gap-2">
@@ -265,7 +275,11 @@ function FeatureGroup({
     <section id={`feature-group-${groupKey}`} aria-labelledby={headingId}>
       <div className="flex min-h-11 w-full items-center justify-between gap-3 px-1 pb-2">
         <span className="min-w-0">
-          <h2 id={headingId} className="text-title-3">
+          <h2
+            id={headingId}
+            tabIndex={-1}
+            className="text-title-3 focus:outline-none"
+          >
             {title}
           </h2>
           <p className="mt-0.5 text-footnote text-label-secondary">
@@ -347,6 +361,7 @@ function FeatureRow({
   const Icon = feature.icon
   const descriptionId = React.useId()
   const reasonId = React.useId()
+  const stateId = React.useId()
   const bgClass = {
     meals: 'bg-tint-meals',
     lists: 'bg-tint-lists',
@@ -383,7 +398,10 @@ function FeatureRow({
               aria-hidden="true"
             />
           )}
-          <span className="shrink-0 rounded-full bg-surface-fill-secondary px-2 py-0.5 text-caption-1 text-label-secondary">
+          <span
+            id={stateId}
+            className="shrink-0 rounded-full bg-surface-fill-secondary px-2 py-0.5 text-caption-1 text-label-secondary"
+          >
             {state}
           </span>
         </div>
@@ -405,9 +423,9 @@ function FeatureRow({
         disabled={disabled}
         pending={pending}
         featureTitle={feature.title}
-        descriptionId={
-          needsTitle ? `${descriptionId} ${reasonId}` : descriptionId
-        }
+        descriptionId={[descriptionId, stateId, needsTitle && reasonId]
+          .filter(Boolean)
+          .join(' ')}
         copy={copy}
       />
     </div>
@@ -442,9 +460,16 @@ function ToggleSwitch({
           ? copy(checked ? 'disable' : 'enable', { title: featureTitle })
           : undefined
       }
-      onClick={disabled ? undefined : onChange}
-      disabled={disabled || pending}
-      className={`group inline-flex h-11 min-w-[51px] shrink-0 items-center justify-center ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} focus-visible:outline-none`}
+      aria-disabled={pending || undefined}
+      onClick={(event) => {
+        if (disabled || pending) {
+          event.preventDefault()
+          return
+        }
+        onChange()
+      }}
+      disabled={disabled}
+      className={`group inline-flex h-11 min-w-[51px] shrink-0 items-center justify-center ${disabled || pending ? 'cursor-not-allowed' : 'cursor-pointer'} focus-visible:outline-none`}
     >
       <span
         aria-hidden="true"
