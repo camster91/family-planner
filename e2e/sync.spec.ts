@@ -33,6 +33,55 @@ const PROJECTS = ["phone-390x844", "fridge-landscape-1280x800"];
 
 type Fixture = { listId: string; items: Record<string, string> };
 
+const COMPATIBILITY_CASES: Array<{
+  name: string;
+  build: (itemId: string) => Record<string, unknown>;
+}> = [
+  {
+    name: "an unfamiliar v1 operation",
+    build: (itemId) => ({
+      v: 1,
+      ops: [
+        {
+          id: "original-known-key-123456",
+          action: "list-item.set-checked",
+          v: 1,
+          payload: { itemId, checked: true },
+          createdAt: Date.now(),
+          state: "pending",
+          attempts: 0,
+          nextAttemptAt: 0,
+        },
+        {
+          id: "original-future-key-123456",
+          action: "future-grocery-action",
+          v: 2,
+          payload: { content: "PRIVATE UNFAMILIAR CONTENT" },
+        },
+      ],
+    }),
+  },
+  {
+    name: "a future malformed operations envelope",
+    build: () => ({
+      v: 2,
+      operations: [
+        {
+          id: "original-future-key-123456",
+          action: "future-grocery-action",
+          v: 2,
+          payload: { content: "PRIVATE UNFAMILIAR CONTENT" },
+          createdAt: 1,
+          state: "pending",
+          attempts: 0,
+          nextAttemptAt: 0,
+        },
+        { malformed: true, createdAt: 1 },
+      ],
+    }),
+  },
+];
+
 function onlyOnSomeProjects(testInfo: TestInfo) {
   test.skip(
     !PROJECTS.includes(testInfo.project.name),
@@ -112,133 +161,118 @@ test.describe("offline grocery ticks: Family A parent", () => {
     }
   });
 
-  test("future-version malformed stored queue survives reload and explicit purge without replay", async ({
-    page,
-  }, testInfo) => {
-    fixture = await createList(page, testInfo, ["Existing grocery"]);
-    const listId = fixture.listId;
-    const itemId = fixture.items["Existing grocery"];
-    const raw = JSON.stringify(
-      {
-        v: 2,
-        operations: [
-          {
-            id: "original-future-key-123456",
-            action: "future-grocery-action",
-            v: 2,
-            payload: { content: "PRIVATE UNFAMILIAR CONTENT" },
-            createdAt: 1,
-            state: "pending",
-            attempts: 0,
-            nextAttemptAt: 0,
-          },
-          {
-            malformed: true,
-            createdAt: 1,
-          },
-        ],
-      },
-      null,
-      2,
-    );
-    const storedQueue = async (mode: "write" | "read" | "remove") =>
-      page.evaluate(
-        async ({ mode, raw, userId }) => {
-          const db = await new Promise<IDBDatabase>((resolve, reject) => {
-            const request = indexedDB.open("fp-sync", 1);
-            request.onupgradeneeded = () =>
-              request.result.createObjectStore("kv");
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-          });
-          try {
-            return await new Promise<string | null>((resolve, reject) => {
-              const tx = db.transaction(
-                "kv",
-                mode === "read" ? "readonly" : "readwrite",
-              );
-              const store = tx.objectStore("kv");
-              const key = `fp-sync:v1:${userId}:queue`;
-              const request =
-                mode === "write"
-                  ? store.put(raw, key)
-                  : mode === "remove"
-                    ? store.delete(key)
-                    : store.get(key);
-              tx.oncomplete = () =>
-                resolve(mode === "read" ? (request.result ?? null) : null);
-              tx.onerror = () => reject(tx.error);
-              tx.onabort = () => reject(tx.error);
+  for (const compatibilityCase of COMPATIBILITY_CASES)
+    test(`${compatibilityCase.name} queue survives reload and explicit purge without replay`, async ({
+      page,
+    }, testInfo) => {
+      fixture = await createList(page, testInfo, ["Existing grocery"]);
+      const listId = fixture.listId;
+      const itemId = fixture.items["Existing grocery"];
+      const raw = JSON.stringify(compatibilityCase.build(itemId), null, 2);
+      const storedQueue = async (mode: "write" | "read" | "remove") =>
+        page.evaluate(
+          async ({ mode, raw, userId }) => {
+            const db = await new Promise<IDBDatabase>((resolve, reject) => {
+              const request = indexedDB.open("fp-sync", 1);
+              request.onupgradeneeded = () =>
+                request.result.createObjectStore("kv");
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
             });
-          } finally {
-            db.close();
-          }
-        },
-        { mode, raw, userId: FIXTURE_IDS.familyA.parent },
-      );
-    const updates = trackUpdates(page);
-    let purged = false;
-    try {
-      await storedQueue("write");
-      await page.goto(`/dashboard/lists/${listId}`);
-      await expect(
-        page.getByText(/Pending changes need a compatible app version/).first(),
-      ).toBeVisible();
-      await expect(
-        page.getByText("PRIVATE UNFAMILIAR CONTENT", { exact: true }),
-      ).toHaveCount(0);
-      const input = page.getByRole("textbox", {
-        name: "Add an item",
-        exact: true,
-      });
-      await input.fill("Keep this unsent draft");
-      await page.getByRole("button", { name: "Add", exact: true }).click();
-      await expect(input).toHaveValue("Keep this unsent draft");
-      expect(await storedQueue("read")).toBe(raw);
-      await page.reload();
-      await expect(
-        page.getByText(/Pending changes need a compatible app version/).first(),
-      ).toBeVisible();
-      expect(await storedQueue("read")).toBe(raw);
-      expect(updates).toHaveLength(0);
-      expect((await serverItem(page, listId, itemId)).checked).toBe(false);
-      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-      expect(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth,
-        ),
-      ).toBe(true);
-      await page.screenshot({
-        path: testInfo.outputPath("queue-compatible-client-recovery.png"),
-        fullPage: true,
-      });
-
-      // Sign-out is the explicit privacy purge. It may remove unfamiliar
-      // bytes, but nothing else may rewrite or replay them while paused.
-      const cleanup = await browserSend(page, "DELETE", "/api/lists", {
-        listId,
-      });
-      expect(cleanup.status, cleanup.body).toBe(200);
-      fixture = null;
-      await page.getByRole("button", { name: "User menu" }).click();
-      await page.getByRole("button", { name: "Sign Out" }).click();
-      await expect(page).toHaveURL(/\/login$/);
-      const leftovers = await page.evaluate(async () => {
-        const keys = Object.keys(window.localStorage).filter((key) =>
-          key.startsWith("fp-sync:"),
+            try {
+              return await new Promise<string | null>((resolve, reject) => {
+                const tx = db.transaction(
+                  "kv",
+                  mode === "read" ? "readonly" : "readwrite",
+                );
+                const store = tx.objectStore("kv");
+                const key = `fp-sync:v1:${userId}:queue`;
+                const request =
+                  mode === "write"
+                    ? store.put(raw, key)
+                    : mode === "remove"
+                      ? store.delete(key)
+                      : store.get(key);
+                tx.oncomplete = () =>
+                  resolve(mode === "read" ? (request.result ?? null) : null);
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error);
+              });
+            } finally {
+              db.close();
+            }
+          },
+          { mode, raw, userId: FIXTURE_IDS.familyA.parent },
         );
-        const dbs = (await indexedDB.databases?.()) ?? [];
-        const store = dbs.some((db) => db.name === "fp-sync")
-          ? "database-present"
-          : null;
-        return { keys, store };
-      });
-      expect(leftovers).toEqual({ keys: [], store: null });
-      purged = true;
-    } finally {
-      if (!purged) await storedQueue("remove");
-    }
-  });
+      const updates = trackUpdates(page);
+      let purged = false;
+      try {
+        await storedQueue("write");
+        await page.goto(`/dashboard/lists/${listId}`);
+        await expect(
+          page
+            .getByText(/Pending changes need a compatible app version/)
+            .first(),
+        ).toBeVisible();
+        await expect(
+          page.getByText("PRIVATE UNFAMILIAR CONTENT", { exact: true }),
+        ).toHaveCount(0);
+        const input = page.getByRole("textbox", {
+          name: "Add an item",
+          exact: true,
+        });
+        await input.fill("Keep this unsent draft");
+        await page.getByRole("button", { name: "Add", exact: true }).click();
+        await expect(input).toHaveValue("Keep this unsent draft");
+        expect(await storedQueue("read")).toBe(raw);
+        await page.reload();
+        await expect(
+          page
+            .getByText(/Pending changes need a compatible app version/)
+            .first(),
+        ).toBeVisible();
+        expect(await storedQueue("read")).toBe(raw);
+        expect(updates).toHaveLength(0);
+        expect((await serverItem(page, listId, itemId)).checked).toBe(false);
+        expect((await new AxeBuilder({ page }).analyze()).violations).toEqual(
+          [],
+        );
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+        ).toBe(true);
+        await page.screenshot({
+          path: testInfo.outputPath("queue-compatible-client-recovery.png"),
+          fullPage: true,
+        });
+
+        // Sign-out is the explicit privacy purge. It may remove unfamiliar
+        // bytes, but nothing else may rewrite or replay them while paused.
+        const cleanup = await browserSend(page, "DELETE", "/api/lists", {
+          listId,
+        });
+        expect(cleanup.status, cleanup.body).toBe(200);
+        fixture = null;
+        await page.getByRole("button", { name: "User menu" }).click();
+        await page.getByRole("button", { name: "Sign Out" }).click();
+        await expect(page).toHaveURL(/\/login$/);
+        const leftovers = await page.evaluate(async () => {
+          const keys = Object.keys(window.localStorage).filter((key) =>
+            key.startsWith("fp-sync:"),
+          );
+          const dbs = (await indexedDB.databases?.()) ?? [];
+          const store = dbs.some((db) => db.name === "fp-sync")
+            ? "database-present"
+            : null;
+          return { keys, store };
+        });
+        expect(leftovers).toEqual({ keys: [], store: null });
+        purged = true;
+      } finally {
+        if (!purged) await storedQueue("remove");
+      }
+    });
 
   test("personal grocery add survives offline reload, flapping and a lost committed response", async ({
     page,
