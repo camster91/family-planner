@@ -75,6 +75,9 @@ export async function completeChore(
     await lockHousehold(tx, requestedChore.family_id)
     const chore = await tx.chore.findFirst({ where: { id: requestedChore.id, family_id: requestedChore.family_id }, select: COMPLETABLE_CHORE_SELECT })
     if (!chore) return false
+    // Profile-only chores use the gated protocol-2 device path. The legacy
+    // User/XP/recurrence path must never infer an account from a null subject.
+    if (chore.assigned_to === null) return false
     const updateResult = await tx.chore.updateMany({
       where: { id: chore.id, family_id: chore.family_id, status: { in: ['pending', 'in_progress', 'overdue'] } },
       data: {

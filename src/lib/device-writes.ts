@@ -36,6 +36,7 @@ import {
 import { NO_STORE, deviceError, rateLimited, readJson } from '@/lib/device-http'
 import { authenticateDevice } from '@/lib/device-route'
 import type { DeviceActor } from '@/lib/device-session'
+import { isProfileChoreEnabled } from '@/lib/chore-profile'
 
 /** Tablet writes per device per hour: a busy kitchen, not a script. */
 export const DEVICE_WRITE_LIMIT = 300
@@ -43,18 +44,37 @@ export const DEVICE_WRITE_WINDOW_MS = 60 * 60 * 1000
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
-export interface DeviceWriteContext {
+export interface AccountDeviceWriteContext {
   actor: DeviceActor
   key: string
   body: Record<string, unknown>
   member: { id: string; name: string }
 }
 
+export interface ProfileDeviceWriteContext {
+  actor: DeviceActor
+  key: string
+  body: Record<string, unknown>
+  profileMemberId: string
+}
+
+export type DeviceWriteContext = AccountDeviceWriteContext | ProfileDeviceWriteContext
+
 type Fail = { ok: false; response: NextResponse }
 
 export async function openDeviceWrite(
   request: NextRequest,
   feature: 'lists' | 'chores'
+): Promise<{ ok: true; ctx: AccountDeviceWriteContext } | Fail>
+export async function openDeviceWrite(
+  request: NextRequest,
+  feature: 'lists' | 'chores',
+  options: { allowProfile: true }
+): Promise<{ ok: true; ctx: DeviceWriteContext } | Fail>
+export async function openDeviceWrite(
+  request: NextRequest,
+  feature: 'lists' | 'chores',
+  options?: { allowProfile?: boolean }
 ): Promise<{ ok: true; ctx: DeviceWriteContext } | Fail> {
   const auth = await authenticateDevice(request)
   if (!auth.ok) return auth
@@ -79,6 +99,18 @@ export async function openDeviceWrite(
     return { ok: false, response: deviceError(400, 'VALIDATION_ERROR') }
   }
   const body = raw as Record<string, unknown>
+  if (options?.allowProfile && body.protocol === 2 && body.selection && typeof body.selection === 'object' && !Array.isArray(body.selection)) {
+    if (!isProfileChoreEnabled()) return { ok: false, response: deviceError(409, 'MEMBER_PROTOCOL_UNAVAILABLE') }
+    const selection = body.selection as Record<string, unknown>
+    const memberId = selection.memberId
+    if (
+      Object.keys(body).length !== 2 ||
+      Object.keys(selection).length !== 1 ||
+      typeof memberId !== 'string' ||
+      !ID_PATTERN.test(memberId)
+    ) return { ok: false, response: deviceError(400, 'VALIDATION_ERROR') }
+    return { ok: true, ctx: { actor, key, body, profileMemberId: memberId } }
+  }
   const memberId = body.actingMemberId
   if (typeof memberId !== 'string' || !ID_PATTERN.test(memberId)) {
     return { ok: false, response: deviceError(400, 'ACTING_MEMBER_INVALID') }
@@ -125,4 +157,8 @@ function noStore(res: NextResponse): NextResponse {
 
 export function isRouteId(value: unknown): value is string {
   return typeof value === 'string' && ID_PATTERN.test(value)
+}
+
+export function isProfileDeviceWrite(ctx: DeviceWriteContext): ctx is ProfileDeviceWriteContext {
+  return 'profileMemberId' in ctx
 }

@@ -13,6 +13,7 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { lockHousehold } from '@/lib/household-lock'
 import { eligibleChoreAssigneeInTx } from '@/lib/chore-member-subject'
+import { profileSubjectForVerify, rejectProfileChoreInTx } from '@/lib/chore-profile-actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -126,6 +127,37 @@ export async function POST(request: NextRequest) {
           : { kind: 'notCompleted' as const }
       }
 
+      // Profile-only chores deliberately use the device/profile audit path.
+      // They must never fall through to the User/XP/notification path when a
+      // profile is stale, erased, or otherwise no longer eligible.
+      if (fresh.assigned_to === null && fresh.assigned_member_id != null) {
+        const subject = await profileSubjectForVerify(tx, choreId, auth.user.family_id)
+        if (!subject) return { kind: 'profileUnavailable' as const }
+        const updateResult = await tx.chore.updateMany({
+          where: { id: choreId, family_id: auth.user.family_id, assigned_member_id: subject.memberId, status: 'completed' },
+          data: {
+            status: 'verified',
+            verified_at: new Date(),
+            verified_notes: verificationNotes || null,
+            ...(fresh.photo_url ? { photo_verified: true } : {}),
+          },
+        })
+        if (updateResult.count === 0) return { kind: 'lost' as const }
+        await tx.activity.create({
+          data: {
+            family_id: auth.user.family_id,
+            user_id: caller.id,
+            subject_member_id: subject.memberId,
+            subject_member_erased: false,
+            type: 'chore_verified',
+            title: `${caller.name} verified "${fresh.title}"`,
+            description: `Verified ${subject.name}'s chore`,
+            metadata: JSON.stringify({ choreId, subjectMemberId: subject.memberId }),
+          },
+        })
+        return { kind: 'profileVerified' as const, xp: null, assignee: null }
+      }
+
       // XP and notifications go only to an assignee who is still in the
       // household. The membership check is fresh and shares the lock with
       // removal, so a removed member cannot be rewarded by this request.
@@ -175,6 +207,9 @@ export async function POST(request: NextRequest) {
     if (outcome.kind === 'notFound') {
       return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
     }
+    if (outcome.kind === 'profileUnavailable') {
+      return NextResponse.json({ error: 'This profile chore is no longer available for verification.', code: 'MEMBER_PROTOCOL_UNAVAILABLE' }, { status: 409 })
+    }
     if (outcome.kind === 'alreadyVerified') {
       return NextResponse.json({ success: true, alreadyVerified: true, chore: await choreState(choreId) })
     }
@@ -201,7 +236,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Beta usage counts (#287): after the commit; never fails the request.
-    await recordBetaMetric(prisma!, auth.user.family_id, 'chore_verified')
+    if (outcome.kind !== 'profileVerified') {
+      await recordBetaMetric(prisma!, auth.user.family_id, 'chore_verified')
+    }
 
     // Notifications are sent only after the transaction commits, so a rolled-back
     // verify never tells the child it succeeded. A notification failure must not
@@ -252,7 +289,7 @@ type CheckedChore = {
   family_id: string
   title: string
   status: string
-  assigned_to: string
+  assigned_to: string | null
   assigned_member_id: string | null
   member_subject_erased: boolean
   due_date: Date
@@ -263,6 +300,17 @@ type CheckedChore = {
   difficulty: string | null
   points: number | null
   assignee: { id: string; name: string; family_id: string | null } | null
+  assigneeMember?: {
+    id: string
+    family_id: string
+    name: string
+    role: string
+    age: number | null
+    archived_at: Date | null
+    erasure_user_id: string | null
+    legacy_mapping: { user_id: string } | null
+    account_link: { user_id: string } | null
+  } | null
 }
 
 /** Send a completed chore back to the child (decision 'reject'). No XP moves. */
@@ -296,6 +344,27 @@ async function rejectChore(
     if (!chore || chore.family_id !== familyId) return { kind: 'notFound' as const }
     if (chore.status === 'verified') return { kind: 'verified' as const }
 
+    if (chore.assigned_to === null && chore.assigned_member_id != null) {
+      const profileOutcome = await rejectProfileChoreInTx(tx, { choreId, familyId, notes: reason })
+      if (profileOutcome === 'profile_unavailable') return { kind: 'profileUnavailable' as const }
+      if (profileOutcome === 'not_found') return { kind: 'notFound' as const }
+      if (profileOutcome === 'verified') return { kind: 'verified' as const }
+      if (profileOutcome === 'open') return { kind: 'open' as const }
+      if (profileOutcome !== 'reopened') return { kind: 'open' as const }
+      await tx.activity.create({
+        data: {
+          family_id: familyId,
+          user_id: freshCaller.id,
+          subject_member_id: chore.assigned_member_id,
+          subject_member_erased: false,
+          type: 'chore_rejected',
+          title: `${freshCaller.name} sent back "${chore.title}"`,
+          metadata: JSON.stringify({ choreId: chore.id, subjectMemberId: chore.assigned_member_id }),
+        },
+      })
+      return { kind: 'reopened' as const, assignee: null }
+    }
+
     const assignee = chore.status === 'completed' ? await currentChoreAssigneeInTx(tx, chore as CheckedChore) : null
     const checkedChore = chore as CheckedChore
     const outcome = await reopenCompletedChoreInTx(tx, checkedChore, {
@@ -327,6 +396,9 @@ async function rejectChore(
   }
   if (reopened.kind === 'notFound') {
     return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
+  }
+  if (reopened.kind === 'profileUnavailable') {
+    return NextResponse.json({ error: 'This profile chore is no longer available for verification.', code: 'MEMBER_PROTOCOL_UNAVAILABLE' }, { status: 409 })
   }
   if (reopened.kind === 'verified') {
     return NextResponse.json(
@@ -366,7 +438,7 @@ async function currentChoreAssigneeInTx(tx: Prisma.TransactionClient, chore: Che
   // Account ownership is deliberately not a fallback after canonical erasure:
   // eraseAccountProfilesInTx clears the canonical id but leaves this sticky
   // tombstone so retained history cannot be relinked to a live account.
-  if (chore.member_subject_erased) return null
+  if (chore.member_subject_erased || chore.assigned_to === null) return null
   const resolved = await eligibleChoreAssigneeInTx(tx, chore.family_id, chore.assigned_to, {
     requireCanonical: Boolean(chore.assigned_member_id),
   })

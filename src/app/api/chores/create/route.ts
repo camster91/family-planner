@@ -15,6 +15,15 @@ import { getRequestId } from '@/lib/request-id'
 import { lockHousehold, lockUser } from '@/lib/household-lock'
 import { choreAssigneeForCreateInTx } from '@/lib/chore-member-subject'
 import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
+import {
+  createProfileOnlyChore,
+  isProfileChoreEnabled,
+  profileChoreCreateSchema,
+  profileChoreProtocolRefusal,
+  ProfileChoreError,
+  PROFILE_CHORE_UNSUPPORTED_CODE,
+} from '@/lib/chore-profile'
+import { idempotencyError, readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +43,48 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
+    // Profile assignment is an explicit, gated protocol-2 branch. Do not pass
+    // it through the legacy schema: that would either reject a valid profile
+    // target or, worse, infer an account from a member id.
+    if (body && typeof body === 'object' && !Array.isArray(body) && (body.protocol !== undefined || body.selection !== undefined)) {
+      if (!isProfileChoreEnabled()) {
+        return NextResponse.json(
+          { error: PROFILE_CHORE_UNSUPPORTED_CODE, ...profileChoreProtocolRefusal() },
+          { status: 409, headers: { 'Cache-Control': 'private, no-store' } },
+        )
+      }
+      const profile = profileChoreCreateSchema.safeParse(body)
+      if (!profile.success) {
+        return NextResponse.json({ error: 'The profile chore request is not valid.' }, { status: 400 })
+      }
+      const { key, error: keyError } = readIdempotencyKey(request)
+      if (keyError) return keyError
+      if (!key) return idempotencyError('IDEMPOTENCY_KEY_REQUIRED')
+      const startDate = normalizeDateOnlyInput(profile.data.due_date)
+      if (!startDate) return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+      const photo = await resolveChorePhotoForWrite(auth.user.family_id, profile.data.photo_url)
+      if (!photo.ok) return NextResponse.json({ error: photo.error }, { status: 400 })
+      const response = await withIdempotency(
+        prisma!,
+        key,
+        { scope: `user:${auth.user.id}`, familyId: auth.user.family_id, userId: auth.user.id, action: 'chore.profile.create' },
+        profile.data,
+        async () => ({
+          status: 200,
+          body: {
+            chore: await createProfileOnlyChore(
+              prisma!,
+              { id: auth.user.id, familyId: auth.user.family_id },
+              profile.data,
+              startDate,
+              photo.value ?? null,
+            ),
+          },
+        }),
+      )
+      return response
+    }
+
     const parsed = createChoreSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
@@ -157,6 +208,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ chore: newChore })
   } catch (error) {
+    if (error instanceof ProfileChoreError) {
+      const status = error.code === 'PROFILE_TARGET_CONFLICT' ? 409 : error.code === 'PROFILE_TARGET_UNAVAILABLE' ? 404 : 400
+      return NextResponse.json({ error: error.code }, { status })
+    }
     if (error instanceof HouseholdMemberIdentityConflict) return NextResponse.json({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
     logRouteError('POST /api/chores/create', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -6,6 +6,7 @@ import { reopenCompletedChoreInTx } from '@/lib/chore-reopen'
 import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { profileChoreLegacyWriteRefusal } from '@/lib/chore-profile'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +52,9 @@ export async function POST(request: NextRequest) {
 
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
+    if (chore.assigned_to === null && chore.assigned_member_id != null) {
+      return NextResponse.json(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     if (auth.user.role !== 'parent' && chore.assigned_to !== auth.user.id) {
       return NextResponse.json({ error: 'Only parents or the assignee can undo this chore' }, { status: 403 })

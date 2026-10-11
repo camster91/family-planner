@@ -21,6 +21,46 @@ import {
 import { getRequestId } from '@/lib/request-id'
 import { applyFrequencyEditInTx } from '@/lib/recurringChores'
 import { applyRotationEditInTx, rotationMembersInHousehold } from '@/lib/chore-rotation'
+import { profileChoreLegacyWriteRefusal, profileChoreReadRefusal, readChoreSubject } from '@/lib/chore-profile'
+
+type HydratedProfileMember = {
+  id: string
+  family_id: string
+  name: string
+  role: string
+  age: number | null
+  archived_at: Date | null
+  erasure_user_id: string | null
+  legacy_mapping: { user_id: string } | null
+  account_link: { user_id: string } | null
+}
+
+type ProfileHydrated<T> = T & { assigneeMember?: HydratedProfileMember | null }
+
+/** Hydrate only rows that carry a canonical profile subject. */
+async function hydrateProfileMembers<T extends { assigned_member_id?: string | null }>(rows: T[]): Promise<ProfileHydrated<T>[]> {
+  const memberIds = [...new Set(rows.flatMap((row) => (row.assigned_member_id != null ? [row.assigned_member_id] : [])))]
+  if (memberIds.length === 0) return rows.map((row) => ({ ...row, assigneeMember: undefined }))
+  const members = await prisma!.householdMember.findMany({
+    where: { id: { in: memberIds } },
+    select: {
+      id: true,
+      family_id: true,
+      name: true,
+      role: true,
+      age: true,
+      archived_at: true,
+      erasure_user_id: true,
+      legacy_mapping: { select: { user_id: true } },
+      account_link: { select: { user_id: true } },
+    },
+  })
+  const byId = new Map(members.map((member) => [member.id, member]))
+  return rows.map((row) => ({
+    ...row,
+    ...(row.assigned_member_id != null ? { assigneeMember: byId.get(row.assigned_member_id) ?? null } : {}),
+  }))
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -44,7 +84,7 @@ async function handleGET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
-    if (id !== null) return getOneChore(id, auth.user.family_id)
+    if (id !== null) return getOneChore(id, auth.user.family_id, request)
 
     const status = searchParams.get('status')
     const assigned_to = searchParams.get('assigned_to')
@@ -65,7 +105,7 @@ async function handleGET(request: NextRequest) {
     if (paging.paged && paging.cursor) where.AND = [afterChoreCursor(paging.cursor, paging.order)]
 
     const include = {
-      assignee: { select: { id: true, name: true, avatar_url: true } },
+      assignee: { select: { id: true, name: true, avatar_url: true, family_id: true } },
       creator: { select: { id: true, name: true } },
     }
     const rows = paging.paged
@@ -91,13 +131,32 @@ async function handleGET(request: NextRequest) {
       ? { nextCursor: hasMore ? encodeChoreCursor(chores[chores.length - 1]) : null }
       : {}
 
+    const profileRead = profileChoreReadRefusal(request)
+    const hasProfileRows = chores.some((row) => row.assigned_to === null && row.assigned_member_id != null)
+    const rowsWithProfileMembers: ProfileHydrated<(typeof chores)[number]>[] = chores.some((row) => row.assigned_member_id != null)
+      ? await hydrateProfileMembers(chores)
+      : chores.map((row) => ({ ...row, assigneeMember: undefined }))
+    if (hasProfileRows && profileRead) return NextResponse.json(profileRead.body, { status: profileRead.status, headers: { 'Cache-Control': 'private, no-store' } })
+    if (hasProfileRows && rowsWithProfileMembers.some((row) => row.assigned_to === null && row.assigned_member_id != null && !readChoreSubject(row, auth.user.family_id))) {
+      return NextResponse.json(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+    }
+    const exposedChores = rowsWithProfileMembers.map((row) => {
+      const { assigneeMember: _member, ...safe } = row
+      if (row.assigned_to === null && row.assigned_member_id != null) {
+        const subject = readChoreSubject(row, auth.user.family_id)
+        if (!subject) return safe
+        return { ...safe, subject }
+      }
+      return safe
+    })
+
     // Points & streaks off for this family (#248): the chore's points value is
     // not sent. It is still stored, and verify still awards XP from it.
     if (!(await isGamificationOn(auth.user.family_id))) {
-      return NextResponse.json({ chores: chores.map(omitChorePoints), ...page })
+      return NextResponse.json({ chores: exposedChores.map(omitChorePoints), ...page })
     }
 
-    return NextResponse.json({ chores, ...page })
+    return NextResponse.json({ chores: exposedChores, ...page })
   } catch (error) {
     logRouteError('GET /api/chores', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -105,11 +164,11 @@ async function handleGET(request: NextRequest) {
 }
 
 /** `GET /api/chores?id=`: one chore of the caller's household (another household's reads as missing). */
-async function getOneChore(id: string, familyId: string) {
+async function getOneChore(id: string, familyId: string, request: NextRequest) {
   const chore = await prisma!.chore.findFirst({
     where: { id, family_id: familyId },
     include: {
-      assignee: { select: { id: true, name: true, avatar_url: true } },
+      assignee: { select: { id: true, name: true, avatar_url: true, family_id: true } },
       creator: { select: { id: true, name: true } },
     },
   })
@@ -126,9 +185,27 @@ async function getOneChore(id: string, familyId: string) {
   // template of a generated copy.
   const seriesRotation =
     (template ? template.rotation_member_ids : chore.recurrence_id === chore.id ? chore.rotation_member_ids : null) ?? []
+  const profileRead = profileChoreReadRefusal(request)
+  const hydrated: ProfileHydrated<typeof chore> = chore.assigned_member_id != null
+    ? (await hydrateProfileMembers([chore]))[0]
+    : { ...chore, assigneeMember: undefined }
+  if (chore.assigned_to === null && chore.assigned_member_id != null && profileRead) {
+    return NextResponse.json(profileRead.body, { status: profileRead.status, headers: { 'Cache-Control': 'private, no-store' } })
+  }
+  const subject = readChoreSubject(hydrated, familyId)
+  if (!subject) {
+    if (chore.assigned_to === null && chore.assigned_member_id != null) {
+      return NextResponse.json(profileRead?.body ?? { error: 'PROFILE_CHORE_SUBJECT_UNREADABLE' }, { status: profileRead?.status ?? 409 })
+    }
+    return NextResponse.json({ error: 'Chore subject unavailable' }, { status: 409 })
+  }
+  const safeChore = (() => {
+    const { assigneeMember: _member, ...safe } = hydrated
+    return subject.kind === 'profile' ? { ...safe, subject } : safe
+  })()
   const gamified = await isGamificationOn(familyId)
   return NextResponse.json({
-    chore: gamified ? chore : omitChorePoints(chore),
+    chore: gamified ? safeChore : omitChorePoints(safeChore),
     template: template ?? null,
     rotation: seriesRotation.length > 0 ? seriesRotation : null,
   })
@@ -179,6 +256,10 @@ export async function PATCH(request: NextRequest) {
 
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
+
+    if (chore.assigned_to === null && chore.assigned_member_id != null) {
+      return NextResponse.json(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     if (auth.user.role !== 'parent' && chore.assigned_to !== auth.user.id) {
       return NextResponse.json({ error: 'Only parents or the assignee can edit chores' }, { status: 403 })
@@ -345,7 +426,7 @@ export async function DELETE(request: NextRequest) {
     // Verify the chore belongs to the user's family
     const chore = await prisma!.chore.findUnique({
       where: { id: parsed.data.choreId },
-      select: { family_id: true, assigned_to: true },
+      select: { family_id: true, assigned_to: true, assigned_member_id: true },
     })
 
     if (!chore) {
@@ -354,6 +435,10 @@ export async function DELETE(request: NextRequest) {
 
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
+
+    if (chore.assigned_to === null && chore.assigned_member_id != null) {
+      return NextResponse.json(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     if (auth.user.role !== 'parent' && chore.assigned_to !== auth.user.id) {
       return NextResponse.json({ error: 'Only parents or the assignee can delete chores' }, { status: 403 })

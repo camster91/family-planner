@@ -2,8 +2,9 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { writeDeviceAudit } from '@/lib/device-audit'
 import { deviceClock, deviceError, deviceErrorBody, deviceInternalError, killSwitch } from '@/lib/device-http'
-import { isRouteId, openDeviceWrite, runDeviceWrite } from '@/lib/device-writes'
+import { isProfileDeviceWrite, isRouteId, openDeviceWrite, runDeviceWrite } from '@/lib/device-writes'
 import { reopenCompletedChoreInTx } from '@/lib/chore-reopen'
+import { reopenProfileChoreInTx } from '@/lib/chore-profile-actions'
 import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 import { getRequestId } from '@/lib/request-id'
 
@@ -30,14 +31,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const off = killSwitch()
   if (off) return off
   try {
-    const opened = await openDeviceWrite(request, 'chores')
+    const opened = await openDeviceWrite(request, 'chores', { allowProfile: true })
     if (!opened.ok) return opened.response
     const { ctx } = opened
     const { id } = await params
     if (!isRouteId(id)) return deviceError(404, 'NOT_FOUND')
-    if (Object.keys(ctx.body).some((k) => k !== 'actingMemberId')) return deviceError(400, 'VALIDATION_ERROR')
+    const profileWrite = isProfileDeviceWrite(ctx) ? ctx : null
+    const accountMember = 'member' in ctx ? ctx.member : null
+    if (!profileWrite && Object.keys(ctx.body).some((k) => k !== 'actingMemberId')) return deviceError(400, 'VALIDATION_ERROR')
 
-    return await runDeviceWrite(ctx, ACTION, { choreId: id, actingMemberId: ctx.member.id }, async () => {
+    return await runDeviceWrite(ctx, ACTION, profileWrite ? { choreId: id, protocol: 2, memberId: profileWrite.profileMemberId } : { choreId: id, actingMemberId: accountMember!.id }, async () => {
       const chore = await prisma!.chore.findFirst({
         where: { id, family_id: ctx.actor.familyId },
         select: {
@@ -45,6 +48,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           family_id: true,
           title: true,
           assigned_to: true,
+          assigned_member_id: true,
+          member_subject_erased: true,
           due_date: true,
           frequency: true,
           recurrence_id: true,
@@ -56,6 +61,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       const now = deviceClock.now()
       const since = new Date(now.getTime() - DEVICE_UNDO_WINDOW_MS)
+      if (profileWrite) {
+        const outcome = await reopenProfileChoreInTx(prisma!, {
+          choreId: id,
+          familyId: ctx.actor.familyId,
+          memberId: profileWrite.profileMemberId,
+          deviceId: ctx.actor.deviceId,
+          now,
+          windowMs: DEVICE_UNDO_WINDOW_MS,
+        })
+        if (outcome === 'not_found') return { status: 404, body: deviceErrorBody('NOT_FOUND') }
+        if (outcome === 'profile_unavailable') return { status: 409, body: deviceErrorBody('MEMBER_PROTOCOL_UNAVAILABLE') }
+        if (outcome === 'verified') return { status: 409, body: deviceErrorBody('CHORE_ALREADY_VERIFIED') }
+        if (outcome === 'not_allowed') return { status: 403, body: deviceErrorBody('UNDO_NOT_ALLOWED') }
+        if (outcome === 'already_open') return { status: 200, body: { chore: { id, status: 'pending' }, alreadyOpen: true } }
+        return { status: 200, body: { chore: { id, status: 'pending' }, alreadyOpen: false } }
+      }
       const recent = await prisma!.deviceAuditEvent.findMany({
         where: {
           family_id: ctx.actor.familyId,
@@ -88,7 +109,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       await writeDeviceAudit(prisma!, {
         familyId: ctx.actor.familyId,
         deviceId: ctx.actor.deviceId,
-        actorUserId: ctx.member.id,
+        actorUserId: accountMember!.id,
         type: 'device.member_action',
         at: deviceClock.now(),
         metadata: { action: 'chore_undo', targetType: 'chore', targetId: id },
