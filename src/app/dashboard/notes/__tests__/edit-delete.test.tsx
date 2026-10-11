@@ -7,9 +7,21 @@ import * as React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-// A stable `t`, like the real provider's (the page refetches when `t` changes).
-const mockT = (key: string) => key
-jest.mock('@/i18n', () => ({ useTranslation: () => ({ t: mockT }) }))
+let mockLocale: 'en' | 'es' = 'en'
+const mockT = (key: string) => {
+  if (mockLocale === 'es') {
+    const spanish: Record<string, string> = {
+      'notes.errorLoad': 'No se pudieron cargar las notas',
+      'notes.retry': 'Reintentar',
+      'notes.loading': 'Cargando notas...',
+    }
+    return spanish[key] ?? key
+  }
+  return key
+}
+// The provider can give the page a new translation function when its locale
+// hydrates. The notes loader must remain stable across that render.
+jest.mock('@/i18n', () => ({ useTranslation: () => ({ t: (key: string) => mockT(key) }) }))
 jest.mock('@/components/ui/feature-gate', () => ({
   FeatureOffState: () => null,
 }))
@@ -28,6 +40,7 @@ let mutationReply: () => Promise<Response>
 
 beforeEach(() => {
   calls = []
+  mockLocale = 'en'
   notePermissions = { can_edit: true, can_delete: true }
   mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ success: true }) }) as Response
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -124,6 +137,58 @@ it('keeps an open draft while a failed notes load is retried', async () => {
   await waitFor(() => expect(screen.getByText('Recovered note')).toBeTruthy())
   expect(screen.queryByRole('button', { name: 'notes.retry' })).toBeNull()
   expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Fridge note')
+})
+
+it('keeps a failed load through locale hydration without refetching', async () => {
+  const user = userEvent.setup()
+  let getAttempts = 0
+  let releaseRetry!: () => void
+  const retryPending = new Promise<void>((resolve) => {
+    releaseRetry = resolve
+  })
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (url === '/api/notes' && method === 'GET') {
+      getAttempts += 1
+      if (getAttempts === 1) {
+        return { ok: false, status: 503, json: async () => ({}) } as Response
+      }
+      await retryPending
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          notes: [{
+            id: 'locale-recovered',
+            title: 'Recovered locale note',
+            body: 'Recovered after locale hydration',
+            color: 'yellow',
+            created_at: '2026-09-01T00:00:00Z',
+          }],
+        }),
+      } as Response
+    }
+    return mutationReply()
+  }) as unknown as typeof fetch
+
+  const { rerender } = render(<NotesPage />)
+  await screen.findByRole('button', { name: 'notes.retry' })
+  expect(getAttempts).toBe(1)
+
+  mockLocale = 'es'
+  rerender(<NotesPage />)
+  expect(getAttempts).toBe(1)
+  expect(screen.getAllByText('No se pudieron cargar las notas')).toHaveLength(2)
+  const retry = screen.getByRole('button', { name: 'Reintentar' })
+  await user.click(retry)
+  const pending = screen.getByRole('button', { name: 'Cargando notas...' }) as HTMLButtonElement
+  expect(pending.disabled).toBe(true)
+  expect(getAttempts).toBe(2)
+
+  releaseRetry()
+  await waitFor(() => expect(screen.getByText('Recovered locale note')).toBeTruthy())
+  expect(screen.queryByRole('button', { name: 'Reintentar' })).toBeNull()
 })
 
 describe('failures are shown in the modal, which stays open with the text', () => {

@@ -21,6 +21,8 @@ interface Note {
   can_delete?: boolean
 }
 
+type NotesLoadError = 'load' | null
+
 const noteColors = {
   yellow: {
     bg: 'bg-[var(--tint-meals)]/20',
@@ -79,7 +81,9 @@ function NotesPageInner() {
   ]
   const [notes, setNotes] = React.useState<Note[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+  // Keep the failure semantic so a locale change can translate the existing
+  // recovery surface without starting the request over.
+  const [error, setError] = React.useState<NotesLoadError>(null)
 
   // Modal state: 'add' | 'edit' | null
   const [modalState, setModalState] = React.useState<'add' | 'edit' | null>(null)
@@ -112,15 +116,17 @@ function NotesPageInner() {
       setNotes(data.notes || [])
     } catch (err) {
       console.error('Error fetching notes:', err)
-      setError(t('notes.errorLoad'))
+      setError('load')
     } finally {
       setLoading(false)
     }
-  }, [t])
+  }, [])
 
   React.useEffect(() => {
     fetchNotes()
   }, [fetchNotes])
+
+  const loadErrorMessage = error === 'load' ? t('notes.errorLoad') : null
 
   const openAddModal = () => {
     setFormTitle('')
@@ -235,8 +241,8 @@ function NotesPageInner() {
         <EmptyState
           icon={NoteIcon}
           glyphColor="gray"
-          title={t('notes.errorLoad')}
-          description={error}
+          title={loadErrorMessage ?? t('notes.errorLoad')}
+          description={loadErrorMessage ?? t('notes.errorLoad')}
           action={
             <button
               type="button"
