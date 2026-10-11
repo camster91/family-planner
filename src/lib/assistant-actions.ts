@@ -122,7 +122,10 @@ const destinations: Record<
     path: "/dashboard/anniversaries",
     feature: "anniversaries",
   },
-  gamification: { path: "/dashboard/analytics", feature: "gamification" },
+  // Points & streaks and Analytics share the same screen. The screen is only
+  // useful when its Analytics capability is effectively on (which itself
+  // requires gamification), so both names must use that effective gate.
+  gamification: { path: "/dashboard/analytics", feature: "analytics" },
   messages: { path: "/dashboard/messages", feature: "messages" },
   wishlist: { path: "/dashboard/wishlist", feature: "wishlist" },
   emergency: { path: "/dashboard/emergency", feature: "emergency" },

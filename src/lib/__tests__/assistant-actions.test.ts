@@ -149,6 +149,20 @@ it("parses and localizes analytics navigation while enforcing role and dependenc
   expect(
     canUseAssistantAction(action, "parent", { ...allOn, analytics: false }),
   ).toBe(false);
+  const gamificationAction = {
+    kind: "open",
+    destination: "gamification",
+  } as const;
+  const gamificationOnly = { ...allOn, analytics: false };
+  expect(
+    canUseAssistantAction(gamificationAction, "parent", gamificationOnly),
+  ).toBe(false);
+  const gamificationOnlyCatalog = assistantPrompt("parent", gamificationOnly);
+  const openCatalog =
+    gamificationOnlyCatalog.match(
+      /\{"kind":"open","destination":"([^"]+)"\}/,
+    )?.[1] ?? "";
+  expect(openCatalog.split("|")).not.toContain("gamification");
   expect(assistantEnglish.analytics).toBe("Analytics");
   expect(assistantSpanish.analytics).toBe("Análisis");
   expect(
