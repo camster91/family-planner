@@ -54,7 +54,7 @@ async function runtimeIdentity(
   info: TestInfo,
   locale: "en" | "es",
   role: "parent" | "child",
-) {
+): Promise<{ userId: string; familyId: string }> {
   const head = sourceHead();
   const tree = sourceTree();
   expect(head).toMatch(/^[a-f0-9]{40}$/);
@@ -80,11 +80,19 @@ async function runtimeIdentity(
 
   const me = await browserFetch(page, "/api/auth/me");
   expect(me.status, me.body).toBe(200);
-  const user = JSON.parse(me.body).user as { id?: string; role?: string };
+  const user = JSON.parse(me.body).user as {
+    id?: unknown;
+    role?: unknown;
+    family_id?: unknown;
+  };
   expect(user.id).toBe(
     role === "parent" ? FIXTURE_IDS.familyA.parent : FIXTURE_IDS.familyA.child,
   );
   expect(user.role).toBe(role);
+  expect(user.family_id).toBe(FIXTURE_IDS.familyA.family);
+  if (typeof user.id !== "string" || typeof user.family_id !== "string") {
+    throw new Error("Fixture session identity response was incomplete");
+  }
   await info.attach("actual-capture-purge-runtime", {
     body: JSON.stringify({
       runtime,
@@ -97,14 +105,20 @@ async function runtimeIdentity(
     }),
     contentType: "application/json",
   });
+  return { userId: user.id, familyId: user.family_id };
 }
 
-function captureKeyFor(userId: string): string {
-  return captureRecoveryStorageKey(userId, FIXTURE_IDS.familyA.family);
+function captureKeyFor(userId: string, familyId: string): string {
+  expect(familyId).toBe(FIXTURE_IDS.familyA.family);
+  return captureRecoveryStorageKey(userId, familyId);
 }
 
-async function seedCaptureStorage(page: Page, userId: string): Promise<string> {
-  const captureKey = captureKeyFor(userId);
+async function seedCaptureStorage(
+  page: Page,
+  userId: string,
+  familyId: string,
+): Promise<string> {
+  const captureKey = captureKeyFor(userId, familyId);
   const markedValue = JSON.stringify([
     {
       version: 1,
@@ -200,10 +214,11 @@ for (const locale of ["en", "es"] as const) {
           );
           await page.goto("/dashboard");
           await expect(page.locator("html")).toHaveAttribute("lang", locale);
-          await runtimeIdentity(page, info, locale, "parent");
+          const identity = await runtimeIdentity(page, info, locale, "parent");
           const captureKey = await seedCaptureStorage(
             page,
-            FIXTURE_IDS.familyA.parent,
+            identity.userId,
+            identity.familyId,
           );
 
           await context.clearCookies();
@@ -304,12 +319,17 @@ for (const locale of ["en", "es"] as const) {
             );
             await page.goto("/dashboard");
             await expect(page.locator("html")).toHaveAttribute("lang", locale);
-            await runtimeIdentity(page, info, locale, deletion.role);
-            const userId =
-              deletion.role === "parent"
-                ? FIXTURE_IDS.familyA.parent
-                : FIXTURE_IDS.familyA.child;
-            const captureKey = await seedCaptureStorage(page, userId);
+            const identity = await runtimeIdentity(
+              page,
+              info,
+              locale,
+              deletion.role,
+            );
+            const captureKey = await seedCaptureStorage(
+              page,
+              identity.userId,
+              identity.familyId,
+            );
             const optionsResponse = await browserFetch(
               page,
               "/api/users/deletion",
