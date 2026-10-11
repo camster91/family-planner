@@ -643,7 +643,10 @@ for (const locale of LOCALES) {
           .getByRole("button", { name: copy[locale].save, exact: true })
           .click();
         const reorderResult = await reorderResponse;
-        const reorderBody = await reorderResult.text();
+        // Successful save navigates back; its canonical read below proves persistence.
+        const reorderBody = reorderResult.ok()
+          ? ""
+          : await reorderResult.text();
         expect(reorderResult.status(), reorderBody).toBe(200);
         const editedRead = await browserFetch(
           page,
