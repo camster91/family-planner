@@ -7,7 +7,11 @@ import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
-import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
+import {
+  FIXTURE_EMAILS,
+  FIXTURE_IDS,
+  FIXTURE_PASSWORD,
+} from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { listCreateMessages } from "../src/i18n/list-create";
@@ -15,7 +19,14 @@ import { authFile } from "./support/env";
 import { browserFetch, expect, test } from "./support/test";
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
-const PROJECT_NAMES = new Set(["phone-390x844", "fridge-landscape-1280x800"]);
+const PROJECT_NAMES = new Set([
+  "phone-390x844",
+  "phone-430x932",
+  "tablet-portrait-800x1280",
+  "fridge-landscape-1280x800",
+  "tablet-large-1920x1200",
+  "desktop-1366x768",
+]);
 const MUTATING_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 const SYNTHETIC_MUTATIONS = new Set([
   "POST /api/upload",
@@ -23,6 +34,7 @@ const SYNTHETIC_MUTATIONS = new Set([
 ]);
 
 type Locale = "en" | "es";
+type FixtureRole = "parentA" | "teenA" | "childA";
 type UploadMode = "valid" | "malformed" | "failure" | "hold";
 type CreateMode = "success" | "failure" | "hold";
 
@@ -54,7 +66,7 @@ async function assertRuntimeIdentity(
   page: Page,
   info: TestInfo,
   locale: Locale,
-  role: "parentA" | "childA",
+  role: FixtureRole,
 ): Promise<void> {
   const response = await browserFetch(page, "/api/version");
   expect(response.status, response.body).toBe(200);
@@ -98,18 +110,18 @@ async function assertRuntimeIdentity(
 
 async function assertFixtureIdentity(
   page: Page,
-  role: "parentA" | "childA",
+  role: FixtureRole,
 ): Promise<void> {
   const response = await browserFetch(page, "/api/auth/me");
   expect(response.status, response.body).toBe(200);
   const body = JSON.parse(response.body) as {
     user?: { id?: unknown; family_id?: unknown; role?: unknown };
   };
-  expect(body.user?.id).toBe(
-    FIXTURE_IDS.familyA[role === "parentA" ? "parent" : "child"],
-  );
+  const memberKey =
+    role === "parentA" ? "parent" : role === "teenA" ? "teen" : "child";
+  expect(body.user?.id).toBe(FIXTURE_IDS.familyA[memberKey]);
   expect(body.user?.family_id).toBe(FIXTURE_IDS.familyA.family);
-  expect(body.user?.role).toBe(role === "parentA" ? "parent" : "child");
+  expect(body.user?.role).toBe(memberKey);
 }
 
 async function installLoopbackGuard(
@@ -247,7 +259,7 @@ for (const locale of ["en", "es"] as const) {
     }, info) => {
       test.skip(
         !PROJECT_NAMES.has(info.project.name),
-        "representative phone and fridge layouts",
+        "all configured device sizes are covered",
       );
       assertFixtureTargetAllowed(process.env);
       expect([...LOOPBACK_HOSTS]).toContain(new URL(baseURL!).hostname);
@@ -376,6 +388,99 @@ for (const locale of ["en", "es"] as const) {
     });
   });
 
+  test.describe(`${locale} teen list create`, () => {
+    test.use({ storageState: authFile("parentA") });
+
+    test(`${locale}: teen can create a custom list through the sheet and direct route`, async ({
+      page,
+      context,
+      baseURL,
+    }, info) => {
+      test.skip(
+        !PROJECT_NAMES.has(info.project.name),
+        "all configured device sizes are covered",
+      );
+      assertFixtureTargetAllowed(process.env);
+      expect([...LOOPBACK_HOSTS]).toContain(new URL(baseURL!).hostname);
+      await context.clearCookies();
+      const login = await context.request.post("/api/auth/login", {
+        data: {
+          email: FIXTURE_EMAILS.familyA.teen,
+          password: FIXTURE_PASSWORD,
+        },
+      });
+      expect(login.status(), await login.text()).toBe(200);
+
+      const blockedWrites: string[] = [];
+      const createBodies: unknown[] = [];
+      const controls = { releaseUpload: null, releaseCreate: null } as {
+        releaseUpload: (() => void) | null;
+        releaseCreate: (() => void) | null;
+      };
+      const modes = {
+        upload: "valid" as UploadMode,
+        create: "success" as CreateMode,
+      };
+      await installLoopbackGuard(context, blockedWrites);
+      await page.addInitScript(
+        ({ key, value }) => localStorage.setItem(key, value),
+        { key: LOCALE_STORAGE_KEY, value: locale },
+      );
+
+      try {
+        await page.goto("/dashboard/lists");
+        const copy = copyFor(locale);
+        const add = page.getByRole("link", { name: /add list|agregar lista/i });
+        await expect(add).toBeVisible();
+        await add.click();
+        const dialog = page.getByRole("dialog");
+        await expect(dialog).toBeVisible();
+        await expect(dialog).toContainText(copy.sheetTitle);
+        await expect(dialog).toContainText(copy.draftDescription);
+
+        await installSyntheticTransport(
+          page,
+          modes,
+          [],
+          createBodies,
+          controls,
+        );
+        await dialog.getByRole("button", { name: copy.typeCustom }).click();
+        await expect(
+          dialog.getByText(copy.customGuidance, { exact: true }),
+        ).toBeVisible();
+        await dialog.getByLabel(copy.name).fill("Teen family planning");
+        await dialog
+          .getByLabel(copy.description, { exact: false })
+          .fill("School and weekend checklist");
+        const create = dialog.getByRole("button", { name: copy.create });
+        await assertActionGeometry(page, create);
+        await create.click();
+        await expect(dialog.getByRole("status")).toHaveText(copy.created);
+        expect(createBodies).toHaveLength(1);
+        expect(createBodies[0]).toMatchObject({
+          name: "Teen family planning",
+          type: "custom",
+          description: "School and weekend checklist",
+        });
+        await expect(dialog).toBeVisible();
+
+        await page.goto("/dashboard/lists/create");
+        await expect(
+          page.getByRole("heading", { name: copy.title }),
+        ).toBeVisible();
+        await assertRuntimeIdentity(page, info, locale, "teenA");
+        await assertFixtureIdentity(page, "teenA");
+      } finally {
+        controls.releaseUpload?.();
+        controls.releaseCreate?.();
+        await page.unrouteAll({ behavior: "ignoreErrors" });
+        await context.unrouteAll({ behavior: "ignoreErrors" });
+      }
+      expect(blockedWrites).toEqual([]);
+    });
+  });
+
   test.describe(`${locale} child list create refusal`, () => {
     test.use({ storageState: authFile("childA") });
 
@@ -386,7 +491,7 @@ for (const locale of ["en", "es"] as const) {
     }, info) => {
       test.skip(
         !PROJECT_NAMES.has(info.project.name),
-        "representative phone and fridge layouts",
+        "all configured device sizes are covered",
       );
       assertFixtureTargetAllowed(process.env);
       expect([...LOOPBACK_HOSTS]).toContain(new URL(baseURL!).hostname);
@@ -397,11 +502,15 @@ for (const locale of ["en", "es"] as const) {
         { key: LOCALE_STORAGE_KEY, value: locale },
       );
       try {
+        const copy = copyFor(locale);
+        await page.goto("/dashboard/lists");
+        await expect(
+          page.getByRole("link", { name: /add list|agregar lista/i }),
+        ).toHaveCount(0);
         await page.goto("/dashboard/lists/create");
         await expect(page.locator("html")).toHaveAttribute("lang", locale);
         await assertRuntimeIdentity(page, info, locale, "childA");
         await assertFixtureIdentity(page, "childA");
-        const copy = copyFor(locale);
         const refused = page.getByTestId("list-create-refused");
         await expect(refused).toBeVisible();
         await expect(refused).toContainText(copy.refusalTitle);

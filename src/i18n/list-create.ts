@@ -3,6 +3,8 @@ import type { Locale } from "./types";
 export const listCreateEnglish = {
   back: "Lists",
   title: "New List",
+  sheetTitle: "New List",
+  closeLabel: "Close and return",
   subtitle: "Create a shared list for your family",
   name: "Name",
   namePlaceholder: "e.g. Weekly Groceries",
@@ -50,6 +52,8 @@ export type ListCreateMessage = keyof typeof listCreateEnglish;
 export const listCreateSpanish: Record<ListCreateMessage, string> = {
   back: "Listas",
   title: "Nueva lista",
+  sheetTitle: "Nueva lista",
+  closeLabel: "Cerrar y volver",
   subtitle: "Crea una lista compartida para tu familia",
   name: "Nombre",
   namePlaceholder: "p. ej., Compras semanales",
