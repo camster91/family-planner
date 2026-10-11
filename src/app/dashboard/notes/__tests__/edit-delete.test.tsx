@@ -11,7 +11,11 @@ import userEvent from '@testing-library/user-event'
 const mockT = (key: string) => key
 jest.mock('@/i18n', () => ({ useTranslation: () => ({ t: mockT }) }))
 jest.mock('@/components/ui/feature-gate', () => ({
-  FeatureGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  FeatureOffState: () => null,
+}))
+jest.mock('@/components/providers/features-provider', () => ({
+  useFeatureEnabled: () => true,
+  useFeatures: () => ({ canManage: true }),
 }))
 
 import NotesPage from '../page'

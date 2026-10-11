@@ -153,6 +153,11 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   // Member controls (O-34): a parent's household account controls, never the tablet's.
   "POST /api/family/invite-code": [403],
   "DELETE /api/family/members/[id]": [403],
+  // Pinned notes are person-session routes; paired tablets are refused before auth.
+  "GET /api/notes": [403],
+  "POST /api/notes": [403],
+  "PATCH /api/notes/[id]": [403],
+  "DELETE /api/notes/[id]": [403],
 };
 
 function routeFiles(dir: string): string[] {
