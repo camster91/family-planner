@@ -10,39 +10,48 @@
 
 The current product can display a stack when several `Chore` rows happen to share a normalized routine label and step numbers. The create and edit routes still create or patch one row at a time. A parent therefore cannot maintain a stack as one draft, move steps without manually renumbering them, add an existing chore to a stack, or recover from a partial save.
 
-V1 is a parent-managed editor for an existing occurrence stack. It uses the existing `Chore` rows and fields:
+V1 is a parent-managed editor for an existing occurrence stack. One durable stack may contain steps assigned to different household members, including an adult, teen and child. It uses the existing `Chore` rows and fields:
 
 - `Chore.id` is the stable identity of a step.
-- `routine` remains the display/group label and is normalized with the existing helper.
+- `routine` remains the display/legacy-group label and compatibility field, normalized with the existing helper; it is never the durable stack identity.
 - `routine_order` remains the persisted order, contiguous from 1 through the stack size.
 - `assigned_to`, `assigned_member_id`, `due_date`, `frequency`, `weekly_days`, `recurrence_id`, `is_template`, `status`, history and verification fields remain canonical.
 - `icon` remains optional and valid for adults, teens and children; a picture does not make a routine child-only.
 
-The editor may add an existing unstacked chore, create a new chore step, remove a step from the stack, and reorder steps. “Remove” means clearing `routine` and `routine_order` from the existing chore; it never deletes a chore or its history. A newly drafted step is not persisted until the complete save commits.
+The editor may add an existing unstacked chore, create a new chore step, remove a step from the stack, and reorder steps. “Remove” means clearing the stack membership/grouping fields from the existing chore; it never deletes a chore or its history. A newly drafted step is not persisted until the complete save commits.
 
-V1 keeps one stack tied to one selected household member, while allowing that member to be an adult, teen or child. This matches the current member/date grouping and avoids pretending that a mutable routine label is a durable cross-member identity. A later shared routine can give individual steps different owners only after a durable stack identity and an explicit disclosure policy exist; it is not inferred by matching labels.
+The stack is one cross-member object, not one stack per member. Each step has its own canonical assignee, so one stack can represent an adult step followed by a teen step and a child step without implying shared completion or shared private details. The current member/date/label grouping remains a read-compatible legacy presentation for rows that have no durable stack identity; it is not the identity of a new or migrated stack.
 
 The editor supports two explicit targets:
 
 1. **This occurrence:** reorder or unstack only the selected date’s rows. This is the safe default and never changes a recurring template.
 2. **This series’ future occurrences:** a parent may opt in after reviewing a plain-language schedule summary. The implementation must validate every participating template/occurrence and preserve completed, verified, started, check-pending and otherwise historical rows. A schedule change or removal never silently marks a skipped step complete.
 
-Pause/resume, automatic anchors, timers, streaks, notifications, drag-only ordering, and a new Routine/RoutineStep table are outside v1. Schedule-aware collapse of repeated stacks remains a follow-up until a safe durable identity exists.
+Pause/resume, automatic anchors, timers, streaks, notifications, drag-only ordering, and a new Routine/RoutineStep table are outside v1. Schedule-aware collapse is allowed only for a durable stack identity plus occurrence date; label-only legacy groups remain a follow-up until an explicit migration.
 
 ## Canonical identity and grouping
 
-The existing presentation grouping is not sufficient as a mutation identity. A routine label is user-editable and two unrelated routines may share a name. The editor must carry stable IDs throughout the draft:
+The existing presentation grouping is not sufficient as a mutation identity. A routine label is user-editable, two unrelated routines may share a name, and a member can own several steps in one stack or belong to several stacks. The editor must carry stable IDs throughout the draft:
 
-- **Occurrence stack key:** `{ familyId, memberSubject, normalizedRoutine, dueDate }`, where `memberSubject` is the current canonical assignee/member identity used by the authorized chore row. The key is used only to select/display an occurrence, never to authorize a write.
-- **Step identity:** `choreId`. Every existing step in the draft must retain its ID, including completed and verified steps.
-- **Series identity:** each step’s canonical `recurrence_id` and its template row. A set of rows with the same label is not automatically one series.
+- **Stack identity:** a future additive `routine_stack_id` (or an equivalent durable stack record ID) identifies one cross-member stack for its lifetime. It is scoped to `family_id`, never derived from a label, member name or date, and never accepted as authorization by itself.
+- **Occurrence identity:** `{ familyId, stackId, occurrenceDate }` selects one authorized dated occurrence. It may include a canonical series/occurrence revision, but it never uses `memberSubject` as the stack identity.
+- **Step identity:** `choreId` plus the durable stack step identity. Every existing step in the draft retains its ID, including completed and verified steps; `assigned_member_id` is the per-step owner.
+- **Series identity:** each step’s canonical `recurrence_id` and template row. A set of rows with the same label is not automatically one series or one stack.
 - **Display order:** `routine_order` after normalization. Duplicate or missing order values are repaired only as part of an explicit parent save, never by a read.
+
+The additive identity/model proposal is recorded here for a later implementation and migration; this planning change does not add a schema. The model must provide a durable stack identity, display label, schedule/lifecycle state, version/fingerprint, per-step membership/order/assignee, and the relationship to each canonical chore/template. Existing `Chore` rows remain the completion, verification, recurrence and history records. A compact stack read may carry a unique member dictionary plus per-step member IDs rather than repeating names, while the child/teen read model omits other members' details.
+
+Legacy rows with no stack identity are not silently merged. An explicit parent migration can select the exact chore IDs, show every selected assignee/date/series, and assign them to one new stack. A normalized-label/date collision, duplicate order, missing series, or mixed incompatible schedule is ambiguous: present the candidates separately and require an explicit selection or leave them as legacy groups. Never create a durable identity on a read, infer membership from matching labels, or use a name/email match to migrate ownership. Migration is additive and reversible at the presentation level; it does not delete rows, rewrite history, or activate a profile.
+
+For Week/All collapse, a durable `stackId + occurrenceDate` is the grouping key. Legacy unstacked recurring rows continue to use the existing household-scoped `recurrence_id` collapse rule. Today remains actionable by occurrence. A stack name is display copy only and never a privacy boundary.
 
 The server must re-read all IDs inside the write transaction and require `family_id` to match the authenticated parent’s family. A missing or foreign ID has the same generic 404 shape as the existing chore contract. The client must never submit a member name, routine label, title, or date as a substitute for a step ID.
 
-For “future occurrences,” the server must operate from the validated set of step templates/series IDs, not from a title search. If a row has no series, is a legacy one-off, has been detached, or no longer belongs to the selected stack, the operation returns a conflict and leaves every row unchanged. Existing recurring generation continues to copy `routine`, `routine_order` and `icon` from each template; v1 does not infer a new shared recurrence ID.
+For “future occurrences,” the server must operate from the validated set of step templates/series IDs, not from a title search. If a row has no series, is a legacy one-off, has been detached, or no longer belongs to the selected stack, the operation returns a conflict and leaves every row unchanged. Existing recurring generation continues to copy `routine`, `routine_order` and `icon` from each template; a later additive stack implementation must carry the validated stack/step identity from the template to generated copies explicitly, never infer a new shared recurrence or stack ID from labels.
 
-A parent can assign separate routines to separate household members. A shared routine label never implies shared completion, shared ownership, or permission to see another member’s private details.
+A household can deliberately have multiple stacks, and each stack may span members. A shared routine label never implies shared completion, shared ownership, or permission to see another member’s private details.
+
+The parent read uses the canonical household member projection, not a second routine-specific person model. Its compact member DTO is `{ id, displayName, role, subjectState }`, where `subjectState` distinguishes eligible active subjects from archived/dormant or sticky-erased references. It never includes email, login, token, private notes or a replacement-account hint. `member_subject_erased` is sticky in this projection: an erased subject is not made eligible by later account/profile changes, and the write-side `eligibleChoreAssigneeInTx` check is stricter than the historical read fallback.
 
 ## Mutation contract for the future implementation
 
@@ -53,27 +62,29 @@ The implementation should introduce one narrow stack-mutation coordinator behind
 The coordinator receives:
 
 - target scope: `occurrence` or explicit `future-series`;
-- the selected occurrence key and the ordered list of existing `choreId`s;
+- the selected `{ familyId, stackId, occurrenceDate }` and the ordered list of existing `choreId`s;
 - staged new steps using the same title, description, assignee, date, frequency, weekday, difficulty, icon and routine validation already used by chore create;
 - `remove` IDs that are being unstacked, never IDs to delete;
 - an expected snapshot fingerprint covering each submitted row’s ID, family, assignee/member subject, due date, recurrence/template identity, routine, order, status and relevant schedule fields;
 - an `Idempotency-Key` header for retries.
 
-The server normalizes the routine name and assigns `routine_order = 1..n` from the submitted order. It rejects empty stacks unless the operation is an explicit unstack action. It rejects duplicate IDs, duplicate steps, foreign assignees, invalid weekday/frequency combinations, more than 99 steps, and new-step data that fails the existing chore schemas.
+The server normalizes the display routine name and assigns `routine_order = 1..n` from the submitted order. It rejects empty stacks unless the operation is an explicit unstack action. It rejects duplicate IDs, duplicate steps, foreign assignees, invalid weekday/frequency combinations, more than 99 steps, and new-step data that fails the existing chore schemas. The request carries an explicit assignee for every step; there is no stack-level member shortcut that can accidentally assign all steps to one person.
 
 ### Transaction and conflict rules
 
 The complete operation runs in one household-locked database transaction:
 
-1. Authenticate the person session and require the parent role before reading mutation details.
-2. Read the family and all existing step IDs under the family predicate. Do not reveal whether a foreign ID exists.
+1. Authenticate the person session and require the existing parent management capability before reading mutation details. This plan does not activate a new role or route.
+2. Read the family, stack identity and all existing step IDs under the family predicate. Do not reveal whether a foreign ID exists.
 3. Compare the expected fingerprint with the locked current rows. If any title, assignment, date, routine/order, series identity, status/history-sensitive field or schedule changed, return `409 ROUTINE_STACK_CONFLICT` with a retryable semantic error and no writes.
-4. Validate each new assignee belongs to the same family and is not an erased/detached subject. Preserve `assigned_member_id` and `member_subject_erased`; never relink an archived profile to a replacement account.
-5. Create staged new chores and update existing routine/order fields as one transaction. For a current-occurrence edit, do not touch templates or other dates. For a future-series edit, lock and validate every participating template before applying the documented series rules.
+4. Resolve each submitted assignee through the canonical `eligibleChoreAssigneeInTx`-style subject check while the transaction holds the relevant family/member rows. The subject must belong to this family, be active and assignable for a new step, and not be permanently erased, archived, detached or a dormant/unactivated profile. Preserve `assigned_member_id` and sticky `member_subject_erased`; never relink an archived/erased subject to a replacement account, and never activate a profile as a side effect of selecting it.
+5. Create staged new chores and update existing stack membership/order/assignee fields as one transaction. For a current-occurrence edit, do not touch templates or other dates. For a future-series edit, lock and validate every participating template before applying the documented series rules.
 6. Clear routine fields for removed existing steps without changing title, assignment, status, completion, verification, points, photos, or history.
-7. Return the committed authorized stack and a fresh snapshot fingerprint.
+7. Write the action's idempotency receipt in the same domain transaction as the stack changes, then return a compact committed summary and fresh snapshot fingerprint. The serialized success/replay response is strictly under 8 KiB (8,192 UTF-8 bytes) even for 99 steps: it contains stack identity/version, count, step IDs/order/assignee IDs and a compact canonical member dictionary, not repeated descriptions, notes, private metadata or unbounded draft text. The full authorized read follows separately when needed.
 
-A repeated key with the same request fingerprint replays the committed response. The same key with a changed request is `422 IDEMPOTENCY_KEY_REUSED`; an overlapping first attempt is `409 IDEMPOTENCY_IN_PROGRESS`. The response and replay must be private/no-store. A transaction or response failure leaves no partial new rows and no partial order changes.
+The in-domain receipt is scoped to the authenticated user, family, action and request hash, and stores only the bounded semantic outcome needed for replay. It must not become a second routine model or retain draft descriptions, private notes, member emails or credentials. Receipt lookup repeats authentication, family, capability and stack predicates before replay; a well-formed key can never disclose a foreign stack.
+
+A repeated key with the same request fingerprint replays the committed response and reuses the same rows; it never creates a second stack, step or receipt. The same key with a changed request is `422 IDEMPOTENCY_KEY_REUSED`; an overlapping first attempt is `409 IDEMPOTENCY_IN_PROGRESS`. The in-domain receipt and replay must be private/no-store. A transaction or response failure leaves no partial new rows and no partial order changes. A fault after commit but before the HTTP response must be replayable by the same key with the deterministic original response; tests must cover transaction rollback, response-loss replay, concurrent same-key requests, changed payload, and a 99-step response-size boundary.
 
 The coordinator must not change completion state. Verify/reject, complete, undo, points, photos and notifications continue through their existing single-purpose routes. Chore DELETE remains a separate explicit action with its current parent/assignee authority; the editor never calls DELETE.
 
@@ -97,10 +108,12 @@ The sheet keeps the draft and selected scope after a retryable failure. “Reloa
 - Reordering a current occurrence changes only its occurrence metadata. Reordering a series changes future pending occurrences according to the existing series-edit rules and preserves started, completed, verified and check-pending history.
 - A completed or verified step may be moved; its status and verification history stay attached to its `choreId`.
 - Removing a step from a current stack clears only routine grouping fields. It does not archive, delete, reopen, or recreate the chore.
-- Removing a future recurring step requires an explicit parent scope choice. It must not delete historical rows or silently remove a child’s recorded work. Existing series pruning rules remain the only authority for future pending copies.
-- If a member is archived or permanently erased, the editor cannot reassign a step to that subject. Existing rows retain their tombstone/reference semantics and are shown with the existing safe fallback; no account is relinked by matching a name or email.
+- Removing a future recurring step requires an explicit parent scope choice. For each locked participating template, only eligible future **pending** rows are unstacked: clear their stack membership/order while retaining the canonical recurrence/series fields, due date, assignee and independent future-series behavior. Do not delete or recreate those rows. Historical, started, check-pending, completed and verified rows retain their stack identity and all history, so the past remains truthful. Existing series pruning/expansion rules remain the only authority for future copies after the template's stack membership is updated.
+- If a member is archived, detached, dormant/unactivated or permanently erased, the editor cannot assign a new step to that subject. Existing rows retain their canonical tombstone/reference semantics and are shown with the existing safe fallback; no account is relinked by matching a name or email. A sticky erased subject stays erased in every member DTO and cannot be made eligible by a later profile/account change.
 - Old rows with `routine = null`, legacy one-off recurrence or missing series identity remain valid unstacked chores. The editor may stage them into a stack by stable ID, but a read never migrates them.
 - Old web/Android clients continue sending the current create/PATCH bodies and continue seeing the existing nullable fields. The new editor is additive and can be rolled back without rewriting stored dates, history or generated rows.
+
+The future-series state policy is explicit: a removed pending occurrence becomes an independent occurrence of its original recurrence series, while rows that already carry work or history stay attached to the old stack for historical display. A later generated occurrence follows the updated template policy. No scope choice silently changes completion, verification, points, photos, assignee identity, or recurrence anchors.
 
 ## UI contract across ages and devices
 
@@ -108,7 +121,7 @@ The sheet keeps the draft and selected scope after a retryable failure. “Reloa
 
 On phone and portrait tablet, open the editor as the existing rounded sheet/form surface. Keep the selected routine summary, member, date and scope choice visible without a long page. On desktop and fridge-sized landscape, use a large adaptive panel with the same semantic structure, not a second data path.
 
-Each step row shows title, the selected member, schedule/date context and status. Use visible 44x44 Move up, Move down, Remove and Edit controls; drag can be an enhancement but is never the only ordering input. “Add existing chore” and “Create step” stay in the mounted draft so a parent can build several steps without leaving the editor. Show a clear schedule summary before any future-series choice.
+Each step row shows title, its own selected assignee, schedule/date context and status. Use visible 44x44 Move up, Move down, Remove and Edit controls; drag can be an enhancement but is never the only ordering input. “Add existing chore” and “Create step” stay in the mounted draft so a parent can build several steps without leaving the editor. The per-step assignee control must use the canonical household roster and make adult/teen/child ownership visible before save. Show a clear schedule summary before any future-series choice.
 
 Use the existing focus and sheet primitives:
 
@@ -123,23 +136,26 @@ The editor must support long titles, descriptions, member names and translated s
 
 ### Child and teen surfaces
 
-No child or teen gains access to `/dashboard/chores` or the parent editor in this slice. Their existing Today/KidRoutines surface remains completion-focused and scoped to their own assigned rows, including completion, Undo and parent verification/rejection states. A parent’s stack save may change what the child sees after the normal refresh, but it must not expose other household members, private notes, family-wide Routines controls, or management actions.
+No child or teen gains access to `/dashboard/chores` or the parent editor in this slice. Their existing Today/KidRoutines surface remains completion-focused and scoped to their own assigned rows, including completion, Undo and parent verification/rejection states. A parent’s cross-member stack save may change what a child or teen sees after the normal refresh, but it must not expose other household members, private notes, family-wide Routines controls, or management actions.
+
+The future child/teen DTO is an own-step projection: it may include the durable stack ID, safe routine display label, own step order/count/status and the minimum progress needed for the existing completion view, but only steps assigned to the authenticated subject. It must not reuse the broad parent family GET, return sibling step titles/notes/assignees, or use a stack ID as a bypass. Direct same-family sibling access must be denied for another member's step, and a second household must receive the same generic denial for both parent and child/teen attempts. These are API/read-model boundaries, not a new role grant; current route policy remains unchanged until a separately approved role-policy change.
 
 If a future product decision adds an all-age read-only week view, it must be a separate role-policy change with its own route, API selection and two-household tests. This plan does not activate that route.
 
 ### Localization and privacy
 
-Add a typed EN/ES dictionary for editor labels, statuses, scope choices, conflict/retry text, accessibility names and schedule summaries. Keep chore titles, descriptions, member names, verification notes, photo metadata and other user-authored values unchanged. Dates and weekdays use the existing locale-aware formatter. No routine label or status may be used as a privacy boundary.
+Add a typed EN/ES dictionary for editor labels, statuses, scope choices, per-step assignee labels, conflict/retry text, accessibility names and schedule summaries. Keep chore titles, descriptions, member names, verification notes, photo metadata and other user-authored values unchanged. Dates and weekdays use the existing locale-aware formatter. No routine label or status may be used as a privacy boundary. Short forms and stack disclosures must work in both locales at phone, portrait tablet, fridge landscape and desktop widths; collapsing a group uses the actual durable stack/occurrence identity, never a normalized label or member name.
 
 ## Implementation packages for a later code slice
 
 The following package boundaries are intentionally recorded here without editing them in this planning change:
 
-1. **Contract/transaction helper:** a pure routine-stack draft/normalization/fingerprint module plus a server transaction coordinator that reuses chore schemas, household locks, recurring-series helpers, idempotency and family predicates.
+1. **Contract/transaction helper:** a pure routine-stack draft/normalization/fingerprint module plus a server transaction coordinator that reuses chore schemas, household locks, recurring-series helpers, idempotency and family predicates. Define the additive stack/step identity, legacy-label migration preview, ambiguous-candidate refusal, explicit per-step ownership, and future-series pending-row policy before any schema work. Keep the in-domain receipt atomic with the write and enforce the compact `<8 KiB` response for 99 steps.
 2. **Parent route and sheet:** a parent-gated Routines entry point and a kept-mounted editor using the existing `ChoreFormSection`, Dialog/FormSheet, focus restoration and 44px tokens. The route must render the same canonical `RoutineStacks` result after commit.
-3. **Role-safe read models:** preserve the current parent family read and child/teen assigned-to self read. Do not broaden the family query used by Kid Home.
+3. **Role-safe read models:** preserve the current parent family read and child/teen assigned-to self read. Add an own-step DTO for child/teen projections rather than reusing the broad family query used by Kid Home. Resolve assignees with the canonical in-transaction eligibility check, keep sticky-erased subjects erased, and test same-family siblings plus two-household negatives.
 4. **Typed copy:** editor and stack status keys in the existing EN/ES route dictionary; user-authored values remain data.
-5. **Verification:** focused transaction/isolation/idempotency tests, mounted sheet tests for draft retention and focus, then guarded EN/ES phone/portrait/fridge/desktop rendered coverage.
+5. **Legacy migration and grouping:** an explicit parent-only selection/preview that creates durable identity for selected legacy chore IDs, never merges ambiguous labels, and proves rollback leaves legacy rows/history intact. Group collapse tests must use real stack IDs and dated occurrences, with the existing recurrence-ID fallback only for rows still unstacked.
+6. **Verification:** focused transaction/isolation/idempotency tests, including deterministic same-key row reuse, post-commit response-loss replay, transaction rollback, receipt size at 99 steps and `<8 KiB`, future pending unstack/history preservation, member eligibility/tombstone cases, and mounted sheet tests for draft retention and focus. Then guarded EN/ES phone/portrait/fridge/desktop rendered coverage.
 
 ## Acceptance matrix for implementation
 
@@ -147,12 +163,13 @@ A later implementation is ready for independent review only when all of these ar
 
 | Area | Required evidence |
 | --- | --- |
-| Parent success | Parent creates a three-step adult/teen/child-assigned stack, reorders it, adds an existing chore and saves once; returned order is contiguous and canonical. |
+| Parent success | Parent creates one three-step cross-member stack with adult, teen and child per-step assignees, reorders it, adds an existing chore and saves once; durable stack identity, returned order and each canonical assignee are contiguous/authoritative. |
 | Existing data | Completed, verified, check-pending and photo/history fields remain attached to the same chore IDs after current-occurrence reorder. |
-| Current vs future | Current edit leaves templates/future rows unchanged; explicit future edit changes only eligible pending rows and preserves started/history rows. |
-| Retry/conflict | Lost response replays by the same idempotency key; stale fingerprint returns 409 with no partial write; retry retains the draft. |
-| Isolation | Child/teen/device cannot open or mutate the editor; foreign step/member/family IDs return generic denial; a second household cannot observe the target. |
-| Child/teen continuity | Existing own Today/KidRoutines completion and Undo still work after a parent reorder; no family-wide rows appear. |
+| Current vs future | Current edit leaves templates/future rows unchanged; explicit future edit changes only eligible pending rows, unstacking removed pending rows while retaining their independent series, and preserves started/history rows. |
+| Retry/conflict | Lost response replays by the same idempotency key with deterministic row reuse and the same compact response; stale fingerprint returns 409 with no partial write; retry retains the draft; same-key changed payload returns 422; a 99-step response stays below 8 KiB. |
+| Isolation | Child/teen/device cannot open or mutate the editor; the child/teen own-step DTO never broadens into a family read; foreign step/member/family IDs return generic denial; same-family sibling and a second household cannot observe the target. |
+| Eligibility and erasure | Every new or reassigned step passes the in-transaction canonical assignee check; archived/dormant/erased subjects cannot receive new work, sticky erased identity remains in DTOs, and no profile activates or relinks as a side effect. |
+| Child/teen continuity | Existing own Today/KidRoutines completion and Undo still work after a parent reorder; no family-wide rows or sibling details appear. |
 | Reflow and input | EN and ES at 390x844, 430x932, 800x1280, 1280x800, 1366x768 and 1920x1200 have no horizontal overflow, 44px primary targets, visible focus, usable keyboard/Android Back, and safe pending dismissal. |
 | Localization | Static editor/status/ARIA copy changes with locale; titles, descriptions, names, notes and IDs remain exact user data. |
 | Rollback | Removing the editor leaves existing create/edit, RoutineStacks, recurring generation and old client request/response behavior intact. |
