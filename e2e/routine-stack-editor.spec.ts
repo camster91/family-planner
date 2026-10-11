@@ -5,8 +5,8 @@
  * Successful mutation cases use the real loopback API; recovery cases intercept
  * only the routine transport so no uncertain or malformed response can write a
  * domain row. Every case still runs at the six responsive projects in both
- * locales. The child check uses the seeded Family A account but never mutates
- * it or the routine.
+ * locales. Every case owns a disposable family, parent, child, members and
+ * chores; the child check never uses a shared fixture.
  */
 import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
@@ -17,8 +17,8 @@ import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
-import { E2E_ANCHOR, authFile } from "./support/env";
-import { browserFetch, expect, test } from "./support/test";
+import { E2E_ANCHOR } from "./support/env";
+import { browserFetch, expect, loginViaUi, test } from "./support/test";
 
 const A = FIXTURE_IDS.familyA;
 const PROJECTS = [
@@ -83,6 +83,11 @@ const copy = {
 
 type Fixture = {
   prefix: string;
+  family: string;
+  parent: string;
+  child: string;
+  parentEmail: string;
+  childEmail: string;
   label: string;
   memberParent: string;
   memberChild: string;
@@ -98,8 +103,17 @@ function fixtureFor(info: TestInfo, locale: Locale): Fixture {
     .replace(/[^a-zA-Z0-9_]/g, "_")
     .slice(-52);
   const prefix = `fx_e2e_rs_${suffix}`;
+  const email = (id: string) => `${id.replace(/_/g, "-")}@example.test`;
+  const family = `${prefix}_family`;
+  const parent = `${prefix}_parent`;
+  const child = `${prefix}_child`;
   return {
     prefix,
+    family,
+    parent,
+    child,
+    parentEmail: email(parent),
+    childEmail: email(child),
     label: `QA routine ${suffix}`,
     memberParent: `${prefix}_member_parent`,
     memberChild: `${prefix}_member_child`,
@@ -124,43 +138,67 @@ async function withDb<T>(fn: (db: pg.Client) => Promise<T>): Promise<T> {
 
 async function seedFixture(fixture: Fixture) {
   await withDb(async (db) => {
-    const family = await db.query(`SELECT id FROM "Family" WHERE id = $1`, [
-      A.family,
-    ]);
-    const parent = await db.query(
-      `SELECT id, family_id, role FROM "User" WHERE id = $1`,
+    // Copy only the seeded hash so these dedicated users can use the real UI
+    // login. Never print or persist the source hash outside this disposable
+    // transaction, and never mutate Family A's users or member mappings.
+    const password = await db.query(
+      `SELECT password FROM "User" WHERE id = $1`,
       [A.parent],
     );
-    const child = await db.query(
-      `SELECT id, family_id, role FROM "User" WHERE id = $1`,
-      [A.child],
-    );
-    expect(family.rows).toHaveLength(1);
-    expect(parent.rows[0]).toMatchObject({
-      id: A.parent,
-      family_id: A.family,
-      role: "parent",
-    });
-    expect(child.rows[0]).toMatchObject({
-      id: A.child,
-      family_id: A.family,
-      role: "child",
-    });
+    expect(password.rows[0]?.password).toEqual(expect.any(String));
 
-    await db.query(`DELETE FROM "Chore" WHERE id LIKE $1`, [
-      `${fixture.prefix}%`,
+    // The IDs are unique per test, but these exact predicates make retries
+    // safe without touching another family's rows.
+    await db.query(
+      `UPDATE "Chore" SET routine_stack_id = NULL WHERE family_id = $1`,
+      [fixture.family],
+    );
+    await db.query(`DELETE FROM "Chore" WHERE family_id = $1`, [
+      fixture.family,
+    ]);
+    await db.query(`DELETE FROM "RoutineStack" WHERE family_id = $1`, [
+      fixture.family,
+    ]);
+    await db.query(`DELETE FROM "IdempotencyRecord" WHERE family_id = $1`, [
+      fixture.family,
     ]);
     await db.query(
-      `DELETE FROM "HouseholdMemberAccountLink" WHERE member_id = ANY($1::text[])`,
-      [[fixture.memberParent, fixture.memberChild]],
+      `DELETE FROM "HouseholdMemberAccountLink" WHERE family_id = $1`,
+      [fixture.family],
     );
     await db.query(
-      `DELETE FROM "HouseholdMemberLegacyMapping" WHERE member_id = ANY($1::text[])`,
-      [[fixture.memberParent, fixture.memberChild]],
+      `DELETE FROM "HouseholdMemberLegacyMapping" WHERE family_id = $1`,
+      [fixture.family],
     );
-    await db.query(`DELETE FROM "HouseholdMember" WHERE id = ANY($1::text[])`, [
-      [fixture.memberParent, fixture.memberChild],
+    await db.query(`DELETE FROM "HouseholdMember" WHERE family_id = $1`, [
+      fixture.family,
     ]);
+    await db.query(`DELETE FROM "User" WHERE id = ANY($1::text[])`, [
+      [fixture.parent, fixture.child],
+    ]);
+    await db.query(`DELETE FROM "Family" WHERE id = $1`, [fixture.family]);
+
+    await db.query(
+      `INSERT INTO "Family" (id, name, invite_code) VALUES ($1, $2, $1)`,
+      [fixture.family, `QA routine ${fixture.prefix}`],
+    );
+    await db.query(
+      `INSERT INTO "User"
+        (id, email, password, name, role, family_id, email_verified, created_at)
+       VALUES ($1, $2, $3, $4, 'parent', $5, true, $6),
+              ($7, $8, $3, $9, 'child', $5, true, $6)`,
+      [
+        fixture.parent,
+        fixture.parentEmail,
+        password.rows[0].password,
+        `QA parent ${fixture.prefix}`,
+        fixture.family,
+        TIMESTAMP,
+        fixture.child,
+        fixture.childEmail,
+        `QA child ${fixture.prefix}`,
+      ],
+    );
 
     await db.query(
       `INSERT INTO "HouseholdMember"
@@ -171,7 +209,7 @@ async function seedFixture(fixture: Fixture) {
       [
         fixture.memberParent,
         fixture.memberChild,
-        A.family,
+        fixture.family,
         `QA parent ${fixture.prefix}`,
         TIMESTAMP,
         `QA child ${fixture.prefix}`,
@@ -184,10 +222,10 @@ async function seedFixture(fixture: Fixture) {
       [
         fixture.memberParent,
         fixture.memberChild,
-        A.parent,
-        A.family,
+        fixture.parent,
+        fixture.family,
         TIMESTAMP,
-        A.child,
+        fixture.child,
       ],
     );
     await db.query(
@@ -204,9 +242,9 @@ async function seedFixture(fixture: Fixture) {
         fixture.existingChild,
         fixture.existingParent,
         fixture.memberChild,
-        A.parent,
-        A.family,
-        A.child,
+        fixture.parent,
+        fixture.family,
+        fixture.child,
         fixture.childTitle,
         TIMESTAMP,
         fixture.parentTitle,
@@ -222,40 +260,46 @@ async function seedFixture(fixture: Fixture) {
       [[fixture.memberParent, fixture.memberChild]],
     );
     expect(link.rows).toHaveLength(2);
-    expect(link.rows.every((row) => row.family_id === A.family)).toBe(true);
+    expect(link.rows.every((row) => row.family_id === fixture.family)).toBe(
+      true,
+    );
   });
 }
 
 async function cleanupFixture(fixture: Fixture) {
   await withDb(async (db) => {
-    const stacks = await db.query(
-      `SELECT id FROM "RoutineStack" WHERE family_id = $1 AND label LIKE $2`,
-      [A.family, `${fixture.label}%`],
-    );
-    const stackIds = stacks.rows.map((row) => row.id as string);
-    await db.query(`DELETE FROM "Chore" WHERE id LIKE $1`, [
-      `${fixture.prefix}%`,
-    ]);
-    if (stackIds.length) {
-      await db.query(
-        `DELETE FROM "Chore" WHERE family_id = $1 AND routine_stack_id = ANY($2::text[])`,
-        [A.family, stackIds],
-      );
-      await db.query(`DELETE FROM "RoutineStack" WHERE id = ANY($1::text[])`, [
-        stackIds,
-      ]);
-    }
+    // The family is unique to this test, so every row selected by this family
+    // predicate is owned. Clear the no-action stack FK before deleting rows;
+    // do not search by a human label or delete shared fixture chores.
     await db.query(
-      `DELETE FROM "HouseholdMemberAccountLink" WHERE member_id = ANY($1::text[])`,
-      [[fixture.memberParent, fixture.memberChild]],
+      `UPDATE "Chore" SET routine_stack_id = NULL WHERE family_id = $1`,
+      [fixture.family],
+    );
+    await db.query(`DELETE FROM "Chore" WHERE family_id = $1`, [
+      fixture.family,
+    ]);
+    await db.query(`DELETE FROM "RoutineStack" WHERE family_id = $1`, [
+      fixture.family,
+    ]);
+    await db.query(
+      `DELETE FROM "IdempotencyRecord" WHERE family_id = $1 AND action = 'routine-stack.mutate'`,
+      [fixture.family],
     );
     await db.query(
-      `DELETE FROM "HouseholdMemberLegacyMapping" WHERE member_id = ANY($1::text[])`,
-      [[fixture.memberParent, fixture.memberChild]],
+      `DELETE FROM "HouseholdMemberAccountLink" WHERE family_id = $1`,
+      [fixture.family],
     );
-    await db.query(`DELETE FROM "HouseholdMember" WHERE id = ANY($1::text[])`, [
-      [fixture.memberParent, fixture.memberChild],
+    await db.query(
+      `DELETE FROM "HouseholdMemberLegacyMapping" WHERE family_id = $1`,
+      [fixture.family],
+    );
+    await db.query(`DELETE FROM "HouseholdMember" WHERE family_id = $1`, [
+      fixture.family,
     ]);
+    await db.query(`DELETE FROM "User" WHERE id = ANY($1::text[])`, [
+      [fixture.parent, fixture.child],
+    ]);
+    await db.query(`DELETE FROM "Family" WHERE id = $1`, [fixture.family]);
   });
 }
 
@@ -313,7 +357,7 @@ async function runtimeIdentity(page: Page, info: TestInfo, locale: Locale) {
       locale,
       role: "parent",
       transport:
-        "real Family A rows for success; routine transport intercepted for recovery",
+        "real per-test household rows for success; routine transport intercepted for recovery",
     }),
     contentType: "application/json",
   });
@@ -408,19 +452,23 @@ async function makeDraft(page: Page, fixture: Fixture, locale: Locale) {
     .locator("section")
     .filter({ hasText: text.candidates })
     .first();
-  await candidates
-    .getByRole("button", { name: text.add, exact: true })
-    .first()
-    .click();
+  // Never take whichever seed row happens to sort first. Both owned chores
+  // are required for the three-step real journey (two existing + one new).
+  for (const title of [fixture.childTitle, fixture.parentTitle]) {
+    const row = candidates.locator("li").filter({ hasText: title }).first();
+    await expect(row).toContainText(title);
+    await row.getByRole("button", { name: text.add, exact: true }).click();
+  }
   await editor.getByLabel(text.label).fill(fixture.label);
   await editor.locator("#routine-new-title").fill(fixture.newTitle);
-  await editor.locator("#routine-new-assignee").selectOption(A.child);
+  await editor.locator("#routine-new-assignee").selectOption(fixture.child);
   await editor.getByRole("button", { name: text.addStep, exact: true }).click();
   return editor;
 }
 
 async function syntheticSaveResponse(
   route: Parameters<Parameters<Page["route"]>[1]>[0],
+  fixture: Fixture,
 ) {
   await route.fulfill({
     status: 200,
@@ -429,14 +477,13 @@ async function syntheticSaveResponse(
       stack_id: "synthetic-routine-stack",
       version: 1,
       steps: [["synthetic-step", 1, 1]],
-      assignments: [[A.child, "synthetic-member"]],
+      assignments: [[fixture.child, "synthetic-member"]],
       members: [["synthetic-member", "Synthetic member"]],
       fingerprint: "synthetic-fingerprint",
     }),
   });
 }
 
-test.use({ storageState: authFile("parentA") });
 test.describe.configure({ mode: "serial" });
 
 for (const locale of LOCALES) {
@@ -454,8 +501,9 @@ for (const locale of LOCALES) {
       assertFixtureTargetAllowed(process.env);
       const fixture = fixtureFor(info, locale);
       await loopbackGuard(context, baseURL!);
-      await setLocale(context, locale);
       await seedFixture(fixture);
+      await loginViaUi(page, fixture.parentEmail);
+      await setLocale(context, locale);
       let stackId: string | null = null;
       try {
         await page.goto("/dashboard/chores");
@@ -501,22 +549,25 @@ for (const locale of LOCALES) {
         );
 
         const childContext = await browser.newContext({
-          storageState: authFile("childA"),
           locale: locale === "es" ? "es" : "en-US",
           colorScheme: locale === "es" ? "dark" : "light",
         });
         try {
           await loopbackGuard(childContext, baseURL!);
           const childPage = await childContext.newPage();
-          await childPage.goto("/dashboard");
+          await loginViaUi(childPage, fixture.childEmail);
+          await setLocale(childContext, locale);
+          await childPage.goto("/dashboard/today");
           const denied = await browserFetch(
             childPage,
             `/api/chores/stacks?stack_id=${encodeURIComponent(stackId)}&occurrence_date=${DATE}`,
           );
           expect(denied.status).toBe(403);
           expect(denied.body).not.toContain(fixture.label);
-          await childPage.goto("/dashboard/chores");
-          await expect(childPage.getByText(fixture.childTitle)).toBeVisible();
+          await expect(childPage).toHaveURL(/\/dashboard\/today$/);
+          const ownWork = childPage.getByTestId("my-chores");
+          await expect(ownWork.getByText(fixture.childTitle)).toBeVisible();
+          await expect(ownWork.getByText(fixture.parentTitle)).toHaveCount(0);
           await expect(
             childPage.getByRole("link", { name: /Edit routine|Editar rutina/ }),
           ).toHaveCount(0);
@@ -536,7 +587,7 @@ for (const locale of LOCALES) {
         await editor
           .locator('select[id^="routine-assignee-"]')
           .first()
-          .selectOption(A.parent);
+          .selectOption(fixture.parent);
         await editor
           .getByRole("button", {
             name: copy[locale].moveDown(fixture.childTitle),
@@ -596,8 +647,9 @@ for (const locale of LOCALES) {
       assertFixtureTargetAllowed(process.env);
       const fixture = fixtureFor(info, locale);
       await loopbackGuard(context, baseURL!);
-      await setLocale(context, locale);
       await seedFixture(fixture);
+      await loginViaUi(page, fixture.parentEmail);
+      await setLocale(context, locale);
       let writes = 0;
       page.on("request", (request) => {
         if (
@@ -664,8 +716,9 @@ for (const locale of LOCALES) {
       assertFixtureTargetAllowed(process.env);
       const fixture = fixtureFor(info, locale);
       await loopbackGuard(context, baseURL!);
-      await setLocale(context, locale);
       await seedFixture(fixture);
+      await loginViaUi(page, fixture.parentEmail);
+      await setLocale(context, locale);
       let candidateAttempts = 0;
       let postAttempts = 0;
       const posts: Array<{ key: string; body: string }> = [];
@@ -711,7 +764,7 @@ for (const locale of LOCALES) {
             });
           }
           if (postAttempts === 2) {
-            return syntheticSaveResponse(route);
+            return syntheticSaveResponse(route, fixture);
           }
           if (postAttempts === 3) {
             return route.fulfill({
@@ -722,7 +775,7 @@ for (const locale of LOCALES) {
               }),
             });
           }
-          return syntheticSaveResponse(route);
+          return syntheticSaveResponse(route, fixture);
         });
 
         const editor = await makeDraft(page, fixture, locale);
@@ -771,8 +824,9 @@ for (const locale of LOCALES) {
       assertFixtureTargetAllowed(process.env);
       const fixture = fixtureFor(info, locale);
       await loopbackGuard(context, baseURL!);
-      await setLocale(context, locale);
       await seedFixture(fixture);
+      await loginViaUi(page, fixture.parentEmail);
+      await setLocale(context, locale);
       try {
         await page.route("**/api/chores/stacks", async (route) => {
           if (route.request().method() === "POST") {
