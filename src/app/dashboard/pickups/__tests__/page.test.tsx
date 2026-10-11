@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom";
 import * as React from "react";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -252,7 +253,7 @@ it("does not duplicate the history marker during StrictMode effect replay", asyn
   pushSpy.mockRestore();
 });
 
-it("keeps a reopened draft open when the previous close back arrives late", async () => {
+it("keeps a pending close locked until its back traversal completes", async () => {
   global.fetch = jest.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === "/api/pickups") return response({ pickups: [] });
@@ -270,15 +271,23 @@ it("keeps a reopened draft open when the previous close back arrives late", asyn
   const firstMarker = (window.history.state as { pickupForm?: unknown })
     .pickupForm;
   await user.keyboard("{Escape}");
+  expect(
+    screen.getByRole("dialog", { name: "New pickup" }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  expect(document.body.style.overflow).toBe("hidden");
+
+  await act(async () => {
+    window.history.replaceState({}, "", "/dashboard/pickups");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+
   await waitFor(() =>
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
   );
-
+  expect(document.body.style.overflow).toBe("");
   await user.click(add);
   const dialog = await screen.findByRole("dialog", { name: "New pickup" });
-  window.history.replaceState({}, "", "/dashboard/pickups");
-  window.dispatchEvent(new PopStateEvent("popstate"));
-
   expect(dialog).toBeInTheDocument();
   const reopenedMarker = (window.history.state as { pickupForm?: unknown })
     .pickupForm;
@@ -308,7 +317,48 @@ it("consumes its marker when the form owner unmounts", async () => {
   backSpy.mockRestore();
 });
 
-it("removes only its marker when unmount inherits a changed-route Next state", async () => {
+it("preserves a same-URL Next entry when closing after its state changes", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups") return response({ pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  const backSpy = jest
+    .spyOn(window.history, "back")
+    .mockImplementation(() => undefined);
+  renderPage();
+  const add = await screen.findByRole("button", { name: "Add" });
+  await user.click(add);
+  const marker = (window.history.state as { pickupForm?: unknown }).pickupForm;
+  window.history.pushState(
+    {
+      __N: true,
+      customNextState: "preserve-me",
+      pickupForm: marker,
+    },
+    "",
+    "/dashboard/pickups",
+  );
+
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
+  expect(window.history.state).toMatchObject({
+    __N: true,
+    customNextState: "preserve-me",
+  });
+  expect((window.history.state as { pickupForm?: unknown }).pickupForm).toBe(
+    undefined,
+  );
+  expect(backSpy).not.toHaveBeenCalled();
+  backSpy.mockRestore();
+});
+
+it("removes only its marker when unmount inherits a same-route Next state", async () => {
   global.fetch = jest.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === "/api/pickups") return response({ pickups: [] });
@@ -333,7 +383,7 @@ it("removes only its marker when unmount inherits a changed-route Next state", a
       pickupForm: marker,
     },
     "",
-    "/dashboard/next",
+    "/dashboard/pickups",
   );
   await waitFor(() => {
     expect((window.history.state as { pickupForm?: unknown }).pickupForm).toBe(
