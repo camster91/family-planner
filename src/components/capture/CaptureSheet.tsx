@@ -21,11 +21,34 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
   >("loading");
   const [portalReady, setPortalReady] = React.useState(false);
   const available = availability === "available";
+  const pageLock = React.useRef<{
+    background: HTMLElement | null;
+    wasInert: boolean;
+    overflow: string;
+  } | null>(null);
 
-  const handleAvailabilityChange = React.useCallback((next: boolean) => {
-    setAvailability(next ? "available" : "unavailable");
-    if (!next) setOpen(false);
+  const releasePageLock = React.useCallback(() => {
+    const lock = pageLock.current;
+    if (!lock) return;
+    if (lock.background) lock.background.inert = lock.wasInert;
+    document.body.style.overflow = lock.overflow;
+    pageLock.current = null;
   }, []);
+
+  const close = React.useCallback(() => {
+    // Dialog restores its opener during its child effect cleanup. Release the
+    // page lock first so an inert opener can receive focus synchronously.
+    releasePageLock();
+    setOpen(false);
+  }, [releasePageLock]);
+
+  const handleAvailabilityChange = React.useCallback(
+    (next: boolean) => {
+      setAvailability(next ? "available" : "unavailable");
+      if (!next) close();
+    },
+    [close],
+  );
 
   React.useEffect(() => {
     setPortalReady(true);
@@ -36,15 +59,18 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
     const background = document.querySelector<HTMLElement>(
       "[data-dashboard-background]",
     );
-    const wasInert = background?.inert ?? false;
-    const overflow = document.body.style.overflow;
+    const lock = {
+      background,
+      wasInert: background?.inert ?? false,
+      overflow: document.body.style.overflow,
+    };
+    pageLock.current = lock;
     if (background) background.inert = true;
     document.body.style.overflow = "hidden";
     return () => {
-      if (background) background.inert = wasInert;
-      document.body.style.overflow = overflow;
+      if (pageLock.current === lock) releasePageLock();
     };
-  }, [open]);
+  }, [open, releasePageLock]);
 
   return (
     <>
@@ -65,7 +91,7 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
             <CaptureBox
               presentation="sheet"
               open={open}
-              onClose={() => setOpen(false)}
+              onClose={close}
               onSaved={onSaved}
               onAvailabilityChange={handleAvailabilityChange}
             />,

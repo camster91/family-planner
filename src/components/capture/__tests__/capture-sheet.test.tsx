@@ -135,7 +135,7 @@ it("hides the launcher after a capability response or network failure", async ()
   await expectUnavailable(() => Promise.reject(new Error("offline")));
 });
 
-it("opens the rounded sheet, restores the launcher focus, and keeps an unsent draft", async () => {
+it("opens the rounded sheet, restores focus after releasing inert, and keeps an unsent draft", async () => {
   configuredFetch();
   const user = userEvent.setup();
   mount();
@@ -154,10 +154,27 @@ it("opens the rounded sheet, restores the launcher focus, and keeps an unsent dr
   });
   expect(input).toHaveFocus();
   await user.type(input, "dentist Tuesday");
-  await user.keyboard("{Escape}");
+  const focusWhileInert: HTMLElement[] = [];
+  const nativeFocus = HTMLElement.prototype.focus;
+  const focusSpy = jest
+    .spyOn(HTMLElement.prototype, "focus")
+    .mockImplementation(function (this: HTMLElement, options?: FocusOptions) {
+      if (
+        this.closest<HTMLElement>("[data-dashboard-background]")?.inert === true
+      ) {
+        focusWhileInert.push(this);
+      }
+      nativeFocus.call(this, options);
+    });
+  try {
+    await user.keyboard("{Escape}");
+  } finally {
+    focusSpy.mockRestore();
+  }
   expect(
     screen.queryByRole("dialog", { name: "Quick add" }),
   ).not.toBeInTheDocument();
+  expect(focusWhileInert).toHaveLength(0);
   expect(launcher).toHaveFocus();
   expect(
     document.querySelector<HTMLElement>("[data-dashboard-background]")?.inert,
