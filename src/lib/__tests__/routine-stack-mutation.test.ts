@@ -98,6 +98,20 @@ function existingChore(overrides: Row = {}): Row {
   };
 }
 
+function seriesAnchor(overrides: Row = {}): Row {
+  return existingChore({
+    id: "series-a",
+    title: "Series template",
+    due_date: "2026-10-05",
+    frequency: "weekly",
+    weekly_days: [1],
+    recurrence_id: "series-a",
+    is_template: true,
+    routine_stack_id: null,
+    ...overrides,
+  });
+}
+
 function input(overrides: Row = {}) {
   return {
     family_id: "family-a",
@@ -312,6 +326,7 @@ describe("routine stack transaction coordinator", () => {
   });
 
   it("stacks a generated recurring occurrence without changing its canonical history", async () => {
+    const anchor = seriesAnchor();
     const chore = existingChore({
       recurrence_id: "series-a",
       status: "completed",
@@ -338,7 +353,7 @@ describe("routine stack transaction coordinator", () => {
     );
     const { tx, state } = makeTx({
       stack: { id: "stack-a", family_id: "family-a", version: 2 },
-      chores: [chore],
+      chores: [anchor, chore],
     });
 
     const result = await mutateRoutineStackInTx(tx, draft, {
@@ -363,6 +378,7 @@ describe("routine stack transaction coordinator", () => {
   });
 
   it("rejects a submitted series identity that differs from the locked occurrence", async () => {
+    const anchor = seriesAnchor();
     const chore = existingChore({ recurrence_id: "series-a" });
     const draft = normalizeRoutineStackDraft(
       input({
@@ -381,7 +397,7 @@ describe("routine stack transaction coordinator", () => {
     );
     const { tx, state } = makeTx({
       stack: { id: "stack-a", family_id: "family-a", version: 2 },
-      chores: [chore],
+      chores: [anchor, chore],
     });
 
     await expect(
@@ -394,7 +410,143 @@ describe("routine stack transaction coordinator", () => {
     expect(state.writes).toEqual([]);
   });
 
+  it("rejects an omitted series identity on a generated occurrence", async () => {
+    const anchor = seriesAnchor();
+    const chore = existingChore({ recurrence_id: "series-a" });
+    const draft = normalizeRoutineStackDraft(
+      input({
+        expected_fingerprint: fingerprintRoutineStackSnapshot([chore as never]),
+      }),
+    );
+    const { tx, state } = makeTx({
+      stack: { id: "stack-a", family_id: "family-a", version: 2 },
+      chores: [anchor, chore],
+    });
+
+    await expect(
+      mutateRoutineStackInTx(tx, draft, {
+        familyId: "family-a",
+        userId: "parent-a",
+        role: "parent",
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(state.writes).toEqual([]);
+  });
+
+  it("accepts a stopped series anchor and legacy null-series row", async () => {
+    const stopped = seriesAnchor({
+      id: "stopped-a",
+      due_date: "2026-10-12",
+      frequency: "once",
+      weekly_days: [],
+      recurrence_id: "stopped-a",
+      is_template: false,
+      routine_stack_id: null,
+    });
+    const legacy = existingChore({
+      id: "legacy-a",
+      recurrence_id: null,
+      frequency: "weekly",
+      weekly_days: [1],
+      routine_stack_id: null,
+    });
+    const draft = normalizeRoutineStackDraft({
+      family_id: "family-a",
+      stack_id: null,
+      occurrence_date: "2026-10-12",
+      label: "Morning",
+      steps: [
+        {
+          chore_id: "stopped-a",
+          assigned_to: "user-a",
+          assigned_member_id: "member-a",
+          due_date: "2026-10-12",
+          frequency: "once",
+          difficulty: "medium",
+          recurrence_id: "stopped-a",
+        },
+        {
+          chore_id: "legacy-a",
+          assigned_to: "user-a",
+          assigned_member_id: "member-a",
+          due_date: "2026-10-12",
+          frequency: "weekly",
+          weekly_days: [1],
+          difficulty: "medium",
+        },
+      ],
+      remove_chore_ids: [],
+      expected_fingerprint: "",
+    });
+    const { tx, state } = makeTx({ chores: [stopped, legacy] });
+
+    const result = await mutateRoutineStackInTx(
+      tx,
+      draft,
+      { familyId: "family-a", userId: "parent-a", role: "parent" },
+      { resolveAssignee: async () => ({ assigned_to: "user-a" }) },
+    );
+
+    expect(result.status).toBe(200);
+    expect(stopped).toMatchObject({
+      recurrence_id: "stopped-a",
+      is_template: false,
+      routine_stack_id: expect.any(String),
+    });
+    expect(legacy).toMatchObject({
+      recurrence_id: null,
+      frequency: "weekly",
+      routine_stack_id: expect.any(String),
+    });
+  });
+
+  it.each([
+    { label: "orphan", seriesId: "missing-series" },
+    {
+      label: "malformed anchor",
+      seriesId: "malformed-series",
+      anchor: seriesAnchor({
+        id: "malformed-series",
+        recurrence_id: "different-series",
+      }),
+    },
+    {
+      label: "foreign anchor",
+      seriesId: "foreign-series",
+      anchor: seriesAnchor({
+        id: "foreign-series",
+        family_id: "family-b",
+      }),
+    },
+  ])(
+    "rejects a $label recurrence identity before writes",
+    async ({ seriesId, anchor }) => {
+      const chore = existingChore({ recurrence_id: seriesId });
+      const draft = normalizeRoutineStackDraft(
+        input({
+          expected_fingerprint: fingerprintRoutineStackSnapshot([
+            chore as never,
+          ]),
+        }),
+      );
+      const { tx, state } = makeTx({
+        stack: { id: "stack-a", family_id: "family-a", version: 2 },
+        chores: [chore, ...(anchor ? [anchor] : [])],
+      });
+
+      await expect(
+        mutateRoutineStackInTx(tx, draft, {
+          familyId: "family-a",
+          userId: "parent-a",
+          role: "parent",
+        }),
+      ).rejects.toMatchObject({ status: 409 });
+      expect(state.writes).toEqual([]);
+    },
+  );
+
   it("removes a generated occurrence by stable id without rewriting its series history", async () => {
+    const anchor = seriesAnchor();
     const recurring = existingChore({
       recurrence_id: "series-a",
       status: "completed",
@@ -427,7 +579,7 @@ describe("routine stack transaction coordinator", () => {
     );
     const { tx, state } = makeTx({
       stack: { id: "stack-a", family_id: "family-a", version: 2 },
-      chores: [recurring, retained],
+      chores: [anchor, recurring, retained],
     });
 
     const result = await mutateRoutineStackInTx(tx, draft, {

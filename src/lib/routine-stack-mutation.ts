@@ -384,6 +384,49 @@ export async function mutateRoutineStackInTx<T extends object>(
       "Recurring chore templates must be edited outside an occurrence routine.",
     );
   }
+  const recurrenceIds = [
+    ...new Set(
+      existingRows.flatMap((row) =>
+        typeof row.recurrence_id === "string" ? [row.recurrence_id] : [],
+      ),
+    ),
+  ];
+  if (recurrenceIds.length > 0) {
+    // `recurrence_id` is intentionally additive and has no database FK. A
+    // generated row is valid only when its locked series identity resolves to
+    // the same-household anchor, including a stopped anchor that keeps
+    // `is_template=false` and `recurrence_id=id` for history. A missing,
+    // foreign, or malformed anchor is an optimistic conflict, never a new
+    // series inferred from the submitted payload.
+    const anchors = rows(
+      await tx.chore.findMany({
+        where: {
+          family_id: actor.familyId,
+          id: { in: recurrenceIds },
+        },
+        select: {
+          id: true,
+          family_id: true,
+          recurrence_id: true,
+          is_template: true,
+        },
+      }),
+    );
+    const anchorsById = new Map(anchors.map((row) => [String(row.id), row]));
+    for (const row of existingRows) {
+      const recurrenceId =
+        typeof row.recurrence_id === "string" ? row.recurrence_id : null;
+      if (!recurrenceId) continue;
+      const anchor = anchorsById.get(recurrenceId);
+      if (
+        !anchor ||
+        String(anchor.family_id ?? "") !== actor.familyId ||
+        String(anchor.recurrence_id ?? "") !== recurrenceId
+      ) {
+        throw conflict("The selected step's series identity is unavailable.");
+      }
+    }
+  }
   for (const row of existingRows) {
     if (!sameDate(row.due_date, draft.occurrence_date))
       throw conflict("The selected step is from a different occurrence.");

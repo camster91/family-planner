@@ -70,6 +70,11 @@ const CHORE_FOREIGN = `${PREFIX}-chore-foreign`;
 const CHORE_B = `${PREFIX}-chore-b`;
 const RECURRING_TEMPLATE = `${PREFIX}-recurring-template`;
 const CHORE_RECURRING = `${PREFIX}-chore-recurring`;
+const STOPPED_ANCHOR = `${PREFIX}-stopped-anchor`;
+const LEGACY_OCCURRENCE = `${PREFIX}-legacy-occurrence`;
+const ORPHAN_OCCURRENCE = `${PREFIX}-orphan-occurrence`;
+const FOREIGN_ANCHOR = `${PREFIX}-foreign-anchor`;
+const FOREIGN_OCCURRENCE = `${PREFIX}-foreign-occurrence`;
 const OCCURRENCE_DATE = "2026-10-12";
 const OCCURRENCE = new Date(`${OCCURRENCE_DATE}T00:00:00.000Z`);
 
@@ -575,6 +580,47 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
       where: { id: CHORE_A },
     });
 
+    await expect(
+      mutateRoutineStack(
+        db,
+        {
+          scope: "occurrence",
+          family_id: FAMILY_A,
+          stack_id: STACK_A,
+          occurrence_date: OCCURRENCE_DATE,
+          label: "Morning",
+          steps: [
+            {
+              chore_id: CHORE_A,
+              assigned_to: CHILD_A,
+              assigned_member_id: initialStackRow.assigned_member_id ?? null,
+              due_date: OCCURRENCE_DATE,
+              frequency: "once",
+              difficulty: "medium",
+              is_template: false,
+            },
+            {
+              chore_id: CHORE_RECURRING,
+              assigned_to: CHILD_A,
+              assigned_member_id: MEMBER_CHILD_A,
+              due_date: OCCURRENCE_DATE,
+              frequency: "once",
+              difficulty: "medium",
+              is_template: false,
+            },
+          ],
+          remove_chore_ids: [],
+          expected_fingerprint: fingerprintRoutineStackSnapshot([
+            initialStackRow,
+          ]),
+        },
+        actorA,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(
+      await db.chore.findUniqueOrThrow({ where: { id: CHORE_RECURRING } }),
+    ).toMatchObject({ routine_stack_id: null });
+
     const stackDraft = (
       steps: RoutineStackDraft["steps"],
     ): RoutineStackDraft => ({
@@ -747,6 +793,173 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
       is_template: true,
       frequency: "weekly",
     });
+  });
+
+  it("accepts stopped anchors and legacy null-series rows, but rejects orphaned and foreign series ids", async () => {
+    await db.chore.createMany({
+      data: [
+        {
+          id: STOPPED_ANCHOR,
+          family_id: FAMILY_A,
+          title: "Stopped series",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+          recurrence_id: STOPPED_ANCHOR,
+          is_template: false,
+          status: "completed",
+        },
+        {
+          id: LEGACY_OCCURRENCE,
+          family_id: FAMILY_A,
+          title: "Legacy recurring row",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "weekly",
+          weekly_days: [1],
+          recurrence_id: null,
+          is_template: false,
+        },
+        {
+          id: ORPHAN_OCCURRENCE,
+          family_id: FAMILY_A,
+          title: "Orphaned series row",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+          recurrence_id: `${PREFIX}-missing-series`,
+          is_template: false,
+        },
+        {
+          id: FOREIGN_OCCURRENCE,
+          family_id: FAMILY_A,
+          title: "Foreign series row",
+          assigned_to: CHILD_A,
+          assigned_member_id: MEMBER_CHILD_A,
+          due_date: OCCURRENCE,
+          created_by: PARENT_A,
+          frequency: "once",
+          weekly_days: [],
+          recurrence_id: FOREIGN_ANCHOR,
+          is_template: false,
+        },
+        {
+          id: FOREIGN_ANCHOR,
+          family_id: FAMILY_B,
+          title: "Other household series",
+          assigned_to: PARENT_B,
+          due_date: new Date("2026-10-05T00:00:00.000Z"),
+          created_by: PARENT_B,
+          frequency: "weekly",
+          weekly_days: [1],
+          recurrence_id: FOREIGN_ANCHOR,
+          is_template: true,
+        },
+      ],
+    });
+
+    const stoppedAndLegacy = await mutateRoutineStack(
+      db,
+      {
+        scope: "occurrence",
+        family_id: FAMILY_A,
+        stack_id: null,
+        occurrence_date: OCCURRENCE_DATE,
+        label: "Compatibility routine",
+        steps: [
+          {
+            chore_id: STOPPED_ANCHOR,
+            assigned_to: CHILD_A,
+            assigned_member_id: MEMBER_CHILD_A,
+            due_date: OCCURRENCE_DATE,
+            frequency: "once",
+            difficulty: "medium",
+            recurrence_id: STOPPED_ANCHOR,
+            is_template: false,
+          },
+          {
+            chore_id: LEGACY_OCCURRENCE,
+            assigned_to: CHILD_A,
+            assigned_member_id: MEMBER_CHILD_A,
+            due_date: OCCURRENCE_DATE,
+            frequency: "weekly",
+            weekly_days: [1],
+            difficulty: "medium",
+            is_template: false,
+          },
+        ],
+        remove_chore_ids: [],
+        expected_fingerprint: "",
+      },
+      actorA,
+    );
+    expect(stoppedAndLegacy.status).toBe(200);
+    expect(
+      await db.chore.findMany({
+        where: { id: { in: [STOPPED_ANCHOR, LEGACY_OCCURRENCE] } },
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: STOPPED_ANCHOR,
+          recurrence_id: STOPPED_ANCHOR,
+          is_template: false,
+          routine_stack_id: expect.any(String),
+        }),
+        expect.objectContaining({
+          id: LEGACY_OCCURRENCE,
+          recurrence_id: null,
+          frequency: "weekly",
+          routine_stack_id: expect.any(String),
+        }),
+      ]),
+    );
+
+    for (const [id, recurrenceId] of [
+      [ORPHAN_OCCURRENCE, `${PREFIX}-missing-series`],
+      [FOREIGN_OCCURRENCE, FOREIGN_ANCHOR],
+    ] as const) {
+      await expect(
+        mutateRoutineStack(
+          db,
+          {
+            scope: "occurrence",
+            family_id: FAMILY_A,
+            stack_id: null,
+            occurrence_date: OCCURRENCE_DATE,
+            label: "Rejected routine",
+            steps: [
+              {
+                chore_id: id,
+                assigned_to: CHILD_A,
+                assigned_member_id: MEMBER_CHILD_A,
+                due_date: OCCURRENCE_DATE,
+                frequency: "once",
+                difficulty: "medium",
+                recurrence_id: recurrenceId,
+                is_template: false,
+              },
+            ],
+            remove_chore_ids: [],
+            expected_fingerprint: "",
+          },
+          actorA,
+        ),
+      ).rejects.toMatchObject({ status: 409 });
+      expect(await db.chore.findUniqueOrThrow({ where: { id } })).toMatchObject(
+        {
+          routine_stack_id: null,
+        },
+      );
+    }
   });
 
   it("accepts the compact 99-step UTF-8 response within the replay cap", () => {
