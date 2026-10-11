@@ -39,6 +39,7 @@ import { lockHousehold, lockUser } from '@/lib/household-lock'
 import { auditSummary, roleWord, writeAuditLog } from '@/lib/household-audit'
 import { resolveUploadDir } from '@/lib/upload-dir'
 import type { AccountDeletionCode, DeletionOptions } from '@/lib/account-deletion-shared'
+import { eraseAccountProfilesInTx, HouseholdMemberIdentityConflict, lockAccountProfileHouseholds } from '@/lib/household-member-lifecycle'
 
 export class AccountDeletionError extends Error {
   constructor(
@@ -224,6 +225,17 @@ async function photoNamesUsedElsewhere(tx: any, familyId: string, names: string[
 // ---------------------------------------------------------------------------
 // Member account
 
+async function eraseAccountProfiles(tx: any, userId: string, familyId: string | null): Promise<void> {
+  try {
+    await eraseAccountProfilesInTx(tx, userId, familyId)
+  } catch (error) {
+    if (error instanceof HouseholdMemberIdentityConflict) {
+      throw new AccountDeletionError('IDENTITY_CONFLICT', 409, error.message)
+    }
+    throw error
+  }
+}
+
 /**
  * Delete one member's account (not the household). See the file comment for
  * what is kept, handed over and deleted.
@@ -244,8 +256,10 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
       await lockUser(tx, userId)
       const user = await tx.user.findUnique({ where: { id: userId }, select: { id: true, role: true, family_id: true } })
       if (!user) return none
+      await lockAccountProfileHouseholds(tx, user.id, user.family_id)
 
       if (!user.family_id) {
+        await eraseAccountProfiles(tx, user.id, null)
         const grants = await takeCalendarConnections(tx, { user_id: user.id })
         await deletePersonalRows(tx, user.id)
         await tx.user.delete({ where: { id: user.id } })
@@ -259,6 +273,7 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
       const still = await tx.user.findUnique({ where: { id: userId }, select: { family_id: true } })
       if (!still || still.family_id !== familyId) return none
       const successorId = await assertMemberMayLeave(tx, user)
+      await eraseAccountProfiles(tx, user.id, familyId)
       // Their calendar connections: encrypted grants kept for the revoke
       // after commit; links, imported events and rows deleted here.
       const grants = await takeCalendarConnections(tx, { user_id: user.id })
