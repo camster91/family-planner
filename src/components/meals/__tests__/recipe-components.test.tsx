@@ -192,7 +192,7 @@ describe("RecipePicker", () => {
     expect(screen.getByRole("option", { name: "Chili" })).toBeTruthy();
   });
 
-  it("validates the inline recipe before posting and shows the server message", async () => {
+  it("validates the inline recipe before posting and shows localized refusal feedback", async () => {
     const user = userEvent.setup();
     const calls = mockFetch((url, init) =>
       init?.method === "POST"
@@ -213,6 +213,9 @@ describe("RecipePicker", () => {
     await user.type(screen.getByLabelText("Recipe name"), "Pancakes");
     await user.click(screen.getByRole("button", { name: "Save recipe" }));
     expect((await screen.findByRole("alert")).textContent).toBe(
+      "The recipe was not accepted. Check your entries and permissions.",
+    );
+    expect(screen.getByRole("alert").textContent).not.toContain(
       "Ask a parent or teen to add a recipe.",
     );
   });

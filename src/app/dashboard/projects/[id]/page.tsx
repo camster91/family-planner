@@ -95,6 +95,7 @@ async function ProjectDetailContent({ id }: { id: string }) {
           trailing={
             <ProjectDetailActions
               projectId={project.id}
+              projectName={project.name}
               projectStatus={project.status as 'active' | 'completed' | 'archived'}
               isParent={isParent}
             />

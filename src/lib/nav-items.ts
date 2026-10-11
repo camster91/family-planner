@@ -28,11 +28,11 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
-  FEATURES,
   isFeatureEnabled,
   type FamilyFeatures,
   type FeatureKey,
-} from "@/lib/features";
+} from "@/lib/feature-flags";
+import { featureNavMeta } from "@/lib/feature-nav-meta";
 import { canRoleAccessPath, isKidRole } from "@/lib/kid-access";
 
 /**
@@ -174,7 +174,7 @@ export function isTabActive(tab: TabItem, pathname: string): boolean {
       matchesPath(pathname, "/dashboard/emergency") ||
       matchesPath(pathname, "/dashboard/features") ||
       MORE_FEATURE_KEYS.some((k) => {
-        const meta = FEATURES.find((f) => f.key === k);
+        const meta = featureNavMeta(k);
         return meta ? matchesPath(pathname, meta.href) : false;
       })
     );
@@ -216,6 +216,11 @@ export interface MoreItem {
   icon: LucideIcon;
 }
 
+export type FeatureDisplayResolver = (key: FeatureKey) => {
+  title: string;
+  description: string;
+};
+
 const MORE_ICONS: Partial<Record<FeatureKey, LucideIcon>> = {
   chores: CheckSquare,
   emergency: Heart,
@@ -236,14 +241,19 @@ const MORE_ICONS: Partial<Record<FeatureKey, LucideIcon>> = {
   travel: Plane,
 };
 
-function moreItem(key: FeatureKey): MoreItem {
-  const meta = FEATURES.find((f) => f.key === key)!;
+function moreItem(
+  key: FeatureKey,
+  resolveDisplay?: FeatureDisplayResolver,
+): MoreItem {
+  const meta = featureNavMeta(key);
+  if (!meta) throw new Error(`Missing navigation metadata for ${key}`);
+  const display = resolveDisplay?.(key);
   return {
     key,
-    title: meta.title,
-    description: meta.description,
+    title: display?.title ?? meta.title,
+    description: display?.description ?? meta.description,
     href: meta.href,
-    icon: MORE_ICONS[key] ?? meta.icon,
+    icon: MORE_ICONS[key] ?? LayoutGrid,
   };
 }
 
@@ -251,13 +261,14 @@ function moreItem(key: FeatureKey): MoreItem {
 export function moreItemsFor(
   role: string | null | undefined,
   features: FamilyFeatures,
+  resolveDisplay?: FeatureDisplayResolver,
 ): MoreItem[] {
   const keys: FeatureKey[] = [
     "chores",
     ...MORE_FEATURE_KEYS.filter((k) => isFeatureEnabled(features, k)),
   ];
   return keys
-    .map(moreItem)
+    .map((key) => moreItem(key, resolveDisplay))
     .filter((item) => canRoleAccessPath(role, item.href));
 }
 
@@ -269,6 +280,17 @@ export interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   /** Feature key that gates this nav item. undefined = always visible (core). */
   featureKey?: FeatureKey;
+  /** Use the localized feature title for discovery surfaces that expose feature metadata. */
+  featureDisplay?: boolean;
+}
+
+export function navItemDisplayName(
+  item: NavItem,
+  titles?: Partial<Record<FeatureKey, string>>,
+): string {
+  return item.featureDisplay && item.featureKey && titles?.[item.featureKey]
+    ? titles[item.featureKey]!
+    : item.name;
 }
 
 /** Bounded kid discovery entries shared with search, without loading the full palette. */
@@ -278,30 +300,42 @@ export const kidFeatureNavItems: readonly NavItem[] = [
     href: "/dashboard/allowance",
     icon: Wallet,
     featureKey: "allowance",
+    featureDisplay: true,
   },
   {
     name: "Handoff",
     href: "/dashboard/handoff",
     icon: UserPlus,
     featureKey: "handoff",
+    featureDisplay: true,
   },
   {
     name: "Sick days",
     href: "/dashboard/sick-days",
     icon: Thermometer,
     featureKey: "sick-days",
+    featureDisplay: true,
   },
   {
     name: "Notes",
     href: "/dashboard/notes",
     icon: StickyNote,
     featureKey: "notes",
+    featureDisplay: true,
   },
   {
     name: "Wishlist",
     href: "/dashboard/wishlist",
     icon: Heart,
     featureKey: "wishlist",
+    featureDisplay: true,
+  },
+  {
+    name: "Pickups & dropoffs",
+    href: "/dashboard/pickups",
+    icon: Car,
+    featureKey: "pickups",
+    featureDisplay: true,
   },
 ];
 
@@ -341,75 +375,89 @@ export const navItems: NavItem[] = [
     href: "/dashboard/emergency",
     icon: Heart,
     featureKey: "emergency",
+    featureDisplay: true,
   },
   {
     name: "Inventory",
     href: "/dashboard/inventory",
     icon: Refrigerator,
     featureKey: "inventory",
+    featureDisplay: true,
   },
   {
     name: "Notes",
     href: "/dashboard/notes",
     icon: StickyNote,
     featureKey: "notes",
+    featureDisplay: true,
   },
   {
     name: "Dates",
     href: "/dashboard/anniversaries",
     icon: Cake,
     featureKey: "anniversaries",
+    featureDisplay: true,
   },
   {
     name: "Rewards",
     href: "/dashboard/rewards",
     icon: Gift,
     featureKey: "rewards",
+    featureDisplay: true,
   },
   {
     name: "Budget",
     href: "/dashboard/budget",
     icon: Wallet,
     featureKey: "budget",
+    featureDisplay: true,
   },
   {
     name: "Projects",
     href: "/dashboard/projects",
     icon: FolderKanban,
     featureKey: "projects",
+    featureDisplay: true,
   },
   {
     name: "Messages",
     href: "/dashboard/messages",
     icon: MessageSquare,
     featureKey: "messages",
+    featureDisplay: true,
   },
   {
     name: "Analytics",
     href: "/dashboard/analytics",
     icon: BarChart3,
     featureKey: "analytics",
+    featureDisplay: true,
   },
   {
     name: "Locations",
     href: "/dashboard/locations",
     icon: MapPin,
     featureKey: "locations",
+    featureDisplay: true,
   },
   {
     name: "Pickups",
     href: "/dashboard/pickups",
     icon: Car,
     featureKey: "pickups",
+    featureDisplay: true,
   },
-  // Notes is already present above. Keep the other bounded kid discovery
-  // entries in the shared command catalog without creating duplicate hrefs.
-  ...kidFeatureNavItems.filter((item) => item.href !== "/dashboard/notes"),
+  // Notes and Pickups are already present above. Keep the other bounded kid
+  // discovery entries in the shared command catalog without duplicate hrefs.
+  ...kidFeatureNavItems.filter(
+    (item) => item.href !== "/dashboard/notes" && item.href !== "/dashboard/pickups",
+  ),
   {
     name: "Travel",
     href: "/dashboard/travel",
     icon: Plane,
     featureKey: "travel",
+    featureDisplay: true,
   },
 
   // Settings

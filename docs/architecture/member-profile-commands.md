@@ -1,23 +1,47 @@
-# Name-only child profile command core (#480)
+# Name-only household profile command core (#480)
 
-`src/lib/household-profile-management.ts` implements internal create/edit/archive commands against the canonical HouseholdMember tables. There is no HTTP route, setup control, capability advertisement, production backfill or activation in this slice. Existing account-backed member responses remain unchanged. This is preparation for the supported domain/client migration in ADR-0009, not evidence that name-only assignments or shared journeys work yet.
+`src/lib/household-profile-management.ts` implements create/edit/archive commands against the canonical HouseholdMember tables. A dormant parent-only HTTP surface exists in source through `GET|POST /api/family/profiles`, `PATCH /api/family/profiles/:id` and `POST /api/family/profiles/:id/archive`; its server gate is disabled unless `HOUSEHOLD_PROFILE_SETUP_ENABLED=1` is deliberately supplied in a controlled compatible environment. With the default-unset gate, authenticated requests receive a stable non-retryable `409 PROFILE_SETUP_UNSUPPORTED` response before roster reads, commands or idempotency receipts. It has no setup client, capability advertisement, protocol-2 activation, production backfill or rollout. Existing account-backed member responses remain unchanged. This is preparation for the supported domain/client migration in ADR-0009, not evidence that name-only assignments or shared journeys work yet.
 
 The caller must obtain the real personal session through the existing authentication boundary and supply its User ID, household and token version. A shared-device selected profile is never that context. The core then takes the account membership lock followed by the household lock and rechecks current role, membership, token generation and household existence before effects **and before replay**. Parent authority is required; foreign targets have the same missing-target outcome as nonexistent IDs. No new permission or elevation policy is granted.
 
+## Audit-subject expand stage
+
+The current additive schema stage adds nullable `subject_member_id` and a
+sticky `subject_member_erased` tombstone to `Activity` and
+`DeviceAuditEvent`. It preserves the required `Activity.user_id` actor and
+the existing device audit actor/set-null behavior. Permanent account erasure
+clears only these member subjects before deleting the copied profile; archive,
+unlink and ordinary actor history retain them. The fields are storage and
+erasure groundwork only: no writer, profile-only assignment, setup UI,
+capability response or protocol-2 advertisement is enabled by this stage.
+
+`Chore.assigned_to` remains required. Making it nullable belongs to the next
+coherent chore reader/writer migration, with assignment, recurrence, history,
+device and installed-client compatibility evidence; this stage intentionally
+does not change that contract.
+
 ## Commands and recovery
 
-- Create takes name and optional age only. The initial setup slice is fixed server-derived Child, matching the reviewed [member setup proposal in PR #488](https://github.com/camster91/family-planner/pull/488). Age is optional, 0–17 when supplied; adult and teen name-only management require their separate role/domain policy before activation. Client-supplied role, account, email, credentials, invitation and extra fields are rejected.
-- Edit takes profile ID, expected revision, name and optional age. Omitted age preserves it; explicit null clears it. Archive takes profile ID and expected revision, increments revision and retains the profile rather than deleting identifying history.
-- Linked, legacy-mapped, erased-provenance, archived and non-child profiles are excluded from these name-only commands. Their account/link lifecycle cannot be changed indirectly through profile controls. Stale revisions fail with a generic conflict; clients refresh before proposing another write. Archive has no automatic unarchive operation.
+- Create takes name, an optional presentation role and optional age. The role is `child`, `teen` or `parent`, defaults to `child` for existing callers, and is never a `User.role` or authentication grant. Age is optional presentation metadata: children accept 0–17, teens 13–17, and parent profiles 18–120 when supplied; an unknown parent age may remain omitted or null, and age never infers a role or permission. Client-supplied account, email, credentials, invitation and extra fields are rejected.
+- Edit takes profile ID, expected revision, name, and optional role and age. Omitted role/age preserve the current values; explicit null clears age. Archive takes profile ID and expected revision, increments revision and retains the profile rather than deleting identifying history.
+- Linked, legacy-mapped, erased-provenance and archived profiles are excluded from these name-only commands. Their account/link lifecycle cannot be changed indirectly through profile controls. Stale revisions fail with a generic conflict; clients refresh before proposing another write. Archive has no automatic unarchive operation.
 - Every command requires an opaque idempotency key. Effect and replay response commit in the same transaction, under the account/household locks. Same-key concurrent requests create one person. A changed action/body/household refuses key reuse. A database failure writing the replay record rolls back the effect.
 - Create identity derives from household, authenticated actor and request key. After normal seven-day replay retention expires, an occupied identity produces a conflict instead of a second person. Never automatically replace an expired create key on an ambiguous outcome; refresh household profiles first. A deliberate **new** person needs a new key.
-- Replay responses contain only the strict public profile fields: ID, household ID, name, Child role, age, archive timestamp and revision. They report the original command result, not a current snapshot; consumers refresh canonical membership after replay. Private erasure ownership, login/email, mapping/link and session fields are absent.
+- Replay responses contain only the strict public profile fields: ID, household ID, name, presentation role, age, archive timestamp and revision. They report the original command result, not a current snapshot; consumers refresh canonical membership after replay. Private erasure ownership, login/email, mapping/link and session fields are absent.
 
 ## Activation requirements still open
 
 Before any route/client calls this core, complete the member-subject domain migration, supported current/old client negotiation, authenticated route/direct-API tests, assignment/rotation/points and allowed-device consumers. Each assignment must check active member status under the common membership lock so archive prevents future assignment; this command alone cannot prove that. Atomic command storage uses existing account-scoped IdempotencyRecord retention. The future linking/permanent-erasure ledger must also clear or redact identifying command responses; archive alone is not erasure. No link or permanent member-erasure endpoint exists here.
 
 The setup UI must preserve its key and draft across retries, handle conflict/revocation safely, refresh after replay and support finish-later without manufacturing an account. Figma proposal is reviewable, but rendered UI, keyboard/Back/process-death, actual API, physical hardware, deployment and family acceptance are still required. No schema narrowing, new provider, scheduler, invitation or email follows from this core.
+
+## Dormant HTTP boundary
+
+The profile routes require the existing authenticated person session and parent role. A paired-device context is refused before session authentication, and unsafe requests continue to use the repository's existing CSRF middleware. GET is household-scoped and returns only the allowlisted profile presentation fields; it never returns login email, account links, erasure ownership or credentials. Mutations require an `Idempotency-Key` and call `manageHouseholdProfile` directly so its account/household locks and replay record remain the single transaction boundary. Replays carry `Idempotency-Replayed: true`; stale revisions use a stable conflict response. No profile route changes `/api/family/members`, creates an account or invitation, advertises a capability, queues an offline action, or grants authority to a profile role.
+
+The shared route-auth helper then applies the server-only activation boundary. Unless `HOUSEHOLD_PROFILE_SETUP_ENABLED` is exactly `1`, every authenticated parent request returns `409 PROFILE_SETUP_UNSUPPORTED` with `Cache-Control: private, no-store` and an explicitly non-retryable nested error envelope before list or command work. The client should surface the compatible-candidate/server-activation state and must not automatically replay or retry a profile write. The check is evaluated per request rather than cached at module load so a guarded test can scope and restore it. This environment switch is not a capability advertisement or a release decision; it must remain unset until ADR-0009's schema, domain, compatibility, client, privacy, recovery and rollout gates are accepted. Authentication, parent authority and paired-device refusal still take precedence while disabled.
+
+The HTTP surface is source groundwork only. Before a client calls it, complete roster onboarding, installed-client compatibility, member-subject assignment migration, direct API/household isolation evidence and shared-surface privacy review. Keep the routes disabled from navigation and capability responses until those gates are accepted.
 
 ## Scoped verification
 

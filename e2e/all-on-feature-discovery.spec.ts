@@ -8,8 +8,18 @@ import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
-import { FEATURES, type FamilyFeatures } from "../src/lib/features";
+import {
+  FEATURES,
+  type FamilyFeatures,
+  type FeatureMeta,
+} from "../src/lib/features";
 import { moreItemsFor } from "../src/lib/nav-items";
+import {
+  getFeatureDisplayCopy,
+  type FeatureDisplayCopy,
+} from "../src/i18n/feature-display";
+import { moreMessages } from "../src/i18n/more";
+import type { Locale } from "../src/i18n/types";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
@@ -28,6 +38,22 @@ const ALLOWED_MUTATIONS = new Set([
   "PATCH /api/family/features",
   "POST /api/auth/login",
 ]);
+const FEATURES_SURFACE_COPY = {
+  en: {
+    title: "Features",
+    enable: "Enable",
+    disable: "Disable",
+    openAll: "Open all groups",
+    closeAll: "Close all groups",
+  },
+  es: {
+    title: "Funciones",
+    enable: "Activar",
+    disable: "Desactivar",
+    openAll: "Abrir todos los grupos",
+    closeAll: "Cerrar todos los grupos",
+  },
+} as const;
 
 type ApiObservation = {
   method: string;
@@ -244,8 +270,10 @@ async function restoreAndVerifyFeatures(
   ).toEqual(originalFeatures);
 }
 
-function expectedMore(features: FamilyFeatures) {
-  return moreItemsFor("parent", features);
+function expectedMore(features: FamilyFeatures, locale: Locale) {
+  return moreItemsFor("parent", features, (key) =>
+    getFeatureDisplayCopy(locale, key),
+  );
 }
 
 function errorSummary(error: unknown) {
@@ -273,11 +301,16 @@ async function assertMainA11y(page: Page) {
   expect(serious).toEqual([]);
 }
 
-async function assertMoreSurface(page: Page, features: FamilyFeatures) {
+async function assertMoreSurface(
+  page: Page,
+  features: FamilyFeatures,
+  locale: Locale,
+) {
+  const moreCopy = moreMessages[locale];
   await expect(
-    page.getByRole("heading", { name: "More", exact: true }),
+    page.getByRole("heading", { name: moreCopy.title, exact: true }),
   ).toBeVisible();
-  const items = expectedMore(features);
+  const items = expectedMore(features, locale);
   const list = page.getByTestId("more-list");
   const links = list.locator("a");
   const hrefs = await links.evaluateAll((elements) =>
@@ -300,7 +333,7 @@ async function assertMoreSurface(page: Page, features: FamilyFeatures) {
   }
 
   const featuresLink = page.getByRole("link", {
-    name: /Turn features on or off/,
+    name: moreCopy.settingsTitle,
   });
   await expect(featuresLink).toHaveCount(1);
   await expect(featuresLink).toBeVisible();
@@ -328,20 +361,32 @@ async function assertMoreSurface(page: Page, features: FamilyFeatures) {
   await assertMainA11y(page);
 }
 
-async function assertFeaturesSurface(page: Page, features: FamilyFeatures) {
+async function assertFeaturesSurface(
+  page: Page,
+  features: FamilyFeatures,
+  copy: (typeof FEATURES_SURFACE_COPY)[keyof typeof FEATURES_SURFACE_COPY],
+  locale: Locale,
+) {
   const main = page.locator("#main-content");
   await expect(
-    main.getByRole("heading", { name: "Features", exact: true }),
+    main.getByRole("heading", { name: copy.title, exact: true }),
   ).toBeVisible();
   const switches = main.getByRole("switch");
   expect(await switches.count()).toBe(FEATURES.length);
-  const enabledToggles: Locator[] = [];
+  const enabledToggles: Array<{
+    toggle: Locator;
+    group: FeatureMeta["group"];
+  }> = [];
   for (const feature of FEATURES) {
+    const display: FeatureDisplayCopy = getFeatureDisplayCopy(
+      locale,
+      feature.key,
+    );
     const checked =
       features[feature.key] === true &&
       (!feature.requires || features[feature.requires] === true);
     const toggle = main.getByRole("switch", {
-      name: `${checked ? "Disable" : "Enable"} ${feature.title}`,
+      name: `${checked ? copy.disable : copy.enable} ${display.title}`,
       exact: true,
     });
     await expect(toggle).toHaveCount(1);
@@ -358,15 +403,15 @@ async function assertFeaturesSurface(page: Page, features: FamilyFeatures) {
     expect(box).not.toBeNull();
     expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.height).toBeGreaterThanOrEqual(44);
-    await expect(main.getByText(feature.title, { exact: true })).toHaveCount(1);
+    await expect(main.getByText(display.title, { exact: true })).toHaveCount(1);
     await expect(
-      main.getByText(feature.description, { exact: true }),
+      main.getByText(display.description, { exact: true }),
     ).toHaveCount(1);
     if (
       feature.group !== "core" &&
       !(feature.requires && !features[feature.requires])
     ) {
-      enabledToggles.push(toggle);
+      enabledToggles.push({ toggle, group: feature.group });
     }
   }
 
@@ -375,11 +420,21 @@ async function assertFeaturesSurface(page: Page, features: FamilyFeatures) {
   // core/dependent switch entered the tab sequence, the next expectation
   // would fail at that exact position.
   if (enabledToggles.length > 0) {
-    await enabledToggles[0]!.focus();
-    await expect(enabledToggles[0]!).toBeFocused();
+    await enabledToggles[0]!.toggle.focus();
+    await expect(enabledToggles[0]!.toggle).toBeFocused();
     for (let index = 1; index < enabledToggles.length; index += 1) {
+      const previous = enabledToggles[index - 1]!;
+      const current = enabledToggles[index]!;
+      if (previous.group !== current.group) {
+        const groupDisclosure = main
+          .locator(`#feature-group-${current.group}`)
+          .getByRole("button");
+        await expect(groupDisclosure).toHaveAttribute("aria-expanded", "true");
+        await page.keyboard.press("Tab");
+        await expect(groupDisclosure).toBeFocused();
+      }
       await page.keyboard.press("Tab");
-      await expect(enabledToggles[index]!).toBeFocused();
+      await expect(current.toggle).toBeFocused();
     }
   }
   await assertNoHorizontalOverflow(page);
@@ -461,13 +516,44 @@ for (const locale of ["en", "es"] as const) {
       expect(
         parseFeatureMap(featureResponse.body, "all-on canonical GET"),
       ).toEqual(ALL_ON);
-      await assertMoreSurface(page, ALL_ON);
+      await assertMoreSurface(page, ALL_ON, locale);
 
       const featuresResponse = await page.goto("/dashboard/features");
       expect(featuresResponse?.status()).toBe(200);
-      await assertFeaturesSurface(page, ALL_ON);
-      const gamification = page.getByRole("switch", {
-        name: /^(?:Disable|Enable) Points & streaks$/,
+      const featuresCopy = FEATURES_SURFACE_COPY[locale];
+      const featuresMain = page.locator("#main-content");
+      const planningGroup = featuresMain.locator("#feature-group-planning");
+      const coreGroup = featuresMain.locator("#feature-group-core");
+      const familyGroup = featuresMain.locator("#feature-group-family");
+      await expect(planningGroup.getByRole("switch")).toHaveCount(
+        FEATURES.filter((feature) => feature.group === "planning").length,
+      );
+      await expect(coreGroup.getByRole("switch")).toHaveCount(0);
+      await expect(familyGroup.getByRole("switch")).toHaveCount(0);
+      const openAll = featuresMain.getByRole("button", {
+        name: featuresCopy.openAll,
+        exact: true,
+      });
+      await expect(openAll).toBeVisible();
+      await openAll.click();
+      const closeAll = featuresMain.getByRole("button", {
+        name: featuresCopy.closeAll,
+        exact: true,
+      });
+      await expect(closeAll).toBeVisible();
+      await expect(featuresMain.getByRole("switch")).toHaveCount(
+        FEATURES.length,
+      );
+      await assertFeaturesSurface(page, ALL_ON, featuresCopy, locale);
+      const gamificationTitle = getFeatureDisplayCopy(
+        locale,
+        "gamification",
+      ).title;
+      const rewardsTitle = getFeatureDisplayCopy(locale, "rewards").title;
+      const analyticsTitle = getFeatureDisplayCopy(locale, "analytics").title;
+      const gamification = featuresMain.getByRole("switch", {
+        name: `${featuresCopy.disable} ${gamificationTitle}`,
+        exact: true,
       });
       await expect(gamification).toHaveAttribute("aria-checked", "true");
       const dependencyOff = { ...ALL_ON, gamification: false };
@@ -494,16 +580,22 @@ for (const locale of ["en", "es"] as const) {
         ),
       ).toEqual(dependencyOff);
       await flushFeatureTransport();
-      const gamificationOff = page.getByRole("switch", {
-        name: "Enable Points & streaks",
+      const gamificationOff = featuresMain.getByRole("switch", {
+        name: `${featuresCopy.enable} ${gamificationTitle}`,
         exact: true,
       });
       await expect(gamificationOff).toHaveAttribute("aria-checked", "false");
       await expect(
-        page.getByRole("switch", { name: "Enable Rewards", exact: true }),
+        featuresMain.getByRole("switch", {
+          name: `${featuresCopy.enable} ${rewardsTitle}`,
+          exact: true,
+        }),
       ).toBeDisabled();
       await expect(
-        page.getByRole("switch", { name: "Enable Analytics", exact: true }),
+        featuresMain.getByRole("switch", {
+          name: `${featuresCopy.enable} ${analyticsTitle}`,
+          exact: true,
+        }),
       ).toBeDisabled();
 
       const dependencyResponse = await browserFetch(
@@ -516,7 +608,7 @@ for (const locale of ["en", "es"] as const) {
       ).toEqual(dependencyOff);
       const dependencyMoreResponse = await page.goto("/dashboard/family/more");
       expect(dependencyMoreResponse?.status()).toBe(200);
-      await assertMoreSurface(page, dependencyOff);
+      await assertMoreSurface(page, dependencyOff, locale);
       await expect(page.locator('a[href="/dashboard/rewards"]')).toHaveCount(0);
       await expect(page.locator('a[href="/dashboard/analytics"]')).toHaveCount(
         0,
@@ -574,10 +666,11 @@ for (const locale of ["en", "es"] as const) {
           runtime: evidence.runtime,
           locale,
           allOnKeys: FEATURE_KEYS,
-          allOnMoreHrefs: expectedMore(ALL_ON).map((item) => item.href),
-          dependencyOffMoreHrefs: expectedMore(evidence.dependencyOff).map(
-            (item) => item.href,
-          ),
+          allOnMoreHrefs: expectedMore(ALL_ON, locale).map((item) => item.href),
+          dependencyOffMoreHrefs: expectedMore(
+            evidence.dependencyOff,
+            locale,
+          ).map((item) => item.href),
           featureApi: featureObservations,
           domainWrites,
           blockedMutations,

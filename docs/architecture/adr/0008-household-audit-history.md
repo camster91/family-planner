@@ -40,7 +40,7 @@ parent makes from a phone.
    (`/dashboard/settings/activity`).
 6. **Retention: 12 months**, enforced by pruning the reader's household in the read path (no scheduled job, AGENTS.md).
    The account export leaves out older rows even before a read prunes them.
-7. **`DeviceAuditEvent` stays separate and unchanged.** It keeps pairing attempts, elevation, lockouts, token reuse and
+7. **`DeviceAuditEvent` stays separate with actor semantics unchanged.** It keeps pairing attempts, elevation, lockouts, token reuse and
    attributed tablet writes, which are security telemetry rather than household history, with its own 180-day retention
    (O-12). Where both apply (a parent removes a tablet) both are written: the device trail best effort, the household
    history in the transaction.
