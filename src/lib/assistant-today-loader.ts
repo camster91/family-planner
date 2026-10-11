@@ -214,7 +214,6 @@ export async function loadAssistantTodayRows(
           start_time: { lt: localEnd },
         },
         select: {
-          id: true,
           title: true,
           start_time: true,
           end_time: true,
@@ -239,7 +238,6 @@ export async function loadAssistantTodayRows(
           ...(input.role === "teen" ? { assigned_to: input.userId } : {}),
         },
         select: {
-          id: true,
           title: true,
           due_date: true,
           status: true,
@@ -258,7 +256,6 @@ export async function loadAssistantTodayRows(
           date: { gte: dateStart, lt: dateEnd },
         },
         select: {
-          id: true,
           date: true,
           recipe_name: true,
           cook: { select: { id: true, name: true, family_id: true } },
@@ -278,7 +275,6 @@ export async function loadAssistantTodayRows(
           list: { family_id: input.familyId, type: "grocery" },
         },
         select: {
-          id: true,
           content: true,
           quantity: true,
           list: { select: { name: true } },
@@ -300,7 +296,6 @@ export async function loadAssistantTodayRows(
           ],
         },
         select: {
-          id: true,
           name: true,
           location: true,
           expires_on: true,

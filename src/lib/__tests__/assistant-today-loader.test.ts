@@ -27,7 +27,7 @@ function dbFor(): AssistantTodayLoaderDb {
           start_time: new Date("2026-10-11T14:00:00.000Z"),
           end_time: new Date("2026-10-11T16:00:00.000Z"),
           is_task: false,
-          source_subscription: { name: "secret calendar URL" },
+          source_subscription: { id: "subscription-id" },
           source_connection: null,
         },
       ]),
@@ -89,32 +89,56 @@ describe("loadAssistantTodayRows", () => {
     expect(JSON.stringify(loaded)).not.toContain("sibling-id");
     expect(JSON.stringify(loaded)).not.toContain("secret calendar URL");
 
-    expect(db.event.findMany).toHaveBeenCalledWith(
+    const namesQuery = (db.user.findMany as jest.Mock).mock.calls[0][0];
+    const eventQuery = (db.event.findMany as jest.Mock).mock.calls[0][0];
+    const choreQuery = (db.chore.findMany as jest.Mock).mock.calls[0][0];
+    const dinnerQuery = (db.familyMeal.findMany as jest.Mock).mock.calls[0][0];
+    const groceryQuery = (db.listItem.findMany as jest.Mock).mock.calls[0][0];
+    const inventoryQuery = (db.inventoryItem.findMany as jest.Mock).mock
+      .calls[0][0];
+    const eventSelect = eventQuery.select;
+    const choreSelect = choreQuery.select;
+    const dinnerSelect = dinnerQuery.select;
+    const grocerySelect = groceryQuery.select;
+    const inventorySelect = inventoryQuery.select;
+    expect(eventQuery.where).toEqual(
+      expect.objectContaining({ family_id: "family-a" }),
+    );
+    expect(choreQuery.where).toEqual(
+      expect.objectContaining({ family_id: "family-a" }),
+    );
+    expect(groceryQuery.where).toEqual(
       expect.objectContaining({
-        where: expect.objectContaining({ family_id: "family-a" }),
-        select: expect.objectContaining({ id: true }),
+        list: { family_id: "family-a", type: "grocery" },
       }),
     );
-    expect(db.chore.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ family_id: "family-a" }),
-        select: expect.objectContaining({ id: true }),
-      }),
-    );
-    expect(db.listItem.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          list: { family_id: "family-a", type: "grocery" },
-        }),
-        select: expect.objectContaining({ id: true }),
-      }),
-    );
-    const eventSelect = (db.event.findMany as jest.Mock).mock.calls[0][0]
-      .select;
-    const choreSelect = (db.chore.findMany as jest.Mock).mock.calls[0][0]
-      .select;
-    const grocerySelect = (db.listItem.findMany as jest.Mock).mock.calls[0][0]
-      .select;
+    expect(namesQuery.select).toEqual({ id: true, name: true });
+    expect(eventSelect).not.toHaveProperty("id");
+    expect(choreSelect).not.toHaveProperty("id");
+    expect(dinnerSelect).not.toHaveProperty("id");
+    expect(grocerySelect).not.toHaveProperty("id");
+    expect(inventorySelect).not.toHaveProperty("id");
+    expect(eventQuery.orderBy).toEqual([{ start_time: "asc" }, { id: "asc" }]);
+    expect(choreQuery.orderBy).toEqual([
+      { due_date: "asc" },
+      { created_at: "asc" },
+      { id: "asc" },
+    ]);
+    expect(dinnerQuery.orderBy).toEqual([
+      { date: "asc" },
+      { created_at: "asc" },
+      { id: "asc" },
+    ]);
+    expect(groceryQuery.orderBy).toEqual([
+      { created_at: "asc" },
+      { id: "asc" },
+    ]);
+    expect(inventoryQuery.orderBy).toEqual([
+      { expires_on: "asc" },
+      { date_kind: "desc" },
+      { name: "asc" },
+      { id: "asc" },
+    ]);
     expect(eventSelect).not.toEqual(
       expect.objectContaining({
         description: true,
@@ -137,6 +161,9 @@ describe("loadAssistantTodayRows", () => {
     );
     expect(eventSelect.source_subscription).toEqual({ select: { id: true } });
     expect(eventSelect.source_connection).toEqual({ select: { id: true } });
+    expect(dinnerSelect.cook).toEqual({
+      select: { id: true, name: true, family_id: true },
+    });
   });
 
   it("applies the authenticated teen predicate and filters any mismatched fixture row", async () => {
