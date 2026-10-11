@@ -5,6 +5,8 @@ import { LargeHeader } from '@/components/ui/large-header'
 import { InsetList, ListRow } from '@/components/ui/list-row'
 import { useFeatures } from '@/components/providers/features-provider'
 import { moreItemsFor } from '@/lib/nav-items'
+import { useFeatureDisplayCopy } from '@/i18n/feature-display'
+import { useMoreText } from '@/i18n/more'
 
 /**
  * Family → More (#269): every feature that is not a tab, in one list, showing
@@ -14,24 +16,28 @@ import { moreItemsFor } from '@/lib/nav-items'
  */
 export default function MorePage() {
   const { features } = useFeatures()
-  const items = moreItemsFor('parent', features)
+  const featureDisplay = useFeatureDisplayCopy()
+  const more = useMoreText()
+  const items = moreItemsFor('parent', features, featureDisplay)
   const others = items.length - 1
 
   return (
     <div className="pb-20 max-w-2xl mx-auto">
       <LargeHeader
-        title="More"
+        title={more('title')}
         subtitle={
           others === 0
-            ? 'Chores, and anything else you turn on, lives here.'
-            : `Chores and ${others} more feature${others === 1 ? '' : 's'} your family uses.`
+            ? more('choresOnly')
+            : others === 1
+              ? more('withOneFeature')
+              : more('withFeatures', { count: others })
         }
         className="px-4"
       />
 
       <div className="px-4 space-y-6">
         <InsetList>
-          <ul aria-label="Features" data-testid="more-list">
+          <ul aria-label={more('listLabel')} data-testid="more-list">
             {items.map((item, i) => (
               <li key={item.key}>
                 <ListRow
@@ -51,8 +57,8 @@ export default function MorePage() {
           <ListRow
             icon={Sliders}
             glyphColor="plain"
-            title="Turn features on or off"
-            subtitle="Add allowance, pickups, sick days and more"
+            title={more('settingsTitle')}
+            subtitle={more('settingsDescription')}
             href="/dashboard/features"
             last
           />

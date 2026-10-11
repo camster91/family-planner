@@ -11,7 +11,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { OfflineBanner } from "@/components/ui/offline-banner";
 import CommandPaletteHost from "@/components/layout/CommandPaletteHost";
 import { FeaturesProvider } from "@/components/providers/features-provider";
-import { defaultFeatures, normalizeFeatures } from "@/lib/features";
+import { defaultFeatures, normalizeFeatures } from "@/lib/feature-flags";
 import { canRoleAccessPath, isKidRole } from "@/lib/kid-access";
 import type { NavUser, UserRole } from "@/types";
 
