@@ -13,10 +13,12 @@
  */
 import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
 import type { CaptureRecoveryEnvelope } from "../src/lib/capture-recovery";
 import { captureRecoveryStorageKey } from "../src/lib/capture-recovery";
+import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { authFile } from "./support/env";
 import { browserFetch, browserSend, expect, test } from "./support/test";
@@ -316,6 +318,101 @@ async function restoreEnvelope(
   );
 }
 
+interface FixtureEventIdentity {
+  userId: string;
+  familyId: string;
+}
+
+/**
+ * Teardown is deliberately fixture-scoped and marker-scoped. The server may
+ * commit before a connection-reset response lets the route handler read the
+ * returned id, so discovery is a required fallback rather than an optional
+ * convenience. Every candidate is re-read and must still belong to the
+ * authenticated parent and exact marker before DELETE.
+ */
+async function cleanupOwnedCaptureEvents(
+  page: Page,
+  info: TestInfo,
+  fixture: FixtureEventIdentity,
+  title: string,
+  knownEventId: string | null,
+): Promise<void> {
+  assertFixtureTargetAllowed(process.env);
+  expect(fixture.userId).toBe(FIXTURE_IDS.familyA.parent);
+  expect(fixture.familyId).toBe(FIXTURE_IDS.familyA.family);
+  const list = await browserFetch(page, "/api/events");
+  expect(list.status, list.body).toBe(200);
+  const data = JSON.parse(list.body) as { events?: unknown };
+  if (!Array.isArray(data.events)) {
+    throw new Error("Capture cleanup refused: event listing was not an array");
+  }
+  const candidateIds = new Set<string>();
+  if (knownEventId) candidateIds.add(knownEventId);
+  for (const value of data.events) {
+    if (!value || typeof value !== "object") continue;
+    const event = value as {
+      id?: unknown;
+      title?: unknown;
+      creator?: { id?: unknown } | null;
+    };
+    if (
+      event.title === title &&
+      event.creator?.id === fixture.userId &&
+      typeof event.id === "string"
+    ) {
+      candidateIds.add(event.id);
+    }
+  }
+
+  const deleted: string[] = [];
+  for (const candidateId of candidateIds) {
+    const detail = await browserFetch(
+      page,
+      `/api/events?id=${encodeURIComponent(candidateId)}`,
+    );
+    if (detail.status === 404) continue;
+    expect(detail.status, detail.body).toBe(200);
+    const detailData = JSON.parse(detail.body) as {
+      event?: {
+        id?: unknown;
+        title?: unknown;
+        creator?: { id?: unknown } | null;
+      };
+    };
+    const event = detailData.event;
+    if (
+      !event ||
+      event.id !== candidateId ||
+      event.title !== title ||
+      event.creator?.id !== fixture.userId
+    ) {
+      throw new Error(
+        `Capture cleanup refused event ${candidateId}: marker/owner mismatch`,
+      );
+    }
+    const response = await browserSend(page, "DELETE", "/api/events", {
+      eventId: candidateId,
+    });
+    if (response.status !== 200 && response.status !== 404) {
+      throw new Error(
+        `Capture cleanup failed for ${candidateId}: ${response.status}`,
+      );
+    }
+    deleted.push(candidateId);
+  }
+  await info.attach("capture-event-cleanup", {
+    body: JSON.stringify({
+      fixtureFamily: fixture.familyId,
+      fixtureUser: fixture.userId,
+      marker: title,
+      knownEventId,
+      discoveredCandidates: [...candidateIds],
+      deleted,
+    }),
+    contentType: "application/json",
+  });
+}
+
 function assertFixtureAndLoopback(baseURL: string | undefined): void {
   assertFixtureTargetAllowed(process.env);
   expect(baseURL).toBeTruthy();
@@ -336,8 +433,11 @@ test.describe("capture receipt recovery", () => {
     await installLoopbackNetworkGuard(context);
 
     await page.goto("/dashboard");
-    const { userId, familyId } = await fixtureIdentity(page);
-    const eventTitle = `Capture receipt ${info.project.name}`;
+    const fixture = await fixtureIdentity(page);
+    expect(fixture.userId).toBe(FIXTURE_IDS.familyA.parent);
+    expect(fixture.familyId).toBe(FIXTURE_IDS.familyA.family);
+    const eventTitle = `Capture receipt ${info.project.name} ${randomUUID()}`;
+    const { userId, familyId } = fixture;
     const { captureReady } = await installCaptureTransport(
       page,
       userId,
@@ -354,7 +454,7 @@ test.describe("capture receipt recovery", () => {
 
     let eventPostCount = 0;
     let createdEventId: string | null = null;
-    let eventDeleted = false;
+    const eventRequests: Array<{ key?: string; body?: string }> = [];
     let receiptMode: "actual" | "unknown" | "absent" = "actual";
     await page.route("**/api/events", async (route) => {
       const request = route.request();
@@ -363,6 +463,10 @@ test.describe("capture receipt recovery", () => {
         return;
       }
       eventPostCount += 1;
+      eventRequests.push({
+        key: request.headers()["idempotency-key"],
+        body: request.postData() ?? undefined,
+      });
       const response = await route.fetch();
       if (eventPostCount === 1) {
         const body = (await response.json()) as { event?: { id?: unknown } };
@@ -435,12 +539,26 @@ test.describe("capture receipt recovery", () => {
       expect(JSON.parse(envelope.body)).toMatchObject({ title: eventTitle });
       await captureState(page, info, identity, "lost-response");
 
-      // Reload restores the local envelope but must not replay the write.
+      // The rendered Retry must reuse the same key/body before reload. The
+      // server answers this keyed replay from its committed receipt, so no
+      // duplicate event is created.
+      await page.getByRole("button", { name: `Retry ${eventTitle}` }).click();
+      await expect(page.getByRole("status")).toContainText(
+        `Already added “${eventTitle}”`,
+      );
+      expect(eventPostCount).toBe(2);
+      expect(eventRequests).toHaveLength(2);
+      expect(eventRequests[1]!.key).toBe(eventRequests[0]!.key);
+      expect(eventRequests[1]!.body).toBe(eventRequests[0]!.body);
+
+      // Recreate only the local envelope for the reload proof. This is a test
+      // harness restoration, not another write or a second operation.
+      await restoreEnvelope(page, storageKey, envelope);
       await page.reload();
       await expect(page.getByTestId("capture-recovery")).toContainText(
         eventTitle,
       );
-      expect(eventPostCount).toBe(1);
+      expect(eventPostCount).toBe(2);
       await captureState(page, info, identity, "reload-pending");
 
       await page
@@ -449,7 +567,7 @@ test.describe("capture receipt recovery", () => {
       await expect(page.getByRole("status")).toContainText(
         `Already added “${eventTitle}”`,
       );
-      expect(eventPostCount).toBe(1);
+      expect(eventPostCount).toBe(2);
       expect(requests).toHaveLength(1);
       expect(new URL(requests[0]!.url).search).toBe("");
       expect(requests[0]!.key).toBe(envelope.key);
@@ -461,7 +579,6 @@ test.describe("capture receipt recovery", () => {
         eventId: createdEventId,
       });
       expect(deleted.status, deleted.body).toBe(200);
-      eventDeleted = true;
       const absentEvent = await browserFetch(
         page,
         `/api/events?id=${encodeURIComponent(createdEventId!)}`,
@@ -479,7 +596,7 @@ test.describe("capture receipt recovery", () => {
       await expect(page.getByRole("alert")).toContainText(
         "no longer present. It was not recreated",
       );
-      expect(eventPostCount).toBe(1);
+      expect(eventPostCount).toBe(2);
       await captureState(page, info, identity, "committed-removed");
 
       // The opaque committed state is safe: the UI must not claim present or
@@ -496,7 +613,7 @@ test.describe("capture receipt recovery", () => {
       await expect(page.getByRole("alert")).toContainText(
         "saved earlier. Refresh the app before making a new preview",
       );
-      expect(eventPostCount).toBe(1);
+      expect(eventPostCount).toBe(2);
       await captureState(page, info, identity, "committed-unknown-synthetic");
 
       // A missing/pruned receipt is terminal. It removes the local envelope
@@ -517,7 +634,7 @@ test.describe("capture receipt recovery", () => {
       await expect(
         recovery.getByRole("button", { name: `Retry ${eventTitle}` }),
       ).toHaveCount(0);
-      expect(eventPostCount).toBe(1);
+      expect(eventPostCount).toBe(2);
       expect(
         await page.evaluate(
           (key) => window.localStorage.getItem(key),
@@ -526,16 +643,45 @@ test.describe("capture receipt recovery", () => {
       ).toBe("[]");
       await captureState(page, info, identity, "absent-terminal-synthetic");
     } finally {
-      page.off("request", requestListener);
-      await page.unroute("**/api/capture/receipt");
-      await page.unroute("**/api/events");
-      if (createdEventId && !eventDeleted) {
-        const cleanup = await browserSend(page, "DELETE", "/api/events", {
-          eventId: createdEventId,
-        });
-        expect([200, 404]).toContain(cleanup.status);
+      const cleanupErrors: string[] = [];
+      const attemptCleanup = async (
+        label: string,
+        action: () => unknown | Promise<unknown>,
+      ) => {
+        try {
+          await action();
+        } catch (error) {
+          cleanupErrors.push(
+            `${label}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      };
+      await attemptCleanup("request listener", () =>
+        page.off("request", requestListener),
+      );
+      // Unroute every synthetic transport independently, even when one cleanup
+      // operation fails, so the context cannot leak a provider/API intercept.
+      await attemptCleanup("receipt route", () =>
+        page.unroute("**/api/capture/receipt"),
+      );
+      await attemptCleanup("event route", () => page.unroute("**/api/events"));
+      await attemptCleanup("capture route", () =>
+        page.unroute("**/api/capture"),
+      );
+      await attemptCleanup("owned event cleanup", () =>
+        cleanupOwnedCaptureEvents(
+          page,
+          info,
+          fixture,
+          eventTitle,
+          createdEventId,
+        ),
+      );
+      if (cleanupErrors.length) {
+        throw new Error(
+          `Capture receipt cleanup failed: ${cleanupErrors.join("; ")}`,
+        );
       }
-      await page.unroute("**/api/capture");
     }
   });
 
