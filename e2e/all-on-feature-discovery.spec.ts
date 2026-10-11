@@ -129,6 +129,7 @@ function observeFeatureTransport(
   api: ApiObservation[],
   domainWrites: string[],
 ) {
+  const pendingResponses = new Set<Promise<void>>();
   page.on("request", (request) => {
     if (!MUTATING_METHODS.has(request.method())) return;
     const path = new URL(request.url()).pathname;
@@ -139,22 +140,34 @@ function observeFeatureTransport(
     const request = response.request();
     const path = new URL(request.url()).pathname;
     if (path !== "/api/family/features") return;
-    const raw = request.postData();
-    let body: unknown;
-    if (raw) {
-      try {
-        body = JSON.parse(raw);
-      } catch {
-        body = raw;
+    const pending = Promise.resolve().then(() => {
+      const raw = request.postData();
+      let body: unknown;
+      if (raw) {
+        try {
+          body = JSON.parse(raw);
+        } catch {
+          body = raw;
+        }
       }
-    }
-    api.push({
-      method: request.method(),
-      path,
-      status: response.status(),
-      body,
+      api.push({
+        method: request.method(),
+        path,
+        status: response.status(),
+        body,
+      });
     });
+    pendingResponses.add(pending);
+    void pending.then(
+      () => pendingResponses.delete(pending),
+      () => pendingResponses.delete(pending),
+    );
   });
+  return async () => {
+    while (pendingResponses.size > 0) {
+      await Promise.all([...pendingResponses]);
+    }
+  };
 }
 
 async function installRequestFirewall(
@@ -387,7 +400,11 @@ for (const locale of ["en", "es"] as const) {
     const domainWrites: string[] = [];
     const blockedMutations: string[] = [];
     await installRequestFirewall(context, blockedMutations);
-    observeFeatureTransport(page, featureApi, domainWrites);
+    const flushFeatureTransport = observeFeatureTransport(
+      page,
+      featureApi,
+      domainWrites,
+    );
     await page.addInitScript(
       ({ language, localeKey, themeKey }) => {
         localStorage.setItem(localeKey, language);
@@ -453,7 +470,30 @@ for (const locale of ["en", "es"] as const) {
         name: /^(?:Disable|Enable) Points & streaks$/,
       });
       await expect(gamification).toHaveAttribute("aria-checked", "true");
+      const dependencyOff = { ...ALL_ON, gamification: false };
+      const gamificationPatchPromise = page.waitForResponse((response) => {
+        const request = response.request();
+        return (
+          request.method() === "PATCH" &&
+          new URL(response.url()).pathname === "/api/family/features"
+        );
+      });
       await gamification.click();
+      const gamificationPatch = await gamificationPatchPromise;
+      expect(gamificationPatch.status()).toBe(200);
+      const requestBody = gamificationPatch.request().postData();
+      expect(requestBody).toBeTruthy();
+      expect(JSON.parse(requestBody!)).toEqual({
+        key: "gamification",
+        enabled: false,
+      });
+      expect(
+        parseFeatureMap(
+          await gamificationPatch.text(),
+          "gamification PATCH response",
+        ),
+      ).toEqual(dependencyOff);
+      await flushFeatureTransport();
       const gamificationOff = page.getByRole("switch", {
         name: "Enable Points & streaks",
         exact: true,
@@ -466,7 +506,14 @@ for (const locale of ["en", "es"] as const) {
         page.getByRole("switch", { name: "Enable Analytics", exact: true }),
       ).toBeDisabled();
 
-      const dependencyOff = { ...ALL_ON, gamification: false };
+      const dependencyResponse = await browserFetch(
+        page,
+        "/api/family/features",
+      );
+      expect(dependencyResponse.status, dependencyResponse.body).toBe(200);
+      expect(
+        parseFeatureMap(dependencyResponse.body, "gamification canonical GET"),
+      ).toEqual(dependencyOff);
       const dependencyMoreResponse = await page.goto("/dashboard/family/more");
       expect(dependencyMoreResponse?.status()).toBe(200);
       await assertMoreSurface(page, dependencyOff);
@@ -488,6 +535,11 @@ for (const locale of ["en", "es"] as const) {
     }
     try {
       await cleanFeatureAudit(restored);
+    } catch (error) {
+      cleanupFailures.push(error);
+    }
+    try {
+      await flushFeatureTransport();
     } catch (error) {
       cleanupFailures.push(error);
     }
