@@ -549,6 +549,8 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "POST /api/calendar/subscriptions",
   "GET /api/capture",
   "POST /api/capture",
+  "POST /api/capture/grocery",
+  "GET /api/capture/receipt",
   "POST /api/chores/complete",
   "POST /api/chores/create",
   "GET /api/chores",
