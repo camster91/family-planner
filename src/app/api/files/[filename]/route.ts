@@ -4,6 +4,7 @@ import { existsSync } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import { authenticateWithFamily } from '@/lib/api-auth'
+import { refusePairedDevice } from '@/lib/device-refusal'
 import { prisma } from '@/lib/prisma'
 import { resolveUploadDir } from '@/lib/upload-dir'
 
@@ -28,6 +29,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ filename: string }> }
 ) {
+  const deviceRefusal = await refusePairedDevice(request)
+  if (deviceRefusal) return deviceRefusal
+
   const { filename } = await params
 
   // Strict allowlist — no path separators, no '..', only known extension

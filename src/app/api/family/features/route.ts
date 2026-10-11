@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
+import { refusePairedDevice } from '@/lib/device-refusal'
 import { prisma } from '@/lib/prisma'
 import { defaultFeatures, normalizeFeatures, FEATURES, type FeatureKey } from '@/lib/features'
 import { featureAuditEntries, writeAuditLog } from '@/lib/household-audit'
@@ -17,7 +18,10 @@ const isPlainObject = (v: unknown): v is Record<string, unknown> =>
  * Returns the current family's enabled features.
  * Parents get full read; kids/teen can read too (so the UI can gate itself).
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const deviceRefusal = await refusePairedDevice(request)
+  if (deviceRefusal) return deviceRefusal
+
   const user = (await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!user.family_id) {
@@ -45,6 +49,9 @@ export async function GET() {
  */
 export async function PATCH(request: Request) {
   try {
+    const deviceRefusal = await refusePairedDevice(request as NextRequest)
+    if (deviceRefusal) return deviceRefusal
+
     const user = (await getServerUser()) as SessionUser | null
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (user.role !== 'parent') {

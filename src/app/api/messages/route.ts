@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
+import { refusePairedDevice } from '@/lib/device-route'
 import { sendMessageSchema, markMessagesReadSchema } from '@/lib/validations'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
@@ -11,6 +12,9 @@ export const dynamic = 'force-dynamic'
 // GET - List messages for current user's family
 export async function GET(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
@@ -74,6 +78,9 @@ export async function GET(request: NextRequest) {
 // POST - Send a message
 export async function POST(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
@@ -118,6 +125,9 @@ export async function POST(request: NextRequest) {
 // PATCH - Mark messages as read
 export async function PATCH(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 

@@ -32,7 +32,7 @@ jest.mock("@/lib/api-auth", () => ({
 }))
 
 jest.mock("next/server", () => ({
-  NextRequest: class {},
+  NextRequest: jest.requireActual("next/server").NextRequest,
   NextResponse: class {
     body: unknown
     status: number
@@ -51,11 +51,12 @@ jest.mock("next/server", () => ({
 }))
 
 import { GET } from "@/app/api/files/chores/[filename]/route";
+import { NextRequest } from "next/server";
 
 const FILE = "abcdef0123456789.jpg"
 
 function req() {
-  return {} as never
+  return new NextRequest("http://localhost/api/files/chores/test.jpg")
 }
 
 async function callGet(filename: string) {

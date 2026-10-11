@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
+import { refusePairedDevice } from '@/lib/device-refusal'
 import { isGamificationOn, omitUserGamification } from '@/lib/gamification-visibility'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
@@ -9,6 +10,9 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     // Full session validation, including the session-generation check — a
     // cookie revoked by a password reset must not still read the profile.
     const [payload, authError] = await authenticateRequest(request)

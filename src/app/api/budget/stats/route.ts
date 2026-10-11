@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
+import { refusePairedDevice } from "@/lib/device-route";
 import { featureGate } from '@/lib/feature-gate-server';
 import { parseYearMonth, utcMonthRange } from "@/lib/dates";
 import { RECENT_TRANSACTIONS_LIMIT, sumBudgetLimits } from "@/lib/budget";
@@ -12,6 +13,9 @@ export const dynamic = "force-dynamic";
 // GET — Return budget summary stats for the current month
 export async function GET(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request);
+    if (deviceRefusal) return deviceRefusal;
+
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
 

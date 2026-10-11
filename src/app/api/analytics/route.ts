@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
+import { refusePairedDevice } from '@/lib/device-route'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
@@ -22,6 +23,9 @@ const DONE_STATUSES = ['completed', 'verified']
 // count a chore that is not due yet.
 export async function GET(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 

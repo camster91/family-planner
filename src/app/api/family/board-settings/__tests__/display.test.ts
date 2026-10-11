@@ -11,7 +11,7 @@ jest.mock('@/lib/rate-limit-db', () => require('@/__tests__/helpers/two-househol
 
 import * as settings from '../route'
 import { FAMILY_A, FAMILY_B, FOREIGN, bodyOf, db, req, writesTo, type UserKey } from '@/__tests__/helpers/two-household'
-import { deviceReq, disableSharedDevice, enableSharedDevice, seedDevices } from '@/__tests__/helpers/device'
+import { deviceReq, disableSharedDevice, enableSharedDevice, errorCode, seedDevices } from '@/__tests__/helpers/device'
 
 const T0 = new Date('2026-09-20T10:00:00Z')
 
@@ -133,14 +133,15 @@ describe('board settings: calm display (#271)', () => {
     expect(writesTo('family')).toHaveLength(0)
   })
 
-  it('a paired tablet cookie is not a session (401) and cannot change display settings', async () => {
+  it('a paired tablet is refused before person auth (403) and cannot change display settings', async () => {
     enableSharedDevice()
     try {
       const fx = seedDevices()
       const res = await settings.PATCH(
         deviceReq({ method: 'PATCH', cookies: fx.d1.cookies, body: { display: { idleMinutes: 1 } } })
       )
-      expect(res.status).toBe(401)
+      expect(res.status).toBe(403)
+      expect(await errorCode(res)).toBe('DEVICE_WRITE_NOT_ALLOWED')
       expect(writesTo('family')).toHaveLength(0)
     } finally {
       disableSharedDevice()

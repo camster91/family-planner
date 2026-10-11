@@ -46,7 +46,7 @@ describe("new households start simple (O-38)", () => {
       FEATURES.map((f) => [f.key, LEAN_ON.includes(f.key)]),
     );
     req({ as: "parentA" });
-    const body = await bodyOf(await features.GET());
+    const body = await bodyOf(await features.GET(req({ as: "parentA" })));
     expect(onKeys(effectiveFeatures(body.features))).toEqual(LEAN_ON);
   });
 
@@ -57,7 +57,7 @@ describe("new households start simple (O-38)", () => {
   ])("an existing household with %s keeps every formerly-on section", async (_label, blob) => {
     db.find("family", FAMILY_A)!.features = blob;
     req({ as: "parentA" });
-    const body = await bodyOf(await features.GET());
+    const body = await bodyOf(await features.GET(req({ as: "parentA" })));
     const effective = effectiveFeatures(body.features);
     for (const key of [...LEAN_ON, ...FORMERLY_ON]) expect(effective[key as keyof typeof effective]).toBe(true);
   });

@@ -16,7 +16,7 @@ describe("medications — two households", () => {
 
   it("returns 401 to an unauthenticated caller on every handler", async () => {
     req({ as: null });
-    expect((await GET()).status).toBe(401);
+    expect((await GET(req({ as: null }))).status).toBe(401);
     expect((await medication.PATCH(req({ body: { markDoseTaken: true } }), params({ id: "med-a" }))).status).toBe(401);
     expect((await medication.DELETE(req(), params({ id: "med-a" }))).status).toBe(401);
     expect(db.writes).toHaveLength(0);
@@ -24,7 +24,7 @@ describe("medications — two households", () => {
 
   it("lists only the caller's family", async () => {
     req({ as: "parentA" });
-    const body = await expectNoForeignData(await GET());
+    const body = await expectNoForeignData(await GET(req({ as: "parentA" })));
     expect(body.medications.map((m: any) => m.id)).toEqual(["med-a"]);
   });
 
@@ -62,7 +62,7 @@ describe("medications — two households", () => {
 
     it("a parent sees every family-A medication", async () => {
       req({ as: "parentA" });
-      const body = await expectNoForeignData(await GET());
+      const body = await expectNoForeignData(await GET(req({ as: "parentA" })));
       expect(body.medications.map((m: any) => m.id).sort()).toEqual(["med-a", "med-a-teen"]);
     });
 
@@ -71,7 +71,7 @@ describe("medications — two households", () => {
       ["teenA", "med-a-teen", "med-a"],
     ])("%s lists only their own medication", async (who, own, sibling) => {
       req({ as: who });
-      const body = await expectNoForeignData(await GET());
+      const body = await expectNoForeignData(await GET(req({ as: who })));
       expect(body.medications.map((m: any) => m.id)).toEqual([own]);
       expect(body.medications.map((m: any) => m.id)).not.toContain(sibling);
       expect(JSON.stringify(body)).not.toContain(own === "med-a" ? "Teen inhaler" : "Home syrup");

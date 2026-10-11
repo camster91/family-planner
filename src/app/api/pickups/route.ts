@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
+import { refusePairedDevice } from '@/lib/device-refusal'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
@@ -8,7 +9,10 @@ import { createPickupSchema } from '@/lib/validations'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const deviceRefusal = await refusePairedDevice(request)
+  if (deviceRefusal) return deviceRefusal
+
   const user = (await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const gate = await featureGate(user.family_id, 'pickups')
@@ -39,6 +43,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const deviceRefusal = await refusePairedDevice(request as NextRequest)
+    if (deviceRefusal) return deviceRefusal
+
     const user = (await getServerUser()) as SessionUser | null
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const gate = await featureGate(user.family_id, 'pickups')

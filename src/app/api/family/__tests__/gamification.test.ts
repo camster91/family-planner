@@ -88,14 +88,14 @@ describe("gamification setting (#248) — toggle", () => {
     setGamification(FAMILY_A, false);
     for (const who of KIDS_AND_PARENT) {
       req({ as: who });
-      expect((await bodyOf(await features.GET())).features.gamification).toBe(false);
+      expect((await bodyOf(await features.GET(req({ as: who })))).features.gamification).toBe(false);
     }
   });
 
   it("a legacy blob without the key reads as ON (existing household)", async () => {
     setGamification(FAMILY_A, undefined);
     req({ as: "parentA" });
-    expect((await bodyOf(await features.GET())).features.gamification).toBe(true);
+    expect((await bodyOf(await features.GET(req({ as: "parentA" })))).features.gamification).toBe(true);
   });
 
   it("a newly created family starts with it OFF", async () => {

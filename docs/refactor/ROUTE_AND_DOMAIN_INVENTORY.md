@@ -8,6 +8,18 @@
 
 **Boundary.** This audit deletes no route and runs no migration. Findings that need work are proposed as issues below; none were filed from this change.
 
+### Current-source count correction — 2026-10-11
+
+The historical generated table above is retained for provenance. A fresh walk
+of the current source tree counts **161 API route files and 231 exported HTTP
+handlers**. The shared-device allowlist separately tracks **151 common
+person-authenticated methods**, the ten `requireDeviceManager` parent-management
+methods, and the remaining device-allowed, public, token, cron and health
+handlers. Calendar sync has six additional explicitly listed methods because
+its provider kill switch runs before person authentication. These counts are
+source inventory only; they do not establish rendered, device or production
+acceptance.
+
 ## All-feature UX alignment contract — 2026-10-11
 
 Cameron's latest direction: align UI/UX across **all features**, including all-features-on households. This supplements the historical audit below; it does not claim that old route counts, role descriptions, or every screen remain current. Source reviewed for this addition: `9e6ac899` (`src/lib/features.ts`, `src/lib/nav-items.ts`, `src/lib/kid-access.ts`, dashboard page paths, shared UI primitives and form-sheet hosts). Static inspection only; no new rendered, native, production or customer evidence.
@@ -82,7 +94,7 @@ Use isolated fabricated households: new/empty; busy; all 22 flags on; dependency
 ## Legend
 
 - **Roles.** P = parent, T = teen, C = child. "all" = every member of the household. "n/a" = no person session (public, token or device). Page roles come from `src/middleware.ts` and `src/lib/kid-access.ts`: children may open `/dashboard` (kid home) and the prefixes in `KID_ALLOWED_PREFIXES`; teens additionally have `TEEN_EXTRA_PREFIXES` and `TEEN_EXACT_PATHS`. Other dashboard paths redirect them home. Historical route rows below are not a substitute for these current source gates.
-- **Device cookie.** "device only" / "device + elevation" = accepts only the `fp_device` cookie (`src/lib/device-route.ts`). "refused" = `refusePairedDevice` rejects a paired tablet before person auth. "no" = person session only (`authenticateRequest`/`authenticateWithFamily`/`getServerUser` never read device cookies; the route-allowlist test guards this).
+- **Device cookie.** "device only" / "device + elevation" = accepts only the `fp_device` cookie (`src/lib/device-route.ts`). "refused" = `refusePairedDevice` rejects a paired tablet before person auth. "no" = person session only; the common refusal boundary runs before `authenticateRequest` and direct `getServerUser` handlers, and the route-allowlist test guards this.
 - **Env gate.** Server kill switch or provider key; see [`CURRENT_STATE.md`](../CURRENT_STATE.md) "What is on and what is off by default". `SHARED_DEVICE_ENABLED` routes return 404 while off; calendar sync routes 404 until `isCalendarSyncEnabled()`; the scan and import routes 404 while their Anthropic key is unset.
 - **Meal/list model.** Delegates used by the route file and the `@/lib` modules it imports directly. Canonical and legacy follow ADR-0007. "—" means no meal/recipe/list table is touched at that depth (the board loader and importer are covered by hand in "Meal and list overlap").
 - **IA home** follows `product/NAVIGATION.md` and `src/lib/nav-items.ts`: *Tab* (phone tab bar and top bar), *More* (`/dashboard/family/more`, parents), *Settings* (settings, Features, family settings), *Sub-page* (reached from a parent page), *Utility* (top bar or user menu), *Hidden* (no in-app link; reached by URL, email link, redirect or device flow).
@@ -92,13 +104,13 @@ Use isolated fabricated households: new/empty; busy; all 22 flags on; dependency
 | | Count |
 |---|---|
 | Page routes | 59 (48 under `/dashboard`, including `/dashboard/settings/activity` from #285; 4 under `/device`, 4 auth, `/`, `/join`, `/privacy`, `/terms`, `/handoff/[token]`, and the development-only `/dev/design-system` from #156) |
-| API route files | 150 (the 131 above; 10 added by #283 and #284, which have no row in the generated API table yet: `/api/device/chores/[id]/complete`, `/api/device/chores/[id]/uncomplete`, `/api/device/elevated/board-settings`, `/api/device/elevated/board-settings/places`, `/api/device/lists/[id]/items`, `/api/device/lists/items/[id]`, `/api/inventory/[id]/consume`, `/api/inventory/[id]/discard`, `/api/inventory/adjustments`, `/api/inventory/adjustments/[id]/undo`; `/api/search`, F-3; `/api/users/deletion`, D-3; `/api/users/preferences`, #286; `/api/audit`, #285; `/api/lists/items/[id]`, F-6; `/api/family/beta-metrics`, #287; `/api/version`, #161 / #299; `/api/family/invite-code` and `/api/family/members/[id]`, O-34 / #322) |
-| API handlers (file × method) | 219 (197 + 11 from #283/#284 + `GET /api/search` + `GET /api/users/deletion` + `GET`/`PATCH /api/users/preferences` + `GET /api/audit` + `DELETE /api/lists/items/[id]` + `PATCH /api/family/beta-metrics` + `GET /api/version` + `POST /api/family/invite-code` + `DELETE /api/family/members/[id]` + `GET /api/auth/verify-email` (#316)) |
+| API route files | **161 current source files** (the historical generated table above remains 131; the earlier summary was not refreshed as new route files landed) |
+| API handlers (file × method) | **231 current source handlers** (the historical generated table above remains 197; the earlier summary was not refreshed as new handlers landed) |
 | API handlers missing from the isolation audit | 0 (the 5 `/api/calendar/subscriptions/**` handlers were added for finding F-4) |
 | Routes that read a legacy ADR-0007 table | 2: `GET /api/users/export`, `DELETE /api/recipes/[id]` (finding F-7) |
 | Route-level `loading.tsx` / `error.tsx` files | `error.tsx` for `/dashboard` and `/device`; `loading.tsx` for the today, chores, lists, calendar and rewards tabs (finding F-9, fixed) |
 
-API route files by domain (first path segment, all 151): family 24, device 15, calendar 13, lists 12, auth 9, inventory 9, budget 5, chores 5, projects 5, users 5, handoff 4, rewards 3, wishlist 3, and 1–2 each for activity, admin, allowance, analytics, anniversaries, audit, capture, cron, emergency-contacts, events, files, health, locations, meals, medications, messages, notes, notifications, pickups, recipes, search, sick-days, upload, version.
+API route files by domain (first path segment, all 161 current files): family 24, lists 16, device 15, calendar 13, auth 9, inventory 9, chores 5, projects 5, users 5, budget 5, handoff 4, recipes 4, rewards 3, wishlist 3, and 1–2 each for sick-days, allowance, medications, health, anniversaries, admin, notes, emergency-contacts, locations, meals, files, notifications, cron, analytics, pickups, assistant, capture, messages, capabilities, activity, feedback, search, audit, version, events and upload.
 
 ## Page routes
 
@@ -190,7 +202,7 @@ New households start simple ([O-38](../decisions/PROVISIONAL_OWNER_DECISIONS.md)
 ## Shared-device and role exposure
 
 - Only `/api/device/*` accepts the device cookie (9 route files, including #281's `GET /api/device/today/version`). `/api/device/label` and `/api/device/revoke-self` also need parent elevation. `/api/family/devices/*` and `/api/users/elevation-pin` are parent person routes behind `SHARED_DEVICE_ENABLED`.
-- 10 routes refuse a paired tablet before person auth: `/api/inventory` and `/api/inventory/[id]` (all methods), `/api/inventory/scan`, `/api/calendar/import-suggestions*`, `/api/lists/items/from-recipe`, `/api/lists/items/section`, `/api/lists/items/undo-add`, `/api/lists/section-sort`. Since then: the #284 inventory consume/discard/undo routes, `GET /api/search` (F-3) `GET`/`PATCH /api/users/preferences` (#286) `GET /api/audit` (#285) and `PATCH /api/family/beta-metrics` (#287) also refuse it (the route-allowlist test's `DEVICE_REFUSED_ROUTES` is the current list).
+- All 151 common person-authenticated API methods refuse a live paired tablet before person auth through the common boundary in `src/lib/device-refusal.ts`; direct `getServerUser` handlers add the same early guard. The ten parent-only device-management methods using `requireDeviceManager` preserve the same 403 refusal when both a live device credential and person session are present, while device-only calls remain 401. Calendar sync's six provider-gated methods are listed separately because an unconfigured provider returns 404 before auth. The route-allowlist test's `DEVICE_REFUSED_ROUTES`, `PRIVATE_PERSON_ROUTES`, `COMMON_PERSON_AUTH_ROUTES`, `DEVICE_MANAGER_ROUTES` and `CALENDAR_SYNC_ROUTES` are the current method inventory. Public token/credential flows, anonymous analytics events, `/api/auth/logout`, and `/api/device/*` remain explicit exceptions.
 - The tablet surface is `/device/today`, fed by the same board loader as `/dashboard/today`; its DTO allowlist is in `SHARED_DEVICE.md` §9.1. Device writes are off (#274 proposes extending them deliberately, ADR-0006).
 - Children: page access is the kid allowlist (`/dashboard`, `today`, `lists`, `emergency`, `inventory`, `wishlist`, `allowance`, `handoff`, `sick-days`). Teens also have the extra prefixes and exact paths described in the current-source correction above. API rows are historical per-method observations; verify current API policy separately.
 

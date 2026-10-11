@@ -1,11 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
+import { refusePairedDevice } from '@/lib/device-route'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const deviceRefusal = await refusePairedDevice(_request)
+  if (deviceRefusal) return deviceRefusal
+
   const { id } = await params
   const user = (await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

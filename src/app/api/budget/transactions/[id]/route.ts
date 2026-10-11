@@ -5,6 +5,7 @@ import {
   requireFamilyMatch,
   requireParent,
 } from "@/lib/api-auth";
+import { refusePairedDevice } from "@/lib/device-route";
 import { featureGate } from '@/lib/feature-gate-server'
 import {
   updateTransactionSchema,
@@ -22,6 +23,9 @@ interface RouteContext {
 // PATCH — Update an existing transaction (family-scoped)
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
+    const deviceRefusal = await refusePairedDevice(request);
+    if (deviceRefusal) return deviceRefusal;
+
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
 
@@ -154,6 +158,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 // DELETE — Delete a transaction (family-scoped)
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
+    const deviceRefusal = await refusePairedDevice(request);
+    if (deviceRefusal) return deviceRefusal;
+
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
 

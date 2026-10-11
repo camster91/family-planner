@@ -16,7 +16,7 @@ describe("pickups — two households", () => {
 
   it("returns 401 to an unauthenticated caller on every handler", async () => {
     req({ as: null });
-    expect((await GET()).status).toBe(401);
+    expect((await GET(req({ as: null }))).status).toBe(401);
     expect((await pickup.PATCH(req({ body: { completed: true } }), params({ id: "pickup-a" }))).status).toBe(401);
     expect((await pickup.DELETE(req(), params({ id: "pickup-a" }))).status).toBe(401);
     expect(db.writes).toHaveLength(0);
@@ -24,7 +24,7 @@ describe("pickups — two households", () => {
 
   it("lists only the caller's family", async () => {
     req({ as: "childA" });
-    const body = await expectNoForeignData(await GET());
+    const body = await expectNoForeignData(await GET(req({ as: "childA" })));
     expect(body.pickups.map((p: any) => p.id)).toEqual(["pickup-a"]);
   });
 
