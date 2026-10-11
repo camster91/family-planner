@@ -180,8 +180,9 @@ for (const locale of ["en", "es"] as const) {
       await dialog.getByLabel(copy.amount).fill("10.00");
       await dialog.getByLabel(copy.reason).fill("Weekly allowance");
       await dialog.getByRole("button", { name: copy.tryAgain }).click();
-      await expect(dialog.getByRole("option", { name: "Sam" })).toBeVisible();
+      await expect(dialog.getByRole("option", { name: "Sam" })).toBeAttached();
       await dialog.getByLabel(copy.forLabel).selectOption("synthetic-child");
+      await expect(dialog.getByLabel(copy.forLabel)).toHaveValue("synthetic-child");
       await assertSheetSurface(page, dialog);
       const save = dialog.getByRole("button", { name: copy.save });
       await save.click();
