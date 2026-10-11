@@ -10,6 +10,13 @@ export const dynamic = 'force-dynamic'
 
 const NOTE_COLORS = ['yellow', 'pink', 'blue', 'green', 'purple']
 
+function notePermissions(role: string, userId: string, createdBy: string) {
+  return {
+    can_edit: role === 'parent' || createdBy === userId,
+    can_delete: role === 'parent',
+  }
+}
+
 // GET - List all pinned notes for the user's family
 export async function GET(request: NextRequest) {
   try {
@@ -24,7 +31,12 @@ export async function GET(request: NextRequest) {
       orderBy: { created_at: 'desc' },
     })
 
-    return NextResponse.json({ notes })
+    return NextResponse.json({
+      notes: notes.map((note) => ({
+        ...note,
+        ...notePermissions(auth.user.role, auth.user.id, note.created_by),
+      })),
+    })
   } catch (err) {
     logRouteError('GET /api/notes', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

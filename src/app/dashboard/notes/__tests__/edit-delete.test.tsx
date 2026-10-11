@@ -18,11 +18,13 @@ import NotesPage from '../page'
 
 type Call = { url: string; method: string; body: unknown }
 let calls: Call[] = []
+let notePermissions = { can_edit: true, can_delete: true }
 // What a save/delete answers: a status + body, or a thrown network error.
 let mutationReply: () => Promise<Response>
 
 beforeEach(() => {
   calls = []
+  notePermissions = { can_edit: true, can_delete: true }
   mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ success: true }) }) as Response
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -32,7 +34,16 @@ beforeEach(() => {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ notes: [{ id: 'n 1', title: 'Wifi code', body: 'abc', color: 'yellow', created_at: '2026-09-01T00:00:00Z' }] }),
+        json: async () => ({
+          notes: [{
+            id: 'n 1',
+            title: 'Wifi code',
+            body: 'abc',
+            color: 'yellow',
+            created_at: '2026-09-01T00:00:00Z',
+            ...notePermissions,
+          }],
+        }),
       } as Response
     }
     return mutationReply()
@@ -97,5 +108,26 @@ describe('failures are shown in the modal, which stays open with the text', () =
 
     expect((await screen.findByRole('alert')).textContent).toBe('notes.errorDelete common.tryAgain')
     expect((screen.getByRole('button', { name: 'notes.delete' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+})
+
+describe('D9 ownership controls come from the API DTO', () => {
+  it('lets a member edit their own note without offering delete', async () => {
+    notePermissions = { can_edit: true, can_delete: false }
+    const user = userEvent.setup()
+    render(<NotesPage />)
+
+    await user.click(await screen.findByText('Wifi code'))
+    expect(screen.getByRole('button', { name: 'notes.save' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'notes.delete' })).toBeNull()
+  })
+
+  it('keeps another member note readable but non-editable', async () => {
+    notePermissions = { can_edit: false, can_delete: false }
+    render(<NotesPage />)
+
+    const title = await screen.findByText('Wifi code')
+    expect(title.closest('[role="button"]')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'notes.delete' })).toBeNull()
   })
 })

@@ -15,6 +15,9 @@ interface Note {
   body: string
   color: 'yellow' | 'pink' | 'blue'
   created_at: string
+  /** Server-computed D9 permissions; absent only for older compatible clients. */
+  can_edit?: boolean
+  can_delete?: boolean
 }
 
 const noteColors = {
@@ -237,17 +240,29 @@ function NotesPageInner() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger">
           {notes.map((note) => {
-            const colors = noteColors[note.color]
+            const colors = noteColors[note.color] ?? noteColors.yellow
+            const canEdit = note.can_edit ?? true
             return (
               <div
                 key={note.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => openEditModal(note)}
-                onKeyDown={(e) => e.key === 'Enter' && openEditModal(note)}
+                {...(canEdit
+                  ? {
+                      role: 'button' as const,
+                      tabIndex: 0,
+                      'aria-label': note.title,
+                      onClick: () => openEditModal(note),
+                      onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          openEditModal(note)
+                        }
+                      },
+                    }
+                  : {})}
                 className={cn(
                   'card-apple border-[1.5px] overflow-hidden',
-                  'flex flex-col h-[160px] cursor-pointer',
+                  'flex flex-col h-[160px]',
+                  canEdit && 'cursor-pointer',
                   colors.bg,
                   colors.border
                 )}
@@ -360,7 +375,7 @@ function NotesPageInner() {
 
             {/* Footer */}
             <div className="mt-5 flex items-center justify-between border-t border-[var(--surface-separator)] pt-4">
-              {modalState === 'edit' ? (
+              {modalState === 'edit' && (selectedNote?.can_delete ?? true) ? (
                 <button
                   type="button"
                   onClick={handleDelete}

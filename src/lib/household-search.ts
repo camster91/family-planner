@@ -18,8 +18,8 @@ import {
  * Every query is filtered by the caller's `family_id` (list items through
  * their list). A type is searched only when the household has its feature on
  * and the caller's role may open the page its results link to
- * (`canSearchType`), so a teen or child gets lists, list items and inventory
- * only, the same things their own pages show.
+ * (`canSearchType`), so a teen or child gets the same D9 pages their own
+ * navigation can open, including notes.
  */
 
 export const SEARCH_MIN_LENGTH = 2

@@ -4,14 +4,20 @@ jest.mock("next/server", () => require("@/__tests__/helpers/two-household").next
 jest.mock("next/headers", () => require("@/__tests__/helpers/two-household").nextHeadersMock);
 jest.mock("@/lib/session", () => require("@/__tests__/helpers/two-household").sessionMock);
 jest.mock("@/lib/prisma", () => ({ prisma: require("@/__tests__/helpers/two-household").fakePrisma }));
-jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null }));
+const mockFeatureGate = jest.fn(async (..._args: unknown[]): Promise<unknown> => null);
+jest.mock("@/lib/feature-gate-server", () => ({
+  featureGate: (...args: unknown[]) => mockFeatureGate(...args),
+}));
 
 import * as notes from "../route";
 import * as note from "../[id]/route";
 import { db, req, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 
 describe("notes — two households", () => {
-  beforeEach(() => db.reset());
+  beforeEach(() => {
+    db.reset();
+    mockFeatureGate.mockResolvedValue(null);
+  });
 
   it("returns 401 to an unauthenticated caller on every handler", async () => {
     expect((await notes.GET(req())).status).toBe(401);
@@ -24,6 +30,32 @@ describe("notes — two households", () => {
   it("lists only the caller's family", async () => {
     const body = await expectNoForeignData(await notes.GET(req({ as: "childA" })));
     expect(body.notes.map((n: any) => n.id)).toEqual(["note-a"]);
+    expect(body.notes[0]).toMatchObject({ can_edit: false, can_delete: false });
+  });
+
+  it("returns server-computed ownership permissions without changing the note DTO", async () => {
+    const created = await notes.POST(req({ as: "teenA", body: { title: "Mine" } }));
+    expect(created.status).toBe(201);
+
+    const teenBody = await expectNoForeignData(await notes.GET(req({ as: "teenA" })));
+    const own = teenBody.notes.find((n: any) => n.title === "Mine");
+    const parentNote = teenBody.notes.find((n: any) => n.id === "note-a");
+    expect(own).toMatchObject({ title: "Mine", can_edit: true, can_delete: false });
+    expect(parentNote).toMatchObject({ id: "note-a", can_edit: false, can_delete: false });
+
+    const parentBody = await expectNoForeignData(await notes.GET(req({ as: "parentA" })));
+    expect(parentBody.notes.find((n: any) => n.id === "note-a")).toMatchObject({
+      can_edit: true,
+      can_delete: true,
+    });
+  });
+
+  it("honours the feature gate before returning or writing notes", async () => {
+    mockFeatureGate.mockResolvedValue({ status: 403 } as Response);
+
+    expect((await notes.GET(req({ as: "parentA" }))).status).toBe(403);
+    expect((await notes.POST(req({ as: "parentA", body: { title: "Blocked" } }))).status).toBe(403);
+    expect(db.writes).toHaveLength(0);
   });
 
   it("refuses to update or delete another family's note", async () => {

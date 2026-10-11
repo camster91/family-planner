@@ -103,23 +103,27 @@ describe('GET /api/search', () => {
     expect(rows).toEqual([])
   })
 
-  it('childA gets only lists, list items and food: the pages a child may open', async () => {
+  it('childA gets lists, notes and food: the pages a child may open', async () => {
     const rows = await results('childA', 'home')
-    expect(types(rows)).toEqual(['list', 'list_item', 'inventory'])
-    for (const r of rows) expect(r.href).toMatch(/^\/dashboard\/(lists|inventory)(\/|$)/)
-    // No members, events, chores, recipes or notes, even by a direct call.
+    expect(types(rows)).toEqual(['list', 'list_item', 'note', 'inventory'])
+    for (const r of rows) expect(r.href).toMatch(/^\/dashboard\/(lists|notes|inventory)(\/|$)/)
+    // No members, events or chores; notes are now a kid-allowlisted D9 page.
     expect(await results('childA', 'parent')).toEqual([])
     expect(await results('childA', 'dentist')).toEqual([])
     expect(await results('childA', 'lasagne')).toEqual([])
-    expect(await results('childA', 'wifi')).toEqual([])
+    expect(await results('childA', 'wifi')).toEqual([
+      { type: 'note', id: 'note-a', title: 'Home wifi', subtitle: 'Note', href: '/dashboard/notes' },
+    ])
   })
 
-  it('teenA also gets events and recipes (O-37: a teen may open the calendar and meals), never members, chores or notes', async () => {
+  it('teenA gets events, recipes and notes (O-37 plus D9), never members or chores', async () => {
     const rows = await results('teenA', 'home')
-    expect(types(rows)).toEqual(['event', 'list', 'list_item', 'recipe', 'inventory'])
-    for (const r of rows) expect(r.href).toMatch(/^\/dashboard\/(lists|inventory|calendar|meals\/recipes)(\/|\?|$)/)
+    expect(types(rows)).toEqual(['event', 'list', 'list_item', 'recipe', 'note', 'inventory'])
+    for (const r of rows) expect(r.href).toMatch(/^\/dashboard\/(lists|notes|inventory|calendar|meals\/recipes)(\/|\?|$)/)
     expect(await results('teenA', 'parent')).toEqual([])
-    expect(await results('teenA', 'wifi')).toEqual([])
+    expect(await results('teenA', 'wifi')).toEqual([
+      { type: 'note', id: 'note-a', title: 'Home wifi', subtitle: 'Note', href: '/dashboard/notes' },
+    ])
   })
 
   it('never returns budget, messages, medical, locations, handoff or allowance data', async () => {
