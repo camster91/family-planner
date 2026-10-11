@@ -187,17 +187,19 @@ export default function FeaturesPage() {
               )
             })}
           </nav>
-          <button
-            type="button"
-            className="min-h-11 shrink-0 rounded-full px-3 text-subhead text-label-secondary focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]"
-            onClick={() =>
-              setAllGroups(!Object.values(expanded).every(Boolean))
-            }
-          >
-            {Object.values(expanded).every(Boolean)
-              ? copy('closeAll')
-              : copy('openAll')}
-          </button>
+          {!normalizedQuery && (
+            <button
+              type="button"
+              className="min-h-11 shrink-0 rounded-full px-3 text-subhead text-label-secondary focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]"
+              onClick={() =>
+                setAllGroups(!Object.values(expanded).every(Boolean))
+              }
+            >
+              {Object.values(expanded).every(Boolean)
+                ? copy('closeAll')
+                : copy('openAll')}
+            </button>
+          )}
         </div>
       </div>
 

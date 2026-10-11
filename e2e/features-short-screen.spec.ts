@@ -231,6 +231,12 @@ for (const locale of ["en", "es"] as const) {
       const search = page.getByRole("searchbox", { name: copy.search });
       await search.fill("budget");
       await expect(page.getByText("Budget", { exact: true })).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: copy.openAll }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: copy.closeAll }),
+      ).toHaveCount(0);
       await search.fill("feature-search-no-match");
       await expect(
         page.getByText(copy.noMatches, { exact: true }),
@@ -238,6 +244,9 @@ for (const locale of ["en", "es"] as const) {
       const clear = page.getByRole("button", { name: copy.clearSearch });
       await clear.click();
       await expect(search).toBeFocused();
+      await expect(
+        page.getByRole("button", { name: copy.openAll }),
+      ).toBeVisible();
       await expect(planning.getByRole("switch")).toHaveCount(0);
 
       const familyJump = groups.getByRole("button", {

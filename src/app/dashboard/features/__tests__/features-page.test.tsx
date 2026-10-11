@@ -77,10 +77,19 @@ describe('Features page switches', () => {
       screen.getByRole('button', { name: 'Clear feature search' }),
     ).toBeTruthy()
     expect(screen.queryByText('Chores', { exact: true })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Open all groups' }),
+    ).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Close all groups' }),
+    ).toBeNull()
     expect(setFeature).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'Clear feature search' }))
     expect(document.activeElement).toBe(search)
+    expect(
+      screen.getByRole('button', { name: 'Open all groups' }),
+    ).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Show Core' }))
     await waitFor(() =>
       expect(screen.getByText('Chores', { exact: true })).toBeTruthy(),
