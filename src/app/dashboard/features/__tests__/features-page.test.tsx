@@ -69,6 +69,9 @@ describe('Features page switches', () => {
 
     await user.type(search, 'budget')
     expect(screen.getByText('Budget', { exact: true })).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: 'Clear feature search' }),
+    ).toBeTruthy()
     expect(screen.queryByText('Chores', { exact: true })).toBeNull()
     expect(setFeature).not.toHaveBeenCalled()
 
@@ -119,5 +122,63 @@ describe('Features page switches', () => {
         exact: true,
       }),
     ).toHaveLength(2)
+  })
+
+  it('opens only the useful group on a narrow viewport', () => {
+    const originalMatchMedia = window.matchMedia
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: jest.fn(() => ({
+        matches: true,
+        media: '(max-width: 767px)',
+        onchange: null,
+        addListener: jest.fn(),
+        removeListener: jest.fn(),
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+        dispatchEvent: jest.fn(),
+      })),
+    })
+    try {
+      render(<FeaturesPage />)
+      expect(
+        screen.getByRole('switch', { name: 'Disable Meal planning' }),
+      ).toBeTruthy()
+      expect(
+        screen.queryByRole('switch', { name: 'Disable Chores' }),
+      ).toBeNull()
+      expect(
+        screen.queryByRole('switch', { name: 'Enable Locations' }),
+      ).toBeNull()
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      })
+    }
+  })
+
+  it('keeps a pending switch focusable and blocks duplicate activation', async () => {
+    const user = userEvent.setup()
+    let resolveRequest: (() => void) | undefined
+    const request = new Promise<undefined>((resolve) => {
+      resolveRequest = () => resolve(undefined)
+    })
+    setFeature.mockImplementation(() => request)
+    render(<FeaturesPage />)
+    const toggle = screen.getByRole('switch', {
+      name: 'Disable Points & streaks',
+    })
+    toggle.focus()
+
+    await user.click(toggle)
+    expect(toggle.getAttribute('aria-disabled')).toBe('true')
+    expect(toggle.hasAttribute('disabled')).toBe(false)
+    expect(document.activeElement).toBe(toggle)
+
+    await user.click(toggle)
+    expect(setFeature).toHaveBeenCalledTimes(1)
+    resolveRequest?.()
+    await waitFor(() => expect(toggle.getAttribute('aria-disabled')).toBeNull())
   })
 })

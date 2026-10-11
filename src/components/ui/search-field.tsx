@@ -11,20 +11,20 @@ export function SearchField({
   value,
   onChange,
   placeholder = 'Search',
+  clearLabel = 'Clear',
   className,
   onSubmit,
 }: {
   value: string
   onChange: (v: string) => void
   placeholder?: string
+  clearLabel?: string
   className?: string
   onSubmit?: () => void
 }) {
   return (
     <div className={cn('relative', className)}>
-      <Search
-        className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-label-tertiary pointer-events-none"
-      />
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-label-tertiary pointer-events-none" />
       <input
         type="search"
         value={value}
@@ -38,10 +38,13 @@ export function SearchField({
           type="button"
           onClick={() => onChange('')}
           className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
-          aria-label="Clear"
+          aria-label={clearLabel || 'Clear'}
         >
           {/* 24px hit target (WCAG 2.5.8) around the 20px visible circle. */}
-          <span className="w-5 h-5 rounded-full bg-label-tertiary flex items-center justify-center" aria-hidden="true">
+          <span
+            className="w-5 h-5 rounded-full bg-label-tertiary flex items-center justify-center"
+            aria-hidden="true"
+          >
             <X className="w-3 h-3 text-white" />
           </span>
         </button>
