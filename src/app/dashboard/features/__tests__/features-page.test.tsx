@@ -134,6 +134,22 @@ describe('Features page switches', () => {
     ).toHaveLength(2)
   })
 
+  it('wraps long feature copy instead of truncating it', async () => {
+    const user = userEvent.setup()
+    render(<FeaturesPage />)
+    await user.click(screen.getByRole('button', { name: 'Show Family life' }))
+
+    const title = screen.getByText('Birthdays & anniversaries', { exact: true })
+    expect(title.className).toContain('break-words')
+    expect(title.className).not.toContain('truncate')
+
+    const description = screen.getByText('Reminders for upcoming family dates.', {
+      exact: true,
+    })
+    expect(description.className).toContain('break-words')
+    expect(description.className).toContain('line-clamp-2')
+  })
+
   it('opens only the useful group on a narrow viewport', () => {
     const originalMatchMedia = window.matchMedia
     Object.defineProperty(window, 'matchMedia', {
