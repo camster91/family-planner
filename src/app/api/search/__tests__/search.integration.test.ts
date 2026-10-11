@@ -126,6 +126,7 @@ describeWithDatabase('household search against Postgres', () => {
       type: 'note',
       id: expect.any(String),
       title: 'Mine note',
+      subtitle: 'Note',
       href: '/dashboard/notes',
     })
     expect(JSON.stringify(rows)).not.toMatch(/Theirs|Pancake Other|pancake day is Tuesday|old pancake/)
