@@ -624,7 +624,10 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
 
   it("serializes same-key writes, replays a lost response, and rejects changed payload reuse", async () => {
     const draft = newDraft();
-    const normalized = draft;
+    // The coordinator hashes its normalized draft. Keep the pre-created
+    // receipt identical to that canonical payload so the concurrent replay
+    // assertion exercises locking rather than a fixture hash mismatch.
+    const normalized = normalizeRoutineStackDraft(draft);
     const receiptId = `${PREFIX}-receipt-concurrent`;
     await createReceipt(receiptId, `${PREFIX}-key-concurrent`, normalized);
 
