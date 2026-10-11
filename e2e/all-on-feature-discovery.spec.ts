@@ -7,7 +7,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-import type { Page, Route, TestInfo } from "@playwright/test";
+import type { Locator, Page, Route, TestInfo } from "@playwright/test";
 import { FEATURES, type FamilyFeatures } from "../src/lib/features";
 import { moreItemsFor } from "../src/lib/nav-items";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
@@ -262,16 +262,18 @@ async function assertMoreSurface(page: Page, features: FamilyFeatures) {
 }
 
 async function assertFeaturesSurface(page: Page, features: FamilyFeatures) {
+  const main = page.locator("#main-content");
   await expect(
-    page.getByRole("heading", { name: "Features", exact: true }),
+    main.getByRole("heading", { name: "Features", exact: true }),
   ).toBeVisible();
-  const switches = page.getByRole("switch");
+  const switches = main.getByRole("switch");
   expect(await switches.count()).toBe(FEATURES.length);
+  const enabledToggles: Locator[] = [];
   for (const feature of FEATURES) {
     const checked =
       features[feature.key] === true &&
       (!feature.requires || features[feature.requires] === true);
-    const toggle = page.getByRole("switch", {
+    const toggle = main.getByRole("switch", {
       name: `${checked ? "Disable" : "Enable"} ${feature.title}`,
       exact: true,
     });
@@ -289,22 +291,29 @@ async function assertFeaturesSurface(page: Page, features: FamilyFeatures) {
     expect(box).not.toBeNull();
     expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.height).toBeGreaterThanOrEqual(44);
-    await expect(page.getByText(feature.title, { exact: true })).toHaveCount(1);
+    await expect(main.getByText(feature.title, { exact: true })).toHaveCount(1);
     await expect(
-      page.getByText(feature.description, { exact: true }),
+      main.getByText(feature.description, { exact: true }),
     ).toHaveCount(1);
+    if (
+      feature.group !== "core" &&
+      !(feature.requires && !features[feature.requires])
+    ) {
+      enabledToggles.push(toggle);
+    }
   }
 
-  for (const feature of FEATURES) {
-    const checked =
-      features[feature.key] === true &&
-      (!feature.requires || features[feature.requires] === true);
-    const toggle = page.getByRole("switch", {
-      name: `${checked ? "Disable" : "Enable"} ${feature.title}`,
-      exact: true,
-    });
-    await toggle.focus();
-    await expect(toggle).toBeFocused();
+  // Disabled HTML buttons are excluded from keyboard focus. Start at the
+  // first enabled switch and traverse only enabled controls; if a disabled
+  // core/dependent switch entered the tab sequence, the next expectation
+  // would fail at that exact position.
+  if (enabledToggles.length > 0) {
+    await enabledToggles[0]!.focus();
+    await expect(enabledToggles[0]!).toBeFocused();
+    for (let index = 1; index < enabledToggles.length; index += 1) {
+      await page.keyboard.press("Tab");
+      await expect(enabledToggles[index]!).toBeFocused();
+    }
   }
   await assertNoHorizontalOverflow(page);
   await assertMainA11y(page);
