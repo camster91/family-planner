@@ -7,6 +7,7 @@
 import * as React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { I18nProvider } from '@/i18n'
 import TransactionForm from '../TransactionForm'
 
 const CATEGORIES = [
@@ -109,6 +110,85 @@ it('keeps category recovery truthful for a network failure', async () => {
   render(<TransactionForm onClose={noop} onSuccess={noop} />)
   expect((await screen.findByRole('alert')).textContent).toContain('Check your connection')
   expect(screen.queryByText(/No expense categories yet/)).toBeNull()
+})
+
+it('treats an invalid categories body as a server failure instead of false empty state', async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+    if (url.startsWith('/api/budget/categories')) {
+      return { ok: true, status: 200, json: async () => ({}) } as Response
+    }
+    return { ok: true, status: 200, json: async () => ({}) } as Response
+  }) as unknown as typeof fetch
+
+  render(<TransactionForm onClose={noop} onSuccess={noop} />)
+  expect((await screen.findByRole('alert')).textContent).toContain('Categories could not be refreshed')
+  expect(screen.queryByText(/No expense categories yet/)).toBeNull()
+})
+
+it('uses localized recovery copy for object error envelopes without rendering private payloads', async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+    if (url.startsWith('/api/budget/categories')) {
+      return { ok: true, status: 200, json: async () => ({ categories: CATEGORIES.filter((c) => c.type === 'expense') }) } as Response
+    }
+    return {
+      ok: false,
+      status: 409,
+      json: async () => ({ error: { code: 'IDENTITY_CONFLICT', message: 'private implementation detail' } }),
+    } as Response
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(
+    <I18nProvider locale="es">
+      <TransactionForm onClose={noop} onSuccess={noop} />
+    </I18nProvider>
+  )
+  await screen.findByRole('option', { name: /Food/ })
+  await user.type(screen.getByLabelText('Amount'), '50')
+  await user.click(screen.getByRole('button', { name: 'Add Transaction' }))
+
+  const alert = await screen.findByRole('alert')
+  expect(alert.textContent).toContain('No se pudo guardar la transacción')
+  expect(alert.textContent).not.toContain('private implementation detail')
+  expect(alert.textContent).not.toContain('IDENTITY_CONFLICT')
+})
+
+it('uses safe recovery copy for object delete errors too', async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+    if (url.startsWith('/api/budget/categories')) {
+      return { ok: true, status: 200, json: async () => ({ categories: CATEGORIES.filter((c) => c.type === 'expense') }) } as Response
+    }
+    return {
+      ok: false,
+      status: 403,
+      json: async () => ({ error: { code: 'PARENT_REQUIRED', message: { private: true } } }),
+    } as Response
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(
+    <TransactionForm
+      onClose={noop}
+      onSuccess={noop}
+      initialData={{ id: 't1', amount: 12, type: 'expense', category_id: 'cat_food', date: '2026-09-30T00:00:00.000Z' }}
+    />
+  )
+  await screen.findByRole('option', { name: /Food/ })
+  await user.click(screen.getByRole('button', { name: 'Delete transaction' }))
+  await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+  const alert = await screen.findByRole('alert')
+  expect(alert.textContent).toContain("Couldn't delete the transaction")
+  expect(alert.textContent).not.toContain('private')
 })
 
 it('does not let a slower old category request win after switching type', async () => {
