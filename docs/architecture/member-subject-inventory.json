@@ -1,0 +1,34 @@
+[
+  {
+    "relation": "Chore.assigneeMember",
+    "fields": ["assigned_member_id", "family_id"],
+    "references": ["id", "family_id"],
+    "onDelete": "NoAction",
+    "onUpdate": "NoAction",
+    "decision": "Dormant canonical chore subject. Required legacy User owner retained; fixture reconciliation only. Explicit erasure clears identifying subject and sets a sticky tombstone; archive retains it. No profile-only activation."
+  },
+  {
+    "relation": "ChoreAssignment.assigneeMember",
+    "fields": ["assigned_member_id", "family_id"],
+    "references": ["id", "family_id"],
+    "onDelete": "NoAction",
+    "onUpdate": "NoAction",
+    "decision": "Dormant canonical assignment subject. Preserve completion actors, approvers, XP and legacy owner during backfill/archive. Explicit erasure clears identifying subject and sets a sticky tombstone; never transfer earned credit."
+  },
+  {
+    "relation": "HouseholdMemberLegacyMapping.member",
+    "fields": ["member_id", "family_id"],
+    "references": ["id", "family_id"],
+    "onDelete": "Cascade",
+    "onUpdate": "NoAction",
+    "decision": "Existing deterministic compatibility mapping, not authentication or an active verified link. Explicit erasure removes mapping; no reconstruction of erased subjects."
+  },
+  {
+    "relation": "HouseholdMemberAccountLink.member",
+    "fields": ["member_id", "family_id"],
+    "references": ["id", "family_id"],
+    "onDelete": "Cascade",
+    "onUpdate": "NoAction",
+    "decision": "Existing dormant owner-verified account link contract. Never create a link through backfill, selected profile, matching name or email."
+  }
+]

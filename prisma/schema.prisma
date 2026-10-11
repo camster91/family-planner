@@ -410,6 +410,10 @@ model Chore {
   description    String?
   points         Int       @default(10)
   assigned_to    String // user_id
+  /// Dormant canonical subject; legacy account ownership remains required.
+  assigned_member_id String?
+  /// Permanent-erasure tombstone: reconciliation must never relink this subject.
+  member_subject_erased Boolean @default(false)
   due_date       DateTime
   status         String    @default("pending") // 'pending', 'in_progress', 'completed', 'verified', 'overdue'
   frequency      String    @default("once") // 'once', 'daily', 'weekly', 'monthly'
@@ -466,6 +470,7 @@ model Chore {
   // Relations
   family      Family            @relation(fields: [family_id], references: [id], onDelete: Cascade)
   assignee    User              @relation("AssignedChores", fields: [assigned_to], references: [id], onDelete: Cascade)
+  assigneeMember HouseholdMember? @relation("MemberChores", fields: [assigned_member_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction, map: "Chore_member_subject_fkey")
   creator     User              @relation("CreatedChores", fields: [created_by], references: [id], onDelete: Cascade)
   assignments ChoreAssignment[]
 
@@ -476,6 +481,7 @@ model Chore {
   @@index([due_date])
   @@index([family_id, status])
   @@index([family_id, assigned_to])
+  @@index([family_id, assigned_member_id])
   @@index([family_id, due_date])
   @@index([recurrence_id])
 }
@@ -485,6 +491,8 @@ model ChoreAssignment {
   family_id       String
   chore_id        String
   assigned_to     String
+  assigned_member_id String?
+  member_subject_erased Boolean @default(false)
   due_date        DateTime
   status          String    @default("pending")
   photo_url       String?
@@ -501,10 +509,13 @@ model ChoreAssignment {
   family    Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
   chore     Chore  @relation(fields: [chore_id], references: [id], onDelete: Cascade)
   assignee  User   @relation("ChoreAssignmentAssignee", fields: [assigned_to], references: [id], onDelete: Cascade)
+  assigneeMember HouseholdMember? @relation("MemberChoreAssignments", fields: [assigned_member_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction, map: "ChoreAssignment_member_subject_fkey")
   completer User?  @relation("ChoreAssignmentCompleter", fields: [completed_by], references: [id], onDelete: SetNull)
   approver  User?  @relation("ChoreAssignmentApprover", fields: [approved_by], references: [id], onDelete: SetNull)
 
   @@unique([chore_id, assigned_to, due_date], map: "ChoreAssignment_chore_assignee_due_key")
+  @@unique([chore_id, assigned_member_id, due_date], map: "ChoreAssignment_chore_member_due_key")
+  @@index([family_id, assigned_member_id])
   @@index([family_id, status], map: "ChoreAssignment_family_status_idx")
   @@index([assigned_to, due_date], map: "ChoreAssignment_assignee_due_idx")
   @@index([chore_id])
@@ -1762,6 +1773,8 @@ model HouseholdMember {
   legacy_mapping HouseholdMemberLegacyMapping?
   account_link   HouseholdMemberAccountLink?
   erasure_account User? @relation("ArchivedMemberErasureAccount", fields: [erasure_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  chores Chore[] @relation("MemberChores")
+  chore_assignments ChoreAssignment[] @relation("MemberChoreAssignments")
 
   @@unique([id, family_id])
   @@index([family_id, archived_at])

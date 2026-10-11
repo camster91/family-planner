@@ -67,6 +67,18 @@ export async function eraseAccountProfilesInTx(tx: any, userId: string, familyId
     tx.householdMemberAccountLink.count({ where: { member_id: { in: ids }, user_id: { not: userId } } }),
   ])
   if (otherMappings || otherLinks) throw new HouseholdMemberIdentityConflict()
+  // Explicit erasure clears only the canonical identifying subject. Preserve
+  // existing legacy deletion/handover policy and never transfer earned credit.
+  // The sticky tombstone prevents fixture reconciliation from adopting a later
+  // legacy owner and relinking retained historic rows to a different person.
+  await tx.choreAssignment.updateMany({
+    where: { assigned_member_id: { in: ids } },
+    data: { assigned_member_id: null, member_subject_erased: true },
+  })
+  await tx.chore.updateMany({
+    where: { assigned_member_id: { in: ids } },
+    data: { assigned_member_id: null, member_subject_erased: true },
+  })
   await tx.householdMemberAccountLink.deleteMany({ where: { member_id: { in: ids }, user_id: userId } })
   await tx.householdMemberLegacyMapping.deleteMany({ where: { member_id: { in: ids }, user_id: userId } })
   await tx.householdMember.deleteMany({ where: { id: { in: ids } } })
