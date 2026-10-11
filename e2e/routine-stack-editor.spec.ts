@@ -32,6 +32,36 @@ const PROJECTS = [
 ] as const;
 const LOCALES = ["en", "es"] as const;
 type Locale = (typeof LOCALES)[number];
+// This matrix clears cookies and signs in through the real form for each
+// disposable household. Keep its repeated auth traffic out of the shared
+// project-wide 198.51.100.10-.15 buckets, which are consumed by earlier
+// login-heavy journeys on the one-worker CI shard.
+const ROUTINE_CLIENT_IPS = {
+  "fridge-landscape-1280x800": "198.51.100.230",
+  "tablet-large-1920x1200": "198.51.100.231",
+  "desktop-1366x768": "198.51.100.232",
+} as const;
+
+function routineClientIp(info: TestInfo): string {
+  const ip =
+    ROUTINE_CLIENT_IPS[
+      info.project.name as keyof typeof ROUTINE_CLIENT_IPS
+    ];
+  if (!ip) {
+    throw new Error(
+      `No dedicated routine editor client address for ${info.project.name}`,
+    );
+  }
+  return ip;
+}
+
+async function loginRoutine(page: Page, info: TestInfo, email: string) {
+  await page.setExtraHTTPHeaders({
+    "X-Forwarded-For": routineClientIp(info),
+  });
+  await loginViaUi(page, email);
+}
+
 const DATE = E2E_ANCHOR.toISOString().slice(0, 10);
 const TIMESTAMP = `${DATE}T00:00:00.000Z`;
 
@@ -548,7 +578,7 @@ for (const locale of LOCALES) {
       try {
         await seedFixture(fixture);
         await context.clearCookies();
-        await loginViaUi(page, fixture.parentEmail);
+        await loginRoutine(page, info, fixture.parentEmail);
         await assertUiLogin(page, fixture.parent, "parent");
         await setLocale(context, locale);
         await page.goto("/dashboard/chores");
@@ -606,7 +636,7 @@ for (const locale of LOCALES) {
           await loopbackGuard(childContext, baseURL!);
           const childPage = await childContext.newPage();
           await childPage.clock.install({ time: E2E_ANCHOR });
-          await loginViaUi(childPage, fixture.childEmail);
+          await loginRoutine(childPage, info, fixture.childEmail);
           await assertUiLogin(childPage, fixture.child, "child");
           await setLocale(childContext, locale);
           await childPage.goto("/dashboard/today");
@@ -728,7 +758,7 @@ for (const locale of LOCALES) {
       try {
         await seedFixture(fixture);
         await context.clearCookies();
-        await loginViaUi(page, fixture.parentEmail);
+        await loginRoutine(page, info, fixture.parentEmail);
         await assertUiLogin(page, fixture.parent, "parent");
         await setLocale(context, locale);
         await page.goto("/dashboard/chores");
@@ -800,7 +830,7 @@ for (const locale of LOCALES) {
       try {
         await seedFixture(fixture);
         await context.clearCookies();
-        await loginViaUi(page, fixture.parentEmail);
+        await loginRoutine(page, info, fixture.parentEmail);
         await assertUiLogin(page, fixture.parent, "parent");
         await setLocale(context, locale);
         await page.route("**/api/chores/stacks/candidates**", async (route) => {
@@ -909,7 +939,7 @@ for (const locale of LOCALES) {
       try {
         await seedFixture(fixture);
         await context.clearCookies();
-        await loginViaUi(page, fixture.parentEmail);
+        await loginRoutine(page, info, fixture.parentEmail);
         await assertUiLogin(page, fixture.parent, "parent");
         await setLocale(context, locale);
         await page.route("**/api/chores/stacks", async (route) => {
