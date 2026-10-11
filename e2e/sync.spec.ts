@@ -856,6 +856,13 @@ test.describe("offline grocery ticks: sign-out", () => {
     browser,
   }, testInfo) => {
     onlyOnSomeProjects(testInfo);
+    // This journey deliberately starts without shared auth state and signs in
+    // through the UI. Give it its own TEST-NET client bucket so the long
+    // one-worker shard's other login journeys cannot consume the 30-attempt
+    // IP limit before this sign-out check begins.
+    await page.setExtraHTTPHeaders({
+      "X-Forwarded-For": "198.51.100.250",
+    });
     await loginViaUi(page, FIXTURE_EMAILS.familyA.teen);
     await expect(page).toHaveURL(/\/dashboard$/);
     // A teen may create lists (D9); deleting it at the end is parent-only.
