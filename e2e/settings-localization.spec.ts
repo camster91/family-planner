@@ -679,31 +679,24 @@ test.describe("parentA household controls", () => {
         .click();
       await expect(section.getByText(RAW, { exact: true })).toBeVisible();
       await capture(page, info, "subscriptions-refresh-raw-fallback");
-      page.once("dialog", async (d) => {
-        expect(d.message()).toBe(
-          msg(next, "removeSubscriptionConfirm", { name: named }),
-        );
-        await d.dismiss();
+      const removeButton = section.getByRole("button", {
+        name: msg(next, "removeLabel", { name: named }),
+        exact: true,
       });
-      await section
-        .getByRole("button", {
-          name: msg(next, "removeLabel", { name: named }),
-          exact: true,
-        })
+      await removeButton.click();
+      let removal = page.getByRole("alertdialog");
+      await expect(removal).toContainText(
+        msg(next, "removeSubscriptionConfirm", { name: named }),
+      );
+      await removal
+        .getByRole("button", { name: msg(next, "cancel"), exact: true })
         .click();
       expect(s.count("DELETE", subPath)).toBe(0);
       s.reply("DELETE", subPath, { body: {} });
-      page.once("dialog", async (d) => {
-        expect(d.message()).toBe(
-          msg(next, "removeSubscriptionConfirm", { name: named }),
-        );
-        await d.accept();
-      });
-      await section
-        .getByRole("button", {
-          name: msg(next, "removeLabel", { name: named }),
-          exact: true,
-        })
+      await removeButton.click();
+      removal = page.getByRole("alertdialog");
+      await removal
+        .getByRole("button", { name: msg(next, "remove"), exact: true })
         .click();
       await expect(
         section.getByText(msg(next, "removedSubscription", { name: named }), {
@@ -1328,18 +1321,19 @@ test.describe("parentA connected calendars", () => {
           calendar: ` (${PROFILE} first)`,
           name: PROFILE,
         });
-        page.once("dialog", async (d) => {
-          expect(d.message()).toBe(confirmation);
-          await d.dismiss();
-        });
         await disconnect.click();
+        let removal = page.getByRole("alertdialog");
+        await expect(removal).toContainText(confirmation);
+        await removal
+          .getByRole("button", { name: msg(next, "cancel"), exact: true })
+          .click();
         expect(s.count("DELETE", conPath)).toBe(0);
         s.reply("DELETE", conPath, { body: {} });
-        page.once("dialog", async (d) => {
-          expect(d.message()).toBe(confirmation);
-          await d.accept();
-        });
         await disconnect.click();
+        removal = page.getByRole("alertdialog");
+        await removal
+          .getByRole("button", { name: msg(next, "disconnect"), exact: true })
+          .click();
         await expect(
           section.getByText(
             msg(next, "disconnected", { provider: "Google Calendar" }),
