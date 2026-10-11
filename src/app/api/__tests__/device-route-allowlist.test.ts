@@ -383,6 +383,33 @@ const PRIVATE_PERSON_ROUTES = [
     method: "GET",
     path: "/api/family/members",
   },
+  // Dormant name-only profile routes remain person-session-only. A paired
+  // device carrying a valid parent session must receive the explicit refusal
+  // before profile authentication or any roster read/write.
+  {
+    route: "GET /api/family/profiles",
+    module: "../family/profiles/route",
+    method: "GET",
+    path: "/api/family/profiles",
+  },
+  {
+    route: "POST /api/family/profiles",
+    module: "../family/profiles/route",
+    method: "POST",
+    path: "/api/family/profiles",
+  },
+  {
+    route: "PATCH /api/family/profiles/[id]",
+    module: "../family/profiles/[id]/route",
+    method: "PATCH",
+    path: "/api/family/profiles/unknown-id",
+  },
+  {
+    route: "POST /api/family/profiles/[id]/archive",
+    module: "../family/profiles/[id]/archive/route",
+    method: "POST",
+    path: "/api/family/profiles/unknown-id/archive",
+  },
   {
     route: "GET /api/family/travel",
     module: "../family/travel/route",
