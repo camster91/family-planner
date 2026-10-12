@@ -39,8 +39,10 @@ jobs:
             projects: --project=phone-390x844 --project=phone-430x932
           - group: portrait-tablet
             projects: --project=tablet-portrait-800x1280
-          - group: fridge-and-desktop
-            projects: --project=fridge-landscape-1280x800 --project=tablet-large-1920x1200 --project=desktop-1366x768
+          - group: fridge-landscape
+            projects: --project=fridge-landscape-1280x800
+          - group: large-tablet-and-desktop
+            projects: --project=tablet-large-1920x1200 --project=desktop-1366x768
     services:
       postgres:
         image: postgres:17-alpine
