@@ -179,6 +179,7 @@ export function usePendingFormNavigationController(
           finishRelease(true);
         } else {
           restoringRef.current = true;
+          restorationTargetRef.current = "base-then-sentinel";
           window.history.forward();
         }
         return true;
@@ -211,7 +212,9 @@ export function usePendingFormNavigationController(
       // traverse forward to the owned sentinel. This preserves history length
       // and avoids manufacturing a new ghost entry on every Back press.
       restoringRef.current = true;
-      restorationTargetRef.current = "sentinel";
+      restorationTargetRef.current = isBaseEntry(entry, event.state)
+        ? "sentinel"
+        : "base-then-sentinel";
       window.history.forward();
       return true;
     },
