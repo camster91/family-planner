@@ -129,7 +129,13 @@ export function usePendingFormNavigationController(
     if (!mountedRef.current) return Promise.resolve(false);
     const entry = entryRef.current;
     if (!entry) return Promise.resolve(true);
-    if (releasePromiseRef.current) return releasePromiseRef.current;
+    if (releasePromiseRef.current) {
+      // An authorized success/close can join an automatic idle release after
+      // a retry becomes busy. Suppress re-arm for that shared release so the
+      // caller can navigate without inheriting a ghost sentinel.
+      if (busyRef.current) releaseStartedWhileBusyRef.current = true;
+      return releasePromiseRef.current;
+    }
 
     releaseStartedWhileBusyRef.current = busyRef.current;
     disarmedRef.current = true;
@@ -258,6 +264,7 @@ export function usePendingFormNavigationController(
       if (
         event.navigationType !== "traverse" ||
         !event.cancelable ||
+        event.destination?.sameDocument !== true ||
         !busyRef.current ||
         disarmedRef.current
       ) {

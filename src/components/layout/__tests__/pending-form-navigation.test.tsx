@@ -23,9 +23,16 @@ const originalUrl = "http://localhost/dashboard/pending";
 function event(
   cancelable = true,
   navigationType = "traverse",
-): Event & { navigationType: string } {
+  sameDocument: boolean | null = true,
+): Event & {
+  navigationType: string;
+  destination?: { sameDocument?: boolean };
+} {
   return Object.assign(new Event("navigate", { cancelable }), {
     navigationType,
+    ...(sameDocument === null
+      ? {}
+      : { destination: { sameDocument } }),
   });
 }
 
@@ -91,6 +98,8 @@ it("cancels a cancelable traverse only while busy and owning the current entry",
   expect(navigateHandler(event())).toBe(true);
   expect(navigateHandler(event(false))).toBe(false);
   expect(navigateHandler(event(true, "push"))).toBe(false);
+  expect(navigateHandler(event(true, "traverse", false))).toBe(false);
+  expect(navigateHandler(event(true, "traverse", null))).toBe(false);
 
   window.history.replaceState({ route: "foreign" }, "", "/dashboard/other");
   expect(navigateHandler(event())).toBe(false);
@@ -128,6 +137,39 @@ it("passes through an authorized release while the request is still marked busy"
   expect(navigateHandler(event())).toBe(false);
   view.unmount();
   await expect(release).resolves.toBe(false);
+});
+
+it("suppresses re-arm when authorized release joins an automatic release", async () => {
+  let navigation!: PendingFormNavigation;
+  const view = render(
+    <Harness busy onNavigation={(value) => (navigation = value)} />,
+  );
+  await waitFor(() =>
+    expect(window.history.state.__herewovenPendingForm).toEqual(
+      expect.any(String),
+    ),
+  );
+
+  await act(async () => {
+    view.rerender(
+      <Harness busy={false} onNavigation={(value) => (navigation = value)} />,
+    );
+  });
+  await act(async () => {
+    view.rerender(
+      <Harness busy onNavigation={(value) => (navigation = value)} />,
+    );
+  });
+  const release = navigation.releaseBeforeNavigation();
+  expect(historyBack).toHaveBeenCalledTimes(1);
+
+  window.history.replaceState({ route: "base" }, "", originalUrl);
+  popStateHandler(
+    new PopStateEvent("popstate", { state: window.history.state }),
+  );
+  await expect(release).resolves.toBe(true);
+  expect(window.history.state.__herewovenPendingForm).toBeUndefined();
+  view.unmount();
 });
 
 it("re-arms a retried request after an in-flight release settles", async () => {
