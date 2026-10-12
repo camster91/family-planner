@@ -525,6 +525,8 @@ test.describe("inventory localization synthetic server", () => {
       let notesResponseReleased = false;
       let emergencyResponseReleased = false;
       let inventoryResponseReleased = false;
+      const pageErrors: string[] = [];
+      page.on("pageerror", (error) => pageErrors.push(error.message));
       const notesPending = new Promise<void>((resolve) => {
         releaseNotes = resolve;
       });
@@ -796,7 +798,20 @@ test.describe("inventory localization synthetic server", () => {
         await page.unroute("**/api/notes").catch(() => undefined);
         await page.unroute("**/api/emergency-contacts").catch(() => undefined);
         await page.unroute(/\/api\/inventory\?/).catch(() => undefined);
+        await info.attach("pending-navigation-cleanup", {
+          body: JSON.stringify({
+            heldResponses: {
+              notes: !notesResponseReleased,
+              emergency: !emergencyResponseReleased,
+              inventory: !inventoryResponseReleased,
+            },
+            pageErrors,
+            routesReleased: true,
+          }),
+          contentType: "application/json",
+        });
       }
+      expect(pageErrors).toEqual([]);
     });
   });
   test.describe("parent writes", () => {

@@ -10,6 +10,10 @@ import {
 } from "react";
 
 import { newIdempotencyKey } from "@/lib/idempotency-key";
+import {
+  getPendingFormNavigationBootstrap,
+  type PendingFormNavigationPopStateHandler,
+} from "@/lib/pending-form-navigation-bootstrap";
 
 type HistorySnapshot = {
   url: string;
@@ -126,19 +130,10 @@ export function usePendingFormNavigationController(
     return promise;
   }, [finishRelease]);
 
-  // Keep one window listener for the lifetime of this form. A capture-phase
-  // listener alone cannot outrank Next's earlier window listener because both
-  // listeners run at the Window target; the same-URL sentinel is what keeps
-  // Next on this route until this listener can re-arm it.
-  useEffect(() => {
-    mountedRef.current = true;
-    if (cleanupTimerRef.current !== null) {
-      window.clearTimeout(cleanupTimerRef.current);
-      cleanupTimerRef.current = null;
-    }
-    const onPopState = (event: PopStateEvent) => {
+  const onPopState = useCallback<PendingFormNavigationPopStateHandler>(
+    (event) => {
       const entry = entryRef.current;
-      if (!entry) return;
+      if (!entry) return false;
 
       if (disarmedRef.current) {
         event.preventDefault();
@@ -161,7 +156,7 @@ export function usePendingFormNavigationController(
             restorationTargetRef.current = "base-then-sentinel";
             window.history.forward();
           }
-          return;
+          return true;
         }
         if (consumingRef.current) {
           if (isBaseEntry(entry, event.state)) {
@@ -175,7 +170,7 @@ export function usePendingFormNavigationController(
             restorationTargetRef.current = "base-then-sentinel";
             window.history.forward();
           }
-          return;
+          return true;
         }
         if (ownsEntry(entry, event.state)) {
           consumingRef.current = true;
@@ -186,7 +181,7 @@ export function usePendingFormNavigationController(
           restoringRef.current = true;
           window.history.forward();
         }
-        return;
+        return true;
       }
       if (restoringRef.current) {
         if (ownsEntry(entry, event.state)) {
@@ -206,9 +201,9 @@ export function usePendingFormNavigationController(
         }
         event.preventDefault();
         event.stopImmediatePropagation();
-        return;
+        return true;
       }
-      if (!busyRef.current || ownsEntry(entry, event.state)) return;
+      if (!busyRef.current || ownsEntry(entry, event.state)) return false;
 
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -218,7 +213,21 @@ export function usePendingFormNavigationController(
       restoringRef.current = true;
       restorationTargetRef.current = "sentinel";
       window.history.forward();
-    };
+      return true;
+    },
+    [finishRelease],
+  );
+
+  // Keep the beforeunload warning local to this form. Popstate uses the
+  // document-head dispatcher above, which was installed before Next's router
+  // listener and therefore can stop same-document navigation before it
+  // unmounts the form.
+  useEffect(() => {
+    mountedRef.current = true;
+    if (cleanupTimerRef.current !== null) {
+      window.clearTimeout(cleanupTimerRef.current);
+      cleanupTimerRef.current = null;
+    }
 
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!busyRef.current) return;
@@ -226,13 +235,17 @@ export function usePendingFormNavigationController(
       event.returnValue = "";
     };
 
-    // Keep capture enabled for browser implementations that dispatch window
-    // listeners in phase order; the sentinel handles Next's same-target order.
-    window.addEventListener("popstate", onPopState, true);
+    const bootstrap = getPendingFormNavigationBootstrap();
+    const unregister = bootstrap
+      ? bootstrap.register(onPopState)
+      : (() => {
+          window.addEventListener("popstate", onPopState, true);
+          return () => window.removeEventListener("popstate", onPopState, true);
+        })();
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
       mountedRef.current = false;
-      window.removeEventListener("popstate", onPopState, true);
+      unregister();
       window.removeEventListener("beforeunload", onBeforeUnload);
       // A destination navigation should have awaited release. If an external
       // unmount wins the race, consume only our current same-URL sentinel.
@@ -261,7 +274,7 @@ export function usePendingFormNavigationController(
         finishRelease(false);
       }, 0);
     };
-  }, [finishRelease]);
+  }, [finishRelease, onPopState]);
 
   useEffect(() => {
     if (busy) {
