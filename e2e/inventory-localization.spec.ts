@@ -38,21 +38,38 @@ const api = /\/api\/inventory(?:\?|\/|$)/;
 type RapidBackWindow = Window & {
   __armPendingRapidBack?: () => void;
   __pendingRapidBackPopstates?: () => number;
+  __pendingRapidBackToken?: () => string | null;
+  __pendingRapidBackEvents?: () => Array<{
+    href: string;
+    token: string | null;
+  }>;
 };
 
 async function installRapidBackProbe(page: Page) {
   await page.addInitScript(() => {
     let armed = false;
     let popstates = 0;
+    let events: Array<{ href: string; token: string | null }> = [];
     const target = window as Window & {
       __armPendingRapidBack?: () => void;
       __pendingRapidBackPopstates?: () => number;
+      __pendingRapidBackToken?: () => string | null;
+      __pendingRapidBackEvents?: () => Array<{
+        href: string;
+        token: string | null;
+      }>;
     };
     target.__armPendingRapidBack = () => {
       armed = true;
       popstates = 0;
+      events = [];
     };
     target.__pendingRapidBackPopstates = () => popstates;
+    target.__pendingRapidBackToken = () => {
+      const marker = window.history.state?.__herewovenPendingForm;
+      return typeof marker === "string" ? marker : null;
+    };
+    target.__pendingRapidBackEvents = () => events;
     // Register before the app's controller so the second traversal is queued
     // from the first real popstate while its restoration Forward is pending.
     window.addEventListener(
@@ -60,6 +77,11 @@ async function installRapidBackProbe(page: Page) {
       () => {
         if (!armed) return;
         popstates += 1;
+        const marker = window.history.state?.__herewovenPendingForm;
+        events.push({
+          href: window.location.href,
+          token: typeof marker === "string" ? marker : null,
+        });
         if (popstates === 1) queueMicrotask(() => window.history.back());
       },
       true,
@@ -68,6 +90,12 @@ async function installRapidBackProbe(page: Page) {
 }
 
 async function traverseBackTwice(page: Page, path: RegExp) {
+  const sentinelToken = await page.evaluate(
+    () => (window as RapidBackWindow).__pendingRapidBackToken?.() ?? null,
+  );
+  if (sentinelToken === null) {
+    throw new Error("Pending form sentinel was not installed before Back");
+  }
   await page.evaluate(() => {
     (window as RapidBackWindow).__armPendingRapidBack?.();
     window.history.back();
@@ -80,6 +108,31 @@ async function traverseBackTwice(page: Page, path: RegExp) {
     )
     .toBeGreaterThanOrEqual(2);
   await expect(page).toHaveURL(path);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as RapidBackWindow).__pendingRapidBackToken?.() ?? null,
+      ),
+    )
+    .toBe(sentinelToken);
+  const events = await page.evaluate(
+    () => (window as RapidBackWindow).__pendingRapidBackEvents?.() ?? [],
+  );
+  expect(events.some((event) => event.href !== page.url())).toBe(true);
+  return { sentinelToken, events };
+}
+
+async function consumeSentinelAndVisitPrior(page: Page, sentinelToken: string) {
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as RapidBackWindow).__pendingRapidBackToken?.() ?? null,
+      ),
+    )
+    .toBeNull();
+  expect(sentinelToken).toEqual(expect.any(String));
+  await page.evaluate(() => window.history.back());
+  await expect(page).toHaveURL(/\/dashboard\/?$/);
 }
 function labelPrefix(text: string) {
   return new RegExp("^" + text.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
@@ -464,6 +517,9 @@ test.describe("inventory localization synthetic server", () => {
       let notesPosts = 0;
       let emergencyPosts = 0;
       let inventoryPosts = 0;
+      let notesResponseReleased = false;
+      let emergencyResponseReleased = false;
+      let inventoryResponseReleased = false;
       const notesPending = new Promise<void>((resolve) => {
         releaseNotes = resolve;
       });
@@ -489,6 +545,7 @@ test.describe("inventory localization synthetic server", () => {
           }
           notesPosts += 1;
           await notesPending;
+          notesResponseReleased = true;
           await route.fulfill({
             status: 201,
             json: {
@@ -503,6 +560,7 @@ test.describe("inventory localization synthetic server", () => {
           });
         });
 
+        await page.goto("/dashboard");
         await page.goto("/dashboard/notes");
         await expect(
           page.getByRole("heading", { name: "Notes" }),
@@ -529,10 +587,16 @@ test.describe("inventory localization synthetic server", () => {
         await expect(
           notesDialog.getByRole("button", { name: /Saving/ }),
         ).toBeDisabled();
-        await traverseBackTwice(page, /\/dashboard\/notes$/);
+        const notesHistory = await traverseBackTwice(
+          page,
+          /\/dashboard\/notes$/,
+        );
         await expect(notesDialog).toBeVisible();
+        expect(notesResponseReleased).toBe(false);
         releaseNotes();
         await expect(notesDialog).toHaveCount(0);
+        expect(notesResponseReleased).toBe(true);
+        await consumeSentinelAndVisitPrior(page, notesHistory.sentinelToken);
         completedSurfaces.push("notes");
         await page.unroute("**/api/notes");
 
@@ -572,6 +636,7 @@ test.describe("inventory localization synthetic server", () => {
           }
           emergencyPosts += 1;
           await emergencyPending;
+          emergencyResponseReleased = true;
           await route.fulfill({
             status: 201,
             json: {
@@ -599,6 +664,7 @@ test.describe("inventory localization synthetic server", () => {
           });
         });
 
+        await page.goto("/dashboard");
         await page.goto("/dashboard/emergency");
         await expect(
           page.getByRole("heading", { name: "Emergency Contacts" }),
@@ -615,10 +681,19 @@ test.describe("inventory localization synthetic server", () => {
         await expect(
           emergencyDialog.getByRole("button", { name: /Saving/ }),
         ).toBeDisabled();
-        await traverseBackTwice(page, /\/dashboard\/emergency$/);
+        const emergencyHistory = await traverseBackTwice(
+          page,
+          /\/dashboard\/emergency$/,
+        );
         await expect(emergencyDialog).toBeVisible();
+        expect(emergencyResponseReleased).toBe(false);
         releaseEmergency();
         await expect(emergencyDialog).toHaveCount(0);
+        expect(emergencyResponseReleased).toBe(true);
+        await consumeSentinelAndVisitPrior(
+          page,
+          emergencyHistory.sentinelToken,
+        );
         completedSurfaces.push("emergency");
         await page.unroute("**/api/emergency-contacts");
 
@@ -629,6 +704,7 @@ test.describe("inventory localization synthetic server", () => {
           }
           inventoryPosts += 1;
           await inventoryPending;
+          inventoryResponseReleased = true;
           await route.fulfill({
             status: 201,
             json: {
@@ -648,6 +724,7 @@ test.describe("inventory localization synthetic server", () => {
           });
         });
 
+        await page.goto("/dashboard");
         await page.goto("/dashboard/inventory");
         await expect(
           page.getByRole("heading", { name: msg("en", "title"), exact: true }),
@@ -666,10 +743,19 @@ test.describe("inventory localization synthetic server", () => {
         await expect(
           inventoryDialog.getByRole("button", { name: /Saving/ }),
         ).toBeDisabled();
-        await traverseBackTwice(page, /\/dashboard\/inventory$/);
+        const inventoryHistory = await traverseBackTwice(
+          page,
+          /\/dashboard\/inventory$/,
+        );
         await expect(inventoryDialog).toBeVisible();
+        expect(inventoryResponseReleased).toBe(false);
         releaseInventory();
         await expect(inventoryDialog).toHaveCount(0);
+        expect(inventoryResponseReleased).toBe(true);
+        await consumeSentinelAndVisitPrior(
+          page,
+          inventoryHistory.sentinelToken,
+        );
         completedSurfaces.push("inventory");
 
         await info.attach("pending-navigation-two-back-proof", {
@@ -682,8 +768,13 @@ test.describe("inventory localization synthetic server", () => {
             },
             transport:
               "loopback-only parentA browser session; all mutation responses were fabricated and no database row was created",
-            history:
-              "each held request received two real history.back traversals; the second was queued from the first popstate while sentinel restoration was pending",
+            history: {
+              requirement:
+                "each held request received two real history.back traversals; the second was queued from the first popstate while sentinel restoration was pending",
+              notes: notesHistory.events,
+              emergency: emergencyHistory.events,
+              inventory: inventoryHistory.events,
+            },
           }),
           contentType: "application/json",
         });

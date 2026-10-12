@@ -393,6 +393,8 @@ function EmergencyPageInner() {
   const [previewContact, setPreviewContact] = React.useState<EmergencyContact | null>(null)
   const [editContact, setEditContact] = React.useState<EmergencyContact | null>(null)
   const [saving, setSaving] = React.useState(false)
+  const contactsRevisionRef = React.useRef(0)
+  const contactsReadRef = React.useRef(0)
   // Keep browser Back on this route while a contact mutation is in flight.
   // Dialog dismissal is disabled separately below so Escape/backdrop/close
   // cannot clear the draft before the server answers.
@@ -410,17 +412,23 @@ function EmergencyPageInner() {
   }, [])
 
   const fetchContacts = React.useCallback(async (background = false) => {
+    const readId = ++contactsReadRef.current
+    const revision = contactsRevisionRef.current
+    const isCurrentRead = () =>
+      readId === contactsReadRef.current && revision === contactsRevisionRef.current
     try {
       if (!background) setLoading(true)
       const res = await fetch('/api/emergency-contacts')
       if (!res.ok) throw new Error('Failed to load')
       const data = await res.json()
+      if (!isCurrentRead()) return
       setContacts(data.contacts || [])
       setError(null)
     } catch {
+      if (!isCurrentRead()) return
       setError(t('common.error'))
     } finally {
-      setLoading(false)
+      if (isCurrentRead()) setLoading(false)
     }
   }, [t])
 
@@ -439,6 +447,7 @@ function EmergencyPageInner() {
           body: JSON.stringify(form),
         })
         if (!res.ok) throw new Error('Failed to update')
+        contactsRevisionRef.current += 1
         const edited = editContact
         const data = await res.json().catch(() => null) as { contact?: EmergencyContact } | null
         const updated = data?.contact ?? { ...edited, ...form }
@@ -451,6 +460,7 @@ function EmergencyPageInner() {
           body: JSON.stringify(form),
         })
         if (!res.ok) throw new Error('Failed to create')
+        contactsRevisionRef.current += 1
         const data = await res.json().catch(() => null) as { contact?: EmergencyContact } | null
         if (data?.contact) setContacts((prev) => [data.contact!, ...prev])
       }
@@ -478,6 +488,7 @@ function EmergencyPageInner() {
     try {
       const res = await fetch(`/api/emergency-contacts/${editContact.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
+      contactsRevisionRef.current += 1
       const deletedId = editContact.id
       setContacts((prev) => prev.filter((contact) => contact.id !== deletedId))
       setEditContact(null)
