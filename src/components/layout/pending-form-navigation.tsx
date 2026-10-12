@@ -17,6 +17,15 @@ type HistorySnapshot = {
   token: string;
 };
 
+function sameHistoryState(left: unknown, right: unknown) {
+  if (Object.is(left, right)) return true;
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
+}
+
 export type PendingFormNavigation = {
   releaseBeforeNavigation: () => Promise<boolean>;
 };
@@ -112,7 +121,16 @@ export function usePendingFormNavigationController(
         event.stopImmediatePropagation();
         // Ignore extra base-entry events while our one Forward is queued.
         // Only its marked destination can begin the release traversal.
-        if (restoringRef.current && !ownsEntry(entry, event.state)) return;
+        if (restoringRef.current && !ownsEntry(entry, event.state)) {
+          // A second Back can reach a foreign prior entry before the first
+          // Forward finishes. Popstate is not cancelable, so queue another
+          // Forward to restore our sentinel instead of leaving the form on
+          // that foreign entry and the release promise unresolved.
+          if (!sameHistoryState(event.state, entry.state)) {
+            window.history.forward();
+          }
+          return;
+        }
         restoringRef.current = false;
         if (ownsEntry(entry, event.state)) window.history.back();
         else finishRelease();
@@ -120,6 +138,12 @@ export function usePendingFormNavigationController(
       }
       if (restoringRef.current) {
         if (ownsEntry(entry, event.state)) restoringRef.current = false;
+        else if (!sameHistoryState(event.state, entry.state)) {
+          // The initial Back should report the exact base state. If a rapid
+          // second Back reports an older foreign entry, restore the sentinel
+          // again; ignoring that pop would let the pending form escape.
+          window.history.forward();
+        }
         event.preventDefault();
         event.stopImmediatePropagation();
         return;

@@ -321,6 +321,48 @@ it("serializes release after pending Back restoration before consuming the owned
   }
 });
 
+it("restores the sentinel after two real Back traversals reach a foreign entry", async () => {
+  const original = window.location.href;
+  const priorState = { __NA: true, route: "previous" };
+  const baseState = { __NA: true, route: "form" };
+  window.history.replaceState(priorState, "", "/dashboard/previous");
+  window.history.pushState(baseState, "", "/dashboard/lists/create");
+  function Harness() {
+    usePendingFormNavigationController(true);
+    return null;
+  }
+  const view = render(<Harness />);
+  const sentinelState = window.history.state;
+  const historyForward = jest
+    .spyOn(window.history, "forward")
+    .mockImplementation(() => {});
+  try {
+    await act(async () => {
+      window.history.back();
+    });
+    await waitFor(() => expect(historyForward).toHaveBeenCalledTimes(1));
+
+    // The first forward is still queued. A second real Back reaches the
+    // foreign prior entry; the controller must queue a bounded restoration.
+    await act(async () => {
+      window.history.back();
+    });
+    await waitFor(() => expect(historyForward).toHaveBeenCalledTimes(2));
+
+    // Complete the queued restoration with the owned sentinel event. It must
+    // clear the latch without scheduling an unbounded chain of forwards.
+    window.history.replaceState(sentinelState, "", "/dashboard/lists/create");
+    window.dispatchEvent(
+      new PopStateEvent("popstate", { state: sentinelState }),
+    );
+    expect(historyForward).toHaveBeenCalledTimes(2);
+  } finally {
+    view.unmount();
+    historyForward.mockRestore();
+    window.history.replaceState({}, "", original);
+  }
+});
+
 it("settles release as cancelled when its pop listener is removed by external unmount", async () => {
   const original = window.location.href;
   window.history.replaceState({ __NA: true }, "", "/dashboard/lists/create");
