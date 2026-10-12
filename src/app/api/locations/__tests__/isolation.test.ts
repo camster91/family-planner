@@ -5,7 +5,18 @@ jest.mock("next/server", () => require("@/__tests__/helpers/two-household").next
 jest.mock("next/headers", () => require("@/__tests__/helpers/two-household").nextHeadersMock);
 jest.mock("@/lib/session", () => require("@/__tests__/helpers/two-household").sessionMock);
 jest.mock("@/lib/prisma", () => ({ prisma: require("@/__tests__/helpers/two-household").fakePrisma }));
-jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null }));
+jest.mock("@/lib/feature-gate-server", () => ({
+  featureGate: async (familyId: string) => {
+    const helper = require("@/__tests__/helpers/two-household");
+    const family = helper.db.find("family", familyId);
+    return family?.features?.locations === false
+      ? helper.nextServerMock.NextResponse.json(
+          { error: "This feature is turned off for your family" },
+          { status: 403 },
+        )
+      : null;
+  },
+}));
 
 import * as locations from "../route";
 import * as location from "../[id]/route";
@@ -14,8 +25,8 @@ import { db, FAMILY_A, FAMILY_B, req, params, writesTo, expectDenied, expectNoFo
 describe("locations — two households, parent only", () => {
   beforeEach(() => {
     db.reset();
-    // The route-level gate is mocked so these tests can isolate the private
-    // mutation boundary; the transaction still re-checks the stored flag.
+    // The route-level gate reads the fake household flag, while the
+    // transaction still re-checks it after the membership locks.
     db.find("family", FAMILY_A)!.features = { locations: true };
     db.find("family", FAMILY_B)!.features = { locations: true };
   });
@@ -112,6 +123,42 @@ describe("locations — two households, parent only", () => {
     expect(first.status).toBe(201);
     expect(second.status).toBe(201);
     expect(second.headers.get("Idempotency-Replayed")).toBe("true");
+    expect(writesTo("familyLocation").filter((write) => write.op === "create")).toHaveLength(1);
+  });
+
+  it("does not replay a private address after role or feature state changes", async () => {
+    const key = "locations-create-auth-recheck-20261012";
+    const first = await locations.POST(
+      req({
+        as: "parentA",
+        body: { label: "Private office", address: "99 Exact Street" },
+        headers: { "Idempotency-Key": key },
+      }),
+    );
+    expect(first.status).toBe(201);
+
+    db.find("user", "parent-a")!.role = "teen";
+    const downgraded = await locations.POST(
+      req({
+        as: "parentA",
+        body: { label: "Private office", address: "99 Exact Street" },
+        headers: { "Idempotency-Key": key },
+      }),
+    );
+    expect(downgraded.status).toBe(403);
+    expect(JSON.stringify(await downgraded.json())).not.toContain("99 Exact Street");
+
+    db.find("user", "parent-a")!.role = "parent";
+    db.find("family", FAMILY_A)!.features = { locations: false };
+    const disabled = await locations.POST(
+      req({
+        as: "parentA",
+        body: { label: "Private office", address: "99 Exact Street" },
+        headers: { "Idempotency-Key": key },
+      }),
+    );
+    expect(disabled.status).toBe(403);
+    expect(await disabled.json()).toEqual({ error: "This feature is turned off for your family" });
     expect(writesTo("familyLocation").filter((write) => write.op === "create")).toHaveLength(1);
   });
 

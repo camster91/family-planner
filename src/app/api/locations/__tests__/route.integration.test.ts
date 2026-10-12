@@ -98,6 +98,19 @@ describeWithDatabase("locations POST against PostgreSQL", () => {
     });
   }
 
+  async function waitForAdvisoryWaiter() {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const rows = await db.$queryRaw<Array<{ count: bigint }>>`
+        SELECT COUNT(*)::bigint AS count
+        FROM pg_locks
+        WHERE locktype = 'advisory' AND granted = false
+      `;
+      if (Number(rows[0]?.count ?? 0) > 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    throw new Error("location mutation did not reach the advisory lock waiter");
+  }
+
   beforeAll(async () => {
     // Refuse non-disposable targets before importing the Prisma singleton.
     assertFixtureTargetAllowed(process.env);
@@ -245,6 +258,77 @@ describeWithDatabase("locations POST against PostgreSQL", () => {
       await holder.query("ROLLBACK").catch(() => undefined);
       await holder.end();
       await Promise.allSettled(pending ? [pending] : []);
+      await db.user.update({ where: { id: PARENT }, data: { role: "parent" } });
+    }
+  });
+
+  it("re-reads membership after a waiting PATCH and DELETE lock", async () => {
+    const patchId = "locations-route-patch-role-race-20261012";
+    const deleteId = "locations-route-delete-role-race-20261012";
+    await db.familyLocation.create({
+      data: {
+        id: patchId,
+        family_id: FAMILY,
+        user_id: PARENT,
+        label: "Patch race",
+        address: "4 Main",
+        is_primary: false,
+      },
+    });
+
+    const runWaitingMutation = async (
+      operation: () => Promise<Response>,
+      holder: Client,
+    ) => {
+      await holder.query("BEGIN");
+      await holder.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+        `user-membership:${PARENT}`,
+      ]);
+      const pending = operation();
+      await waitForAdvisoryWaiter();
+      await holder.query('UPDATE "User" SET "role" = $1 WHERE "id" = $2', [
+        "teen",
+        PARENT,
+      ]);
+      await holder.query("COMMIT");
+      return pending;
+    };
+
+    const holder = new Client({ connectionString: process.env.DATABASE_URL });
+    await holder.connect();
+    try {
+      const patched = await runWaitingMutation(
+        () =>
+          location.PATCH(
+            request(PARENT, { label: "Changed", address: "5 Main" }, null),
+            params({ id: patchId }),
+          ),
+        holder,
+      );
+      expect((await patched).status).toBe(403);
+      const unchanged = await db.familyLocation.findUnique({ where: { id: patchId } });
+      expect(unchanged).toMatchObject({ label: "Patch race", address: "4 Main" });
+
+      await db.user.update({ where: { id: PARENT }, data: { role: "parent" } });
+      await db.familyLocation.create({
+        data: {
+          id: deleteId,
+          family_id: FAMILY,
+          user_id: PARENT,
+          label: "Delete race",
+          address: "6 Main",
+          is_primary: false,
+        },
+      });
+      const deleted = await runWaitingMutation(
+        () => location.DELETE(request(PARENT, {}, null), params({ id: deleteId })),
+        holder,
+      );
+      expect((await deleted).status).toBe(403);
+      expect(await db.familyLocation.findUnique({ where: { id: deleteId } })).not.toBeNull();
+    } finally {
+      await holder.query("ROLLBACK").catch(() => undefined);
+      await holder.end();
       await db.user.update({ where: { id: PARENT }, data: { role: "parent" } });
     }
   });

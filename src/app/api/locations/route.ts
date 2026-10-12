@@ -60,6 +60,15 @@ export async function POST(request: NextRequest) {
     if (!user) return locationJson({ error: 'Unauthorized' }, 401)
     if (!user.family_id) return locationJson({ error: 'No family' }, 400)
 
+    // Run live parent and feature checks before idempotency can replay a
+    // stored private response. The transaction below repeats both checks
+    // after taking the canonical membership locks for the first attempt.
+    const gate = await featureGate(user.family_id, 'locations')
+    if (gate) return withLocationNoStore(gate)
+    if (!(await currentParent(user))) {
+      return locationJson({ error: 'Only parents can add locations' }, 403)
+    }
+
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return withLocationNoStore(keyError)
 
