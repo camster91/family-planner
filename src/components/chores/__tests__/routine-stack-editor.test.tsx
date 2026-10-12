@@ -8,12 +8,13 @@ import { toDateOnlyLocal } from "@/lib/dates";
 import RoutineStackEditor from "../RoutineStackEditor";
 
 const back = jest.fn();
+const push = jest.fn();
 const refresh = jest.fn();
 let searchParams = new URLSearchParams();
 const fetchMock = jest.fn();
 
 jest.mock("next/navigation", () => ({
-  useRouter: () => ({ back, refresh }),
+  useRouter: () => ({ back, push, refresh }),
   useSearchParams: () => searchParams,
 }));
 
@@ -159,6 +160,7 @@ beforeEach(() => {
   // date equally explicit so midnight on the runner cannot invalidate them.
   searchParams = new URLSearchParams("occurrence_date=2026-10-11");
   back.mockReset();
+  push.mockReset();
   refresh.mockReset();
   fetchMock.mockReset();
   global.fetch = fetchMock;
@@ -299,7 +301,7 @@ it("resets stale history ownership when the same editor instance loads a new occ
   await user.click(screen.getByRole("button", { name: "Cancel" }));
   expect(screen.getByRole("alertdialog")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Discard changes" }));
-  await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
   view.unmount();
 });
 
@@ -375,7 +377,7 @@ it("stages an existing chore and a new step, then sends one atomic draft", async
     ],
   });
   expect(refresh).toHaveBeenCalled();
-  await waitFor(() => expect(back).toHaveBeenCalled());
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
 });
 
 it("requires a discard confirmation before reloading after a definitive conflict", async () => {
@@ -541,7 +543,7 @@ it("retries malformed success with the same immutable bytes and key", async () =
   expect(posts[0].init?.headers).toEqual(posts[1].init?.headers);
   expect(posts[0].init?.body).toBe(posts[1].init?.body);
   expect(refresh).toHaveBeenCalled();
-  await waitFor(() => expect(back).toHaveBeenCalled());
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
 });
 
 it("treats an in-flight idempotency 409 as uncertain and retries the same packet", async () => {
@@ -578,7 +580,7 @@ it("treats an in-flight idempotency 409 as uncertain and retries the same packet
   expect(posts[0].init?.headers).toEqual(posts[1].init?.headers);
   expect(posts[0].init?.body).toBe(posts[1].init?.body);
   expect(refresh).toHaveBeenCalled();
-  await waitFor(() => expect(back).toHaveBeenCalled());
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
 });
 
 it("asks before discarding dirty edits and restores the draft when kept", async () => {
@@ -600,7 +602,7 @@ it("asks before discarding dirty edits and restores the draft when kept", async 
   expect(screen.getByDisplayValue("Family reset")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Cancel" }));
   await user.click(screen.getByRole("button", { name: "Discard changes" }));
-  await waitFor(() => expect(back).toHaveBeenCalled());
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
 });
 
 it("treats malformed candidate responses as load errors instead of an empty draft", async () => {

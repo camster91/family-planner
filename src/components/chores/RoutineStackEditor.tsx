@@ -42,6 +42,7 @@ type RoutineStackEditorProps = {
   onClose?: () => void;
 };
 
+const ROUTINE_EDITOR_RETURN_PATH = "/dashboard/chores";
 const ROUTINE_HISTORY_MARKER = "__familyPlannerRoutineStackEditor";
 
 type RoutineHistoryEntry = {
@@ -505,7 +506,7 @@ export default function RoutineStackEditor({
   const navigateAway = React.useCallback(() => {
     const finish = () => {
       if (onClose) onClose();
-      else router.back();
+      else router.push(ROUTINE_EDITOR_RETURN_PATH);
     };
     if (leaveWithHistorySentinel(finish)) return;
     finish();
