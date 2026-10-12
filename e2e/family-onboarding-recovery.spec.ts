@@ -242,6 +242,11 @@ async function createFamily(
   path: "/dashboard" | "/dashboard/family/create",
   family: string,
 ): Promise<void> {
+  // loginViaUi submits the real form but intentionally leaves navigation
+  // synchronization to the journey. Wait for the authenticated landing page
+  // before replacing it with either onboarding entry point; otherwise a fast
+  // goto can race the login response and leave the page on /login.
+  await page.waitForURL(/\/dashboard$/);
   await page.goto(path);
   await expect(
     page.getByRole("heading", { name: "Welcome to Herewoven" }),
