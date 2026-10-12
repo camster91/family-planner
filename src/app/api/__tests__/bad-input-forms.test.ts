@@ -21,7 +21,7 @@ import * as wish from "../wishlist/[id]/route";
 import * as notifications from "../notifications/route";
 import * as contacts from "../emergency-contacts/route";
 import * as contact from "../emergency-contacts/[id]/route";
-import { db, req, params, bodyOf, writesTo, fakePrisma } from "@/__tests__/helpers/two-household";
+import { db, FAMILY_A, req, params, bodyOf, writesTo, fakePrisma } from "@/__tests__/helpers/two-household";
 
 async function expect400(res: any) {
   expect(res.status).toBe(400);
@@ -143,6 +143,13 @@ describe("POST /api/meals and PATCH /api/meals/[id]", () => {
 });
 
 describe("POST /api/locations", () => {
+  beforeEach(() => {
+    // The locked writer rechecks the live family feature after taking the
+    // membership locks, so this validation fixture must represent an enabled
+    // Locations family rather than relying on the route-level gate mock.
+    db.find("family", FAMILY_A)!.features = { locations: true };
+  });
+
   it.each([[null], [{}], [{ label: 5 }], [{ label: ["Home"] }], [{ label: "   " }], [{ label: "Gym", address: 12 }]])(
     "%p is 400",
     async (body) => {
