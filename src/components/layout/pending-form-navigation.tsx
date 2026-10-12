@@ -75,6 +75,7 @@ export function usePendingFormNavigationController(
   const entryRef = useRef<HistorySnapshot | null>(null);
   const releasePromiseRef = useRef<Promise<boolean> | null>(null);
   const releaseResolveRef = useRef<((allowed: boolean) => void) | null>(null);
+  const releaseStartedWhileBusyRef = useRef(false);
   const disarmedRef = useRef(false);
   const restoringRef = useRef(false);
   const restorationTargetRef = useRef<RestorationTarget>(null);
@@ -84,6 +85,7 @@ export function usePendingFormNavigationController(
   busyRef.current = busy;
 
   const finishRelease = useCallback((allowed = true) => {
+    const entry = entryRef.current;
     entryRef.current = null;
     disarmedRef.current = false;
     restoringRef.current = false;
@@ -92,6 +94,34 @@ export function usePendingFormNavigationController(
     const resolve = releaseResolveRef.current;
     releaseResolveRef.current = null;
     releasePromiseRef.current = null;
+    const releaseStartedWhileBusy = releaseStartedWhileBusyRef.current;
+    releaseStartedWhileBusyRef.current = false;
+
+    // A failed request can be retried while its automatic release traversal
+    // is still in flight. Re-arm against the exact base entry only after that
+    // traversal settles; never push into a foreign or newer owner's entry.
+    if (
+      allowed &&
+      mountedRef.current &&
+      busyRef.current &&
+      !releaseStartedWhileBusy &&
+      entry &&
+      isBaseEntry(entry)
+    ) {
+      const state = window.history.state;
+      const nextEntry = {
+        url: window.location.href,
+        state,
+        token: newIdempotencyKey(),
+      };
+      window.history.pushState(
+        { ...state, [SENTINEL_KEY]: nextEntry.token },
+        "",
+        nextEntry.url,
+      );
+      entryRef.current = nextEntry;
+    }
+
     resolve?.(allowed);
   }, []);
 
@@ -101,6 +131,7 @@ export function usePendingFormNavigationController(
     if (!entry) return Promise.resolve(true);
     if (releasePromiseRef.current) return releasePromiseRef.current;
 
+    releaseStartedWhileBusyRef.current = busyRef.current;
     disarmedRef.current = true;
     releasePromiseRef.current = new Promise<boolean>((resolve) => {
       releaseResolveRef.current = resolve;
