@@ -964,10 +964,12 @@ test.describe("capture receipt recovery", () => {
       ).toBeVisible();
       await page.getByRole("button", { name: "Add it", exact: true }).click();
       await expect(
-        page.getByText(
-          "Saved recovery storage is unavailable. Nothing was sent. Try again when storage is available.",
-          { exact: true },
-        ).first(),
+        page
+          .getByText(
+            "Saved recovery storage is unavailable. Nothing was sent. Try again when storage is available.",
+            { exact: true },
+          )
+          .first(),
       ).toBeVisible();
       await expect(
         page.getByText("Storage boundary event", { exact: true }).first(),
@@ -1050,21 +1052,27 @@ test.describe("capture receipt recovery", () => {
       await page.goto("/dashboard/calendar");
       await captureReady;
       await openCaptureSheet(page);
-      await page.getByRole("textbox", {
-        name: "What would you like to add?",
-      }).fill("milk");
+      await page
+        .getByRole("textbox", {
+          name: "What would you like to add?",
+        })
+        .fill("milk");
       await page.getByRole("button", { name: "Read it", exact: true }).click();
       await expect(
         page.getByRole("button", { name: "Add it", exact: true }),
       ).toBeVisible();
       await page.getByRole("button", { name: "Add it", exact: true }).click();
       await expect(
-        page.getByText(
-          "Saved recovery storage is unavailable. Nothing was sent. Try again when storage is available.",
-          { exact: true },
-        ).first(),
+        page
+          .getByText(
+            "Saved recovery storage is unavailable. Nothing was sent. Try again when storage is available.",
+            { exact: true },
+          )
+          .first(),
       ).toBeVisible();
-      await expect(page.getByText("Milk", { exact: true }).first()).toBeVisible();
+      await expect(
+        page.getByText("Milk", { exact: true }).first(),
+      ).toBeVisible();
       await expect(
         page.getByRole("button", { name: "Retry storage", exact: true }),
       ).toBeVisible();
@@ -1092,7 +1100,8 @@ test.describe("capture receipt recovery", () => {
     await page.addInitScript((activeKey) => {
       const originalGetItem = Storage.prototype.getItem;
       Storage.prototype.getItem = function (key: string) {
-        if (key === activeKey) throw new DOMException("private mode", "SecurityError");
+        if (key === activeKey)
+          throw new DOMException("private mode", "SecurityError");
         return originalGetItem.call(this, key);
       };
     }, "family-planner:capture-recovery:v1:active");
@@ -1127,6 +1136,81 @@ test.describe("capture receipt recovery", () => {
       await page.unroute("**/api/capture");
     }
   });
+
+  for (const refusalStatus of [401, 403] as const) {
+    test(
+      "confirmed event refusal " + refusalStatus + " purges recovery",
+      async ({ page, context, baseURL }, info) => {
+        test.skip(
+          !PROJECT_NAMES.has(info.project.name),
+          "Capture recovery boundaries run at the six representative responsive sizes",
+        );
+        assertFixtureAndLoopback(baseURL);
+        await installLoopbackNetworkGuard(context);
+
+        await page.goto("/dashboard");
+        const fixture = await fixtureIdentity(page);
+        const { captureReady } = await installCaptureTransport(
+          page,
+          fixture.userId,
+          fixture.familyId,
+          "Browser auth boundary event",
+        );
+        const storageKey = captureRecoveryStorageKey(
+          fixture.userId,
+          fixture.familyId,
+        );
+        let eventPostCount = 0;
+        await page.route("**/api/events", async (route) => {
+          if (route.request().method() === "POST") {
+            eventPostCount += 1;
+            await route.fulfill({ status: refusalStatus, body: "" });
+            return;
+          }
+          await route.continue();
+        });
+
+        try {
+          await page.goto("/dashboard/calendar");
+          await captureReady;
+          await openCaptureSheet(page);
+          await page
+            .getByRole("textbox", {
+              name: "What would you like to add?",
+            })
+            .fill("browser auth boundary");
+          await page
+            .getByRole("button", { name: "Read it", exact: true })
+            .click();
+          await expect(
+            page.getByRole("button", { name: "Add it", exact: true }),
+          ).toBeVisible();
+          await page
+            .getByRole("button", { name: "Add it", exact: true })
+            .click();
+          await expect(
+            page.getByText(
+              "Capture recovery is unavailable until access and storage are revalidated. Nothing was sent.",
+              { exact: true },
+            ),
+          ).toBeVisible();
+          expect(eventPostCount).toBe(1);
+          expect(
+            await page.getByRole("button", { name: /Retry/ }).count(),
+          ).toBe(0);
+          expect(
+            await page.evaluate(
+              (key) => window.localStorage.getItem(key),
+              storageKey,
+            ),
+          ).toBeNull();
+        } finally {
+          await page.unroute("**/api/events");
+          await page.unroute("**/api/capture");
+        }
+      },
+    );
+  }
 
   test("forbidden capture role purges recovery and exposes no retry", async ({
     page,
