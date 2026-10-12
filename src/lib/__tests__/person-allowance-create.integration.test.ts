@@ -52,28 +52,36 @@ describeWithDatabase("person allowance create replay integrity", () => {
     during: () => Promise<T>,
     deletionSql: Array<[string, unknown[]]>,
   ): Promise<T> {
-    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    const client = new pg.Client({
+      connectionString: process.env.DATABASE_URL,
+    });
     await client.connect();
     let inTransaction = false;
     try {
       await client.query("BEGIN");
       inTransaction = true;
-      await client.query(
-        "SELECT pg_advisory_xact_lock(hashtext($1))",
-        [lockKey],
-      );
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+        lockKey,
+      ]);
       const pending = during();
-      let settled = false;
-      pending.then(
-        () => {
-          settled = true;
-        },
-        () => {
-          settled = true;
-        },
-      );
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      expect(settled).toBe(false);
+      pending.catch(() => undefined);
+      const deadline = Date.now() + 5_000;
+      let waiting = false;
+      while (Date.now() < deadline) {
+        const result = await client.query<{ waiting: string }>(`
+          SELECT count(*)::text AS waiting
+          FROM pg_stat_activity
+          WHERE pid <> pg_backend_pid()
+            AND wait_event_type = 'Lock'
+            AND query LIKE '%pg_advisory_xact_lock%'
+        `);
+        if (Number(result.rows[0]?.waiting) > 0) {
+          waiting = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(waiting).toBe(true);
       for (const [query, params] of deletionSql) {
         await client.query(query, params);
       }
@@ -118,18 +126,7 @@ describeWithDatabase("person allowance create replay integrity", () => {
     });
   }
 
-  beforeAll(async () => {
-    assertFixtureTargetAllowed(process.env);
-    const prisma = await import("@/lib/prisma");
-    if (!prisma.prisma)
-      throw new Error("Integration database is not configured");
-    db = prisma.prisma;
-    create = (await import("@/lib/person-allowance-create"))
-      .createPersonAllowance;
-    idem = await import("@/lib/idempotency");
-    priorRandom = idem.idempotencyRuntime.random;
-    idem.idempotencyRuntime.random = () => 0.99;
-    await cleanup();
+  async function seed() {
     await db.family.createMany({
       data: [
         {
@@ -176,15 +173,25 @@ describeWithDatabase("person allowance create replay integrity", () => {
         },
       ],
     });
+  }
+
+  beforeAll(async () => {
+    assertFixtureTargetAllowed(process.env);
+    const prisma = await import("@/lib/prisma");
+    if (!prisma.prisma)
+      throw new Error("Integration database is not configured");
+    db = prisma.prisma;
+    create = (await import("@/lib/person-allowance-create"))
+      .createPersonAllowance;
+    idem = await import("@/lib/idempotency");
+    priorRandom = idem.idempotencyRuntime.random;
+    idem.idempotencyRuntime.random = () => 0.99;
+    await cleanup();
   });
 
   beforeEach(async () => {
-    await db.idempotencyRecord.deleteMany({
-      where: { family_id: { in: [FAMILY, OTHER_FAMILY] } },
-    });
-    await db.allowance.deleteMany({
-      where: { family_id: { in: [FAMILY, OTHER_FAMILY] } },
-    });
+    await cleanup();
+    await seed();
   });
 
   afterAll(async () => {
