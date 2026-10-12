@@ -122,6 +122,7 @@ describeWithDatabase('recurring chore series against Postgres', () => {
            FROM pg_stat_activity AS a
           WHERE a.pid <> $1
             AND a.wait_event_type = 'Lock'
+            AND a.wait_event IN ('advisory', 'advisory_xact')
             AND $1 = ANY (pg_blocking_pids(a.pid))
             AND a.query LIKE '%pg_advisory_xact_lock%'`,
         [holderPid],
@@ -139,19 +140,40 @@ describeWithDatabase('recurring chore series against Postgres', () => {
     expectedWaiters = 1,
   ): Promise<T> {
     const client = new pg.Client({ connectionString: process.env.DATABASE_URL })
-    await client.connect()
+    let observer: pg.Client | null = null
+    let pending: Promise<T> | undefined
+    let inTransaction = false
+    let committed = false
     try {
+      await client.connect()
       await client.query('BEGIN')
+      inTransaction = true
       const { rows } = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
       const holderPid = Number(rows[0].pid)
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey])
-      const pending = during()
-      await waitForAdvisoryBlockers(client, holderPid, expectedWaiters)
+      // pg_stat_activity is observed from a separate autocommit session. The
+      // holder's transaction can otherwise retain an old catalog snapshot and
+      // miss a waiter that started after BEGIN.
+      observer = new pg.Client({ connectionString: process.env.DATABASE_URL })
+      await observer.connect()
+      pending = during()
+      await waitForAdvisoryBlockers(observer, holderPid, expectedWaiters)
       await beforeCommit()
       await client.query('COMMIT')
+      committed = true
+      inTransaction = false
       return await pending
+    } catch (error) {
+      // Release the holder before awaiting blocked work so every operation
+      // started by `during` can settle before either connection is torn down.
+      if (inTransaction && !committed) {
+        await client.query('ROLLBACK').catch(() => undefined)
+      }
+      if (pending) await Promise.allSettled([pending])
+      throw error
     } finally {
-      await client.end()
+      await observer?.end().catch(() => undefined)
+      await client.end().catch(() => undefined)
     }
   }
 
@@ -448,10 +470,22 @@ describeWithDatabase('recurring chore series against Postgres', () => {
     await weeklyTemplate('rsint-delete-race', FAM, PARENT, day('2026-10-05'))
     const results = await holdThen<[Response, number]>(
       locks.householdLockKey(FAM),
-      async () => Promise.all([
-        route.DELETE(del({ choreId: 'rsint-delete-race' })),
-        recurring.expandRecurringChores({ id: 'rsint-delete-race', frequency: 'weekly' }, FAM, NOW0),
-      ]) as Promise<[Response, number]>,
+      async () => {
+        // Keep the pending operation alive until both lock waiters have
+        // settled. If one rejects first, Promise.all would let the helper tear
+        // down its database clients while the other request was still able to
+        // write after cleanup.
+        const settled = await Promise.allSettled([
+          route.DELETE(del({ choreId: 'rsint-delete-race' })),
+          recurring.expandRecurringChores({ id: 'rsint-delete-race', frequency: 'weekly' }, FAM, NOW0),
+        ])
+        const rejected = settled.find((result) => result.status === 'rejected')
+        if (rejected?.status === 'rejected') throw rejected.reason
+        return [
+          (settled[0] as PromiseFulfilledResult<Response>).value,
+          (settled[1] as PromiseFulfilledResult<number>).value,
+        ]
+      },
       async () => undefined,
       2,
     )

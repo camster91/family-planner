@@ -25,6 +25,7 @@ import { useLocalNow } from "@/components/ui/use-hydrated";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { cn } from "@/lib/utils";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
+import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { useChoreVerificationText } from "@/i18n/chore-verification";
 import {
   choreFormMessages,
@@ -224,6 +225,11 @@ export default function ChoresContent({
     notFound: boolean;
     pending: boolean;
   } | null>(null);
+  // Keep the destructive confirmation on the current route while the DELETE
+  // or its explicit recovery readback is pending. The shared controller owns
+  // the browser Back sentinel and prevents a stale page transition from
+  // unmounting this dialog before the request settles.
+  usePendingFormNavigationController(Boolean(deleteDialog?.pending));
 
   const scheduleVerificationFallback = React.useCallback(() => {
     window.setTimeout(() => {
