@@ -36,6 +36,7 @@ const projects = [
 const api = /\/api\/inventory(?:\?|\/|$)/;
 
 type RapidBackWindow = Window & {
+  __pendingNavigationDocument?: string;
   __armPendingRapidBack?: () => void;
   __pendingRapidBackPopstates?: () => number;
   __pendingRapidBackToken?: () => string | null;
@@ -47,6 +48,9 @@ type RapidBackWindow = Window & {
 
 async function installRapidBackProbe(page: Page) {
   await page.addInitScript(() => {
+    (window as RapidBackWindow).__pendingNavigationDocument = String(
+      performance.timeOrigin,
+    );
     let armed = false;
     let popstates = 0;
     let events: Array<{ href: string; token: string | null }> = [];
@@ -90,6 +94,9 @@ async function installRapidBackProbe(page: Page) {
 }
 
 async function traverseBackTwice(page: Page, path: RegExp) {
+  const documentId = await page.evaluate(
+    () => (window as RapidBackWindow).__pendingNavigationDocument,
+  );
   const sentinelToken = await page.evaluate(
     () => (window as RapidBackWindow).__pendingRapidBackToken?.() ?? null,
   );
@@ -108,6 +115,11 @@ async function traverseBackTwice(page: Page, path: RegExp) {
     )
     .toBeGreaterThanOrEqual(2);
   await expect(page).toHaveURL(path);
+  expect(
+    await page.evaluate(
+      () => (window as RapidBackWindow).__pendingNavigationDocument,
+    ),
+  ).toBe(documentId);
   await expect
     .poll(() =>
       page.evaluate(
@@ -142,10 +154,24 @@ async function consumeSentinelAndVisitPrior(
 
 async function openPendingSurfaceFromExplore(page: Page, surface: string) {
   await page.goto("/dashboard/family/more");
+  const documentId = await page.evaluate(
+    () => (window as RapidBackWindow).__pendingNavigationDocument,
+  );
+  const menu = page.getByRole("button", { name: "User menu", exact: true });
+  await menu.click();
+  await expect(
+    page.locator("nav").getByRole("link", { name: "Explore", exact: true }),
+  ).toBeVisible();
+  await menu.click();
   const link = page.locator(`a[href="/dashboard/${surface}"]`);
   await expect(link).toBeVisible();
   await link.click();
   await expect(page).toHaveURL(new RegExp(`/dashboard/${surface}$`));
+  expect(
+    await page.evaluate(
+      () => (window as RapidBackWindow).__pendingNavigationDocument,
+    ),
+  ).toBe(documentId);
 }
 function labelPrefix(text: string) {
   return new RegExp("^" + text.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
