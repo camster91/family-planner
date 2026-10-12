@@ -246,6 +246,63 @@ it("cancels a pending sentinel release when an unrelated SPA destination wins", 
   expect(back).not.toHaveBeenCalled();
 });
 
+it("resets stale history ownership when the same editor instance loads a new occurrence", async () => {
+  const nextCandidates = {
+    ...candidates,
+    occurrence_date: "2026-10-12",
+    candidates: candidates.candidates.map((candidate) => ({
+      ...candidate,
+      due_date: "2026-10-12T00:00:00.000Z",
+    })),
+  };
+  let candidateCalls = 0;
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) {
+      candidateCalls += 1;
+      return response(url.includes("2026-10-12") ? nextCandidates : candidates);
+    }
+    return response(saveResponse);
+  });
+  const user = userEvent.setup();
+  window.history.replaceState(
+    { routineTest: "old-occurrence" },
+    "",
+    "/dashboard/chores/routines?occurrence_date=2026-10-11",
+  );
+  const view = renderEditor();
+  await screen.findByText("Pack lunches");
+  await user.type(screen.getByLabelText("Routine name"), "Old draft");
+  expect(window.history.state).toEqual(
+    expect.objectContaining({ __familyPlannerRoutineStackEditor: expect.any(String) }),
+  );
+
+  searchParams = new URLSearchParams("occurrence_date=2026-10-12");
+  window.history.pushState(
+    { routineTest: "new-occurrence" },
+    "",
+    "/dashboard/chores/routines?occurrence_date=2026-10-12",
+  );
+  view.rerender(
+    <I18nProvider>
+      <RoutineStackEditor familyId="family-a" mode="page" />
+    </I18nProvider>,
+  );
+  await waitFor(() => expect(candidateCalls).toBe(2));
+  await waitFor(() =>
+    expect(window.history.state).toEqual({ routineTest: "new-occurrence" }),
+  );
+
+  const freshLabel = screen.getByLabelText("Routine name");
+  await user.clear(freshLabel);
+  await user.type(freshLabel, "Fresh draft");
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.getByRole("alertdialog")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Discard changes" }));
+  await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
+  view.unmount();
+});
+
 it("keeps browser Back blocked while a save is pending", async () => {
   let releaseSave!: (value: unknown) => void;
   fetchMock.mockImplementation((input: RequestInfo | URL) => {

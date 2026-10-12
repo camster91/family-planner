@@ -66,6 +66,14 @@ function historyStateKey(value: unknown): string {
   }
 }
 
+function ownsCurrentHistoryEntry(entry: RoutineHistoryEntry): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    window.location.href === entry.url &&
+    historyStateKey(window.history.state) === historyStateKey(entry.sentinelState)
+  );
+}
+
 class RoutineEditorRequestError extends Error {
   readonly status: number;
   readonly code: string | undefined;
@@ -437,11 +445,7 @@ export default function RoutineStackEditor({
   const retireHistoryEntry = React.useCallback(
     (entry: RoutineHistoryEntry) => {
       if (typeof window !== "undefined") {
-        const currentState = stateRecord(window.history.state);
-        const ownsCurrentEntry =
-          window.location.href === entry.url &&
-          currentState[ROUTINE_HISTORY_MARKER] === entry.token;
-        if (ownsCurrentEntry) {
+        if (ownsCurrentHistoryEntry(entry)) {
           // Retire only our duplicate entry. The exact state captured from
           // Next is restored in place, so an unrelated SPA destination is
           // never consumed by a cleanup path.
@@ -466,15 +470,22 @@ export default function RoutineStackEditor({
     return true;
   }, [retireHistoryEntry]);
 
+  const resetHistoryOwnership = React.useCallback(() => {
+    const pendingRelease = releasingHistoryRef.current;
+    const activeEntry = historyEntryRef.current;
+    if (pendingRelease) retireHistoryEntry(pendingRelease);
+    if (activeEntry) retireHistoryEntry(activeEntry);
+    // Resetting a preserved editor instance must also cancel a callback that
+    // belonged to the previous query, even when its history pop has not fired.
+    releasingHistoryRef.current = null;
+    afterHistoryReleaseRef.current = null;
+  }, [retireHistoryEntry]);
+
   const leaveWithHistorySentinel = React.useCallback(
     (afterRelease: () => void) => {
       const entry = historyEntryRef.current;
       if (!entry || typeof window === "undefined") return false;
-      const currentState = stateRecord(window.history.state);
-      const ownsCurrentEntry =
-        window.location.href === entry.url &&
-        currentState[ROUTINE_HISTORY_MARKER] === entry.token;
-      if (!ownsCurrentEntry) {
+      if (!ownsCurrentHistoryEntry(entry)) {
         // The form may still be mounted briefly while another SPA transition
         // has already changed the destination. Do not call history.back() and
         // take the user away from that destination.
@@ -583,6 +594,7 @@ export default function RoutineStackEditor({
     setSaveError(null);
     setSubmissionState(null);
     idempotencyKeyRef.current = null;
+    resetHistoryOwnership();
     clearDirty();
     setNextCursor(null);
     setCandidates([]);
@@ -685,6 +697,7 @@ export default function RoutineStackEditor({
     occurrenceDate,
     reloadVersion,
     requestedStackId,
+    resetHistoryOwnership,
     setSubmissionState,
   ]);
 
