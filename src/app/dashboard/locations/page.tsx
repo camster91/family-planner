@@ -24,6 +24,26 @@ interface Location {
   user_avatar?: string | null
 }
 
+function isLocation(value: unknown): value is Location {
+  if (!value || typeof value !== 'object') return false
+  const location = value as Record<string, unknown>
+  return (
+    typeof location.id === 'string' &&
+    typeof location.label === 'string' &&
+    typeof location.user_id === 'string' &&
+    (location.address === undefined || location.address === null || typeof location.address === 'string') &&
+    (location.is_primary === undefined || typeof location.is_primary === 'boolean') &&
+    (location.user_name === undefined || typeof location.user_name === 'string') &&
+    (location.user_avatar === undefined || location.user_avatar === null || typeof location.user_avatar === 'string')
+  )
+}
+
+function parseLocationsResponse(value: unknown): Location[] | null {
+  if (!value || typeof value !== 'object') return null
+  const locations = (value as { locations?: unknown }).locations
+  return Array.isArray(locations) && locations.every(isLocation) ? locations : null
+}
+
 const ICON_FOR_LABEL: Record<string, any> = {
   Home: Home,
   Work: Briefcase,
@@ -41,6 +61,7 @@ export default function LocationsPage() {
 function LocationsPageInner() {
   const [locations, setLocations] = React.useState<Location[]>([])
   const [loading, setLoading] = React.useState(true)
+  const [loadError, setLoadError] = React.useState(false)
   const [adding, setAdding] = React.useState(false)
   const [newLabel, setNewLabel] = React.useState('Home')
   const [newAddress, setNewAddress] = React.useState('')
@@ -70,12 +91,20 @@ function LocationsPageInner() {
     try {
       const res = await fetch('/api/locations', { cache: 'no-store' })
       if (res.ok) {
-        const data = await res.json()
-        setLocations(data.locations || [])
+        const data = await res.json().catch(() => null)
+        const nextLocations = parseLocationsResponse(data)
+        if (!nextLocations) {
+          setLoadError(true)
+          return
+        }
+        setLocations(nextLocations)
+        setLoadError(false)
       } else {
+        setLoadError(true)
         await failed("Couldn't load locations", res)
       }
     } catch {
+      setLoadError(true)
       await failed("Couldn't load locations")
     } finally {
       setLoading(false)
@@ -217,7 +246,24 @@ function LocationsPageInner() {
         </form>
       )}
 
-      {loading ? (
+      {loadError && !loading && (
+        <div data-testid="locations-load-error" role="alert" className="card-apple flex flex-wrap items-center justify-between gap-3 p-4">
+          <div>
+            <p className="text-body font-semibold text-label-primary">{locationText('loadErrorTitle')}</p>
+            <p className="text-footnote text-label-secondary">{locationText('loadErrorDescription')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="btn-tinted min-h-[44px] min-w-[44px]"
+          >
+            {loading ? locationText('refreshing') : locationText('retry')}
+          </button>
+        </div>
+      )}
+
+      {loading && locations.length === 0 ? (
         <div className="list-inset">
           {[1, 2, 3].map((i) => (
             <div key={i} className="row-apple border-b border-[var(--surface-separator)] last:border-b-0">
@@ -229,7 +275,7 @@ function LocationsPageInner() {
             </div>
           ))}
         </div>
-      ) : locations.length === 0 ? (
+      ) : !loadError && locations.length === 0 ? (
         <EmptyState
           icon={MapPin}
           glyphColor="calendar"

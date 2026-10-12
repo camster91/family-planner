@@ -38,6 +38,41 @@ describe('/dashboard/locations', () => {
     expect(document.body.textContent).not.toMatch(/attach them/i)
   })
 
+  it('shows a localized retry instead of a false empty state after the initial load fails', async () => {
+    const user = userEvent.setup()
+    global.fetch = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ locations: [{ id: 'l1', label: 'School', address: null, user_id: 'u1' }] }),
+      }) as unknown as typeof fetch
+    renderPage('es')
+
+    const recovery = await screen.findByTestId('locations-load-error')
+    expect(recovery).toHaveTextContent('No se pudieron cargar los lugares')
+    expect(screen.queryByText('No locations yet')).not.toBeInTheDocument()
+    const retry = screen.getByRole('button', { name: 'Intentar de nuevo' })
+    expect(retry.className).toContain('min-h-[44px]')
+
+    await user.click(retry)
+    expect(await screen.findByRole('button', { name: 'Quitar School' })).toBeInTheDocument()
+    expect(screen.queryByTestId('locations-load-error')).not.toBeInTheDocument()
+  })
+
+  it('rejects a malformed successful response without showing a false empty state', async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ locations: [{ id: 'l1', label: 'School' }] }),
+    })) as unknown as typeof fetch
+    renderPage()
+
+    expect(await screen.findByTestId('locations-load-error')).toHaveTextContent("Couldn't load locations")
+    expect(screen.queryByText('No locations yet')).not.toBeInTheDocument()
+  })
+
   it('labels the form fields and uses 44px buttons', async () => {
     const user = userEvent.setup()
     mockFetch([{ id: 'l1', label: 'School', address: '1 Main St', user_id: 'u1' }])
