@@ -620,12 +620,8 @@ for (const locale of LOCALES) {
           .locator("section")
           .filter({ hasText: fixture.label })
           .first();
-        await expect(routineCard).toContainText(
-          `QA parent ${fixture.prefix}`,
-        );
-        await expect(routineCard).toContainText(
-          `QA child ${fixture.prefix}`,
-        );
+        await expect(routineCard).toContainText(`QA parent ${fixture.prefix}`);
+        await expect(routineCard).toContainText(`QA child ${fixture.prefix}`);
         const addStepLink = routineCard
           .getByRole("link", { name: /Add step|Añadir paso/ })
           .first();
@@ -797,6 +793,22 @@ for (const locale of LOCALES) {
           .getByRole("button", { name: copy[locale].keepEditing, exact: true })
           .click();
         await expect(label).toHaveValue(fixture.label);
+        // Native History API updates preserve this editor instance. Assert the
+        // new query retires the old draft guard and allows fresh cancellation.
+        await page.getByTestId("routine-stack-editor").evaluate((editor) => {
+          editor.setAttribute("data-query-reset-proof", "preserved");
+          const nextUrl = new URL(window.location.href);
+          nextUrl.searchParams.set("occurrence_date", "2026-01-06");
+          window.history.replaceState(null, "", nextUrl);
+        });
+        await expect(label).toHaveValue(
+          locale === "es" ? "Nueva rutina" : "New routine",
+        );
+        await expect(page.getByTestId("routine-stack-editor")).toHaveAttribute(
+          "data-query-reset-proof",
+          "preserved",
+        );
+        await label.fill(fixture.label);
         await page
           .getByRole("button", { name: copy[locale].cancel, exact: true })
           .click();
@@ -813,7 +825,6 @@ for (const locale of LOCALES) {
           .getByRole("alertdialog")
           .getByRole("button", { name: copy[locale].discard, exact: true })
           .click();
-        await page.goto("/dashboard/chores");
         await expectChoreListView(page);
         await page
           .getByRole("button", { name: "Routines", exact: true })
@@ -844,6 +855,15 @@ for (const locale of LOCALES) {
         await expect(sheet.getByLabel(copy[locale].label)).toHaveValue(
           fixture.label,
         );
+        await sheet
+          .getByRole("button", { name: copy[locale].close, exact: true })
+          .click();
+        await page
+          .getByRole("alertdialog")
+          .getByRole("button", { name: copy[locale].discard, exact: true })
+          .click();
+        await expect(sheet).not.toBeVisible();
+        await expectChoreListView(page);
         expect(writes).toBe(0);
       } finally {
         await cleanupFixture(fixture);
