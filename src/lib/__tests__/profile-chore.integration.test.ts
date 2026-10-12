@@ -245,7 +245,10 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
 
   beforeAll(async () => {
     assertFixtureTargetAllowed(process.env);
-    if (process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED === "1") {
+    if (
+      process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED === "1" ||
+      process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY === "1"
+    ) {
       throw new Error(
         "Profile-chore integration proof must run with HOUSEHOLD_PROFILE_CHORE_ENABLED unset or 0; it never enables production behavior.",
       );

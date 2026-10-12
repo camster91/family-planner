@@ -9,6 +9,7 @@ import {
   profileChoreCreateSchema,
   profileChoreReadRefusal,
   profileChoreProtocolRefusal,
+  PROFILE_CHORE_ROLLBACK_READY_ENV,
   readChoreSubject,
 } from "@/lib/chore-profile";
 
@@ -37,11 +38,16 @@ function profileRow(overrides: Record<string, unknown> = {}) {
 
 describe("profile-only chore contract", () => {
   const originalGate = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+  const originalRollbackGate =
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
 
   afterEach(() => {
     if (originalGate === undefined)
       delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
     else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = originalGate;
+    if (originalRollbackGate === undefined)
+      delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+    else process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = originalRollbackGate;
   });
 
   it("returns a typed profile subject without exposing account details", () => {
@@ -173,6 +179,8 @@ describe("profile-only chore contract", () => {
     });
 
     process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+    expect(isProfileChoreEnabled()).toBe(false);
+    process.env[PROFILE_CHORE_ROLLBACK_READY_ENV] = "1";
     expect(
       profileChoreReadRefusal({
         headers: new Headers({ "X-Member-Protocol": "2" }),

@@ -140,8 +140,9 @@ Use separate default-off gates:
 
 1. `HOUSEHOLD_PROFILE_SETUP_ENABLED=1` for the existing profile roster route.
 2. A new server-only `HOUSEHOLD_PROFILE_CHORE_ENABLED=1` for profile-targeted chore writes/readers.
-3. Existing household `features.chores` and `device_writes_enabled` for the relevant route.
-4. Protocol negotiation from the client/request; a manifest response never grants authority.
+3. A release-controller acknowledgement, `HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY=1`, only after the compatible reader/writer candidate, backup and recovery path are ready. This is required with the profile chore flag; it is not a capability advertisement.
+4. Existing household `features.chores` and `device_writes_enabled` for the relevant route.
+5. Protocol negotiation from the client/request; a manifest response never grants authority.
 
 The order is:
 
@@ -162,7 +163,7 @@ Profile roles are never used in this order as permission checks. A name-only par
 - Protocol-1 requests for profile targets return `MEMBER_PROTOCOL_UNAVAILABLE` with the original intent retained by the caller. They do not translate IDs, retry automatically or create an account.
 - Profile completion is deliberately not offline-queued. The current queue allowlist has no chore completion operation, and unknown actions/versions cannot be safely replayed. The UI must show a retryable network state and preserve no secret or raw profile payload locally. A future queue action requires its own quarantine/retention contract and capability version.
 - Every profile create and chore create/complete/verify test must prove same-key replay does not duplicate a person, chore, status transition or audit row. Changed bodies under a reused key must refuse.
-- A schema-only expand with both gates off is reversible. Before any profile rows are written, revert readers/writers and leave the additive fields in place. After profile-only rows exist, an account-only server is not a safe rollback because it requires non-null `assigned_to` and would either fail or invent a User. Rollback then means restore the compatible reader/writer candidate or restore from a verified backup; never fill the parent ID as a repair.
+- A schema-only expand with both profile gates off is reversible. Before any profile rows are written, revert readers/writers and leave the additive fields in place. After profile-only rows exist, an account-only server is not a safe rollback because it requires non-null `assigned_to` and would either fail or invent a User. The release controller must refuse that downgrade: keep the compatible reader/writer candidate deployed, disable profile writes while recovering forward, or restore from a verified backup and rehearse the candidate before resuming. Never set `HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY=1` until that forward-only recovery path is recorded, and never fill the parent ID as a repair.
 - Account deletion/profile erasure must clear `assigned_member_id` and set the existing sticky `member_subject_erased` tombstone in Chore, and clear each new `subject_member_id` while setting its non-identifying `subject_member_erased` marker in Activity and DeviceAuditEvent, according to the approved erasure ledger. Retained history must not be relinked to a later same-name profile. A missing or failed redaction is a transaction failure, not permission to delete the member or continue with a partial audit.
 
 ## Required proof before enabling either gate

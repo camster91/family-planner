@@ -99,14 +99,20 @@ async function withProfileGate<T>(
   run: () => Promise<T>,
 ): Promise<T> {
   const previous = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+  const previousRollback = process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
   if (enabled) process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
   else delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+  if (enabled) process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+  else delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
   try {
     return await run();
   } finally {
     if (previous === undefined)
       delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
     else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = previous;
+    if (previousRollback === undefined)
+      delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+    else process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = previousRollback;
   }
 }
 
@@ -285,7 +291,10 @@ dbDescribe("Today profile subjects against disposable PostgreSQL", () => {
 
   beforeAll(async () => {
     assertFixtureTargetAllowed(process.env);
-    if (process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED === "1") {
+    if (
+      process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED === "1" ||
+      process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY === "1"
+    ) {
       throw new Error(
         "Today profile board integration must start with the profile gate off.",
       );

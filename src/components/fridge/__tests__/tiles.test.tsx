@@ -700,6 +700,60 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
     );
   });
 
+  it("keeps a grocery tap on the account picker when a profile chore is visible", async () => {
+    const profile = {
+      id: "profile:casey",
+      name: "Casey Child",
+      color: "green" as const,
+      subject: {
+        kind: "profile" as const,
+        memberId: "profile-casey",
+        name: "Casey Child",
+        color: "green" as const,
+      },
+    };
+    const fc = fakeClient();
+    render(
+      <ToastProvider>
+        <DeviceBoard
+          client={fc.client}
+          memberProtocol={2}
+          board={data({
+            memberProtocol: 2,
+            members: [profile, data().members[0]],
+            chores: [
+              {
+                id: "profile-chore",
+                title: "Put away blocks",
+                dueDay: TODAY,
+                status: "pending",
+                subject: profile.subject,
+              },
+            ],
+          })}
+        />
+      </ToastProvider>,
+    );
+    await settle();
+
+    // Rendering the chore capability is expected to be pure. A grocery tap
+    // must still ask for an account actor, even with a visible profile chore.
+    fireEvent.click(
+      within(groceries()).getByRole("button", { name: "Tick off Milk, 2" }),
+    );
+    await settle();
+    const dialog = screen.getByTestId("who-is-this");
+    expect(
+      within(dialog).getByRole("heading", { name: "Who's this?" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Avery Parent" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", { name: "Casey Child" }),
+    ).toBeNull();
+  });
+
   it("localizes the profile chooser without changing the account picker copy", async () => {
     const profile = {
       id: "profile:casey",

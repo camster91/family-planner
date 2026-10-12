@@ -334,7 +334,9 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
 
   it('returns a typed protocol-2 account/profile subject and only active unlinked profile display data', async () => {
     const previous = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED
+    const previousRollback = process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY
     process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = '1'
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = '1'
     try {
       const db = mockDb({
         householdMember: {
@@ -493,6 +495,8 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     } finally {
       if (previous === undefined) delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED
       else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = previous
+      if (previousRollback === undefined) delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY
+      else process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = previousRollback
     }
   })
 

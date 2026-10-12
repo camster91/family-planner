@@ -125,7 +125,6 @@ export function useDeviceBoardActions({
   const [requiredProfileId, setRequiredProfileId] = React.useState<
     string | null
   >(null);
-  const pendingChoreRef = React.useRef<BoardChore | null>(null);
   const resolver = React.useRef<((ok: boolean) => void) | null>(null);
   const afterRef = React.useRef(afterChange);
   afterRef.current = afterChange;
@@ -214,36 +213,39 @@ export function useDeviceBoardActions({
       }
     };
 
+    const prepareSubject = (targetProfileId: string | null) => {
+      const selected = subjectRef.current;
+      const selectionMatches = targetProfileId
+        ? memberProtocol === 2 &&
+          selected?.kind === "profile" &&
+          selected.memberId === targetProfileId
+        : selected?.kind === "account";
+      if (
+        selectionMatches &&
+        Date.now() - lastTapRef.current < ACTOR_IDLE_MS
+      ) {
+        lastTapRef.current = Date.now();
+        return Promise.resolve(true);
+      }
+      return new Promise<boolean>((resolve) => {
+        resolver.current?.(false);
+        resolver.current = (ok) => {
+          if (ok) lastTapRef.current = Date.now();
+          resolve(ok);
+        };
+        setPickerMode(targetProfileId ? "profile" : "account");
+        setRequiredProfileId(targetProfileId);
+        setPickerOpen(true);
+      });
+    };
+
     return {
       canTickGroceries: listsOn,
-      prepare: () => {
-        const targetProfileId = profileIdForChore(pendingChoreRef.current);
-        const selected = subjectRef.current;
-        const selectionMatches = targetProfileId
-          ? memberProtocol === 2 &&
-            selected?.kind === "profile" &&
-            selected.memberId === targetProfileId
-          : selected?.kind === "account";
-        if (
-          selectionMatches &&
-          Date.now() - lastTapRef.current < ACTOR_IDLE_MS
-        ) {
-          lastTapRef.current = Date.now();
-          return Promise.resolve(true);
-        }
-        return new Promise<boolean>((resolve) => {
-          resolver.current?.(false);
-          resolver.current = (ok) => {
-            if (ok) lastTapRef.current = Date.now();
-            resolve(ok);
-          };
-          setPickerMode(targetProfileId ? "profile" : "account");
-          setRequiredProfileId(targetProfileId);
-          setPickerOpen(true);
-        });
-      },
+      // Grocery capture and ticks always need an account subject. Keep this
+      // independent from chore rendering, which may inspect profile chores.
+      prepare: () => prepareSubject(null),
+      prepareChore: (chore) => prepareSubject(profileIdForChore(chore)),
       canCompleteChore: (chore) => {
-        pendingChoreRef.current = chore;
         const profileId = profileIdForChore(chore);
         if (profileId)
           return (
@@ -254,14 +256,12 @@ export function useDeviceBoardActions({
         return choresOn && accountMembers.length > 0;
       },
       completeChore: (chore) => {
-        pendingChoreRef.current = null;
         return post(
           `/api/device/chores/${encodeURIComponent(chore.id)}/complete`,
           chore,
         );
       },
       undoChore: (chore) => {
-        pendingChoreRef.current = null;
         return post(
           `/api/device/chores/${encodeURIComponent(chore.id)}/uncomplete`,
           chore,

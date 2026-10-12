@@ -126,7 +126,9 @@ describe('shared-tablet writes (#274)', () => {
     ])('%s', async (_label, memberId, valid) => {
       allowWrites()
       const previous = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED
+      const previousRollback = process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY
       process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = '1'
+      process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = '1'
       try {
         const opened = await openDeviceWrite(postReq({ protocol: 2, selection: { memberId } }), 'chores', { allowProfile: true })
         expect(opened.ok).toBe(valid)
@@ -138,6 +140,8 @@ describe('shared-tablet writes (#274)', () => {
       } finally {
         if (previous === undefined) delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED
         else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = previous
+        if (previousRollback === undefined) delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY
+        else process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = previousRollback
       }
     })
   })

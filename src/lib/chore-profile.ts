@@ -9,11 +9,22 @@ import { lockHousehold, lockUser } from "@/lib/household-lock";
 
 /** Server-only gate. It is deliberately absent from the capability manifest. */
 export const PROFILE_CHORE_ENABLE_ENV = "HOUSEHOLD_PROFILE_CHORE_ENABLED";
+/**
+ * Release-controller acknowledgement for the forward-only schema change.
+ * Profile-only rows make an account-only server an unsafe rollback target, so
+ * the feature must stay dark until the compatible reader/writer candidate and
+ * its recovery path are ready together.
+ */
+export const PROFILE_CHORE_ROLLBACK_READY_ENV =
+  "HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY";
 export const PROFILE_CHORE_UNSUPPORTED_CODE =
   "MEMBER_PROTOCOL_UNAVAILABLE" as const;
 
 export function isProfileChoreEnabled(): boolean {
-  return process.env[PROFILE_CHORE_ENABLE_ENV] === "1";
+  return (
+    process.env[PROFILE_CHORE_ENABLE_ENV] === "1" &&
+    process.env[PROFILE_CHORE_ROLLBACK_READY_ENV] === "1"
+  );
 }
 
 export const profileChoreCreateSchema = z
