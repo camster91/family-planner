@@ -4,6 +4,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { RoutineStacks, routineStacks } from '../RoutineStacks'
 import { I18nProvider } from '@/i18n'
+import { toDateOnlyLocal } from '@/lib/dates'
 import type { Chore } from '@/types'
 import type { ChoreSubjectDTO } from '@/lib/chore-profile'
 
@@ -16,6 +17,50 @@ it('keeps different members and dates apart while normalizing names and ordering
   expect(groups).toHaveLength(3)
   expect(groups[0].steps.map(s => s.id)).toEqual(['first', 'second'])
   expect(new Set(groups.map(g => g.key)).size).toBe(3)
+})
+
+it('uses durable stack identity when one occurrence spans different members', () => {
+  const groups = routineStacks([
+    step('adult-step', 1, { assigned_to: 'adult', routine_stack_id: 'stack-a' }),
+    step('child-step', 2, { assigned_to: 'child', routine_stack_id: 'stack-a' }),
+    step('other-stack', 1, { assigned_to: 'child', routine_stack_id: 'stack-b' }),
+  ])
+  expect(groups).toHaveLength(2)
+  expect(groups[0].steps.map(s => s.id)).toEqual(['adult-step', 'child-step'])
+  expect(groups[1].steps.map(s => s.id)).toEqual(['other-stack'])
+})
+
+it('shows each durable step owner and routes durable Add step through the stack editor', () => {
+  render(<RoutineStacks
+    chores={[
+      step('adult-step', 1, { assigned_to: 'adult', assignee: { name: 'Alex' }, routine_stack_id: 'stack-a' }),
+      step('child-step', 2, { assigned_to: 'child', assignee: { name: 'Sam' }, routine_stack_id: 'stack-a' }),
+    ]}
+    userRole="parent"
+    currentUserId="adult"
+    familyId="family-a"
+    locale="en-CA"
+    onComplete={jest.fn()}
+  />)
+
+  const routine = screen.getByRole('heading', { name: 'Evening reset' }).closest('section')
+  expect(routine).toBeTruthy()
+  const rows = within(routine as HTMLElement).getAllByRole('listitem')
+  expect(within(rows[0] as HTMLElement).getByText('Alex · Oct 9')).toBeTruthy()
+  expect(within(rows[1] as HTMLElement).getByText('Sam · Oct 9')).toBeTruthy()
+  expect(within(routine as HTMLElement).getByRole('link', { name: 'Add step' }).getAttribute('href')).toBe(
+    '/dashboard/chores/routines?stack_id=stack-a&occurrence_date=2026-10-09',
+  )
+})
+
+it('keeps one durable occurrence together when persisted labels differ', () => {
+  const groups = routineStacks([
+    step('second', 2, { routine_stack_id: 'stack-a', routine: 'Later label', assigned_to: 'child' }),
+    step('first', 1, { routine_stack_id: 'stack-a', routine: 'Original label' }),
+  ])
+  expect(groups).toHaveLength(1)
+  expect(groups[0].steps.map(s => s.id)).toEqual(['first', 'second'])
+  expect(groups[0].key).toContain('"stack-a"')
 })
 
 it('shows progress, next step and all later steps without locking or marking them done', async () => {
@@ -55,9 +100,22 @@ it('keeps profile-only routine steps readable without exposing account mutations
     subject: { kind: 'profile' as const, memberId: 'member-no-email', name: 'Jamie', role: 'child' as const },
   })
   render(<RoutineStacks chores={[profile]} userRole="parent" currentUserId="adult" locale="en-CA" onComplete={jest.fn()} />)
-  expect(screen.getByText('Jamie · Oct 9')).toBeTruthy()
+  expect(screen.getAllByText('Jamie · Oct 9')).toHaveLength(2)
   expect(screen.queryByRole('button', { name: 'Complete profile-step' })).toBeNull()
   expect(screen.queryByRole('link', { name: 'Edit profile-step' })).toBeNull()
+})
+
+it('uses the viewer local day when an empty routine list opens the builder near midnight UTC', () => {
+  const now = new Date('2026-10-12T01:30:00.000Z')
+  jest.useFakeTimers().setSystemTime(now)
+  try {
+    render(<RoutineStacks chores={[]} userRole="parent" currentUserId="adult" familyId="family-a" locale="en-CA" onComplete={jest.fn()} />)
+    expect(screen.getByRole('link', { name: /Build a routine/ }).getAttribute('href')).toBe(
+      `/dashboard/chores/routines?occurrence_date=${toDateOnlyLocal(now)}`,
+    )
+  } finally {
+    jest.useRealTimers()
+  }
 })
 
 

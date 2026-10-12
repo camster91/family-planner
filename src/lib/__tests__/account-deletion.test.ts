@@ -30,6 +30,12 @@ function seedExtras() {
   db.rows('householdMember').push(...both((f, family_id) => ({ id: `member-${f}`, family_id, name: 'Fixture profile' })))
   db.rows('householdMemberLegacyMapping').push(...both((f, family_id) => ({ user_id: `child-${f}`, member_id: `member-${f}`, family_id })))
   db.rows('householdMemberAccountLink').push(...both((f, family_id) => ({ user_id: `child-${f}`, member_id: `member-${f}`, family_id, verified_at: t })))
+  db.rows('routineStack').push(
+    ...both((f, family_id) => ({
+      id: `routine-stack-${f}`, family_id, label: 'Morning', version: 1,
+      fingerprint: 'f'.repeat(64), created_by: `parent-${f}`,
+    }))
+  )
   db.rows('appFeedback').push(
     ...both((f, family_id) => ({ id: `feedback-${f}`, family_id, user_id: `parent-${f}`, title: 'Private fixture report' }))
   )
@@ -424,6 +430,7 @@ describe('deleteMemberAccount', () => {
     ] as const) {
       expect([model, db.find(model, id)?.[column]]).toEqual([model, 'parent-a2'])
     }
+    expect(db.find('routineStack', 'routine-stack-a')).toMatchObject({ created_by: null })
     expect(db.find('familyMeal', 'meal-a')).toMatchObject({ cook_id: null })
     expect(db.find('pickup', 'pickup-a')).toMatchObject({ assigned_to: null })
     // Personal rows and credentials are gone.

@@ -68,6 +68,7 @@ model User {
   family                        Family?            @relation(fields: [family_id], references: [id], onDelete: SetNull)
   assigned_chores               Chore[]            @relation("AssignedChores")
   created_chores                Chore[]            @relation("CreatedChores")
+  routine_stacks_created        RoutineStack[]     @relation("RoutineStackCreator")
   created_events                Event[]            @relation("CreatedEvents")
   sent_messages                 Message[]          @relation("SentMessages")
   notifications                 Notification[]
@@ -190,6 +191,7 @@ model Family {
   members            User[]
   household_members  HouseholdMember[]
   chores             Chore[]
+  routine_stacks     RoutineStack[]
   events             Event[]
   messages           Message[]
   lists              List[]
@@ -456,6 +458,9 @@ model Chore {
   icon           String?
   routine        String?
   routine_order  Int?
+  /// Durable cross-member routine-stack identity. Nullable for legacy rows;
+  /// routine/routine_order remain the compatibility presentation fields.
+  routine_stack_id String?
 
   // Take turns (O-39). On a series template: the members who take turns, in
   // order (empty = no rotation, every copy goes to the template's assignee).
@@ -474,6 +479,7 @@ model Chore {
   assignee    User?             @relation("AssignedChores", fields: [assigned_to], references: [id], onDelete: Cascade)
   assigneeMember HouseholdMember? @relation("MemberChores", fields: [assigned_member_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction, map: "Chore_member_subject_fkey")
   creator     User              @relation("CreatedChores", fields: [created_by], references: [id], onDelete: Cascade)
+  routineStack RoutineStack?    @relation(fields: [routine_stack_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction, map: "Chore_routine_stack_fkey")
   assignments ChoreAssignment[]
 
   @@unique([recurrence_id, due_date])
@@ -487,6 +493,28 @@ model Chore {
   @@index([family_id, assigned_member_id, due_date], map: "Chore_family_member_due_idx")
   @@index([family_id, due_date])
   @@index([recurrence_id])
+  @@index([family_id, routine_stack_id])
+}
+
+/// Durable identity for a cross-member routine stack. This is additive: old
+/// chores remain valid with a NULL routine_stack_id and are never backfilled
+/// or merged from a display label.
+model RoutineStack {
+  id         String   @id @default(cuid())
+  family_id  String
+  label      String
+  version    Int      @default(1)
+  fingerprint String
+  created_by String?
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User?  @relation("RoutineStackCreator", fields: [created_by], references: [id], onDelete: SetNull)
+  chores  Chore[]
+
+  @@unique([id, family_id], map: "RoutineStack_id_family_id_key")
+  @@index([family_id, updated_at])
 }
 
 model ChoreAssignment {

@@ -1,0 +1,319 @@
+jest.mock("@/lib/household-lock", () => ({
+  lockHousehold: jest.fn(),
+  lockUser: jest.fn(),
+}));
+jest.mock("@/lib/routine-stack-mutation", () => ({
+  mutateRoutineStackInTx: jest.fn(),
+}));
+
+import {
+  readParentRoutineStack,
+  saveParentRoutineStack,
+} from "@/lib/routine-stack-api";
+import { lockHousehold, lockUser } from "@/lib/household-lock";
+import { mutateRoutineStackInTx } from "@/lib/routine-stack-mutation";
+
+const actor = { familyId: "family-a", userId: "parent-a", role: "parent" };
+
+function step(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "chore-a",
+    family_id: "family-a",
+    title: "Brush teeth",
+    description: "Use the blue timer",
+    assigned_to: "child-a",
+    assigned_member_id: "member-child-a",
+    member_subject_erased: false,
+    due_date: new Date("2026-10-11T00:00:00.000Z"),
+    recurrence_id: null,
+    is_template: false,
+    routine: "Morning",
+    routine_order: 1,
+    status: "pending",
+    frequency: "once",
+    weekly_days: [],
+    difficulty: "easy",
+    icon: "brush-teeth",
+    points: 10,
+    photo_url: "https://family.test/photo/chore-a",
+    photo_verified: true,
+    verified_at: null,
+    verified_notes: "Parent note",
+    completed_at: null,
+    ...overrides,
+  };
+}
+
+function readDb() {
+  return {
+    routineStack: { findFirst: jest.fn() },
+    chore: { findMany: jest.fn() },
+    householdMember: { findMany: jest.fn() },
+  };
+}
+
+describe("routine-stack API helper", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("keeps the broad read parent-only and family-scoped", async () => {
+    const db = readDb();
+    const result = await readParentRoutineStack(
+      db,
+      { ...actor, role: "child" },
+      "stack-a",
+      "2026-10-11",
+    );
+    expect(result).toBeNull();
+    expect(db.routineStack.findFirst).not.toHaveBeenCalled();
+
+    db.routineStack.findFirst.mockResolvedValue({
+      id: "stack-a",
+      family_id: "family-a",
+      label: "Morning",
+      version: 3,
+    });
+    db.chore.findMany.mockResolvedValue([step()]);
+    db.householdMember.findMany.mockResolvedValue([
+      {
+        id: "member-child-a",
+        name: "Child A",
+        role: "child",
+        archived_at: null,
+        erasure_user_id: null,
+        legacy_mapping: { user_id: "child-a" },
+        account_link: null,
+        email: "private@example.test",
+      },
+      {
+        id: "member-archived-a",
+        name: "Archived A",
+        role: "adult",
+        archived_at: new Date("2026-01-01T00:00:00.000Z"),
+        erasure_user_id: null,
+        legacy_mapping: null,
+        account_link: null,
+      },
+      {
+        id: "member-unlinked-a",
+        name: "Unlinked A",
+        role: "child",
+        archived_at: null,
+        erasure_user_id: null,
+        legacy_mapping: null,
+        account_link: null,
+      },
+    ]);
+
+    const parent = await readParentRoutineStack(
+      db,
+      actor,
+      "stack-a",
+      "2026-10-11",
+    );
+
+    expect(db.routineStack.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "stack-a", family_id: "family-a" },
+      }),
+    );
+    expect(db.chore.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          family_id: "family-a",
+          routine_stack_id: "stack-a",
+        }),
+      }),
+    );
+    expect(db.householdMember.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { family_id: "family-a" } }),
+    );
+    expect(parent).toMatchObject({
+      stack: { id: "stack-a", family_id: "family-a" },
+      steps: [
+        expect.objectContaining({
+          id: "chore-a",
+          title: "Brush teeth",
+          photo_url: "https://family.test/photo/chore-a",
+        }),
+      ],
+      members: [
+        {
+          id: "member-child-a",
+          displayName: "Child A",
+          subjectState: "eligible",
+        },
+        {
+          id: "member-archived-a",
+          displayName: "Archived A",
+          subjectState: "archived",
+        },
+        {
+          id: "member-unlinked-a",
+          displayName: "Unlinked A",
+          subjectState: "dormant",
+        },
+      ],
+    });
+    expect(JSON.stringify(parent)).not.toContain("private@example.test");
+  });
+
+  it("creates a pending receipt before invoking the atomic coordinator", async () => {
+    const draft = {
+      family_id: "family-a",
+      occurrence_date: "2026-10-11",
+      label: "Morning",
+      steps: [],
+      remove_chore_ids: [],
+      expected_fingerprint: "",
+    };
+    const tx = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          family_id: "family-a",
+          role: "parent",
+        }),
+      },
+      idempotencyRecord: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({
+          id: "receipt-a",
+          family_id: "family-a",
+          user_id: "parent-a",
+          action: "routine-stack.mutate",
+          request_hash: "hash-a",
+          response_status: null,
+          response_body: null,
+          expires_at: new Date("2026-10-18T00:00:00.000Z"),
+        }),
+      },
+      householdMember: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: "member-child-a", role: "child" }]),
+      },
+    };
+    const db = {
+      $transaction: <T>(callback: (value: unknown) => Promise<T>) =>
+        callback(tx),
+    };
+    jest.mocked(mutateRoutineStackInTx).mockResolvedValue({
+      status: 200,
+      body: { stack_id: "stack-a" },
+    });
+
+    const result = await saveParentRoutineStack(
+      db,
+      draft,
+      actor,
+      "key-a",
+      new Date("2026-10-11T12:00:00.000Z"),
+    );
+
+    expect(result).toEqual({ status: 200, body: { stack_id: "stack-a" } });
+    expect(tx.idempotencyRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          scope: "user:parent-a",
+          key: "key-a",
+          family_id: "family-a",
+          user_id: "parent-a",
+          action: "routine-stack.mutate",
+          response_status: null,
+        }),
+      }),
+    );
+    expect(mutateRoutineStackInTx).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        family_id: "family-a",
+        occurrence_date: "2026-10-11",
+      }),
+      actor,
+      {
+        recordId: "receipt-a",
+        memberDictionary: [{ id: "member-child-a", role: "child" }],
+      },
+    );
+    expect((lockUser as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (lockHousehold as jest.Mock).mock.invocationCallOrder[0],
+    );
+  });
+
+  it("reuses the receipt predicates before any domain mutation", async () => {
+    const draft = {
+      family_id: "family-a",
+      occurrence_date: "2026-10-11",
+      label: "Morning",
+      steps: [],
+      remove_chore_ids: [],
+      expected_fingerprint: "",
+    };
+    const tx = {
+      user: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ family_id: "family-a", role: "parent" }),
+      },
+      idempotencyRecord: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "receipt-a",
+          family_id: "family-a",
+          user_id: "parent-a",
+          action: "different-action",
+          request_hash: "different-hash",
+          response_status: 200,
+          response_body: { private: "never returned" },
+          expires_at: new Date("2099-10-18T00:00:00.000Z"),
+        }),
+      },
+    };
+    const db = {
+      $transaction: <T>(callback: (value: unknown) => Promise<T>) =>
+        callback(tx),
+    };
+
+    const result = await saveParentRoutineStack(db, draft, actor, "key-a");
+
+    expect(result.status).toBe(422);
+    expect(result.body).toMatchObject({
+      error: { code: "IDEMPOTENCY_KEY_REUSED" },
+    });
+    expect(mutateRoutineStackInTx).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain("private");
+  });
+
+  it("refuses a role change observed after authentication before receipt access", async () => {
+    const tx = {
+      user: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ family_id: "family-a", role: "child" }),
+      },
+      idempotencyRecord: { findUnique: jest.fn() },
+    };
+    const db = {
+      $transaction: <T>(callback: (value: unknown) => Promise<T>) =>
+        callback(tx),
+    };
+
+    const result = await saveParentRoutineStack(
+      db,
+      {
+        family_id: "family-a",
+        occurrence_date: "2026-10-11",
+        label: "Morning",
+        steps: [],
+        remove_chore_ids: [],
+        expected_fingerprint: "",
+      },
+      actor,
+      "key-a",
+    );
+
+    expect(result).toMatchObject({
+      status: 403,
+      body: { error: { code: "FORBIDDEN" } },
+    });
+    expect(tx.idempotencyRecord.findUnique).not.toHaveBeenCalled();
+  });
+});

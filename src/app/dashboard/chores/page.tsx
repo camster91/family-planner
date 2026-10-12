@@ -156,6 +156,15 @@ export default async function ChoresPage() {
   const serializedChores = chores.map((c) => {
     const subject = familyId ? readChoreSubject(c, familyId) : null
     const { assigneeMember: _assigneeMember, assignee: _assignee, ...safeChore } = c
+    // The release owner regenerates Prisma in the migration checkout. Keep
+    // this additive projection type-safe for the pre-generated client used by
+    // older app builds while preserving the durable fields when present.
+    const routineFields = c as typeof c & {
+      routine_stack_id?: string | null
+      assigned_member_id?: string | null
+      member_subject_erased?: boolean
+      is_template?: boolean
+    }
     const row = {
       ...safeChore,
       // Keep account/profile subjects display-only on this board. In
@@ -167,6 +176,10 @@ export default async function ChoresPage() {
       completed_at: c.completed_at?.toISOString() ?? null,
       verified_at: c.verified_at?.toISOString() ?? null,
       photo_url: c.photo_url ?? null,
+      routine_stack_id: routineFields.routine_stack_id ?? null,
+      assigned_member_id: routineFields.assigned_member_id ?? null,
+      member_subject_erased: routineFields.member_subject_erased ?? false,
+      is_template: routineFields.is_template ?? false,
       streak: c.assigned_to ? (streakMap[c.assigned_to] ?? 0) : 0,
       rotation_next_name: rotationNextName(c),
       recurrence_frequency: c.recurrence_id ? schedules.get(c.recurrence_id)?.frequency ?? null : null,
@@ -181,6 +194,7 @@ export default async function ChoresPage() {
       familyMembers={familyMembers as any}
       currentUserId={sessionUser.id}
       userRole={user?.role || 'child'}
+      familyId={familyId}
       historyCursor={historyCursor}
     />
   )
