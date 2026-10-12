@@ -42,6 +42,7 @@ import type { Browser, BrowserContext, Page, TestInfo } from "@playwright/test";
 import pg from "pg";
 import { FAMILY_CODE_LENGTH, formatFamilyCode } from "../src/lib/family-code";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
+import { onboardingEnglish } from "../src/i18n/onboarding";
 import { E2E_ANCHOR } from "./support/env";
 import { expect, loginViaUi, test } from "./support/test";
 
@@ -314,35 +315,69 @@ test.describe("new household sign-up journey", () => {
       await loginViaUi(page, x.parent.email, PASSWORD);
       await page.waitForURL(/\/dashboard$/);
       await expect(
-        page.getByRole("heading", { name: "Welcome to Herewoven!" }),
+        page.getByRole("heading", {
+          name: onboardingEnglish.welcomeTitle,
+          exact: true,
+        }),
       ).toBeVisible();
       await expectNoHorizontalOverflow(page, "onboarding welcome");
-      await page.getByRole("button", { name: "Get Started" }).click();
+      await page
+        .getByRole("button", {
+          name: onboardingEnglish.getStarted,
+          exact: true,
+        })
+        .click();
 
       await expect(
-        page.getByRole("heading", { name: "Create Your Family" }),
+        page.getByRole("heading", {
+          name: onboardingEnglish.createTitle,
+          exact: true,
+        }),
       ).toBeVisible();
       await expect(
-        page.getByRole("link", { name: "Join an existing family" }),
+        page.getByRole("link", {
+          name: onboardingEnglish.joinExisting,
+          exact: true,
+        }),
       ).toHaveAttribute("href", "/join");
       await expectNoHorizontalOverflow(page, "onboarding create family");
-      await page.getByPlaceholder("e.g., The Smith Family").fill(x.familyName);
+      await page
+        .getByPlaceholder(onboardingEnglish.familyNamePlaceholder, {
+          exact: true,
+        })
+        .fill(x.familyName);
       const created = page.waitForResponse(
         (r) =>
           r.url().endsWith("/api/family") && r.request().method() === "POST",
       );
-      await page.getByRole("button", { name: "Create Family" }).click();
+      await page
+        .getByRole("button", {
+          name: onboardingEnglish.createFamily,
+          exact: true,
+        })
+        .click();
       expect((await created).status()).toBe(200);
 
       // #446: creating a household first prompts the parent to add everyone.
       await expect(
-        page.getByRole("heading", { name: "Add Everyone in Your Family" }),
+        page.getByRole("heading", {
+          name: onboardingEnglish.addEveryoneTitle,
+          exact: true,
+        }),
       ).toBeVisible();
       await expect(
-        page.getByRole("link", { name: "Add Family Members" }),
+        page.getByRole("link", {
+          name: onboardingEnglish.openFullInvitePage,
+          exact: true,
+        }),
       ).toHaveAttribute("href", "/dashboard/family/invite");
       await expectNoHorizontalOverflow(page, "add everyone onboarding");
-      await page.getByRole("link", { name: "Finish Later" }).click();
+      await page
+        .getByRole("link", {
+          name: onboardingEnglish.finishLater,
+          exact: true,
+        })
+        .click();
 
       // A parent's home is the Today board (#269).
       await page.waitForURL(/\/dashboard\/today/);
@@ -435,9 +470,17 @@ test.describe("new household sign-up journey", () => {
         await verifyEmailViaLink(kid, x.child.email, clientIp);
         await loginViaUi(kid, x.child.email, PASSWORD);
         await kid.waitForURL(/\/dashboard$/);
-        await kid.getByRole("button", { name: "Get Started" }).click();
         await kid
-          .getByRole("link", { name: "Join an existing family" })
+          .getByRole("button", {
+            name: onboardingEnglish.getStarted,
+            exact: true,
+          })
+          .click();
+        await kid
+          .getByRole("link", {
+            name: onboardingEnglish.joinExisting,
+            exact: true,
+          })
           .click();
         await kid.waitForURL(/\/join$/);
         await expect(
