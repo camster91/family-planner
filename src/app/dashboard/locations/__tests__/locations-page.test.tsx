@@ -168,6 +168,8 @@ describe('/dashboard/locations', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(screen.getByRole('dialog', { name: 'New location' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled()
+    expect(screen.getByLabelText('Label')).toBeDisabled()
+    expect(screen.getByLabelText('Address')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
     await user.keyboard('{Escape}')
     expect(screen.getByRole('dialog', { name: 'New location' })).toBeInTheDocument()

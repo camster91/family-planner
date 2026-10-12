@@ -3,6 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
+import { locationsEnglish, locationsSpanish } from "../src/i18n/locations";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
@@ -259,7 +260,10 @@ for (const locale of ["en", "es"] as const) {
       await retry.click();
       await expect(dialog).toHaveCount(0);
       await expect(
-        page.getByRole("button", { name: "Add", exact: true }),
+        page.getByRole("button", {
+          name: (locale === "es" ? locationsSpanish : locationsEnglish).add,
+          exact: true,
+        }),
       ).toBeFocused();
       await expect(trigger).toHaveCount(0);
       expect(writes).toBe(3);
