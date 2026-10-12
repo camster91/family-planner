@@ -38,6 +38,7 @@ const PROJECT_IPS: Record<string, string> = {
 type TestNames = {
   prefix: string;
   family: string;
+  clientIp: string;
   parent: { name: string; email: string };
 };
 
@@ -51,6 +52,7 @@ function names(info: TestInfo): TestNames {
   return {
     prefix,
     family: `${prefix} home`,
+    clientIp: clientIp(info),
     parent: {
       name: "Jordan Onboardingparent",
       email: `${prefix}@example.test`,
@@ -107,6 +109,11 @@ async function removeRows(db: pg.Client, x: TestNames): Promise<void> {
     ],
   );
   const familyIds = families.rows.map((row) => row.id);
+  const ownedRateLimitKeys = [
+    `register:${x.clientIp}`,
+    `login:${x.clientIp}`,
+    `verify-email:${x.clientIp}`,
+  ];
   await db.query(
     `DELETE FROM "Chore"
        WHERE family_id = ANY($1) OR assigned_to = ANY($2) OR created_by = ANY($2)`,
@@ -115,9 +122,50 @@ async function removeRows(db: pg.Client, x: TestNames): Promise<void> {
   await db.query(`DELETE FROM "Family" WHERE id = ANY($1)`, [familyIds]);
   await db.query(`DELETE FROM "User" WHERE id = ANY($1)`, [userIds]);
   await db.query(
-    `DELETE FROM "RateLimitEntry" WHERE key LIKE 'register:%' OR key LIKE ANY($1)`,
-    [userIds.map((id) => `%${id}%`)],
+    `DELETE FROM "RateLimitEntry"
+       WHERE key = ANY($1::text[]) OR key LIKE ANY($2::text[])`,
+    [ownedRateLimitKeys, userIds.map((id) => `%${id}%`)],
   );
+
+  const remaining = await db.query<{
+    families: string;
+    users: string;
+    members: string;
+    invites: string;
+    rate_limits: string;
+  }>(
+    `SELECT
+       (SELECT count(*)::text FROM "Family"
+          WHERE id = ANY($1::text[]) OR name = $2) AS families,
+       (SELECT count(*)::text FROM "User"
+          WHERE id = ANY($3::text[]) OR email LIKE $4) AS users,
+       (SELECT count(*)::text FROM "HouseholdMember"
+          WHERE family_id = ANY($1::text[])) AS members,
+       (SELECT count(*)::text FROM "FamilyInvite"
+          WHERE family_id = ANY($1::text[]) OR created_by = ANY($3::text[])) AS invites,
+       (SELECT count(*)::text FROM "RateLimitEntry"
+          WHERE key = ANY($5::text[]) OR key LIKE ANY($6::text[])) AS rate_limits`,
+    [
+      familyIds,
+      x.family,
+      userIds,
+      `${x.prefix}%`,
+      ownedRateLimitKeys,
+      userIds.map((id) => `%${id}%`),
+    ],
+  );
+  const leftovers = remaining.rows[0];
+  if (
+    leftovers.families !== "0" ||
+    leftovers.users !== "0" ||
+    leftovers.members !== "0" ||
+    leftovers.invites !== "0" ||
+    leftovers.rate_limits !== "0"
+  ) {
+    throw new Error(
+      `Onboarding E2E cleanup left owned rows: ${JSON.stringify(leftovers)}`,
+    );
+  }
 }
 
 async function registerViaUi(
