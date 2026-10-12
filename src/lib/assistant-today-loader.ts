@@ -350,7 +350,9 @@ export async function loadAssistantTodayRows(
       assignee:
         input.role === "parent"
           ? boundedText(
-              namesById.get(chore.assigned_to) ?? "A household member",
+              (chore.assigned_to
+                ? namesById.get(chore.assigned_to)
+                : undefined) ?? "A household member",
             )
           : "You",
     }));

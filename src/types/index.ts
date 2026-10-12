@@ -84,7 +84,6 @@ export interface Chore {
   /** Canonical household subject for the assignee, kept separate from assigned_to account ID. */
   assigned_member_id?: string | null
   member_subject_erased?: boolean
-  is_template?: boolean
   /** Take turns (O-39): who is up after this one, for "Takes turns · next: Alex"; set by the chores page. */
   rotation_next_name?: string | null
 }

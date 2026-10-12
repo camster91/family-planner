@@ -67,6 +67,34 @@ function dbFor(): AssistantTodayLoaderDb {
 }
 
 describe("loadAssistantTodayRows", () => {
+  it("handles profile-only chores without assigning them to an account viewer", async () => {
+    const db = dbFor();
+    (db.chore.findMany as jest.Mock).mockResolvedValue([
+      {
+        title: "Profile chore",
+        due_date: new Date("2026-10-11T00:00:00.000Z"),
+        status: "pending",
+        assigned_to: null,
+      },
+    ]);
+    const input = {
+      familyId: "family-a",
+      userId: "parent-id",
+      features: FEATURES,
+      serverNow: NOW,
+      viewerTimeZone: "America/Toronto",
+    };
+    const parent = await loadAssistantTodayRows(db, { ...input, role: "parent" });
+    expect(parent.chores).toHaveLength(1);
+    expect(parent.chores[0].assignee).toBe("A household member");
+    const teen = await loadAssistantTodayRows(db, {
+      ...input,
+      userId: "teen-id",
+      role: "teen",
+    });
+    expect(teen.chores).toEqual([]);
+  });
+
   it("uses family-scoped allowlisted selects and projects no ids or private text", async () => {
     const db = dbFor();
     const loaded = await loadAssistantTodayRows(db, {
