@@ -491,6 +491,64 @@ it.each([401, 403])('clears recovery when the confirmed event POST returns an au
   expect(screen.queryByRole('button', { name: 'Retry Dentist' })).toBeNull()
 })
 
+it('keeps unverified purge guidance visible and rechecks access before recovery controls return', async () => {
+  const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
+  let purgeBlocked = true
+  let availabilityGets = 0
+  let eventPosts = 0
+  let receiptCalls = 0
+  const originalRemoveItem = Storage.prototype.removeItem
+  Storage.prototype.removeItem = function (key: string) {
+    if (purgeBlocked && key.startsWith('family-planner:capture-recovery:v1:')) throw new Error('private mode')
+    return originalRemoveItem.call(this, key)
+  }
+  global.fetch = jest.fn(async (url, init) => {
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (String(url) === '/api/capture' && method === 'GET') {
+      availabilityGets += 1
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/capture' && method === 'POST') {
+      return json(200, { draft: { kind: 'event', title: 'Dentist', confidence: 'high' } })
+    }
+    if (String(url) === '/api/events' && method === 'POST') {
+      eventPosts += 1
+      return json(401, { error: 'unauthorized' })
+    }
+    if (String(url) === '/api/capture/receipt') {
+      receiptCalls += 1
+      return json(200, { state: 'committed', current: 'present' })
+    }
+    throw new Error('unexpected ' + method + ' ' + String(url))
+  }) as unknown as typeof fetch
+
+  try {
+    const user = userEvent.setup()
+    render(<CaptureBox />)
+    await user.type(await screen.findByRole('textbox'), 'dentist Tuesday')
+    await user.click(screen.getByRole('button', { name: 'Read it' }))
+    await user.click(await screen.findByRole('button', { name: 'Add it' }))
+    await screen.findByTestId('capture-access-boundary')
+    expect(screen.getByText(captureEnglish.recoveryAccessUnavailable, { exact: true })).toBeTruthy()
+    expect(screen.getByRole('button', { name: captureEnglish.retryStorage })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Retry Dentist/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Check status for Dentist/ })).toBeNull()
+    expect(eventPosts).toBe(1)
+    expect(receiptCalls).toBe(0)
+
+    purgeBlocked = false
+    await user.click(screen.getByRole('button', { name: captureEnglish.retryStorage }))
+    await waitFor(() => expect(availabilityGets).toBe(2))
+    expect(screen.queryByRole('button', { name: captureEnglish.retryStorage })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry Dentist' })).toBeTruthy()
+    expect(receiptCalls).toBe(0)
+    expect(eventPosts).toBe(1)
+    expect(window.localStorage.getItem(storageKey)).not.toBeNull()
+  } finally {
+    Storage.prototype.removeItem = originalRemoveItem
+  }
+})
+
 it.each([401, 403])('clears recovery when a Retry POST returns an auth refusal (%i)', async (status) => {
   const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
   window.localStorage.setItem(storageKey, JSON.stringify([{

@@ -752,15 +752,16 @@ export function CaptureBox({
   // dead end. The calendar's own "Add Event" still works, and a parent can
   // add a key in Settings.
   if (unavailable) {
-    if (saved || error) {
+    if (saved || error || recoveryStorageBlocked) {
       return present(
         <div className="card-apple p-4" data-testid="capture-access-boundary">
           {saved && <p role="status" className="text-subhead text-[var(--success,#059669)]">{saved}</p>}
           {error && <p role="alert" className="text-subhead text-[var(--danger-text)] mt-2">{error}</p>}
+          {recoveryStorageBlocked && storageRecoveryNotice}
         </div>,
       )
     }
-    return recoveryStorageBlocked ? present(storageRecoveryNotice) : null
+    return null
   }
 
   const KindIcon = draft ? KIND_ICON[draft.kind] : Sparkles
