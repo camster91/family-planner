@@ -720,3 +720,22 @@ Capture retains one key and frozen payload per confirmed preview/photo row, incl
 After a reload, `GET /api/capture/receipt` accepts `Idempotency-Key`, `X-Capture-Action` (`event.create` or `capture.grocery.add`) and `X-Capture-Request-Hash` headers; fingerprints are not placed in the URL. It returns only `absent`, `pending`, `expired` or `committed` plus a family-scoped `present|removed|unknown` state. It never returns the stored receipt body and is private/no-store. Recovery is explicit: the browser does not auto-submit; Check status reads this endpoint and Retry replays the same keyed body through its original writer. A committed row that was deleted stays deleted, while a missing/expired/conflicting receipt is removed from the local envelope and asks for a new preview. Confirmed operations older than six days refuse retry before the seven-day server retention expires.
 
 Changed payload keeps the established `422 IDEMPOTENCY_KEY_REUSED` contract (rather than adding a route-specific 409); in-progress work retains `409 IDEMPOTENCY_IN_PROGRESS`. The #472 acceptance wording is reconciled with this pre-existing canonical contract. No global idempotency codes, schema, role rules or scheduler change.
+
+Recovery storage is a safety precondition for a confirmed capture write. If
+identity activation, recovery read, or envelope persistence cannot be confirmed
+(for example quota/private-mode failure), the client keeps the draft/photo row
+and its generated key/body, shows localized retry-storage guidance, and sends no
+event or grocery POST. A later explicit storage revalidation may persist the
+same envelope and let the person confirm again. An authenticated refusal or
+`allowed: false` response is a recovery boundary: in-memory rows and identity
+are cleared and the active/identified private namespace is purged when
+possible. If that purge cannot be confirmed, the client keeps a logical
+refusal and does not expose Check status/Retry; it does not claim physical
+erasure. These boundaries do not change server authorization, receipts,
+request validation, or automatic submission behavior. The same synchronous
+boundary applies when preview, event/grocery mutation, receipt status, or a
+recovery Retry returns `401`/`403`; Check status and Retry require fresh
+authenticated availability plus a verified recovery store before making a
+request. A partial photo batch reports confirmed successes separately from
+remaining rows that were blocked, so storage/access failures never claim that
+nothing was sent after an earlier success.

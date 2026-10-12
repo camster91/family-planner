@@ -226,6 +226,8 @@ async function installCaptureTransport(
   userId: string,
   familyId: string,
   eventTitle: string,
+  allowed = true,
+  draftKind: "event" | "listitem" = "event",
 ): Promise<CaptureTransport> {
   let resolveCaptureReady!: () => void;
   const captureReady = new Promise<void>((resolve) => {
@@ -246,7 +248,7 @@ async function installCaptureTransport(
         contentType: "application/json",
         body: JSON.stringify({
           configured: true,
-          allowed: true,
+          allowed,
           userId,
           familyId,
         }),
@@ -287,7 +289,7 @@ async function installCaptureTransport(
       contentType: "application/json",
       body: JSON.stringify({
         draft: {
-          kind: "event",
+          kind: draftKind,
           title: eventTitle,
           start_time: "2026-01-06T19:00:00.000Z",
           confidence: "high",
@@ -899,6 +901,311 @@ test.describe("capture receipt recovery", () => {
     } finally {
       await page.unroute("**/api/capture/receipt");
       await page.unroute("**/api/events");
+      await page.unroute("**/api/capture");
+    }
+  });
+
+  test("storage failure keeps the draft and blocks the confirmed event write", async ({
+    page,
+    context,
+    baseURL,
+  }, info) => {
+    test.skip(
+      !PROJECT_NAMES.has(info.project.name),
+      "Capture recovery boundaries run at the six representative responsive sizes",
+    );
+    assertFixtureAndLoopback(baseURL);
+    await installLoopbackNetworkGuard(context);
+
+    await page.addInitScript((keyPrefix) => {
+      const originalSetItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (
+          key.startsWith(keyPrefix) &&
+          key !== `${keyPrefix}active` &&
+          value !== "[]"
+        ) {
+          throw new DOMException("quota", "QuotaExceededError");
+        }
+        return originalSetItem.call(this, key, value);
+      };
+    }, "family-planner:capture-recovery:v1:");
+
+    await page.goto("/dashboard");
+    const fixture = await fixtureIdentity(page);
+    const { captureReady } = await installCaptureTransport(
+      page,
+      fixture.userId,
+      fixture.familyId,
+      "Storage boundary event",
+    );
+    let eventPostCount = 0;
+    await page.route("**/api/events", async (route) => {
+      if (route.request().method() === "POST") {
+        eventPostCount += 1;
+        await route.abort("blockedbyclient");
+        return;
+      }
+      await route.continue();
+    });
+
+    try {
+      await page.goto("/dashboard/calendar");
+      await captureReady;
+      await openCaptureSheet(page);
+      const identity = await runtimeIdentity(page, info);
+      const input = page.getByRole("textbox", {
+        name: "What would you like to add?",
+      });
+      await input.fill("storage failure event");
+      await page.getByRole("button", { name: "Read it", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "Add it", exact: true }),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "Add it", exact: true }).click();
+      await expect(
+        page.getByText(
+          "Saved recovery storage is unavailable. Nothing was sent. Try again when storage is available.",
+          { exact: true },
+        ).first(),
+      ).toBeVisible();
+      await expect(
+        page.getByText("Storage boundary event", { exact: true }).first(),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Retry storage", exact: true }),
+      ).toBeVisible();
+      expect(eventPostCount).toBe(0);
+      await info.attach("storage-write-boundary", {
+        body: JSON.stringify({
+          identity,
+          storage: "capture envelope setItem throws QuotaExceededError",
+          eventPostCount,
+          draftPreserved: true,
+        }),
+        contentType: "application/json",
+      });
+    } finally {
+      await page.unroute("**/api/events");
+      await page.unroute("**/api/capture");
+    }
+  });
+
+  test("grocery storage quota blocks the confirmed grocery write", async ({
+    page,
+    context,
+    baseURL,
+  }, info) => {
+    test.skip(
+      !PROJECT_NAMES.has(info.project.name),
+      "Capture recovery boundaries run at the six representative responsive sizes",
+    );
+    assertFixtureAndLoopback(baseURL);
+    await installLoopbackNetworkGuard(context);
+
+    await page.addInitScript((keyPrefix) => {
+      const originalSetItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (
+          key.startsWith(keyPrefix) &&
+          key !== `${keyPrefix}active` &&
+          value !== "[]"
+        ) {
+          throw new DOMException("quota", "QuotaExceededError");
+        }
+        return originalSetItem.call(this, key, value);
+      };
+    }, "family-planner:capture-recovery:v1:");
+
+    await page.goto("/dashboard");
+    const fixture = await fixtureIdentity(page);
+    const { captureReady } = await installCaptureTransport(
+      page,
+      fixture.userId,
+      fixture.familyId,
+      "Milk",
+      true,
+      "listitem",
+    );
+    let groceryPostCount = 0;
+    let eventPostCount = 0;
+    await page.route("**/api/capture/grocery", async (route) => {
+      if (route.request().method() === "POST") {
+        groceryPostCount += 1;
+        await route.abort("blockedbyclient");
+        return;
+      }
+      await route.continue();
+    });
+    await page.route("**/api/events", async (route) => {
+      if (route.request().method() === "POST") {
+        eventPostCount += 1;
+        await route.abort("blockedbyclient");
+        return;
+      }
+      await route.continue();
+    });
+
+    try {
+      await page.goto("/dashboard/calendar");
+      await captureReady;
+      await openCaptureSheet(page);
+      await page.getByRole("textbox", {
+        name: "What would you like to add?",
+      }).fill("milk");
+      await page.getByRole("button", { name: "Read it", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "Add it", exact: true }),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "Add it", exact: true }).click();
+      await expect(
+        page.getByText(
+          "Saved recovery storage is unavailable. Nothing was sent. Try again when storage is available.",
+          { exact: true },
+        ).first(),
+      ).toBeVisible();
+      await expect(page.getByText("Milk", { exact: true }).first()).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Retry storage", exact: true }),
+      ).toBeVisible();
+      expect(groceryPostCount).toBe(0);
+      expect(eventPostCount).toBe(0);
+    } finally {
+      await page.unroute("**/api/events");
+      await page.unroute("**/api/capture/grocery");
+      await page.unroute("**/api/capture");
+    }
+  });
+
+  test("capture storage read failure stays observable before any confirmed write", async ({
+    page,
+    context,
+    baseURL,
+  }, info) => {
+    test.skip(
+      !PROJECT_NAMES.has(info.project.name),
+      "Capture recovery boundaries run at the six representative responsive sizes",
+    );
+    assertFixtureAndLoopback(baseURL);
+    await installLoopbackNetworkGuard(context);
+
+    await page.addInitScript((activeKey) => {
+      const originalGetItem = Storage.prototype.getItem;
+      Storage.prototype.getItem = function (key: string) {
+        if (key === activeKey) throw new DOMException("private mode", "SecurityError");
+        return originalGetItem.call(this, key);
+      };
+    }, "family-planner:capture-recovery:v1:active");
+    await page.goto("/dashboard");
+    const fixture = await fixtureIdentity(page);
+    const { captureReady } = await installCaptureTransport(
+      page,
+      fixture.userId,
+      fixture.familyId,
+      "Read failure event",
+    );
+    let eventPostCount = 0;
+    await page.route("**/api/events", async (route) => {
+      if (route.request().method() === "POST") {
+        eventPostCount += 1;
+        await route.abort("blockedbyclient");
+        return;
+      }
+      await route.continue();
+    });
+
+    try {
+      await page.goto("/dashboard/calendar");
+      await captureReady;
+      await openCaptureSheet(page);
+      await expect(
+        page.getByRole("button", { name: "Retry storage", exact: true }),
+      ).toBeVisible();
+      expect(eventPostCount).toBe(0);
+    } finally {
+      await page.unroute("**/api/events");
+      await page.unroute("**/api/capture");
+    }
+  });
+
+  test("forbidden capture role purges recovery and exposes no retry", async ({
+    page,
+    context,
+    baseURL,
+  }, info) => {
+    test.skip(
+      !PROJECT_NAMES.has(info.project.name),
+      "Capture recovery boundaries run at the six representative responsive sizes",
+    );
+    assertFixtureAndLoopback(baseURL);
+    await installLoopbackNetworkGuard(context);
+
+    await page.goto("/dashboard");
+    const fixture = await fixtureIdentity(page);
+    const { captureReady } = await installCaptureTransport(
+      page,
+      fixture.userId,
+      fixture.familyId,
+      "Forbidden boundary event",
+      false,
+    );
+    const storageKey = captureRecoveryStorageKey(
+      fixture.userId,
+      fixture.familyId,
+    );
+    const envelope: CaptureRecoveryEnvelope = {
+      version: 1,
+      key: `forbidden-${randomUUID()}`,
+      action: "event.create",
+      requestHash: "a".repeat(64),
+      body: JSON.stringify({ title: "Forbidden boundary event" }),
+      title: "Forbidden boundary event",
+      kind: "event",
+      createdAt: Date.now(),
+      photo: false,
+    };
+
+    try {
+      await page.evaluate(
+        ({ key, active, value }) => {
+          window.localStorage.setItem(key, JSON.stringify([value]));
+          window.localStorage.setItem(active, key);
+        },
+        {
+          key: storageKey,
+          active: "family-planner:capture-recovery:v1:active",
+          value: envelope,
+        },
+      );
+      await page.goto("/dashboard/calendar");
+      await captureReady;
+      const identity = await runtimeIdentity(page, info);
+      await expect(page.getByTestId("capture-child-blocked")).toBeVisible();
+      await expect(page.getByTestId("capture-child-blocked")).toContainText(
+        "Ask a parent to add this.",
+      );
+      await expect(
+        page.getByRole("button", {
+          name: "Retry Forbidden boundary event",
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      expect(
+        await page.evaluate(
+          (key) => window.localStorage.getItem(key),
+          storageKey,
+        ),
+      ).toBeNull();
+      await info.attach("forbidden-role-boundary", {
+        body: JSON.stringify({
+          identity,
+          allowed: false,
+          recoveryPurged: true,
+          retryVisible: false,
+        }),
+        contentType: "application/json",
+      });
+    } finally {
       await page.unroute("**/api/capture");
     }
   });
