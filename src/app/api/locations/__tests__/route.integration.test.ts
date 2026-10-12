@@ -51,10 +51,12 @@ const describeWithDatabase =
 
 jest.setTimeout(60_000);
 
-describeWithDatabase("locations POST against PostgreSQL", () => {
+describeWithDatabase("locations routes against PostgreSQL", () => {
   let db: NonNullable<typeof import("@/lib/prisma").prisma>;
   let POST: typeof import("../route").POST;
   let GET: typeof import("../route").GET;
+  let PATCH: typeof import("../[id]/route").PATCH;
+  let DELETE: typeof import("../[id]/route").DELETE;
   let idem: typeof import("@/lib/idempotency");
   let priorIdempotencyRandom: (() => number) | undefined;
   let fixtureGuardPassed = false;
@@ -98,14 +100,23 @@ describeWithDatabase("locations POST against PostgreSQL", () => {
     });
   }
 
+  function locationParams(id: string) {
+    return { params: Promise.resolve({ id }) };
+  }
+
   async function waitForAdvisoryWaiter() {
     for (let attempt = 0; attempt < 100; attempt += 1) {
-      const rows = await db.$queryRaw<Array<{ count: bigint }>>`
-        SELECT COUNT(*)::bigint AS count
-        FROM pg_locks
-        WHERE locktype = 'advisory' AND granted = false
+      const rows = await db.$queryRaw<Array<{ count: bigint; user_lock: bigint }>>`
+        SELECT COUNT(*)::bigint AS count,
+               COUNT(*) FILTER (WHERE activity.query ILIKE '%pg_advisory_xact_lock%')::bigint AS user_lock
+        FROM pg_locks AS locks
+        JOIN pg_stat_activity AS activity ON activity.pid = locks.pid
+        WHERE locks.locktype = 'advisory' AND locks.granted = false
       `;
-      if (Number(rows[0]?.count ?? 0) > 0) return;
+      // The route's lockUser call is the canonical actor lock; checking the
+      // SQL activity proves the request reached that waiter before the holder
+      // transaction is released rather than merely sleeping and hoping.
+      if (Number(rows[0]?.count ?? 0) > 0 && Number(rows[0]?.user_lock ?? 0) > 0) return;
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
     throw new Error("location mutation did not reach the advisory lock waiter");
@@ -120,6 +131,8 @@ describeWithDatabase("locations POST against PostgreSQL", () => {
     db = mod.prisma;
     POST = (await import("../route")).POST;
     GET = (await import("../route")).GET;
+    PATCH = (await import("../[id]/route")).PATCH;
+    DELETE = (await import("../[id]/route")).DELETE;
     idem = await import("@/lib/idempotency");
     priorIdempotencyRandom = idem.idempotencyRuntime.random;
     idem.idempotencyRuntime.random = () => 0.99;
@@ -186,6 +199,7 @@ describeWithDatabase("locations POST against PostgreSQL", () => {
       if (idem && priorIdempotencyRandom) {
         idem.idempotencyRuntime.random = priorIdempotencyRandom;
       }
+
       await db?.$disconnect();
     }
   });
@@ -262,6 +276,42 @@ describeWithDatabase("locations POST against PostgreSQL", () => {
     }
   });
 
+  it("authorizes a completed replay after the actor lock waiter observes a downgrade", async () => {
+    const key = "locations-route-replay-role-race-20261012";
+    const first = await POST(
+      request(PARENT, { label: "Replay office", address: "7 Main" }, key),
+    );
+    expect(first.status).toBe(201);
+
+    const holder = new Client({ connectionString: process.env.DATABASE_URL });
+    await holder.connect();
+    let pending: Promise<Response> | undefined;
+    try {
+      await holder.query("BEGIN");
+      await holder.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+        `user-membership:${PARENT}`,
+      ]);
+      // The precheck sees the still-parent row; beforeReplay must wait on this
+      // lock before it can return the stored private response.
+      pending = POST(
+        request(PARENT, { label: "Replay office", address: "7 Main" }, key),
+      );
+      await waitForAdvisoryWaiter();
+      await holder.query('UPDATE "User" SET "role" = $1 WHERE "id" = $2', [
+        "teen",
+        PARENT,
+      ]);
+      await holder.query("COMMIT");
+      expect((await pending).status).toBe(403);
+      expect(await db.familyLocation.count({ where: { family_id: FAMILY } })).toBe(1);
+    } finally {
+      await holder.query("ROLLBACK").catch(() => undefined);
+      await holder.end();
+      await Promise.allSettled(pending ? [pending] : []);
+      await db.user.update({ where: { id: PARENT }, data: { role: "parent" } });
+    }
+  });
+
   it("re-reads membership after a waiting PATCH and DELETE lock", async () => {
     const patchId = "locations-route-patch-role-race-20261012";
     const deleteId = "locations-route-delete-role-race-20261012";
@@ -299,9 +349,9 @@ describeWithDatabase("locations POST against PostgreSQL", () => {
     try {
       const patched = await runWaitingMutation(
         () =>
-          location.PATCH(
+          PATCH(
             request(PARENT, { label: "Changed", address: "5 Main" }, null),
-            params({ id: patchId }),
+            locationParams(patchId),
           ),
         holder,
       );
@@ -321,7 +371,7 @@ describeWithDatabase("locations POST against PostgreSQL", () => {
         },
       });
       const deleted = await runWaitingMutation(
-        () => location.DELETE(request(PARENT, {}, null), params({ id: deleteId })),
+        () => DELETE(request(PARENT, {}, null), locationParams(deleteId)),
         holder,
       );
       expect((await deleted).status).toBe(403);

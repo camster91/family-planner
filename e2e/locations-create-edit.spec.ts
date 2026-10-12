@@ -436,9 +436,16 @@ for (const locale of ["en", "es"] as const) {
 
       const read = await browserFetch(page, "/api/locations");
       expect(read.status, read.body).toBe(200);
-      const persisted = (
+      const persistedRows = (
         (JSON.parse(read.body).locations ?? []) as LocationRow[]
-      ).find((row) => row.id === created.location!.id);
+      ).filter(
+        (row) =>
+          row.label === label &&
+          row.address === address &&
+          row.user_id === A.parent,
+      );
+      expect(persistedRows).toHaveLength(1);
+      const persisted = persistedRows[0];
       expect(persisted).toMatchObject({
         id: created.location!.id,
         label,
@@ -493,11 +500,16 @@ for (const locale of ["en", "es"] as const) {
       await expect(editDialog).toHaveCount(0);
       const editedRead = await browserFetch(page, "/api/locations");
       expect(editedRead.status, editedRead.body).toBe(200);
-      expect(
-        ((JSON.parse(editedRead.body).locations ?? []) as LocationRow[]).find(
-          (row) => row.id === created.location!.id,
-        ),
-      ).toMatchObject(expected[0]);
+      const editedRows = (
+        (JSON.parse(editedRead.body).locations ?? []) as LocationRow[]
+      ).filter(
+        (row) =>
+          row.label === editedLabel &&
+          row.address === editedAddress &&
+          row.user_id === A.parent,
+      );
+      expect(editedRows).toHaveLength(1);
+      expect(editedRows[0]).toMatchObject(expected[0]);
 
       const childContext = await browser.newContext({
         baseURL,

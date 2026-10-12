@@ -60,6 +60,11 @@ export async function removeOwnedLocations({
         [ids, familyId, userId],
       );
       expect(deleted.rows.map((row) => row.id).sort()).toEqual([...ids].sort());
+      const remaining = await db.query<{ id: string }>(
+        `SELECT id FROM "FamilyLocation" WHERE id = ANY($1::text[])`,
+        [ids],
+      );
+      expect(remaining.rows).toHaveLength(0);
     }
 
     if (keys.length) {
@@ -87,6 +92,13 @@ export async function removeOwnedLocations({
         [receipts.rows.map((row) => row.id), familyId, userId, keys],
       );
       expect(deleted.rows).toHaveLength(receipts.rows.length);
+      const remaining = await db.query<{ id: string }>(
+        `SELECT id FROM "IdempotencyRecord"
+         WHERE family_id = $1 AND user_id = $2 AND key = ANY($3::text[])
+           AND action = 'location.create'`,
+        [familyId, userId, keys],
+      );
+      expect(remaining.rows).toHaveLength(0);
     }
   } finally {
     await db.end();

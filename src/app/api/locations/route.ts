@@ -133,6 +133,14 @@ export async function POST(request: NextRequest) {
           return { status: 201, body }
         })
       },
+      {
+        // A completed receipt is still private data. Re-run the live parent
+        // and feature check while holding the same actor/household locks used
+        // by the writer before returning the cached response.
+        beforeReplay: () => prisma!.$transaction(async (tx) =>
+          authorizeLocationMutationInTx(tx, { familyId: user.family_id!, userId: user.id }, 'add'),
+        ),
+      },
     )
     return withLocationNoStore(response)
   } catch (error) {
