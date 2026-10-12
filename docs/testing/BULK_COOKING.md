@@ -15,6 +15,11 @@ Spec: `docs/product/BULK_COOKING.md`.
   allocations, prepared-state requirement, Delete/Undo consumption relinking,
   next-prep comparison, stale ownership/roles, child ordinary-meal compatibility,
   detach identity and whole-dish grocery scaling/deduplication/prepared refusal.
+- Database regression repair: 37 account-erasure, recipe-grocery and prep
+  transaction tests pass. The whole-household deletion fixture now seeds all
+  three prep models and proves creator/cook erasure. Grocery writes/replays
+  recheck membership and session generation under the same locks while retaining
+  existing ordinary meal/grocery verification permissions.
 - Device route inventory tests pass with explicit bulk-route refusals.
 - Export, deletion-plan, member-relation and translation checks pass.
 - Full unit run: 486 suites / 5,586 tests pass, 55 suites skip their opt-in

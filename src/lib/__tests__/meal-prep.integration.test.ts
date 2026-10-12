@@ -358,6 +358,46 @@ run("multi-dish prep transactions", () => {
         )
       ).status,
     ).toBe(400);
+    await prisma!.user.update({
+      where: { id: userId },
+      data: { family_id: null },
+    });
+    expect(
+      (
+        await addRecipeToGroceries(
+          prisma!,
+          {
+            recipeId: recipe.id,
+            batchId: body.batchIds[0],
+            ingredientIds: undefined,
+          },
+          groceryActor,
+          second.id,
+        )
+      ).status,
+    ).toBe(403);
+    await prisma!.user.update({
+      where: { id: userId },
+      data: { family_id: familyId, token_version: 1 },
+    });
+    expect(
+      (
+        await addRecipeToGroceries(
+          prisma!,
+          {
+            recipeId: recipe.id,
+            batchId: body.batchIds[0],
+            ingredientIds: undefined,
+          },
+          groceryActor,
+          second.id,
+        )
+      ).status,
+    ).toBe(401);
+    await prisma!.user.update({
+      where: { id: userId },
+      data: { token_version: 0 },
+    });
     await action({ action: "prepared", session_id: body.sessionId });
     expect(
       (

@@ -1,3 +1,4 @@
+import { authorizeMealBatchInTx } from "@/lib/meal-batch-api";
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { featureGate } from '@/lib/feature-gate-server'
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const actor = { id: auth.user.id, family_id: auth.user.family_id }
+    const actor = { id: auth.user.id, family_id: auth.user.family_id, tokenVersion: auth.payload.tv ?? 0 }
     return await withIdempotency(
       prisma!,
       key,
@@ -66,7 +67,8 @@ export async function POST(request: NextRequest) {
       },
       parsed.data,
       // With a key, withIdempotency always holds a record, so recordId is set.
-      ({ recordId }) => addRecipeToGroceries(prisma!, parsed.data, actor, recordId!)
+      ({ recordId }) => addRecipeToGroceries(prisma!, parsed.data, actor, recordId!),
+      { beforeReplay: () => prisma!.$transaction(tx => authorizeMealBatchInTx(tx, { userId: actor.id, familyId: actor.family_id, tokenVersion: actor.tokenVersion }, true)) }
     )
   } catch (error) {
     logRouteError('POST /api/lists/items/from-recipe', error, getRequestId(request))

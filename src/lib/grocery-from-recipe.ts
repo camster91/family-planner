@@ -1,3 +1,4 @@
+import { authorizeMealBatchInTx } from "@/lib/meal-batch-api";
 import { lockUser, lockHousehold } from "@/lib/household-lock";
 /**
  * Recipe → grocery add (ADR-0007 child D, #253). Contract:
@@ -135,7 +136,7 @@ function fail(status: 400 | 403 | 404 | 409, code: FromRecipeErrorCode): { statu
   return { status, body: { error: { code, message: MESSAGES[code], retryable: code === 'UNDO_IN_PROGRESS' } } }
 }
 
-type Actor = { id: string; family_id: string }
+type Actor = { id: string; family_id: string; tokenVersion?: number }
 
 // ---------------------------------------------------------------------------
 // Default list (O-4)
@@ -256,6 +257,8 @@ async function addInTx(
 
   let batchServings: number | null = null
   if (batchId) {
+    const refusal = await authorizeMealBatchInTx(db, { userId: actor.id, familyId: actor.family_id, tokenVersion: actor.tokenVersion ?? 0 }, true)
+    if (refusal) return refusal
     const batch = await db.mealBatch.findFirst({ where: { id: batchId, family_id: actor.family_id }, select: { total_servings: true, recipe_id: true, prep_session: { select: { family_id: true, prepared_at: true } } } })
     if (!batch || batch.prep_session.family_id !== actor.family_id) return fail(404, 'BATCH_NOT_FOUND')
     if (batch.recipe_id !== recipe.id) return fail(400, 'MEAL_RECIPE_MISMATCH')

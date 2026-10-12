@@ -54,10 +54,11 @@ export function batchJson(result: EffectResult) {
   });
 }
 
+/** Bulk management requires verification; ordinary meal/grocery access keeps its existing role and verification policy. */
 export async function authorizeMealBatchInTx(
   tx: Prisma.TransactionClient,
   actor: Actor,
-  allowOrdinaryMealChild = false,
+  ordinaryMealPermissions = false,
 ): Promise<EffectResult | null> {
   await lockUser(tx, actor.userId);
   await lockHousehold(tx, actor.familyId);
@@ -73,12 +74,14 @@ export async function authorizeMealBatchInTx(
   if (
     !user ||
     user.token_version !== actor.tokenVersion ||
-    !user.email_verified
+    (!ordinaryMealPermissions && !user.email_verified)
   )
     return batchFailure(401, "UNAUTHORIZED");
   if (
     user.family_id !== actor.familyId ||
-    !(allowOrdinaryMealChild ? ["parent", "teen", "child"] : ["parent", "teen"]).includes(user.role)
+    !(
+      ordinaryMealPermissions ? ["parent", "teen", "child"] : ["parent", "teen"]
+    ).includes(user.role)
   )
     return batchFailure(403, "PLANNER_FORBIDDEN");
   const family = await tx.family.findUnique({

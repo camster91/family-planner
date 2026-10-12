@@ -121,7 +121,10 @@ describeWithDatabase('account deletion against Postgres', () => {
     await db.mealPlanEntry.create({ data: { id: id('plan-entry'), meal_plan_id: id('plan'), recipe_id: id('recipe'), date: t, meal_type: 'dinner' } })
     await db.shoppingList.create({ data: { id: id('shop'), family_id: f, created_by: parent } })
     await db.shoppingItem.create({ data: { id: id('shop-item'), shopping_list_id: id('shop'), ingredient_name: 'Milk' } })
-    await db.familyMeal.create({ data: { id: id('meal'), family_id: f, date: t, meal_type: 'dinner', created_by: parent, cook_id: parent, recipe_id: id('recipe') } })
+    await db.mealPrepSession.create({ data: { id: id('prep'), family_id: f, prepared_on: t, prepared_at: t, created_by: parent } })
+    await db.mealBatch.create({ data: { id: id('batch'), family_id: f, prep_session_id: id('prep'), position: 0, name: 'Soup', total_servings: 8, recipe_id: id('recipe'), cook_id: parent } })
+    await db.familyMeal.create({ data: { id: id('meal'), family_id: f, date: t, meal_type: 'dinner', servings: 4, created_by: parent, cook_id: parent, recipe_id: id('recipe'), batch_id: id('batch'), batch_allocation_key: `${f}:meal` } })
+    await db.mealBatchConsumption.create({ data: { id: id('eaten'), family_id: f, batch_id: id('batch'), meal_id: id('meal'), allocation_key: `${f}:meal`, servings: 1, created_by: parent, consumed_at: t } })
     // Gamification
     await db.habit.create({ data: { id: id('habit'), family_id: f, title: 'Read', created_by: parent } })
     await db.habitLog.create({ data: { id: id('habit-log'), family_id: f, habit_id: id('habit'), user_id: child, logged_date: t } })
@@ -550,6 +553,9 @@ describeWithDatabase('account deletion against Postgres', () => {
     // Preserve stack identity without replacing the erased creator with another actor.
     expect(await prisma.routineStack.findUnique({ where: { id: `${P}-a-routine-stack` }, select: { id: true, family_id: true, created_by: true } })).toEqual({ id: `${P}-a-routine-stack`, family_id: fam('a'), created_by: null })
     expect(await owner('familyMeal', 'meal', 'cook_id')).toBeNull()
+    expect(await owner('mealBatch', 'batch', 'cook_id')).toBeNull()
+    expect(await owner('mealPrepSession', 'prep', 'created_by')).toBeNull()
+    expect(await owner('mealBatchConsumption', 'eaten', 'created_by')).toBeNull()
     expect(await owner('listItem', 'item', 'checked_by')).toBeNull()
     // Their personal rows and credentials are gone; the household's tablet stays paired.
     expect(await prisma.message.count({ where: { id: `${P}-a-msg` } })).toBe(0)
