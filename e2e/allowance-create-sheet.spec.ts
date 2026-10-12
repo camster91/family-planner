@@ -165,9 +165,13 @@ for (const locale of ["en", "es"] as const) {
           pendingPosts.push(resolve);
         });
         await route.fulfill({
-          status: 201,
+          status: postHeaders.length === 1 ? 201 : 500,
           contentType: "application/json",
-          body: JSON.stringify({ allowance: { id: "synthetic-allowance" } }),
+          body: JSON.stringify(
+            postHeaders.length === 1
+              ? { allowance: { id: "synthetic-allowance" } }
+              : { error: "synthetic terminal refusal" },
+          ),
         });
       });
 
@@ -182,7 +186,9 @@ for (const locale of ["en", "es"] as const) {
       await dialog.getByRole("button", { name: copy.tryAgain }).click();
       await expect(dialog.getByRole("option", { name: "Sam" })).toBeAttached();
       await dialog.getByLabel(copy.forLabel).selectOption("synthetic-child");
-      await expect(dialog.getByLabel(copy.forLabel)).toHaveValue("synthetic-child");
+      await expect(dialog.getByLabel(copy.forLabel)).toHaveValue(
+        "synthetic-child",
+      );
       await assertSheetSurface(page, dialog);
       const save = dialog.getByRole("button", { name: copy.save });
       await save.click();
@@ -237,6 +243,15 @@ for (const locale of ["en", "es"] as const) {
       await expect(directForm).toBeVisible();
       const releaseDirect = pendingPosts.shift();
       if (releaseDirect) releaseDirect();
+      await expect(directForm.getByRole("alert")).toContainText(
+        copy.createError,
+      );
+      await expect(
+        directForm.getByRole("link", { name: copy.back }),
+      ).toBeVisible();
+      await page
+        .goBack({ waitUntil: "commit", timeout: 2_000 })
+        .catch(() => null);
       await expect(page).toHaveURL(/\/dashboard\/allowance$/);
 
       // The refusal path is a separate child view: no synthetic POST is

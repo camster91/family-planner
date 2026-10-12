@@ -18,6 +18,7 @@ import {
 } from "@/components/chores/RoutineIconPicker";
 import { TakeTurnsPicker } from "@/components/chores/TakeTurnsPicker";
 import { ROTATION_MIN, isRotating } from "@/lib/chore-rotation";
+import { usePendingFormNavigation } from "@/components/layout/pending-form-navigation";
 
 type Difficulty = "easy" | "medium" | "hard";
 type Frequency = "once" | "daily" | "weekly" | "monthly";
@@ -63,6 +64,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
     { id: string; name: string; role: string }[]
   >([]);
   const router = useRouter();
+  const navigation = usePendingFormNavigation();
   const searchParams = useSearchParams();
   const choreId = searchParams.get("id");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -213,6 +215,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
         return;
       }
 
+      await navigation?.releaseBeforeNavigation();
       router.push("/dashboard/chores");
       router.refresh();
     } catch (err) {

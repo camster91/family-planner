@@ -14,7 +14,10 @@ import Link from "next/link";
 import { useTranslation } from "@/i18n";
 import { allowanceCreateMessages } from "@/i18n/allowance-create";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
-import { usePendingFormNavigationGuard } from "@/components/layout/pending-form-navigation";
+import {
+  usePendingFormNavigation,
+  usePendingFormNavigationController,
+} from "@/components/layout/pending-form-navigation";
 
 interface AllowanceMember {
   id: string;
@@ -129,7 +132,11 @@ export default function AllowanceCreateForm({
   useEffect(() => {
     onBusyChange?.(saving);
   }, [onBusyChange, saving]);
-  usePendingFormNavigationGuard(saving);
+  const directNavigation = usePendingFormNavigationController(
+    saving && !inSheet,
+  );
+  const sheetNavigation = usePendingFormNavigation();
+  const navigation = inSheet ? sheetNavigation : directNavigation;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -188,6 +195,7 @@ export default function AllowanceCreateForm({
         );
       }
 
+      await navigation?.releaseBeforeNavigation();
       router.push("/dashboard/allowance");
       router.refresh();
     } catch (cause) {
@@ -407,9 +415,13 @@ export default function AllowanceCreateForm({
         >
           <button
             type="button"
-            onClick={() =>
-              inSheet ? router.back() : router.push("/dashboard/allowance")
-            }
+            onClick={() => {
+              void (async () => {
+                await navigation?.releaseBeforeNavigation();
+                if (inSheet) router.back();
+                else router.push("/dashboard/allowance");
+              })();
+            }}
             disabled={saving}
             className="btn-plain min-h-[44px]"
           >

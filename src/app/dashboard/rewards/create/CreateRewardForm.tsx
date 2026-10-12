@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "@/i18n";
 import { rewardCreateMessages } from "@/i18n/reward-create";
+import { usePendingFormNavigation } from "@/components/layout/pending-form-navigation";
 
 const ICON_OPTIONS = [
   "🎁",
@@ -38,6 +39,7 @@ export default function CreateRewardForm({
   canCreate?: boolean;
 } = {}) {
   const router = useRouter();
+  const navigation = usePendingFormNavigation();
   const { locale } = useTranslation();
   const copy = rewardCreateMessages[locale];
   const [name, setName] = useState("");
@@ -81,6 +83,7 @@ export default function CreateRewardForm({
         );
       }
 
+      await navigation?.releaseBeforeNavigation();
       router.push("/dashboard/rewards");
       router.refresh();
     } catch (cause) {

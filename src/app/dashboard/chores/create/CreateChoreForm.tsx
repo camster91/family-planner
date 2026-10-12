@@ -26,6 +26,7 @@ import {
   normalizeRoutineName,
 } from "@/lib/routine-icons";
 import { ROTATION_MIN } from "@/lib/chore-rotation";
+import { usePendingFormNavigation } from "@/components/layout/pending-form-navigation";
 
 type Difficulty = "easy" | "medium" | "hard";
 type Frequency = "once" | "daily" | "weekly" | "monthly";
@@ -66,6 +67,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
     { id: string; name: string; role: string }[]
   >([]);
   const router = useRouter();
+  const navigation = usePendingFormNavigation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fieldId = useId();
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -180,6 +182,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         return;
       }
 
+      await navigation?.releaseBeforeNavigation();
       router.push("/dashboard/chores");
       router.refresh();
     } catch (err) {

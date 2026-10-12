@@ -12,6 +12,7 @@ import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError 
 import { EventDuration } from '@/components/calendar/EventDuration'
 import { eventFormRange } from '@/lib/dates'
 import { Dialog } from '@/components/ui/dialog'
+import { usePendingFormNavigation } from '@/components/layout/pending-form-navigation'
 
 function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
   const { t } = useTranslation()
@@ -38,6 +39,7 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
   const cancelRef = useRef<HTMLButtonElement>(null)
   const originalTimes = useRef<{ eventId: string; start: string; end: string | null } | null>(null)
   const router = useRouter()
+  const navigation = usePendingFormNavigation()
   useEffect(() => { onBusyChange?.(loading || deleting) }, [loading, deleting, onBusyChange])
   const searchParams = useSearchParams()
   const eventId = searchParams.get('id')
@@ -162,6 +164,7 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
       }
 
       notifyCalendarChanged()
+      await navigation?.releaseBeforeNavigation()
       if (inSheet) router.back()
       else router.push('/dashboard/calendar')
       router.refresh()
@@ -190,6 +193,7 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
       }
       setConfirmOpen(false)
       notifyCalendarChanged()
+      await navigation?.releaseBeforeNavigation()
       if (inSheet) router.back()
       else router.push('/dashboard/calendar')
       router.refresh()

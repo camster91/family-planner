@@ -10,6 +10,7 @@ import { Glyph } from "@/components/ui/glyph";
 import { listTypeFilter } from "@/lib/list-type-filter";
 import { useTranslation } from "@/i18n";
 import { listCreateMessages, type ListCreateMessage } from "@/i18n/list-create";
+import { usePendingFormNavigation } from "@/components/layout/pending-form-navigation";
 
 // -----------------------------------------------------------------------
 // Type config
@@ -140,6 +141,7 @@ export default function CreateListForm({
   canCreate?: boolean;
 } = {}) {
   const router = useRouter();
+  const navigation = usePendingFormNavigation();
   const { locale } = useTranslation();
   const copy = listCreateMessages[locale];
   const [imageUrl, setImageUrl] = React.useState<string | null>(null);
@@ -192,8 +194,11 @@ export default function CreateListForm({
 
       setSuccess(copy.created);
       setTimeout(() => {
-        router.push("/dashboard/lists");
-        router.refresh();
+        void (async () => {
+          await navigation?.releaseBeforeNavigation();
+          router.push("/dashboard/lists");
+          router.refresh();
+        })();
       }, 1200);
     } catch (err) {
       submittingRef.current = false;

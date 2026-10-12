@@ -9,6 +9,7 @@ import { useTranslation } from '@/i18n'
 import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError } from '@/i18n/calendar-forms'
 import { EventDuration } from '@/components/calendar/EventDuration'
 import { eventFormRange, toDateOnlyLocal } from '@/lib/dates'
+import { usePendingFormNavigation } from '@/components/layout/pending-form-navigation'
 
 export default function CreateEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
   const { t } = useTranslation()
@@ -25,6 +26,7 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<CalendarFormError | null>(null)
   const router = useRouter()
+  const navigation = usePendingFormNavigation()
   useEffect(() => { onBusyChange?.(loading) }, [loading, onBusyChange])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -70,6 +72,7 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
       }
 
       notifyCalendarChanged()
+      await navigation?.releaseBeforeNavigation()
       if (inSheet) router.back()
       else router.push('/dashboard/calendar')
       router.refresh()

@@ -155,9 +155,10 @@ it("does not dismiss during an image upload and unlocks after upload failure", a
   ).toBeInTheDocument();
 });
 
-it("captures browser Back and beforeunload while a shared form is busy", () => {
+it("owns a same-URL sentinel, blocks Back while busy, and releases once", async () => {
   const originalUrl = window.location.href;
-  window.history.replaceState({ route: "form" }, "", "/dashboard/lists/create");
+  window.history.replaceState({ route: "base" }, "", "/dashboard/lists");
+  window.history.pushState({ route: "form" }, "", "/dashboard/lists/create");
   const view = render(
     <FormSheet title="Saving list" busy>
       <button>Saving</button>
@@ -168,28 +169,29 @@ it("captures browser Back and beforeunload while a shared form is busy", () => {
   window.dispatchEvent(unload);
   expect(unload.defaultPrevented).toBe(true);
 
-  window.history.replaceState({ route: "base" }, "", "/dashboard/lists");
-  const back = new PopStateEvent("popstate", {
-    cancelable: true,
-    state: { route: "base" },
+  await act(async () => {
+    window.history.back();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
-  window.dispatchEvent(back);
-  expect(back.defaultPrevented).toBe(true);
   expect(window.location.pathname).toBe("/dashboard/lists/create");
   expect(window.history.state).toEqual({ route: "form" });
+  const sentinelLength = window.history.length;
 
   view.rerender(
     <FormSheet title="Saving list" busy={false}>
       <button>Saving</button>
     </FormSheet>,
   );
-  window.history.replaceState({ route: "base" }, "", "/dashboard/lists");
-  window.dispatchEvent(
-    new PopStateEvent("popstate", {
-      cancelable: true,
-      state: { route: "base" },
-    }),
-  );
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(window.location.pathname).toBe("/dashboard/lists/create");
+  expect(window.history.length).toBe(sentinelLength);
+
+  await act(async () => {
+    window.history.back();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
   expect(window.location.pathname).toBe("/dashboard/lists");
   view.unmount();
   window.history.replaceState({}, "", originalUrl);
