@@ -32,10 +32,34 @@ describe("profile target in the create chore form", () => {
         return { ok: true, status: 200, json: async () => ({ members: [{ id: "account-1", name: "Parent", role: "parent" }] }) };
       }
       if (url === "/api/family/profiles") {
-        return { ok: true, status: 200, json: async () => ({ profiles: [profile] }) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ profiles: [profile], profileChoreSupported: true }),
+        };
       }
       return { ok: true, status: 200, json: async () => ({ chore: { id: "chore-1" } }) };
     }) as unknown as typeof fetch;
+  });
+
+  it("does not expose profiles when setup is readable but the chore writer is off", async () => {
+    global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url === "/api/family/members") {
+        return { ok: true, status: 200, json: async () => ({ members: [{ id: "account-1", name: "Parent", role: "parent" }] }) };
+      }
+      if (url === "/api/family/profiles") {
+        return { ok: true, status: 200, json: async () => ({ profiles: [profile], profileChoreSupported: false }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    }) as unknown as typeof fetch;
+    render(<CreateChorePage />);
+    await screen.findByRole("option", { name: "Parent" });
+    await waitFor(() =>
+      expect(calls.some((call) => call.url === "/api/family/profiles")).toBe(true),
+    );
+    expect(screen.queryByRole("option", { name: /Jamie/ })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Household profiles" })).toBeNull();
   });
 
   afterEach(() => jest.restoreAllMocks());
@@ -77,7 +101,7 @@ describe("profile target in the create chore form", () => {
     global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
       if (url === "/api/family/members") return { ok: true, status: 200, json: async () => ({ members: [] }) };
-      if (url === "/api/family/profiles") return { ok: true, status: 200, json: async () => ({ profiles: [profile] }) };
+      if (url === "/api/family/profiles") return { ok: true, status: 200, json: async () => ({ profiles: [profile], profileChoreSupported: true }) };
       return { ok: false, status: 409, json: async () => ({ error: "MEMBER_PROTOCOL_UNAVAILABLE" }) };
     }) as unknown as typeof fetch;
     render(<CreateChorePage />);

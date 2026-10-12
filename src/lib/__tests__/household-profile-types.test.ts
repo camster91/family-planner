@@ -1,4 +1,7 @@
-import { findActiveHouseholdProfile } from "../household-profile-types";
+import {
+  findActiveHouseholdProfile,
+  readHouseholdProfilesResponse,
+} from "../household-profile-types";
 
 const profile = {
   id: "profile-jamie",
@@ -10,6 +13,25 @@ const profile = {
 };
 
 describe("household profile target resolution", () => {
+  it("requires an explicit boolean writer capability and fails closed when it is absent or malformed", () => {
+    expect(readHouseholdProfilesResponse({ profiles: [profile] })).toEqual({
+      profiles: [profile],
+      profileChoreSupported: false,
+    });
+    expect(
+      readHouseholdProfilesResponse({
+        profiles: [profile],
+        profileChoreSupported: "true",
+      }),
+    ).toBeNull();
+    expect(
+      readHouseholdProfilesResponse({
+        profiles: [profile],
+        profileChoreSupported: true,
+      }),
+    ).toEqual({ profiles: [profile], profileChoreSupported: true });
+  });
+
   it("returns only an active profile for the explicit profile target", () => {
     expect(findActiveHouseholdProfile([profile], "profile-jamie")).toEqual(profile);
     expect(findActiveHouseholdProfile([profile], "stale-profile")).toBeNull();

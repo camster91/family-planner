@@ -9,6 +9,11 @@ export type HouseholdProfile = {
   revision: number;
 };
 
+export type HouseholdProfilesResponse = {
+  profiles: HouseholdProfile[];
+  profileChoreSupported: boolean;
+};
+
 export function isHouseholdProfile(value: unknown): value is HouseholdProfile {
   if (!value || typeof value !== "object") return false;
   const item = value as Record<string, unknown>;
@@ -24,11 +29,29 @@ export function isHouseholdProfile(value: unknown): value is HouseholdProfile {
   );
 }
 
-export function readHouseholdProfiles(value: unknown): HouseholdProfile[] | null {
+export function readHouseholdProfilesResponse(
+  value: unknown,
+): HouseholdProfilesResponse | null {
   if (!value || typeof value !== "object") return null;
-  const profiles = (value as { profiles?: unknown }).profiles;
+  const payload = value as {
+    profiles?: unknown;
+    profileChoreSupported?: unknown;
+  };
+  const profiles = payload.profiles;
   if (!Array.isArray(profiles) || !profiles.every(isHouseholdProfile)) return null;
-  return profiles;
+  if (
+    payload.profileChoreSupported !== undefined &&
+    typeof payload.profileChoreSupported !== "boolean"
+  )
+    return null;
+  return {
+    profiles,
+    profileChoreSupported: payload.profileChoreSupported === true,
+  };
+}
+
+export function readHouseholdProfiles(value: unknown): HouseholdProfile[] | null {
+  return readHouseholdProfilesResponse(value)?.profiles ?? null;
 }
 
 export function findActiveHouseholdProfile(
