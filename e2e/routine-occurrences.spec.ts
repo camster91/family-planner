@@ -224,26 +224,47 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
     try {
       await withFixtureDb(async (db) => {
         // Notifications/activity have no chore FK. Match only this run's UUID.
+        const activityTitlePattern = `%"${title}"%`;
+        const notificationMessagePattern = `%"${title}"%`;
         await db.query(
           'DELETE FROM "Activity" WHERE family_id = $1 AND title LIKE $2',
-          [FIXTURE_IDS.familyA.family, `%"${title}"%`],
+          [FIXTURE_IDS.familyA.family, activityTitlePattern],
         );
         await db.query(
           'DELETE FROM "Notification" WHERE user_id = $1 AND message LIKE $2',
-          [FIXTURE_IDS.familyA.teen, `%"${title}"%`],
+          [FIXTURE_IDS.familyA.teen, notificationMessagePattern],
         );
+        const remainingActivity = await db.query<{ id: string }>(
+          'SELECT id FROM "Activity" WHERE family_id = $1 AND title LIKE $2',
+          [FIXTURE_IDS.familyA.family, activityTitlePattern],
+        );
+        expect(remainingActivity.rows).toHaveLength(0);
+        const remainingNotifications = await db.query<{ id: string }>(
+          'SELECT id FROM "Notification" WHERE user_id = $1 AND message LIKE $2',
+          [FIXTURE_IDS.familyA.teen, notificationMessagePattern],
+        );
+        expect(remainingNotifications.rows).toHaveLength(0);
       });
     } catch (error) {
       cleanupFailures.push(error);
     }
     if (metricsEnabled !== undefined) {
       try {
-        await withFixtureDb((db) =>
-          db.query(
+        await withFixtureDb(async (db) => {
+          await db.query(
             'UPDATE "Family" SET beta_metrics_enabled = $2 WHERE id = $1',
             [FIXTURE_IDS.familyA.family, metricsEnabled],
-          ),
-        );
+          );
+          const restoredFamily = await db.query<{
+            beta_metrics_enabled: boolean;
+          }>('SELECT beta_metrics_enabled FROM "Family" WHERE id = $1', [
+            FIXTURE_IDS.familyA.family,
+          ]);
+          expect(restoredFamily.rows).toHaveLength(1);
+          expect(restoredFamily.rows[0]?.beta_metrics_enabled).toBe(
+            metricsEnabled,
+          );
+        });
       } catch (error) {
         cleanupFailures.push(error);
       }
