@@ -41,6 +41,7 @@ describeWithDatabase('recurring chore series against Postgres', () => {
   const FAM2 = 'rsint-family-2'
   const PARENT = 'rsint-parent'
   const OTHER = 'rsint-other'
+  const ASSIGNEE = 'rsint-assignee'
   const actor = { id: PARENT, name: 'Robin' }
 
   // A Monday; the template is due that day (date-only, UTC midnight).
@@ -51,7 +52,7 @@ describeWithDatabase('recurring chore series against Postgres', () => {
   async function cleanup() {
     await prisma.chore.deleteMany({ where: { family_id: { in: [FAM, FAM2] } } })
     await prisma.family.deleteMany({ where: { id: { in: [FAM, FAM2] } } })
-    await prisma.user.deleteMany({ where: { id: { in: [PARENT, OTHER] } } })
+    await prisma.user.deleteMany({ where: { id: { in: [PARENT, OTHER, ASSIGNEE] } } })
   }
 
   async function weeklyTemplate(id: string, familyId: string, owner: string, due: Date) {
@@ -152,6 +153,7 @@ describeWithDatabase('recurring chore series against Postgres', () => {
       data: [
         { id: PARENT, email: 'p@rsint.test', name: 'Robin', role: 'parent', family_id: FAM },
         { id: OTHER, email: 'o@rsint.test', name: 'Other', role: 'parent', family_id: FAM2 },
+        { id: ASSIGNEE, email: 'a@rsint.test', name: 'Assigned', role: 'child', family_id: FAM },
       ],
     })
   })
@@ -441,21 +443,36 @@ describeWithDatabase('recurring chore series against Postgres', () => {
   it('re-reads the actor role after a held user lock before deleting', async () => {
     await prisma.chore.create({
       data: {
-        id: 'rsint-stale-delete', family_id: FAM, title: 'Stale role', assigned_to: PARENT,
+        id: 'rsint-stale-delete', family_id: FAM, title: 'Stale role', assigned_to: ASSIGNEE,
         created_by: PARENT, due_date: day('2026-10-05'), frequency: 'once',
       },
     })
-    const response = await holdThen(
-      locks.userLockKey(PARENT),
-      () => route.DELETE(del({ choreId: 'rsint-stale-delete' })),
-      async () => {
-        await prisma.user.update({ where: { id: PARENT }, data: { role: 'teen' } })
-      },
-    )
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({ error: 'Only parents or the assignee can delete chores' })
-    expect(await prisma.chore.findUnique({ where: { id: 'rsint-stale-delete' } })).not.toBeNull()
-    await prisma.user.update({ where: { id: PARENT }, data: { role: 'parent' } })
+    try {
+      const response = await holdThen(
+        locks.userLockKey(PARENT),
+        () => route.DELETE(del({ choreId: 'rsint-stale-delete' })),
+        async () => {
+          await prisma.user.update({ where: { id: PARENT }, data: { role: 'teen' } })
+        },
+      )
+      expect(response.status).toBe(403)
+      expect(await response.json()).toMatchObject({ error: 'Only parents or the assignee can delete chores' })
+      expect(await prisma.chore.findUnique({ where: { id: 'rsint-stale-delete' } })).not.toBeNull()
+
+      // The role change must not remove the ordinary parent-or-assignee path:
+      // the downgraded teen can still delete a row assigned to them.
+      await prisma.chore.create({
+        data: {
+          id: 'rsint-assignee-delete', family_id: FAM, title: 'Assigned row', assigned_to: PARENT,
+          created_by: PARENT, due_date: day('2026-10-06'), frequency: 'once',
+        },
+      })
+      const assigned = await route.DELETE(del({ choreId: 'rsint-assignee-delete' }, PARENT))
+      expect(assigned.status).toBe(200)
+      expect(await prisma.chore.findUnique({ where: { id: 'rsint-assignee-delete' } })).toBeNull()
+    } finally {
+      await prisma.user.update({ where: { id: PARENT }, data: { role: 'parent' } })
+    }
   })
 
   it('POST /api/chores/create writes the chore, its series link and copies together, or nothing', async () => {
