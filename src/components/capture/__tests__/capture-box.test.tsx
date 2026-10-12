@@ -541,6 +541,7 @@ it('keeps unverified purge guidance visible and rechecks access before recovery 
     await waitFor(() => expect(availabilityGets).toBe(2))
     expect(screen.queryByRole('button', { name: captureEnglish.retryStorage })).toBeNull()
     expect(screen.getByRole('button', { name: 'Retry Dentist' })).toBeTruthy()
+    expect(screen.queryByText(captureEnglish.recoveryAccessUnavailable, { exact: true })).toBeNull()
     expect(receiptCalls).toBe(0)
     expect(eventPosts).toBe(1)
     expect(window.localStorage.getItem(storageKey)).not.toBeNull()
