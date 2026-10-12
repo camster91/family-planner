@@ -180,6 +180,56 @@ describe('/dashboard/locations', () => {
     expect(global.fetch).toHaveBeenCalledTimes(4)
   })
 
+  it('reuses the same create key and payload after a lost response', async () => {
+    const user = userEvent.setup()
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ locations: [] }) })
+      .mockRejectedValueOnce(new Error('response lost'))
+      .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ location: { id: 'l2' } }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ locations: [] }) }) as unknown as typeof fetch
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Add' }))
+    await user.clear(screen.getByLabelText('Label'))
+    await user.type(screen.getByLabelText('Label'), 'After school')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByRole('button', { name: 'Try again' })
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    await screen.findByRole('button', { name: 'Add' })
+
+    const firstRequest = (global.fetch as jest.Mock).mock.calls[1]
+    const retryRequest = (global.fetch as jest.Mock).mock.calls[2]
+    expect(firstRequest[1].headers['Idempotency-Key']).toMatch(/^[A-Za-z0-9_-]{16,128}$/)
+    expect(retryRequest[1].headers['Idempotency-Key']).toBe(firstRequest[1].headers['Idempotency-Key'])
+    expect(retryRequest[1].body).toBe(firstRequest[1].body)
+  })
+
+  it('starts a new create key when the failed draft changes', async () => {
+    const user = userEvent.setup()
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ locations: [] }) })
+      .mockRejectedValueOnce(new Error('response lost'))
+      .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ location: { id: 'l2' } }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ locations: [] }) }) as unknown as typeof fetch
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Add' }))
+    await user.clear(screen.getByLabelText('Label'))
+    await user.type(screen.getByLabelText('Label'), 'After school')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByRole('button', { name: 'Try again' })
+    await user.type(screen.getByLabelText('Address'), '2 Main')
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    await screen.findByRole('button', { name: 'Add' })
+
+    const firstRequest = (global.fetch as jest.Mock).mock.calls[1]
+    const changedRequest = (global.fetch as jest.Mock).mock.calls[2]
+    expect(changedRequest[1].headers['Idempotency-Key']).not.toBe(firstRequest[1].headers['Idempotency-Key'])
+    expect(changedRequest[1].body).not.toBe(firstRequest[1].body)
+  })
+
   it('keeps the newest save refresh when the initial locations read resolves late', async () => {
     const user = userEvent.setup()
     let resolveInitial: (value: unknown) => void = () => undefined

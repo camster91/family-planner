@@ -12,6 +12,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 import { useTranslation } from '@/i18n'
 import { useLocationsText } from '@/i18n/locations'
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 
 interface Location {
   id: string
@@ -74,6 +75,7 @@ function LocationsPageInner() {
   const cancelRemoveRef = React.useRef<HTMLButtonElement>(null)
   const removingRef = React.useRef(false)
   const loadGenerationRef = React.useRef(0)
+  const createRequestRef = React.useRef<{ payload: string; key: string } | null>(null)
   const { t } = useTranslation()
   const locationText = useLocationsText()
   const locationTextRef = React.useRef(locationText)
@@ -125,6 +127,9 @@ function LocationsPageInner() {
   }, [load])
 
   const openEditor = (location?: Location) => {
+    // Each opened editor is a new intent. A failed create keeps its key in
+    // createRequestRef so an unchanged retry replays the same server receipt.
+    createRequestRef.current = null
     setEditorTarget(location ?? 'new')
     setEditorLabel(location?.label ?? 'Home')
     setEditorAddress(location?.address ?? '')
@@ -133,6 +138,7 @@ function LocationsPageInner() {
 
   const closeEditor = () => {
     if (editorSaving) return
+    createRequestRef.current = null
     setEditorTarget(null)
     setEditorError(null)
   }
@@ -145,11 +151,22 @@ function LocationsPageInner() {
     setEditorError(null)
     const expectedId = editorTarget === 'new' ? null : editorTarget.id
     const path = expectedId ? `/api/locations/${encodeURIComponent(expectedId)}` : '/api/locations'
+    const body = { label, address: editorAddress.trim() || null }
+    let idempotencyKey: string | null = null
+    if (!expectedId) {
+      const payload = JSON.stringify(body)
+      const previous = createRequestRef.current
+      idempotencyKey = previous?.payload === payload ? previous.key : newIdempotencyKey()
+      createRequestRef.current = { payload, key: idempotencyKey }
+    }
     try {
       const res = await fetch(path, {
         method: expectedId ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label, address: editorAddress.trim() || null }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idempotencyKey ? { [IDEMPOTENCY_HEADER]: idempotencyKey } : {}),
+        },
+        body: JSON.stringify(body),
       })
       if (res.ok) {
         const data = await res.json().catch(() => null)
@@ -158,6 +175,7 @@ function LocationsPageInner() {
           await failed(locationText('saveToastTitle'))
           return
         }
+        createRequestRef.current = null
         setEditorTarget(null)
         void load()
       } else {
