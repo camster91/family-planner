@@ -86,14 +86,25 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
 
   async function cleanup() {
     if (!db) return;
+    const fixtureFamilies = [FAMILY, OTHER_FAMILY];
     await db.familyLocation.deleteMany({
-      where: { family_id: { in: [FAMILY, OTHER_FAMILY] } },
+      where: { family_id: { in: fixtureFamilies } },
     });
     await db.idempotencyRecord.deleteMany({
-      where: { family_id: { in: [FAMILY, OTHER_FAMILY] } },
+      where: { family_id: { in: fixtureFamilies } },
     });
+    expect(
+      await db.familyLocation.count({
+        where: { family_id: { in: fixtureFamilies } },
+      }),
+    ).toBe(0);
+    expect(
+      await db.idempotencyRecord.count({
+        where: { family_id: { in: fixtureFamilies } },
+      }),
+    ).toBe(0);
     await db.family.deleteMany({
-      where: { id: { in: [FAMILY, OTHER_FAMILY] } },
+      where: { id: { in: fixtureFamilies } },
     });
     await db.user.deleteMany({
       where: { id: { in: [PARENT, OTHER_PARENT] } },
@@ -104,22 +115,44 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
     return { params: Promise.resolve({ id }) };
   }
 
-  async function waitForAdvisoryWaiter() {
-    for (let attempt = 0; attempt < 100; attempt += 1) {
-      const rows = await db.$queryRaw<Array<{ count: bigint; user_lock: bigint }>>`
-        SELECT COUNT(*)::bigint AS count,
-               COUNT(*) FILTER (WHERE activity.query ILIKE '%pg_advisory_xact_lock%')::bigint AS user_lock
-        FROM pg_locks AS locks
-        JOIN pg_stat_activity AS activity ON activity.pid = locks.pid
-        WHERE locks.locktype = 'advisory' AND locks.granted = false
-      `;
-      // The route's lockUser call is the canonical actor lock; checking the
-      // SQL activity proves the request reached that waiter before the holder
-      // transaction is released rather than merely sleeping and hoping.
-      if (Number(rows[0]?.count ?? 0) > 0 && Number(rows[0]?.user_lock ?? 0) > 0) return;
-      await new Promise((resolve) => setTimeout(resolve, 20));
+  async function waitForActorLockWaiter(holderPid: number, userId: string) {
+    const observer = new Client({ connectionString: process.env.DATABASE_URL });
+    await observer.connect();
+    try {
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        // This observer stays in autocommit mode. pg_blocking_pids ties the
+        // exact blocked actor-lock request to the transaction holding it;
+        // unrelated advisory waiters cannot satisfy this proof.
+        const result = await observer.query<{
+          waiter_pid: number;
+          blocker_pid: number;
+          waiter_query: string;
+        }>(
+          `SELECT waiter.pid AS waiter_pid,
+                  blocker.pid AS blocker_pid,
+                  waiter.query AS waiter_query
+           FROM pg_locks AS waiting_lock
+           JOIN pg_stat_activity AS waiter ON waiter.pid = waiting_lock.pid
+           JOIN pg_stat_activity AS blocker
+             ON blocker.pid = ANY(pg_blocking_pids(waiter.pid))
+           WHERE waiting_lock.locktype = 'advisory'
+             AND waiting_lock.granted = false
+             AND waiting_lock.classid = 0
+             AND waiting_lock.objid = (hashtext($1)::bigint & 4294967295)
+             AND blocker.pid = $2
+             AND waiter.query ILIKE '%pg_advisory_xact_lock%'`,
+          [`user-membership:${userId}`, holderPid],
+        );
+        if (result.rows.length === 1) return result.rows[0];
+        if (result.rows.length > 1) {
+          throw new Error("multiple location actor-lock waiters observed");
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    } finally {
+      await observer.end();
     }
-    throw new Error("location mutation did not reach the advisory lock waiter");
+    throw new Error("location mutation did not reach its actor-lock waiter");
   }
 
   beforeAll(async () => {
@@ -237,6 +270,13 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
     let pending: Promise<Response> | undefined;
     try {
       await holder.query("BEGIN");
+      const holderPid = Number(
+        (
+          await holder.query<{ pg_backend_pid: number }>(
+            "SELECT pg_backend_pid()",
+          )
+        ).rows[0].pg_backend_pid,
+      );
       await holder.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
         `user-membership:${PARENT}`,
       ]);
@@ -247,18 +287,7 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
           "locations-route-role-race-20261012",
         ),
       );
-      for (let attempt = 0; attempt < 100; attempt += 1) {
-        if (
-          await db.idempotencyRecord.count({
-            where: {
-              scope: `user:${PARENT}`,
-              key: "locations-route-role-race-20261012",
-            },
-          })
-        )
-          break;
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      }
+      await waitForActorLockWaiter(holderPid, PARENT);
       await holder.query('UPDATE "User" SET "role" = $1 WHERE "id" = $2', [
         "teen",
         PARENT,
@@ -288,6 +317,13 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
     let pending: Promise<Response> | undefined;
     try {
       await holder.query("BEGIN");
+      const holderPid = Number(
+        (
+          await holder.query<{ pg_backend_pid: number }>(
+            "SELECT pg_backend_pid()",
+          )
+        ).rows[0].pg_backend_pid,
+      );
       await holder.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
         `user-membership:${PARENT}`,
       ]);
@@ -296,14 +332,16 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
       pending = POST(
         request(PARENT, { label: "Replay office", address: "7 Main" }, key),
       );
-      await waitForAdvisoryWaiter();
+      await waitForActorLockWaiter(holderPid, PARENT);
       await holder.query('UPDATE "User" SET "role" = $1 WHERE "id" = $2', [
         "teen",
         PARENT,
       ]);
       await holder.query("COMMIT");
       expect((await pending).status).toBe(403);
-      expect(await db.familyLocation.count({ where: { family_id: FAMILY } })).toBe(1);
+      expect(
+        await db.familyLocation.count({ where: { family_id: FAMILY } }),
+      ).toBe(1);
     } finally {
       await holder.query("ROLLBACK").catch(() => undefined);
       await holder.end();
@@ -331,11 +369,18 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
       holder: Client,
     ) => {
       await holder.query("BEGIN");
+      const holderPid = Number(
+        (
+          await holder.query<{ pg_backend_pid: number }>(
+            "SELECT pg_backend_pid()",
+          )
+        ).rows[0].pg_backend_pid,
+      );
       await holder.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
         `user-membership:${PARENT}`,
       ]);
       const pending = operation();
-      await waitForAdvisoryWaiter();
+      await waitForActorLockWaiter(holderPid, PARENT);
       await holder.query('UPDATE "User" SET "role" = $1 WHERE "id" = $2', [
         "teen",
         PARENT,
@@ -356,8 +401,13 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
         holder,
       );
       expect((await patched).status).toBe(403);
-      const unchanged = await db.familyLocation.findUnique({ where: { id: patchId } });
-      expect(unchanged).toMatchObject({ label: "Patch race", address: "4 Main" });
+      const unchanged = await db.familyLocation.findUnique({
+        where: { id: patchId },
+      });
+      expect(unchanged).toMatchObject({
+        label: "Patch race",
+        address: "4 Main",
+      });
 
       await db.user.update({ where: { id: PARENT }, data: { role: "parent" } });
       await db.familyLocation.create({
@@ -375,7 +425,9 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
         holder,
       );
       expect((await deleted).status).toBe(403);
-      expect(await db.familyLocation.findUnique({ where: { id: deleteId } })).not.toBeNull();
+      expect(
+        await db.familyLocation.findUnique({ where: { id: deleteId } }),
+      ).not.toBeNull();
     } finally {
       await holder.query("ROLLBACK").catch(() => undefined);
       await holder.end();
