@@ -90,7 +90,7 @@ export default function CreateRewardForm({
         );
       }
 
-      await navigation?.releaseBeforeNavigation();
+      if ((await navigation?.releaseBeforeNavigation()) === false) return;
       router.push("/dashboard/rewards");
       router.refresh();
     } catch (cause) {

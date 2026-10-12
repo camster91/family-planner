@@ -29,7 +29,7 @@ export function FormSheet({
   const router = useRouter();
   const navigation = usePendingFormNavigationController(busy);
   const close = async () => {
-    await navigation.releaseBeforeNavigation();
+    if (!(await navigation.releaseBeforeNavigation())) return;
     router.back();
   };
   useEffect(() => {

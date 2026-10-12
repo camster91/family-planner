@@ -74,7 +74,7 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
       }
 
       notifyCalendarChanged()
-      await navigation?.releaseBeforeNavigation()
+      if ((await navigation?.releaseBeforeNavigation()) === false) return
       if (inSheet) router.back()
       else router.push('/dashboard/calendar')
       router.refresh()

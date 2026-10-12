@@ -272,7 +272,7 @@
   {
     "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
     "text": "Chores",
-    "count": 1
+    "count": 2
   },
   {
     "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
@@ -407,7 +407,7 @@
   {
     "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
     "text": "Chores",
-    "count": 1
+    "count": 2
   },
   {
     "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",

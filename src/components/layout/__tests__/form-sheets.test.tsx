@@ -275,6 +275,16 @@ it("serializes release after pending Back restoration before consuming the owned
     window.dispatchEvent(new PopStateEvent("popstate", { state: baseState }));
     expect(historyForward).toHaveBeenCalledTimes(1);
     const release = navigation.releaseBeforeNavigation();
+    // A second base-entry event must not resolve release while Forward is
+    // still queued, or allow navigation to overtake that traversal.
+    let settled = false;
+    release.then(() => {
+      settled = true;
+    });
+    window.dispatchEvent(new PopStateEvent("popstate", { state: baseState }));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(historyForward).toHaveBeenCalledTimes(1);
     expect(historyBack).not.toHaveBeenCalled();
     window.history.replaceState(sentinelState, "", window.location.href);
     window.dispatchEvent(
@@ -289,6 +299,31 @@ it("serializes release after pending Back restoration before consuming the owned
     view.unmount();
     historyBack.mockRestore();
     historyForward.mockRestore();
+    window.history.replaceState({}, "", original);
+  }
+});
+
+it("settles release as cancelled when its pop listener is removed by external unmount", async () => {
+  const original = window.location.href;
+  window.history.replaceState({ __NA: true }, "", "/dashboard/lists/create");
+  let navigation!: PendingFormNavigation;
+  function Harness() {
+    navigation = usePendingFormNavigationController(true);
+    return null;
+  }
+  const view = render(<Harness />);
+  const historyBack = jest
+    .spyOn(window.history, "back")
+    .mockImplementation(() => {});
+  try {
+    const release = navigation.releaseBeforeNavigation();
+    expect(historyBack).toHaveBeenCalledTimes(1);
+    view.unmount();
+    await expect(release).resolves.toBe(false);
+    await expect(navigation.releaseBeforeNavigation()).resolves.toBe(false);
+    expect(historyBack).toHaveBeenCalledTimes(1);
+  } finally {
+    historyBack.mockRestore();
     window.history.replaceState({}, "", original);
   }
 });

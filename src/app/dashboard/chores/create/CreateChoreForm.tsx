@@ -190,7 +190,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         return;
       }
 
-      await navigation?.releaseBeforeNavigation();
+      if ((await navigation?.releaseBeforeNavigation()) === false) return;
       router.push("/dashboard/chores");
       router.refresh();
     } catch (err) {

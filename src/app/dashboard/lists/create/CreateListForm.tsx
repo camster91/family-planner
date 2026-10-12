@@ -202,7 +202,7 @@ export default function CreateListForm({
       setSuccess(copy.created);
       setTimeout(() => {
         void (async () => {
-          await navigation?.releaseBeforeNavigation();
+          if ((await navigation?.releaseBeforeNavigation()) === false) return;
           router.push("/dashboard/lists");
           router.refresh();
         })();

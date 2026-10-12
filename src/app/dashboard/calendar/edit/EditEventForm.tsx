@@ -167,7 +167,7 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
       }
 
       notifyCalendarChanged()
-      await navigation?.releaseBeforeNavigation()
+      if ((await navigation?.releaseBeforeNavigation()) === false) return
       if (inSheet) router.back()
       else router.push('/dashboard/calendar')
       router.refresh()
@@ -196,7 +196,7 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
       }
       setConfirmOpen(false)
       notifyCalendarChanged()
-      await navigation?.releaseBeforeNavigation()
+      if ((await navigation?.releaseBeforeNavigation()) === false) return
       if (inSheet) router.back()
       else router.push('/dashboard/calendar')
       router.refresh()

@@ -195,7 +195,7 @@ export default function AllowanceCreateForm({
         );
       }
 
-      await navigation?.releaseBeforeNavigation();
+      if ((await navigation?.releaseBeforeNavigation()) === false) return;
       router.push("/dashboard/allowance");
       router.refresh();
     } catch (cause) {
@@ -417,7 +417,7 @@ export default function AllowanceCreateForm({
             type="button"
             onClick={() => {
               void (async () => {
-                await navigation?.releaseBeforeNavigation();
+                if ((await navigation?.releaseBeforeNavigation()) === false) return;
                 if (inSheet) router.back();
                 else router.push("/dashboard/allowance");
               })();

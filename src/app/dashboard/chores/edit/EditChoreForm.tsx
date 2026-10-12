@@ -223,7 +223,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
         return;
       }
 
-      await navigation?.releaseBeforeNavigation();
+      if ((await navigation?.releaseBeforeNavigation()) === false) return;
       router.push("/dashboard/chores");
       router.refresh();
     } catch (err) {

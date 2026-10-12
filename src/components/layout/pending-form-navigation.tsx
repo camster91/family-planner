@@ -18,7 +18,7 @@ type HistorySnapshot = {
 };
 
 export type PendingFormNavigation = {
-  releaseBeforeNavigation: () => Promise<void>;
+  releaseBeforeNavigation: () => Promise<boolean>;
 };
 
 const SENTINEL_KEY = "__herewovenPendingForm";
@@ -48,33 +48,35 @@ const PendingFormNavigationContext =
 export function usePendingFormNavigationController(
   busy: boolean,
 ): PendingFormNavigation {
+  const mountedRef = useRef(true);
   const busyRef = useRef(busy);
   const entryRef = useRef<HistorySnapshot | null>(null);
-  const releasePromiseRef = useRef<Promise<void> | null>(null);
-  const releaseResolveRef = useRef<(() => void) | null>(null);
+  const releasePromiseRef = useRef<Promise<boolean> | null>(null);
+  const releaseResolveRef = useRef<((allowed: boolean) => void) | null>(null);
   const disarmedRef = useRef(false);
   const restoringRef = useRef(false);
   const cleanupTimerRef = useRef<number | null>(null);
 
   busyRef.current = busy;
 
-  const finishRelease = useCallback(() => {
+  const finishRelease = useCallback((allowed = true) => {
     entryRef.current = null;
     disarmedRef.current = false;
     restoringRef.current = false;
     const resolve = releaseResolveRef.current;
     releaseResolveRef.current = null;
     releasePromiseRef.current = null;
-    resolve?.();
+    resolve?.(allowed);
   }, []);
 
   const releaseBeforeNavigation = useCallback(() => {
+    if (!mountedRef.current) return Promise.resolve(false);
     const entry = entryRef.current;
-    if (!entry) return Promise.resolve();
+    if (!entry) return Promise.resolve(true);
     if (releasePromiseRef.current) return releasePromiseRef.current;
 
     disarmedRef.current = true;
-    releasePromiseRef.current = new Promise<void>((resolve) => {
+    releasePromiseRef.current = new Promise<boolean>((resolve) => {
       releaseResolveRef.current = resolve;
     });
 
@@ -86,7 +88,7 @@ export function usePendingFormNavigationController(
       // marked sentinel before resolving; never traverse Back from its base.
       return promise;
     }
-    if (!ownsEntry(entry)) finishRelease();
+    if (!ownsEntry(entry)) finishRelease(window.location.href === entry.url);
     else window.history.back();
     return promise;
   }, [finishRelease]);
@@ -96,6 +98,7 @@ export function usePendingFormNavigationController(
   // listeners run at the Window target; the same-URL sentinel is what keeps
   // Next on this route until this listener can re-arm it.
   useEffect(() => {
+    mountedRef.current = true;
     if (cleanupTimerRef.current !== null) {
       window.clearTimeout(cleanupTimerRef.current);
       cleanupTimerRef.current = null;
@@ -107,13 +110,16 @@ export function usePendingFormNavigationController(
       if (disarmedRef.current) {
         event.preventDefault();
         event.stopImmediatePropagation();
+        // Ignore extra base-entry events while our one Forward is queued.
+        // Only its marked destination can begin the release traversal.
+        if (restoringRef.current && !ownsEntry(entry, event.state)) return;
         restoringRef.current = false;
         if (ownsEntry(entry, event.state)) window.history.back();
         else finishRelease();
         return;
       }
-      if (restoringRef.current && ownsEntry(entry, event.state)) {
-        restoringRef.current = false;
+      if (restoringRef.current) {
+        if (ownsEntry(entry, event.state)) restoringRef.current = false;
         event.preventDefault();
         event.stopImmediatePropagation();
         return;
@@ -140,6 +146,7 @@ export function usePendingFormNavigationController(
     window.addEventListener("popstate", onPopState, true);
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
+      mountedRef.current = false;
       window.removeEventListener("popstate", onPopState, true);
       window.removeEventListener("beforeunload", onBeforeUnload);
       // A destination navigation should have awaited release. If an external
@@ -150,16 +157,22 @@ export function usePendingFormNavigationController(
       cleanupTimerRef.current = window.setTimeout(() => {
         cleanupTimerRef.current = null;
         if (entryRef.current !== entry) return;
-        // A release already owns the pending traversal. Let its popstate
-        // settle the promise; issuing another back here could skip the
-        // destination if the browser has not dispatched the first pop yet.
-        if (disarmedRef.current || releasePromiseRef.current) return;
+        // The listener has gone: settle any pending caller as cancelled.
+        // Do not issue a second traversal while Back/Forward is in flight.
+        if (
+          disarmedRef.current ||
+          releasePromiseRef.current ||
+          restoringRef.current
+        ) {
+          finishRelease(false);
+          return;
+        }
         if (entry && ownsEntry(entry)) {
           disarmedRef.current = true;
           restoringRef.current = false;
           window.history.back();
         }
-        finishRelease();
+        finishRelease(false);
       }, 0);
     };
   }, [finishRelease]);
