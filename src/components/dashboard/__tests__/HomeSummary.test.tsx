@@ -169,6 +169,17 @@ describe('HomeSummary localization', () => {
     expect(row.textContent).toContain('Revisada por un padre')
     expect(screen.getByRole('region', { name: 'Tus tareas' }).contains(row)).toBe(true)
   })
+
+  it('uses singular Spanish grammar for one member chore left', () => {
+    renderSummary(
+      {
+        viewer: { id: 'c', role: 'child' },
+        chores: [{ id: '1', title: 'Feed cat', dueDay: TODAY, status: 'pending', assigneeId: 'c' }],
+      },
+      'es',
+    )
+    expect(sentence()).toBe('Te queda 1 tarea')
+  })
 })
 
 describe('HomeSummary chore tick', () => {

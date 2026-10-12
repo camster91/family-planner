@@ -19,7 +19,7 @@ export const homeSummarySpanish: HomeSummaryPresentationMessages = {
   assigneeFallback: 'alguien',
   choresLeftToday: (count, people) =>
     `${count} ${count === 1 ? 'tarea pendiente hoy' : 'tareas pendientes hoy'} · ${people}`,
-  choresLeft: (count) => `Te quedan ${count} ${count === 1 ? 'tarea' : 'tareas'}`,
+  choresLeft: (count) => `Te ${count === 1 ? 'queda' : 'quedan'} ${count} ${count === 1 ? 'tarea' : 'tareas'}`,
   doneForToday: 'Ya terminaste por hoy',
   nothingOnListToday: 'Hoy no tienes tareas',
   undoTitle: (title) => `«${title}» hecha`,
