@@ -188,6 +188,64 @@ it("intercepts browser Back for a dirty draft and preserves it behind discard", 
   expect(screen.getByDisplayValue("Keep this draft")).toBeTruthy();
 });
 
+it("retires an owned sentinel on dirty editor unmount and restores the captured Next state", async () => {
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) return response(candidates);
+    return response(saveResponse);
+  });
+  const user = userEvent.setup();
+  const baseState = { routineTest: "base-for-unmount" };
+  window.history.replaceState(baseState, "", "/dashboard/chores/routines");
+  const view = renderEditor();
+  await screen.findByText("Pack lunches");
+  await user.type(screen.getByLabelText("Routine name"), "Keep this draft");
+
+  expect(window.history.state).toEqual(
+    expect.objectContaining({ __familyPlannerRoutineStackEditor: expect.any(String) }),
+  );
+  view.unmount();
+  expect(window.location.pathname).toBe("/dashboard/chores/routines");
+  expect(window.history.state).toEqual(baseState);
+  expect(back).not.toHaveBeenCalled();
+});
+
+it("cancels a pending sentinel release when an unrelated SPA destination wins", async () => {
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) return response(candidates);
+    return response(saveResponse);
+  });
+  const user = userEvent.setup();
+  window.history.replaceState(
+    { routineTest: "base-for-release" },
+    "",
+    "/dashboard/chores/routines",
+  );
+  const view = renderEditor();
+  await screen.findByText("Pack lunches");
+  await user.type(screen.getByLabelText("Routine name"), "Keep this draft");
+  const nativeBack = jest
+    .spyOn(window.history, "back")
+    .mockImplementation(() => undefined);
+
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await user.click(screen.getByRole("button", { name: "Discard changes" }));
+  expect(nativeBack).toHaveBeenCalledTimes(1);
+
+  window.history.pushState(
+    { nextRoute: "unrelated" },
+    "",
+    "/dashboard/chores/calendar",
+  );
+  view.unmount();
+  nativeBack.mockRestore();
+
+  expect(window.location.pathname).toBe("/dashboard/chores/calendar");
+  expect(window.history.state).toEqual({ nextRoute: "unrelated" });
+  expect(back).not.toHaveBeenCalled();
+});
+
 it("keeps browser Back blocked while a save is pending", async () => {
   let releaseSave!: (value: unknown) => void;
   fetchMock.mockImplementation((input: RequestInfo | URL) => {

@@ -48,6 +48,7 @@ type RoutineHistoryEntry = {
   token: string;
   url: string;
   baseState: unknown;
+  baseStateKey: string;
   sentinelState: Record<string, unknown>;
 };
 
@@ -55,6 +56,14 @@ function stateRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function historyStateKey(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
 }
 
 class RoutineEditorRequestError extends Error {
@@ -405,7 +414,13 @@ export default function RoutineStackEditor({
       [ROUTINE_HISTORY_MARKER]: token,
     };
     window.history.pushState(sentinelState, "", url);
-    historyEntryRef.current = { token, url, baseState, sentinelState };
+    historyEntryRef.current = {
+      token,
+      url,
+      baseState,
+      baseStateKey: historyStateKey(baseState),
+      sentinelState,
+    };
   }, []);
 
   const markDirty = React.useCallback(() => {
@@ -419,25 +434,54 @@ export default function RoutineStackEditor({
     setDirty(false);
   }, []);
 
+  const retireHistoryEntry = React.useCallback(
+    (entry: RoutineHistoryEntry) => {
+      if (typeof window !== "undefined") {
+        const currentState = stateRecord(window.history.state);
+        const ownsCurrentEntry =
+          window.location.href === entry.url &&
+          currentState[ROUTINE_HISTORY_MARKER] === entry.token;
+        if (ownsCurrentEntry) {
+          // Retire only our duplicate entry. The exact state captured from
+          // Next is restored in place, so an unrelated SPA destination is
+          // never consumed by a cleanup path.
+          window.history.replaceState(entry.baseState, "", entry.url);
+        }
+      }
+      if (historyEntryRef.current?.token === entry.token) {
+        historyEntryRef.current = null;
+      }
+      if (releasingHistoryRef.current?.token === entry.token) {
+        releasingHistoryRef.current = null;
+        afterHistoryReleaseRef.current = null;
+      }
+    },
+    [],
+  );
+
   const removeHistorySentinel = React.useCallback(() => {
     const entry = historyEntryRef.current;
-    if (!entry || typeof window === "undefined") return false;
-    const currentMarker = stateRecord(window.history.state)[
-      ROUTINE_HISTORY_MARKER
-    ];
-    if (currentMarker === entry.token) {
-      window.history.replaceState(entry.baseState, "", entry.url);
-    }
-    historyEntryRef.current = null;
-    releasingHistoryRef.current = null;
-    afterHistoryReleaseRef.current = null;
+    if (!entry) return false;
+    retireHistoryEntry(entry);
     return true;
-  }, []);
+  }, [retireHistoryEntry]);
 
   const leaveWithHistorySentinel = React.useCallback(
     (afterRelease: () => void) => {
       const entry = historyEntryRef.current;
       if (!entry || typeof window === "undefined") return false;
+      const currentState = stateRecord(window.history.state);
+      const ownsCurrentEntry =
+        window.location.href === entry.url &&
+        currentState[ROUTINE_HISTORY_MARKER] === entry.token;
+      if (!ownsCurrentEntry) {
+        // The form may still be mounted briefly while another SPA transition
+        // has already changed the destination. Do not call history.back() and
+        // take the user away from that destination.
+        historyEntryRef.current = null;
+        afterHistoryReleaseRef.current = null;
+        return true;
+      }
       releasingHistoryRef.current = entry;
       afterHistoryReleaseRef.current = afterRelease;
       historyEntryRef.current = null;
@@ -460,7 +504,23 @@ export default function RoutineStackEditor({
     if (typeof document === "undefined") return;
     const onPopState = (event: Event) => {
       const popState = event as PopStateEvent;
-      if (releasingHistoryRef.current) {
+      const releasingEntry = releasingHistoryRef.current;
+      if (releasingEntry) {
+        const currentState = stateRecord(window.history.state);
+        const expectedRelease =
+          window.location.href === releasingEntry.url &&
+          currentState[ROUTINE_HISTORY_MARKER] !== releasingEntry.token &&
+          historyStateKey(window.history.state) === releasingEntry.baseStateKey;
+        // A release pop is allowed to reach the original same-URL entry only
+        // when its state is still the exact Next state we captured. Anything
+        // else belongs to an unrelated navigation and cancels the callback.
+        if (!expectedRelease) {
+          releasingHistoryRef.current = null;
+          afterHistoryReleaseRef.current = null;
+          return;
+        }
+        popState.preventDefault();
+        popState.stopImmediatePropagation();
         releasingHistoryRef.current = null;
         const afterRelease = afterHistoryReleaseRef.current;
         afterHistoryReleaseRef.current = null;
@@ -503,8 +563,17 @@ export default function RoutineStackEditor({
       document.removeEventListener("popstate", onPopState, true);
       window.removeEventListener("popstate", onPopState, true);
       window.removeEventListener("beforeunload", onBeforeUnload);
+      const pendingRelease = releasingHistoryRef.current;
+      const activeEntry = historyEntryRef.current;
+      if (pendingRelease) retireHistoryEntry(pendingRelease);
+      if (activeEntry) retireHistoryEntry(activeEntry);
+      // A pending release callback must never fire after this form has been
+      // replaced by another route. The owned entry, when still current, was
+      // retired above without traversing history.
+      releasingHistoryRef.current = null;
+      afterHistoryReleaseRef.current = null;
     };
-  }, []);
+  }, [retireHistoryEntry]);
 
   React.useEffect(() => {
     const controller = new AbortController();

@@ -4,6 +4,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { RoutineStacks, routineStacks } from '../RoutineStacks'
 import { I18nProvider } from '@/i18n'
+import { toDateOnlyLocal } from '@/lib/dates'
 import type { Chore } from '@/types'
 
 function step(id: string, order: number, extra: Partial<Chore> & { assignee?: { name: string } | null } = {}) {
@@ -89,6 +90,19 @@ it('keeps ungrouped chores visible and supplies an explicit empty state', () => 
   expect(screen.getByRole('link', { name: 'Edit standalone' }).getAttribute('href')).toBe('/dashboard/chores/edit?id=standalone')
   rerender(<RoutineStacks chores={[]} userRole="parent" currentUserId="adult" locale="en-CA" onComplete={jest.fn()} />)
   expect(screen.getByText(/No routines in this range/)).toBeTruthy()
+})
+
+it('uses the viewer local day when an empty routine list opens the builder near midnight UTC', () => {
+  const now = new Date('2026-10-12T01:30:00.000Z')
+  jest.useFakeTimers().setSystemTime(now)
+  try {
+    render(<RoutineStacks chores={[]} userRole="parent" currentUserId="adult" familyId="family-a" locale="en-CA" onComplete={jest.fn()} />)
+    expect(screen.getByRole('link', { name: /Build a routine/ }).getAttribute('href')).toBe(
+      `/dashboard/chores/routines?occurrence_date=${toDateOnlyLocal(now)}`,
+    )
+  } finally {
+    jest.useRealTimers()
+  }
 })
 
 

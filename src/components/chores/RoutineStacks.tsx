@@ -6,7 +6,7 @@ import { groupByRoutine, ROUTINE_ORDER_MAX } from '@/lib/routine-icons'
 import { useTranslation } from '@/i18n'
 import { useRoutineStackText } from '@/i18n/routine-stack'
 import { groupChoreSeries } from '@/lib/chore-series-groups'
-import { formatDateOnly } from '@/lib/dates'
+import { formatDateOnly, toDateOnlyLocal } from '@/lib/dates'
 import { RoutineIcon } from './RoutineIcon'
 import type { Chore } from '@/types'
 
@@ -55,7 +55,7 @@ export function RoutineStacks({ chores, userRole, currentUserId, familyId, local
   const [focusNext, setFocusNext] = useState(false)
   const stacks = routineStacks(chores)
   const other = chores.filter(c => !c.routine?.trim())
-  const editorDate = chores[0]?.due_date.slice(0, 10) ?? new Date().toISOString().slice(0, 10)
+  const editorDate = chores[0]?.due_date.slice(0, 10) ?? toDateOnlyLocal(new Date())
   const editorHref = `/dashboard/chores/routines?${new URLSearchParams({ occurrence_date: editorDate })}`
   const renderStep = (chore: Step, next: boolean, context = false) => {
     const done = isDone(chore)
