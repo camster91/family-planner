@@ -65,9 +65,25 @@ export const choreFormsEnglish = {
   save: "Save Changes",
   deleteOccurrence: "Delete this occurrence",
   deleteOccurrenceConfirm: "Delete this occurrence?",
+  deleteOccurrenceDescription:
+    "This removes only this occurrence. Existing series history stays.",
+  deleteOccurrenceButton: "Delete occurrence",
+  deleteOccurrenceCancel: "Cancel",
+  deleteOccurrencePending: "Deleting…",
+  deleteOccurrenceTryAgain: "Try again",
+  deleteOccurrenceRefresh: "Refresh chores",
+  deleteOccurrenceNotFound:
+    "This occurrence is no longer available. Refresh to confirm its current state.",
+  deleteOccurrenceStillExists:
+    "This occurrence is still available. You can try deleting it again.",
+  deleteOccurrenceGone: "Occurrence is no longer available",
+  deleteOccurrenceRefreshFailed:
+    "The current occurrence state could not be confirmed. Try again.",
+  deleteOccurrenceRefused:
+    "The server refused this deletion. Try again or cancel.",
+  deleteOccurrenceUnknown:
+    "The deletion result could not be confirmed. Try again.",
   deleteOccurrenceSuccess: "Occurrence deleted",
-  deleteFailed: "Failed to delete",
-  deleteRetry: "Please try again.",
   stopRepeating: "Stop repeating",
   stopRepeatingHint:
     "Choose Once, then save to stop future copies. Existing history stays.",
@@ -175,9 +191,25 @@ export const choreFormsSpanish: Record<ChoreFormMessage, string> = {
   save: "Guardar cambios",
   deleteOccurrence: "Eliminar esta ocurrencia",
   deleteOccurrenceConfirm: "¿Eliminar esta ocurrencia?",
+  deleteOccurrenceDescription:
+    "Solo se elimina esta ocurrencia. El historial de la serie se conserva.",
+  deleteOccurrenceButton: "Eliminar ocurrencia",
+  deleteOccurrenceCancel: "Cancelar",
+  deleteOccurrencePending: "Eliminando…",
+  deleteOccurrenceTryAgain: "Inténtalo de nuevo",
+  deleteOccurrenceRefresh: "Actualizar tareas",
+  deleteOccurrenceNotFound:
+    "Esta ocurrencia ya no está disponible. Actualiza para confirmar su estado actual.",
+  deleteOccurrenceStillExists:
+    "Esta ocurrencia sigue disponible. Puedes intentar eliminarla de nuevo.",
+  deleteOccurrenceGone: "La ocurrencia ya no está disponible",
+  deleteOccurrenceRefreshFailed:
+    "No se pudo confirmar el estado actual de la ocurrencia. Inténtalo de nuevo.",
+  deleteOccurrenceRefused:
+    "El servidor rechazó esta eliminación. Inténtalo de nuevo o cancela.",
+  deleteOccurrenceUnknown:
+    "No se pudo confirmar el resultado de la eliminación. Inténtalo de nuevo.",
   deleteOccurrenceSuccess: "Ocurrencia eliminada",
-  deleteFailed: "No se pudo eliminar",
-  deleteRetry: "Inténtalo de nuevo.",
   stopRepeating: "Dejar de repetir",
   stopRepeatingHint:
     "Elige Una vez y guarda para detener las copias futuras. El historial se conserva.",

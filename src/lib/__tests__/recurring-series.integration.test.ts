@@ -114,17 +114,39 @@ describeWithDatabase('recurring chore series against Postgres', () => {
     }
   }
 
-  async function holdThen<T>(lockKey: string, during: () => Promise<T>, beforeCommit: () => Promise<void> = async () => undefined): Promise<T> {
+  async function waitForAdvisoryBlockers(client: pg.Client, holderPid: number, expected: number): Promise<void> {
+    const deadline = Date.now() + 5_000
+    while (Date.now() < deadline) {
+      const result = await client.query<{ pid: number }>(
+        `SELECT a.pid
+           FROM pg_stat_activity AS a
+          WHERE a.pid <> $1
+            AND a.wait_event_type = 'Lock'
+            AND $1 = ANY (pg_blocking_pids(a.pid))
+            AND a.query LIKE '%pg_advisory_xact_lock%'`,
+        [holderPid],
+      )
+      if (result.rows.length >= expected) return
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    throw new Error(`Expected ${expected} advisory-lock waiter(s) blocked by backend ${holderPid}`)
+  }
+
+  async function holdThen<T>(
+    lockKey: string,
+    during: () => Promise<T>,
+    beforeCommit: () => Promise<void> = async () => undefined,
+    expectedWaiters = 1,
+  ): Promise<T> {
     const client = new pg.Client({ connectionString: process.env.DATABASE_URL })
     await client.connect()
     try {
       await client.query('BEGIN')
+      const { rows } = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+      const holderPid = Number(rows[0].pid)
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey])
       const pending = during()
-      let settled = false
-      pending.then(() => (settled = true), () => (settled = true))
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      expect(settled).toBe(false)
+      await waitForAdvisoryBlockers(client, holderPid, expectedWaiters)
       await beforeCommit()
       await client.query('COMMIT')
       return await pending
@@ -430,6 +452,8 @@ describeWithDatabase('recurring chore series against Postgres', () => {
         route.DELETE(del({ choreId: 'rsint-delete-race' })),
         recurring.expandRecurringChores({ id: 'rsint-delete-race', frequency: 'weekly' }, FAM, NOW0),
       ]) as Promise<[Response, number]>,
+      async () => undefined,
+      2,
     )
     const [deleted, expanded] = results
     expect(deleted.status).toBe(409)
