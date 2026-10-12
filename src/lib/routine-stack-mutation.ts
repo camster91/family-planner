@@ -13,6 +13,7 @@ import { hashIdempotentRequest } from "@/lib/idempotency";
 import { createChoreSchema } from "@/lib/validations";
 import {
   fingerprintRoutineStackSnapshot,
+  fingerprintRoutineStackSelectedStep,
   normalizeRoutineStackDraft,
   projectRoutineStackResponse,
   type RoutineStackMemberProjection,
@@ -388,6 +389,37 @@ export async function mutateRoutineStackInTx<T extends object>(
     throw invalid(
       "Recurring chore templates must be edited outside an occurrence routine.",
     );
+  }
+  for (const step of draft.steps) {
+    if (!step.chore_id) continue;
+    const row = existingById.get(step.chore_id);
+    if (!row || row.routine_stack_id) continue;
+    // Candidate rows are read before the save transaction. Recheck their
+    // complete snapshot after the row lock so a concurrent reassignment (or
+    // any other selected-row change) cannot be overwritten by a stale draft.
+    const expected = step.expected_fingerprint;
+    if (
+      !expected ||
+      fingerprintRoutineStackSelectedStep({
+        id: String(row.id ?? ""),
+        family_id: String(row.family_id ?? ""),
+        assigned_to: String(row.assigned_to ?? ""),
+        assigned_member_id:
+          typeof row.assigned_member_id === "string"
+            ? row.assigned_member_id
+            : null,
+        member_subject_erased: row.member_subject_erased === true,
+        due_date: dateValue(row.due_date),
+        recurrence_id:
+          typeof row.recurrence_id === "string" ? row.recurrence_id : null,
+        is_template: row.is_template === true,
+        routine: typeof row.routine === "string" ? row.routine : null,
+        routine_order:
+          typeof row.routine_order === "number" ? row.routine_order : null,
+      }) !== expected
+    ) {
+      throw conflict("A selected step changed. Reload the routine and try again.");
+    }
   }
   const recurrenceIds = [
     ...new Set(

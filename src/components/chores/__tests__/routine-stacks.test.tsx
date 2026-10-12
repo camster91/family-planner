@@ -28,6 +28,29 @@ it('uses durable stack identity when one occurrence spans different members', ()
   expect(groups[1].steps.map(s => s.id)).toEqual(['other-stack'])
 })
 
+it('shows each durable step owner and routes durable Add step through the stack editor', () => {
+  render(<RoutineStacks
+    chores={[
+      step('adult-step', 1, { assigned_to: 'adult', assignee: { name: 'Alex' }, routine_stack_id: 'stack-a' }),
+      step('child-step', 2, { assigned_to: 'child', assignee: { name: 'Sam' }, routine_stack_id: 'stack-a' }),
+    ]}
+    userRole="parent"
+    currentUserId="adult"
+    familyId="family-a"
+    locale="en-CA"
+    onComplete={jest.fn()}
+  />)
+
+  const routine = screen.getByRole('heading', { name: 'Evening reset' }).closest('section')
+  expect(routine).toBeTruthy()
+  const rows = within(routine as HTMLElement).getAllByRole('listitem')
+  expect(within(rows[0] as HTMLElement).getByText('Alex · Oct 9')).toBeTruthy()
+  expect(within(rows[1] as HTMLElement).getByText('Sam · Oct 9')).toBeTruthy()
+  expect(within(routine as HTMLElement).getByRole('link', { name: 'Add step' }).getAttribute('href')).toBe(
+    '/dashboard/chores/routines?stack_id=stack-a&occurrence_date=2026-10-09',
+  )
+})
+
 it('keeps one durable occurrence together when persisted labels differ', () => {
   const groups = routineStacks([
     step('second', 2, { routine_stack_id: 'stack-a', routine: 'Later label', assigned_to: 'child' }),

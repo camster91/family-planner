@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { Dialog } from "@/components/ui/dialog";
+import { toDateOnlyLocal } from "@/lib/dates";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { ROUTINE_NAME_MAX } from "@/lib/routine-icons";
 import {
@@ -29,6 +30,7 @@ type DraftStep = {
   icon: string | null;
   recurrenceId: string | null;
   isTemplate: boolean;
+  expectedFingerprint: string | null;
 };
 
 type RoutineEditorMode = "page" | "sheet";
@@ -39,6 +41,21 @@ type RoutineStackEditorProps = {
   mode?: RoutineEditorMode;
   onClose?: () => void;
 };
+
+const ROUTINE_HISTORY_MARKER = "__familyPlannerRoutineStackEditor";
+
+type RoutineHistoryEntry = {
+  token: string;
+  url: string;
+  baseState: unknown;
+  sentinelState: Record<string, unknown>;
+};
+
+function stateRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
 
 class RoutineEditorRequestError extends Error {
   readonly status: number;
@@ -77,6 +94,7 @@ const candidateSchema = z
     weekly_days: z.array(z.number().int()),
     difficulty: z.string().nullable(),
     icon: z.string().nullable(),
+    expected_fingerprint: z.string().min(1),
   })
   .strict();
 
@@ -251,7 +269,7 @@ async function requestJson<T>(
 }
 
 function todayDate(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toDateOnlyLocal(new Date());
 }
 
 function dateOnly(value: string): string {
@@ -285,6 +303,7 @@ function fromCandidate(candidate: Candidate, draftId: string): DraftStep {
     icon: candidate.icon,
     recurrenceId: candidate.recurrence_id,
     isTemplate: candidate.is_template,
+    expectedFingerprint: candidate.expected_fingerprint,
   };
 }
 
@@ -306,6 +325,7 @@ function fromReadStep(
     icon: step.icon,
     recurrenceId: step.recurrence_id,
     isTemplate: step.is_template,
+    expectedFingerprint: null,
   };
 }
 
@@ -357,6 +377,9 @@ export default function RoutineStackEditor({
   const savingRef = React.useRef(false);
   const draftIdRef = React.useRef(0);
   const initialIdsRef = React.useRef<Set<string>>(new Set());
+  const historyEntryRef = React.useRef<RoutineHistoryEntry | null>(null);
+  const releasingHistoryRef = React.useRef<RoutineHistoryEntry | null>(null);
+  const afterHistoryReleaseRef = React.useRef<(() => void) | null>(null);
 
   const newDraftId = React.useCallback(() => {
     draftIdRef.current += 1;
@@ -368,14 +391,119 @@ export default function RoutineStackEditor({
     setSubmission(value);
   }, []);
 
+  const armHistorySentinel = React.useCallback(() => {
+    if (typeof window === "undefined" || historyEntryRef.current) return;
+    const token = `routine-stack:${
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`
+    }`;
+    const url = window.location.href;
+    const baseState = window.history.state;
+    const sentinelState = {
+      ...stateRecord(baseState),
+      [ROUTINE_HISTORY_MARKER]: token,
+    };
+    window.history.pushState(sentinelState, "", url);
+    historyEntryRef.current = { token, url, baseState, sentinelState };
+  }, []);
+
   const markDirty = React.useCallback(() => {
     dirtyRef.current = true;
+    armHistorySentinel();
     setDirty(true);
-  }, []);
+  }, [armHistorySentinel]);
 
   const clearDirty = React.useCallback(() => {
     dirtyRef.current = false;
     setDirty(false);
+  }, []);
+
+  const removeHistorySentinel = React.useCallback(() => {
+    const entry = historyEntryRef.current;
+    if (!entry || typeof window === "undefined") return false;
+    const currentMarker = stateRecord(window.history.state)[
+      ROUTINE_HISTORY_MARKER
+    ];
+    if (currentMarker === entry.token) {
+      window.history.replaceState(entry.baseState, "", entry.url);
+    }
+    historyEntryRef.current = null;
+    releasingHistoryRef.current = null;
+    afterHistoryReleaseRef.current = null;
+    return true;
+  }, []);
+
+  const leaveWithHistorySentinel = React.useCallback(
+    (afterRelease: () => void) => {
+      const entry = historyEntryRef.current;
+      if (!entry || typeof window === "undefined") return false;
+      releasingHistoryRef.current = entry;
+      afterHistoryReleaseRef.current = afterRelease;
+      historyEntryRef.current = null;
+      window.history.back();
+      return true;
+    },
+    [],
+  );
+
+  const navigateAway = React.useCallback(() => {
+    const finish = () => {
+      if (onClose) onClose();
+      else router.back();
+    };
+    if (leaveWithHistorySentinel(finish)) return;
+    finish();
+  }, [leaveWithHistorySentinel, onClose, router]);
+
+  React.useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onPopState = (event: Event) => {
+      const popState = event as PopStateEvent;
+      if (releasingHistoryRef.current) {
+        releasingHistoryRef.current = null;
+        const afterRelease = afterHistoryReleaseRef.current;
+        afterHistoryReleaseRef.current = null;
+        afterRelease?.();
+        return;
+      }
+      const entry = historyEntryRef.current;
+      if (!entry || !dirtyRef.current) return;
+      // Document capture runs before Next's window listener. Restore our
+      // owned same-URL entry so a dirty page/sheet cannot be unmounted by
+      // browser or Android Back before the discard choice is shown.
+      popState.preventDefault();
+      popState.stopImmediatePropagation();
+      window.history.pushState(entry.sentinelState, "", entry.url);
+      if (
+        !savingRef.current &&
+        submissionRef.current?.phase !== "pending" &&
+        submissionRef.current?.phase !== "unknown"
+      ) {
+        setDiscardAction("close");
+      }
+    };
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (
+        !dirtyRef.current &&
+        !savingRef.current &&
+        !submissionRef.current
+      )
+        return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    document.addEventListener("popstate", onPopState, true);
+    // PopStateEvent is dispatched at Window in browser/WebView implementations;
+    // keep this capture listener as the native-history fallback while the
+    // document listener gets first refusal ahead of Next's window listener.
+    window.addEventListener("popstate", onPopState, true);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      document.removeEventListener("popstate", onPopState, true);
+      window.removeEventListener("popstate", onPopState, true);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
   }, []);
 
   React.useEffect(() => {
@@ -562,6 +690,7 @@ export default function RoutineStackEditor({
         icon: null,
         recurrenceId: null,
         isTemplate: false,
+        expectedFingerprint: null,
       },
     ]);
     setNewTitle("");
@@ -641,8 +770,7 @@ export default function RoutineStackEditor({
         idempotencyKeyRef.current = null;
         clearDirty();
         router.refresh();
-        if (onClose) onClose();
-        else router.back();
+        navigateAway();
       } catch (error) {
         const requestError =
           error instanceof RoutineEditorRequestError ? error : null;
@@ -678,7 +806,7 @@ export default function RoutineStackEditor({
         setSaving(false);
       }
     },
-    [clearDirty, msg, onClose, router, setSubmissionState],
+    [clearDirty, msg, navigateAway, router, setSubmissionState],
   );
 
   const save = (event: React.FormEvent) => {
@@ -710,6 +838,9 @@ export default function RoutineStackEditor({
         icon: step.icon,
         recurrence_id: step.recurrenceId,
         is_template: step.isTemplate,
+        ...(step.expectedFingerprint
+          ? { expected_fingerprint: step.expectedFingerprint }
+          : {}),
       })),
       remove_chore_ids: removeChoreIds,
       expected_fingerprint: fingerprint,
@@ -739,8 +870,7 @@ export default function RoutineStackEditor({
       openDiscard("close");
       return;
     }
-    if (onClose) onClose();
-    else router.back();
+    navigateAway();
   };
 
   const confirmDiscard = () => {
@@ -759,11 +889,11 @@ export default function RoutineStackEditor({
     clearDirty();
     setSaveError(null);
     if (action === "reload") {
+      removeHistorySentinel();
       setReloadVersion((value) => value + 1);
       return;
     }
-    if (onClose) onClose();
-    else router.back();
+    navigateAway();
   };
 
   const accountNames = React.useMemo(

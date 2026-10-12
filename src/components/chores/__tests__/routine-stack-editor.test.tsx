@@ -4,6 +4,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 import { ROUTINE_NAME_MAX } from "@/lib/routine-icons";
+import { toDateOnlyLocal } from "@/lib/dates";
 import RoutineStackEditor from "../RoutineStackEditor";
 
 const back = jest.fn();
@@ -43,6 +44,7 @@ const candidates = {
       weekly_days: [],
       difficulty: "easy",
       icon: null,
+      expected_fingerprint: "candidate-fingerprint",
     },
   ],
   assignmentOptions: [
@@ -128,6 +130,30 @@ it("uses the canonical routine-name limit in the editor", async () => {
   expect(label).toHaveProperty("maxLength", ROUTINE_NAME_MAX);
 });
 
+it("uses the local calendar day when occurrence_date is omitted", async () => {
+  const now = new Date("2026-10-12T01:30:00.000Z");
+  jest.useFakeTimers().setSystemTime(now);
+  try {
+    searchParams = new URLSearchParams();
+    const localDate = toDateOnlyLocal(now);
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      expect(String(input)).toContain(
+        `occurrence_date=${encodeURIComponent(localDate)}`,
+      );
+      return response({
+        ...candidates,
+        occurrence_date: localDate,
+        candidates: [],
+      });
+    });
+
+    renderEditor();
+    expect(await screen.findByLabelText("Routine name")).toBeTruthy();
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 beforeEach(() => {
   // Candidate responses have a fixed occurrence date; keep the requested
   // date equally explicit so midnight on the runner cannot invalidate them.
@@ -137,6 +163,57 @@ beforeEach(() => {
   fetchMock.mockReset();
   global.fetch = fetchMock;
   jest.restoreAllMocks();
+});
+
+it("intercepts browser Back for a dirty draft and preserves it behind discard", async () => {
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) return response(candidates);
+    return response(saveResponse);
+  });
+  const user = userEvent.setup();
+  window.history.replaceState({ routineTest: "base" }, "", "/dashboard/chores/routines");
+  renderEditor();
+  await screen.findByText("Pack lunches");
+  const label = screen.getByLabelText("Routine name");
+  await user.clear(label);
+  await user.type(label, "Keep this draft");
+
+  window.history.back();
+  expect(await screen.findByRole("alertdialog")).toBeTruthy();
+  expect(screen.getByDisplayValue("Keep this draft")).toBeTruthy();
+  expect(back).not.toHaveBeenCalled();
+
+  await user.click(screen.getByRole("button", { name: "Keep editing" }));
+  expect(screen.getByDisplayValue("Keep this draft")).toBeTruthy();
+});
+
+it("keeps browser Back blocked while a save is pending", async () => {
+  let releaseSave!: (value: unknown) => void;
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) return response(candidates);
+    return new Promise((resolve) => {
+      releaseSave = resolve;
+    });
+  });
+  const user = userEvent.setup();
+  window.history.replaceState({ routineTest: "pending" }, "", "/dashboard/chores/routines");
+  renderEditor();
+  await screen.findByText("Pack lunches");
+  await user.click(screen.getByRole("button", { name: "Add" }));
+  await user.click(screen.getByRole("button", { name: "Save routine" }));
+  await waitFor(() => expect((screen.getByLabelText("Routine name") as HTMLInputElement).disabled).toBe(true));
+
+  window.history.back();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(screen.getByText(/saving/i)).toBeTruthy();
+
+  releaseSave(await response(saveResponse));
+  await waitFor(() =>
+    expect(screen.queryByText("Saving routine…")).toBeNull(),
+  );
 });
 
 it("stages an existing chore and a new step, then sends one atomic draft", async () => {
@@ -183,7 +260,7 @@ it("stages an existing chore and a new step, then sends one atomic draft", async
     ],
   });
   expect(refresh).toHaveBeenCalled();
-  expect(back).toHaveBeenCalled();
+  await waitFor(() => expect(back).toHaveBeenCalled());
 });
 
 it("requires a discard confirmation before reloading after a definitive conflict", async () => {
@@ -349,7 +426,7 @@ it("retries malformed success with the same immutable bytes and key", async () =
   expect(posts[0].init?.headers).toEqual(posts[1].init?.headers);
   expect(posts[0].init?.body).toBe(posts[1].init?.body);
   expect(refresh).toHaveBeenCalled();
-  expect(back).toHaveBeenCalled();
+  await waitFor(() => expect(back).toHaveBeenCalled());
 });
 
 it("treats an in-flight idempotency 409 as uncertain and retries the same packet", async () => {
@@ -386,7 +463,7 @@ it("treats an in-flight idempotency 409 as uncertain and retries the same packet
   expect(posts[0].init?.headers).toEqual(posts[1].init?.headers);
   expect(posts[0].init?.body).toBe(posts[1].init?.body);
   expect(refresh).toHaveBeenCalled();
-  expect(back).toHaveBeenCalled();
+  await waitFor(() => expect(back).toHaveBeenCalled());
 });
 
 it("asks before discarding dirty edits and restores the draft when kept", async () => {
@@ -408,7 +485,7 @@ it("asks before discarding dirty edits and restores the draft when kept", async 
   expect(screen.getByDisplayValue("Family reset")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Cancel" }));
   await user.click(screen.getByRole("button", { name: "Discard changes" }));
-  expect(back).toHaveBeenCalled();
+  await waitFor(() => expect(back).toHaveBeenCalled());
 });
 
 it("treats malformed candidate responses as load errors instead of an empty draft", async () => {

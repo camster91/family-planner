@@ -616,6 +616,23 @@ for (const locale of LOCALES) {
         stackId = body.stack_id!;
         await expectChoreListView(page);
         await expect(page.getByRole("dialog")).toHaveCount(0);
+        const routineCard = page
+          .locator("section")
+          .filter({ hasText: fixture.label })
+          .first();
+        await expect(routineCard).toContainText(
+          `QA parent ${fixture.prefix}`,
+        );
+        await expect(routineCard).toContainText(
+          `QA child ${fixture.prefix}`,
+        );
+        const addStepLink = routineCard
+          .getByRole("link", { name: /Add step|Añadir paso/ })
+          .first();
+        await expect(addStepLink).toHaveAttribute(
+          "href",
+          `/dashboard/chores/routines?stack_id=${encodeURIComponent(stackId!)}&occurrence_date=${DATE}`,
+        );
 
         const read = await browserFetch(
           page,
@@ -772,6 +789,14 @@ for (const locale of LOCALES) {
         await expectSurface(page, info, locale, "direct-draft");
         const label = page.getByLabel(copy[locale].label);
         await label.fill(fixture.label);
+        await page.goBack();
+        const browserBackDiscard = page.getByRole("alertdialog");
+        await expect(browserBackDiscard).toBeVisible();
+        await expect(label).toHaveValue(fixture.label);
+        await browserBackDiscard
+          .getByRole("button", { name: copy[locale].keepEditing, exact: true })
+          .click();
+        await expect(label).toHaveValue(fixture.label);
         await page
           .getByRole("button", { name: copy[locale].cancel, exact: true })
           .click();
@@ -799,6 +824,15 @@ for (const locale of LOCALES) {
         const sheet = page.getByRole("dialog");
         await expect(sheet).toBeVisible();
         await sheet.getByLabel(copy[locale].label).fill(fixture.label);
+        await page.goBack();
+        const sheetBackDiscard = page.getByRole("alertdialog");
+        await expect(sheetBackDiscard).toBeVisible();
+        await expect(sheet.getByLabel(copy[locale].label)).toHaveValue(
+          fixture.label,
+        );
+        await sheetBackDiscard
+          .getByRole("button", { name: copy[locale].keepEditing, exact: true })
+          .click();
         await sheet
           .getByRole("button", { name: copy[locale].close, exact: true })
           .click();

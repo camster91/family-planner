@@ -83,15 +83,19 @@ export function RoutineStacks({ chores, userRole, currentUserId, familyId, local
         const checked = stack.steps.filter(c => c.status === 'verified').length
         const next = stack.steps.find(c => !isDone(c))?.id
         const lastOrder = Math.max(0, ...stack.steps.map(c => c.routine_order ?? 0))
+        const durableStackId = stack.steps.find(c => c.routine_stack_id)?.routine_stack_id ?? null
+        const addStepHref = durableStackId
+          ? `/dashboard/chores/routines?${new URLSearchParams({ stack_id: durableStackId, occurrence_date: stack.steps[0].due_date.slice(0, 10) })}`
+          : `/dashboard/chores/create?${new URLSearchParams({ routine: stack.name, step: String(lastOrder + 1), member: stack.steps[0].assigned_to, date: stack.steps[0].due_date.slice(0, 10) })}`
         return <section key={stack.key} className="rounded-[var(--radius-xl)] bg-[var(--surface-elevated)] p-4" aria-label={`${stack.name} · ${stack.steps[0].assignee?.name ?? 'Unassigned'} · ${formatDateOnly(stack.steps[0].due_date, undefined, locale)}`}>
           <h2 className="text-title-3 text-label-primary [overflow-wrap:anywhere]">{stack.name}</h2>
           <p className="text-footnote text-label-secondary">{stack.steps[0].assignee?.name ?? 'Unassigned'} · {formatDateOnly(stack.steps[0].due_date, undefined, locale)}</p>
           <p className="text-footnote text-label-secondary mt-2" aria-live="polite">{done} of {stack.steps.length} done · {checked} checked</p>
-          <ol>{stack.steps.filter(c => !focusNext || c.id === next).map(c => renderStep(c, c.id === next))}</ol>
+          <ol>{stack.steps.filter(c => !focusNext || c.id === next).map(c => renderStep(c, c.id === next, true))}</ol>
           {focusNext && !next && <p className="text-footnote text-label-secondary mt-2">All steps done{checked < done ? " · some awaiting check" : " and checked"}.</p>}
           {userRole === 'parent' && <div className="flex flex-wrap items-center gap-3">
-            {familyId && stack.steps.some(c => c.routine_stack_id) && <Link className="inline-flex min-h-[44px] items-center text-[var(--accent)] underline text-body" href={`/dashboard/chores/routines?${new URLSearchParams({ stack_id: stack.steps.find(c => c.routine_stack_id)?.routine_stack_id ?? '', occurrence_date: stack.steps[0].due_date.slice(0, 10) })}`}>{routineText('edit')}</Link>}
-            {lastOrder < ROUTINE_ORDER_MAX && <Link className="inline-flex items-center min-h-[44px] text-[var(--accent)] underline text-body" href={`/dashboard/chores/create?${new URLSearchParams({ routine: stack.name, step: String(lastOrder + 1), member: stack.steps[0].assigned_to, date: stack.steps[0].due_date.slice(0, 10) })}`}>Add step</Link>}
+            {familyId && durableStackId && <Link className="inline-flex min-h-[44px] items-center text-[var(--accent)] underline text-body" href={`/dashboard/chores/routines?${new URLSearchParams({ stack_id: durableStackId, occurrence_date: stack.steps[0].due_date.slice(0, 10) })}`}>{routineText('edit')}</Link>}
+            {lastOrder < ROUTINE_ORDER_MAX && <Link className="inline-flex items-center min-h-[44px] text-[var(--accent)] underline text-body" href={addStepHref}>Add step</Link>}
           </div>}
         </section>
       })}

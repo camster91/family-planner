@@ -1,6 +1,7 @@
 import { hashIdempotentRequest } from "@/lib/idempotency";
 import {
   fingerprintRoutineStackSnapshot,
+  fingerprintRoutineStackSelectedStep,
   normalizeRoutineStackDraft,
 } from "@/lib/routine-stack";
 import { mutateRoutineStackInTx } from "@/lib/routine-stack-mutation";
@@ -201,6 +202,65 @@ describe("routine stack transaction coordinator", () => {
     expect(householdLock).toBeLessThan(receiptLock);
   });
 
+  it("rejects a stale selected unstacked snapshot before creating a stack", async () => {
+    const loaded = existingChore({
+      id: "chore-unstacked",
+      routine_stack_id: null,
+      assigned_to: "user-a",
+      assigned_member_id: "member-a",
+      routine: null,
+      routine_order: null,
+    });
+    const staleToken = fingerprintRoutineStackSelectedStep({
+      id: String(loaded.id),
+      family_id: String(loaded.family_id),
+      assigned_to: String(loaded.assigned_to),
+      assigned_member_id: String(loaded.assigned_member_id),
+      member_subject_erased: false,
+      due_date: String(loaded.due_date),
+      recurrence_id: null,
+      is_template: false,
+      routine: null,
+      routine_order: null,
+    });
+    const reassigned = {
+      ...loaded,
+      assigned_to: "user-b",
+      assigned_member_id: "member-b",
+    };
+    const { tx, state } = makeTx({ chores: [reassigned] });
+
+    await expect(
+      mutateRoutineStackInTx(
+        tx,
+        {
+          ...input({ stack_id: null, expected_fingerprint: "" }),
+          steps: [
+            {
+              chore_id: "chore-unstacked",
+              assigned_to: "user-a",
+              assigned_member_id: "member-a",
+              due_date: "2026-10-12",
+              frequency: "once",
+              expected_fingerprint: staleToken,
+            },
+          ],
+        },
+        { familyId: "family-a", userId: "parent-a", role: "parent" },
+        { resolveAssignee: async () => ({ assigned_to: "user-a" }) },
+      ),
+    ).rejects.toMatchObject({
+      status: 409,
+      code: "ROUTINE_STACK_CONFLICT",
+    });
+    expect(state.writes).toEqual([]);
+    expect(reassigned).toMatchObject({
+      assigned_to: "user-b",
+      assigned_member_id: "member-b",
+      routine_stack_id: null,
+    });
+  });
+
   it("replays a completed key without re-running the chore write", async () => {
     const chore = existingChore();
     const draft = normalizeRoutineStackDraft(
@@ -233,6 +293,68 @@ describe("routine stack transaction coordinator", () => {
       body: record.response_body,
     });
     expect(state.writes).toEqual([]);
+  });
+
+  it("rechecks a selected unstacked token when extending an existing stack", async () => {
+    const current = existingChore();
+    const candidate = existingChore({
+      id: "candidate-unstacked",
+      routine_stack_id: null,
+      routine: null,
+      routine_order: null,
+      assigned_to: "user-b",
+      assigned_member_id: "member-b",
+    });
+    const draft = normalizeRoutineStackDraft(
+      input({
+        steps: [
+          {
+            chore_id: "chore-a",
+            assigned_to: "user-a",
+            assigned_member_id: "member-a",
+            due_date: "2026-10-12",
+            frequency: "once",
+          },
+          {
+            chore_id: "candidate-unstacked",
+            assigned_to: "user-b",
+            assigned_member_id: "member-b",
+            due_date: "2026-10-12",
+            frequency: "once",
+            expected_fingerprint: fingerprintRoutineStackSelectedStep({
+              id: "candidate-unstacked",
+              family_id: "family-a",
+              assigned_to: "user-a",
+              assigned_member_id: "member-a",
+              member_subject_erased: false,
+              due_date: "2026-10-12",
+              recurrence_id: null,
+              is_template: false,
+              routine: null,
+              routine_order: null,
+            }),
+          },
+        ],
+        expected_fingerprint: fingerprintRoutineStackSnapshot([current as never]),
+      }),
+    );
+    const { tx, state } = makeTx({
+      stack: { id: "stack-a", family_id: "family-a", version: 2 },
+      chores: [current, candidate],
+    });
+
+    await expect(
+      mutateRoutineStackInTx(tx, draft, {
+        familyId: "family-a",
+        userId: "parent-a",
+        role: "parent",
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "ROUTINE_STACK_CONFLICT" });
+    expect(state.writes).toEqual([]);
+    expect(candidate).toMatchObject({
+      routine_stack_id: null,
+      assigned_to: "user-b",
+    });
   });
 
   it("returns changed-payload reuse as 422 before locking domain rows", async () => {
@@ -464,6 +586,18 @@ describe("routine stack transaction coordinator", () => {
           frequency: "once",
           difficulty: "medium",
           recurrence_id: "stopped-a",
+          expected_fingerprint: fingerprintRoutineStackSelectedStep({
+            id: "stopped-a",
+            family_id: "family-a",
+            assigned_to: "user-a",
+            assigned_member_id: "member-a",
+            member_subject_erased: false,
+            due_date: "2026-10-12",
+            recurrence_id: "stopped-a",
+            is_template: false,
+            routine: "Morning",
+            routine_order: 1,
+          }),
         },
         {
           chore_id: "legacy-a",
@@ -473,6 +607,18 @@ describe("routine stack transaction coordinator", () => {
           frequency: "weekly",
           weekly_days: [1],
           difficulty: "medium",
+          expected_fingerprint: fingerprintRoutineStackSelectedStep({
+            id: "legacy-a",
+            family_id: "family-a",
+            assigned_to: "user-a",
+            assigned_member_id: "member-a",
+            member_subject_erased: false,
+            due_date: "2026-10-12",
+            recurrence_id: null,
+            is_template: false,
+            routine: "Morning",
+            routine_order: 1,
+          }),
         },
       ],
       remove_chore_ids: [],

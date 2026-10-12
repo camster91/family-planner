@@ -27,6 +27,10 @@ const frequencySchema = z.enum(["once", "daily", "weekly", "monthly"]);
 const draftStepSchema = z
   .object({
     chore_id: z.string().trim().min(1).max(128).optional(),
+    // Existing unstacked rows carry the snapshot token returned by the
+    // candidate reader. It is checked again under the chore row lock so a
+    // concurrent reassignment cannot be overwritten by a stale editor.
+    expected_fingerprint: z.string().trim().max(128).optional(),
     title: z.string().trim().min(1).max(200).optional(),
     description: z.string().trim().max(1000).nullable().optional(),
     assigned_to: z.string().trim().min(1).max(128),
@@ -298,6 +302,48 @@ export function fingerprintRoutineStackSnapshot(
   return crypto
     .createHash("sha256")
     .update(canonicalValue(routineStackFingerprintInput(steps)))
+    .digest("hex");
+}
+
+/**
+ * Token for an existing unstacked row selected into a routine. Candidate
+ * reads intentionally omit private/history fields, so this is the shared
+ * mutable-assignment/occurrence projection used by both the reader and the
+ * writer. It is checked after the chore row lock is acquired.
+ */
+export function fingerprintRoutineStackSelectedStep(
+  step: Pick<
+    RoutineStackSnapshotStep,
+    | "id"
+    | "family_id"
+    | "assigned_to"
+    | "assigned_member_id"
+    | "member_subject_erased"
+    | "due_date"
+    | "recurrence_id"
+    | "is_template"
+    | "routine"
+    | "routine_order"
+  >,
+): string {
+  return crypto
+    .createHash("sha256")
+    .update(
+      canonicalValue([
+        {
+          id: step.id,
+          family_id: step.family_id,
+          assigned_to: step.assigned_to,
+          assigned_member_id: step.assigned_member_id ?? null,
+          member_subject_erased: step.member_subject_erased === true,
+          due_date: step.due_date,
+          recurrence_id: step.recurrence_id ?? null,
+          is_template: step.is_template === true,
+          routine: normalizeRoutineName(step.routine),
+          routine_order: step.routine_order ?? null,
+        },
+      ]),
+    )
     .digest("hex");
 }
 

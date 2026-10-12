@@ -12,6 +12,7 @@ import path from "node:path";
 import pg from "pg";
 import {
   fingerprintRoutineStackSnapshot,
+  fingerprintRoutineStackSelectedStep,
   normalizeRoutineStackDraft,
   projectRoutineStackResponse,
   routineStackResponseByteLength,
@@ -787,6 +788,18 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
           difficulty: "medium",
           recurrence_id: RECURRING_TEMPLATE,
           is_template: false,
+          expected_fingerprint: fingerprintRoutineStackSelectedStep({
+            id: CHORE_RECURRING,
+            family_id: FAMILY_A,
+            assigned_to: CHILD_A,
+            assigned_member_id: MEMBER_CHILD_A,
+            member_subject_erased: false,
+            due_date: OCCURRENCE,
+            recurrence_id: RECURRING_TEMPLATE,
+            is_template: false,
+            routine: null,
+            routine_order: null,
+          }),
         },
       ]),
       actorA,
@@ -978,6 +991,18 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
           difficulty: "medium",
           recurrence_id: RECURRING_TEMPLATE,
           is_template: false,
+          expected_fingerprint: fingerprintRoutineStackSelectedStep({
+            id: CHORE_RECURRING,
+            family_id: FAMILY_A,
+            assigned_to: CHILD_A,
+            assigned_member_id: MEMBER_CHILD_A,
+            member_subject_erased: false,
+            due_date: OCCURRENCE,
+            recurrence_id: RECURRING_TEMPLATE,
+            is_template: false,
+            routine: null,
+            routine_order: null,
+          }),
         },
       ],
       remove_chore_ids: [],
@@ -1289,6 +1314,84 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
     ).toEqual(new Set(ids));
   });
 
+  it("rejects a candidate save when its unstacked assignment changed after the read", async () => {
+    await db.chore.create({
+      data: {
+        id: CANDIDATE_CANONICAL,
+        family_id: FAMILY_A,
+        title: "Concurrent candidate",
+        assigned_to: CHILD_A,
+        assigned_member_id: MEMBER_CHILD_A,
+        due_date: OCCURRENCE,
+        created_by: PARENT_A,
+        frequency: "once",
+        weekly_days: [],
+      },
+    });
+    const catalog = await readParentRoutineStackCandidates(
+      db,
+      actorA,
+      OCCURRENCE_DATE,
+    );
+    const candidate = catalog?.candidates.find(
+      (row) => row.id === CANDIDATE_CANONICAL,
+    );
+    expect(candidate?.expected_fingerprint).toEqual(expect.any(String));
+    await db.chore.update({
+      where: { id: CANDIDATE_CANONICAL },
+      data: {
+        assigned_to: OTHER_PARENT_A,
+        assigned_member_id: MEMBER_OTHER_PARENT_A,
+      },
+    });
+
+    await expect(
+      saveParentRoutineStack(
+        db,
+        {
+          scope: "occurrence",
+          family_id: FAMILY_A,
+          stack_id: null,
+          occurrence_date: OCCURRENCE_DATE,
+          label: "Concurrent candidate routine",
+          steps: [
+            {
+              chore_id: CANDIDATE_CANONICAL,
+              assigned_to: CHILD_A,
+              assigned_member_id: MEMBER_CHILD_A,
+              due_date: OCCURRENCE_DATE,
+              frequency: "once",
+              difficulty: "medium",
+              expected_fingerprint: candidate!.expected_fingerprint,
+              is_template: false,
+            },
+          ],
+          remove_chore_ids: [],
+          expected_fingerprint: "",
+        },
+        actorA,
+        `${PREFIX}-candidate-concurrent-save`,
+      ),
+    ).rejects.toMatchObject({
+      status: 409,
+      code: "ROUTINE_STACK_CONFLICT",
+    });
+    expect(
+      await db.chore.findUniqueOrThrow({
+        where: { id: CANDIDATE_CANONICAL },
+      }),
+    ).toMatchObject({
+      assigned_to: OTHER_PARENT_A,
+      assigned_member_id: MEMBER_OTHER_PARENT_A,
+      routine_stack_id: null,
+    });
+    expect(
+      await db.routineStack.findMany({
+        where: { family_id: FAMILY_A, label: "Concurrent candidate routine" },
+      }),
+    ).toHaveLength(0);
+  });
+
   it("creates a first stack from a candidate and round-trips assignment and series identity", async () => {
     await db.chore.createMany({
       data: [
@@ -1353,6 +1456,7 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
             difficulty: candidate!.difficulty ?? "medium",
             recurrence_id: candidate!.recurrence_id ?? undefined,
             is_template: false,
+            expected_fingerprint: candidate!.expected_fingerprint,
           },
         ],
         remove_chore_ids: [],
@@ -1524,6 +1628,18 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
             difficulty: "medium",
             recurrence_id: STOPPED_ANCHOR,
             is_template: false,
+            expected_fingerprint: fingerprintRoutineStackSelectedStep({
+              id: STOPPED_ANCHOR,
+              family_id: FAMILY_A,
+              assigned_to: CHILD_A,
+              assigned_member_id: MEMBER_CHILD_A,
+              member_subject_erased: false,
+              due_date: OCCURRENCE,
+              recurrence_id: STOPPED_ANCHOR,
+              is_template: false,
+              routine: null,
+              routine_order: null,
+            }),
           },
           {
             chore_id: LEGACY_OCCURRENCE,
@@ -1534,6 +1650,18 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
             weekly_days: [1],
             difficulty: "medium",
             is_template: false,
+            expected_fingerprint: fingerprintRoutineStackSelectedStep({
+              id: LEGACY_OCCURRENCE,
+              family_id: FAMILY_A,
+              assigned_to: CHILD_A,
+              assigned_member_id: MEMBER_CHILD_A,
+              member_subject_erased: false,
+              due_date: OCCURRENCE,
+              recurrence_id: null,
+              is_template: false,
+              routine: null,
+              routine_order: null,
+            }),
           },
         ],
         remove_chore_ids: [],

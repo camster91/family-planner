@@ -1,4 +1,5 @@
 import { readParentRoutineStackCandidates } from "@/lib/routine-stack-api";
+import { fingerprintRoutineStackSelectedStep } from "@/lib/routine-stack";
 
 const actor = { familyId: "family-a", userId: "parent-a", role: "parent" };
 const date = "2026-10-11";
@@ -115,6 +116,20 @@ describe("readParentRoutineStackCandidates", () => {
       { accountId: "user-good", name: "Good", role: "child" },
       { accountId: "user-unmapped", name: "Unmapped", role: "parent" },
     ]);
+    expect(result?.candidates[0]?.expected_fingerprint).toBe(
+      fingerprintRoutineStackSelectedStep({
+        id: "chore-good",
+        family_id: "family-a",
+        assigned_to: "user-good",
+        assigned_member_id: "member-good",
+        member_subject_erased: false,
+        due_date: new Date(`${date}T00:00:00.000Z`),
+        recurrence_id: null,
+        is_template: false,
+        routine: null,
+        routine_order: null,
+      }),
+    );
     expect(JSON.stringify(result)).not.toContain("email");
     expect(JSON.stringify(result)).not.toContain("member-archived");
     expect(JSON.stringify(result)).not.toContain("member-dormant");

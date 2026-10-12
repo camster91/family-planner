@@ -16,6 +16,7 @@ import {
 } from "@/lib/routine-stack-mutation";
 import {
   fingerprintRoutineStackSnapshot,
+  fingerprintRoutineStackSelectedStep,
   normalizeRoutineStackDraft,
   projectRoutineStackResponse,
   type RoutineStackMemberProjection,
@@ -249,6 +250,7 @@ export type ParentRoutineStackCandidates = {
     weekly_days: number[];
     difficulty: string | null;
     icon: string | null;
+    expected_fingerprint: string;
   }>;
   assignmentOptions: Array<{
     accountId: string;
@@ -443,6 +445,18 @@ export async function readParentRoutineStackCandidates(
       weekly_days: row.weekly_days,
       difficulty: row.difficulty,
       icon: row.icon,
+      expected_fingerprint: fingerprintRoutineStackSelectedStep({
+        id: row.id,
+        family_id: actor.familyId,
+        assigned_to: row.assigned_to,
+        assigned_member_id: row.assigned_member_id,
+        member_subject_erased: row.member_subject_erased,
+        due_date: row.due_date,
+        recurrence_id: row.recurrence_id,
+        is_template: row.is_template,
+        routine: row.routine,
+        routine_order: row.routine_order,
+      }),
     }));
   const hasMore = rawRows.length > limit;
   const nextCursor = hasMore
