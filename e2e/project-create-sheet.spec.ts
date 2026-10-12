@@ -255,6 +255,23 @@ for (const locale of ["en", "es"] as const) {
             await expect(
               form.getByRole("button", { name: copy.creating }),
             ).toBeVisible();
+            await expect(
+              form.getByTestId("project-create-back-busy"),
+            ).toBeVisible();
+            await expect(
+              form.getByRole("link", { name: copy.back, exact: true }),
+            ).toHaveCount(0);
+            // Exercise the direct route's browser Back path while the POST is
+            // held. The direct form owns the same-URL sentinel, so the draft
+            // must remain mounted at the create URL.
+            await page.evaluate(() => window.history.back());
+            await expect(page).toHaveURL(/\/dashboard\/projects\/create$/);
+            await expect(
+              form.getByTestId("project-create-back-busy"),
+            ).toBeVisible();
+            await expect(
+              form.getByRole("button", { name: copy.creating }),
+            ).toBeDisabled();
           }
           const projectResponsePromise = page.waitForResponse(
             (response) =>

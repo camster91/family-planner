@@ -8,6 +8,10 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { useTranslation } from "@/i18n";
 import { projectCreateMessages } from "@/i18n/project-create";
+import {
+  usePendingFormNavigation,
+  usePendingFormNavigationController,
+} from "@/components/layout/pending-form-navigation";
 
 const PRESET_COLORS = [
   { value: "#3B82F6", labelKey: "colorBlue", ring: "ring-blue-400" },
@@ -34,6 +38,11 @@ export default function CreateProjectForm({
   const [description, setDescription] = useState("");
   const [color, setColor] = useState<ProjectColor>(PRESET_COLORS[0].value);
   const [loading, setLoading] = useState(false);
+  const directNavigation = usePendingFormNavigationController(
+    loading && !inSheet,
+  );
+  const sheetNavigation = usePendingFormNavigation();
+  const navigation = inSheet ? sheetNavigation : directNavigation;
 
   useEffect(() => {
     onBusyChange?.(loading);
@@ -63,14 +72,19 @@ export default function CreateProjectForm({
             : copy.createFallback;
         throw new Error(serverMessage);
       }
-      if (!data?.project?.id) throw new Error(copy.createFallback);
+      const projectId = data?.project?.id;
+      if (typeof projectId !== "string" || projectId.trim().length === 0) {
+        throw new Error(copy.createFallback);
+      }
+
+      if ((await navigation?.releaseBeforeNavigation()) === false) return;
 
       addToast({
         type: "success",
         title: copy.created,
         message: copy.createdMessage.replace("{name}", name.trim()),
       });
-      router.push(`/dashboard/projects/${data.project.id}`);
+      router.push(`/dashboard/projects/${projectId}`);
       router.refresh();
     } catch (error) {
       addToast({
@@ -88,13 +102,24 @@ export default function CreateProjectForm({
       {!inSheet && (
         <>
           <div className="px-4 pt-4">
-            <Link
-              href="/dashboard/projects"
-              className="inline-flex items-center gap-1.5 text-subhead text-label-secondary hover:text-label-primary transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              {copy.back}
-            </Link>
+            {loading ? (
+              <span
+                aria-disabled="true"
+                data-testid="project-create-back-busy"
+                className="inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-label-tertiary"
+              >
+                <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+                {copy.back}
+              </span>
+            ) : (
+              <Link
+                href="/dashboard/projects"
+                className="inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-label-secondary hover:text-label-primary transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+                {copy.back}
+              </Link>
+            )}
           </div>
 
           <div className="px-4">

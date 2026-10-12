@@ -100,6 +100,37 @@ it("retains the draft after a refused create so the user can retry", async () =>
   expect(push).not.toHaveBeenCalled();
 });
 
+it.each([undefined, null, 42, {}, "   "])(
+  "keeps the draft and refuses a successful response without a non-empty string id (%s)",
+  async (id) => {
+    const user = userEvent.setup();
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(response(201, { project: { id } }));
+
+    render(<CreateProjectForm />);
+
+    const name = screen.getByLabelText(/Project Name/);
+    const description = screen.getByLabelText(/^Description/);
+    await user.type(name, "Shared garden");
+    await user.type(description, "Keep this after an invalid response");
+    await user.click(screen.getByRole("button", { name: "Create Project" }));
+
+    await waitFor(() =>
+      expect(addToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "error",
+          title: "Failed to create project",
+        }),
+      ),
+    );
+    expect(name).toHaveValue("Shared garden");
+    expect(description).toHaveValue("Keep this after an invalid response");
+    expect(push).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+  },
+);
+
 it("localizes project create labels and refusal feedback in Spanish", async () => {
   const user = userEvent.setup();
   global.fetch = jest
@@ -190,3 +221,32 @@ it.each([
     );
   },
 );
+
+it("replaces the direct Back link while a request is pending", async () => {
+  const user = userEvent.setup();
+  let release!: (value: Response) => void;
+  global.fetch = jest.fn(
+    () =>
+      new Promise<Response>((resolve) => {
+        release = resolve;
+      }),
+  );
+
+  render(<CreateProjectForm />);
+
+  const name = screen.getByLabelText(/Project Name/);
+  await user.type(name, "Kitchen project");
+  expect(
+    screen.getByRole("link", { name: "Back to Projects" }),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  expect(
+    screen.queryByRole("link", { name: "Back to Projects" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByTestId("project-create-back-busy")).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+
+  await act(async () => release(response(201, { project: { id: "project-3" } })));
+});
