@@ -12,6 +12,7 @@ import pg from "pg";
 import { assertFixtureTargetAllowed } from "@/lib/fixtures/guard";
 import {
   createProfileOnlyChore,
+  createProfileOnlyChoreEffect,
   profileChoreCreateSchema,
 } from "@/lib/chore-profile";
 import {
@@ -21,7 +22,7 @@ import {
   reopenProfileChoreInTx,
 } from "@/lib/chore-profile-actions";
 import { lockHousehold } from "@/lib/household-lock";
-import { withIdempotency } from "@/lib/idempotency";
+import { hashIdempotentRequest, withIdempotency } from "@/lib/idempotency";
 
 const dbDescribe =
   process.env.RUN_DB_INTEGRATION === "1" && process.env.FIXTURES_ALLOW === "1"
@@ -396,19 +397,17 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
       db.notification.count({ where: { user_id: PARENT_A } }),
     ]);
     const run = () =>
-      withIdempotency(db, key, context, input, async () => ({
-        status: 200,
-        body: {
-          chore: await createProfileOnlyChore(
-            db,
-            { id: PARENT_A, familyId: FAMILY_A },
-            input,
-            DATE,
-            null,
-            NOON,
-          ),
-        },
-      }));
+      withIdempotency(db, key, context, input, ({ recordId }) =>
+        createProfileOnlyChoreEffect(
+          db,
+          { id: PARENT_A, familyId: FAMILY_A },
+          input,
+          DATE,
+          null,
+          recordId,
+          NOON,
+        ),
+      );
     const first = await run();
     const firstBody = await first.json();
     const replay = await run();
@@ -437,6 +436,139 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
       async () => ({ status: 200, body: { shouldNotRun: true } }),
     );
     expect(changed.status).toBe(422);
+  });
+
+  it("keeps the chore and receipt complete when the outer response store is lost", async () => {
+    const input = profileInput(CHILD_A, "Lost response profile chore");
+    const key = "fx-profile-chore-response-loss-20261011";
+    const context = {
+      scope: `user:${PARENT_A}`,
+      familyId: FAMILY_A,
+      userId: PARENT_A,
+      action: "chore.profile.create",
+    };
+    const real = db;
+    let outerStoreFailures = 0;
+    const failingRecords = new Proxy(real.idempotencyRecord, {
+      get(target, property) {
+        if (property === "update" && outerStoreFailures === 0) {
+          return async () => {
+            outerStoreFailures += 1;
+            throw new Error("connection reset after transaction");
+          };
+        }
+        const value = Reflect.get(target, property);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const failingDb = new Proxy(real, {
+      get(target, property) {
+        if (property === "idempotencyRecord") return failingRecords;
+        const value = Reflect.get(target, property);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as TestDb;
+
+    const first = await withIdempotency(
+      failingDb,
+      key,
+      context,
+      input,
+      ({ recordId }) =>
+        createProfileOnlyChoreEffect(
+          failingDb,
+          { id: PARENT_A, familyId: FAMILY_A },
+          input,
+          DATE,
+          null,
+          recordId,
+          NOON,
+        ),
+    );
+    expect(first.status).toBe(200);
+    expect(outerStoreFailures).toBe(1);
+    const firstBody = await first.json();
+    expect(
+      await db.chore.count({
+        where: { family_id: FAMILY_A, assigned_member_id: CHILD_A },
+      }),
+    ).toBe(1);
+    const receipt = await db.idempotencyRecord.findFirstOrThrow({
+      where: { family_id: FAMILY_A, key },
+    });
+    expect(receipt.response_status).toBe(200);
+    expect(receipt.response_body).toEqual(firstBody);
+
+    const retry = await withIdempotency(
+      db,
+      key,
+      context,
+      input,
+      ({ recordId }) =>
+        createProfileOnlyChoreEffect(
+          db,
+          { id: PARENT_A, familyId: FAMILY_A },
+          input,
+          DATE,
+          null,
+          recordId,
+          NOON,
+        ),
+    );
+    expect(retry.status).toBe(200);
+    expect(retry.headers.get("Idempotency-Replayed")).toBe("true");
+    expect(await retry.json()).toEqual(firstBody);
+    expect(
+      await db.chore.count({
+        where: { family_id: FAMILY_A, assigned_member_id: CHILD_A },
+      }),
+    ).toBe(1);
+  });
+
+  it("takes over an abandoned receipt without creating a second profile chore", async () => {
+    const input = profileInput(CHILD_A, "Recovered profile chore");
+    const key = "fx-profile-chore-takeover-20261011";
+    const context = {
+      scope: `user:${PARENT_A}`,
+      familyId: FAMILY_A,
+      userId: PARENT_A,
+      action: "chore.profile.create",
+    };
+    await db.idempotencyRecord.create({
+      data: {
+        scope: context.scope,
+        key,
+        family_id: FAMILY_A,
+        user_id: PARENT_A,
+        action: context.action,
+        request_hash: hashIdempotentRequest(context.action, input),
+        created_at: new Date(0),
+        expires_at: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const run = () =>
+      withIdempotency(db, key, context, input, ({ recordId }) =>
+        createProfileOnlyChoreEffect(
+          db,
+          { id: PARENT_A, familyId: FAMILY_A },
+          input,
+          DATE,
+          null,
+          recordId,
+          NOON,
+        ),
+      );
+    const first = await run();
+    expect(first.status).toBe(200);
+    const replay = await run();
+    expect(replay.status).toBe(200);
+    expect(replay.headers.get("Idempotency-Replayed")).toBe("true");
+    expect(
+      await db.chore.count({
+        where: { family_id: FAMILY_A, assigned_member_id: CHILD_A },
+      }),
+    ).toBe(1);
   });
 
   it("persists completion audits privately, undoes the matching chore, and rolls back on audit failure", async () => {

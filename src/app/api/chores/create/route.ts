@@ -16,7 +16,7 @@ import { lockHousehold, lockUser } from '@/lib/household-lock'
 import { choreAssigneeForCreateInTx } from '@/lib/chore-member-subject'
 import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 import {
-  createProfileOnlyChore,
+  createProfileOnlyChoreEffect,
   isProfileChoreEnabled,
   profileChoreCreateSchema,
   profileChoreProtocolRefusal,
@@ -69,18 +69,39 @@ export async function POST(request: NextRequest) {
         key,
         { scope: `user:${auth.user.id}`, familyId: auth.user.family_id, userId: auth.user.id, action: 'chore.profile.create' },
         profile.data,
-        async () => ({
-          status: 200,
-          body: {
-            chore: await createProfileOnlyChore(
-              prisma!,
-              { id: auth.user.id, familyId: auth.user.family_id },
-              profile.data,
-              startDate,
-              photo.value ?? null,
-            ),
-          },
-        }),
+        ({ recordId }) =>
+          createProfileOnlyChoreEffect(
+            prisma!,
+            { id: auth.user.id, familyId: auth.user.family_id },
+            profile.data,
+            startDate,
+            photo.value ?? null,
+            recordId,
+          ),
+        {
+          // A completed receipt contains private household data. Re-check the
+          // live actor under the same membership locks before replaying it.
+          beforeReplay: () =>
+            prisma!.$transaction(async (tx) => {
+              await lockUser(tx, auth.user.id)
+              await lockHousehold(tx, auth.user.family_id)
+              const currentActor = await tx.user.findUnique({
+                where: { id: auth.user.id },
+                select: { family_id: true, role: true },
+              })
+              if (
+                !currentActor ||
+                currentActor.family_id !== auth.user.family_id ||
+                currentActor.role !== 'parent'
+              ) {
+                return {
+                  status: 404,
+                  body: { error: 'PROFILE_TARGET_UNAVAILABLE' },
+                }
+              }
+              return null
+            }),
+        },
       )
       return response
     }
