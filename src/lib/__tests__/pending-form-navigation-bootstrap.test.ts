@@ -61,6 +61,7 @@ it("prevents cancelable traverses before later Navigation API listeners", () => 
 
   const event = Object.assign(new Event("navigate", { cancelable: true }), {
     navigationType: "traverse",
+    destination: { sameDocument: true },
   });
   navigation.dispatchEvent(event);
 
@@ -89,6 +90,7 @@ it("passes through non-traverses and noncancelable traverses", () => {
   });
   const noncancelable = Object.assign(new Event("navigate"), {
     navigationType: "traverse",
+    destination: { sameDocument: true },
   });
   navigation.dispatchEvent(push);
   navigation.dispatchEvent(noncancelable);
@@ -96,6 +98,41 @@ it("passes through non-traverses and noncancelable traverses", () => {
   expect(pendingHandler).not.toHaveBeenCalled();
   expect(push.defaultPrevented).toBe(false);
   expect(noncancelable.defaultPrevented).toBe(false);
+  expect(laterListener).toHaveBeenCalledTimes(2);
+});
+
+it("passes through cross-document and unknown destinations", () => {
+  const navigation = new EventTarget();
+  Object.defineProperty(window, "navigation", {
+    configurable: true,
+    value: navigation,
+  });
+  const runBootstrap = new Function(PENDING_FORM_NAVIGATION_BOOTSTRAP_SCRIPT);
+  runBootstrap();
+
+  const bootstrap = window.__herewovenPendingNavigation!;
+  const pendingHandler = jest.fn(() => true);
+  const laterListener = jest.fn();
+  bootstrap.registerNavigate!(pendingHandler);
+  navigation.addEventListener("navigate", laterListener);
+
+  const crossDocument = Object.assign(
+    new Event("navigate", { cancelable: true }),
+    {
+      navigationType: "traverse",
+      destination: { sameDocument: false },
+    },
+  );
+  const unknownDestination = Object.assign(
+    new Event("navigate", { cancelable: true }),
+    { navigationType: "traverse" },
+  );
+  navigation.dispatchEvent(crossDocument);
+  navigation.dispatchEvent(unknownDestination);
+
+  expect(pendingHandler).not.toHaveBeenCalled();
+  expect(crossDocument.defaultPrevented).toBe(false);
+  expect(unknownDestination.defaultPrevented).toBe(false);
   expect(laterListener).toHaveBeenCalledTimes(2);
 });
 
