@@ -36,7 +36,15 @@ export default function JoinFamilyPage() {
   const submittingRef = useRef(false)
   const busy = loading || leaving || !!success
   const router = useRouter()
-  usePendingFormNavigationController(busy)
+  const { releaseBeforeNavigation } = usePendingFormNavigationController(busy)
+  const navigateAfterRelease = useCallback(
+    async (href: string, refresh = false) => {
+      if (!(await releaseBeforeNavigation())) return
+      router.push(href)
+      if (refresh) router.refresh()
+    },
+    [releaseBeforeNavigation, router],
+  )
   const refusalMessage = useCallback((status: number) => {
     if (status === 404) return t('join.invalidCode')
     if (status === 401 || status === 403) return t('common.error')
@@ -109,7 +117,7 @@ export default function JoinFamilyPage() {
       const meData = await meRes.json()
       if (!meRes.ok || !meData.user) {
         setLeaving(true)
-        router.push(`/register?token=${encodeURIComponent(token)}`)
+        await navigateAfterRelease(`/register?token=${encodeURIComponent(token)}`)
         return
       }
       const joinRes = await fetch('/api/family/join', {
@@ -125,8 +133,7 @@ export default function JoinFamilyPage() {
       }
       setSuccess(`Joined ${joinData.familyName || emailInvite?.familyName || 'your family'}`)
       setTimeout(() => {
-        router.push('/dashboard')
-        router.refresh()
+        void navigateAfterRelease('/dashboard', true)
       }, 1500)
     } catch {
       submittingRef.current = false
@@ -151,7 +158,9 @@ export default function JoinFamilyPage() {
       const meData = await meRes.json()
       if (!meRes.ok || !meData.user) {
         setLeaving(true)
-        router.push(`/login?redirect=${encodeURIComponent(`/join?code=${encodeURIComponent(code.trim())}`)}`)
+        await navigateAfterRelease(
+          `/login?redirect=${encodeURIComponent(`/join?code=${encodeURIComponent(code.trim())}`)}`),
+        )
         return
       }
       if (!familyInfo) {
@@ -172,8 +181,7 @@ export default function JoinFamilyPage() {
       }
       setSuccess(`Successfully joined ${joinData.familyName || familyInfo.name}!`)
       setTimeout(() => {
-        router.push('/dashboard')
-        router.refresh()
+        void navigateAfterRelease('/dashboard', true)
       }, 2000)
     } catch {
       submittingRef.current = false
