@@ -213,6 +213,11 @@ export function CaptureBox({
     recoveryRows.current.clear()
     recoveryIdentity.current = null
     setRecoveryOperations([])
+    setDraft(null)
+    setPhotoEvents(null)
+    setPhotoNote(null)
+    setError(null)
+    setSaved(null)
     const cleared = clearCaptureRecoveryStorage(
       browserRecoveryStorage(),
       userId ?? knownIdentity?.userId,
@@ -568,11 +573,11 @@ export function CaptureBox({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: phrase }),
       })
-      const data = await res.json()
       if (res.status === 401 || res.status === 403) {
         revokeCaptureAccess()
         throw new CaptureClientError('recoveryAccessUnavailable')
       }
+      const data = await res.json()
       if (!res.ok) throw new Error(data.error || msg('couldNotRead'))
       setDraft(data.draft)
     } catch (e) {
@@ -631,11 +636,11 @@ export function CaptureBox({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: base64, mimeType }),
       })
-      const data = await res.json()
       if (res.status === 401 || res.status === 403) {
         revokeCaptureAccess()
         throw new CaptureClientError('recoveryAccessUnavailable')
       }
+      const data = await res.json()
       if (!res.ok) throw new Error(data.error || msg('couldNotReadPhoto'))
       const events: PhotoEvent[] = data?.image?.events || []
       setPhotoEvents(events)
@@ -747,6 +752,14 @@ export function CaptureBox({
   // dead end. The calendar's own "Add Event" still works, and a parent can
   // add a key in Settings.
   if (unavailable) {
+    if (saved || error) {
+      return present(
+        <div className="card-apple p-4" data-testid="capture-access-boundary">
+          {saved && <p role="status" className="text-subhead text-[var(--success,#059669)]">{saved}</p>}
+          {error && <p role="alert" className="text-subhead text-[var(--danger-text)] mt-2">{error}</p>}
+        </div>,
+      )
+    }
     return recoveryStorageBlocked ? present(storageRecoveryNotice) : null
   }
 

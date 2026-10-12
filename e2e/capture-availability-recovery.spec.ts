@@ -52,11 +52,7 @@ const copy = {
 } as const;
 
 type AvailabilityMode =
-  | "transient"
-  | "available"
-  | "disabled"
-  | "refused"
-  | "refused403";
+  "transient" | "available" | "disabled" | "refused" | "refused403";
 
 function sourceHead(): string {
   return execFileSync("git", ["rev-parse", "HEAD"], {
