@@ -9,6 +9,7 @@ import { useToast, useUndoToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { toDateOnlyLocal } from '@/lib/dates'
 import { setChoreDone } from '@/lib/chore-tick-client'
+import { useHomeSummaryText } from '@/i18n/home-summary'
 import {
   choresDueOn,
   homeSummary,
@@ -46,6 +47,7 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
   const router = useRouter()
   const { addToast } = useToast()
   const showUndo = useUndoToast()
+  const copy = useHomeSummaryText()
   // The viewer's local day. Unknown on the server, so the summary renders after mount.
   const [todayKey, setTodayKey] = React.useState<string | null>(null)
   // Optimistic statuses by chore id, layered over the server's.
@@ -67,7 +69,7 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
   )
 
   const isParent = viewer.role === 'parent'
-  const doneLabel = isParent ? 'Done' : 'Done · waiting for a parent to check'
+  const doneLabel = isParent ? copy.done : copy.doneWaiting
 
   const setStatus = (id: string, status: string | null) =>
     setOverrides((prev) => {
@@ -85,7 +87,7 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
     busy.current.delete(chore.id)
     if (!result.ok) {
       setStatus(chore.id, 'completed')
-      addToast({ type: 'error', title: `Couldn't undo “${chore.title}”`, message: result.message })
+      addToast({ type: 'error', title: copy.undoErrorTitle(chore.title), message: result.message })
       return
     }
     // Bring the rest of the page (the board's chores) up to date.
@@ -100,20 +102,20 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
     busy.current.delete(chore.id)
     if (!result.ok) {
       setStatus(chore.id, null)
-      addToast({ type: 'error', title: `Couldn't mark “${chore.title}” done`, message: result.message })
+      addToast({ type: 'error', title: copy.completeErrorTitle(chore.title), message: result.message })
       return
     }
     router.refresh()
     showUndo({
-      title: `“${chore.title}” done`,
-      message: isParent ? undefined : 'A parent will check it.',
+      title: copy.undoTitle(chore.title),
+      message: isParent ? undefined : copy.undoMessage,
       onUndo: () => void reopen(chore),
     })
   }
 
   if (!todayKey) {
     return (
-      <section aria-label="Your chores" aria-busy="true" className="mb-5">
+      <section aria-label={copy.sectionLabel} aria-busy="true" className="mb-5">
         <div className="h-16 rounded-[var(--radius-xl)] bg-[var(--surface-fill)]" />
       </section>
     )
@@ -124,13 +126,13 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
   // links to all chores, so this card would only repeat it.
   if (isParent && toCheckCount === 0 && choresDueOn(effective, todayKey).length === 0) return null
 
-  const sentence = homeSummary({ viewer, chores: effective, members, todayKey })
+  const sentence = homeSummary({ viewer, chores: effective, members, todayKey, messages: copy })
   const mine = choresDueOn(effective, todayKey).filter((c) => c.assigneeId === viewer.id)
   // Open first, then done, each in the server's order.
   const rows = [...mine.filter((c) => isOpenStatus(c.status)), ...mine.filter((c) => isDoneStatus(c.status))]
 
   return (
-    <section aria-label="Your chores" data-testid="home-summary" className="mb-4 border-b border-[var(--surface-separator)] pb-3 md:flex md:flex-wrap md:items-center md:gap-x-5">
+    <section aria-label={copy.sectionLabel} data-testid="home-summary" className="mb-4 border-b border-[var(--surface-separator)] pb-3 md:flex md:flex-wrap md:items-center md:gap-x-5">
       <p role="status" data-testid="home-summary-sentence" className="text-[16px] font-medium leading-relaxed text-label-primary md:flex-1">
         {sentence}
       </p>
@@ -148,7 +150,7 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
                 wrap
                 onChange={(next) => void (next ? complete(chore) : reopen(chore))}
                 title={chore.title}
-                subtitle={checked ? 'Checked by a parent' : done ? doneLabel : 'Due today'}
+                subtitle={checked ? copy.checkedByParent : done ? doneLabel : copy.dueToday}
                 className={cn(i < rows.length - 1 && 'border-b border-[var(--surface-separator)]')}
               />
             )
@@ -163,7 +165,7 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
               href={choresHref}
               className="inline-flex min-h-[44px] items-center gap-1 text-subhead font-medium text-[var(--accent-text)]"
             >
-              {toCheckCount === 1 ? '1 chore to check' : `${toCheckCount} chores to check`}
+              {copy.toCheck(toCheckCount)}
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           )}
@@ -172,7 +174,7 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
               href={choresHref}
               className="inline-flex min-h-[44px] items-center gap-1 text-subhead font-medium text-[var(--accent-text)]"
             >
-              All chores
+              {copy.allChores}
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           )}

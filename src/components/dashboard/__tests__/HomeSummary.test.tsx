@@ -9,6 +9,8 @@ import userEvent from '@testing-library/user-event'
 import HomeSummary, { type HomeSummaryProps } from '../HomeSummary'
 import { ToastProvider } from '@/components/ui/toast'
 import { toDateOnlyLocal } from '@/lib/dates'
+import { I18nProvider } from '@/i18n'
+import type { Locale } from '@/i18n/types'
 
 const mockRefresh = jest.fn()
 jest.mock('next/navigation', () => ({
@@ -43,11 +45,16 @@ beforeEach(() => {
   }) as unknown as typeof fetch
 })
 
-function renderSummary(props: Partial<HomeSummaryProps> & Pick<HomeSummaryProps, 'viewer'>) {
+function renderSummary(
+  props: Partial<HomeSummaryProps> & Pick<HomeSummaryProps, 'viewer'>,
+  locale: Locale = 'en',
+) {
   return render(
-    <ToastProvider>
-      <HomeSummary chores={[]} members={members} toCheckCount={0} choresHref={null} {...props} />
-    </ToastProvider>
+    <I18nProvider locale={locale}>
+      <ToastProvider>
+        <HomeSummary chores={[]} members={members} toCheckCount={0} choresHref={null} {...props} />
+      </ToastProvider>
+    </I18nProvider>,
   )
 }
 
@@ -120,6 +127,47 @@ describe('HomeSummary with nothing due', () => {
   it('child: keeps their own sentence', () => {
     renderSummary({ viewer: { id: 'c', role: 'child' }, chores: [] })
     expect(sentence()).toBe('Nothing on your list today')
+  })
+})
+
+describe('HomeSummary localization', () => {
+  it('renders mounted Spanish presentation copy while preserving names and titles', () => {
+    renderSummary(
+      {
+        viewer: { id: 'p', role: 'parent' },
+        chores: [
+          { id: '1', title: 'Feed cat', dueDay: TODAY, status: 'pending', assigneeId: 'c' },
+          { id: '2', title: 'Dishes', dueDay: TODAY, status: 'completed', assigneeId: 'c' },
+        ],
+        toCheckCount: 2,
+        choresHref: '/dashboard/chores',
+      },
+      'es',
+    )
+    expect(screen.getByRole('region', { name: 'Tus tareas' })).toBeTruthy()
+    expect(sentence()).toBe('1 tarea pendiente hoy · Casey 1')
+    expect(screen.getByRole('link', { name: '2 tareas por revisar' }).getAttribute('href')).toBe(
+      '/dashboard/chores',
+    )
+    expect(screen.getByRole('link', { name: 'Todas las tareas' }).getAttribute('href')).toBe(
+      '/dashboard/chores',
+    )
+  })
+
+  it('localizes child row status while keeping the chore title as stored data', () => {
+    renderSummary(
+      {
+        viewer: { id: 'c', role: 'child' },
+        chores: [
+          { id: '1', title: 'Feed cat', dueDay: TODAY, status: 'verified', assigneeId: 'c' },
+        ],
+      },
+      'es',
+    )
+    expect(sentence()).toBe('Ya terminaste por hoy')
+    const row = screen.getByRole('checkbox', { name: /Feed cat/ })
+    expect(row.textContent).toContain('Revisada por un padre')
+    expect(screen.getByRole('region', { name: 'Tus tareas' }).contains(row)).toBe(true)
   })
 })
 
