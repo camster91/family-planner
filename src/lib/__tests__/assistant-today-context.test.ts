@@ -4,12 +4,17 @@ import {
 } from "@/lib/assistant-today-context";
 import { loadAssistantTodayRows } from "@/lib/assistant-today-loader";
 import type { AssistantTodayLoadedRows } from "@/lib/assistant-today-loader";
+import { topUpHouseholdSeries } from "@/lib/recurringChores";
 
 jest.mock("@/lib/assistant-today-loader", () => ({
   loadAssistantTodayRows: jest.fn(),
 }));
+jest.mock("@/lib/recurringChores", () => ({
+  topUpHouseholdSeries: jest.fn(),
+}));
 
 const loadRowsMock = jest.mocked(loadAssistantTodayRows);
+const topUpMock = jest.mocked(topUpHouseholdSeries);
 const NOW = new Date("2026-10-11T15:30:00.000Z");
 
 function rows(
@@ -93,6 +98,8 @@ function input(
 beforeEach(() => {
   loadRowsMock.mockReset();
   loadRowsMock.mockResolvedValue(rows());
+  topUpMock.mockReset();
+  topUpMock.mockResolvedValue(0);
 });
 
 describe("loadAssistantTodayContext", () => {
@@ -127,6 +134,23 @@ describe("loadAssistantTodayContext", () => {
       }),
     );
     expect(context?.expiresAt).toBe("2026-10-11T15:31:00.000Z");
+  });
+
+  it("tops up an authorized chores series before reading Today rows", async () => {
+    const order: string[] = [];
+    topUpMock.mockImplementation(async () => {
+      order.push("top-up");
+      return 0;
+    });
+    loadRowsMock.mockImplementation(async () => {
+      order.push("today rows");
+      return rows();
+    });
+
+    await loadAssistantTodayContext(dbFor(), input());
+
+    expect(topUpMock).toHaveBeenCalledWith("family-a", NOW);
+    expect(order).toEqual(["top-up", "today rows"]);
   });
 
   it("redacts other member labels for teens before provider projection", async () => {
@@ -183,6 +207,7 @@ describe("loadAssistantTodayContext", () => {
     expect(childDb.user.findUnique).not.toHaveBeenCalled();
     expect(deviceDb.user.findUnique).not.toHaveBeenCalled();
     expect(loadRowsMock).not.toHaveBeenCalled();
+    expect(topUpMock).not.toHaveBeenCalled();
   });
 
   it("rejects invalid zones and a clock more than one day from the server", async () => {
@@ -232,6 +257,19 @@ describe("loadAssistantTodayContext", () => {
         features: expect.objectContaining({ meals: false, lists: false }),
       }),
     );
+  });
+
+  it("does not extend recurring chores when the household chores feature is off", async () => {
+    const db = dbFor();
+    (db.family.findUnique as jest.Mock).mockResolvedValue({
+      id: "family-a",
+      features: { chores: false },
+    });
+
+    await loadAssistantTodayContext(db, input());
+
+    expect(topUpMock).not.toHaveBeenCalled();
+    expect(loadRowsMock).toHaveBeenCalled();
   });
 
   it("fails closed for a stale family claim or a database read failure", async () => {

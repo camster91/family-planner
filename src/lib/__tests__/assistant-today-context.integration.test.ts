@@ -502,6 +502,49 @@ dbSuite("assistant Today broker PostgreSQL contract", () => {
     }
   });
 
+  it("tops up an exhausted recurring series before the current-day read and stays idempotent", async () => {
+    const templateId = "assistant-today-recurring-template";
+    await db.chore.create({
+      data: {
+        id: templateId,
+        family_id: FAMILY_A,
+        title: "Assistant recurring Today chore",
+        assigned_to: TEEN_A,
+        created_by: PARENT_A,
+        due_date: new Date("2026-10-01T00:00:00.000Z"),
+        frequency: "daily",
+        recurrence_id: templateId,
+        is_template: true,
+      },
+    });
+    try {
+      const before = await db.chore.count({
+        where: { recurrence_id: templateId },
+      });
+      expect(before).toBe(1);
+
+      const first = await loadAssistantTodayContext(db, input(PARENT_A));
+      expect(first?.today.chores.map((chore) => chore.title)).toContain(
+        "Assistant recurring Today chore",
+      );
+      const afterFirst = await db.chore.count({
+        where: { recurrence_id: templateId },
+      });
+      expect(afterFirst).toBeGreaterThan(before);
+
+      const second = await loadAssistantTodayContext(db, input(PARENT_A));
+      const afterSecond = await db.chore.count({
+        where: { recurrence_id: templateId },
+      });
+      expect(afterSecond).toBe(afterFirst);
+      expect(second?.today.chores.map((chore) => chore.title)).toContain(
+        "Assistant recurring Today chore",
+      );
+    } finally {
+      await db.chore.deleteMany({ where: { recurrence_id: templateId } });
+    }
+  });
+
   it("makes feature-off sections explicit while preserving enabled core reads", async () => {
     const original = await db.family.findUniqueOrThrow({
       where: { id: FAMILY_A },

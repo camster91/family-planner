@@ -17,6 +17,7 @@ import {
   loadAssistantTodayRows,
   type AssistantTodayLoaderDb,
 } from "@/lib/assistant-today-loader";
+import { topUpHouseholdSeries } from "@/lib/recurringChores";
 
 export const ASSISTANT_TODAY_PROTOCOL = "herewoven.assistant-today.v1" as const;
 export const ASSISTANT_TODAY_TTL_MS = 60_000;
@@ -224,6 +225,14 @@ export async function loadAssistantTodayContext(
 
     const features = currentFeatureSet(family.features);
     const role = actor.role as AssistantRole;
+    // Today and Chores extend recurring series on read because generated
+    // occurrences are stored as one-offs. Keep the assistant projection
+    // aligned with those surfaces, but never touch a household whose Chores
+    // feature is off. The helper is bounded, household-scoped and idempotent;
+    // it also fails closed so an exhausted series never blocks the request.
+    if (features.chores) {
+      await topUpHouseholdSeries(family.id, input.serverNow);
+    }
     const rows = await loadAssistantTodayRows(db, {
       familyId: family.id,
       userId: actor.id,

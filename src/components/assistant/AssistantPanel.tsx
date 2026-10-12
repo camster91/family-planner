@@ -546,7 +546,9 @@ export default function AssistantPanel({
         )}
         {tab === "chat" && (
           <div className="space-y-4">
-            <p className="text-sm text-label-secondary">{msg("chatIntro")}</p>
+            <p className="text-sm text-label-secondary">
+              {msg(includeToday ? "chatIntroWithToday" : "chatIntro")}
+            </p>
             {todayContextEnabled && canChat && (
               <label className="flex min-h-[44px] items-start gap-3 rounded-xl bg-surface-fill p-3">
                 <input

@@ -566,6 +566,48 @@ it("sends an explicit Include Today choice and keeps the draft on an unavailable
   );
 });
 
+it("discloses the Today provider payload in both locales and tracks the opt-in state", async () => {
+  const user = userEvent.setup();
+  function LocaleSwitcher() {
+    const { setLocale } = useTranslation();
+    return (
+      <button type="button" onClick={() => setLocale("es")}>
+        Cambiar idioma
+      </button>
+    );
+  }
+
+  render(
+    <I18nProvider locale="en">
+      <LocaleSwitcher />
+      <AssistantHost role="parent" todayContextEnabled />
+    </I18nProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  expect(dialog).toHaveTextContent("Household records are not attached.");
+  expect(dialog).toHaveTextContent(
+    "When selected, this request sends a short, read-only summary of today’s events, chores, dinner, groceries and food items marked to use soon to your household’s configured AI provider.",
+  );
+
+  await user.click(
+    within(dialog).getByRole("checkbox", { name: /Include Today/i }),
+  );
+  expect(dialog).not.toHaveTextContent("Household records are not attached.");
+  expect(dialog).toHaveTextContent(
+    "Include Today is on: this request sends a short, read-only summary of today’s events, chores, dinner, groceries and food items marked to use soon to your household’s configured AI provider.",
+  );
+
+  await user.click(screen.getByRole("button", { name: "Cambiar idioma" }));
+  expect(dialog).toHaveTextContent(
+    "Incluir Hoy está activado: esta solicitud envía un resumen breve y de solo lectura de los eventos, tareas, cena, compras y alimentos marcados para usar pronto al proveedor de IA configurado para tu hogar.",
+  );
+  await user.click(
+    within(dialog).getByRole("checkbox", { name: /Incluir Hoy/i }),
+  );
+  expect(dialog).toHaveTextContent("No se adjuntan registros del hogar.");
+});
+
 it("blocks an expired Today action until an explicit fresh preview", async () => {
   const user = userEvent.setup();
   let calls = 0,

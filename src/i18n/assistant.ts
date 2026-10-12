@@ -78,9 +78,11 @@ export const assistantEnglish = {
   tabReports: "My reports",
   chatIntro:
     "Ask to add an event, chore, list, grocery item or note; remove an event, chore or list; or open another section. Changes need your review. Chat text goes to your household’s configured AI provider. Household records are not attached.",
+  chatIntroWithToday:
+    "Include Today is on: this request sends a short, read-only summary of today’s events, chores, dinner, groceries and food items marked to use soon to your household’s configured AI provider. Chat text also goes there. The summary expires shortly and never performs an action by itself.",
   includeToday: "Include Today",
   includeTodayDescription:
-    "Share a short, read-only Today summary for this request. It expires shortly and never performs an action by itself.",
+    "When selected, this request sends a short, read-only summary of today’s events, chores, dinner, groceries and food items marked to use soon to your household’s configured AI provider. It expires shortly and never performs an action by itself.",
   todayContextIncluded: "Today context updated at {time}.",
   todayContextExpired:
     "This Today context has expired. Refresh the preview before confirming any action.",
@@ -216,9 +218,11 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   tabReports: "Mis informes",
   chatIntro:
     "Pide añadir un evento, tarea, lista, artículo de compras o nota; eliminar un evento, tarea o lista; o abrir otra sección. Los cambios requieren tu revisión. El texto del chat se envía al proveedor de IA configurado para tu hogar. No se adjuntan registros del hogar.",
+  chatIntroWithToday:
+    "Incluir Hoy está activado: esta solicitud envía un resumen breve y de solo lectura de los eventos, tareas, cena, compras y alimentos marcados para usar pronto al proveedor de IA configurado para tu hogar. El texto del chat también se envía allí. El resumen caduca pronto y nunca ejecuta una acción por sí solo.",
   includeToday: "Incluir Hoy",
   includeTodayDescription:
-    "Comparte un resumen breve y de solo lectura de Hoy para esta solicitud. Caduca pronto y nunca ejecuta una acción por sí solo.",
+    "Al seleccionarlo, esta solicitud envía un resumen breve y de solo lectura de los eventos, tareas, cena, compras y alimentos marcados para usar pronto al proveedor de IA configurado para tu hogar. Caduca pronto y nunca ejecuta una acción por sí solo.",
   todayContextIncluded: "Contexto de Hoy actualizado a las {time}.",
   todayContextExpired:
     "Este contexto de Hoy ha caducado. Actualiza la vista previa antes de confirmar una acción.",
