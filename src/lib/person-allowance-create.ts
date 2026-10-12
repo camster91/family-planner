@@ -29,9 +29,9 @@ const inProgress = (): EffectResult => ({
 });
 
 /**
- * Create an allowance within an existing transaction. The receipt is locked
- * before the effect so a concurrent original and a lease takeover cannot both
- * add money rows.
+ * Create an allowance within an existing transaction. Membership locks are
+ * acquired before the receipt row so allowance creation and account or
+ * household deletion share one user(s) -> household -> receipt order.
  */
 export async function createPersonAllowanceInTx(
   tx: AllowanceTx,
@@ -39,6 +39,16 @@ export async function createPersonAllowanceInTx(
   actor: { familyId: string; userId: string },
   recordId: string | null,
 ): Promise<EffectResult> {
+  // Account deletion/member removal lock users first and the household second.
+  // Sort the user locks so two allowance writes with reversed participants do
+  // not wait on each other in opposite orders.
+  const memberIds = [...new Set([actor.userId, input.to_user_id])].sort();
+  for (const memberId of memberIds) await lockUser(tx, memberId);
+  await lockHousehold(tx, actor.familyId);
+
+  // Deletion removes receipts only after taking the same membership locks.
+  // Lock and re-read the receipt after those locks so this transaction cannot
+  // hold the receipt while waiting on a deletion that is about to remove it.
   if (recordId) {
     await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
     const record = await tx.idempotencyRecord.findFirst({
@@ -49,13 +59,6 @@ export async function createPersonAllowanceInTx(
     if (record.response_status != null)
       return { status: record.response_status, body: record.response_body };
   }
-
-  // Account deletion/member removal lock users first and the household second.
-  // Sort the user locks so two allowance writes with reversed participants do
-  // not wait on each other in opposite orders.
-  const memberIds = [...new Set([actor.userId, input.to_user_id])].sort();
-  for (const memberId of memberIds) await lockUser(tx, memberId);
-  await lockHousehold(tx, actor.familyId);
 
   const [currentActor, recipient, family] = await Promise.all([
     tx.user.findUnique({

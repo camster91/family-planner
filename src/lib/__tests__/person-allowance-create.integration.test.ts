@@ -4,6 +4,8 @@
  * disposable DATABASE_URL.
  */
 import { assertFixtureTargetAllowed } from "@/lib/fixtures/guard";
+import pg from "pg";
+import { householdLockKey, userLockKey } from "@/lib/household-lock";
 
 export {};
 
@@ -37,6 +39,69 @@ describeWithDatabase("person allowance create replay integrity", () => {
     userId: PARENT,
     action: "allowance.create",
   };
+
+  /**
+   * Hold the advisory lock the deletion transaction owns, then run the
+   * allowance transaction while it is blocked. The SQL is the bounded
+   * critical section of the corresponding member/household deletion: it
+   * removes the receipt while still holding that membership lock, then
+   * commits so the allowance can observe the deletion and finish.
+   */
+  async function holdDeletionLock<T>(
+    lockKey: string,
+    during: () => Promise<T>,
+    deletionSql: Array<[string, unknown[]]>,
+  ): Promise<T> {
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+    let inTransaction = false;
+    try {
+      await client.query("BEGIN");
+      inTransaction = true;
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtext($1))",
+        [lockKey],
+      );
+      const pending = during();
+      let settled = false;
+      pending.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(settled).toBe(false);
+      for (const [query, params] of deletionSql) {
+        await client.query(query, params);
+      }
+      await client.query("COMMIT");
+      inTransaction = false;
+      return await pending;
+    } finally {
+      if (inTransaction) await client.query("ROLLBACK").catch(() => undefined);
+      await client.end();
+    }
+  }
+
+  async function pendingReceipt(label: string): Promise<string> {
+    const body = input();
+    const record = await db.idempotencyRecord.create({
+      data: {
+        scope: context.scope,
+        key: key(label),
+        family_id: FAMILY,
+        user_id: PARENT,
+        action: context.action,
+        request_hash: idem.hashIdempotentRequest(context.action, body),
+        expires_at: new Date(Date.now() + idem.IDEMPOTENCY_TTL_MS),
+      },
+      select: { id: true },
+    });
+    return record.id;
+  }
 
   async function cleanup() {
     await db.idempotencyRecord.deleteMany({
@@ -257,5 +322,44 @@ describeWithDatabase("person allowance create replay integrity", () => {
     expect(retry.headers.get("Idempotency-Replayed")).toBe("true");
     expect(await retry.json()).toEqual(await first.json());
     expect(await db.allowance.count({ where: { family_id: FAMILY } })).toBe(1);
+  });
+
+  it("does not hold the receipt while waiting on a member deletion lock", async () => {
+    const receiptId = await pendingReceipt("member-delete-race");
+    const result = await holdDeletionLock(
+      userLockKey(PARENT),
+      () => create(db, input(), actor, receiptId),
+      [
+        ['DELETE FROM "IdempotencyRecord" WHERE "id" = $1', [receiptId]],
+        ['DELETE FROM "User" WHERE "id" = $1', [PARENT]],
+      ],
+    );
+
+    expect(result.status).toBe(409);
+    expect((result.body as { error?: { code?: string } }).error?.code).toBe(
+      "IDEMPOTENCY_IN_PROGRESS",
+    );
+    expect(await db.allowance.count({ where: { family_id: FAMILY } })).toBe(0);
+    expect(await db.user.findUnique({ where: { id: PARENT } })).toBeNull();
+  });
+
+  it("does not hold the receipt while waiting on a household deletion lock", async () => {
+    const receiptId = await pendingReceipt("household-delete-race");
+    const result = await holdDeletionLock(
+      householdLockKey(FAMILY),
+      () => create(db, input(), actor, receiptId),
+      [
+        ['DELETE FROM "IdempotencyRecord" WHERE "id" = $1', [receiptId]],
+        ['DELETE FROM "User" WHERE "family_id" = $1', [FAMILY]],
+        ['DELETE FROM "Family" WHERE "id" = $1', [FAMILY]],
+      ],
+    );
+
+    expect(result.status).toBe(409);
+    expect((result.body as { error?: { code?: string } }).error?.code).toBe(
+      "IDEMPOTENCY_IN_PROGRESS",
+    );
+    expect(await db.allowance.count({ where: { family_id: FAMILY } })).toBe(0);
+    expect(await db.family.findUnique({ where: { id: FAMILY } })).toBeNull();
   });
 });
