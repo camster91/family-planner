@@ -6,6 +6,10 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "@/i18n";
 import { rewardCreateMessages } from "@/i18n/reward-create";
+import {
+  usePendingFormNavigation,
+  usePendingFormNavigationController,
+} from "@/components/layout/pending-form-navigation";
 
 const ICON_OPTIONS = [
   "🎁",
@@ -47,6 +51,11 @@ export default function CreateRewardForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submittingRef = useRef(false);
+  const directNavigation = usePendingFormNavigationController(
+    loading && !inSheet,
+  );
+  const sheetNavigation = usePendingFormNavigation();
+  const navigation = inSheet ? sheetNavigation : directNavigation;
 
   useEffect(() => {
     onBusyChange?.(loading);
@@ -81,6 +90,7 @@ export default function CreateRewardForm({
         );
       }
 
+      if ((await navigation?.releaseBeforeNavigation()) === false) return;
       router.push("/dashboard/rewards");
       router.refresh();
     } catch (cause) {
@@ -127,13 +137,24 @@ export default function CreateRewardForm({
       {!inSheet && (
         <>
           <div className="px-4 pt-4">
-            <Link
-              href="/dashboard/rewards"
-              className="inline-flex items-center gap-1.5 text-subhead text-label-secondary hover:text-label-primary transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-              {copy.back}
-            </Link>
+            {loading ? (
+              <span
+                aria-disabled="true"
+                data-testid="reward-create-back-busy"
+                className="inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-label-secondary"
+              >
+                <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+                {copy.back}
+              </span>
+            ) : (
+              <Link
+                href="/dashboard/rewards"
+                className="inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-label-secondary hover:text-label-primary transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+                {copy.back}
+              </Link>
+            )}
           </div>
           <div className="px-4">
             <h1 className="text-2xl font-bold text-label-primary">

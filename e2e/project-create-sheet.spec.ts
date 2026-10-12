@@ -297,7 +297,9 @@ for (const locale of ["en", "es"] as const) {
           const currentRelease = ((): PendingRelease | undefined =>
             releasePending)();
           if (!currentRelease) {
-            throw new Error("Projects pending POST release handler was not installed");
+            throw new Error(
+              "Projects pending POST release handler was not installed",
+            );
           }
           currentRelease.resolve(true);
           releasePending = undefined;
