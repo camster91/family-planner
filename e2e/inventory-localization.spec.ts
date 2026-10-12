@@ -137,7 +137,15 @@ async function consumeSentinelAndVisitPrior(
   expect(sentinelToken).toEqual(expect.any(String));
   await expect(page).toHaveURL(surface);
   await page.evaluate(() => window.history.back());
-  await expect(page).toHaveURL(/\/dashboard\/?$/);
+  await expect(page).toHaveURL(/\/dashboard\/family\/more$/);
+}
+
+async function openPendingSurfaceFromExplore(page: Page, surface: string) {
+  await page.goto("/dashboard/family/more");
+  const link = page.locator(`a[href="/dashboard/${surface}"]`);
+  await expect(link).toBeVisible();
+  await link.click();
+  await expect(page).toHaveURL(new RegExp(`/dashboard/${surface}$`));
 }
 function labelPrefix(text: string) {
   return new RegExp("^" + text.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
@@ -525,6 +533,13 @@ test.describe("inventory localization synthetic server", () => {
       let notesResponseReleased = false;
       let emergencyResponseReleased = false;
       let inventoryResponseReleased = false;
+      const pageErrors: string[] = [];
+      page.on("pageerror", (error) => pageErrors.push(error.message));
+      const heldBeforeCleanup = {
+        notes: false,
+        emergency: false,
+        inventory: false,
+      };
       const notesPending = new Promise<void>((resolve) => {
         releaseNotes = resolve;
       });
@@ -565,10 +580,9 @@ test.describe("inventory localization synthetic server", () => {
           });
         });
 
-        await page.goto("/dashboard");
-        await page.goto("/dashboard/notes");
+        await openPendingSurfaceFromExplore(page, "notes");
         await expect(
-          page.getByRole("heading", { name: "Notes" }),
+          page.getByRole("heading", { name: "Notes", exact: true }),
         ).toBeVisible();
         await runtime(page, info, "en", "parent");
         const identity = await browserFetch(page, "/api/auth/me");
@@ -577,7 +591,7 @@ test.describe("inventory localization synthetic server", () => {
           (JSON.parse(identity.body) as { user?: { role?: unknown } }).user
             ?.role,
         ).toBe("parent");
-        await page.getByRole("button", { name: "Add Note" }).click();
+        await page.getByLabel("Add Note", { exact: true }).click();
         const notesDialog = page.getByRole("dialog");
         await notesDialog
           .getByLabel("Title", { exact: true })
@@ -598,6 +612,7 @@ test.describe("inventory localization synthetic server", () => {
         );
         await expect(notesDialog).toBeVisible();
         expect(notesResponseReleased).toBe(false);
+        heldBeforeCleanup.notes = true;
         releaseNotes();
         await expect(notesDialog).toHaveCount(0);
         expect(notesResponseReleased).toBe(true);
@@ -673,8 +688,7 @@ test.describe("inventory localization synthetic server", () => {
           });
         });
 
-        await page.goto("/dashboard");
-        await page.goto("/dashboard/emergency");
+        await openPendingSurfaceFromExplore(page, "emergency");
         await expect(
           page.getByRole("heading", { name: "Emergency Contacts" }),
         ).toBeVisible();
@@ -696,6 +710,7 @@ test.describe("inventory localization synthetic server", () => {
         );
         await expect(emergencyDialog).toBeVisible();
         expect(emergencyResponseReleased).toBe(false);
+        heldBeforeCleanup.emergency = true;
         releaseEmergency();
         await expect(emergencyDialog).toHaveCount(0);
         expect(emergencyResponseReleased).toBe(true);
@@ -734,8 +749,7 @@ test.describe("inventory localization synthetic server", () => {
           });
         });
 
-        await page.goto("/dashboard");
-        await page.goto("/dashboard/inventory");
+        await openPendingSurfaceFromExplore(page, "inventory");
         await expect(
           page.getByRole("heading", { name: msg("en", "title"), exact: true }),
         ).toBeVisible();
@@ -759,6 +773,7 @@ test.describe("inventory localization synthetic server", () => {
         );
         await expect(inventoryDialog).toBeVisible();
         expect(inventoryResponseReleased).toBe(false);
+        heldBeforeCleanup.inventory = true;
         releaseInventory();
         await expect(inventoryDialog).toHaveCount(0);
         expect(inventoryResponseReleased).toBe(true);
@@ -793,10 +808,45 @@ test.describe("inventory localization synthetic server", () => {
         releaseNotes();
         releaseEmergency();
         releaseInventory();
+        // Let an already-dispatched synthetic route finish its fulfill before
+        // unroute. This keeps cleanup from racing Playwright's route handler
+        // and hiding the original assertion with "Route already handled".
+        await expect
+          .poll(() => notesPosts === 0 || notesResponseReleased, {
+            timeout: 5_000,
+          })
+          .toBe(true)
+          .catch(() => undefined);
+        await expect
+          .poll(() => emergencyPosts === 0 || emergencyResponseReleased, {
+            timeout: 5_000,
+          })
+          .toBe(true)
+          .catch(() => undefined);
+        await expect
+          .poll(() => inventoryPosts === 0 || inventoryResponseReleased, {
+            timeout: 5_000,
+          })
+          .toBe(true)
+          .catch(() => undefined);
         await page.unroute("**/api/notes").catch(() => undefined);
         await page.unroute("**/api/emergency-contacts").catch(() => undefined);
         await page.unroute(/\/api\/inventory\?/).catch(() => undefined);
+        await info.attach("pending-navigation-cleanup", {
+          body: JSON.stringify({
+            heldResponses: heldBeforeCleanup,
+            settledResponses: {
+              notes: notesResponseReleased,
+              emergency: emergencyResponseReleased,
+              inventory: inventoryResponseReleased,
+            },
+            pageErrors,
+            routesReleased: true,
+          }),
+          contentType: "application/json",
+        });
       }
+      expect(pageErrors).toEqual([]);
     });
   });
   test.describe("parent writes", () => {

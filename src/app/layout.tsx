@@ -11,6 +11,7 @@ import { CsrfFetchPatch } from '@/components/providers/csrf-fetch-patch'
 import { ServiceWorkerRegistration } from '@/components/providers/service-worker-registration'
 import { SiteOfflineBanner } from '@/components/ui/site-offline-banner'
 import { NativeAppLifecycle } from '@/components/providers/native-app-lifecycle'
+import { PENDING_FORM_NAVIGATION_BOOTSTRAP_SCRIPT } from '@/lib/pending-form-navigation-bootstrap'
 import './globals.css'
 
 // Approved Woven Grove fonts, vendored with SIL OFL licenses. Builds and
@@ -113,6 +114,17 @@ export default function RootLayout({
     // React hydrates, so its class can differ from the server HTML.
     <html lang="en" data-pseudolocalized={isPseudolocaleEnabled() ? 'true' : undefined} className={`${newsreader.variable} ${manrope.variable}`} suppressHydrationWarning>
       <head>
+        {/*
+          Install the pending-form popstate dispatcher while the document is
+          still parsing. React controllers register their stateful handlers
+          after mount; the dispatcher must already precede Next's router
+          listener so a rapid Back cannot unmount a pending form first.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: PENDING_FORM_NAVIGATION_BOOTSTRAP_SCRIPT,
+          }}
+        />
         {/* Theme before first paint (O-43): Auto unless this device saved Light or Dark. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
