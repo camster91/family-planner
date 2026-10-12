@@ -420,6 +420,63 @@ it("restores the sentinel after two real Back traversals reach a foreign entry",
   }
 });
 
+it("drains a foreign Back that arrives after the sentinel was restored", async () => {
+  const original = window.location.href;
+  const priorState = { __NA: true, route: "previous" };
+  const baseState = { __NA: true, route: "form" };
+  window.history.replaceState(priorState, "", "/dashboard/previous");
+  window.history.pushState(baseState, "", "/dashboard/lists/create");
+  function Harness() {
+    usePendingFormNavigationController(true);
+    return null;
+  }
+  const view = render(<Harness />);
+  const sentinelState = window.history.state;
+  const historyForward = jest
+    .spyOn(window.history, "forward")
+    .mockImplementation(() => {});
+  try {
+    // First Back reaches the same-URL base, then the restoration reaches the
+    // owned sentinel. A later foreign Back must choose base-then-sentinel so
+    // the base pop queues its final Forward instead of waiting forever.
+    window.history.replaceState(baseState, "", "/dashboard/lists/create");
+    window.dispatchEvent(new PopStateEvent("popstate", { state: baseState }));
+    expect(historyForward).toHaveBeenCalledTimes(1);
+
+    window.history.replaceState(
+      sentinelState,
+      "",
+      "/dashboard/lists/create",
+    );
+    window.dispatchEvent(
+      new PopStateEvent("popstate", { state: sentinelState }),
+    );
+
+    window.history.replaceState(priorState, "", "/dashboard/previous");
+    window.dispatchEvent(
+      new PopStateEvent("popstate", { state: priorState }),
+    );
+    expect(historyForward).toHaveBeenCalledTimes(2);
+
+    window.history.replaceState(baseState, "", "/dashboard/lists/create");
+    window.dispatchEvent(new PopStateEvent("popstate", { state: baseState }));
+    expect(historyForward).toHaveBeenCalledTimes(3);
+
+    window.history.replaceState(
+      sentinelState,
+      "",
+      "/dashboard/lists/create",
+    );
+    window.dispatchEvent(
+      new PopStateEvent("popstate", { state: sentinelState }),
+    );
+  } finally {
+    view.unmount();
+    historyForward.mockRestore();
+    window.history.replaceState({}, "", original);
+  }
+});
+
 it("settles release as cancelled when its pop listener is removed by external unmount", async () => {
   const original = window.location.href;
   window.history.replaceState({ __NA: true }, "", "/dashboard/lists/create");
