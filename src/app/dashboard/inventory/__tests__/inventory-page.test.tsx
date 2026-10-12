@@ -9,6 +9,7 @@ import InventoryClient, { OFFLINE_WRITE_MESSAGE } from "../InventoryClient";
 import { ToastProvider } from "@/components/ui/toast";
 
 let mockMealsOn = true;
+let pendingMutation: Promise<Response> | null = null;
 jest.mock("@/components/providers/features-provider", () => ({
   useFeatureEnabled: (key: string) => (key === "meals" ? mockMealsOn : true),
 }));
@@ -206,6 +207,7 @@ function setup({
         body,
         headers: (init?.headers ?? {}) as Record<string, string>,
       });
+      if (pendingMutation && method !== "GET") return pendingMutation;
       const json = (status: number, data: unknown) =>
         ({
           ok: status >= 200 && status < 300,
@@ -365,10 +367,44 @@ const header = (c: Call, name: string) => c.headers[name];
 describe("/dashboard/inventory", () => {
   beforeEach(() => {
     mockMealsOn = true;
+    pendingMutation = null;
     Object.defineProperty(window.navigator, "onLine", {
       configurable: true,
       get: () => true,
     });
+  });
+
+  it("keeps the inventory draft open and non-dismissible while saving", async () => {
+    const user = userEvent.setup();
+    let release!: () => void;
+    pendingMutation = new Promise<Response>((resolve) => {
+      release = () =>
+        resolve({
+          ok: true,
+          status: 201,
+          json: async () => ({ item: { id: "new" } }),
+        } as Response);
+    });
+    setup();
+    await screen.findAllByTestId("inventory-item");
+    await user.click(screen.getAllByRole("button", { name: "Add item" })[0]);
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Name"), "Pending yogurt");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(
+      (within(dialog).getByRole("button", { name: "Saving…" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    await user.keyboard("{Escape}");
+    expect(screen.getByTestId("inventory-modal")).toBeTruthy();
+    const close = within(screen.getByTestId("inventory-modal")).getByRole("button", { name: "Close" });
+    expect(close).toBeTruthy();
+    await user.click(close);
+    expect(screen.getByTestId("inventory-modal")).toBeTruthy();
+
+    release();
+    await waitFor(() => expect(screen.queryByTestId("inventory-modal")).toBeNull());
   });
 
   it("groups items by location with written expiry labels, and sends the viewer day", async () => {

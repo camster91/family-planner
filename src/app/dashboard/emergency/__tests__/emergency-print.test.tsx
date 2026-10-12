@@ -5,7 +5,7 @@
 // placeholder when no card was open. With nothing previewed it now prints every
 // card; with a card previewed it prints just that one.
 import * as React from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const mockT = (key: string) => key
@@ -35,15 +35,18 @@ const contact = (id: string, name: string) => ({
   emergency_contact_phone: null,
 })
 
-const reply = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response
+const reply = (body: unknown, ok = true) => ({ ok, status: ok ? 200 : 500, json: async () => body }) as Response
 
 let printSpy: jest.SpyInstance
+let mutationReply: () => Promise<Response>
 
 beforeEach(() => {
   printSpy = jest.spyOn(window, 'print').mockImplementation(() => {})
-  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+  mutationReply = async () => reply({})
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     if (url === '/api/auth/me') return reply({ user: { id: 'p1', role: 'parent' } })
+    if ((init?.method ?? 'GET') !== 'GET') return mutationReply()
     if (url === '/api/emergency-contacts') return reply({ contacts: [contact('c1', 'Sam'), contact('c2', 'Alex')] })
     return reply({})
   }) as unknown as typeof fetch
@@ -84,4 +87,88 @@ it('prints only the previewed card when one is open', async () => {
   expect(cards[0]).toBe(screen.getByTestId('emergency-preview'))
   expect(within(cards[0]).getByText('Alex allergy')).toBeTruthy()
   expect(cards[0].textContent).not.toContain('Sam allergy')
+})
+
+it('keeps the emergency draft open and non-dismissible while saving', async () => {
+  const user = userEvent.setup()
+  let release!: () => void
+  mutationReply = () => new Promise<Response>((resolve) => {
+    release = () => resolve(reply({ contacts: [contact('c1', 'Sam')] }))
+  })
+
+  render(<EmergencyPage />)
+  await user.click(await screen.findByRole('button', { name: 'emergency.addCard' }))
+  await user.type(screen.getByLabelText('emergency.personName'), 'Jordan')
+  await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+  expect((screen.getByRole('button', { name: 'common.saving' }) as HTMLButtonElement).disabled).toBe(true)
+  await user.keyboard('{Escape}')
+  expect(screen.getByRole('dialog')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
+
+  release()
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+})
+
+it('releases the save latch before a post-commit refresh settles', async () => {
+  const user = userEvent.setup()
+  let contactReads = 0
+  let refreshStarted = false
+  let finishRefresh!: (response: Response) => void
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url === '/api/auth/me') return reply({ user: { id: 'p1', role: 'parent' } })
+    if (url === '/api/emergency-contacts' && (init?.method ?? 'GET') === 'GET') {
+      contactReads += 1
+      if (contactReads === 1) return reply({ contacts: [contact('c1', 'Sam')] })
+      refreshStarted = true
+      return new Promise<Response>((resolve) => { finishRefresh = resolve })
+    }
+    if (url === '/api/emergency-contacts' && init?.method === 'POST') {
+      return reply({ contact: contact('c3', 'Jordan') })
+    }
+    return reply({})
+  }) as unknown as typeof fetch
+
+  render(<EmergencyPage />)
+  await user.click(await screen.findByRole('button', { name: 'emergency.addCard' }))
+  await user.type(screen.getByLabelText('emergency.personName'), 'Jordan')
+  await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect(screen.queryByRole('button', { name: 'common.saving' })).toBeNull()
+  expect(screen.getAllByText('Jordan').length).toBeGreaterThan(0)
+  expect(refreshStarted).toBe(true)
+
+  finishRefresh(reply({ contacts: [contact('c1', 'Sam'), contact('c3', 'Jordan')] }))
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+})
+
+it('keeps the committed rows and offers refresh retry after a successful save', async () => {
+  const user = userEvent.setup()
+  let contactReads = 0
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url === '/api/auth/me') return reply({ user: { id: 'p1', role: 'parent' } })
+    if (url === '/api/emergency-contacts' && (init?.method ?? 'GET') === 'GET') {
+      contactReads += 1
+      return contactReads === 1
+        ? reply({ contacts: [contact('c1', 'Sam')] })
+        : reply({ error: 'refresh failed' }, false)
+    }
+    if (url === '/api/emergency-contacts' && init?.method === 'POST') {
+      return reply({ contact: contact('c3', 'Jordan') })
+    }
+    return reply({})
+  }) as unknown as typeof fetch
+
+  render(<EmergencyPage />)
+  await user.click(await screen.findByRole('button', { name: 'emergency.addCard' }))
+  await user.type(screen.getByLabelText('emergency.personName'), 'Jordan')
+  await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect((await screen.findByRole('alert')).textContent).toContain('common.error')
+  expect(screen.getAllByText('Jordan').length).toBeGreaterThan(0)
+  expect(screen.getByRole('button', { name: 'common.tryAgain' })).toBeTruthy()
 })
