@@ -215,8 +215,11 @@ function LocationsPageInner() {
         return
       }
       setRemoveTarget(null)
+      // Wait for the post-delete read before restoring focus. The dialog's
+      // unmount cleanup restores its opener; scheduling focus before that
+      // refresh can let a stale trigger restoration win on slower desktops.
+      await load()
       window.requestAnimationFrame(() => (addButtonRef.current ?? editorLabelRef.current)?.focus())
-      void load()
     } catch {
       setRemoveError('network')
     } finally {

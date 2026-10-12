@@ -300,6 +300,39 @@ describe('/dashboard/locations', () => {
     expect(screen.getByRole('button', { name: 'Add' })).toHaveFocus()
   })
 
+  it('waits for the post-delete refresh before restoring focus', async () => {
+    const user = userEvent.setup()
+    let resolveRefresh: (value: {
+      ok: boolean
+      status: number
+      json: () => Promise<unknown>
+    }) => void = () => undefined
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ locations: [{ id: 'l1', label: 'School', address: null, user_id: 'u1' }] }),
+      })
+      .mockResolvedValueOnce({ ok: true, status: 200 })
+      .mockReturnValueOnce(new Promise((resolve) => { resolveRefresh = resolve })) as unknown as typeof fetch
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Remove School' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    const add = screen.getByRole('button', { name: 'Add' })
+    await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    expect(add).not.toHaveFocus()
+
+    resolveRefresh({
+      ok: true,
+      status: 200,
+      json: async () => ({ locations: [] }),
+    })
+    await waitFor(() => expect(add).toHaveFocus())
+  })
+
   it('keeps the dialog open with safe retry copy after a refused delete', async () => {
     const user = userEvent.setup()
     global.fetch = jest
