@@ -6,7 +6,7 @@
 // Add and Remove buttons are 44px targets.
 import '@testing-library/jest-dom'
 import * as React from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '@/components/ui/toast'
 import { I18nProvider } from '@/i18n'
@@ -124,6 +124,28 @@ describe('/dashboard/locations', () => {
     expect(await screen.findByRole('button', { name: 'Edit New school' })).toBeInTheDocument()
   })
 
+  it('keeps an edit draft open when the server acknowledges a different location', async () => {
+    const user = userEvent.setup()
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ locations: [{ id: 'l1', label: 'School', address: '1 Main St', user_id: 'u1' }] }),
+      })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ location: { id: 'different-id' } }) }) as unknown as typeof fetch
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Edit School' }))
+    await user.clear(screen.getByLabelText('Label'))
+    await user.type(screen.getByLabelText('Label'), 'Edited school')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect((await screen.findAllByRole('alert'))[0]).toHaveTextContent('The location could not be saved. Try again.')
+    expect(screen.getByRole('dialog', { name: 'Edit location' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Label')).toHaveValue('Edited school')
+  })
+
   it('keeps an editor draft and pending dialog safe across a refused save', async () => {
     const user = userEvent.setup()
     let resolveSave: (value: { ok: boolean; status: number; json?: () => Promise<unknown> }) => void = () => undefined
@@ -156,6 +178,40 @@ describe('/dashboard/locations', () => {
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByRole('button', { name: 'Add' })).toBeInTheDocument()
     expect(global.fetch).toHaveBeenCalledTimes(4)
+  })
+
+  it('keeps the newest save refresh when the initial locations read resolves late', async () => {
+    const user = userEvent.setup()
+    let resolveInitial: (value: unknown) => void = () => undefined
+    let resolveRefresh: (value: unknown) => void = () => undefined
+    global.fetch = jest
+      .fn()
+      .mockReturnValueOnce(new Promise((resolve) => { resolveInitial = resolve }))
+      .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ location: { id: 'l2' } }) })
+      .mockReturnValueOnce(new Promise((resolve) => { resolveRefresh = resolve })) as unknown as typeof fetch
+    renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.clear(screen.getByLabelText('Label'))
+    await user.type(screen.getByLabelText('Label'), 'After school')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3))
+
+    resolveRefresh({
+      ok: true,
+      status: 200,
+      json: async () => ({ locations: [{ id: 'l2', label: 'After school', address: null, user_id: 'u1' }] }),
+    })
+    expect(await screen.findByRole('button', { name: 'Edit After school' })).toBeInTheDocument()
+
+    resolveInitial({
+      ok: true,
+      status: 200,
+      json: async () => ({ locations: [{ id: 'l1', label: 'Stale school', address: null, user_id: 'u1' }] }),
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.getByRole('button', { name: 'Edit After school' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Stale school' })).not.toBeInTheDocument()
   })
 
   it('opens a named confirmation, focuses Cancel, and does not write when cancelled', async () => {

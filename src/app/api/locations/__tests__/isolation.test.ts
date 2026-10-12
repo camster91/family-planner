@@ -35,8 +35,13 @@ describe("locations — two households, parent only", () => {
 
   it("a parent lists only their own family's places", async () => {
     req({ as: "parentA" });
-    const body = await expectNoForeignData(await locations.GET(req({ as: "parentA" })));
+    const response = await locations.GET(req({ as: "parentA" }));
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    const body = await expectNoForeignData(response);
     expect(body.locations.map((l: any) => l.id)).toEqual(["loc-a"]);
+    expect(body.locations[0]).not.toHaveProperty("family_id");
+    expect(body.locations[0]).not.toHaveProperty("latitude");
+    expect(body.locations[0]).not.toHaveProperty("created_at");
   });
 
   it("a parent cannot delete another family's place", async () => {
@@ -56,11 +61,13 @@ describe("locations — two households, parent only", () => {
     );
     expect(res.status).toBe(200);
     expect(writesTo("familyLocation")[0].args).toMatchObject({
-      where: { id: "loc-a" },
+      where: { id: "loc-a", family_id: "family-A" },
       data: { label: "School", address: "2 Main", is_primary: false },
     });
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
     const body = await res.json();
     expect(body.location).toMatchObject({ id: "loc-a", label: "School", address: "2 Main" });
+    expect(body.location).not.toHaveProperty("family_id");
   });
 
   it("rejects an invalid edit without writing", async () => {
@@ -72,6 +79,10 @@ describe("locations — two households, parent only", () => {
   it("a parent creates in their own family", async () => {
     const res = await locations.POST(req({ as: "parentA", body: { label: "Gym", address: "2 Main", family_id: "family-B" } }));
     expect(res.status).toBe(201);
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+    const body = await res.json();
+    expect(body.location).toMatchObject({ label: "Gym", address: "2 Main", user_id: "parent-a" });
+    expect(body.location).not.toHaveProperty("family_id");
     expect(writesTo("familyLocation")[0].args.data).toMatchObject({ family_id: "family-A", user_id: "parent-a" });
     expect((await location.DELETE(req({ as: "parentA" }), params({ id: "loc-a" }))).status).toBe(200);
   });

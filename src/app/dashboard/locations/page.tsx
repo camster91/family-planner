@@ -9,6 +9,7 @@ import { InsetList, SectionHeader } from '@/components/ui/list-row'
 import { useToast } from '@/components/ui/toast'
 import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
 import { Dialog } from '@/components/ui/dialog'
+import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 import { useTranslation } from '@/i18n'
 import { useLocationsText } from '@/i18n/locations'
 
@@ -72,10 +73,12 @@ function LocationsPageInner() {
   const editorLabelRef = React.useRef<HTMLInputElement>(null)
   const cancelRemoveRef = React.useRef<HTMLButtonElement>(null)
   const removingRef = React.useRef(false)
+  const loadGenerationRef = React.useRef(0)
   const { t } = useTranslation()
   const locationText = useLocationsText()
   const locationTextRef = React.useRef(locationText)
   locationTextRef.current = locationText
+  usePendingFormNavigationController(editorSaving || removing)
 
   // KidHome pattern: a refused or failed request says so in a toast instead
   // of doing nothing (or leaving an unhandled rejection when offline).
@@ -88,6 +91,7 @@ function LocationsPageInner() {
   )
 
   const load = React.useCallback(async () => {
+    const generation = ++loadGenerationRef.current
     setLoading(true)
     try {
       const res = await fetch('/api/locations', { cache: 'no-store' })
@@ -95,20 +99,24 @@ function LocationsPageInner() {
         const data = await res.json().catch(() => null)
         const nextLocations = parseLocationsResponse(data)
         if (!nextLocations) {
+          if (generation !== loadGenerationRef.current) return
           setLoadError(true)
           return
         }
+        if (generation !== loadGenerationRef.current) return
         setLocations(nextLocations)
         setLoadError(false)
       } else {
+        if (generation !== loadGenerationRef.current) return
         setLoadError(true)
         await failed(locationTextRef.current('loadToastTitle'), res)
       }
     } catch {
+      if (generation !== loadGenerationRef.current) return
       setLoadError(true)
       await failed(locationTextRef.current('loadToastTitle'))
     } finally {
-      setLoading(false)
+      if (generation === loadGenerationRef.current) setLoading(false)
     }
   }, [failed])
 
@@ -135,17 +143,17 @@ function LocationsPageInner() {
     if (!label || !editorTarget || editorSaving) return
     setEditorSaving(true)
     setEditorError(null)
-    const editing = editorTarget !== 'new'
-    const path = editing ? `/api/locations/${encodeURIComponent(editorTarget.id)}` : '/api/locations'
+    const expectedId = editorTarget === 'new' ? null : editorTarget.id
+    const path = expectedId ? `/api/locations/${encodeURIComponent(expectedId)}` : '/api/locations'
     try {
       const res = await fetch(path, {
-        method: editing ? 'PATCH' : 'POST',
+        method: expectedId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label, address: editorAddress.trim() || null }),
       })
       if (res.ok) {
         const data = await res.json().catch(() => null)
-        if (!data || typeof data.location?.id !== 'string') {
+        if (!data || typeof data.location?.id !== 'string' || (expectedId && data.location.id !== expectedId)) {
           setEditorError('failed')
           await failed(locationText('saveToastTitle'))
           return
