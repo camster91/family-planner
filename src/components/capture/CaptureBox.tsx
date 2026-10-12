@@ -197,6 +197,8 @@ export function CaptureBox({
   const [recoveryBusyKey, setRecoveryBusyKey] = React.useState<string | null>(null)
   const [recoveryMessage, setRecoveryMessage] = React.useState<string | null>(null)
   const [recoveryStorageBlocked, setRecoveryStorageBlocked] = React.useState(false)
+  const recoveryMutationReady = React.useRef(false)
+  const recoveryGuardFailure = React.useRef<CaptureMessage>('recoveryAccessUnavailable')
   const recoveryIdentity = React.useRef<RecoveryIdentity | null>(null)
   const recoveryRows = React.useRef(new Map<string, CaptureRecoveryEnvelope>())
   const textInputRef = React.useRef<HTMLInputElement>(null)
@@ -207,6 +209,7 @@ export function CaptureBox({
   const operations = React.useRef(new WeakMap<object, { key: string; at: number; body?: string }>())
   const clearRecoveryBoundary = React.useCallback((userId?: string, familyId?: string): boolean => {
     const knownIdentity = recoveryIdentity.current
+    recoveryMutationReady.current = false
     recoveryRows.current.clear()
     recoveryIdentity.current = null
     setRecoveryOperations([])
@@ -215,9 +218,18 @@ export function CaptureBox({
       userId ?? knownIdentity?.userId,
       familyId ?? knownIdentity?.familyId,
     )
+    recoveryGuardFailure.current = cleared ? 'recoveryAccessUnavailable' : 'recoveryStorageUnavailable'
     setRecoveryStorageBlocked(!cleared)
     return cleared
   }, [])
+  const revokeCaptureAccess = React.useCallback((userId?: string, familyId?: string, child = false): boolean => {
+    const cleared = clearRecoveryBoundary(userId, familyId)
+    setChildBlocked(child)
+    setUnavailable(!child)
+    setAvailability('unavailable')
+    onAvailabilityChange?.('unavailable')
+    return cleared
+  }, [clearRecoveryBoundary, onAvailabilityChange])
 
   function operationFor(proposal: object) {
     let operation = operations.current.get(proposal)
@@ -235,13 +247,43 @@ export function CaptureBox({
     setRecoveryOperations(rows)
     const identity = recoveryIdentity.current
     if (!identity) {
+      recoveryMutationReady.current = false
+      recoveryGuardFailure.current = 'recoveryAccessUnavailable'
       setRecoveryStorageBlocked(true)
       return false
     }
     const saved = saveCaptureRecovery(browserRecoveryStorage(), identity.userId, identity.familyId, rows)
+    recoveryMutationReady.current = saved
+    recoveryGuardFailure.current = saved ? 'recoveryAccessUnavailable' : 'recoveryStorageUnavailable'
     setRecoveryStorageBlocked(!saved)
     return saved
   }, [])
+
+  function ensureRecoveryMutationReady(): boolean {
+    if (!recoveryMutationReady.current) {
+      setRecoveryMessage(msg(recoveryGuardFailure.current))
+      return false
+    }
+    const identity = recoveryIdentity.current
+    if (!identity) {
+      recoveryMutationReady.current = false
+      recoveryGuardFailure.current = 'recoveryAccessUnavailable'
+      setRecoveryStorageBlocked(true)
+      setRecoveryMessage(msg('recoveryAccessUnavailable'))
+      return false
+    }
+    const saved = saveCaptureRecovery(
+      browserRecoveryStorage(),
+      identity.userId,
+      identity.familyId,
+      [...recoveryRows.current.values()],
+    )
+    recoveryMutationReady.current = saved
+    recoveryGuardFailure.current = saved ? 'recoveryAccessUnavailable' : 'recoveryStorageUnavailable'
+    setRecoveryStorageBlocked(!saved)
+    if (!saved) setRecoveryMessage(msg('recoveryStorageUnavailable'))
+    return saved
+  }
 
   function rememberRecovery(row: CaptureRecoveryEnvelope) {
     const next = [...recoveryRows.current.values()].filter((current) => current.key !== row.key)
@@ -281,14 +323,25 @@ export function CaptureBox({
   }
 
   async function postProposal(url: string, proposal: object, payload: unknown, title: string, photo = false) {
+    if (!ensureRecoveryMutationReady()) {
+      throw new CaptureClientError(recoveryGuardFailure.current)
+    }
     const operation = operationFor(proposal)
     const action: CaptureRecoveryAction = url === '/api/events' ? 'event.create' : 'capture.grocery.add'
     const body = await rememberPayload(action, operation, payload, title, photo)
+    if (!ensureRecoveryMutationReady()) {
+      throw new CaptureClientError(recoveryGuardFailure.current)
+    }
     try {
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': operation.key }, body })
-      if (response.ok) forgetRecovery(operation.key)
+      if (response.status === 401 || response.status === 403) {
+        revokeCaptureAccess()
+        throw new CaptureClientError('recoveryAccessUnavailable')
+      }
+      if (response.ok && recoveryMutationReady.current) forgetRecovery(operation.key)
       return response
-    } catch {
+    } catch (error) {
+      if (error instanceof CaptureClientError) throw error
       throw new CaptureClientError('uncertainSave')
     }
   }
@@ -299,14 +352,12 @@ export function CaptureBox({
   // without a full page reload.
   const checkAvailability = React.useCallback(async () => {
     const recoveringFromTransientFailure = availabilityRef.current === 'retry'
+    recoveryMutationReady.current = false
     setCheckingAvailability(true)
     try {
       const response = await fetch('/api/capture')
       if (response.status === 401 || response.status === 403) {
-        clearRecoveryBoundary()
-        setUnavailable(true)
-        setAvailability('unavailable')
-        onAvailabilityChange?.('unavailable')
+        revokeCaptureAccess()
         return
       }
       if (!response.ok) throw new Error('Capture availability check failed')
@@ -317,26 +368,27 @@ export function CaptureBox({
         throw new Error('Incomplete capture availability')
       }
       if (!data.allowed) {
-        clearRecoveryBoundary(
+        revokeCaptureAccess(
           typeof data.userId === 'string' ? data.userId : undefined,
           typeof data.familyId === 'string' ? data.familyId : undefined,
+          true,
         )
-        setChildBlocked(true)
-        setAvailability('unavailable')
-        onAvailabilityChange?.('unavailable')
         return
       }
       if (!data.configured) {
+        setRecoveryStorageBlocked(false)
         setUnavailable(true)
         setAvailability('unavailable')
         onAvailabilityChange?.('unavailable')
         return
       }
       setChildBlocked(false)
+      setUnavailable(false)
       if (recoveringFromTransientFailure) focusAfterAvailabilityRef.current = true
       setAvailability('available')
       onAvailabilityChange?.('available')
       if (typeof data.userId !== 'string' || typeof data.familyId !== 'string' || !data.userId || !data.familyId) {
+        recoveryGuardFailure.current = 'recoveryStorageUnavailable'
         setRecoveryStorageBlocked(true)
         return
       }
@@ -346,12 +398,14 @@ export function CaptureBox({
       const pending = sameIdentity ? [...recoveryRows.current.values()] : []
       const storage = browserRecoveryStorage()
       if (!storage || !activateCaptureRecoveryStorage(storage, identity.userId, identity.familyId)) {
+        recoveryGuardFailure.current = 'recoveryStorageUnavailable'
         setRecoveryStorageBlocked(true)
         return
       }
       recoveryIdentity.current = identity
       const loaded = loadCaptureRecoveryState(storage, identity.userId, identity.familyId)
       if (!loaded.storageAvailable) {
+        recoveryGuardFailure.current = 'recoveryStorageUnavailable'
         setRecoveryStorageBlocked(true)
         setRecoveryOperations(pending)
         recoveryRows.current = new Map(pending.map((row) => [row.key, row]))
@@ -367,7 +421,7 @@ export function CaptureBox({
     } finally {
       setCheckingAvailability(false)
     }
-  }, [clearRecoveryBoundary, onAvailabilityChange, syncRecoveryRows])
+  }, [onAvailabilityChange, revokeCaptureAccess, syncRecoveryRows])
 
   React.useEffect(() => {
     void checkAvailability()
@@ -399,6 +453,7 @@ export function CaptureBox({
   ) : null
 
   async function checkRecovery(row: CaptureRecoveryEnvelope) {
+    if (!ensureRecoveryMutationReady()) return
     if (!row.requestHash) {
       forgetRecovery(row.key)
       setRecoveryMessage(msg('statusUnavailable'))
@@ -415,7 +470,11 @@ export function CaptureBox({
         },
       })
       const data = (await response.json().catch(() => ({}))) as { state?: string; current?: string }
-      if (response.status === 409) {
+      if (response.status === 401 || response.status === 403) {
+        revokeCaptureAccess()
+      } else if (!recoveryMutationReady.current) {
+        return
+      } else if (response.status === 409) {
         forgetRecovery(row.key)
         setRecoveryMessage(msg('captureChanged'))
       } else if (!response.ok) {
@@ -452,6 +511,7 @@ export function CaptureBox({
   }
 
   async function retryRecovery(row: CaptureRecoveryEnvelope) {
+    if (!ensureRecoveryMutationReady()) return
     if (Date.now() - row.createdAt >= CAPTURE_RECOVERY_RETENTION_MS) {
       // A request may have started just before the client-side retry window
       // closed. Reconcile the authoritative receipt first so a committed
@@ -468,7 +528,11 @@ export function CaptureBox({
         headers: { 'Content-Type': 'application/json', 'Idempotency-Key': row.key },
         body: row.body,
       })
-      if (response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        revokeCaptureAccess()
+      } else if (!recoveryMutationReady.current) {
+        return
+      } else if (response.ok) {
         // A successful keyed replay only proves the receipt response. Read
         // the family-scoped resource state before claiming it is present; a
         // committed item may have been deleted since the original attempt.
@@ -505,6 +569,10 @@ export function CaptureBox({
         body: JSON.stringify({ text: phrase }),
       })
       const data = await res.json()
+      if (res.status === 401 || res.status === 403) {
+        revokeCaptureAccess()
+        throw new CaptureClientError('recoveryAccessUnavailable')
+      }
       if (!res.ok) throw new Error(data.error || msg('couldNotRead'))
       setDraft(data.draft)
     } catch (e) {
@@ -564,6 +632,10 @@ export function CaptureBox({
         body: JSON.stringify({ imageBase64: base64, mimeType }),
       })
       const data = await res.json()
+      if (res.status === 401 || res.status === 403) {
+        revokeCaptureAccess()
+        throw new CaptureClientError('recoveryAccessUnavailable')
+      }
       if (!res.ok) throw new Error(data.error || msg('couldNotReadPhoto'))
       const events: PhotoEvent[] = data?.image?.events || []
       setPhotoEvents(events)
@@ -587,6 +659,7 @@ export function CaptureBox({
     const failed: PhotoEvent[] = []
     let added = 0
     let storageFailure = false
+    let accessFailure = false
     try {
       for (const ev of photoEvents) {
         const res = await postProposal('/api/events', ev, eventPayload(ev), ev.title, true)
@@ -597,6 +670,7 @@ export function CaptureBox({
       // Network error: everything not yet saved counts as failed.
       failed.push(...photoEvents.slice(added + failed.length))
       storageFailure = error instanceof CaptureClientError && error.key === 'recoveryStorageUnavailable'
+      accessFailure = error instanceof CaptureClientError && error.key === 'recoveryAccessUnavailable'
     }
     if (added > 0) onSaved?.()
     if (failed.length === 0) {
@@ -608,12 +682,18 @@ export function CaptureBox({
       if (added > 0) {
         setSaved(msg('addedOf', { added, total }))
         setError(
-          storageFailure
-            ? msg('recoveryStorageUnavailable')
+          storageFailure || accessFailure
+            ? msg('recoveryPartialFailure')
             : msg(failed.length === 1 ? 'couldNotSaveOne' : 'couldNotSaveMany', { count: failed.length }),
         )
       } else {
-        setError(storageFailure ? msg('recoveryStorageUnavailable') : msg('couldNotSaveEvents'))
+        setError(
+          storageFailure
+            ? msg('recoveryStorageUnavailable')
+            : accessFailure
+              ? msg('recoveryAccessUnavailable')
+              : msg('couldNotSaveEvents'),
+        )
       }
     }
     setPhotoBusy(false)

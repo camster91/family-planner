@@ -731,4 +731,10 @@ are cleared and the active/identified private namespace is purged when
 possible. If that purge cannot be confirmed, the client keeps a logical
 refusal and does not expose Check status/Retry; it does not claim physical
 erasure. These boundaries do not change server authorization, receipts,
-request validation, or automatic submission behavior.
+request validation, or automatic submission behavior. The same synchronous
+boundary applies when preview, event/grocery mutation, receipt status, or a
+recovery Retry returns `401`/`403`; Check status and Retry require fresh
+authenticated availability plus a verified recovery store before making a
+request. A partial photo batch reports confirmed successes separately from
+remaining rows that were blocked, so storage/access failures never claim that
+nothing was sent after an earlier success.

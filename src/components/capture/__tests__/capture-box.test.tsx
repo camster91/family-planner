@@ -133,6 +133,38 @@ describe('CaptureBox', () => {
     expect(screen.queryByText('Bake sale')).toBeNull()
   })
 
+  it('reports confirmed photo successes when recovery storage fails for remaining rows', async () => {
+    let eventPosts = 0
+    const originalSetItem = Storage.prototype.setItem
+    mockFetch((title) => {
+      eventPosts += 1
+      if (eventPosts === 1) {
+        Storage.prototype.setItem = function (key: string, value: string) {
+          if (key.startsWith('family-planner:capture-recovery:v1:') && value !== '[]') {
+            throw new Error('quota')
+          }
+          return originalSetItem.call(this, key, value)
+        }
+      }
+      return 201
+    })
+    const onSaved = jest.fn()
+    const user = userEvent.setup()
+    try {
+      render(<CaptureBox onSaved={onSaved} />)
+      await readPhoto(user)
+      await user.click(screen.getByRole('button', { name: 'Add 3' }))
+      await screen.findByText('Added 1 of 3 events')
+      expect(screen.getByText(captureEnglish.recoveryPartialFailure)).toBeTruthy()
+      expect(screen.getAllByText('Bake sale').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Book fair').length).toBeGreaterThan(0)
+      expect(eventPosts).toBe(1)
+      expect(onSaved).toHaveBeenCalledTimes(1)
+    } finally {
+      Storage.prototype.setItem = originalSetItem
+    }
+  })
+
   it('keeps every photo event and does not call onSaved when all fail', async () => {
     mockFetch(() => 500)
     const onSaved = jest.fn()
@@ -295,6 +327,147 @@ it('restores a confirmed operation after reload without submitting until Retry',
   expect(calls).toHaveLength(2)
   expect(calls[1].body).toBe(calls[0].body)
   expect(calls[1].headers).toEqual(calls[0].headers)
+})
+
+it.each([401, 403])('clears recovery when receipt status returns an auth refusal (%i)', async (status) => {
+  const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
+  window.localStorage.setItem(storageKey, JSON.stringify([{
+    version: 1,
+    key: 'capture-receipt-auth-12345678',
+    action: 'event.create',
+    requestHash: 'a'.repeat(64),
+    body: JSON.stringify({ title: 'Dentist', event_type: 'other' }),
+    title: 'Dentist',
+    kind: 'event',
+    createdAt: Date.now(),
+    photo: false,
+  }]))
+  let receiptCalls = 0
+  let eventPosts = 0
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/capture' && (init?.method ?? 'GET') === 'GET') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/capture/receipt') {
+      receiptCalls += 1
+      return json(status, { error: 'unauthorized' })
+    }
+    if (String(url) === '/api/events') {
+      eventPosts += 1
+      return json(201, { event: { id: 'must-not-write' } })
+    }
+    throw new Error(`unexpected ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<CaptureBox />)
+  await user.click(await screen.findByRole('button', { name: 'Check status for Dentist' }))
+  await waitFor(() => expect(window.localStorage.getItem(storageKey)).toBeNull())
+  expect(receiptCalls).toBe(1)
+  expect(eventPosts).toBe(0)
+  expect(screen.queryByRole('button', { name: 'Retry Dentist' })).toBeNull()
+})
+
+it.each([401, 403])('clears recovery when the confirmed event POST returns an auth refusal (%i)', async (status) => {
+  const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
+  let eventPosts = 0
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/capture' && (init?.method ?? 'GET') === 'GET') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/capture') {
+      return json(200, { draft: { kind: 'event', title: 'Dentist', confidence: 'high' } })
+    }
+    if (String(url) === '/api/events') {
+      eventPosts += 1
+      return json(status, { error: 'unauthorized' })
+    }
+    throw new Error(`unexpected ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<CaptureBox />)
+  await user.type(await screen.findByRole('textbox'), 'dentist Tuesday')
+  await user.click(screen.getByRole('button', { name: 'Read it' }))
+  await user.click(await screen.findByRole('button', { name: 'Add it' }))
+  await waitFor(() => expect(window.localStorage.getItem(storageKey)).toBeNull())
+  expect(eventPosts).toBe(1)
+  expect(screen.queryByRole('button', { name: 'Retry Dentist' })).toBeNull()
+})
+
+it.each([401, 403])('clears recovery when a Retry POST returns an auth refusal (%i)', async (status) => {
+  const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
+  window.localStorage.setItem(storageKey, JSON.stringify([{
+    version: 1,
+    key: 'capture-retry-auth-12345678',
+    action: 'event.create',
+    requestHash: 'a'.repeat(64),
+    body: JSON.stringify({ title: 'Dentist', event_type: 'other' }),
+    title: 'Dentist',
+    kind: 'event',
+    createdAt: Date.now(),
+    photo: false,
+  }]))
+  let eventPosts = 0
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/capture' && (init?.method ?? 'GET') === 'GET') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/events') {
+      eventPosts += 1
+      return json(status, { error: 'unauthorized' })
+    }
+    throw new Error(`unexpected ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<CaptureBox />)
+  await user.click(await screen.findByRole('button', { name: 'Retry Dentist' }))
+  await waitFor(() => expect(window.localStorage.getItem(storageKey)).toBeNull())
+  expect(eventPosts).toBe(1)
+  expect(screen.queryByRole('button', { name: 'Retry Dentist' })).toBeNull()
+})
+
+it('does not POST a retry when storage becomes unavailable after hydration', async () => {
+  const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
+  window.localStorage.setItem(storageKey, JSON.stringify([{
+    version: 1,
+    key: 'capture-retry-storage-12345678',
+    action: 'event.create',
+    requestHash: 'a'.repeat(64),
+    body: JSON.stringify({ title: 'Dentist', event_type: 'other' }),
+    title: 'Dentist',
+    kind: 'event',
+    createdAt: Date.now(),
+    photo: false,
+  }]))
+  let eventPosts = 0
+  global.fetch = jest.fn(async (url) => {
+    if (String(url) === '/api/capture') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/events') {
+      eventPosts += 1
+      return json(201, { event: { id: 'must-not-write' } })
+    }
+    throw new Error(`unexpected ${String(url)}`)
+  }) as unknown as typeof fetch
+  let originalSetItem: typeof Storage.prototype.setItem | null = null
+  try {
+    const user = userEvent.setup()
+    render(<CaptureBox />)
+    const retry = await screen.findByRole('button', { name: 'Retry Dentist' })
+    originalSetItem = Storage.prototype.setItem
+    Storage.prototype.setItem = function (key: string, value: string) {
+      if (key === storageKey && value !== '[]') throw new Error('quota')
+      return originalSetItem!.call(this, key, value)
+    }
+    await user.click(retry)
+    expect((await screen.findAllByText(captureEnglish.recoveryStorageUnavailable)).length).toBeGreaterThan(0)
+    expect(eventPosts).toBe(0)
+  } finally {
+    if (originalSetItem) Storage.prototype.setItem = originalSetItem
+  }
 })
 
 it('checks a receipt at the six-day boundary before declaring the retry too old', async () => {
