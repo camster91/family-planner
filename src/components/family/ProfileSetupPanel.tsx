@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
+import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { canonicalBodySignature } from "@/lib/request-signature";
 import {
@@ -16,6 +17,9 @@ import {
 import { useProfileSetupText } from "@/i18n/profile-setup";
 
 type LoadState = "idle" | "loading" | "ready" | "unsupported" | "error";
+type ProfileSetupPanelProps = {
+  onProfilesChanged?: () => void | Promise<void>;
+};
 
 function roleLabel(role: HouseholdProfileRole, text: ReturnType<typeof useProfileSetupText>) {
   return text(role === "child" ? "roleChild" : role === "teen" ? "roleTeen" : "roleParent");
@@ -25,7 +29,7 @@ function responseErrorCode(value: unknown): string | null {
   return readApiErrorCode(value);
 }
 
-export function ProfileSetupPanel() {
+export function ProfileSetupPanel({ onProfilesChanged }: ProfileSetupPanelProps = {}) {
   const text = useProfileSetupText();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<LoadState>("idle");
@@ -36,6 +40,7 @@ export function ProfileSetupPanel() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  usePendingFormNavigationController(saving);
   const idempotencyKey = useRef<{ key: string; signature: string } | null>(null);
   const ambiguousKeys = useRef(new Map<string, string>());
 
@@ -123,6 +128,12 @@ export function ProfileSetupPanel() {
       ambiguousKeys.current.delete(signature);
       idempotencyKey.current = null;
       setNotice(text("profileSaved"));
+      // The profile write is committed. Release the mutation guard before a
+      // best-effort roster read so a slow or unavailable read cannot make the
+      // saved form appear stuck. The parent owns any stale-refresh message.
+      void Promise.resolve()
+        .then(() => onProfilesChanged?.())
+        .catch(() => undefined);
     } catch {
       ambiguousKeys.current.set(signature, key);
       setError(text("networkError"));

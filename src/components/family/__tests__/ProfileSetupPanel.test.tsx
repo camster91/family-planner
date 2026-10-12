@@ -15,10 +15,13 @@ const profile = {
   revision: 0,
 };
 
-function renderPanel(locale: "en" | "es" = "en") {
+function renderPanel(
+  locale: "en" | "es" = "en",
+  onProfilesChanged?: () => void | Promise<void>,
+) {
   return render(
     <I18nProvider locale={locale}>
-      <ProfileSetupPanel />
+      <ProfileSetupPanel onProfilesChanged={onProfilesChanged} />
     </I18nProvider>,
   );
 }
@@ -99,5 +102,29 @@ describe("ProfileSetupPanel", () => {
     expect(secondKey).toBeTruthy();
     expect(secondKey).not.toBe(firstKey);
     expect(JSON.parse(String(calls[2].init?.body)).name).toBe("Taylor");
+  });
+
+  it("releases the save guard after commit even when roster refresh is still pending", async () => {
+    const user = userEvent.setup();
+    let resolveRefresh!: () => void;
+    const pendingRefresh = new Promise<void>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    global.fetch = jest.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method !== "POST") {
+        return { ok: true, status: 200, json: async () => ({ profiles: [] }) };
+      }
+      return { ok: true, status: 201, json: async () => ({ profile }) };
+    }) as unknown as typeof fetch;
+    renderPanel("en", () => pendingRefresh);
+
+    await user.click(screen.getByRole("button", { name: "Add a household profile" }));
+    await screen.findByLabelText("Name");
+    await user.type(screen.getByLabelText("Name"), "Jamie");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+
+    expect(await screen.findByText("Profile saved.")).toBeTruthy();
+    expect((screen.getByLabelText("Name") as HTMLInputElement).disabled).toBe(false);
+    resolveRefresh();
   });
 });
