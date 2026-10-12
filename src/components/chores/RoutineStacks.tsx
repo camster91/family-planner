@@ -47,8 +47,10 @@ export function routineStacks(chores: Step[]) {
 
 const isDone = (chore: Step) => chore.status === 'completed' || chore.status === 'verified'
 
-function isProfileOnlyStep(chore: Pick<Step, 'assigned_to' | 'assigned_member_id'>) {
-  return chore.assigned_to === null && chore.assigned_member_id != null
+function isProfileOnlyStep(
+  chore: Pick<Step, 'assigned_to' | 'assigned_member_id' | 'member_subject_erased'>,
+) {
+  return chore.assigned_to === null && (chore.assigned_member_id != null || chore.member_subject_erased === true)
 }
 
 export function RoutineStacks({ chores, userRole, currentUserId, familyId, locale, collapseRepeats = false, onComplete }: {

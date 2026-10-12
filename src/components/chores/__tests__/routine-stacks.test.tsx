@@ -119,6 +119,20 @@ it('keeps an unreadable profile routine read-only without an account fallback', 
   expect(screen.queryByRole('link', { name: 'Add step' })).toBeNull()
 })
 
+it('keeps an erased profile routine read-only without an account fallback', () => {
+  const profile = step('erased-profile-step', 1, {
+    assigned_to: null as never,
+    assigned_member_id: null,
+    member_subject_erased: true,
+    assignee: null,
+  })
+  render(<RoutineStacks chores={[profile]} userRole="parent" currentUserId="adult" locale="en-CA" onComplete={jest.fn()} />)
+  expect(screen.getAllByText(/That profile is no longer available/)).toHaveLength(2)
+  expect(screen.queryByRole('button', { name: 'Complete erased-profile-step' })).toBeNull()
+  expect(screen.queryByRole('link', { name: 'Edit erased-profile-step' })).toBeNull()
+  expect(screen.queryByRole('link', { name: 'Add step' })).toBeNull()
+})
+
 it('uses the viewer local day when an empty routine list opens the builder near midnight UTC', () => {
   const now = new Date('2026-10-12T01:30:00.000Z')
   jest.useFakeTimers().setSystemTime(now)

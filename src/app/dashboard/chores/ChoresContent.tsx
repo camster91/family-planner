@@ -91,9 +91,15 @@ type BoardChore = ChoresContentProps["chores"][number];
  * not that the row can be treated as an unassigned account chore.
  */
 function isProfileOnlyChore(
-  chore: Pick<BoardChore, "assigned_to" | "assigned_member_id">,
+  chore: Pick<
+    BoardChore,
+    "assigned_to" | "assigned_member_id" | "member_subject_erased"
+  >,
 ) {
-  return chore.assigned_to === null && chore.assigned_member_id != null;
+  return (
+    chore.assigned_to === null &&
+    (chore.assigned_member_id != null || chore.member_subject_erased === true)
+  );
 }
 
 function subjectName(chore: Pick<BoardChore, "assignee" | "subject">) {

@@ -325,7 +325,7 @@ describe("ChoresContent parent check", () => {
     const unavailableProfileChore = {
       ...completedChore("profile-erased", "Erased profile chore"),
       assigned_to: null as never,
-      assigned_member_id: "profile-erased",
+      assigned_member_id: null,
       member_subject_erased: true,
       assignee: null,
     };

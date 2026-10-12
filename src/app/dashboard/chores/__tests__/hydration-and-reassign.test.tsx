@@ -194,7 +194,7 @@ describe('ChoresContent profile subjects', () => {
       {
         ...chore('profile-erased', 'Erased profile chore', today, 'pending', null),
         assigned_to: null as never,
-        assigned_member_id: 'profile-erased',
+        assigned_member_id: null,
         member_subject_erased: true,
       },
       {
