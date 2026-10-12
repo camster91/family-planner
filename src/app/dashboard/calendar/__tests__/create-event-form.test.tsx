@@ -73,8 +73,14 @@ describe('New event form', () => {
  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1))
  const body = JSON.parse(String((fetch as jest.Mock).mock.calls[0][1].body))
  expect(+new Date(body.end_time) - +new Date(body.start_time)).toBe(75 * 60000)
+ await waitFor(() => {
+   const submit = screen.getByRole('button', { name: 'Create Event' }) as HTMLButtonElement
+   expect(submit.disabled).toBe(false)
+ })
  fireEvent.change(screen.getByLabelText('Duration in minutes'), { target: { value: '0' } })
- fireEvent.submit(screen.getByRole('button', { name: 'Create Event' }).closest('form')!)
+ const submit = screen.getByRole('button', { name: 'Create Event' }) as HTMLButtonElement
+ expect(submit.disabled).toBe(false)
+ fireEvent.submit(submit.closest('form')!)
  expect(await screen.findByText('Invalid date/time')).toBeTruthy()
  expect(fetch).toHaveBeenCalledTimes(1)
  })
