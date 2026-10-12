@@ -1,6 +1,11 @@
-# Recurrence lifecycle slice (#560)
+# Recurrence lifecycle slice (#560, canonical issue #536)
 
 Status: implementation scope for this branch, 2026-10-12.
+
+Canonical delivery issue: #536. This source slice follows the existing
+recurrence lifecycle gap tracked under #128/#499 and the accepted compact
+recurrence work in #450/#451; it does not reopen or redefine those records.
+The source audit is `work/560-recurrence-lifecycle-audit.md`.
 
 This slice separates two user actions while keeping the existing recurrence
 engine and schema:
@@ -23,7 +28,7 @@ DELETE is performed in one transaction. It locks the actor user before the
 household lock (the repository lock-order invariant), then re-reads the
 actor's current family/role and the target's family/assignee/recurrence state
 under lock before authorizing or writing. Foreign-household and non-assignee
-responses remain unchanged. The request body remains `{ choreId }) for
+responses remain unchanged. The request body remains `{ choreId }` for
 installed clients.
 
 UI acceptance:

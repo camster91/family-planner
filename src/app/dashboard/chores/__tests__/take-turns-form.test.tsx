@@ -272,6 +272,20 @@ describe('Edit chore form', () => {
     expect(sent('/api/chores').rotation).toBeUndefined()
   })
 
+  it('opens an explicit stop draft without mutating until the parent saves', async () => {
+    mockSearch = new URLSearchParams({ id: 'copy-1', stop: '1' })
+    const user = userEvent.setup()
+    render(<EditChorePage />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Once' })).toBeTruthy())
+    expect(screen.getByRole('button', { name: 'Once' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText('Choose Once, then save to stop future copies. Existing history stays.')).toBeTruthy()
+    expect(sent('/api/chores')).toBeUndefined()
+
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(sent('/api/chores')).toBeDefined())
+    expect(sent('/api/chores')).toMatchObject({ frequency: 'once', apply_to_series: true })
+  })
+
   it('a changed order is sent; turning it off sends null', async () => {
     const user = userEvent.setup()
     render(<EditChorePage />)

@@ -45,7 +45,13 @@ change the series' other rows, as for the title.
 A recurring series keeps a short window of upcoming chores (7 daily, 4 weekly, 3 monthly). There is no scheduler,
 so the window is refilled when any chore of the series is ticked, and when the chores page, the Today board or a
 paired tablet's board loads. Changing a chore's "how often" in the edit form starts, re-times or stops its series;
-on a generated copy the form shows the series' frequency and a change applies to the whole series (O-33).
+on a generated copy the form shows the series' frequency and a change applies to the whole series (O-33). Deleting
+an open row deletes that occurrence only. The anchor of an active repeating series cannot be deleted: a parent uses
+Edit → Once and saves to stop repeating, preserving existing history while removing future pending copies.
+
+This occurrence-only lifecycle boundary is tracked in #536. It closes the gap
+under #128/#499 while preserving the accepted recurrence UI contract in
+#450/#451.
 
 ### What the child sees
 

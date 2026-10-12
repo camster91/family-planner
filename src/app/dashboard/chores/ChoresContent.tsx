@@ -27,6 +27,11 @@ import { cn } from "@/lib/utils";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
 import { useChoreVerificationText } from "@/i18n/chore-verification";
 import {
+  choreFormMessages,
+  type ChoreFormMessage,
+} from "@/i18n/chore-forms";
+import { useTranslation } from "@/i18n";
+import {
   formatDateOnly,
   formatRelativeDueDate,
   isDueToday,
@@ -41,6 +46,15 @@ import {
 import type { Chore } from "@/types";
 
 type FilterMode = "today" | "week" | "all";
+
+function isActiveRepeatingChore(chore: Chore): boolean {
+  const frequency = chore.recurrence_frequency ?? chore.frequency;
+  return Boolean(
+    chore.recurrence_id &&
+      frequency &&
+      frequency !== "once",
+  );
+}
 
 // The open-chores heading names the range picked above, so a Week or All list
 // (chores due on many days) is not labelled "Today".
@@ -159,6 +173,12 @@ export default function ChoresContent({
   const [doneCollapsed, setDoneCollapsed] = React.useState(true);
   const { addToast } = useToast();
   const showUndo = useUndoToast();
+  const { t } = useTranslation();
+  const message = React.useCallback(
+    (key: ChoreFormMessage, params?: Record<string, string | number>) =>
+      t(key, params, choreFormMessages),
+    [t],
+  );
   // Points & streaks (#248). When off, the page's server component already
   // omits each chore's points and streak; this only decides what to draw.
   const gamification = useFeatureEnabled("gamification");
@@ -588,7 +608,7 @@ export default function ChoresContent({
 
   const handleDeleteChore = React.useCallback(
     async (choreId: string) => {
-      if (!confirm("Delete this chore?")) return;
+      if (!confirm(message("deleteOccurrenceConfirm"))) return;
       try {
         const response = await fetch("/api/chores", {
           method: "DELETE",
@@ -596,20 +616,28 @@ export default function ChoresContent({
           body: JSON.stringify({ choreId }),
         });
         if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || "Failed to delete chore");
+          const data = await response.json().catch(() => ({}));
+          const mapped =
+            data.code === "RECURRING_SERIES_REQUIRES_STOP"
+              ? userRole === "parent"
+                ? message("recurringSeriesRequiresStop")
+                : message("recurringSeriesParentOnly")
+              : data.code === "RECURRING_ANCHOR_RETAINS_HISTORY"
+                ? message("recurringAnchorRetainsHistory")
+                : null;
+          throw new Error(mapped || data.error || message("deleteFailed"));
         }
         setLocalChores((prev) => prev.filter((c) => c.id !== choreId));
-        addToast({ type: "success", title: "Chore deleted" });
+        addToast({ type: "success", title: message("deleteOccurrenceSuccess") });
       } catch (error) {
         addToast({
           type: "error",
-          title: "Failed to delete",
-          message: error instanceof Error ? error.message : "Please try again.",
+          title: message("deleteFailed"),
+          message: error instanceof Error ? error.message : message("deleteRetry"),
         });
       }
     },
-    [addToast],
+    [addToast, message, userRole],
   );
 
   // "Today" and "Week" are the viewer's local days, unknown on the server
@@ -664,6 +692,17 @@ export default function ChoresContent({
             label: "Edit",
             onClick: () => router.push(`/dashboard/chores/edit?id=${chore.id}`),
           },
+          ...(userRole === "parent" && isActiveRepeatingChore(chore)
+            ? [
+                {
+                  label: message("stopRepeating"),
+                  onClick: () =>
+                    router.push(
+                      `/dashboard/chores/edit?id=${encodeURIComponent(chore.id)}&stop=1`,
+                    ),
+                },
+              ]
+            : []),
           {
             label: "Reassign",
             // The action sheet hands focus back to its trigger on a
@@ -677,7 +716,7 @@ export default function ChoresContent({
             onClick: () => handleCompleteChore(chore.id),
           },
           {
-            label: "Delete",
+            label: message("deleteOccurrence"),
             onClick: () => handleDeleteChore(chore.id),
             destructive: true,
           },

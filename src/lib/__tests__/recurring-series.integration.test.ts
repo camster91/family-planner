@@ -23,6 +23,8 @@ jest.mock('@/lib/notifications-server', () => require('@/__tests__/helpers/two-h
 
 export {}
 
+import pg from 'pg'
+
 const describeWithDatabase = process.env.RUN_DB_INTEGRATION === '1' ? describe : describe.skip
 
 jest.setTimeout(60_000)
@@ -33,6 +35,7 @@ describeWithDatabase('recurring chore series against Postgres', () => {
   let complete: typeof import('@/lib/chore-complete')
   let route: typeof import('@/app/api/chores/route')
   let createRoute: typeof import('@/app/api/chores/create/route')
+  let locks: typeof import('@/lib/household-lock')
 
   const FAM = 'rsint-family'
   const FAM2 = 'rsint-family-2'
@@ -98,6 +101,37 @@ describeWithDatabase('recurring chore series against Postgres', () => {
     }
   }
 
+  function del(body: unknown, as = PARENT): any {
+    const url = new URL('http://localhost/api/chores')
+    return {
+      method: 'DELETE',
+      url: url.toString(),
+      nextUrl: url,
+      headers: new Headers(),
+      cookies: { get: (n: string) => (n === 'session_token' ? { value: `session:${as}` } : undefined) },
+      json: async () => body,
+    }
+  }
+
+  async function holdThen<T>(lockKey: string, during: () => Promise<T>, beforeCommit: () => Promise<void> = async () => undefined): Promise<T> {
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL })
+    await client.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey])
+      const pending = during()
+      let settled = false
+      pending.then(() => (settled = true), () => (settled = true))
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      expect(settled).toBe(false)
+      await beforeCommit()
+      await client.query('COMMIT')
+      return await pending
+    } finally {
+      await client.end()
+    }
+  }
+
   beforeAll(async () => {
     const mod = await import('@/lib/prisma')
     if (!mod.prisma) throw new Error('Integration database is not configured')
@@ -106,6 +140,7 @@ describeWithDatabase('recurring chore series against Postgres', () => {
     complete = await import('@/lib/chore-complete')
     route = await import('@/app/api/chores/route')
     createRoute = await import('@/app/api/chores/create/route')
+    locks = await import('@/lib/household-lock')
     await cleanup()
     await prisma.family.createMany({
       data: [
@@ -349,6 +384,78 @@ describeWithDatabase('recurring chore series against Postgres', () => {
     // Template (today) and the kept copy (+14 days) count; one more (+21)
     // fits before the four-week horizon.
     expect(await prisma.chore.count({ where: { recurrence_id: 'rsint-p1' } })).toBe(3)
+  })
+
+  it('DELETE removes one occurrence but protects active and stopped series anchors', async () => {
+    await weeklyTemplate('rsint-delete-series', FAM, PARENT, day('2026-10-05'))
+    await prisma.chore.create({
+      data: {
+        id: 'rsint-delete-copy', family_id: FAM, title: 'Bins copy', assigned_to: PARENT,
+        created_by: PARENT, due_date: day('2026-10-12'), frequency: 'once',
+        recurrence_id: 'rsint-delete-series',
+      },
+    })
+
+    const occurrence = await route.DELETE(del({ choreId: 'rsint-delete-copy' }))
+    expect(occurrence.status).toBe(200)
+    expect(await prisma.chore.findUnique({ where: { id: 'rsint-delete-copy' } })).toBeNull()
+    expect(await prisma.chore.findUnique({ where: { id: 'rsint-delete-series' } })).not.toBeNull()
+
+    const active = await route.DELETE(del({ choreId: 'rsint-delete-series' }))
+    expect(active.status).toBe(409)
+    expect(await active.json()).toMatchObject({ code: 'RECURRING_SERIES_REQUIRES_STOP' })
+    expect(await prisma.chore.findUnique({ where: { id: 'rsint-delete-series' } })).toMatchObject({ is_template: true })
+
+    await prisma.chore.update({ where: { id: 'rsint-delete-series' }, data: { is_template: false, frequency: 'once' } })
+    await prisma.chore.create({
+      data: {
+        id: 'rsint-delete-history', family_id: FAM, title: 'Bins history', assigned_to: PARENT,
+        created_by: PARENT, due_date: day('2026-10-19'), frequency: 'once',
+        recurrence_id: 'rsint-delete-series', status: 'completed', completed_at: day('2026-10-19'),
+      },
+    })
+    const stopped = await route.DELETE(del({ choreId: 'rsint-delete-series' }))
+    expect(stopped.status).toBe(409)
+    expect(await stopped.json()).toMatchObject({ code: 'RECURRING_ANCHOR_RETAINS_HISTORY' })
+    expect(await prisma.chore.findUnique({ where: { id: 'rsint-delete-series' } })).not.toBeNull()
+  })
+
+  it('serializes DELETE with expansion under the household lock and leaves no orphaned series', async () => {
+    await weeklyTemplate('rsint-delete-race', FAM, PARENT, day('2026-10-05'))
+    const results = await holdThen<[Response, number]>(
+      locks.householdLockKey(FAM),
+      async () => Promise.all([
+        route.DELETE(del({ choreId: 'rsint-delete-race' })),
+        recurring.expandRecurringChores({ id: 'rsint-delete-race', frequency: 'weekly' }, FAM, NOW0),
+      ]) as Promise<[Response, number]>,
+    )
+    const [deleted, expanded] = results
+    expect(deleted.status).toBe(409)
+    expect(await deleted.json()).toMatchObject({ code: 'RECURRING_SERIES_REQUIRES_STOP' })
+    expect(expanded).toBeGreaterThanOrEqual(0)
+    const rows = await prisma.chore.findMany({ where: { recurrence_id: 'rsint-delete-race' } })
+    expect(await prisma.chore.findUnique({ where: { id: 'rsint-delete-race' } })).not.toBeNull()
+    expect(rows.every((row) => row.recurrence_id === 'rsint-delete-race')).toBe(true)
+  })
+
+  it('re-reads the actor role after a held user lock before deleting', async () => {
+    await prisma.chore.create({
+      data: {
+        id: 'rsint-stale-delete', family_id: FAM, title: 'Stale role', assigned_to: PARENT,
+        created_by: PARENT, due_date: day('2026-10-05'), frequency: 'once',
+      },
+    })
+    const response = await holdThen(
+      locks.userLockKey(PARENT),
+      () => route.DELETE(del({ choreId: 'rsint-stale-delete' })),
+      async () => {
+        await prisma.user.update({ where: { id: PARENT }, data: { role: 'teen' } })
+      },
+    )
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({ error: 'Only parents or the assignee can delete chores' })
+    expect(await prisma.chore.findUnique({ where: { id: 'rsint-stale-delete' } })).not.toBeNull()
+    await prisma.user.update({ where: { id: PARENT }, data: { role: 'parent' } })
   })
 
   it('POST /api/chores/create writes the chore, its series link and copies together, or nothing', async () => {

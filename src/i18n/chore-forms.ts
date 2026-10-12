@@ -63,6 +63,20 @@ export const choreFormsEnglish = {
   create: "Create Chore",
   saving: "Saving...",
   save: "Save Changes",
+  deleteOccurrence: "Delete this occurrence",
+  deleteOccurrenceConfirm: "Delete this occurrence?",
+  deleteOccurrenceSuccess: "Occurrence deleted",
+  deleteFailed: "Failed to delete",
+  deleteRetry: "Please try again.",
+  stopRepeating: "Stop repeating",
+  stopRepeatingHint:
+    "Choose Once, then save to stop future copies. Existing history stays.",
+  recurringSeriesRequiresStop:
+    "Stop repeating from Edit before deleting this series anchor.",
+  recurringSeriesParentOnly:
+    "Only a parent can stop this repeating series from Edit.",
+  recurringAnchorRetainsHistory:
+    "This series anchor keeps its history. Delete an individual occurrence instead.",
   missingOne: "Add {field} first.",
   missingMany: "Add {fields} and {last} first.",
   fieldTitle: "a title",
@@ -159,6 +173,20 @@ export const choreFormsSpanish: Record<ChoreFormMessage, string> = {
   create: "Crear tarea",
   saving: "Guardando...",
   save: "Guardar cambios",
+  deleteOccurrence: "Eliminar esta ocurrencia",
+  deleteOccurrenceConfirm: "¿Eliminar esta ocurrencia?",
+  deleteOccurrenceSuccess: "Ocurrencia eliminada",
+  deleteFailed: "No se pudo eliminar",
+  deleteRetry: "Inténtalo de nuevo.",
+  stopRepeating: "Dejar de repetir",
+  stopRepeatingHint:
+    "Elige Una vez y guarda para detener las copias futuras. El historial se conserva.",
+  recurringSeriesRequiresStop:
+    "Deja de repetir desde Editar antes de eliminar el ancla de esta serie.",
+  recurringSeriesParentOnly:
+    "Solo un padre o madre puede detener esta serie repetida desde Editar.",
+  recurringAnchorRetainsHistory:
+    "El ancla de esta serie conserva su historial. Elimina una ocurrencia individual.",
   missingOne: "Añade {field} primero.",
   missingMany: "Añade {fields} y {last} primero.",
   fieldTitle: "un título",
