@@ -41,6 +41,7 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
   // must not determine this test's expected group count.
   const title = `QA weekly routine ${randomUUID()}`;
   const ownedIds: string[] = [];
+  let seriesId: string | undefined;
   let testFailure: unknown;
   let metricsEnabled: boolean | undefined;
   try {
@@ -66,7 +67,7 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
       points: 10,
     });
     expect(created.status).toBe(200);
-    const seriesId = JSON.parse(created.body).chore.id as string;
+    seriesId = JSON.parse(created.body).chore.id as string;
     ownedIds.push(seriesId);
     const records = await browserFetch(page, "/api/chores?limit=200");
     expect(records.status).toBe(200);
@@ -144,29 +145,81 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
   } finally {
     // Recover every test-owned row even when creation parsing, bounded GET or
     // assertions fail. This read is fixture-guarded and scoped to this run's
-    // unique title and household; all deletions still use the canonical API.
+    // unique title and household. An active series anchor must be stopped via
+    // the canonical PATCH before its occurrences can be deleted.
     const cleanupFailures: unknown[] = [];
     try {
       await withFixtureDb(async (db) => {
-        const rows = await db.query<{ id: string }>(
-          'SELECT id FROM "Chore" WHERE family_id = $1 AND title = $2',
+        const rows = await db.query<{
+          id: string;
+          recurrence_id: string | null;
+          is_template: boolean;
+          frequency: string;
+        }>(
+          'SELECT id, recurrence_id, is_template, frequency FROM "Chore" WHERE family_id = $1 AND title = $2',
           [FIXTURE_IDS.familyA.family, title],
         );
-        ownedIds.push(...rows.rows.map((row) => row.id));
+        const anchor = rows.rows.find(
+          (row) =>
+            row.id === row.recurrence_id &&
+            row.is_template &&
+            ["daily", "weekly", "monthly"].includes(row.frequency),
+        );
+        if (anchor) {
+          const stopped = await browserSend(page, "PATCH", "/api/chores", {
+            choreId: anchor.id,
+            frequency: "once",
+          });
+          expect(stopped.status, stopped.body).toBe(200);
+        }
       });
     } catch (error) {
       cleanupFailures.push(error);
     }
-    for (const choreId of new Set(ownedIds)) {
+
+    // Re-read after stopping: the canonical stop operation removes future
+    // pending copies. Delete surviving occurrences before the stopped anchor
+    // so its history-retention guard does not turn a valid cleanup into 409.
+    let rowsAfterStop: Array<{ id: string; recurrence_id: string | null }> = [];
+    try {
+      await withFixtureDb(async (db) => {
+        const rows = await db.query<{
+          id: string;
+          recurrence_id: string | null;
+        }>(
+          'SELECT id, recurrence_id FROM "Chore" WHERE family_id = $1 AND title = $2',
+          [FIXTURE_IDS.familyA.family, title],
+        );
+        rowsAfterStop = rows.rows;
+      });
+    } catch (error) {
+      cleanupFailures.push(error);
+    }
+    for (const row of rowsAfterStop.sort((a, b) => {
+      if (a.id === a.recurrence_id) return 1;
+      if (b.id === b.recurrence_id) return -1;
+      return 0;
+    })) {
       try {
         const removed = await browserSend(page, "DELETE", "/api/chores", {
-          choreId,
+          choreId: row.id,
         });
         expect(removed.status).toBe(200);
       } catch (error) {
         // Attempt later deletions even if one fails; retain the original error.
         cleanupFailures.push(error);
       }
+    }
+    try {
+      await withFixtureDb(async (db) => {
+        const remaining = await db.query<{ id: string }>(
+          'SELECT id FROM "Chore" WHERE family_id = $1 AND title = $2',
+          [FIXTURE_IDS.familyA.family, title],
+        );
+        expect(remaining.rows).toHaveLength(0);
+      });
+    } catch (error) {
+      cleanupFailures.push(error);
     }
     try {
       await withFixtureDb(async (db) => {
