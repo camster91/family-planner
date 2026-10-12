@@ -110,12 +110,15 @@ function MessagesContent() {
   const firstLoadRef = useRef(true)
   // Thread scroll height just before earlier messages are put in front.
   const prependAnchorRef = useRef<number | null>(null)
+  const latestLoadRef = useRef(0)
   const messageText = useMessagesText()
 
   const loadData = useCallback(async () => {
+    const request = ++latestLoadRef.current
     try {
       const res = await fetch('/api/messages')
       const data = res.ok ? parseMessagesResponse(await res.json().catch(() => null)) : null
+      if (request !== latestLoadRef.current) return
       if (!res.ok || !data) {
         setLoadError(true)
         return
@@ -131,16 +134,19 @@ function MessagesContent() {
       setCurrentUserId(data.userId)
       setLoadError(false)
     } catch {
-      setLoadError(true)
+      if (request === latestLoadRef.current) setLoadError(true)
     } finally {
-      setLoading(false)
+      if (request === latestLoadRef.current) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     loadData()
     const interval = setInterval(loadData, 5000)
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      latestLoadRef.current += 1
+    }
   }, [loadData])
 
   const newestId = messages.length > 0 ? messages[messages.length - 1].id : null

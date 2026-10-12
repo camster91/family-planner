@@ -143,6 +143,31 @@ describe('initial loading recovery', () => {
     expect(input).toHaveValue('Draft stays here')
   })
 
+  it.each(['failure', 'success'] as const)('ignores an older poll %s after a manual retry succeeds', async outcome => {
+    const user = userEvent.setup()
+    let finishPoll!: (response: Response) => void
+    const pendingPoll = new Promise<Response>(resolve => { finishPoll = resolve })
+    const fresh = { messages: [msg(20)], members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }
+    global.fetch = jest.fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockReturnValueOnce(pendingPoll)
+      .mockResolvedValueOnce({ ok: true, json: async () => fresh }) as unknown as typeof fetch
+    render(<MessagesPage />)
+    await screen.findByTestId('messages-load-error')
+    await act(async () => { poll?.() })
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Message 20')).toBeInTheDocument()
+    expect(screen.queryByTestId('messages-load-error')).not.toBeInTheDocument()
+    await act(async () => {
+      finishPoll({ ok: outcome === 'success', json: async () => ({ messages: [msg(3)], members: [], userId: 'stale-user' }) } as Response)
+      await pendingPoll
+    })
+    expect(screen.getByText('Message 20')).toBeInTheDocument()
+    expect(screen.queryByText('Message 3')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('messages-load-error')).not.toBeInTheDocument()
+  })
+
   it('does not refetch when only the presentation locale changes', async () => {
     const view = render(
       <I18nProvider locale="en">
