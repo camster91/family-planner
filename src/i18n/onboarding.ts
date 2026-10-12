@@ -15,6 +15,7 @@ export const onboardingEnglish = {
   familyNamePlaceholder: "e.g. The Smith Family",
   createFamily: "Create family",
   creatingFamily: "Creating family…",
+  progressLabel: "Onboarding progress",
   joinPrompt: "Already have a family code or invite?",
   joinExisting: "Join an existing family",
   addEveryoneTitle: "Add everyone in your family",
@@ -27,7 +28,7 @@ export const onboardingEnglish = {
   openFullInvitePage: "Open the full invite page",
   profileOptionTitle: "Shared household screen",
   profileOptionDescription:
-    "For someone without an email or personal device. This creates a name-only profile with no login or invitation.",
+    "For someone without an email or personal device. This creates a name-only presentation profile with no login or invitation; it never grants parent access.",
   profileUnavailable:
     "Shared-screen profiles are unavailable on this server. Use an account invite instead.",
   profileChecking: "Checking shared-screen support…",
@@ -49,6 +50,9 @@ export const onboardingEnglish = {
   sendingInvite: "Sending invite…",
   inviteSent: "Invite sent. You can add another person.",
   inviteError: "Could not send the invite. Your entry is still here.",
+  rosterRefreshing: "Refreshing the household roster…",
+  rosterStale: "Saved. The roster is not current yet; your changes are safe.",
+  retryRoster: "Refresh roster",
   close: "Close",
   createError: "Could not create your family. Please try again.",
   invalidResponse: "The server returned an unexpected family response.",
@@ -69,6 +73,7 @@ export const onboardingSpanish = {
   familyNamePlaceholder: "p. ej., La familia García",
   createFamily: "Crear familia",
   creatingFamily: "Creando familia…",
+  progressLabel: "Progreso de incorporación",
   joinPrompt: "¿Ya tienes un código o una invitación?",
   joinExisting: "Unirse a una familia existente",
   addEveryoneTitle: "Añade a todas las personas de tu familia",
@@ -81,7 +86,7 @@ export const onboardingSpanish = {
   openFullInvitePage: "Abrir la página completa de invitaciones",
   profileOptionTitle: "Pantalla compartida del hogar",
   profileOptionDescription:
-    "Para alguien sin correo electrónico o dispositivo personal. Crea un perfil con solo nombre, sin inicio de sesión ni invitación.",
+    "Para alguien sin correo electrónico o dispositivo personal. Crea un perfil de presentación con solo nombre, sin inicio de sesión ni invitación; nunca concede acceso de padre o madre.",
   profileUnavailable:
     "Los perfiles para pantallas compartidas no están disponibles en este servidor. Usa una invitación con cuenta.",
   profileChecking: "Comprobando la compatibilidad con pantallas compartidas…",
@@ -103,6 +108,9 @@ export const onboardingSpanish = {
   sendingInvite: "Enviando invitación…",
   inviteSent: "Invitación enviada. Puedes añadir a otra persona.",
   inviteError: "No se pudo enviar la invitación. Tus datos siguen aquí.",
+  rosterRefreshing: "Actualizando la lista del hogar…",
+  rosterStale: "Guardado. La lista aún no está actualizada; tus cambios están a salvo.",
+  retryRoster: "Actualizar la lista",
   close: "Cerrar",
   createError: "No se pudo crear la familia. Inténtalo de nuevo.",
   invalidResponse: "El servidor devolvió una respuesta de familia inesperada.",

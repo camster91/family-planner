@@ -123,12 +123,17 @@ export function ProfileSetupPanel({ onProfilesChanged }: ProfileSetupPanelProps 
         return;
       }
       setProfiles((current) => [...current, profile]);
-      await onProfilesChanged?.();
       setName("");
       setAge("");
       ambiguousKeys.current.delete(signature);
       idempotencyKey.current = null;
       setNotice(text("profileSaved"));
+      // The profile write is committed. Release the mutation guard before a
+      // best-effort roster read so a slow or unavailable read cannot make the
+      // saved form appear stuck. The parent owns any stale-refresh message.
+      void Promise.resolve()
+        .then(() => onProfilesChanged?.())
+        .catch(() => undefined);
     } catch {
       ambiguousKeys.current.set(signature, key);
       setError(text("networkError"));

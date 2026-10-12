@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Users, ArrowRight, Check } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslation } from '@/i18n'
+import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,16 @@ type EmailInvite = {
   familyName: string
   role: string
   email: string
+}
+
+function readJoinError(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== 'object') return fallback
+  const value = (payload as { error?: unknown }).error
+  if (typeof value === 'string' && value.trim()) return value
+  if (value && typeof value === 'object' && typeof (value as { message?: unknown }).message === 'string') {
+    return (value as { message: string }).message
+  }
+  return fallback
 }
 
 export default function JoinFamilyPage() {
@@ -35,6 +46,7 @@ export default function JoinFamilyPage() {
   const submittingRef = useRef(false)
   const busy = loading || leaving || !!success
   const router = useRouter()
+  usePendingFormNavigationController(busy)
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search)
@@ -51,7 +63,7 @@ export default function JoinFamilyPage() {
         .then(async (res) => {
           const data = await res.json()
           if (!res.ok) {
-            setError(data.error || 'This invite is invalid or expired')
+            setError(readJoinError(data, 'This invite is invalid or expired'))
             return
           }
           setEmailInvite(data)
@@ -80,7 +92,7 @@ export default function JoinFamilyPage() {
       const data = await res.json()
       if (!res.ok) {
         setSignedOutCode(false)
-        setError(data.error || 'Family not found. Please check the code.')
+        setError(readJoinError(data, 'Family not found. Please check the code.'))
         return
       }
       setFamilyInfo(data.family)
@@ -113,7 +125,7 @@ export default function JoinFamilyPage() {
       const joinData = await joinRes.json()
       if (!joinRes.ok) {
         submittingRef.current = false
-        setError(joinData.error || 'Failed to join family')
+        setError(readJoinError(joinData, 'Failed to join family'))
         return
       }
       setSuccess(`Joined ${joinData.familyName || emailInvite?.familyName || 'your family'}`)
@@ -160,7 +172,7 @@ export default function JoinFamilyPage() {
       const joinData = await joinRes.json()
       if (!joinRes.ok) {
         submittingRef.current = false
-        setError(joinData.error || 'Failed to join family')
+        setError(readJoinError(joinData, 'Failed to join family'))
         return
       }
       setSuccess(`Successfully joined ${joinData.familyName || familyInfo.name}!`)
@@ -190,7 +202,7 @@ export default function JoinFamilyPage() {
           </div>
           <div className="card space-y-4">
             {error && (
-              <div role="alert" className="bg-[var(--danger-tint)] border border-[var(--danger-tint)] text-danger-text px-4 py-3 rounded-md">{error}</div>
+              <div role="alert" aria-live="assertive" className="bg-[var(--danger-tint)] border border-[var(--danger-tint)] text-danger-text px-4 py-3 rounded-md">{error}</div>
             )}
             {success && (
               <div role="status" className="bg-[var(--success-tint)] border border-[var(--success-tint)] text-success-text px-4 py-3 rounded-md">
@@ -258,7 +270,7 @@ export default function JoinFamilyPage() {
         <div className="card">
           <form onSubmit={handleJoinFamily} className="space-y-6">
             {error && (
-              <div className="bg-[var(--danger-tint)] border border-[var(--danger-tint)] text-danger-text px-4 py-3 rounded-md">
+              <div role="alert" aria-live="assertive" className="bg-[var(--danger-tint)] border border-[var(--danger-tint)] text-danger-text px-4 py-3 rounded-md">
                 {error}
               </div>
             )}

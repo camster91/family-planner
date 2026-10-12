@@ -111,19 +111,11 @@ describe("family creation next step", () => {
     );
   });
 
-  it("shows the no-login profile choice only after protocol 2 and the parent profile list succeed", async () => {
-    const manifest = {
-      contract: "herewoven.capabilities.v1",
-      memberProtocols: [1, 2],
-      queueContainerVersion: 1,
-      queueActions: [],
-    };
+  it("shows the no-login profile choice when the authenticated parent profile surface succeeds", async () => {
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url === "/api/family")
         return { ok: true, json: async () => ({ family: { id: "f1" } }) };
-      if (url === "/api/capabilities")
-        return { ok: true, json: async () => manifest };
       if (url === "/api/family/profiles")
         return { ok: true, json: async () => ({ profiles: [] }) };
       return { ok: true, json: async () => ({}) };
@@ -162,7 +154,14 @@ describe("family creation next step", () => {
         if (url === "/api/family/invites" && init?.method === "POST")
           return {
             ok: true,
-            json: async () => ({ invite: { email: "kid@example.com" } }),
+            json: async () => ({
+              success: true,
+              invite: {
+                email: "kid@example.com",
+                role: "child",
+                expires_at: "2026-10-20T00:00:00.000Z",
+              },
+            }),
           };
         if (url === "/api/family/members")
           return {
@@ -196,6 +195,71 @@ describe("family creation next step", () => {
         ),
       ),
     ).toEqual({ email: "kid@example.com", role: "child" });
+  });
+
+  it("requires a canonical family id and reconciles a committed server error without a second create", async () => {
+    const calls: string[] = [];
+    let createAttempts = 0;
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      if (url === "/api/family") {
+        createAttempts += 1;
+        return {
+          ok: false,
+          status: 500,
+          json: async () => ({ error: "The response was interrupted" }),
+        };
+      }
+      if (url === "/api/auth/me")
+        return { ok: true, json: async () => ({ user: { family_id: "f1" } }) };
+      return { ok: true, json: async () => ({}) };
+    }) as unknown as typeof fetch;
+
+    await enterFamily();
+    await userEvent.click(screen.getByRole("button", { name: /create family/i }));
+    expect(await screen.findByRole("heading", { name: /add everyone/i })).toBeTruthy();
+    expect(createAttempts).toBe(1);
+    expect(calls.filter((url) => url === "/api/auth/me")).toHaveLength(1);
+  });
+
+  it("does not advance on a malformed successful family response", async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/family")
+        return { ok: true, status: 200, json: async () => ({ family: { name: "Our Family" } }) };
+      if (url === "/api/auth/me")
+        return { ok: true, status: 200, json: async () => ({ user: { family_id: null } }) };
+      return { ok: true, status: 200, json: async () => ({}) };
+    }) as unknown as typeof fetch;
+
+    await enterFamily();
+    await userEvent.click(screen.getByRole("button", { name: /create family/i }));
+    expect((await screen.findByRole("alert")).textContent).toMatch(/unexpected family response/i);
+    expect(screen.queryByRole("heading", { name: /add everyone/i })).toBeNull();
+    expect(screen.getByRole("textbox", { name: /family name/i })).toBeTruthy();
+  });
+
+  it("keeps the invite draft when a 2xx response lacks the confirmed invite envelope", async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/family")
+        return { ok: true, status: 200, json: async () => ({ family: { id: "f1" } }) };
+      if (url === "/api/family/invites" && init?.method === "POST")
+        return { ok: true, status: 200, json: async () => ({ success: true }) };
+      return { ok: true, status: 200, json: async () => ({}) };
+    }) as unknown as typeof fetch;
+
+    await enterFamily();
+    await userEvent.click(screen.getByRole("button", { name: /create family/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /invite an account/i }));
+    const emailInput = screen.getByLabelText("Email") as HTMLInputElement;
+    await userEvent.type(emailInput, "kid@example.com");
+    await userEvent.click(screen.getByRole("button", { name: /send invite/i }));
+
+    expect((await screen.findByRole("alert")).textContent).toMatch(/could not send the invite/i);
+    expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe("kid@example.com");
+    expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
   it("reconciles an ambiguous family create without issuing a second create", async () => {

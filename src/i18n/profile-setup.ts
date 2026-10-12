@@ -7,7 +7,7 @@ export const profileSetupEnglish = {
   addWithoutEmail: "Add a household profile",
   profileSetupTitle: "Add someone without an account",
   profileSetupDescription:
-    "Create a name-only profile for someone in your household. This does not create a login or send an invitation.",
+    "Create a name-only presentation profile for someone in your household. This does not create a login or send an invitation, and it never grants parent access.",
   nameLabel: "Name",
   namePlaceholder: "e.g. Jamie",
   roleLabel: "Role",
@@ -50,7 +50,7 @@ export const profileSetupSpanish = {
   addWithoutEmail: "Añadir un perfil del hogar",
   profileSetupTitle: "Añadir a alguien sin cuenta",
   profileSetupDescription:
-    "Crea un perfil con solo nombre para alguien de tu hogar. No crea un inicio de sesión ni envía una invitación.",
+    "Crea un perfil de presentación con solo nombre para alguien de tu hogar. No crea un inicio de sesión ni envía una invitación, y nunca concede acceso de padre o madre.",
   nameLabel: "Nombre",
   namePlaceholder: "p. ej., Jamie",
   roleLabel: "Rol",

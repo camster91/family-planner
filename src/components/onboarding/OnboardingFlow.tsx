@@ -13,10 +13,6 @@ import {
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
-import {
-  checkMemberProtocol,
-  readApiCapabilities,
-} from "@/lib/api-capabilities";
 import { readHouseholdProfiles } from "@/lib/household-profile-types";
 import { useOnboardingText } from "@/i18n/onboarding";
 
@@ -36,6 +32,53 @@ interface OnboardingFlowProps {
 }
 
 type Member = { id: string };
+
+type ReconcileResult = "found" | "absent" | "unknown";
+type RosterRefreshState = "fresh" | "refreshing" | "stale";
+
+const ROSTER_REFRESH_TIMEOUT_MS = 2500;
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isConfirmedInviteResponse(
+  payload: unknown,
+  email: string,
+  role: InviteRole,
+): boolean {
+  if (!payload || typeof payload !== "object") return false;
+  const response = payload as { success?: unknown; invite?: unknown };
+  if (response.success !== true || !response.invite || typeof response.invite !== "object") {
+    return false;
+  }
+  const invite = response.invite as {
+    email?: unknown;
+    role?: unknown;
+    expires_at?: unknown;
+  };
+  return (
+    isNonEmptyString(invite.email) &&
+    invite.email.trim().toLowerCase() === email.trim().toLowerCase() &&
+    invite.role === role &&
+    isNonEmptyString(invite.expires_at) &&
+    !Number.isNaN(Date.parse(invite.expires_at))
+  );
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<null>((resolve) => {
+        timeout = setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 
 function readError(payload: unknown, fallback: string): string {
   if (!payload || typeof payload !== "object") return fallback;
@@ -69,19 +112,18 @@ export default function OnboardingFlow({
   const [inviteRole, setInviteRole] = useState<InviteRole>("child");
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteError, setInviteError] = useState("");
+  const [rosterRefresh, setRosterRefresh] =
+    useState<RosterRefreshState>("fresh");
   usePendingFormNavigationController(loading || sendingInvite);
 
   const loadProfileAvailability = useCallback(async () => {
     setProfileAvailability("checking");
     try {
-      const capabilities = await readApiCapabilities();
-      if (!checkMemberProtocol(capabilities, 2).supported) {
-        setProfileAvailability("unavailable");
-        return;
-      }
-
-      // Protocol metadata is necessary but not sufficient. The parent-scoped
-      // list must also succeed before this UI offers a profile write.
+      // The public capability manifest describes the queue/read protocol and
+      // intentionally stays at v1 while profile setup is dormant. A
+      // successful authenticated parent-scoped profile read is the actual
+      // compatibility proof for this opt-in surface; a 409/refusal keeps the
+      // no-email option hidden without advertising a production flag.
       const response = await fetch("/api/family/profiles", {
         cache: "no-store",
       });
@@ -106,11 +148,22 @@ export default function OnboardingFlow({
   }, []);
 
   const refreshRoster = useCallback(async () => {
+    setRosterRefresh("refreshing");
     try {
-      const memberResponse = await fetch("/api/family/members", {
-        cache: "no-store",
-      });
-      if (memberResponse.ok) {
+      const [memberResponse, profileResponse] = await Promise.all([
+        withTimeout(
+          fetch("/api/family/members", { cache: "no-store" }),
+          ROSTER_REFRESH_TIMEOUT_MS,
+        ),
+        profileAvailability === "available"
+          ? withTimeout(
+              fetch("/api/family/profiles", { cache: "no-store" }),
+              ROSTER_REFRESH_TIMEOUT_MS,
+            )
+          : Promise.resolve(null),
+      ]);
+      let fresh = memberResponse !== null && memberResponse.ok;
+      if (memberResponse?.ok) {
         const payload: unknown = await memberResponse.json();
         const members =
           payload && typeof payload === "object"
@@ -122,24 +175,31 @@ export default function OnboardingFlow({
             (member) =>
               member &&
               typeof member === "object" &&
-              typeof (member as Member).id === "string",
+              isNonEmptyString((member as Member).id),
           )
         ) {
           setMemberCount(members.length);
+        } else {
+          fresh = false;
         }
       }
-      if (profileAvailability !== "available") return;
-      const profileResponse = await fetch("/api/family/profiles", {
-        cache: "no-store",
-      });
-      if (!profileResponse.ok) return;
-      const profiles = readHouseholdProfiles(await profileResponse.json());
-      if (profiles)
-        setProfileCount(
-          profiles.filter((profile) => !profile.archived_at).length,
-        );
+      if (profileAvailability === "available") {
+        fresh = fresh && profileResponse !== null && profileResponse.ok;
+        if (profileResponse?.ok) {
+          const profiles = readHouseholdProfiles(await profileResponse.json());
+          if (profiles) {
+            setProfileCount(
+              profiles.filter((profile) => !profile.archived_at).length,
+            );
+          } else {
+            fresh = false;
+          }
+        }
+      }
+      setRosterRefresh(fresh ? "fresh" : "stale");
     } catch {
       // Keep the current count rather than showing a false empty roster.
+      setRosterRefresh("stale");
     }
   }, [profileAvailability]);
 
@@ -148,7 +208,7 @@ export default function OnboardingFlow({
     void loadProfileAvailability();
   }, [loadProfileAvailability, step]);
 
-  async function reconcileFamily(): Promise<boolean> {
+  async function reconcileFamily(): Promise<ReconcileResult> {
     try {
       const response = await fetch("/api/auth/me", { cache: "no-store" });
       const payload: unknown = await response.json();
@@ -159,18 +219,20 @@ export default function OnboardingFlow({
       if (
         response.ok &&
         user &&
-        typeof user.family_id === "string" &&
-        user.family_id
+        isNonEmptyString(user.family_id)
       ) {
         setNotice(text("reconcileFound"));
         setStep(3);
         setMemberCount(1);
-        return true;
+        return "found";
+      }
+      if (response.ok && user && (user.family_id === null || user.family_id === undefined)) {
+        return "absent";
       }
     } catch {
       // Keep the original draft and show the honest unknown state below.
     }
-    return false;
+    return "unknown";
   }
 
   async function createFamily() {
@@ -191,6 +253,17 @@ export default function OnboardingFlow({
       });
       const data: unknown = await res.json().catch(() => null);
       if (!res.ok) {
+        // A server error, or the route's already-belongs 400, can arrive
+        // after the transaction committed. Reconcile once through the
+        // authenticated session rather than issuing a duplicate POST.
+        if (res.status >= 500 || res.status === 400) {
+          const reconciled = await reconcileFamily();
+          if (reconciled === "found") return;
+          if (reconciled === "unknown") {
+            setError(text("reconcileUnknown"));
+            return;
+          }
+        }
         setError(readError(data, text("createError")));
         return;
       }
@@ -199,7 +272,22 @@ export default function OnboardingFlow({
           ? (data as { family?: unknown }).family
           : null;
       if (!family || typeof family !== "object") {
-        setError(text("invalidResponse"));
+        const reconciled = await reconcileFamily();
+        setError(
+          reconciled === "unknown"
+            ? text("reconcileUnknown")
+            : text("invalidResponse"),
+        );
+        return;
+      }
+      if (!isNonEmptyString((family as { id?: unknown }).id)) {
+        const reconciled = await reconcileFamily();
+        if (reconciled === "found") return;
+        setError(
+          reconciled === "unknown"
+            ? text("reconcileUnknown")
+            : text("invalidResponse"),
+        );
         return;
       }
       setMemberCount(1);
@@ -230,10 +318,21 @@ export default function OnboardingFlow({
         setInviteError(readError(payload, text("inviteError")));
         return;
       }
+      if (!isConfirmedInviteResponse(payload, email, inviteRole)) {
+        // The invite route has an external mail side effect. An incomplete
+        // 2xx envelope is not a confirmation, so retain the draft and make
+        // the parent choose whether to retry manually.
+        setInviteError(text("inviteError"));
+        return;
+      }
       setInviteEmail("");
       setInviteOpen(false);
       setNotice(text("inviteSent"));
-      await refreshRoster();
+      // The invite row/mail commit is complete. Release the mutation guard
+      // before best-effort roster reads so a slow read cannot block Back or
+      // close forever. The refresh state remains truthful if it times out.
+      setSendingInvite(false);
+      void refreshRoster();
     } catch {
       // Invite sends have an external mail side effect. Do not blindly retry;
       // retain the email and let the parent choose whether to try again.
@@ -252,7 +351,7 @@ export default function OnboardingFlow({
     <div className="mx-auto w-full max-w-2xl">
       <div
         className="mb-8 flex items-center justify-center gap-4"
-        aria-label="Onboarding progress"
+        aria-label={text("progressLabel")}
       >
         {[1, 2, 3].map((item) => (
           <div
@@ -361,7 +460,12 @@ export default function OnboardingFlow({
               {text("joinPrompt")}{" "}
               <Link
                 href="/join"
-                className="font-medium text-primary hover:underline"
+                aria-disabled={loading || undefined}
+                tabIndex={loading ? -1 : undefined}
+                onClick={(event) => {
+                  if (loading) event.preventDefault();
+                }}
+                className={`font-medium text-primary hover:underline ${loading ? "pointer-events-none opacity-60" : ""}`}
               >
                 {text("joinExisting")}
               </Link>
@@ -388,6 +492,23 @@ export default function OnboardingFlow({
             >
               {peopleAdded}
             </p>
+            {rosterRefresh === "refreshing" && (
+              <p className="mt-2 text-sm text-muted-foreground" role="status">
+                {text("rosterRefreshing")}
+              </p>
+            )}
+            {rosterRefresh === "stale" && (
+              <div className="mt-2 flex flex-col items-center gap-2 text-sm text-muted-foreground" role="status">
+                <span>{text("rosterStale")}</span>
+                <button
+                  type="button"
+                  onClick={() => void refreshRoster()}
+                  className="btn-secondary min-h-[40px] px-4"
+                >
+                  {text("retryRoster")}
+                </button>
+              </div>
+            )}
           </div>
 
           {notice && (
