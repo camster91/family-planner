@@ -113,5 +113,5 @@ it('releases the pending guard before a signed-out email redirect', async () => 
     push.mock.invocationCallOrder[0],
   )
   expect(push).toHaveBeenCalledWith('/register?token=tok123')
-  expect(screen.getByRole('button', { name: /Joining/ })).toBeDisabled()
+  expect((screen.getByRole('button', { name: /Joining/ }) as HTMLButtonElement).disabled).toBe(true)
 })

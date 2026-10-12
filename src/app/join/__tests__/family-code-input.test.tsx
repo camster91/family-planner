@@ -116,5 +116,5 @@ it('releases the pending guard before a signed-out code redirect', async () => {
     push.mock.invocationCallOrder[0],
   )
   expect(push).toHaveBeenCalledWith('/login?redirect=%2Fjoin%3Fcode%3DK7QM-4XPD-2HNA')
-  expect(screen.getByRole('button', { name: /Joining/ })).toBeDisabled()
+  expect((screen.getByRole('button', { name: /Joining/ }) as HTMLButtonElement).disabled).toBe(true)
 })

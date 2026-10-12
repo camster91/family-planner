@@ -159,7 +159,7 @@ export default function JoinFamilyPage() {
       if (!meRes.ok || !meData.user) {
         setLeaving(true)
         await navigateAfterRelease(
-          `/login?redirect=${encodeURIComponent(`/join?code=${encodeURIComponent(code.trim())}`)}`),
+          `/login?redirect=${encodeURIComponent(`/join?code=${encodeURIComponent(code.trim())}`)}`,
         )
         return
       }
