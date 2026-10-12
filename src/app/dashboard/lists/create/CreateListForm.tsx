@@ -10,7 +10,10 @@ import { Glyph } from "@/components/ui/glyph";
 import { listTypeFilter } from "@/lib/list-type-filter";
 import { useTranslation } from "@/i18n";
 import { listCreateMessages, type ListCreateMessage } from "@/i18n/list-create";
-import { usePendingFormNavigation } from "@/components/layout/pending-form-navigation";
+import {
+  usePendingFormNavigation,
+  usePendingFormNavigationController,
+} from "@/components/layout/pending-form-navigation";
 
 // -----------------------------------------------------------------------
 // Type config
@@ -141,7 +144,6 @@ export default function CreateListForm({
   canCreate?: boolean;
 } = {}) {
   const router = useRouter();
-  const navigation = usePendingFormNavigation();
   const { locale } = useTranslation();
   const copy = listCreateMessages[locale];
   const [imageUrl, setImageUrl] = React.useState<string | null>(null);
@@ -156,6 +158,11 @@ export default function CreateListForm({
   // the request or the success pause must not create a second list.
   const submittingRef = React.useRef(false);
   const busy = loading || !!success || imageUploading;
+  const directNavigation = usePendingFormNavigationController(
+    busy && !inSheet,
+  );
+  const sheetNavigation = usePendingFormNavigation();
+  const navigation = inSheet ? sheetNavigation : directNavigation;
   React.useEffect(() => {
     onBusyChange?.(busy);
   }, [busy, onBusyChange]);
@@ -242,13 +249,24 @@ export default function CreateListForm({
         <>
           {/* Back */}
           <div className="px-4 pt-4">
-            <Link
-              href="/dashboard/lists"
-              className="inline-flex items-center gap-1 text-subhead text-[var(--accent)]"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span>{copy.back}</span>
-            </Link>
+            {busy ? (
+              <span
+                aria-disabled="true"
+                data-testid="list-create-back-busy"
+                className="inline-flex min-h-[44px] items-center gap-1 text-subhead text-[var(--accent)]"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span>{copy.back}</span>
+              </span>
+            ) : (
+              <Link
+                href="/dashboard/lists"
+                className="inline-flex min-h-[44px] items-center gap-1 text-subhead text-[var(--accent)]"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span>{copy.back}</span>
+              </Link>
+            )}
           </div>
         </>
       )}

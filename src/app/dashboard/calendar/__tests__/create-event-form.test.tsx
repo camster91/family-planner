@@ -4,19 +4,38 @@
 // New event form: a greyed-out "Create Event" says what is missing, and an end
 // before the start is explained in plain words.
 import * as React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CreateEventPage from '../create/page'
 
+const push = jest.fn()
+
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: jest.fn(), push: jest.fn() }),
+  useRouter: () => ({ refresh: jest.fn(), push }),
 }))
 
 beforeEach(() => {
+  push.mockReset()
   global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({}) })) as unknown as typeof fetch
 })
 
 describe('New event form', () => {
+  it('keeps the direct Back control noninteractive while creating', async () => {
+    let finish!: (result: Response) => void
+    global.fetch = jest.fn(() => new Promise<Response>(resolve => { finish = resolve }))
+    const user = userEvent.setup()
+    render(<CreateEventPage />)
+    await user.type(screen.getByLabelText('Title'), 'Pending event')
+    await user.type(screen.getByLabelText('Start'), '2099-10-05')
+    await user.click(screen.getByRole('button', { name: 'Create Event' }))
+
+    expect(screen.getByTestId('calendar-create-back-busy')).toHaveProperty('textContent', 'Calendar')
+    expect(screen.queryByRole('link', { name: 'Calendar' })).toBeNull()
+
+    await act(async () => finish({ ok: true, status: 201, json: async () => ({ event: { id: 'event-1' } }) } as Response))
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/dashboard/calendar'))
+  })
+
   it('says why "Create Event" is greyed out until a title and start date are in', async () => {
     const user = userEvent.setup()
     render(<CreateEventPage />)
@@ -55,6 +74,7 @@ describe('New event form', () => {
  expect(screen.queryByRole('textbox', { name: 'End time' })).toBeNull()
  fireEvent.submit(screen.getByRole('button', { name: 'Create Event' }).closest('form')!)
  await waitFor(() => expect(fetch).toHaveBeenCalled())
+ await waitFor(() => expect(push).toHaveBeenCalledWith('/dashboard/calendar'))
  const body = JSON.parse(String((fetch as jest.Mock).mock.calls[0][1].body))
  expect(+new Date(body.end_time) - +new Date(body.start_time)).toBe(3600000)
  expect(new Date(body.end_time).getDate()).toBe(16)
@@ -71,6 +91,7 @@ describe('New event form', () => {
  fireEvent.change(screen.getByLabelText('Duration in minutes'), { target: { value: '75' } })
  fireEvent.submit(screen.getByRole('button', { name: 'Create Event' }).closest('form')!)
  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1))
+ await waitFor(() => expect(push).toHaveBeenCalledWith('/dashboard/calendar'))
  const body = JSON.parse(String((fetch as jest.Mock).mock.calls[0][1].body))
  expect(+new Date(body.end_time) - +new Date(body.start_time)).toBe(75 * 60000)
  fireEvent.change(screen.getByLabelText('Duration in minutes'), { target: { value: '0' } })

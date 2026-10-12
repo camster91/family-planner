@@ -9,7 +9,7 @@ import { useTranslation } from '@/i18n'
 import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError } from '@/i18n/calendar-forms'
 import { EventDuration } from '@/components/calendar/EventDuration'
 import { eventFormRange, toDateOnlyLocal } from '@/lib/dates'
-import { usePendingFormNavigation } from '@/components/layout/pending-form-navigation'
+import { usePendingFormNavigation, usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 
 export default function CreateEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
   const { t } = useTranslation()
@@ -26,7 +26,9 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<CalendarFormError | null>(null)
   const router = useRouter()
-  const navigation = usePendingFormNavigation()
+  const directNavigation = usePendingFormNavigationController(loading && !inSheet)
+  const sheetNavigation = usePendingFormNavigation()
+  const navigation = inSheet ? sheetNavigation : directNavigation
   useEffect(() => { onBusyChange?.(loading) }, [loading, onBusyChange])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -89,10 +91,17 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
       {!inSheet && <>
       {/* Back nav */}
       <div className="px-4 pt-4">
-        <Link href="/dashboard/calendar" className="btn-plain text-base py-2">
-          <ArrowLeft className="w-5 h-5" />
-          <span>{message('calendar')}</span>
-        </Link>
+        {loading ? (
+          <span aria-disabled="true" data-testid="calendar-create-back-busy" className="btn-plain text-base py-2 min-h-[44px]">
+            <ArrowLeft className="w-5 h-5" />
+            <span>{message('calendar')}</span>
+          </span>
+        ) : (
+          <Link href="/dashboard/calendar" className="btn-plain text-base py-2 min-h-[44px]">
+            <ArrowLeft className="w-5 h-5" />
+            <span>{message('calendar')}</span>
+          </Link>
+        )}
       </div>
 
       <div className="px-4 pt-4">

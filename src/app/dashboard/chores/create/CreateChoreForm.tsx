@@ -26,7 +26,10 @@ import {
   normalizeRoutineName,
 } from "@/lib/routine-icons";
 import { ROTATION_MIN } from "@/lib/chore-rotation";
-import { usePendingFormNavigation } from "@/components/layout/pending-form-navigation";
+import {
+  usePendingFormNavigation,
+  usePendingFormNavigationController,
+} from "@/components/layout/pending-form-navigation";
 
 type Difficulty = "easy" | "medium" | "hard";
 type Frequency = "once" | "daily" | "weekly" | "monthly";
@@ -67,13 +70,18 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
     { id: string; name: string; role: string }[]
   >([]);
   const router = useRouter();
-  const navigation = usePendingFormNavigation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fieldId = useId();
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
-  useEffect(() => { onBusyChange?.(loading || photoUploading); }, [loading, photoUploading, onBusyChange]);
+  const busy = loading || photoUploading;
+  const directNavigation = usePendingFormNavigationController(
+    busy && !inSheet,
+  );
+  const sheetNavigation = usePendingFormNavigation();
+  const navigation = inSheet ? sheetNavigation : directNavigation;
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
   // Picture routines (#272).
   const [icon, setIcon] = useState<string | null>(null);
   const [routine, setRoutine] = useState("");
@@ -198,10 +206,21 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
       {!inSheet && <>
       {/* Back nav */}
       <div className="px-4 pt-4">
-        <Link href="/dashboard/chores" className="btn-plain text-base py-2">
-          <ArrowLeft className="w-5 h-5" />
-          <span>Chores</span>
-        </Link>
+        {busy ? (
+          <span
+            aria-disabled="true"
+            data-testid="chore-create-back-busy"
+            className="btn-plain text-base py-2 min-h-[44px]"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>Chores</span>
+          </span>
+        ) : (
+          <Link href="/dashboard/chores" className="btn-plain text-base py-2 min-h-[44px]">
+            <ArrowLeft className="w-5 h-5" />
+            <span>Chores</span>
+          </Link>
+        )}
       </div>
 
       <div className="px-4 pt-4">
