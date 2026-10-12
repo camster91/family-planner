@@ -19,6 +19,15 @@ import {
   canUseAssistantAction,
 } from "@/lib/assistant-actions";
 import { checkRateLimit } from "@/lib/rate-limit-db";
+import { isAssistantTodayEnabled } from "@/lib/assistant-today-capability";
+import {
+  ASSISTANT_TODAY_PROTOCOL,
+  ASSISTANT_TODAY_TTL_MS,
+  AssistantTodayInputError,
+  loadAssistantTodayContext,
+} from "@/lib/assistant-today-context";
+import { assistantTodayContextSchema } from "@/lib/assistant-context-schema";
+import type { AssistantTodayTransportContext } from "@/lib/assistant-context-schema";
 const schema = z
   .object({
     messages: z
@@ -34,9 +43,44 @@ const schema = z
       .max(12),
     localNow: z.string().max(80),
     timeZone: z.string().max(100),
+    includeToday: z.boolean().optional(),
   })
   .strict();
 export const dynamic = "force-dynamic";
+
+function responseHeaders(todayContext: unknown): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Cache-Control": "private, no-store",
+  };
+  if (!todayContext || typeof todayContext !== "object") return headers;
+  const context = todayContext as {
+    protocol?: unknown;
+    generatedAt?: unknown;
+    expiresAt?: unknown;
+  };
+  if (
+    context.protocol === ASSISTANT_TODAY_PROTOCOL &&
+    typeof context.generatedAt === "string" &&
+    typeof context.expiresAt === "string"
+  ) {
+    const generatedAt = Date.parse(context.generatedAt);
+    const expiresAt = Date.parse(context.expiresAt);
+    if (
+      !Number.isFinite(generatedAt) ||
+      !Number.isFinite(expiresAt) ||
+      new Date(generatedAt).toISOString() !== context.generatedAt ||
+      new Date(expiresAt).toISOString() !== context.expiresAt ||
+      expiresAt <= generatedAt ||
+      expiresAt - generatedAt > ASSISTANT_TODAY_TTL_MS
+    )
+      return headers;
+    headers["X-Assistant-Today-Protocol"] = context.protocol;
+    headers["X-Assistant-Today-Generated-At"] = context.generatedAt;
+    headers["X-Assistant-Today-Expires-At"] = context.expiresAt;
+  }
+  return headers;
+}
+
 export async function POST(request: NextRequest) {
   const [auth, error] = await authenticateWithFamily(request);
   if (error) return error;
@@ -61,6 +105,19 @@ export async function POST(request: NextRequest) {
         { error: "Invalid chat request" },
         { status: 400 },
       );
+    const includeToday = parsed.data.includeToday === true;
+    if (includeToday && !isAssistantTodayEnabled())
+      return NextResponse.json(
+        {
+          error: "Today context is not available yet.",
+          code: "ASSISTANT_TODAY_UNAVAILABLE",
+        },
+        { status: 503 },
+      );
+
+    // Keep the existing provider/configuration and rate gates ahead of any
+    // Today household reads. This preserves the old path and prevents an
+    // unavailable/over-limit chat from touching the Today loader.
     const family = await prisma!.family.findUnique({
       where: { id: auth.user.family_id },
       select: {
@@ -85,13 +142,71 @@ export async function POST(request: NextRequest) {
         { error: "Chat limit reached. Try again later." },
         { status: 429 },
       );
+
+    let todayContext: AssistantTodayTransportContext | undefined;
+    if (includeToday) {
+      const serverNow = new Date();
+      const localNow = new Date(parsed.data.localNow);
+      try {
+        const context = await loadAssistantTodayContext(prisma!, {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          serverNow,
+          localNow,
+          viewerTimeZone: parsed.data.timeZone,
+          surface: "person",
+        });
+        if (!context) {
+          return NextResponse.json(
+            {
+              error: "Today context is unavailable.",
+              code: "ASSISTANT_TODAY_UNAVAILABLE",
+            },
+            { status: 503 },
+          );
+        }
+        const validated = assistantTodayContextSchema.safeParse(context);
+        if (!validated.success) {
+          return NextResponse.json(
+            {
+              error: "Today context is unavailable.",
+              code: "ASSISTANT_TODAY_UNAVAILABLE",
+            },
+            { status: 503 },
+          );
+        }
+        todayContext = validated.data;
+      } catch (error) {
+        if (error instanceof AssistantTodayInputError)
+          return NextResponse.json(
+            {
+              error: "Today context could not be checked.",
+              code: "ASSISTANT_TODAY_INPUT_INVALID",
+            },
+            { status: 400 },
+          );
+        return NextResponse.json(
+          {
+            error: "Today context is unavailable.",
+            code: "ASSISTANT_TODAY_UNAVAILABLE",
+          },
+          { status: 503 },
+        );
+      }
+    }
+
     const features = normalizeFeatures(family?.features);
+    const chat = {
+      messages: parsed.data.messages,
+      localNow: parsed.data.localNow,
+      timeZone: parsed.data.timeZone,
+    };
+    const prompt = assistantPrompt(auth.user.role, features, includeToday);
     const result = assistantReplySchema.safeParse(
-      await structuredAssistantReply(
-        parsed.data,
-        config,
-        assistantPrompt(auth.user.role, features),
-      ),
+      todayContext === undefined
+        ? await structuredAssistantReply(chat, config, prompt)
+        : await structuredAssistantReply(chat, config, prompt, todayContext),
     );
     if (!result.success)
       return NextResponse.json(
@@ -108,10 +223,10 @@ export async function POST(request: NextRequest) {
             "That action is unavailable for your role or this household’s enabled features.",
           action: null,
         },
-        { headers: { "Cache-Control": "private, no-store" } },
+        { headers: responseHeaders(todayContext) },
       );
     return NextResponse.json(result.data, {
-      headers: { "Cache-Control": "private, no-store" },
+      headers: responseHeaders(todayContext),
     });
   } catch (error) {
     if (error instanceof RequestBodyTooLarge)

@@ -23,12 +23,19 @@ import { WeeklyDaysPicker } from "@/components/chores/WeeklyDaysPicker";
 import { useTranslation } from "@/i18n";
 import {
   assistantMessages,
+  assistantDestinationLabels,
   type AssistantMessage,
   type VoiceErrorCode,
 } from "@/i18n/assistant";
 import { useVoiceDraft } from "./use-voice-draft";
 
 type Message = { role: "user" | "assistant"; content: string };
+type TodayFreshness = {
+  generatedAt: number;
+  expiresAt: number;
+  leaseStartedAt: number;
+  leaseExpiresAt: number;
+};
 type Report = {
   id: string;
   kind: string;
@@ -38,6 +45,8 @@ type Report = {
 };
 const target =
   "min-h-[44px] rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)] disabled:opacity-50";
+const ASSISTANT_TODAY_PROTOCOL = "herewoven.assistant-today.v1";
+const ASSISTANT_TODAY_MAX_TTL_MS = 60_000;
 export type AssistantPanelTab = "chat" | "report" | "reports";
 
 export type AssistantPanelProps = {
@@ -48,6 +57,7 @@ export type AssistantPanelProps = {
   onTabChange: (tab: AssistantPanelTab | null) => void;
   onClose: () => void;
   onBusyChange: (busy: boolean) => void;
+  todayContextEnabled?: boolean;
 };
 
 type AssistantError =
@@ -78,6 +88,47 @@ function toAssistantError(
   return { kind: "copy", key: fallback };
 }
 
+function parseIsoHeader(value: string | null): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed) || new Date(parsed).toISOString() !== value)
+    return null;
+  return parsed;
+}
+
+function readTodayFreshness(
+  headers: Headers | undefined,
+  leaseStartedAt: number | null,
+  responseAt: number | null,
+  isVisible: boolean,
+): TodayFreshness | null {
+  if (
+    !headers ||
+    leaseStartedAt === null ||
+    responseAt === null ||
+    !isVisible ||
+    responseAt < leaseStartedAt
+  )
+    return null;
+  const protocol = headers.get("X-Assistant-Today-Protocol");
+  if (protocol !== ASSISTANT_TODAY_PROTOCOL) return null;
+  const generatedAt = parseIsoHeader(
+      headers.get("X-Assistant-Today-Generated-At"),
+    ),
+    expiresAt = parseIsoHeader(headers.get("X-Assistant-Today-Expires-At"));
+  if (generatedAt === null || expiresAt === null) return null;
+  const ttl = expiresAt - generatedAt;
+  if (ttl <= 0 || ttl > ASSISTANT_TODAY_MAX_TTL_MS) return null;
+  const leaseExpiresAt = leaseStartedAt + ttl;
+  if (responseAt >= leaseExpiresAt) return null;
+  return {
+    generatedAt,
+    expiresAt,
+    leaseStartedAt,
+    leaseExpiresAt,
+  };
+}
+
 export default function AssistantPanel({
   role,
   pathname,
@@ -86,10 +137,11 @@ export default function AssistantPanel({
   onTabChange,
   onClose,
   onBusyChange,
+  todayContextEnabled = false,
 }: AssistantPanelProps) {
   const router = useRouter(),
     { features } = useFeatures();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const msg = (
     key: AssistantMessage,
     params?: Record<string, string | number>,
@@ -97,7 +149,12 @@ export default function AssistantPanel({
   const [messages, setMessages] = React.useState<Message[]>([]),
     [text, setText] = React.useState(""),
     [busy, setBusy] = React.useState(false),
-    [error, setError] = React.useState<AssistantError | null>(null);
+    [error, setError] = React.useState<AssistantError | null>(null),
+    [includeToday, setIncludeToday] = React.useState(false),
+    [todayFreshness, setTodayFreshness] = React.useState<TodayFreshness | null>(
+      null,
+    ),
+    [todayExpired, setTodayExpired] = React.useState(false);
   const [action, setAction] = React.useState<AssistantAction | null>(null),
     [targets, setTargets] = React.useState<RemovalTarget[]>([]),
     [selected, setSelected] = React.useState(""),
@@ -111,14 +168,70 @@ export default function AssistantPanel({
   const requestId = React.useRef(""),
     actionKey = React.useRef(""),
     lock = React.useRef(false),
-    consumed = React.useRef(false);
+    consumed = React.useRef(false),
+    lastTodayRequest = React.useRef<Message[] | null>(null),
+    lastPerformanceNow = React.useRef<number | null>(null),
+    visibilitySuspended = React.useRef(false);
   const canChat = role === "parent" || role === "teen";
+  const monotonicNow = () => {
+    const now = performance.now();
+    if (!Number.isFinite(now)) return null;
+    if (lastPerformanceNow.current !== null && now < lastPerformanceNow.current)
+      return null;
+    lastPerformanceNow.current = now;
+    return now;
+  };
   const voice = useVoiceDraft(
     panelOpen && tab === "chat" && !busy,
     (t) => setText(t),
     (code) => setError({ kind: "voice", key: code }),
   );
   React.useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
+  React.useEffect(() => {
+    if (!todayFreshness) {
+      setTodayExpired(false);
+      return;
+    }
+    visibilitySuspended.current = false;
+    const update = () => {
+      const now = monotonicNow();
+      setTodayExpired(
+        visibilitySuspended.current ||
+          document.visibilityState !== "visible" ||
+          now === null ||
+          now < todayFreshness.leaseStartedAt ||
+          now >= todayFreshness.leaseExpiresAt,
+      );
+      return now;
+    };
+    const now = update();
+    const timer =
+      now === null
+        ? undefined
+        : window.setTimeout(
+            update,
+            Math.max(0, todayFreshness.leaseExpiresAt - now),
+          );
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        visibilitySuspended.current = true;
+        setTodayExpired(true);
+        return;
+      }
+      // A hidden/resumed tab must request a new projection. Do not revive the
+      // old lease even when its monotonic deadline has not elapsed.
+      if (visibilitySuspended.current) {
+        setTodayExpired(true);
+        return;
+      }
+      update();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [todayFreshness]);
   React.useEffect(() => {
     if (panelOpen && tab === "reports") void loadReports();
   }, [panelOpen, tab]);
@@ -159,9 +272,13 @@ export default function AssistantPanel({
     voice.stop();
     onClose();
   };
-  async function send(event: React.FormEvent) {
-    event.preventDefault();
-    if (lock.current || !text.trim() || !canChat) return;
+  async function requestChat(
+    next: Message[],
+    draft: string,
+    withToday: boolean,
+    preserveDraft = false,
+  ) {
+    if (lock.current || !canChat) return;
     lock.current = true;
     setBusy(true);
     setError(null);
@@ -169,24 +286,34 @@ export default function AssistantPanel({
     setTargets([]);
     setDeleteConfirm(false);
     voice.stop();
-    const next: Message[] = [
-      ...messages,
-      { role: "user" as const, content: text.trim() },
-    ].slice(-11);
-    setMessages(next);
-    setText("");
+    const leaseStartedAt = withToday ? monotonicNow() : null;
     try {
+      if (withToday && leaseStartedAt === null)
+        throw new AssistantCopyError("todayContextUnavailable");
+      const requestBody: {
+        messages: Message[];
+        localNow: string;
+        timeZone: string;
+        includeToday?: boolean;
+      } = {
+        messages: next,
+        localNow: new Date().toString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      };
+      if (withToday) requestBody.includeToday = true;
       const r = await fetch("/api/assistant", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: next,
-            localNow: new Date().toString(),
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          }),
+          body: JSON.stringify(requestBody),
         }),
         body = await r.json();
       if (!r.ok) {
+        if (
+          body?.code === "ASSISTANT_TODAY_UNAVAILABLE" ||
+          body?.code === "ASSISTANT_TODAY_INPUT_INVALID"
+        ) {
+          throw new AssistantCopyError("todayContextUnavailable");
+        }
         if (typeof body.error === "string" && body.error) {
           throw new Error(body.error);
         }
@@ -194,13 +321,32 @@ export default function AssistantPanel({
       }
       const parsedReply = assistantReplySchema.safeParse(body);
       if (!parsedReply.success) throw new AssistantCopyError("replyUnreadable");
+      const responseAt = withToday ? monotonicNow() : null;
+      const freshness = withToday
+        ? readTodayFreshness(
+            r.headers,
+            leaseStartedAt,
+            responseAt,
+            document.visibilityState === "visible",
+          )
+        : null;
+      if (withToday && !freshness)
+        throw new AssistantCopyError("todayContextUnavailable");
       const proposal = parsedReply.data;
-      setMessages((prev) =>
+      if (!preserveDraft) setText("");
+      setMessages(
         [
-          ...prev,
+          ...next,
           { role: "assistant" as const, content: proposal.reply },
         ].slice(-12),
       );
+      if (freshness) {
+        setTodayFreshness(freshness);
+        lastTodayRequest.current = next;
+      } else {
+        setTodayFreshness(null);
+        lastTodayRequest.current = null;
+      }
       if (
         proposal.action &&
         canUseAssistantAction(proposal.action, role, features)
@@ -218,12 +364,43 @@ export default function AssistantPanel({
         }
       }
     } catch (e) {
+      setText(draft);
       setError(toAssistantError(e, "chatFailed"));
       setAction(null);
     } finally {
       lock.current = false;
       setBusy(false);
     }
+  }
+  async function send(event: React.FormEvent) {
+    event.preventDefault();
+    const draft = text.trim();
+    if (lock.current || !draft || !canChat) return;
+    const next: Message[] = [
+      ...messages,
+      { role: "user" as const, content: draft },
+    ].slice(-11);
+    await requestChat(next, draft, todayContextEnabled && includeToday);
+  }
+  async function refreshTodayContext() {
+    const request = lastTodayRequest.current;
+    if (!request || lock.current) return;
+    // The user may have typed a newer unsent question while the old preview
+    // was open. Refresh the saved request, but keep that newer draft visible.
+    await requestChat(request, text, true, true);
+  }
+  function hasValidTodayLease(): boolean {
+    if (!todayFreshness) return true;
+    const now = monotonicNow();
+    const valid =
+      !todayExpired &&
+      !visibilitySuspended.current &&
+      document.visibilityState === "visible" &&
+      now !== null &&
+      now >= todayFreshness.leaseStartedAt &&
+      now < todayFreshness.leaseExpiresAt;
+    if (!valid) setTodayExpired(true);
+    return valid;
   }
   async function confirm() {
     if (
@@ -233,6 +410,7 @@ export default function AssistantPanel({
       !canUseAssistantAction(action, role, features)
     )
       return;
+    if (!hasValidTodayLease()) return;
     if (action.kind === "open") {
       close();
       router.push(assistantDestination(action.destination));
@@ -368,7 +546,52 @@ export default function AssistantPanel({
         )}
         {tab === "chat" && (
           <div className="space-y-4">
-            <p className="text-sm text-label-secondary">{msg("chatIntro")}</p>
+            <p className="text-sm text-label-secondary">
+              {msg(includeToday ? "chatIntroWithToday" : "chatIntro")}
+            </p>
+            {todayContextEnabled && canChat && (
+              <label className="flex min-h-[44px] items-start gap-3 rounded-xl bg-surface-fill p-3">
+                <input
+                  type="checkbox"
+                  checked={includeToday}
+                  disabled={busy}
+                  onChange={(event) => setIncludeToday(event.target.checked)}
+                  className="mt-1 min-h-[20px] min-w-[20px]"
+                />
+                <span>
+                  <span className="block font-semibold">
+                    {msg("includeToday")}
+                  </span>
+                  <span className="block text-sm text-label-secondary">
+                    {msg("includeTodayDescription")}
+                  </span>
+                </span>
+              </label>
+            )}
+            {todayFreshness && !todayExpired && (
+              <p role="status" className="text-sm text-label-secondary">
+                {msg("todayContextIncluded", {
+                  time: new Date(
+                    todayFreshness.generatedAt,
+                  ).toLocaleTimeString(),
+                })}
+              </p>
+            )}
+            {todayExpired && (
+              <div className="rounded-xl bg-surface-fill p-3 space-y-2">
+                <p role="status" className="text-sm text-label-secondary">
+                  {msg("todayContextExpired")}
+                </p>
+                <button
+                  type="button"
+                  disabled={busy || !lastTodayRequest.current}
+                  onClick={() => void refreshTodayContext()}
+                  className={`${target} bg-surface-fill`}
+                >
+                  {msg("refreshTodayContext")}
+                </button>
+              </div>
+            )}
             <div
               role="log"
               aria-label={msg("conversation")}
@@ -599,9 +822,7 @@ export default function AssistantPanel({
                   <p>
                     {msg("open", {
                       destination:
-                        action.destination === "analytics"
-                          ? msg("analytics")
-                          : action.destination,
+                        assistantDestinationLabels[locale][action.destination],
                     })}
                   </p>
                 )}
@@ -610,6 +831,7 @@ export default function AssistantPanel({
                     type="button"
                     disabled={
                       busy ||
+                      todayExpired ||
                       (action.kind === "chore_create" &&
                         (!selected ||
                           (action.frequency === "weekly"
@@ -681,6 +903,8 @@ export default function AssistantPanel({
                     setAction(null);
                     setText("");
                     setError(null);
+                    setTodayFreshness(null);
+                    lastTodayRequest.current = null;
                   }}
                   className={`${target} bg-surface-fill`}
                 >

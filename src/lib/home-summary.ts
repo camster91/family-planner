@@ -30,6 +30,32 @@ export interface HomeMember {
   name: string
 }
 
+/**
+ * Presentation copy for the personal Today summary. The helper keeps an
+ * English default for existing callers; mounted UI passes the active locale's
+ * typed copy without translating canonical chore titles or member names.
+ */
+export interface HomeSummaryPresentationMessages {
+  sectionLabel: string
+  done: string
+  doneWaiting: string
+  checkedByParent: string
+  dueToday: string
+  toCheck: (count: number) => string
+  allChores: string
+  everyChoreDoneToday: string
+  noChoresToday: string
+  assigneeFallback: string
+  choresLeftToday: (count: number, people: string) => string
+  choresLeft: (count: number) => string
+  doneForToday: string
+  nothingOnListToday: string
+  undoTitle: (title: string) => string
+  undoMessage: string
+  completeErrorTitle: (title: string) => string
+  undoErrorTitle: (title: string) => string
+}
+
 const OPEN = new Set(['pending', 'in_progress', 'overdue'])
 
 export function isOpenStatus(status: string): boolean {
@@ -40,8 +66,26 @@ export function isDoneStatus(status: string): boolean {
   return status === 'completed' || status === 'verified'
 }
 
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`
+export const defaultHomeSummaryMessages: HomeSummaryPresentationMessages = {
+  sectionLabel: 'Your chores',
+  done: 'Done',
+  doneWaiting: 'Done · waiting for a parent to check',
+  checkedByParent: 'Checked by a parent',
+  dueToday: 'Due today',
+  toCheck: (count) => `${count} ${count === 1 ? 'chore' : 'chores'} to check`,
+  allChores: 'All chores',
+  everyChoreDoneToday: 'Every chore is done for today',
+  noChoresToday: 'No chores today',
+  assigneeFallback: 'someone',
+  choresLeftToday: (count, people) =>
+    `${count} ${count === 1 ? 'chore' : 'chores'} left today · ${people}`,
+  choresLeft: (count) => `You have ${count} ${count === 1 ? 'chore' : 'chores'} left`,
+  doneForToday: "You're done for today",
+  nothingOnListToday: 'Nothing on your list today',
+  undoTitle: (title) => `“${title}” done`,
+  undoMessage: 'A parent will check it.',
+  completeErrorTitle: (title) => `Couldn't mark “${title}” done`,
+  undoErrorTitle: (title) => `Couldn't undo “${title}”`,
 }
 
 function firstName(name: string): string {
@@ -58,11 +102,16 @@ export function choresDueOn(chores: HomeChore[], todayKey: string): HomeChore[] 
  * left (most first), then in household order; a chore whose assignee is not in
  * `members` counts under "someone".
  */
-export function parentSummary(chores: HomeChore[], members: HomeMember[], todayKey: string): string {
+export function parentSummary(
+  chores: HomeChore[],
+  members: HomeMember[],
+  todayKey: string,
+  messages: HomeSummaryPresentationMessages = defaultHomeSummaryMessages,
+): string {
   const due = choresDueOn(chores, todayKey)
   const open = due.filter((c) => isOpenStatus(c.status))
   if (open.length === 0) {
-    return due.length > 0 ? 'Every chore is done for today' : 'No chores today'
+    return due.length > 0 ? messages.everyChoreDoneToday : messages.noChoresToday
   }
   const counts = new Map<string, number>()
   for (const c of open) counts.set(c.assigneeId, (counts.get(c.assigneeId) ?? 0) + 1)
@@ -71,9 +120,9 @@ export function parentSummary(chores: HomeChore[], members: HomeMember[], todayK
     .sort((a, b) => b[1] - a[1] || rank(order, a[0]) - rank(order, b[0]))
     .map(([id, n]) => {
       const m = members.find((x) => x.id === id)
-      return `${m ? firstName(m.name) : 'someone'} ${n}`
+      return `${m ? firstName(m.name) : messages.assigneeFallback} ${n}`
     })
-  return `${plural(open.length, 'chore', 'chores')} left today · ${people.join(', ')}`
+  return messages.choresLeftToday(open.length, people.join(', '))
 }
 
 function rank(order: string[], id: string): number {
@@ -82,11 +131,16 @@ function rank(order: string[], id: string): number {
 }
 
 /** The viewer's own sentence (teen, child, or a parent's own list). */
-export function memberSummary(chores: HomeChore[], viewerId: string, todayKey: string): string {
+export function memberSummary(
+  chores: HomeChore[],
+  viewerId: string,
+  todayKey: string,
+  messages: HomeSummaryPresentationMessages = defaultHomeSummaryMessages,
+): string {
   const mine = choresDueOn(chores, todayKey).filter((c) => c.assigneeId === viewerId)
   const open = mine.filter((c) => isOpenStatus(c.status)).length
-  if (open > 0) return `You have ${plural(open, 'chore', 'chores')} left`
-  return mine.length > 0 ? "You're done for today" : 'Nothing on your list today'
+  if (open > 0) return messages.choresLeft(open)
+  return mine.length > 0 ? messages.doneForToday : messages.nothingOnListToday
 }
 
 export function homeSummary(opts: {
@@ -94,8 +148,9 @@ export function homeSummary(opts: {
   chores: HomeChore[]
   members: HomeMember[]
   todayKey: string
+  messages?: HomeSummaryPresentationMessages
 }): string {
   return opts.viewer.role === 'parent'
-    ? parentSummary(opts.chores, opts.members, opts.todayKey)
-    : memberSummary(opts.chores, opts.viewer.id, opts.todayKey)
+    ? parentSummary(opts.chores, opts.members, opts.todayKey, opts.messages)
+    : memberSummary(opts.chores, opts.viewer.id, opts.todayKey, opts.messages)
 }
