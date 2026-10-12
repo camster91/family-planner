@@ -137,7 +137,8 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
              ON blocker.pid = ANY(pg_blocking_pids(waiter.pid))
            WHERE waiting_lock.locktype = 'advisory'
              AND waiting_lock.granted = false
-             AND waiting_lock.classid = 0
+             AND waiting_lock.classid =
+               ((hashtext($1)::bigint >> 32) & 4294967295)
              AND waiting_lock.objid = (hashtext($1)::bigint & 4294967295)
              AND blocker.pid = $2
              AND waiter.query ILIKE '%pg_advisory_xact_lock%'`,
