@@ -15,6 +15,10 @@ jest.mock("@/components/providers/features-provider", () => ({
   useFeatureEnabled: () => true,
 }));
 import { FormSheet, ListCreateSheet } from "../DashboardFormSheets";
+import {
+  usePendingFormNavigationController,
+  type PendingFormNavigation,
+} from "../pending-form-navigation";
 
 beforeEach(() => {
   back.mockReset();
@@ -174,7 +178,9 @@ it("owns a same-URL sentinel, blocks Back while busy, and releases once", async 
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
   expect(window.location.pathname).toBe("/dashboard/lists/create");
-  expect(window.history.state).toEqual({ route: "form" });
+  expect(window.history.state).toEqual(
+    expect.objectContaining({ route: "form" }),
+  );
   const sentinelLength = window.history.length;
 
   view.rerender(
@@ -215,4 +221,74 @@ it("retains a pre-existing inert background and scroll lock on external unmount"
   expect(document.body.style.overflow).toBe("hidden");
   background.remove();
   document.body.style.overflow = "";
+});
+
+it("does not consume the real prior page when Back already consumed the sentinel", async () => {
+  const original = window.location.href;
+  const baseState = { __NA: true, route: "form" };
+  window.history.replaceState(baseState, "", "/dashboard/lists/create");
+  let navigation!: PendingFormNavigation;
+  function Harness() {
+    navigation = usePendingFormNavigationController(true);
+    return null;
+  }
+  const view = render(<Harness />);
+  expect(window.history.state.__herewovenPendingForm).toEqual(
+    expect.any(String),
+  );
+  // Same URL and same history length, but this is the base entry reached by
+  // Back rather than the marked sentinel. Release must not traverse again.
+  window.history.replaceState(baseState, "", window.location.href);
+  const historyBack = jest
+    .spyOn(window.history, "back")
+    .mockImplementation(() => {});
+  try {
+    await navigation.releaseBeforeNavigation();
+    expect(historyBack).not.toHaveBeenCalled();
+    expect(window.history.state).toEqual(baseState);
+  } finally {
+    view.unmount();
+    historyBack.mockRestore();
+    window.history.replaceState({}, "", original);
+  }
+});
+
+it("serializes release after pending Back restoration before consuming the owned entry", async () => {
+  const original = window.location.href;
+  const baseState = { __NA: true, route: "form" };
+  window.history.replaceState(baseState, "", "/dashboard/lists/create");
+  let navigation!: PendingFormNavigation;
+  function Harness() {
+    navigation = usePendingFormNavigationController(true);
+    return null;
+  }
+  const view = render(<Harness />);
+  const sentinelState = window.history.state;
+  const historyBack = jest
+    .spyOn(window.history, "back")
+    .mockImplementation(() => {});
+  const historyForward = jest
+    .spyOn(window.history, "forward")
+    .mockImplementation(() => {});
+  try {
+    window.history.replaceState(baseState, "", window.location.href);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: baseState }));
+    expect(historyForward).toHaveBeenCalledTimes(1);
+    const release = navigation.releaseBeforeNavigation();
+    expect(historyBack).not.toHaveBeenCalled();
+    window.history.replaceState(sentinelState, "", window.location.href);
+    window.dispatchEvent(
+      new PopStateEvent("popstate", { state: sentinelState }),
+    );
+    expect(historyBack).toHaveBeenCalledTimes(1);
+    window.history.replaceState(baseState, "", window.location.href);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: baseState }));
+    await release;
+    expect(historyBack).toHaveBeenCalledTimes(1);
+  } finally {
+    view.unmount();
+    historyBack.mockRestore();
+    historyForward.mockRestore();
+    window.history.replaceState({}, "", original);
+  }
 });

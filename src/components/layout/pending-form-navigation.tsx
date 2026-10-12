@@ -9,15 +9,31 @@ import {
   type ReactNode,
 } from "react";
 
+import { newIdempotencyKey } from "@/lib/idempotency-key";
+
 type HistorySnapshot = {
   url: string;
   state: unknown;
-  historyLength: number;
+  token: string;
 };
 
 export type PendingFormNavigation = {
   releaseBeforeNavigation: () => Promise<void>;
 };
+
+const SENTINEL_KEY = "__herewovenPendingForm";
+
+function ownsEntry(
+  entry: HistorySnapshot,
+  state: unknown = window.history.state,
+) {
+  return (
+    window.location.href === entry.url &&
+    typeof state === "object" &&
+    state !== null &&
+    (state as Record<string, unknown>)[SENTINEL_KEY] === entry.token
+  );
+}
 
 const PendingFormNavigationContext =
   createContext<PendingFormNavigation | null>(null);
@@ -64,12 +80,15 @@ export function usePendingFormNavigationController(
 
     // If Next or another owner already moved away from our URL, there is no
     // sentinel left to consume. Never issue a second back into that route.
-    const ownsCurrentEntry =
-      window.location.href === entry.url &&
-      window.history.length === entry.historyLength;
-    if (!ownsCurrentEntry) finishRelease();
+    const promise = releasePromiseRef.current;
+    if (restoringRef.current) {
+      // A pending Back already requested Forward. Its pop will consume the
+      // marked sentinel before resolving; never traverse Back from its base.
+      return promise;
+    }
+    if (!ownsEntry(entry)) finishRelease();
     else window.history.back();
-    return releasePromiseRef.current;
+    return promise;
   }, [finishRelease]);
 
   // Keep one window listener for the lifetime of this form. A capture-phase
@@ -88,16 +107,18 @@ export function usePendingFormNavigationController(
       if (disarmedRef.current) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        finishRelease();
+        restoringRef.current = false;
+        if (ownsEntry(entry, event.state)) window.history.back();
+        else finishRelease();
         return;
       }
-      if (restoringRef.current) {
+      if (restoringRef.current && ownsEntry(entry, event.state)) {
         restoringRef.current = false;
         event.preventDefault();
         event.stopImmediatePropagation();
         return;
       }
-      if (!busyRef.current) return;
+      if (!busyRef.current || ownsEntry(entry, event.state)) return;
 
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -133,11 +154,7 @@ export function usePendingFormNavigationController(
         // settle the promise; issuing another back here could skip the
         // destination if the browser has not dispatched the first pop yet.
         if (disarmedRef.current || releasePromiseRef.current) return;
-        if (
-          entry &&
-          window.location.href === entry.url &&
-          window.history.length === entry.historyLength
-        ) {
+        if (entry && ownsEntry(entry)) {
           disarmedRef.current = true;
           restoringRef.current = false;
           window.history.back();
@@ -154,9 +171,15 @@ export function usePendingFormNavigationController(
       const entry = {
         url: window.location.href,
         state,
-        historyLength: window.history.length + 1,
+        token: newIdempotencyKey(),
       };
-      window.history.pushState(state, "", entry.url);
+      // Preserve Next's tree/identity fields, with a unique ownership marker
+      // so the same-URL base entry can never be mistaken for this sentinel.
+      window.history.pushState(
+        { ...state, [SENTINEL_KEY]: entry.token },
+        "",
+        entry.url,
+      );
       entryRef.current = entry;
       return;
     }
