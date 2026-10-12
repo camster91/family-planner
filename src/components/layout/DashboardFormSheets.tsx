@@ -8,6 +8,10 @@ import CreateChoreForm from "@/app/dashboard/chores/create/CreateChoreForm";
 import EditChoreForm from "@/app/dashboard/chores/edit/EditChoreForm";
 import { useTranslation } from "@/i18n";
 import { listCreateMessages } from "@/i18n/list-create";
+import {
+  PendingFormNavigationProvider,
+  usePendingFormNavigationController,
+} from "./pending-form-navigation";
 
 export function FormSheet({
   title,
@@ -23,6 +27,11 @@ export function FormSheet({
   closeLabel?: string;
 }) {
   const router = useRouter();
+  const navigation = usePendingFormNavigationController(busy);
+  const close = async () => {
+    if (!(await navigation.releaseBeforeNavigation())) return;
+    router.back();
+  };
   useEffect(() => {
     const background = document.querySelector<HTMLElement>(
       "[data-dashboard-background]",
@@ -38,21 +47,23 @@ export function FormSheet({
   }, []);
 
   return (
-    <Dialog
-      open
-      title={title}
-      variant="form"
-      onClose={busy ? undefined : () => router.back()}
-      closeLabel={closeLabel}
-      description={
-        description ??
-        (busy
-          ? "Please wait for saving or uploading to finish."
-          : "Close to return. Unsaved changes will be cleared.")
-      }
-    >
-      {children}
-    </Dialog>
+    <PendingFormNavigationProvider value={navigation}>
+      <Dialog
+        open
+        title={title}
+        variant="form"
+        onClose={busy ? undefined : () => void close()}
+        closeLabel={closeLabel}
+        description={
+          description ??
+          (busy
+            ? "Please wait for saving or uploading to finish."
+            : "Close to return. Unsaved changes will be cleared.")
+        }
+      >
+        {children}
+      </Dialog>
+    </PendingFormNavigationProvider>
   );
 }
 

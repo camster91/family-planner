@@ -239,6 +239,16 @@ for (const locale of ["en", "es"] as const) {
             await expect(
               form.getByRole("button", { name: copy.closeLabel }),
             ).toHaveCount(0);
+            // Exercise the browser Back path while the POST is held. The
+            // pending sheet owns a same-URL history sentinel, so Back must
+            // restore that entry and keep the draft mounted until the request
+            // is released. Use the browser history API directly so this does
+            // not depend on a hidden or forced control click.
+            await page.evaluate(() => window.history.back());
+            await expect(page).toHaveURL(/\/dashboard\/projects\/create$/);
+            await expect(
+              form.getByRole("button", { name: copy.creating }),
+            ).toBeDisabled();
             await page.keyboard.press("Escape");
             await expect(page).toHaveURL(/\/dashboard\/projects\/create$/);
           } else {
