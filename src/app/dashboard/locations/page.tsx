@@ -390,6 +390,7 @@ function LocationsPageInner() {
                 onChange={(event) => setEditorLabel(event.target.value)}
                 placeholder={locationText('labelPlaceholder')}
                 className="input-apple min-h-[44px]"
+                disabled={editorSaving}
                 required
               />
             </div>
@@ -404,6 +405,7 @@ function LocationsPageInner() {
                 onChange={(event) => setEditorAddress(event.target.value)}
                 placeholder={locationText('addressPlaceholder')}
                 className="input-apple min-h-[44px]"
+                disabled={editorSaving}
               />
             </div>
             {editorError && (
