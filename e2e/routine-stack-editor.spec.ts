@@ -972,6 +972,68 @@ for (const locale of LOCALES) {
           .click();
         const discard = page.getByRole("alertdialog");
         await expect(discard).toBeVisible();
+        const keepEditing = discard.getByRole("button", {
+          name: copy[locale].keepEditing,
+          exact: true,
+        });
+        const reloadConfirm = discard.getByRole("button", {
+          name: copy[locale].reload,
+          exact: true,
+        });
+        await expect(keepEditing).toBeVisible();
+        await expect(reloadConfirm).toBeVisible();
+        await reloadConfirm.scrollIntoViewIfNeeded();
+        // The current canceled hosted run retained no phone trace. Keep the
+        // physical layout and hit target observable before the existing click
+        // so the next run can separate overlap from another stacking issue.
+        const actionGeometry = await Promise.all(
+          [keepEditing, reloadConfirm].map((button) =>
+            button.evaluate((element) => {
+              const rect = element.getBoundingClientRect();
+              const inViewport =
+                rect.left >= 0 &&
+                rect.top >= 0 &&
+                rect.right <= window.innerWidth &&
+                rect.bottom <= window.innerHeight;
+              return {
+                left: rect.left,
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+                width: rect.width,
+                height: rect.height,
+                inViewport,
+              };
+            }),
+          ),
+        );
+        const [keepEditingRect, reloadRect] = actionGeometry;
+        expect(keepEditingRect.width).toBeGreaterThanOrEqual(44);
+        expect(keepEditingRect.height).toBeGreaterThanOrEqual(44);
+        expect(keepEditingRect.inViewport).toBe(true);
+        expect(reloadRect.width).toBeGreaterThanOrEqual(44);
+        expect(reloadRect.height).toBeGreaterThanOrEqual(44);
+        expect(reloadRect.inViewport).toBe(true);
+        const overlapWidth = Math.max(
+          0,
+          Math.min(keepEditingRect.right, reloadRect.right) -
+            Math.max(keepEditingRect.left, reloadRect.left),
+        );
+        const overlapHeight = Math.max(
+          0,
+          Math.min(keepEditingRect.bottom, reloadRect.bottom) -
+            Math.max(keepEditingRect.top, reloadRect.top),
+        );
+        expect(overlapWidth > 0 && overlapHeight > 0).toBe(false);
+        const reloadHitTest = await reloadConfirm.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          const hit = document.elementFromPoint(
+            rect.left + rect.width / 2,
+            rect.top + rect.height / 2,
+          );
+          return hit === element || element.contains(hit);
+        });
+        expect(reloadHitTest).toBe(true);
         await discard
           .getByRole("button", { name: copy[locale].reload, exact: true })
           .click();
