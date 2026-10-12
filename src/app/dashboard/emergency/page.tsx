@@ -5,6 +5,7 @@ import { Heart, Plus, X, Trash2, Printer } from 'lucide-react'
 import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { Dialog } from '@/components/ui/dialog'
+import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 import { useTranslation } from '@/i18n'
 
 interface EmergencyContact {
@@ -392,6 +393,10 @@ function EmergencyPageInner() {
   const [previewContact, setPreviewContact] = React.useState<EmergencyContact | null>(null)
   const [editContact, setEditContact] = React.useState<EmergencyContact | null>(null)
   const [saving, setSaving] = React.useState(false)
+  // Keep browser Back on this route while a contact mutation is in flight.
+  // Dialog dismissal is disabled separately below so Escape/backdrop/close
+  // cannot clear the draft before the server answers.
+  usePendingFormNavigationController(saving)
   // D1 (#102): every member can read the cards (a child home alone must find
   // them); only parents can add, edit or delete. Unknown until /api/auth/me
   // answers, so the controls stay hidden rather than flash for a child.
@@ -477,6 +482,7 @@ function EmergencyPageInner() {
   }
 
   const closeModal = () => {
+    if (saving) return
     setModalError(null)
     setShowAdd(false)
     setEditContact(null)
@@ -631,14 +637,18 @@ function EmergencyPageInner() {
         {/* Add modal */}
         <Dialog
           open={isParent && showAdd && !editContact}
-          onClose={closeModal}
+          onClose={saving ? undefined : closeModal}
           title={t('emergency.addCard')}
         >
           <AddEditModal mode="add" onSave={handleSave} t={t} saving={saving} error={modalError} />
         </Dialog>
 
         {/* Edit modal */}
-        <Dialog open={isParent && !!editContact} onClose={closeModal} title={t('emergency.editCard')}>
+        <Dialog
+          open={isParent && !!editContact}
+          onClose={saving ? undefined : closeModal}
+          title={t('emergency.editCard')}
+        >
           {isParent && editContact && (
             <AddEditModal
               mode="edit"

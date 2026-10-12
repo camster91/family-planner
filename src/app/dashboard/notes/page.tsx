@@ -6,6 +6,7 @@ import { useFeatureEnabled, useFeatures } from '@/components/providers/features-
 import { FeatureOffState } from '@/components/ui/feature-gate'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Dialog } from '@/components/ui/dialog'
+import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
@@ -94,6 +95,10 @@ function NotesPageInner() {
   const [formBody, setFormBody] = React.useState('')
   const [formColor, setFormColor] = React.useState<'yellow' | 'pink' | 'blue'>('yellow')
   const [saving, setSaving] = React.useState(false)
+  // Keep browser Back on this route while a note save/delete is in flight.
+  // Dialog dismissal is disabled separately so Escape/backdrop/close cannot
+  // clear a draft before the server answers.
+  usePendingFormNavigationController(saving)
   // Why the last save/delete failed; shown in the modal, which stays open.
   const [modalError, setModalError] = React.useState<string | null>(null)
 
@@ -146,13 +151,18 @@ function NotesPageInner() {
     setModalState('edit')
   }
 
-  const closeModal = () => {
+  const resetModal = () => {
     setModalState(null)
     setSelectedNote(null)
     setFormTitle('')
     setFormBody('')
     setFormColor('yellow')
     setModalError(null)
+  }
+
+  const closeModal = () => {
+    if (saving) return
+    resetModal()
   }
 
   const handleSave = async () => {
@@ -184,7 +194,7 @@ function NotesPageInner() {
         return
       }
       await fetchNotes()
-      closeModal()
+      resetModal()
     } catch {
       // Network failure: keep the modal and what was typed.
       setModalError(`${t('notes.errorSave')} ${t('common.networkError')}`)
@@ -209,7 +219,7 @@ function NotesPageInner() {
         return
       }
       await fetchNotes()
-      closeModal()
+      resetModal()
     } catch {
       setModalError(`${t('notes.errorDelete')} ${t('common.networkError')}`)
     } finally {
@@ -343,7 +353,7 @@ function NotesPageInner() {
       {/* Modal */}
       <Dialog
         open={modalState !== null}
-        onClose={closeModal}
+        onClose={saving ? undefined : closeModal}
         title={modalState === 'add' ? t('notes.newNote') : formTitle || t('notes.title')}
       >
         <div>
