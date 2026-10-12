@@ -238,6 +238,77 @@ it("hides the launcher for an explicit authenticated refusal", async () => {
   await expectUnavailable(() => Promise.resolve(response(401, {})));
 });
 
+it.each([401, 403])(
+  "keeps an open sheet visible for a final auth refusal (%i)",
+  async (status) => {
+    let eventPosts = 0;
+    global.fetch = jest.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = (init?.method ?? "GET").toUpperCase();
+        if (url === "/api/capture" && method === "GET")
+          return response(200, {
+            configured: true,
+            allowed: true,
+            userId: "user-a",
+            familyId: "family-a",
+          });
+        if (url === "/api/capture" && method === "POST")
+          return response(200, {
+            draft: {
+              kind: "event",
+              title: "Dentist",
+              confidence: "high",
+            },
+          });
+        if (url === "/api/events" && method === "POST") {
+          eventPosts += 1;
+          return response(status, { error: "unauthorized" });
+        }
+        throw new Error(`unexpected ${method} ${url}`);
+      },
+    ) as unknown as typeof fetch;
+
+    const user = userEvent.setup();
+    mount();
+    await user.click(
+      await screen.findByRole("button", { name: "Open quick add" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Quick add" });
+    const input = within(dialog).getByRole("textbox", {
+      name: "What would you like to add?",
+    });
+    await user.type(input, "dentist Tuesday");
+    await user.click(within(dialog).getByRole("button", { name: "Read it" }));
+    await user.click(
+      await within(dialog).findByRole("button", { name: "Add it" }),
+    );
+
+    expect(screen.getByRole("dialog", { name: "Quick add" })).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Capture recovery is unavailable until access and storage are revalidated. Nothing was sent.",
+    );
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Retry Dentist" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Open quick add" }),
+    ).not.toBeInTheDocument();
+    expect(eventPosts).toBe(1);
+
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Quick add" })).getByRole(
+        "button",
+        { name: "Close quick add" },
+      ),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Quick add" }),
+    ).not.toBeInTheDocument();
+  },
+);
+
 it("opens the rounded sheet, restores focus after releasing inert, and keeps an unsent draft", async () => {
   configuredFetch();
   const user = userEvent.setup();

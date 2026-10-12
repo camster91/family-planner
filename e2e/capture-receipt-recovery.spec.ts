@@ -1264,10 +1264,13 @@ test.describe("capture receipt recovery", () => {
       await page.goto("/dashboard/calendar");
       await captureReady;
       const identity = await runtimeIdentity(page, info);
-      await expect(page.getByTestId("capture-child-blocked")).toBeVisible();
-      await expect(page.getByTestId("capture-child-blocked")).toContainText(
-        "Ask a parent to add this.",
+      await expect(
+        page.getByRole("button", { name: "Open quick add", exact: true }),
+      ).toHaveCount(0);
+      await expect(page.getByRole("dialog", { name: "Quick add" })).toHaveCount(
+        0,
       );
+      await expect(page.getByTestId("capture-child-blocked")).toHaveCount(0);
       await expect(
         page.getByRole("button", {
           name: "Retry Forbidden boundary event",
@@ -1285,6 +1288,9 @@ test.describe("capture receipt recovery", () => {
           identity,
           allowed: false,
           recoveryPurged: true,
+          launcherVisible: false,
+          dialogVisible: false,
+          childNoticeVisible: false,
           retryVisible: false,
         }),
         contentType: "application/json",

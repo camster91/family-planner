@@ -23,6 +23,8 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
   >("loading");
   const [portalReady, setPortalReady] = React.useState(false);
   const available = availability === "available" || availability === "retry";
+  const openRef = React.useRef(open);
+  openRef.current = open;
   const pageLock = React.useRef<{
     background: HTMLElement | null;
     wasInert: boolean;
@@ -47,7 +49,11 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
   const handleAvailabilityChange = React.useCallback(
     (next: CaptureAvailability) => {
       setAvailability(next);
-      if (next === "unavailable") close();
+      // An open sheet must keep a safe refusal or recovery summary visible so
+      // a final auth boundary cannot silently discard the user's result.
+      // Initial unavailable/forbidden checks happen while closed and keep the
+      // launcher/dialog policy unchanged.
+      if (next === "unavailable" && !openRef.current) close();
     },
     [close],
   );
