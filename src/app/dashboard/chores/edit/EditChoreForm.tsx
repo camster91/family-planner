@@ -83,6 +83,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
   const router = useRouter();
   const searchParams = useSearchParams();
   const choreId = searchParams.get("id");
+  const stopSeriesRequested = searchParams.get("stop") === "1";
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fieldId = useId();
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -137,7 +138,14 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
             const shownFrequency: Frequency =
               (template ? template.frequency : chore.frequency) || "once";
             setSeriesCopy(Boolean(template));
-            setFrequency(shownFrequency);
+            // The list's explicit Stop repeating action opens the normal edit
+            // form with a Once draft. Saving is still required; opening the
+            // form never mutates the series.
+            setFrequency(
+              stopSeriesRequested && shownFrequency !== "once"
+                ? "once"
+                : shownFrequency,
+            );
             setWeeklyDays(
               (template?.weekly_days ?? chore.weekly_days)?.length
                 ? (template?.weekly_days ?? chore.weekly_days)
@@ -186,7 +194,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
     };
 
     fetchData();
-  }, [choreId]);
+  }, [choreId, stopSeriesRequested]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -360,6 +368,11 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
             {seriesCopy && (
               <p className="text-caption-1 text-label-secondary mb-2">
                 {message("seriesHint")}
+              </p>
+            )}
+            {stopSeriesRequested && (
+              <p className="text-caption-1 text-label-secondary mb-2">
+                {message("stopRepeatingHint")}
               </p>
             )}
             <div

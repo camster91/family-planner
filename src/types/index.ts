@@ -60,6 +60,8 @@ export interface Chore {
   due_date: string
   status: ChoreStatus
   recurrence_id?: string | null
+  /** True only for the canonical row that owns an active recurring series. */
+  is_template?: boolean
   /** Canonical template cadence for generated copies in the schedule overview. */
   recurrence_frequency?: ChoreFrequency | null
   recurrence_weekly_days?: number[]

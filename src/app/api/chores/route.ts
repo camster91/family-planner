@@ -1,7 +1,7 @@
 import { withRouteTelemetry } from '@/lib/route-telemetry'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { lockHousehold } from '@/lib/household-lock'
+import { lockHousehold, lockUser } from '@/lib/household-lock'
 import { canonicalChoreAssigneeInTx } from '@/lib/chore-member-subject'
 import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
@@ -413,7 +413,25 @@ class RotationNeedsSeriesError extends Error {
   }
 }
 
-// DELETE - Delete a chore (family-scoped)
+const RECURRING_SERIES_REQUIRES_STOP = 'RECURRING_SERIES_REQUIRES_STOP'
+const RECURRING_ANCHOR_RETAINS_HISTORY = 'RECURRING_ANCHOR_RETAINS_HISTORY'
+
+type ChoreDeleteResult =
+  | { kind: 'deleted' }
+  | { kind: 'not-found' }
+  | { kind: 'foreign' }
+  | { kind: 'profile-unsupported' }
+  | { kind: 'forbidden'; message: string }
+  | { kind: 'requires-stop' }
+  | { kind: 'retains-history' }
+
+function isRepeatingFrequency(frequency: string): boolean {
+  return frequency === 'daily' || frequency === 'weekly' || frequency === 'monthly'
+}
+
+// DELETE - Delete one occurrence (family-scoped). A series anchor is a
+// protected lifecycle boundary: stopping is the existing parent-only PATCH
+// frequency=once flow, so a legacy row delete cannot orphan its copies.
 export async function DELETE(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -430,30 +448,83 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'choreId is required' }, { status: 400 })
     }
 
-    // Verify the chore belongs to the user's family
-    const chore = await prisma!.chore.findUnique({
-      where: { id: parsed.data.choreId },
-      select: { family_id: true, assigned_to: true, assigned_member_id: true },
+    const result: ChoreDeleteResult = await prisma!.$transaction(async (tx) => {
+      // Membership removal and chore writes use user-first, household-second
+      // lock order. Re-read both identities under those locks so a stale auth
+      // snapshot cannot delete after a role/family change.
+      await lockUser(tx, auth.user.id)
+      await lockHousehold(tx, auth.user.family_id)
+
+      const actor = await tx.user.findFirst({
+        where: { id: auth.user.id },
+        select: { id: true, family_id: true, role: true },
+      })
+      if (!actor || actor.family_id !== auth.user.family_id) {
+        return { kind: 'forbidden', message: 'Only parents or the assignee can delete chores' }
+      }
+
+      const chore = await tx.chore.findUnique({
+        where: { id: parsed.data.choreId },
+        select: {
+          family_id: true,
+          assigned_to: true,
+          assigned_member_id: true,
+          recurrence_id: true,
+          is_template: true,
+          frequency: true,
+        },
+      })
+
+      if (!chore) return { kind: 'not-found' }
+      if (chore.family_id !== auth.user.family_id) return { kind: 'foreign' }
+      // Profile-only subjects cannot be deleted through the legacy account
+      // route. Keep the protocol-2 subject intact instead of inferring a User.
+      if (chore.assigned_to === null && chore.assigned_member_id != null) {
+        return { kind: 'profile-unsupported' }
+      }
+      if (actor.role !== 'parent' && chore.assigned_to !== actor.id) {
+        return { kind: 'forbidden', message: 'Only parents or the assignee can delete chores' }
+      }
+
+      const selfAnchored = chore.recurrence_id === parsed.data.choreId
+      if (selfAnchored && chore.is_template && isRepeatingFrequency(chore.frequency)) {
+        return { kind: 'requires-stop' }
+      }
+
+      if (selfAnchored) {
+        const sibling = await tx.chore.findFirst({
+          where: {
+            family_id: auth.user.family_id,
+            recurrence_id: parsed.data.choreId,
+            id: { not: parsed.data.choreId },
+          },
+          select: { id: true },
+        })
+        if (sibling) return { kind: 'retains-history' }
+      }
+
+      await tx.chore.delete({ where: { id: parsed.data.choreId } })
+      return { kind: 'deleted' }
     })
 
-    if (!chore) {
-      return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
-    }
-
-    const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
-    if (familyError) return familyError
-
-    if (chore.assigned_to === null && chore.assigned_member_id != null) {
+    if (result.kind === 'not-found') return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
+    if (result.kind === 'foreign') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (result.kind === 'profile-unsupported') {
       return NextResponse.json(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
     }
-
-    if (auth.user.role !== 'parent' && chore.assigned_to !== auth.user.id) {
-      return NextResponse.json({ error: 'Only parents or the assignee can delete chores' }, { status: 403 })
+    if (result.kind === 'forbidden') return NextResponse.json({ error: result.message }, { status: 403 })
+    if (result.kind === 'requires-stop') {
+      return NextResponse.json(
+        { error: 'Stop repeating before deleting the series anchor', code: RECURRING_SERIES_REQUIRES_STOP },
+        { status: 409 }
+      )
     }
-
-    await prisma!.chore.delete({
-      where: { id: parsed.data.choreId },
-    })
+    if (result.kind === 'retains-history') {
+      return NextResponse.json(
+        { error: 'Keep the series anchor to preserve its history', code: RECURRING_ANCHOR_RETAINS_HISTORY },
+        { status: 409 }
+      )
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
