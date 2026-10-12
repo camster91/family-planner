@@ -995,7 +995,7 @@ export default function RoutineStackEditor({
   const content = (
     <form
       onSubmit={save}
-      className="space-y-5"
+      className="min-w-0 max-w-full space-y-5"
       data-testid="routine-stack-editor"
       data-dirty={dirty ? "true" : "false"}
     >
@@ -1035,7 +1035,7 @@ export default function RoutineStackEditor({
                 markDirty();
               }}
               disabled={editingLocked}
-              className="input-field w-full min-h-[44px]"
+              className="input-field w-full min-w-0 max-w-full min-h-[44px]"
               placeholder={msg("labelPlaceholder")}
               maxLength={ROUTINE_NAME_MAX}
             />
@@ -1061,13 +1061,13 @@ export default function RoutineStackEditor({
                 {msg("oneStepRequired")}
               </p>
             )}
-            <ol className="space-y-3">
+            <ol className="min-w-0 max-w-full space-y-3">
               {steps.map((step, index) => (
                 <li
                   key={step.draftId}
-                  className="rounded-xl border border-[var(--surface-separator)] bg-[var(--surface-fill-secondary)] p-3"
+                  className="min-w-0 max-w-full rounded-xl border border-[var(--surface-separator)] bg-[var(--surface-fill-secondary)] p-3"
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex min-w-0 max-w-full items-start gap-3">
                     <span
                       aria-hidden="true"
                       className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--accent-fill)] text-body font-semibold text-white"
@@ -1097,7 +1097,7 @@ export default function RoutineStackEditor({
                           changeAssignment(step.draftId, event.target.value)
                         }
                         disabled={editingLocked}
-                        className="input-field mt-2 min-h-[44px] w-full"
+                        className="input-field mt-2 min-h-[44px] w-full min-w-0 max-w-full"
                       >
                         {assignmentOptions.map((option) => (
                           <option
@@ -1140,7 +1140,7 @@ export default function RoutineStackEditor({
                   </div>
                   <button
                     type="button"
-                    className="mt-2 min-h-[44px] text-footnote text-label-secondary underline disabled:opacity-40"
+                    className="mt-2 block min-h-[44px] w-full min-w-0 max-w-full text-left text-footnote text-label-secondary underline whitespace-normal break-words [overflow-wrap:anywhere] disabled:opacity-40"
                     disabled={steps.length <= 1 || editingLocked}
                     onClick={() => removeStep(step)}
                   >
@@ -1166,7 +1166,7 @@ export default function RoutineStackEditor({
                 {msg("noCandidates")}
               </p>
             ) : (
-              <ul className="divide-y divide-[var(--surface-separator)] rounded-xl bg-[var(--surface-fill-secondary)]">
+              <ul className="min-w-0 max-w-full divide-y divide-[var(--surface-separator)] rounded-xl bg-[var(--surface-fill-secondary)]">
                 {candidates.map((candidate) => {
                   const added = steps.some(
                     (step) => step.choreId === candidate.id,
@@ -1174,13 +1174,13 @@ export default function RoutineStackEditor({
                   return (
                     <li
                       key={candidate.id}
-                      className="flex items-center gap-3 p-3"
+                      className="flex min-w-0 max-w-full items-center gap-3 p-3"
                     >
                       <div className="min-w-0 flex-1">
                         <p className="text-body text-label-primary [overflow-wrap:anywhere]">
                           {candidate.title}
                         </p>
-                        <p className="text-footnote text-label-secondary">
+                        <p className="text-footnote text-label-secondary [overflow-wrap:anywhere]">
                           {accountNames.get(candidate.assigned_to) ??
                             candidate.assigned_to}{" "}
                           · {candidate.due_date.slice(0, 10)}
@@ -1218,7 +1218,7 @@ export default function RoutineStackEditor({
 
           <section
             aria-labelledby="routine-new-step-heading"
-            className="space-y-3 rounded-xl border border-[var(--surface-separator)] p-3"
+            className="min-w-0 max-w-full space-y-3 rounded-xl border border-[var(--surface-separator)] p-3"
           >
             <h3
               id="routine-new-step-heading"
@@ -1236,7 +1236,7 @@ export default function RoutineStackEditor({
                 setNewTitle(event.target.value);
                 markDirty();
               }}
-              className="input-field w-full min-h-[44px]"
+              className="input-field w-full min-w-0 max-w-full min-h-[44px]"
               placeholder={msg("stepTitlePlaceholder")}
               maxLength={200}
               disabled={editingLocked}
@@ -1251,7 +1251,7 @@ export default function RoutineStackEditor({
                 setNewAssignee(event.target.value);
                 markDirty();
               }}
-              className="input-field w-full min-h-[44px]"
+              className="input-field w-full min-w-0 max-w-full min-h-[44px]"
               disabled={assignmentOptions.length === 0 || editingLocked}
             >
               {assignmentOptions.length === 0 && (
@@ -1382,7 +1382,7 @@ export default function RoutineStackEditor({
 
   return (
     <>
-      <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-6">
+      <main className="mx-auto min-w-0 w-full max-w-3xl px-4 pb-24 pt-6">
         <div className="mb-6">
           <p className="text-footnote uppercase tracking-wide text-label-secondary">
             {msg("occurrence")} · {occurrenceDate}

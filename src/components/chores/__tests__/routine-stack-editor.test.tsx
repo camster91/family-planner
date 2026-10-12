@@ -155,6 +155,52 @@ it("uses the local calendar day when occurrence_date is omitted", async () => {
   }
 });
 
+it("contains long chore titles and fallback assignee IDs in mobile step controls", async () => {
+  const longTitle = "A very long chore title ".repeat(12).trim();
+  const longAssignee = `account-${"x".repeat(160)}`;
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) {
+      return response({
+        ...candidates,
+        assignmentOptions: [],
+        candidates: [
+          {
+            ...candidates.candidates[0],
+            title: longTitle,
+            assigned_to: longAssignee,
+          },
+        ],
+      });
+    }
+    return response(saveResponse);
+  });
+
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText(longTitle);
+  await user.click(screen.getByRole("button", { name: "Add" }));
+
+  const remove = screen.getByRole("button", {
+    name: `Remove ${longTitle} from routine`,
+  });
+  expect(remove.className).toEqual(expect.stringContaining("w-full"));
+  expect(remove.className).toEqual(expect.stringContaining("min-w-0"));
+  expect(remove.className).toEqual(expect.stringContaining("max-w-full"));
+  expect(remove.className).toEqual(expect.stringContaining("whitespace-normal"));
+  expect(remove.className).toEqual(expect.stringContaining("break-words"));
+  expect(screen.getByRole("option", { name: longAssignee })).toBeTruthy();
+  const assignee = screen.getByRole("combobox", {
+    name: `Assigned to: ${longTitle}`,
+  });
+  expect(assignee.className).toEqual(
+    expect.stringContaining("min-w-0"),
+  );
+  expect(assignee.className).toEqual(
+    expect.stringContaining("max-w-full"),
+  );
+});
+
 beforeEach(() => {
   // Candidate responses have a fixed occurrence date; keep the requested
   // date equally explicit so midnight on the runner cannot invalidate them.
