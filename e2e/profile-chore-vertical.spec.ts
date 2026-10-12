@@ -6,8 +6,9 @@
  * for verification-token replacement, the disposable device-write opt-in and
  * owner-scoped teardown. Profile/chore/status responses are never mocked.
  *
- * Run only against the guarded loopback E2E server with both profile gates on:
- * HOUSEHOLD_PROFILE_SETUP_ENABLED=1 HOUSEHOLD_PROFILE_CHORE_ENABLED=1.
+ * Run only against the guarded loopback E2E server with all profile gates on:
+ * HOUSEHOLD_PROFILE_SETUP_ENABLED=1 HOUSEHOLD_PROFILE_CHORE_ENABLED=1
+ * HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY=1.
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -21,7 +22,8 @@ import { browserFetch, expect, loginViaUi, test } from "./support/test";
 
 const PROFILE_GATES_ON =
   process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED === "1" &&
-  process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED === "1";
+  process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED === "1" &&
+  process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY === "1";
 const PASSWORD = [
   "A",
   "a",
@@ -544,7 +546,7 @@ test.describe.serial("email-free profile chore vertical", () => {
   }, info) => {
     test.skip(
       !PROFILE_GATES_ON,
-      "Requires HOUSEHOLD_PROFILE_SETUP_ENABLED=1 and HOUSEHOLD_PROFILE_CHORE_ENABLED=1",
+      "Requires HOUSEHOLD_PROFILE_SETUP_ENABLED=1, HOUSEHOLD_PROFILE_CHORE_ENABLED=1 and HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY=1",
     );
     test.setTimeout(240_000);
     assertFixtureTargetAllowed(process.env);
