@@ -39,6 +39,8 @@ type RapidBackWindow = Window & {
   __pendingNavigationDocument?: string;
   __armPendingRapidBack?: () => void;
   __pendingRapidBackPopstates?: () => number;
+  __pendingRapidBackAttempts?: () => number;
+  __pendingRapidBackCancelled?: () => number;
   __pendingRapidBackToken?: () => string | null;
   __pendingRapidBackEvents?: () => Array<{
     href: string;
@@ -48,15 +50,38 @@ type RapidBackWindow = Window & {
 
 async function installRapidBackProbe(page: Page) {
   await page.addInitScript(() => {
-    (window as RapidBackWindow).__pendingNavigationDocument = String(
-      performance.timeOrigin,
-    );
+    (window as RapidBackWindow).__pendingNavigationDocument =
+      crypto.randomUUID();
     let armed = false;
     let popstates = 0;
+    let attempts = 0;
+    let cancelled = 0;
+    const nativePreventDefault = Event.prototype.preventDefault;
+    Event.prototype.preventDefault = function () {
+      nativePreventDefault.call(this);
+      // Observe real browser cancellation even when the early dispatcher
+      // stops later event listeners; preserve the native event behavior.
+      if (
+        armed &&
+        this.type === "navigate" &&
+        this.defaultPrevented &&
+        (this as Event & { navigationType?: string }).navigationType ===
+          "traverse"
+      ) {
+        cancelled += 1;
+      }
+    };
+    const nativeBack = history.back.bind(history);
+    history.back = () => {
+      if (armed) attempts += 1;
+      nativeBack();
+    };
     let events: Array<{ href: string; token: string | null }> = [];
     const target = window as Window & {
       __armPendingRapidBack?: () => void;
       __pendingRapidBackPopstates?: () => number;
+      __pendingRapidBackAttempts?: () => number;
+      __pendingRapidBackCancelled?: () => number;
       __pendingRapidBackToken?: () => string | null;
       __pendingRapidBackEvents?: () => Array<{
         href: string;
@@ -66,16 +91,20 @@ async function installRapidBackProbe(page: Page) {
     target.__armPendingRapidBack = () => {
       armed = true;
       popstates = 0;
+      attempts = 0;
+      cancelled = 0;
       events = [];
     };
     target.__pendingRapidBackPopstates = () => popstates;
+    target.__pendingRapidBackAttempts = () => attempts;
+    target.__pendingRapidBackCancelled = () => cancelled;
     target.__pendingRapidBackToken = () => {
       const marker = window.history.state?.__herewovenPendingForm;
       return typeof marker === "string" ? marker : null;
     };
     target.__pendingRapidBackEvents = () => events;
-    // Register before the app's controller so the second traversal is queued
-    // from the first real popstate while its restoration Forward is pending.
+    // Observe committed traversals on hosts using the popstate fallback.
+    // The helper issues two real Back attempts before either settles.
     window.addEventListener(
       "popstate",
       () => {
@@ -86,7 +115,6 @@ async function installRapidBackProbe(page: Page) {
           href: window.location.href,
           token: typeof marker === "string" ? marker : null,
         });
-        if (popstates === 1) queueMicrotask(() => window.history.back());
       },
       true,
     );
@@ -106,11 +134,12 @@ async function traverseBackTwice(page: Page, path: RegExp) {
   await page.evaluate(() => {
     (window as RapidBackWindow).__armPendingRapidBack?.();
     window.history.back();
+    queueMicrotask(() => window.history.back());
   });
   await expect
     .poll(() =>
       page.evaluate(
-        () => (window as RapidBackWindow).__pendingRapidBackPopstates?.() ?? 0,
+        () => (window as RapidBackWindow).__pendingRapidBackAttempts?.() ?? 0,
       ),
     )
     .toBeGreaterThanOrEqual(2);
@@ -130,8 +159,22 @@ async function traverseBackTwice(page: Page, path: RegExp) {
   const events = await page.evaluate(
     () => (window as RapidBackWindow).__pendingRapidBackEvents?.() ?? [],
   );
-  expect(events.some((event) => event.href !== page.url())).toBe(true);
-  return { sentinelToken, events };
+  const cancelled = await page.evaluate(
+    () => (window as RapidBackWindow).__pendingRapidBackCancelled?.() ?? 0,
+  );
+  const nativeGuardAvailable = await page.evaluate(
+    () =>
+      typeof (window as Window & { navigation?: EventTarget }).navigation
+        ?.addEventListener === "function",
+  );
+  if (nativeGuardAvailable) {
+    expect(cancelled).toBe(2);
+    expect(events).toHaveLength(0);
+  } else {
+    expect(events.length).toBeGreaterThanOrEqual(2);
+    expect(events.some((event) => event.href !== page.url())).toBe(true);
+  }
+  return { sentinelToken, events, cancelled };
 }
 
 async function consumeSentinelAndVisitPrior(
@@ -537,7 +580,7 @@ test.describe("inventory localization synthetic server", () => {
   test.describe("parent pending navigation", () => {
     test.use({ storageState: authFile("parentA") });
 
-    test("held fabricated writes keep Notes, Emergency and Inventory on-route across two real Back traversals", async ({
+    test("held fabricated writes keep Notes, Emergency and Inventory on-route across two real Back attempts", async ({
       page,
       context,
       baseURL,
@@ -637,6 +680,9 @@ test.describe("inventory localization synthetic server", () => {
           /\/dashboard\/notes$/,
         );
         await expect(notesDialog).toBeVisible();
+        await expect(
+          notesDialog.getByRole("button", { name: /Saving/ }),
+        ).toBeDisabled();
         expect(notesResponseReleased).toBe(false);
         heldBeforeCleanup.notes = true;
         releaseNotes();
@@ -735,6 +781,9 @@ test.describe("inventory localization synthetic server", () => {
           /\/dashboard\/emergency$/,
         );
         await expect(emergencyDialog).toBeVisible();
+        await expect(
+          emergencyDialog.getByRole("button", { name: /Saving/ }),
+        ).toBeDisabled();
         expect(emergencyResponseReleased).toBe(false);
         heldBeforeCleanup.emergency = true;
         releaseEmergency();
@@ -798,6 +847,9 @@ test.describe("inventory localization synthetic server", () => {
           /\/dashboard\/inventory$/,
         );
         await expect(inventoryDialog).toBeVisible();
+        await expect(
+          inventoryDialog.getByRole("button", { name: /Saving/ }),
+        ).toBeDisabled();
         expect(inventoryResponseReleased).toBe(false);
         heldBeforeCleanup.inventory = true;
         releaseInventory();
@@ -822,10 +874,10 @@ test.describe("inventory localization synthetic server", () => {
               "loopback-only parentA browser session; all mutation responses were fabricated and no database row was created",
             history: {
               requirement:
-                "each held request received two real history.back traversals; the second was queued from the first popstate while sentinel restoration was pending",
-              notes: notesHistory.events,
-              emergency: emergencyHistory.events,
-              inventory: inventoryHistory.events,
+                "each held request received two real history.back attempts; cancelable native traversals were prevented before commit, with held drafts retained until response release",
+              notes: notesHistory,
+              emergency: emergencyHistory,
+              inventory: inventoryHistory,
             },
           }),
           contentType: "application/json",
