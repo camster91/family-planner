@@ -23,6 +23,10 @@ const MUTATING_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 type Locale = "en" | "es";
 type Surface = "sheet" | "direct";
 type CreateMode = "failure" | "pending";
+type PendingRelease = {
+  sequence: number;
+  resolve: (continueRequest: boolean) => void;
+};
 
 async function installLoopbackGuard(
   context: BrowserContext,
@@ -144,7 +148,8 @@ for (const locale of ["en", "es"] as const) {
       let originalFeatures: Record<string, unknown> | undefined;
       let featureChanged = false;
       let mode: CreateMode = "failure";
-      let releasePending: ((continueRequest: boolean) => void) | undefined;
+      let pendingSequence = 0;
+      let releasePending: PendingRelease | undefined;
 
       await installLoopbackGuard(context, blockedWrites, ownedProjectIds);
       await page.addInitScript(
@@ -165,8 +170,9 @@ for (const locale of ["en", "es"] as const) {
           });
           return;
         }
+        const sequence = ++pendingSequence;
         const continueRequest = await new Promise<boolean>((resolve) => {
-          releasePending = resolve;
+          releasePending = { sequence, resolve };
         });
         if (continueRequest) await route.continue();
         else await route.abort();
@@ -228,6 +234,11 @@ for (const locale of ["en", "es"] as const) {
           );
 
           mode = "pending";
+          const previousPendingSequence = pendingSequence;
+          // Clear the previous iteration's callback before starting this
+          // request. The release below must belong to this POST, not a stale
+          // promise that has already been fulfilled.
+          releasePending = undefined;
           const pendingClick = submit.click();
           await expect(
             form.getByRole("button", { name: copy.creating }),
@@ -278,7 +289,18 @@ for (const locale of ["en", "es"] as const) {
               response.url().endsWith("/api/projects") &&
               response.request().method() === "POST",
           );
-          releasePending?.(true);
+          await expect
+            .poll(() => releasePending?.sequence ?? 0)
+            .toBeGreaterThan(previousPendingSequence);
+          // Read through a function so TypeScript does not assume the route
+          // callback cannot have assigned the value during the awaited poll.
+          const currentRelease = ((): PendingRelease | undefined =>
+            releasePending)();
+          if (!currentRelease) {
+            throw new Error("Projects pending POST release handler was not installed");
+          }
+          currentRelease.resolve(true);
+          releasePending = undefined;
           const [projectResponse] = await Promise.all([
             projectResponsePromise,
             pendingClick,
@@ -338,7 +360,7 @@ for (const locale of ["en", "es"] as const) {
           contentType: "application/json",
         });
       } finally {
-        releasePending?.(false);
+        releasePending?.resolve(false);
         await page.unrouteAll({ behavior: "ignoreErrors" });
         const cleanupErrors: unknown[] = [];
         for (const projectId of ownedProjectIds) {
