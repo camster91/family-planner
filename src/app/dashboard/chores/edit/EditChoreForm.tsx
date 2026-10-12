@@ -650,12 +650,16 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
 
 export default function EditChorePage({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
   const { t } = useTranslation();
+  const message = useCallback(
+    (key: ChoreFormMessage) => t(key, undefined, choreFormMessages),
+    [t],
+  );
   return (
     <Suspense
       fallback={
         <div className="flex items-center justify-center py-20">
           <div className="text-label-secondary">
-            {t("loading", undefined, choreFormMessages)}
+            {message("loading")}
           </div>
         </div>
       }
