@@ -812,6 +812,15 @@ test.describe("inventory localization synthetic server", () => {
             exact: true,
           }),
         ).toBeVisible();
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () =>
+                document.documentElement.scrollWidth <=
+                document.documentElement.clientWidth,
+            ),
+          )
+          .toBe(true);
         await page
           .getByRole("button", {
             name: emergencyText("addCard"),

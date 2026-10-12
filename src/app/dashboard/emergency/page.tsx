@@ -555,12 +555,12 @@ function EmergencyPageInner() {
             </button>
           </div>
         )}
-        <div className="flex items-center justify-between no-print">
-          <div>
-            <h1 className="text-large-title font-display">{t('emergency.title')}</h1>
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:justify-between no-print">
+          <div className="min-w-0 sm:flex-1">
+            <h1 className="text-large-title font-display break-words">{t('emergency.title')}</h1>
             <p className="text-subhead text-label-secondary mt-0.5">{t('emergency.subtitle')}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {contacts.length > 0 && (
               <button
                 type="button"
