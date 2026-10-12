@@ -112,10 +112,11 @@ const FRIDGE_CHROME_CSS = `
 `
 
 /** Person boards ask the signed-in version route (#271). */
-async function fetchPersonBoardVersion(): Promise<string> {
+async function fetchPersonBoardVersion(memberProtocol?: TodayBoardData['memberProtocol']): Promise<string> {
   const res = await fetch('/api/family/board-version', {
     cache: 'no-store',
     credentials: 'same-origin',
+    headers: memberProtocol === 2 ? { 'X-Member-Protocol': '2' } : undefined,
   })
   if (!res.ok) throw new Error(`board version ${res.status}`)
   const body = (await res.json()) as { version?: unknown }
@@ -423,7 +424,7 @@ export default function TodayBoard({
   const { lastSyncAt, online, failing, announcement } = useBoardSync({
     version: data.version,
     generatedAt: data.generatedAt,
-    checkVersion: checkVersion ?? fetchPersonBoardVersion,
+    checkVersion: checkVersion ?? (() => fetchPersonBoardVersion(data.memberProtocol)),
     refresh,
   })
   const snapshotTime = Date.parse(data.generatedAt)
@@ -496,6 +497,42 @@ export default function TodayBoard({
     (view && view.useSoon.length > 0 ? (
       <UseSoonRegion items={view.useSoon} inventoryHref={data.links.inventory ?? null} />
     ) : null)
+
+  // A legacy reader must never show an account-only partial board when a
+  // profile subject is present. The server marker is deliberately rendered as
+  // a local, translated recovery surface; its opaque code never reaches UI.
+  if (data.protocolError) {
+    return (
+      <main
+        data-testid="today-board-compatibility"
+        data-mode={fridgeMode ? 'fridge' : 'app'}
+        className="flex min-h-screen items-center justify-center bg-[var(--surface-grouped)] px-4 py-10 sm:px-6 lg:px-8"
+      >
+        <section
+          role="alert"
+          aria-labelledby="today-board-compatibility-title"
+          className="w-full max-w-2xl rounded-[var(--radius-xl)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-6 shadow-sm sm:p-8"
+        >
+          <h1
+            id="today-board-compatibility-title"
+            className="font-display text-[30px] font-semibold leading-tight text-label-primary"
+          >
+            {text('protocolCompatibilityTitle')}
+          </h1>
+          <p className="mt-3 max-w-xl text-[17px] leading-7 text-label-secondary">
+            {text('protocolCompatibilityBody')}
+          </p>
+          <button
+            type="button"
+            onClick={refresh}
+            className="btn-primary mt-6 min-h-11 min-w-[44px]"
+          >
+            {text('refreshBoard')}
+          </button>
+        </section>
+      </main>
+    )
+  }
 
   return (
     <>

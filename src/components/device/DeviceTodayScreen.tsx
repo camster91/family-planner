@@ -12,6 +12,7 @@ import ElevationSheet from './ElevationSheet'
 import { genericErrorText, useDeviceClient, type DeviceMe } from './use-device-client'
 import { useDeviceBoardActions } from './use-device-board-actions'
 import { useDeviceBoardSnapshot } from './use-device-board-snapshot'
+import { useTodayBoardText } from '@/i18n/today-board'
 import {
   dangerButtonClass,
   errorTextClass,
@@ -36,8 +37,9 @@ const PROACTIVE_CHECK_MS = 60 * 1000
  * act directly after "Who's this?" (SHARED_DEVICE.md §9.2), and parent mode
  * offers the board settings on the tablet itself (no photos, O-15).
  */
-export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie: boolean }) {
+export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 }: { hasAccessCookie: boolean; memberProtocol?: 1 | 2 }) {
   const client = useDeviceClient()
+  const boardText = useTodayBoardText()
   const [me, setMe] = React.useState<DeviceMe | null>(null)
   const [elevation, setElevation] = React.useState<ElevationSession | null>(null)
   const [sheetOpen, setSheetOpen] = React.useState(false)
@@ -58,7 +60,7 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
     }
   }, [client])
 
-  const { data, error: loadError, cached, cacheUnavailable, load: loadBoard, checkVersion } = useDeviceBoardSnapshot({ client, hasAccessCookie, loadIdentity: loadMe })
+  const { data, error: loadError, protocolError, cached, cacheUnavailable, load: loadBoard, checkVersion } = useDeviceBoardSnapshot({ client, hasAccessCookie, memberProtocol, loadIdentity: loadMe })
 
   const refreshBoard = React.useCallback(() => void loadBoard(), [loadBoard])
   const { actions, actor, forgetActor, picker } = useDeviceBoardActions({
@@ -66,6 +68,7 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
     enabled: Boolean(data) && !cached && Boolean(me?.deviceWrites),
     features: me ? { chores: me.features.chores, lists: me.features.lists } : null,
     members: data?.members ?? [],
+    memberProtocol,
     afterChange: refreshBoard,
   })
   const settingsTransport = React.useMemo(() => (client ? deviceSettingsTransport(client) : null), [client])
@@ -139,14 +142,14 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
           {loadError ? (
             <>
               <h1 className="font-display text-[32px] font-bold leading-tight text-label-primary">
-                Today&apos;s board could not load
+                {protocolError ? boardText('protocolCompatibilityTitle') : "Today's board could not load"}
               </h1>
               <p role="alert" className={`mt-4 ${errorTextClass}`}>
-                {loadError}
+                {protocolError ? boardText('protocolCompatibilityBody') : loadError}
               </p>
               <div className="mt-6">
                 <button type="button" onClick={() => void loadBoard()} className={primaryButtonClass}>
-                  Try again
+                  {protocolError ? boardText('refreshBoard') : 'Try again'}
                 </button>
               </div>
             </>
@@ -226,19 +229,21 @@ export default function DeviceTodayScreen({ hasAccessCookie }: { hasAccessCookie
 
   return (
     <>
-      <TodayBoard
-        data={data}
-        cachedSnapshot={cached}
-        fridgeMode
-        onRefresh={() => void loadBoard()}
-        checkVersion={checkVersion}
-        actions={parentButton ?? <span />}
-        banner={banner}
-        tileActions={actions}
-        groceryAction={!cached && client && me?.deviceWrites && me.features.lists && data.groceryLists && actions?.prepare ? (
-          <DeviceGroceryAdd client={client} lists={data.groceryLists} actorId={actor?.id ?? null} prepare={actions.prepare} afterChange={refreshBoard} />
-        ) : undefined}
-      />
+      <main>
+        <TodayBoard
+          data={data}
+          cachedSnapshot={cached}
+          fridgeMode
+          onRefresh={() => void loadBoard()}
+          checkVersion={checkVersion}
+          actions={parentButton ?? <span />}
+          banner={banner}
+          tileActions={actions}
+          groceryAction={!cached && client && me?.deviceWrites && me.features.lists && data.groceryLists && actions?.prepare ? (
+            <DeviceGroceryAdd client={client} lists={data.groceryLists} actorId={actor?.id ?? null} prepare={actions.prepare} afterChange={refreshBoard} />
+          ) : undefined}
+        />
+      </main>
       {picker}
 
       {client && elevation && settingsTransport && (

@@ -38,6 +38,7 @@ import * as settings from '../elevated/board-settings/route'
 import * as places from '../elevated/board-settings/places/route'
 import * as completionEngine from '@/lib/chore-complete'
 import * as memberSubjects from '@/lib/chore-member-subject'
+import { openDeviceWrite } from '@/lib/device-writes'
 import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 
 const T0 = new Date('2026-09-26T12:00:00Z')
@@ -117,6 +118,33 @@ describe('shared-tablet writes (#274)', () => {
     if (opts.k !== null) headers['Idempotency-Key'] = opts.k ?? key()
     return deviceReq({ method: 'POST', cookies: opts.cookies ?? fx.d1.cookies, headers, body })
   }
+
+  describe('canonical profile identity transport', () => {
+    it.each([
+      ['generated 67-character identity', `hm_${'a'.repeat(64)}`, true],
+      ['identity beyond the shared 128-character bound', `hm_${'a'.repeat(126)}`, false],
+    ])('%s', async (_label, memberId, valid) => {
+      allowWrites()
+      const previous = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED
+      const previousRollback = process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY
+      process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = '1'
+      process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = '1'
+      try {
+        const opened = await openDeviceWrite(postReq({ protocol: 2, selection: { memberId } }), 'chores', { allowProfile: true })
+        expect(opened.ok).toBe(valid)
+        if (opened.ok) expect(opened.ctx).toMatchObject({ profileMemberId: memberId })
+        else {
+          expect(opened.response.status).toBe(400)
+          expect(await errorCode(opened.response)).toBe('VALIDATION_ERROR')
+        }
+      } finally {
+        if (previous === undefined) delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED
+        else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = previous
+        if (previousRollback === undefined) delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY
+        else process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = previousRollback
+      }
+    })
+  })
 
   describe('the gate every write passes', () => {
     it('household opt-in defaults off: 403 DEVICE_WRITES_OFF and nothing changes', async () => {

@@ -28,6 +28,7 @@ import { normalizeFeatures } from '@/lib/features'
 import { getBoardWeather, isWeatherEnabled } from '@/lib/weather/board-weather'
 import { CHORE_PHOTO_FILENAME_RE, chorePhotoPath } from '@/lib/chore-photos'
 import { MAX_AMBIENT_PHOTOS, idleMinutesFrom, nightHoursFrom } from '@/lib/ambient'
+import type { MemberProtocol } from '@/lib/member-subject-contract'
 import { buildTodayBoard, type BoardDisplayData, type BoardPhoto, type TodayBoardData } from './today-board-data'
 
 type Db = Pick<
@@ -43,11 +44,14 @@ type Db = Pick<
   | 'family'
   | 'weatherCache'
   | 'upload'
+  | 'householdMember'
 >
 
 export type LoadTodayBoardOptions = {
   familyId: string
   now?: Date
+  /** Server-selected member subject protocol; defaults to account protocol 1. */
+  memberProtocol?: MemberProtocol
   /** Include the forecast (full board). Version checks leave it out. */
   withWeather?: boolean
 } & ({ audience?: 'person'; role: string | null | undefined } | { audience: 'device'; role?: never })
@@ -63,11 +67,11 @@ const DISPLAYABLE_PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'
 export async function loadAmbientPhotos(
   db: Pick<PrismaClient, 'upload'>,
   familyId: string,
-  ids: readonly string[] | null | undefined
+  ids: readonly string[] | null | undefined,
 ): Promise<BoardPhoto[]> {
   const wanted = [...new Set((ids ?? []).filter((id) => typeof id === 'string' && id.length > 0 && id.length <= 64))].slice(
     0,
-    MAX_AMBIENT_PHOTOS
+    MAX_AMBIENT_PHOTOS,
   )
   if (wanted.length === 0) return []
   const rows = await db.upload.findMany({
@@ -91,7 +95,9 @@ export function boardVersion(board: TodayBoardData, weatherKey: unknown): string
   void _generatedAt
   void _weather
   void _version
-  const hash = createHash('sha256').update(JSON.stringify([shown, weatherKey])).digest('hex')
+  const hash = createHash('sha256')
+    .update(JSON.stringify([shown, weatherKey]))
+    .digest('hex')
   return `v1-${hash.slice(0, 24)}`
 }
 
@@ -120,8 +126,20 @@ export async function loadTodayBoard(db: Db, options: LoadTodayBoardOptions): Pr
 
   const [board, weather, photos] = await Promise.all([
     isDevice
-      ? buildTodayBoard(db, { familyId, audience: 'device', features, now })
-      : buildTodayBoard(db, { familyId, role: options.role, features, now }),
+      ? buildTodayBoard(db, {
+          familyId,
+          audience: 'device',
+          features,
+          now,
+          memberProtocol: options.memberProtocol,
+        })
+      : buildTodayBoard(db, {
+          familyId,
+          role: options.role,
+          features,
+          now,
+          memberProtocol: options.memberProtocol,
+        }),
     withWeather ? getBoardWeather(db, { familyId, now }) : Promise.resolve(null),
     isDevice
       ? Promise.resolve(null)
@@ -141,5 +159,9 @@ export async function loadTodayBoard(db: Db, options: LoadTodayBoardOptions): Pr
       : null
 
   const data: TodayBoardData = { ...board, display }
-  return { ...data, weather: withWeather ? weather : undefined, version: boardVersion(data, weatherKey) }
+  return {
+    ...data,
+    weather: withWeather ? weather : undefined,
+    version: boardVersion(data, weatherKey),
+  }
 }

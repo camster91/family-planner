@@ -409,7 +409,9 @@ model Chore {
   title          String
   description    String?
   points         Int       @default(10)
-  assigned_to    String // user_id
+  /// Nullable only for an explicitly gated profile-only one-off chore. Account
+  /// and recurring rows continue to use the User subject.
+  assigned_to    String? // user_id
   /// Dormant canonical subject; legacy account ownership remains required.
   assigned_member_id String?
   /// Permanent-erasure tombstone: reconciliation must never relink this subject.
@@ -469,7 +471,7 @@ model Chore {
 
   // Relations
   family      Family            @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  assignee    User              @relation("AssignedChores", fields: [assigned_to], references: [id], onDelete: Cascade)
+  assignee    User?             @relation("AssignedChores", fields: [assigned_to], references: [id], onDelete: Cascade)
   assigneeMember HouseholdMember? @relation("MemberChores", fields: [assigned_member_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction, map: "Chore_member_subject_fkey")
   creator     User              @relation("CreatedChores", fields: [created_by], references: [id], onDelete: Cascade)
   assignments ChoreAssignment[]
@@ -482,6 +484,7 @@ model Chore {
   @@index([family_id, status])
   @@index([family_id, assigned_to])
   @@index([family_id, assigned_member_id])
+  @@index([family_id, assigned_member_id, due_date], map: "Chore_family_member_due_idx")
   @@index([family_id, due_date])
   @@index([recurrence_id])
 }

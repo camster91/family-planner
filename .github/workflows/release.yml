@@ -190,6 +190,7 @@ jobs:
           src/app/api/search/__tests__/search.integration.test.ts
           src/app/api/users/__tests__/preferences.integration.test.ts
           src/app/dashboard/today/__tests__/board-snapshot.integration.test.ts
+          src/app/dashboard/today/__tests__/board-profile.integration.test.ts
           src/lib/__tests__/account-deletion.integration.test.ts
           src/lib/__tests__/beta-metrics.integration.test.ts
           src/lib/__tests__/device.integration.test.ts
@@ -203,6 +204,7 @@ jobs:
           src/lib/__tests__/membership-write-races.integration.test.ts
           src/lib/__tests__/person-allowance-create.integration.test.ts
           src/lib/__tests__/recurring-series.integration.test.ts
+          src/lib/__tests__/profile-chore.integration.test.ts
           src/lib/calendar-import/__tests__/sync.integration.test.ts
           src/lib/calendar-sync/__tests__/sync.integration.test.ts
           src/lib/imports/__tests__/meal-planner-canonical.integration.test.ts
@@ -211,6 +213,7 @@ jobs:
           DATABASE_URL: postgresql://postgres@localhost:5432/familyplanner_ci
           FIXTURES_ALLOW: "1"
           RUN_DB_INTEGRATION: "1"
+          PROFILE_CHORE_PRISMA_CLIENT_MODULE: ${{ github.workspace }}/src/lib/prisma.ts
 
       # Backup -> restore -> compare -> migrate twice -> Prisma smoke on throwaway
       # fp_rehearsal_* databases in the CI service (#288). backup.sh/restore.sh

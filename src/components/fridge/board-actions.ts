@@ -42,9 +42,16 @@ export interface BoardActions {
   actorLabel?: () => string | null
   /**
    * Runs before a tap acts (the tablet's "Who's this?"). Resolving false
-   * cancels the tap with nothing changed.
+   * cancels a grocery tap with nothing changed. Chore taps use
+   * `prepareChore` when the surface needs the chore's subject.
    */
   prepare?: () => Promise<boolean>
+  /**
+   * Runs before a chore tap acts. The chore is supplied explicitly so a
+   * capability check used while rendering cannot change the next grocery
+   * action's subject picker.
+   */
+  prepareChore?: (chore: BoardChore) => Promise<boolean>
   /** Called after a change the server confirmed, to re-read the board. */
   afterChange?: () => void
 }
@@ -173,7 +180,12 @@ export function useBoardTiles(
     ? async (chore: BoardChore) => {
         if (busy.current.has(chore.id) || !actions.canCompleteChore(chore)) return
         busy.current.add(chore.id)
-        if (actions.prepare && !(await actions.prepare())) {
+        const prepared = actions.prepareChore
+          ? await actions.prepareChore(chore)
+          : actions.prepare
+            ? await actions.prepare()
+            : true
+        if (!prepared) {
           busy.current.delete(chore.id)
           return
         }

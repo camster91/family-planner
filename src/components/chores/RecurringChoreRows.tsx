@@ -1,9 +1,14 @@
 import type { ReactNode } from "react";
 import type { Chore } from "@/types";
+import type { ChoreSubjectDTO } from "@/lib/chore-profile";
 import { groupChoreSeries, choreCadence } from "@/lib/chore-series-groups";
 import { formatRelativeDueDate } from "@/lib/dates";
 
-type Row = Chore & { assignee: { name: string } | null };
+type Row = Chore & {
+  assignee: { name: string } | null;
+  /** Safe display-only subject for an email-free household member. */
+  subject?: ChoreSubjectDTO;
+};
 
 /** Disclosure has no mutation: actions always target an expanded occurrence. */
 export function RecurringChoreRows<T extends Row>({
@@ -36,7 +41,7 @@ export function RecurringChoreRows<T extends Row>({
                 {choreCadence(next)} ·{" "}
                 {takesTurns
                   ? "Takes turns"
-                  : (next.assignee?.name ?? "Unassigned")}
+                  : (next.subject?.name ?? next.assignee?.name ?? "Unassigned")}
               </span>
               <span className="block text-footnote text-label-secondary">
                 Next: {formatRelativeDueDate(next.due_date, now, locale)} ·{" "}

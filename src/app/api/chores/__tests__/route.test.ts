@@ -54,8 +54,9 @@ const USERS = {
 };
 const ALL_USERS = Object.values(USERS);
 
-const CHORES: Record<string, { family_id: string; assigned_to: string | null }> = {
+const CHORES: Record<string, { family_id: string; assigned_to: string | null; member_subject_erased?: boolean }> = {
   "chore-a": { family_id: "family-A", assigned_to: "child-a" },
+  "chore-erased": { family_id: "family-A", assigned_to: "child-a", member_subject_erased: true },
 };
 
 function asCaller(user: (typeof USERS)[keyof typeof USERS]) {
@@ -162,6 +163,27 @@ describe("PATCH /api/chores — parent-only fields", () => {
 
     expect(res.status).toBe(200);
     expect(mockChoreUpdate.mock.calls[0][0].data).toEqual({ assigned_to: "child2-a" });
+  });
+
+  it("rejects reassignment of an erased subject before checking the new account", async () => {
+    asCaller(USERS.parentA);
+
+    const res = await PATCH(makeRequest({ choreId: "chore-erased", assigned_to: "child2-a" }));
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "IDENTITY_CONFLICT" });
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(mockUserFindFirst).not.toHaveBeenCalled();
+    expect(mockChoreUpdate).not.toHaveBeenCalled();
+  });
+
+  it("still permits a non-assignee history edit on an erased subject", async () => {
+    asCaller(USERS.parentA);
+
+    const res = await PATCH(makeRequest({ choreId: "chore-erased", title: "Archived task" }));
+
+    expect(res.status).toBe(200);
+    expect(mockChoreUpdate.mock.calls[0][0].data).toEqual({ title: "Archived task" });
   });
 });
 

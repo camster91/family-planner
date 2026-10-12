@@ -28,6 +28,9 @@ export function usePersonBoardActions(
   afterRef.current = afterChange
   const viewerId = viewer?.id ?? null
   const isParent = viewer?.role === 'parent'
+  const profileChoreUnsupported = 'This profile chore needs a newer supported board.'
+  const isProfileChore = (chore: Parameters<BoardActions['canCompleteChore']>[0]) =>
+    chore.subject?.kind === 'profile'
 
   return React.useMemo<BoardActions | undefined>(() => {
     if (!viewerId) return undefined
@@ -36,10 +39,16 @@ export function usePersonBoardActions(
     // list page keeps showing its own failed ticks with Retry.
     const mine = new Set<string>()
     return {
-      canCompleteChore: (chore) => isParent || chore.assigneeId === viewerId,
+      canCompleteChore: (chore) => !isProfileChore(chore) && (isParent || chore.assigneeId === viewerId),
       canTickGroceries: true,
-      completeChore: (chore) => setChoreDone(chore.id, true),
-      undoChore: (chore) => setChoreDone(chore.id, false),
+      completeChore: (chore) =>
+        isProfileChore(chore)
+          ? Promise.resolve({ ok: false as const, message: profileChoreUnsupported })
+          : setChoreDone(chore.id, true),
+      undoChore: (chore) =>
+        isProfileChore(chore)
+          ? Promise.resolve({ ok: false as const, message: profileChoreUnsupported })
+          : setChoreDone(chore.id, false),
       choreDoneNote: () => (isParent ? undefined : 'A parent will check it.'),
       async setGroceryChecked(item, checked) {
         try {

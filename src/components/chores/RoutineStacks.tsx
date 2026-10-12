@@ -8,8 +8,13 @@ import { groupChoreSeries } from '@/lib/chore-series-groups'
 import { formatDateOnly } from '@/lib/dates'
 import { RoutineIcon } from './RoutineIcon'
 import type { Chore } from '@/types'
+import type { ChoreSubjectDTO } from '@/lib/chore-profile'
 
-type Step = Chore & { assignee: { name: string } | null }
+type Step = Chore & {
+  assignee: { name: string } | null
+  /** Safe display-only subject for an email-free household member. */
+  subject?: ChoreSubjectDTO
+}
 
 /** Labels are not identities: keep members and occurrences separate. */
 export function routineStacks(chores: Step[]) {
@@ -41,17 +46,18 @@ export function RoutineStacks({ chores, userRole, currentUserId, locale, collaps
   const other = chores.filter(c => !c.routine?.trim())
   const renderStep = (chore: Step, next: boolean, context = false) => {
     const done = isDone(chore)
-    const canComplete = userRole === 'parent' || chore.assigned_to === currentUserId
+    const profileOnly = chore.subject?.kind === 'profile'
+    const canComplete = !profileOnly && (userRole === 'parent' || chore.assigned_to === currentUserId)
     return (
       <li key={chore.id} className="flex flex-wrap items-center gap-3 py-3 border-b border-[var(--surface-separator)] last:border-0">
         <RoutineIcon icon={chore.icon ?? null} className="h-8 w-8 shrink-0 text-label-primary" />
         <div className="flex-1 min-w-[120px] [overflow-wrap:anywhere]">
           <p className="text-body text-label-primary">{chore.routine_order ? `${chore.routine_order}. ` : ''}{chore.title}</p>
-          {context && <p className="text-footnote text-label-secondary">{chore.assignee?.name ?? t('routineViews.unassigned')} · {formatDateOnly(chore.due_date, undefined, locale)}</p>}
+          {context && <p className="text-footnote text-label-secondary">{chore.subject?.name ?? chore.assignee?.name ?? t('routineViews.unassigned')} · {formatDateOnly(chore.due_date, undefined, locale)}</p>}
           <p className="text-footnote text-label-secondary">{chore.status === 'verified' ? 'Checked' : done ? 'Done · awaiting check' : next ? 'Up next' : 'To do'}</p>
         </div>
         {!done && canComplete && <button type="button" onClick={() => onComplete(chore.id)} className="btn-filled min-h-[44px]" aria-label={`Complete ${chore.title}`}>Done</button>}
-        {userRole === 'parent' && <Link href={`/dashboard/chores/edit?id=${encodeURIComponent(chore.id)}`} className="text-footnote text-label-secondary min-h-[44px] inline-flex items-center px-2 underline" aria-label={`Edit ${chore.title}`}>Edit</Link>}
+        {userRole === 'parent' && !profileOnly && <Link href={`/dashboard/chores/edit?id=${encodeURIComponent(chore.id)}`} className="text-footnote text-label-secondary min-h-[44px] inline-flex items-center px-2 underline" aria-label={`Edit ${chore.title}`}>Edit</Link>}
       </li>
     )
   }
@@ -64,13 +70,13 @@ export function RoutineStacks({ chores, userRole, currentUserId, locale, collaps
         const checked = stack.steps.filter(c => c.status === 'verified').length
         const next = stack.steps.find(c => !isDone(c))?.id
         const lastOrder = Math.max(0, ...stack.steps.map(c => c.routine_order ?? 0))
-        return <section key={stack.key} className="rounded-[var(--radius-xl)] bg-[var(--surface-elevated)] p-4" aria-label={`${stack.name} · ${stack.steps[0].assignee?.name ?? 'Unassigned'} · ${formatDateOnly(stack.steps[0].due_date, undefined, locale)}`}>
+        return <section key={stack.key} className="rounded-[var(--radius-xl)] bg-[var(--surface-elevated)] p-4" aria-label={`${stack.name} · ${stack.steps[0].subject?.name ?? stack.steps[0].assignee?.name ?? 'Unassigned'} · ${formatDateOnly(stack.steps[0].due_date, undefined, locale)}`}>
           <h2 className="text-title-3 text-label-primary [overflow-wrap:anywhere]">{stack.name}</h2>
-          <p className="text-footnote text-label-secondary">{stack.steps[0].assignee?.name ?? 'Unassigned'} · {formatDateOnly(stack.steps[0].due_date, undefined, locale)}</p>
+          <p className="text-footnote text-label-secondary">{stack.steps[0].subject?.name ?? stack.steps[0].assignee?.name ?? 'Unassigned'} · {formatDateOnly(stack.steps[0].due_date, undefined, locale)}</p>
           <p className="text-footnote text-label-secondary mt-2" aria-live="polite">{done} of {stack.steps.length} done · {checked} checked</p>
           <ol>{stack.steps.filter(c => !focusNext || c.id === next).map(c => renderStep(c, c.id === next))}</ol>
           {focusNext && !next && <p className="text-footnote text-label-secondary mt-2">All steps done{checked < done ? " · some awaiting check" : " and checked"}.</p>}
-          {userRole === 'parent' && lastOrder < ROUTINE_ORDER_MAX && <Link className="inline-flex items-center min-h-[44px] text-[var(--accent)] underline text-body" href={`/dashboard/chores/create?${new URLSearchParams({ routine: stack.name, step: String(lastOrder + 1), member: stack.steps[0].assigned_to, date: stack.steps[0].due_date.slice(0, 10) })}`}>Add step</Link>}
+          {userRole === 'parent' && stack.steps[0].assigned_to && lastOrder < ROUTINE_ORDER_MAX && <Link className="inline-flex items-center min-h-[44px] text-[var(--accent)] underline text-body" href={`/dashboard/chores/create?${new URLSearchParams({ routine: stack.name, step: String(lastOrder + 1), member: stack.steps[0].assigned_to, date: stack.steps[0].due_date.slice(0, 10) })}`}>Add step</Link>}
         </section>
       })}
       {other.length > 0 && <section className="list-inset px-4" aria-label="Other chores"><h2 className="section-header">Other chores</h2><ul>{(collapseRepeats ? groupChoreSeries(other) : other.map(c => ({ key: c.id, steps: [c], repeating: false }))).map(group => {

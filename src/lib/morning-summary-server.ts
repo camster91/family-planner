@@ -166,12 +166,19 @@ async function loadHousehold(db: Db, familyId: string, now: Date): Promise<House
 
   return {
     features,
-    chores: chores.map((c) => ({
-      title: c.title,
-      dueDay: toDateOnlyUTC(c.due_date),
-      status: c.status,
-      assigneeId: c.assigned_to,
-    })),
+    // Morning summaries are account-delivery only. A profile-only chore has
+    // no account recipient, so omit it until profile-aware delivery exists;
+    // never coerce its null account subject into a fake User ID.
+    chores: chores.flatMap((c) =>
+      c.assigned_to === null
+        ? []
+        : [{
+            title: c.title,
+            dueDay: toDateOnlyUTC(c.due_date),
+            status: c.status,
+            assigneeId: c.assigned_to,
+          }],
+    ),
     events: events.map((e) => ({
       title: e.title,
       start: e.start_time,

@@ -2,8 +2,9 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { writeDeviceAudit } from '@/lib/device-audit'
 import { deviceClock, deviceError, deviceErrorBody, deviceInternalError, killSwitch } from '@/lib/device-http'
-import { isRouteId, openDeviceWrite, runDeviceWrite } from '@/lib/device-writes'
+import { isProfileDeviceWrite, isRouteId, openDeviceWrite, runDeviceWrite } from '@/lib/device-writes'
 import { completeChore, findHouseholdChore, isDueTodaySomewhere } from '@/lib/chore-complete'
+import { completeProfileChoreInTx } from '@/lib/chore-profile-actions'
 import { getRequestId } from '@/lib/request-id'
 
 import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
@@ -32,27 +33,44 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const off = killSwitch()
   if (off) return off
   try {
-    const opened = await openDeviceWrite(request, 'chores')
+    const opened = await openDeviceWrite(request, 'chores', { allowProfile: true })
     if (!opened.ok) return opened.response
     const { ctx } = opened
     const { id } = await params
     if (!isRouteId(id)) return deviceError(404, 'NOT_FOUND')
-    if (Object.keys(ctx.body).some((k) => k !== 'actingMemberId')) return deviceError(400, 'VALIDATION_ERROR')
+    const profileWrite = isProfileDeviceWrite(ctx) ? ctx : null
+    const accountMember = 'member' in ctx ? ctx.member : null
+    if (!profileWrite && Object.keys(ctx.body).some((k) => k !== 'actingMemberId')) return deviceError(400, 'VALIDATION_ERROR')
 
-    return await runDeviceWrite(ctx, ACTION, { choreId: id, actingMemberId: ctx.member.id }, async () => {
+    return await runDeviceWrite(ctx, ACTION, profileWrite ? { choreId: id, protocol: 2, memberId: profileWrite.profileMemberId } : { choreId: id, actingMemberId: accountMember!.id }, async () => {
       const chore = await findHouseholdChore(prisma!, id, ctx.actor.familyId)
       if (!chore) return { status: 404, body: deviceErrorBody('NOT_FOUND') }
       const now = deviceClock.now()
       if (!isDueTodaySomewhere(chore.due_date, now)) return { status: 409, body: deviceErrorBody('CHORE_NOT_DUE_TODAY') }
 
-      const completed = await completeChore(prisma!, chore, ctx.member, { photoValue: null, now })
+      if (profileWrite) {
+        const outcome = await completeProfileChoreInTx(prisma!, {
+          choreId: id,
+          familyId: ctx.actor.familyId,
+          memberId: profileWrite.profileMemberId,
+          deviceId: ctx.actor.deviceId,
+          now,
+        })
+        if (outcome === 'not_found') return { status: 404, body: deviceErrorBody('NOT_FOUND') }
+        if (outcome === 'not_due') return { status: 409, body: deviceErrorBody('CHORE_NOT_DUE_TODAY') }
+        if (outcome === 'profile_unavailable') return { status: 409, body: deviceErrorBody('MEMBER_PROTOCOL_UNAVAILABLE') }
+        if (outcome === 'already_completed') return { status: 200, body: { chore: { id, status: 'completed' }, alreadyCompleted: true } }
+        return { status: 200, body: { chore: { id, status: 'completed' }, alreadyCompleted: false } }
+      }
+
+      const completed = await completeChore(prisma!, chore, accountMember!, { photoValue: null, now })
       if (!completed) {
         return { status: 200, body: { chore: { id, status: chore.status }, alreadyCompleted: true } }
       }
       await writeDeviceAudit(prisma!, {
         familyId: ctx.actor.familyId,
         deviceId: ctx.actor.deviceId,
-        actorUserId: ctx.member.id,
+        actorUserId: accountMember!.id,
         type: 'device.member_action',
         at: deviceClock.now(),
         metadata: { action: 'chore_complete', targetType: 'chore', targetId: id },

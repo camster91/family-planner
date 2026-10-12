@@ -5,8 +5,9 @@ import userEvent from '@testing-library/user-event'
 import { RoutineStacks, routineStacks } from '../RoutineStacks'
 import { I18nProvider } from '@/i18n'
 import type { Chore } from '@/types'
+import type { ChoreSubjectDTO } from '@/lib/chore-profile'
 
-function step(id: string, order: number, extra: Partial<Chore> & { assignee?: { name: string } | null } = {}) {
+function step(id: string, order: number, extra: Partial<Chore> & { assignee?: { name: string } | null; subject?: ChoreSubjectDTO } = {}) {
   return { id, family_id: 'fixture', title: id, assigned_to: 'adult', due_date: '2026-10-09', points: 0, status: 'pending' as const, frequency: 'once' as const, difficulty: 'easy' as const, created_at: '2026-10-01', assignee: { name: 'Alex' }, routine: 'Evening reset', routine_order: order, ...extra }
 }
 
@@ -45,6 +46,18 @@ it('keeps ungrouped chores visible and supplies an explicit empty state', () => 
   expect(screen.getByRole('link', { name: 'Edit standalone' }).getAttribute('href')).toBe('/dashboard/chores/edit?id=standalone')
   rerender(<RoutineStacks chores={[]} userRole="parent" currentUserId="adult" locale="en-CA" onComplete={jest.fn()} />)
   expect(screen.getByText(/No routines in this range/)).toBeTruthy()
+})
+
+it('keeps profile-only routine steps readable without exposing account mutations', () => {
+  const profile = step('profile-step', 1, {
+    assigned_to: null as never,
+    assignee: null,
+    subject: { kind: 'profile' as const, memberId: 'member-no-email', name: 'Jamie', role: 'child' as const },
+  })
+  render(<RoutineStacks chores={[profile]} userRole="parent" currentUserId="adult" locale="en-CA" onComplete={jest.fn()} />)
+  expect(screen.getByText('Jamie · Oct 9')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Complete profile-step' })).toBeNull()
+  expect(screen.queryByRole('link', { name: 'Edit profile-step' })).toBeNull()
 })
 
 

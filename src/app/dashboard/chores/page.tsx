@@ -12,6 +12,7 @@ import {
 } from '@/lib/chore-paging'
 import { topUpHouseholdSeries } from '@/lib/recurringChores'
 import { nextRotationMember } from '@/lib/chore-rotation'
+import { choreSubjectInclude, readChoreSubject } from '@/lib/chore-profile'
 
 export default async function ChoresPage() {
   const sessionUser = await getServerUser()
@@ -45,9 +46,9 @@ export default async function ChoresPage() {
   // recent history and the client's "Load more" carries on, further back, from
   // `historyCursor`.
   const include = {
-    assignee: { select: { name: true } },
+    ...choreSubjectInclude,
     creator: { select: { name: true } },
-  }
+  } as const
   const queries = familyId ? currentChoreQueries(familyId) : null
   const [open, awaitingCheck, history] = queries
     ? await Promise.all([
@@ -87,7 +88,9 @@ export default async function ChoresPage() {
     // Group by assignee
     const byAssignee: Record<string, Date[]> = {}
     for (const c of completedChores) {
-      if (!c.completed_at) continue
+      // Profile-only chores intentionally have no account assignee. They can
+      // still appear on the board, but must not be counted in account streaks.
+      if (!c.assigned_to || !c.completed_at) continue
       if (!byAssignee[c.assigned_to]) byAssignee[c.assigned_to] = []
       byAssignee[c.assigned_to].push(new Date(c.completed_at))
     }
@@ -151,14 +154,20 @@ export default async function ChoresPage() {
   }
 
   const serializedChores = chores.map((c) => {
+    const subject = familyId ? readChoreSubject(c, familyId) : null
+    const { assigneeMember: _assigneeMember, assignee: _assignee, ...safeChore } = c
     const row = {
-      ...c,
+      ...safeChore,
+      // Keep account/profile subjects display-only on this board. In
+      // particular, never manufacture a User for an email-free member.
+      assignee: subject ? { name: subject.name } : null,
+      ...(subject?.kind === 'profile' ? { subject } : {}),
       due_date: c.due_date.toISOString(),
       created_at: c.created_at.toISOString(),
       completed_at: c.completed_at?.toISOString() ?? null,
       verified_at: c.verified_at?.toISOString() ?? null,
       photo_url: c.photo_url ?? null,
-      streak: streakMap[c.assigned_to] ?? 0,
+      streak: c.assigned_to ? (streakMap[c.assigned_to] ?? 0) : 0,
       rotation_next_name: rotationNextName(c),
       recurrence_frequency: c.recurrence_id ? schedules.get(c.recurrence_id)?.frequency ?? null : null,
       recurrence_weekly_days: c.recurrence_id ? schedules.get(c.recurrence_id)?.weekly_days ?? [] : [],

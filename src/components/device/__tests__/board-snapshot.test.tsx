@@ -84,6 +84,67 @@ it("restores only a recent saved plan when the read endpoint is unreachable", as
   expect(result.current.error).toBeNull();
 });
 
+it("sends the explicit profile protocol only when the server selected it", async () => {
+  const request = jest.fn().mockResolvedValue(board);
+  const t = setup(request);
+  const { result } = renderHook(() =>
+    useDeviceBoardSnapshot({ ...t, hasAccessCookie: true, memberProtocol: 2 }),
+  );
+  await waitFor(() => expect(result.current.data).not.toBeNull());
+  expect(request).toHaveBeenCalledWith("/api/device/today", {
+    headers: { "X-Member-Protocol": "2" },
+  });
+  expect(localStorage.getItem("fp-device:v1:device-a:today")).toBeNull();
+  expect(result.current.cacheUnavailable).toBe(false);
+});
+
+it("clears a live profile board when version negotiation is refused", async () => {
+  const profileBoard = { ...board, memberProtocol: 2 as const };
+  const request = jest.fn(async (path: string) => {
+    if (path.endsWith("/version")) {
+      throw new DeviceApiError(
+        409,
+        "MEMBER_PROTOCOL_UNAVAILABLE",
+        "newer tablet required",
+      );
+    }
+    return profileBoard;
+  });
+  const t = setup(request);
+  const { result } = renderHook(() =>
+    useDeviceBoardSnapshot({ ...t, hasAccessCookie: true, memberProtocol: 2 }),
+  );
+  await waitFor(() => expect(result.current.data).not.toBeNull());
+  await act(async () => {
+    await expect(result.current.checkVersion()).rejects.toMatchObject({
+      code: "MEMBER_PROTOCOL_UNAVAILABLE",
+    });
+  });
+  await waitFor(() => expect(result.current.data).toBeNull());
+  expect(result.current.cached).toBe(false);
+  expect(result.current.cacheUnavailable).toBe(false);
+  expect(result.current.protocolError).toBe(true);
+  expect(localStorage.getItem("fp-device:v1:device-a:today")).toBeNull();
+});
+
+it("does not display a protocol-2 profile board to a protocol-1 tablet", async () => {
+  const profileBoard = { ...board, memberProtocol: 2 as const };
+  const request = jest.fn().mockResolvedValue(profileBoard);
+  const t = setup(request);
+  const { result } = renderHook(() =>
+    useDeviceBoardSnapshot({ ...t, hasAccessCookie: true, memberProtocol: 1 }),
+  );
+  await waitFor(() =>
+    expect(result.current.error).toBe(
+      "Refresh this tablet before viewing the family plan.",
+    ),
+  );
+  expect(result.current.data).toBeNull();
+  expect(request).toHaveBeenCalledWith("/api/device/today", {
+    headers: undefined,
+  });
+});
+
 it("reconnect fetches and persists fresh canonical data before leaving cached mode", async () => {
   seed();
   const fresh = {

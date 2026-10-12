@@ -118,6 +118,14 @@ export async function expandSeriesInTx(
 
   // Household-scoped: a template of another household is never expanded.
   if (!original || original.family_id !== familyId || original.frequency === 'once') return 0
+  const assignedTo = original.assigned_to
+
+  // Profile-only chores are one-off rows in this dormant slice. Recurrence
+  // expansion still resolves account subjects and writes the legacy
+  // occurrence ledger, so refusing a null account owner here avoids turning a
+  // presentation profile into a fabricated account assignment. A canonical
+  // account row may still carry both IDs and follows the existing path.
+  if (assignedTo === null) return 0
 
   const windowSize = WINDOW_SIZE[original.frequency as Exclude<ChoreFrequency, 'once'>] * (original.frequency === 'weekly' ? Math.max(1, normalizedWeekdays(original.weekly_days).length) : 1)
   if (!windowSize) return 0
@@ -172,7 +180,7 @@ export async function expandSeriesInTx(
   // history and create no new work; never fall back to a removed owner.
   const rotation = original.rotation_member_ids ?? []
   const assignees = new Map<string, { assigned_to: string; assigned_member_id?: string }>()
-  for (const id of new Set(rotation.length ? rotation : [original.assigned_to])) {
+  for (const id of new Set(rotation.length ? rotation : [assignedTo])) {
     const subject = await eligibleChoreAssigneeInTx(tx, familyId, id, { requireCanonical: !!original.assigned_member_id })
     if (subject) assignees.set(id, subject)
   }
@@ -196,7 +204,7 @@ export async function expandSeriesInTx(
     // Instances are one-offs: only the template recurs, so the cron can
     // never mistake a generated row for a template.
     frequency: 'once',
-    ...assignees.get(turns[i]?.assignee ?? original.assigned_to)!,
+    ...assignees.get(turns[i]?.assignee ?? assignedTo)!,
     rotation_index: turns[i]?.index ?? null,
     created_by: original.created_by,
     // Picture routines (#272): every occurrence keeps the template's picture and step.

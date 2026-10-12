@@ -25,6 +25,17 @@ Occurrence history and earned credit are not transferred. The existing removal p
 
 The old required User fields still prevent profile-only chore creation. Read/device/AI identity protocols, installed-client recovery and compatible rollback must be accepted before activation. No production reconciliation is authorized by this continuation. Automatic generation currently stops quietly when nobody remains eligible; a visible paused-series state and reassignment recovery are still UX work. This source compatibility change is not the all-device or all-feature acceptance gate.
 
+The profile-only schema is a forward-only release boundary. Keep
+`HOUSEHOLD_PROFILE_CHORE_ENABLED` and
+`HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY` unset until the same compatible
+reader/writer candidate, backup and recovery evidence have been reviewed. The
+second server-only gate is an operator acknowledgement that an account-only
+image will not be used after a profile-only row exists. Recovery keeps the
+compatible candidate deployed with profile writes disabled, or restores a
+verified backup before resuming; it never deploys the old account-only server,
+clears `assigned_member_id`, or fabricates a User. This gate does not claim
+that an older generated client can decode nullable `assigned_to` rows.
+
 ## Evidence
 
 152 affected tests across nine suites passed, including 22 guarded PostgreSQL cases. They cover open handover, missing-parent rollback, rotation removal, completed template history, foreign/archive/erasure/conflicting-link refusal, pending future rotation edits and repeat reject after removal, archived-owner Undo refusal and an observed advisory-lock wait followed by fresh stale-participant refusal. Four route boundary cases verify explicit conflict responses without mutating work or device audit history. Full suite, typecheck, lint and build results are recorded in the PR and #480 execution comment. These are source/disposable database proofs; no browser, native hardware or production activation claim follows.

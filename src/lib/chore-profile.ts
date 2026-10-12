@@ -1,0 +1,305 @@
+import type { Prisma, PrismaClient } from "@prisma/client";
+import { z } from "zod";
+import {
+  isProfileAgeAllowed,
+  memberIdentityIdSchema,
+  profileRoleSchema,
+} from "@/lib/member-subject-contract";
+import { lockHousehold, lockUser } from "@/lib/household-lock";
+
+/** Server-only gate. It is deliberately absent from the capability manifest. */
+export const PROFILE_CHORE_ENABLE_ENV = "HOUSEHOLD_PROFILE_CHORE_ENABLED";
+/**
+ * Release-controller acknowledgement for the forward-only schema change.
+ * Profile-only rows make an account-only server an unsafe rollback target, so
+ * the feature must stay dark until the compatible reader/writer candidate and
+ * its recovery path are ready together.
+ */
+export const PROFILE_CHORE_ROLLBACK_READY_ENV =
+  "HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY";
+export const PROFILE_CHORE_UNSUPPORTED_CODE =
+  "MEMBER_PROTOCOL_UNAVAILABLE" as const;
+
+export function isProfileChoreEnabled(): boolean {
+  return (
+    process.env[PROFILE_CHORE_ENABLE_ENV] === "1" &&
+    process.env[PROFILE_CHORE_ROLLBACK_READY_ENV] === "1"
+  );
+}
+
+export const profileChoreCreateSchema = z
+  .object({
+    protocol: z.literal(2),
+    selection: z.object({ memberId: memberIdentityIdSchema }).strict(),
+    title: z.string().trim().min(1).max(200),
+    description: z.string().max(1000).trim().nullable().optional(),
+    points: z.number().int().min(0).max(1000).default(10),
+    due_date: z
+      .string()
+      .refine((value) => !Number.isNaN(Date.parse(value)), "Invalid date"),
+    difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
+    frequency: z.literal("once").default("once"),
+    photo_url: z.string().max(500).nullable().optional(),
+  })
+  .strict();
+
+export type ProfileChoreCreateInput = z.infer<typeof profileChoreCreateSchema>;
+
+export type ProfileChoreErrorCode =
+  | "PROFILE_CHORE_UNSUPPORTED"
+  | "PROFILE_TARGET_INVALID"
+  | "PROFILE_TARGET_UNAVAILABLE"
+  | "PROFILE_TARGET_CONFLICT";
+
+export class ProfileChoreError extends Error {
+  constructor(public readonly code: ProfileChoreErrorCode) {
+    super("The profile chore could not be applied.");
+    this.name = "ProfileChoreError";
+  }
+}
+
+export type ChoreSubjectDTO =
+  | { kind: "account"; accountId: string; name: string }
+  | {
+      kind: "profile";
+      memberId: string;
+      name: string;
+      role: "child" | "teen" | "parent";
+    };
+
+type SubjectRow = {
+  assigned_to: string | null;
+  assigned_member_id: string | null;
+  member_subject_erased: boolean;
+  assignee?: { id: string; name: string; family_id: string | null } | null;
+  assigneeMember?: {
+    id: string;
+    family_id: string;
+    name: string;
+    role: string;
+    age: number | null;
+    archived_at: Date | null;
+    erasure_user_id: string | null;
+    legacy_mapping: { user_id: string } | null;
+    account_link: { user_id: string } | null;
+  } | null;
+};
+
+export const choreSubjectInclude = {
+  assignee: { select: { id: true, name: true, family_id: true } },
+  assigneeMember: {
+    select: {
+      id: true,
+      family_id: true,
+      name: true,
+      role: true,
+      age: true,
+      archived_at: true,
+      erasure_user_id: true,
+      legacy_mapping: { select: { user_id: true } },
+      account_link: { select: { user_id: true } },
+    },
+  },
+} as const;
+
+export type ChoreWithSubject = Prisma.ChoreGetPayload<{
+  include: typeof choreSubjectInclude;
+}>;
+
+/**
+ * Convert a stored row into the only subject shape safe for a board/API DTO.
+ * A profile row is never silently treated as an account row.
+ */
+export function readChoreSubject(
+  row: SubjectRow,
+  familyId: string,
+): ChoreSubjectDTO | null {
+  if (row.member_subject_erased) return null;
+  if (row.assigned_to !== null) {
+    if (!row.assignee || row.assignee.family_id !== familyId) return null;
+    if (row.assigned_member_id != null) {
+      const member = row.assigneeMember;
+      const linkedUsers = member
+        ? [member.legacy_mapping?.user_id, member.account_link?.user_id].filter(
+            (userId): userId is string => userId !== undefined,
+          )
+        : [];
+      if (
+        !member ||
+        member.family_id !== familyId ||
+        member.archived_at !== null ||
+        member.erasure_user_id !== null ||
+        linkedUsers.length === 0 ||
+        linkedUsers.some((userId) => userId !== row.assigned_to)
+      )
+        return null;
+    }
+    return {
+      kind: "account",
+      accountId: row.assignee.id,
+      name: row.assignee.name,
+    };
+  }
+  const member = row.assigneeMember;
+  if (
+    !row.assigned_member_id ||
+    !member ||
+    member.id !== row.assigned_member_id ||
+    member.family_id !== familyId ||
+    member.archived_at !== null ||
+    member.erasure_user_id !== null ||
+    member.legacy_mapping !== null ||
+    member.account_link !== null ||
+    !profileRoleSchema.safeParse(member.role).success ||
+    !isProfileAgeAllowed(member.role as "child" | "teen" | "parent", member.age)
+  )
+    return null;
+  return {
+    kind: "profile",
+    memberId: member.id,
+    name: member.name,
+    role: member.role as "child" | "teen" | "parent",
+  };
+}
+
+type ProfileCreateDb = Pick<PrismaClient, "$transaction">;
+
+type ProfileTarget = {
+  id: string;
+  family_id: string;
+  name: string;
+  role: string;
+  age: number | null;
+  archived_at: Date | null;
+  erasure_user_id: string | null;
+  legacy_mapping: { user_id: string } | null;
+  account_link: { user_id: string } | null;
+};
+
+const profileTargetSelect = {
+  id: true,
+  family_id: true,
+  name: true,
+  role: true,
+  age: true,
+  archived_at: true,
+  erasure_user_id: true,
+  legacy_mapping: { select: { user_id: true } },
+  account_link: { select: { user_id: true } },
+} as const;
+
+function assertProfileTarget(
+  target: ProfileTarget | null,
+  familyId: string,
+  memberId: string,
+): asserts target is ProfileTarget {
+  if (!target || target.id !== memberId || target.family_id !== familyId)
+    throw new ProfileChoreError("PROFILE_TARGET_UNAVAILABLE");
+  const role = profileRoleSchema.safeParse(target.role);
+  if (!role.success || !isProfileAgeAllowed(role.data, target.age))
+    throw new ProfileChoreError("PROFILE_TARGET_CONFLICT");
+  if (
+    target.archived_at ||
+    target.erasure_user_id ||
+    target.legacy_mapping ||
+    target.account_link
+  ) {
+    throw new ProfileChoreError("PROFILE_TARGET_CONFLICT");
+  }
+}
+
+/**
+ * Create the first profile-only chore under the account → household lock order.
+ * The caller supplies idempotency around this transaction; this helper never
+ * sends mail/notifications and never expands a series.
+ */
+export async function createProfileOnlyChore(
+  db: ProfileCreateDb,
+  actor: { id: string; familyId: string },
+  input: ProfileChoreCreateInput,
+  dueDate: Date,
+  photoUrl: string | null,
+  now = new Date(),
+) {
+  return db.$transaction(async (tx) => {
+    await lockUser(tx, actor.id);
+    await lockHousehold(tx, actor.familyId);
+    const currentActor = await tx.user.findUnique({
+      where: { id: actor.id },
+      select: { id: true, family_id: true, role: true },
+    });
+    if (
+      !currentActor ||
+      currentActor.family_id !== actor.familyId ||
+      currentActor.role !== "parent"
+    ) {
+      throw new ProfileChoreError("PROFILE_TARGET_UNAVAILABLE");
+    }
+    const target = await tx.householdMember.findFirst({
+      where: { id: input.selection.memberId, family_id: actor.familyId },
+      select: profileTargetSelect,
+    });
+    assertProfileTarget(target, actor.familyId, input.selection.memberId);
+    const chore = await tx.chore.create({
+      data: {
+        family_id: actor.familyId,
+        title: input.title,
+        description: input.description ?? null,
+        points: input.points,
+        assigned_to: null,
+        assigned_member_id: target.id,
+        member_subject_erased: false,
+        due_date: dueDate,
+        status: "pending",
+        frequency: "once",
+        difficulty: input.difficulty,
+        photo_url: photoUrl,
+        created_by: actor.id,
+      } as unknown as Prisma.ChoreUncheckedCreateInput,
+      include: choreSubjectInclude,
+    });
+    const subject = readChoreSubject(chore, actor.familyId);
+    if (!subject || subject.kind !== "profile")
+      throw new ProfileChoreError("PROFILE_TARGET_CONFLICT");
+    return {
+      id: chore.id,
+      title: chore.title,
+      description: chore.description,
+      due_date: chore.due_date,
+      status: chore.status,
+      frequency: chore.frequency,
+      difficulty: chore.difficulty,
+      subject,
+      created_at: now,
+    };
+  });
+}
+
+export function profileChoreProtocolRefusal() {
+  return {
+    code: "MEMBER_PROTOCOL_UNAVAILABLE" as const,
+    recovery: "refresh-and-retain-pending" as const,
+    requiredProtocol: 2 as const,
+    receivedProtocol: 1 as const,
+  };
+}
+
+/** Legacy person routes cannot infer a User from a profile-only subject. */
+export function profileChoreLegacyWriteRefusal() {
+  return {
+    error: PROFILE_CHORE_UNSUPPORTED_CODE,
+    ...profileChoreProtocolRefusal(),
+  };
+}
+
+export function requestedMemberProtocol(request: { headers: Headers }): 1 | 2 {
+  return request.headers.get("X-Member-Protocol") === "2" ? 2 : 1;
+}
+
+export function profileChoreReadRefusal(request: {
+  headers: Headers;
+}): { status: 409; body: Record<string, unknown> } | null {
+  if (isProfileChoreEnabled() && requestedMemberProtocol(request) === 2)
+    return null;
+  return { status: 409, body: profileChoreLegacyWriteRefusal() };
+}
