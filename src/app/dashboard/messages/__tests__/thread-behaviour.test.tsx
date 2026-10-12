@@ -168,6 +168,21 @@ describe('initial loading recovery', () => {
     expect(screen.queryByTestId('messages-load-error')).not.toBeInTheDocument()
   })
 
+  it('does not supersede a slow initial load with automatic polls', async () => {
+    let finishLoad!: (response: Response) => void
+    const pendingLoad = new Promise<Response>(resolve => { finishLoad = resolve })
+    global.fetch = jest.fn().mockReturnValue(pendingLoad) as unknown as typeof fetch
+    render(<MessagesPage />)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1))
+    await act(async () => { poll?.(); poll?.() })
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      finishLoad({ ok: true, json: async () => ({ messages: latest, members: [], userId: 'u1' }) } as Response)
+      await pendingLoad
+    })
+    expect(await screen.findByText('Message 3')).toBeInTheDocument()
+  })
+
   it('does not refetch when only the presentation locale changes', async () => {
     const view = render(
       <I18nProvider locale="en">
