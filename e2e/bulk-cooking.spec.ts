@@ -143,7 +143,9 @@ async function installLocalOnlyGuard(context: BrowserContext) {
 async function expectNoHorizontalOverflow(page: Page) {
   expect(
     await page.evaluate(
-      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
     ),
   ).toBe(true);
 }
@@ -188,7 +190,10 @@ async function scanBulkPanel(page: Page, info: TestInfo, label: string) {
     contentType: "application/json",
   });
   const blocking = results.violations
-    .filter((violation) => violation.impact === "serious" || violation.impact === "critical")
+    .filter(
+      (violation) =>
+        violation.impact === "serious" || violation.impact === "critical",
+    )
     .map((violation) => ({
       rule: violation.id,
       nodes: violation.nodes.slice(0, 5).map((node) => node.target.join(" ")),
@@ -247,8 +252,12 @@ for (const locale of ["en", "es"] as const) {
     else await expect(page.locator("html")).not.toHaveClass(/dark/);
 
     const panel = page.getByTestId("bulk-cooking-panel");
-    await expect(panel.getByRole("heading", { name: copy.title })).toBeVisible();
-    await expect(panel.getByRole("button", { name: copy.add, exact: true })).toBeEnabled();
+    await expect(
+      panel.getByRole("heading", { name: copy.title }),
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("button", { name: copy.add, exact: true }),
+    ).toBeEnabled();
     await scanBulkPanel(page, info, `${locale}-initial`);
 
     await panel.getByRole("button", { name: copy.add, exact: true }).click();
@@ -258,15 +267,25 @@ for (const locale of ["en", "es"] as const) {
     await editor.getByRole("button", { name: copy.next, exact: true }).click();
     await editor.getByLabel(copy.name).fill(DISH_ONE);
     await editor.getByLabel(copy.portions).fill("4");
-    await editor.getByRole("button", { name: copy.addDish, exact: true }).click();
+    await editor
+      .getByRole("button", { name: copy.addDish, exact: true })
+      .click();
     await editor.getByLabel(copy.name).fill(DISH_TWO);
     await editor.getByLabel(copy.portions).fill("4");
     await editor.getByRole("button", { name: copy.next, exact: true }).click();
     await expect(editor.getByRole("heading", { name: DISH_TWO })).toBeVisible();
 
-    expect(requestKeys.size, "Next must not save before explicit review confirmation").toBe(0);
-    await expect(editor.getByRole("button", { name: copy.save, exact: true })).toBeEnabled();
-    await info.attach(`${locale}-review.png`, { body: await page.screenshot(), contentType: "image/png" });
+    expect(
+      requestKeys.size,
+      "Next must not save before explicit review confirmation",
+    ).toBe(0);
+    await expect(
+      editor.getByRole("button", { name: copy.save, exact: true }),
+    ).toBeEnabled();
+    await info.attach(`${locale}-review.png`, {
+      body: await page.screenshot(),
+      contentType: "image/png",
+    });
 
     const createResponse = page.waitForResponse(
       (candidate) =>
@@ -280,35 +299,59 @@ for (const locale of ["en", "es"] as const) {
     expect(createdBody.sessionId).toEqual(expect.any(String));
     await expect(editor).toHaveCount(0);
 
-    const firstDish = panel.getByRole("article", { name: DISH_ONE, exact: true });
-    const secondDish = panel.getByRole("article", { name: DISH_TWO, exact: true });
+    const firstDish = panel.getByRole("article", {
+      name: DISH_ONE,
+      exact: true,
+    });
+    const secondDish = panel.getByRole("article", {
+      name: DISH_TWO,
+      exact: true,
+    });
     await expect(firstDish).toBeVisible();
     await expect(secondDish).toBeVisible();
-    await expect(firstDish.getByRole("status")).toContainText(message(copy.total, 4));
+    await expect(firstDish.getByRole("status")).toContainText(
+      message(copy.total, 4),
+    );
     await scanBulkPanel(page, info, `${locale}-created`);
 
-    await panel.getByRole("button", { name: copy.markPrepared, exact: true }).click();
+    await panel
+      .getByRole("button", { name: copy.markPrepared, exact: true })
+      .click();
     const preparedDialog = page.getByTestId("meal-prep-action");
     await expect(preparedDialog).toBeVisible();
     await postBulkAction(page, preparedDialog, copy.markPrepared);
     await expect(panel.getByText(copy.prepared, { exact: true })).toBeVisible();
 
-    await firstDish.getByRole("button", { name: copy.recordEaten, exact: true }).click();
+    await firstDish
+      .getByRole("button", { name: copy.recordEaten, exact: true })
+      .click();
     const eatenDialog = page.getByTestId("meal-prep-action");
     await expect(eatenDialog).toBeVisible();
     await expect(eatenDialog.getByLabel(copy.eatenFrom)).toHaveValue("");
     await postBulkAction(page, eatenDialog, copy.saveEaten);
-    await expect(firstDish.getByRole("status")).toContainText(message(copy.eaten, 1));
-    await expect(firstDish.getByRole("button", { name: copy.undoEaten, exact: true })).toBeVisible();
+    await expect(firstDish.getByRole("status")).toContainText(
+      message(copy.eaten, 1),
+    );
+    await expect(
+      firstDish.getByRole("button", { name: copy.undoEaten, exact: true }),
+    ).toBeVisible();
 
-    await firstDish.getByRole("button", { name: copy.undoEaten, exact: true }).click();
+    await firstDish
+      .getByRole("button", { name: copy.undoEaten, exact: true })
+      .click();
     const undoDialog = page.getByTestId("meal-prep-action");
     await expect(undoDialog).toBeVisible();
     await postBulkAction(page, undoDialog, copy.undoEaten);
-    await expect(firstDish.getByRole("status")).toContainText(message(copy.eaten, 0));
-    await expect(firstDish.getByRole("button", { name: copy.undoEaten, exact: true })).toHaveCount(0);
+    await expect(firstDish.getByRole("status")).toContainText(
+      message(copy.eaten, 0),
+    );
+    await expect(
+      firstDish.getByRole("button", { name: copy.undoEaten, exact: true }),
+    ).toHaveCount(0);
 
-    await panel.getByRole("button", { name: copy.changeNext, exact: true }).click();
+    await panel
+      .getByRole("button", { name: copy.changeNext, exact: true })
+      .click();
     const nextDialog = page.getByTestId("meal-prep-action");
     await expect(nextDialog).toBeVisible();
     await nextDialog.getByLabel(copy.nextDate).fill(NEXT_PREP_DAY);
@@ -317,21 +360,27 @@ for (const locale of ["en", "es"] as const) {
     const readBack = await browserFetch(page, "/api/meals/bulk");
     expect(readBack.status, readBack.body).toBe(200);
     const session = (
-      (JSON.parse(readBack.body) as { sessions: Array<Record<string, unknown>> }).sessions
-    ).find((row) => row.id === createdBody.sessionId);
+      JSON.parse(readBack.body) as { sessions: Array<Record<string, unknown>> }
+    ).sessions.find((row) => row.id === createdBody.sessionId);
     expect(session).toMatchObject({
       id: createdBody.sessionId,
       next_prep_on: expect.stringMatching(/^2026-01-12T/),
     });
     await scanBulkPanel(page, info, `${locale}-final`);
-    await panel.getByRole("button", { name: copy.planNext, exact: true }).click();
+    await panel
+      .getByRole("button", { name: copy.planNext, exact: true })
+      .click();
     await expect(editor.getByLabel(copy.date)).toHaveValue(NEXT_PREP_DAY);
     const beforeDraftSubmit = requestKeys.size;
     // Native form submission before review (including Enter) may only advance.
-    await editor.locator("form").evaluate(form => (form as HTMLFormElement).requestSubmit());
+    await editor
+      .locator("form")
+      .evaluate((form) => (form as HTMLFormElement).requestSubmit());
     await expect(editor.getByLabel(copy.name)).toBeVisible();
     expect(requestKeys.size).toBe(beforeDraftSubmit);
-    await editor.getByRole("button", { name: copy.cancel, exact: true }).click();
+    await editor
+      .getByRole("button", { name: copy.cancel, exact: true })
+      .click();
     await expect(editor).toHaveCount(0);
   });
 }

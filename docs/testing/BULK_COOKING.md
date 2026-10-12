@@ -6,6 +6,9 @@ Spec: `docs/product/BULK_COOKING.md`.
 
 - Prisma generate/validate, typecheck, lint and production build pass.
 - Additive migrations run twice against isolated loopback PostgreSQL.
+  Foreign-key update actions match Prisma; the schema diff is empty.
+  Checked User/Family/meal/recipe/list/prep record fingerprints remained unchanged
+  while aligning constraints.
 - 19 targeted validation, receipt recovery and real-transaction checks pass.
   Coverage includes atomic multi-dish/slot/receipt commit and rollback, same-key
   replay, reserved versus unplanned consumption, simultaneous final-capacity

@@ -1,20 +1,20 @@
 -- Additive #538; canonical FamilyMeal/Recipe tables already exist at this point.
 CREATE TABLE IF NOT EXISTS "MealPrepSession" (
- "id" TEXT PRIMARY KEY, "family_id" TEXT NOT NULL REFERENCES "Family"("id") ON DELETE CASCADE,
+ "id" TEXT PRIMARY KEY, "family_id" TEXT NOT NULL REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE,
  "prepared_on" TIMESTAMP(3) NOT NULL, "next_prep_on" TIMESTAMP(3), "prepared_at" TIMESTAMP(3),
- "created_by" TEXT REFERENCES "User"("id") ON DELETE SET NULL, "source_request_id" TEXT,
+ "created_by" TEXT REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE, "source_request_id" TEXT,
  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "MealPrepSession_source_request_id_key" ON "MealPrepSession"("source_request_id");
 CREATE INDEX IF NOT EXISTS "MealPrepSession_family_id_created_at_id_idx" ON "MealPrepSession"("family_id","created_at","id");
 CREATE TABLE IF NOT EXISTS "MealBatch" (
- "id" TEXT PRIMARY KEY, "family_id" TEXT NOT NULL REFERENCES "Family"("id") ON DELETE CASCADE,
- "prep_session_id" TEXT NOT NULL REFERENCES "MealPrepSession"("id") ON DELETE CASCADE,
+ "id" TEXT PRIMARY KEY, "family_id" TEXT NOT NULL REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+ "prep_session_id" TEXT NOT NULL REFERENCES "MealPrepSession"("id") ON DELETE CASCADE ON UPDATE CASCADE,
  "position" INTEGER NOT NULL CHECK ("position" BETWEEN 0 AND 7), "name" TEXT NOT NULL,
  "total_servings" INTEGER NOT NULL CHECK ("total_servings" BETWEEN 1 AND 50),
  "reserve_storage" TEXT NOT NULL DEFAULT 'freezer' CHECK ("reserve_storage" IN ('fridge','freezer')),
- "recipe_id" TEXT REFERENCES "Recipe"("id") ON DELETE SET NULL,
- "cook_id" TEXT REFERENCES "User"("id") ON DELETE SET NULL,
+ "recipe_id" TEXT REFERENCES "Recipe"("id") ON DELETE SET NULL ON UPDATE CASCADE,
+ "cook_id" TEXT REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE,
  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "MealBatch_prep_session_id_position_key" ON "MealBatch"("prep_session_id","position");
@@ -28,11 +28,11 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE INDEX IF NOT EXISTS "FamilyMeal_batch_id_idx" ON "FamilyMeal"("batch_id");
 CREATE TABLE IF NOT EXISTS "MealBatchConsumption" (
- "id" TEXT PRIMARY KEY, "family_id" TEXT NOT NULL REFERENCES "Family"("id") ON DELETE CASCADE,
- "batch_id" TEXT NOT NULL REFERENCES "MealBatch"("id") ON DELETE CASCADE,
- "allocation_key" TEXT, "meal_id" TEXT REFERENCES "FamilyMeal"("id") ON DELETE SET NULL,
+ "id" TEXT PRIMARY KEY, "family_id" TEXT NOT NULL REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+ "batch_id" TEXT NOT NULL REFERENCES "MealBatch"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+ "allocation_key" TEXT, "meal_id" TEXT REFERENCES "FamilyMeal"("id") ON DELETE SET NULL ON UPDATE CASCADE,
  "servings" INTEGER NOT NULL CHECK ("servings" BETWEEN 1 AND 50),
- "created_by" TEXT REFERENCES "User"("id") ON DELETE SET NULL,
+ "created_by" TEXT REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE,
  "consumed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "cancelled_at" TIMESTAMP(3),
  "source_request_id" TEXT
 );
