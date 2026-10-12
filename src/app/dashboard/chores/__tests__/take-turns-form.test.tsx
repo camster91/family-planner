@@ -8,6 +8,7 @@
 import * as React from 'react'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { I18nProvider } from '@/i18n'
 import { TakeTurnsPicker } from '@/components/chores/TakeTurnsPicker'
 import CreateChorePage from '../create/page'
 import EditChorePage from '../edit/page'
@@ -146,6 +147,38 @@ describe('New chore form', () => {
     expect(submit.disabled).toBe(false)
     expect(screen.queryByText(/ first\.$/)).toBeNull()
     expect(submit.getAttribute('aria-describedby')).toBeNull()
+  })
+
+  it('uses Spanish form labels and clears the translated recovery hint', async () => {
+    const user = userEvent.setup()
+    render(
+      <I18nProvider locale="es">
+        <CreateChorePage />
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Sam' })).toBeTruthy())
+
+    expect(screen.getByRole('heading', { name: 'Nueva tarea' })).toBeTruthy()
+    expect(screen.getByText('Asigna una tarea a un familiar.')).toBeTruthy()
+    expect(screen.getByLabelText('Título')).toBeTruthy()
+    expect(screen.getByLabelText('Asignar a')).toBeTruthy()
+    expect(screen.getByText('Frecuencia')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Crear tarea' })).toBeTruthy()
+
+    await user.type(screen.getByLabelText('Título'), 'Platos')
+    await user.type(screen.getByLabelText('Fecha de vencimiento'), '2099-10-05')
+    await user.click(screen.getByRole('button', { name: 'Semanal' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Lunes' }))
+    await user.click(screen.getByRole('switch', { name: 'Take turns' }))
+    await user.click(screen.getByRole('button', { name: 'Sam' }))
+
+    expect(screen.getByText('Añade al menos 2 personas para turnarse primero.')).toBeTruthy()
+    const submit = screen.getByRole('button', { name: 'Crear tarea' }) as HTMLButtonElement
+    expect(submit.disabled).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: 'Alex' }))
+    expect(screen.queryByText('Añade al menos 2 personas para turnarse primero.')).toBeNull()
+    expect(submit.disabled).toBe(false)
   })
 
   it('switching back to Once sends a plain assignment', async () => {
