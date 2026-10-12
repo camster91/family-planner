@@ -303,7 +303,10 @@ it("treats an identity conflict as a localized definitive reload", async () => {
   expect(screen.getByDisplayValue("Borrador de identidad")).toBeTruthy();
   expect(screen.getByRole("alert")).toBeTruthy();
 
-  await user.click(reload);
+  const restoredReload = screen.getByRole("button", {
+    name: "Cargar la rutina más reciente",
+  });
+  await user.click(restoredReload);
   await user.click(
     within(screen.getByRole("alertdialog")).getByRole("button", {
       name: "Cargar la rutina más reciente",
