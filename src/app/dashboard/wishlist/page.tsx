@@ -30,6 +30,32 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string'
+}
+
+function isWishlistItem(value: unknown): value is WishlistItem {
+  if (!isRecord(value) || !isRecord(value.requester)) return false
+  return (
+    typeof value.id === 'string' &&
+    typeof value.title === 'string' &&
+    isNullableString(value.link) &&
+    isNullableString(value.description) &&
+    isNullableString(value.approx_price) &&
+    typeof value.status === 'string' &&
+    isNullableString(value.denied_reason) &&
+    typeof value.requested_by === 'string' &&
+    typeof value.created_at === 'string' &&
+    typeof value.requester.id === 'string' &&
+    typeof value.requester.name === 'string'
+  )
+}
+
+function responseWishlistItem(value: unknown): WishlistItem | null {
+  if (!isRecord(value) || !isWishlistItem(value.item)) return null
+  return value.item
+}
+
 function matchesStatus(
   item: WishlistItem | undefined,
   id: string,
@@ -50,8 +76,8 @@ function responseMatchesStatus(
   status: string,
   deniedReason?: string,
 ): boolean {
-  if (!isRecord(value) || !isRecord(value.item)) return false
-  const item = value.item
+  const item = responseWishlistItem(value)
+  if (!item) return false
   return (
     item.id === id &&
     item.status === status &&
@@ -263,6 +289,15 @@ function WishlistContent() {
         return confirmed
       }
 
+      // The PATCH response is the canonical write result. Apply the complete
+      // item before the follow-up GET so a lost/failed refresh cannot leave the
+      // changed select or denial dialog showing its old status. Only replace
+      // the affected row; every other row and its raw fields stay untouched.
+      const confirmedItem = responseWishlistItem(payload)
+      if (!confirmedItem) return false
+      setItems((current) =>
+        current.map((item) => (item.id === id ? confirmedItem : item)),
+      )
       const refreshed = await fetchItems({ showPageError: false })
       if (
         !refreshed ||
@@ -270,6 +305,12 @@ function WishlistContent() {
           matchesStatus(item, id, status, normalizedReason),
         )
       ) {
+        // A refresh can fail or return stale data after the canonical PATCH.
+        // Keep the confirmed row visible while reporting that the list itself
+        // could not be refreshed.
+        setItems((current) =>
+          current.map((item) => (item.id === id ? confirmedItem : item)),
+        )
         addToast({
           type: 'error',
           title: t('wishlist.errorStatus'),

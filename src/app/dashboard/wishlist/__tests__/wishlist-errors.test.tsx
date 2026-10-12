@@ -316,6 +316,88 @@ it('reconciles a 5xx status response before allowing a retry', async () => {
   expect(screen.queryByRole('alert')).toBeNull()
 })
 
+it('keeps the canonical PATCH status and row fields when the follow-up GET fails', async () => {
+  const secondItem = { ...ITEM, id: 'w2', title: 'Ball' }
+  let wishlistGets = 0
+  const committed = {
+    ...ITEM,
+    status: 'received',
+    description: 'Canonical committed details',
+    link: 'https://example.test/canonical-bike',
+    approx_price: '42.00',
+  }
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (url === '/api/auth/me') {
+      return { ok: true, status: 200, json: async () => ({ user: { id: 'u1', role: 'parent' } }) } as Response
+    }
+    if (url === '/api/wishlist' && method === 'GET') {
+      wishlistGets += 1
+      if (wishlistGets === 1) {
+        return { ok: true, status: 200, json: async () => ({ items: [ITEM, secondItem] }) } as Response
+      }
+      throw new TypeError('Failed to fetch')
+    }
+    if (url === '/api/wishlist/w1/status' && method === 'PATCH') {
+      return { ok: true, status: 200, json: async () => ({ item: committed }) } as Response
+    }
+    return { ok: true, status: 200, json: async () => ({}) } as Response
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  const select = screen.getByRole('combobox', { name: 'Status for Bike' }) as HTMLSelectElement
+  await user.selectOptions(select, 'received')
+
+  await waitFor(() => expect(select.value).toBe('received'))
+  expect(screen.getByText('Canonical committed details')).toBeTruthy()
+  expect(screen.getByRole('link', { name: 'https://example.test/canonical-bike' }).getAttribute('href')).toBe(
+    'https://example.test/canonical-bike',
+  )
+  expect(screen.getByText('~$42.00')).toBeTruthy()
+  expect(screen.getByText('Ball')).toBeTruthy()
+  expect((await screen.findByRole('alert')).textContent).toContain('wishlist.statusSavedRefreshFailed')
+  expect(wishlistGets).toBe(2)
+})
+
+it('keeps a malformed status payload unresolved when reconciliation also fails', async () => {
+  let wishlistGets = 0
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (url === '/api/auth/me') {
+      return { ok: true, status: 200, json: async () => ({ user: { id: 'u1', role: 'parent' } }) } as Response
+    }
+    if (url === '/api/wishlist' && method === 'GET') {
+      wishlistGets += 1
+      if (wishlistGets === 1) {
+        return { ok: true, status: 200, json: async () => ({ items: [ITEM] }) } as Response
+      }
+      throw new TypeError('Failed to fetch')
+    }
+    if (url === '/api/wishlist/w1/status' && method === 'PATCH') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ item: { id: 'w1', status: 'received', denied_reason: null } }),
+      } as Response
+    }
+    return { ok: true, status: 200, json: async () => ({}) } as Response
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  const select = screen.getByRole('combobox', { name: 'Status for Bike' }) as HTMLSelectElement
+  await user.selectOptions(select, 'received')
+
+  await waitFor(() => expect(select.value).toBe('idle'))
+  expect((await screen.findByRole('alert')).textContent).toContain('wishlist.statusUncertain')
+  expect(wishlistGets).toBe(2)
+})
+
 it('does not let an older status refresh overwrite a newer item refresh', async () => {
   const secondItem = { ...ITEM, id: 'w2', title: 'Ball' }
   const refreshes: Array<(items: unknown[]) => void> = []
