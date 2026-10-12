@@ -9,6 +9,12 @@ import {
   IDEMPOTENCY_HEADER,
   IDEMPOTENCY_REPLAYED_HEADER,
 } from "../src/lib/idempotency-key";
+import { messages } from "../src/i18n";
+import {
+  navigationMessages,
+  type NavigationMessage,
+} from "../src/i18n/navigation";
+import { pseudolocalizeTemplate } from "../src/i18n/pseudo";
 import {
   A,
   B,
@@ -19,6 +25,7 @@ import {
   PRIVATE_NAME,
   PRIVATE_UNIT,
   SYNTHETIC_PNG,
+  expanded,
   msg,
   withDb,
   seedRows,
@@ -34,6 +41,30 @@ const projects = [
   "fridge-landscape-1280x800",
 ];
 const api = /\/api\/inventory(?:\?|\/|$)/;
+
+function qaText(value: string) {
+  return expanded ? pseudolocalizeTemplate(value) : value;
+}
+
+function navigationText(key: NavigationMessage) {
+  return qaText(navigationMessages.en[key]);
+}
+
+type StringKey<T> = {
+  [K in keyof T]: T[K] extends string ? K : never;
+}[keyof T];
+
+function notesText(key: StringKey<typeof messages.en.notes>) {
+  return qaText(messages.en.notes[key]);
+}
+
+function emergencyText(key: StringKey<typeof messages.en.emergency>) {
+  return qaText(messages.en.emergency[key]);
+}
+
+function commonText(key: StringKey<typeof messages.en.common>) {
+  return qaText(messages.en.common[key]);
+}
 
 type RapidBackWindow = Window & {
   __pendingNavigationDocument?: string;
@@ -200,10 +231,15 @@ async function openPendingSurfaceFromExplore(page: Page, surface: string) {
   const documentId = await page.evaluate(
     () => (window as RapidBackWindow).__pendingNavigationDocument,
   );
-  const menu = page.getByRole("button", { name: "User menu", exact: true });
+  const menu = page.getByRole("button", {
+    name: navigationText("userMenu"),
+    exact: true,
+  });
   await menu.click();
   await expect(
-    page.locator("nav").getByRole("link", { name: "Explore", exact: true }),
+    page
+      .locator("nav")
+      .getByRole("link", { name: navigationText("explore"), exact: true }),
   ).toBeVisible();
   await menu.click();
   const link = page.locator(`a[href="/dashboard/${surface}"]`);
@@ -651,7 +687,10 @@ test.describe("inventory localization synthetic server", () => {
 
         await openPendingSurfaceFromExplore(page, "notes");
         await expect(
-          page.getByRole("heading", { name: "Notes", exact: true }),
+          page.getByRole("heading", {
+            name: notesText("title"),
+            exact: true,
+          }),
         ).toBeVisible();
         await runtime(page, info, "en", "parent");
         const identity = await browserFetch(page, "/api/auth/me");
@@ -660,20 +699,23 @@ test.describe("inventory localization synthetic server", () => {
           (JSON.parse(identity.body) as { user?: { role?: unknown } }).user
             ?.role,
         ).toBe("parent");
-        await page.getByLabel("Add Note", { exact: true }).click();
+        await page.getByLabel(notesText("addNote"), { exact: true }).click();
         const notesDialog = page.getByRole("dialog");
         await notesDialog
-          .getByLabel("Title", { exact: true })
+          .getByLabel(notesText("noteTitle"), { exact: true })
           .fill("Synthetic pending note");
         await notesDialog
-          .getByLabel("Body", { exact: true })
+          .getByLabel(notesText("noteBody"), { exact: true })
           .fill("No database row");
         await notesDialog
-          .getByRole("button", { name: "Save", exact: true })
+          .getByRole("button", { name: notesText("save"), exact: true })
           .click();
         await expect.poll(() => notesPosts).toBe(1);
         await expect(
-          notesDialog.getByRole("button", { name: /Saving/ }),
+          notesDialog.getByRole("button", {
+            name: commonText("saving"),
+            exact: true,
+          }),
         ).toBeDisabled();
         const notesHistory = await traverseBackTwice(
           page,
@@ -681,7 +723,10 @@ test.describe("inventory localization synthetic server", () => {
         );
         await expect(notesDialog).toBeVisible();
         await expect(
-          notesDialog.getByRole("button", { name: /Saving/ }),
+          notesDialog.getByRole("button", {
+            name: commonText("saving"),
+            exact: true,
+          }),
         ).toBeDisabled();
         expect(notesResponseReleased).toBe(false);
         heldBeforeCleanup.notes = true;
@@ -762,19 +807,30 @@ test.describe("inventory localization synthetic server", () => {
 
         await openPendingSurfaceFromExplore(page, "emergency");
         await expect(
-          page.getByRole("heading", { name: "Emergency Contacts" }),
+          page.getByRole("heading", {
+            name: emergencyText("title"),
+            exact: true,
+          }),
         ).toBeVisible();
-        await page.getByRole("button", { name: "Add Card" }).click();
+        await page
+          .getByRole("button", {
+            name: emergencyText("addCard"),
+            exact: true,
+          })
+          .click();
         const emergencyDialog = page.getByRole("dialog");
         await emergencyDialog
-          .getByLabel("Person Name", { exact: true })
+          .getByLabel(emergencyText("personName"), { exact: true })
           .fill("Synthetic pending emergency");
         await emergencyDialog
-          .getByRole("button", { name: "Save", exact: true })
+          .getByRole("button", { name: commonText("save"), exact: true })
           .click();
         await expect.poll(() => emergencyPosts).toBe(1);
         await expect(
-          emergencyDialog.getByRole("button", { name: /Saving/ }),
+          emergencyDialog.getByRole("button", {
+            name: commonText("saving"),
+            exact: true,
+          }),
         ).toBeDisabled();
         const emergencyHistory = await traverseBackTwice(
           page,
@@ -782,7 +838,10 @@ test.describe("inventory localization synthetic server", () => {
         );
         await expect(emergencyDialog).toBeVisible();
         await expect(
-          emergencyDialog.getByRole("button", { name: /Saving/ }),
+          emergencyDialog.getByRole("button", {
+            name: commonText("saving"),
+            exact: true,
+          }),
         ).toBeDisabled();
         expect(emergencyResponseReleased).toBe(false);
         heldBeforeCleanup.emergency = true;
@@ -840,7 +899,10 @@ test.describe("inventory localization synthetic server", () => {
           .click();
         await expect.poll(() => inventoryPosts).toBe(1);
         await expect(
-          inventoryDialog.getByRole("button", { name: /Saving/ }),
+          inventoryDialog.getByRole("button", {
+            name: msg("en", "saving"),
+            exact: true,
+          }),
         ).toBeDisabled();
         const inventoryHistory = await traverseBackTwice(
           page,
@@ -848,7 +910,10 @@ test.describe("inventory localization synthetic server", () => {
         );
         await expect(inventoryDialog).toBeVisible();
         await expect(
-          inventoryDialog.getByRole("button", { name: /Saving/ }),
+          inventoryDialog.getByRole("button", {
+            name: msg("en", "saving"),
+            exact: true,
+          }),
         ).toBeDisabled();
         expect(inventoryResponseReleased).toBe(false);
         heldBeforeCleanup.inventory = true;
