@@ -186,12 +186,14 @@ jobs:
           src/app/api/lists/__tests__/create-idempotency.integration.test.ts
           src/app/api/lists/__tests__/from-recipe.integration.test.ts
           src/app/api/lists/__tests__/sections.integration.test.ts
+          src/app/api/locations/__tests__/route.integration.test.ts
           src/app/api/recipes/__tests__/recipes.integration.test.ts
           src/app/api/search/__tests__/search.integration.test.ts
           src/app/api/users/__tests__/preferences.integration.test.ts
           src/app/dashboard/today/__tests__/board-snapshot.integration.test.ts
           src/app/dashboard/today/__tests__/board-profile.integration.test.ts
           src/lib/__tests__/account-deletion.integration.test.ts
+          src/lib/__tests__/assistant-today-context.integration.test.ts
           src/lib/__tests__/beta-metrics.integration.test.ts
           src/lib/__tests__/device.integration.test.ts
           src/lib/__tests__/household-audit.integration.test.ts
@@ -204,6 +206,8 @@ jobs:
           src/lib/__tests__/membership-write-races.integration.test.ts
           src/lib/__tests__/person-allowance-create.integration.test.ts
           src/lib/__tests__/recurring-series.integration.test.ts
+          src/lib/__tests__/routine-stack.integration.test.ts
+          src/lib/__tests__/routine-stack-migration-guards.integration.test.ts
           src/lib/__tests__/profile-chore.integration.test.ts
           src/lib/calendar-import/__tests__/sync.integration.test.ts
           src/lib/calendar-sync/__tests__/sync.integration.test.ts
