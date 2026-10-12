@@ -12,6 +12,7 @@ import {
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import {
   getPendingFormNavigationBootstrap,
+  type PendingFormNavigationNavigateHandler,
   type PendingFormNavigationPopStateHandler,
 } from "@/lib/pending-form-navigation-bootstrap";
 
@@ -221,6 +222,25 @@ export function usePendingFormNavigationController(
     [finishRelease],
   );
 
+  const onNavigate = useCallback<PendingFormNavigationNavigateHandler>(
+    (event) => {
+      if (
+        event.navigationType !== "traverse" ||
+        !event.cancelable ||
+        !busyRef.current ||
+        disarmedRef.current
+      ) {
+        return false;
+      }
+      const entry = entryRef.current;
+      // A committed fallback traversal may already be restoring the sentinel.
+      // Let that controller-owned Forward/Back reach popstate; only cancel
+      // while the current entry is still the one owned by this form.
+      return entry ? ownsEntry(entry) : false;
+    },
+    [],
+  );
+
   // Keep the beforeunload warning local to this form. Popstate uses the
   // document-head dispatcher above, which was installed before Next's router
   // listener and therefore can stop same-document navigation before it
@@ -245,9 +265,12 @@ export function usePendingFormNavigationController(
           window.addEventListener("popstate", onPopState, true);
           return () => window.removeEventListener("popstate", onPopState, true);
         })();
+    const unregisterNavigate =
+      bootstrap?.registerNavigate?.(onNavigate) ?? (() => {});
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
       mountedRef.current = false;
+      unregisterNavigate();
       unregister();
       window.removeEventListener("beforeunload", onBeforeUnload);
       // A destination navigation should have awaited release. If an external
@@ -277,7 +300,7 @@ export function usePendingFormNavigationController(
         finishRelease(false);
       }, 0);
     };
-  }, [finishRelease, onPopState]);
+  }, [finishRelease, onNavigate, onPopState]);
 
   useEffect(() => {
     if (busy) {
