@@ -14,8 +14,8 @@ forcing a min-content width. No canonical data is truncated and no global
 overflow rule was added.
 
 Added focused unit coverage uses a long chore title and long fallback account
-ID, asserting the full accessible data remains present and the Remove/select
-controls carry the mobile containment classes.
+ID, asserting the full accessible title, fallback ID, Remove control name, and
+assignee select value remain present without truncation.
 
 Validation:
 

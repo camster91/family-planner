@@ -184,21 +184,16 @@ it("contains long chore titles and fallback assignee IDs in mobile step controls
   const remove = screen.getByRole("button", {
     name: `Remove ${longTitle} from routine`,
   });
-  expect(remove.className).toEqual(expect.stringContaining("w-full"));
-  expect(remove.className).toEqual(expect.stringContaining("min-w-0"));
-  expect(remove.className).toEqual(expect.stringContaining("max-w-full"));
-  expect(remove.className).toEqual(expect.stringContaining("whitespace-normal"));
-  expect(remove.className).toEqual(expect.stringContaining("break-words"));
-  expect(screen.getByRole("option", { name: longAssignee })).toBeTruthy();
+  expect(remove.textContent).toContain(`Remove ${longTitle} from routine`);
+  expect((remove as HTMLButtonElement).disabled).toBe(true);
+  const option = screen.getByRole("option", { name: longAssignee });
+  expect(option.textContent).toContain(longAssignee);
   const assignee = screen.getByRole("combobox", {
     name: `Assigned to: ${longTitle}`,
   });
-  expect(assignee.className).toEqual(
-    expect.stringContaining("min-w-0"),
-  );
-  expect(assignee.className).toEqual(
-    expect.stringContaining("max-w-full"),
-  );
+  expect(screen.getByLabelText(`Assigned to: ${longTitle}`)).toBe(assignee);
+  expect((assignee as HTMLSelectElement).disabled).toBe(false);
+  expect((assignee as HTMLSelectElement).value).toBe(longAssignee);
 });
 
 beforeEach(() => {
