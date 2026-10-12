@@ -122,7 +122,11 @@ async function traverseBackTwice(page: Page, path: RegExp) {
   return { sentinelToken, events };
 }
 
-async function consumeSentinelAndVisitPrior(page: Page, sentinelToken: string) {
+async function consumeSentinelAndVisitPrior(
+  page: Page,
+  sentinelToken: string,
+  surface: RegExp,
+) {
   await expect
     .poll(() =>
       page.evaluate(
@@ -131,6 +135,7 @@ async function consumeSentinelAndVisitPrior(page: Page, sentinelToken: string) {
     )
     .toBeNull();
   expect(sentinelToken).toEqual(expect.any(String));
+  await expect(page).toHaveURL(surface);
   await page.evaluate(() => window.history.back());
   await expect(page).toHaveURL(/\/dashboard\/?$/);
 }
@@ -596,7 +601,11 @@ test.describe("inventory localization synthetic server", () => {
         releaseNotes();
         await expect(notesDialog).toHaveCount(0);
         expect(notesResponseReleased).toBe(true);
-        await consumeSentinelAndVisitPrior(page, notesHistory.sentinelToken);
+        await consumeSentinelAndVisitPrior(
+          page,
+          notesHistory.sentinelToken,
+          /\/dashboard\/notes$/,
+        );
         completedSurfaces.push("notes");
         await page.unroute("**/api/notes");
 
@@ -693,6 +702,7 @@ test.describe("inventory localization synthetic server", () => {
         await consumeSentinelAndVisitPrior(
           page,
           emergencyHistory.sentinelToken,
+          /\/dashboard\/emergency$/,
         );
         completedSurfaces.push("emergency");
         await page.unroute("**/api/emergency-contacts");
@@ -755,6 +765,7 @@ test.describe("inventory localization synthetic server", () => {
         await consumeSentinelAndVisitPrior(
           page,
           inventoryHistory.sentinelToken,
+          /\/dashboard\/inventory$/,
         );
         completedSurfaces.push("inventory");
 
