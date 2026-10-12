@@ -271,6 +271,63 @@ it("does not consume the real prior page when Back already consumed the sentinel
   }
 });
 
+it("does not resolve release from a foreign entry and drains back to the sentinel", async () => {
+  const original = window.location.href;
+  const priorState = { __NA: true, route: "previous" };
+  const baseState = { __NA: true, route: "form" };
+  window.history.replaceState(priorState, "", "/dashboard/previous");
+  window.history.pushState(baseState, "", "/dashboard/lists/create");
+  let navigation!: PendingFormNavigation;
+  function Harness() {
+    navigation = usePendingFormNavigationController(true);
+    return null;
+  }
+  const view = render(<Harness />);
+  const sentinelState = window.history.state;
+  const historyBack = jest
+    .spyOn(window.history, "back")
+    .mockImplementation(() => {});
+  const historyForward = jest
+    .spyOn(window.history, "forward")
+    .mockImplementation(() => {});
+  try {
+    window.history.replaceState(priorState, "", "/dashboard/previous");
+    const release = navigation.releaseBeforeNavigation();
+    let settled = false;
+    release.then(() => {
+      settled = true;
+    });
+    expect(historyForward).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    // The first Forward reaches the exact base state, which is still not the
+    // sentinel. Release must keep draining rather than resolving here.
+    window.history.replaceState(baseState, "", "/dashboard/lists/create");
+    window.dispatchEvent(new PopStateEvent("popstate", { state: baseState }));
+    expect(historyForward).toHaveBeenCalledTimes(2);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    // Only the owned sentinel may begin the final Back that consumes it.
+    window.history.replaceState(sentinelState, "", "/dashboard/lists/create");
+    window.dispatchEvent(
+      new PopStateEvent("popstate", { state: sentinelState }),
+    );
+    expect(historyBack).toHaveBeenCalledTimes(1);
+    expect(settled).toBe(false);
+    window.history.replaceState(baseState, "", "/dashboard/lists/create");
+    window.dispatchEvent(new PopStateEvent("popstate", { state: baseState }));
+    await release;
+    expect(settled).toBe(true);
+  } finally {
+    view.unmount();
+    historyBack.mockRestore();
+    historyForward.mockRestore();
+    window.history.replaceState({}, "", original);
+  }
+});
+
 it("serializes release after pending Back restoration before consuming the owned entry", async () => {
   const original = window.location.href;
   const baseState = { __NA: true, route: "form" };
@@ -316,6 +373,48 @@ it("serializes release after pending Back restoration before consuming the owned
   } finally {
     view.unmount();
     historyBack.mockRestore();
+    historyForward.mockRestore();
+    window.history.replaceState({}, "", original);
+  }
+});
+
+it("restores the sentinel after two real Back traversals reach a foreign entry", async () => {
+  const original = window.location.href;
+  const priorState = { __NA: true, route: "previous" };
+  const baseState = { __NA: true, route: "form" };
+  window.history.replaceState(priorState, "", "/dashboard/previous");
+  window.history.pushState(baseState, "", "/dashboard/lists/create");
+  function Harness() {
+    usePendingFormNavigationController(true);
+    return null;
+  }
+  const view = render(<Harness />);
+  const sentinelState = window.history.state;
+  const historyForward = jest
+    .spyOn(window.history, "forward")
+    .mockImplementation(() => {});
+  try {
+    await act(async () => {
+      window.history.back();
+    });
+    await waitFor(() => expect(historyForward).toHaveBeenCalledTimes(1));
+
+    // The first forward is still queued. A second real Back reaches the
+    // foreign prior entry; the controller must queue a bounded restoration.
+    await act(async () => {
+      window.history.back();
+    });
+    await waitFor(() => expect(historyForward).toHaveBeenCalledTimes(2));
+
+    // Complete the queued restoration with the owned sentinel event. It must
+    // clear the latch without scheduling an unbounded chain of forwards.
+    window.history.replaceState(sentinelState, "", "/dashboard/lists/create");
+    window.dispatchEvent(
+      new PopStateEvent("popstate", { state: sentinelState }),
+    );
+    expect(historyForward).toHaveBeenCalledTimes(2);
+  } finally {
+    view.unmount();
     historyForward.mockRestore();
     window.history.replaceState({}, "", original);
   }

@@ -16,6 +16,23 @@ type HistorySnapshot = {
   state: unknown;
   token: string;
 };
+type RestorationTarget = "sentinel" | "base-then-sentinel" | null;
+
+function sameHistoryState(left: unknown, right: unknown) {
+  if (Object.is(left, right)) return true;
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
+}
+
+function isBaseEntry(
+  entry: HistorySnapshot,
+  state: unknown = window.history.state,
+) {
+  return window.location.href === entry.url && sameHistoryState(state, entry.state);
+}
 
 export type PendingFormNavigation = {
   releaseBeforeNavigation: () => Promise<boolean>;
@@ -55,6 +72,8 @@ export function usePendingFormNavigationController(
   const releaseResolveRef = useRef<((allowed: boolean) => void) | null>(null);
   const disarmedRef = useRef(false);
   const restoringRef = useRef(false);
+  const restorationTargetRef = useRef<RestorationTarget>(null);
+  const consumingRef = useRef(false);
   const cleanupTimerRef = useRef<number | null>(null);
 
   busyRef.current = busy;
@@ -63,6 +82,8 @@ export function usePendingFormNavigationController(
     entryRef.current = null;
     disarmedRef.current = false;
     restoringRef.current = false;
+    restorationTargetRef.current = null;
+    consumingRef.current = false;
     const resolve = releaseResolveRef.current;
     releaseResolveRef.current = null;
     releasePromiseRef.current = null;
@@ -88,8 +109,20 @@ export function usePendingFormNavigationController(
       // marked sentinel before resolving; never traverse Back from its base.
       return promise;
     }
-    if (!ownsEntry(entry)) finishRelease(window.location.href === entry.url);
-    else window.history.back();
+    if (ownsEntry(entry)) {
+      consumingRef.current = true;
+      window.history.back();
+    } else if (isBaseEntry(entry)) {
+      // The sentinel was already consumed by a prior Back. Resolve only for
+      // the exact same-URL base state, never for an arbitrary foreign entry.
+      finishRelease(true);
+    } else {
+      // A foreign traversal raced release. Restore the sentinel first; its
+      // pop will enter the consuming branch below.
+      restoringRef.current = true;
+      restorationTargetRef.current = "base-then-sentinel";
+      window.history.forward();
+    }
     return promise;
   }, [finishRelease]);
 
@@ -110,16 +143,67 @@ export function usePendingFormNavigationController(
       if (disarmedRef.current) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        // Ignore extra base-entry events while our one Forward is queued.
-        // Only its marked destination can begin the release traversal.
-        if (restoringRef.current && !ownsEntry(entry, event.state)) return;
-        restoringRef.current = false;
-        if (ownsEntry(entry, event.state)) window.history.back();
-        else finishRelease();
+        if (restoringRef.current) {
+          if (ownsEntry(entry, event.state)) {
+            restoringRef.current = false;
+            restorationTargetRef.current = null;
+            consumingRef.current = true;
+            window.history.back();
+          } else if (isBaseEntry(entry, event.state)) {
+            if (restorationTargetRef.current === "base-then-sentinel") {
+              restorationTargetRef.current = "sentinel";
+              window.history.forward();
+            }
+          } else {
+            // A second Back can reach a foreign prior entry before the first
+            // Forward finishes. Restore again rather than resolving against a
+            // state that does not belong to this form's history slot.
+            restorationTargetRef.current = "base-then-sentinel";
+            window.history.forward();
+          }
+          return;
+        }
+        if (consumingRef.current) {
+          if (isBaseEntry(entry, event.state)) {
+            consumingRef.current = false;
+            finishRelease(true);
+          } else {
+            // The Back intended to consume our sentinel landed on a foreign
+            // entry. Drain back to the sentinel before resolving release.
+            consumingRef.current = false;
+            restoringRef.current = true;
+            restorationTargetRef.current = "base-then-sentinel";
+            window.history.forward();
+          }
+          return;
+        }
+        if (ownsEntry(entry, event.state)) {
+          consumingRef.current = true;
+          window.history.back();
+        } else if (isBaseEntry(entry, event.state)) {
+          finishRelease(true);
+        } else {
+          restoringRef.current = true;
+          window.history.forward();
+        }
         return;
       }
       if (restoringRef.current) {
-        if (ownsEntry(entry, event.state)) restoringRef.current = false;
+        if (ownsEntry(entry, event.state)) {
+          restoringRef.current = false;
+          restorationTargetRef.current = null;
+        } else if (isBaseEntry(entry, event.state)) {
+          if (restorationTargetRef.current === "base-then-sentinel") {
+            restorationTargetRef.current = "sentinel";
+            window.history.forward();
+          }
+        } else {
+          // The initial Back should report the exact base state. If a rapid
+          // second Back reports an older foreign entry, restore the sentinel
+          // again; ignoring that pop would let the pending form escape.
+          restorationTargetRef.current = "base-then-sentinel";
+          window.history.forward();
+        }
         event.preventDefault();
         event.stopImmediatePropagation();
         return;
@@ -132,6 +216,7 @@ export function usePendingFormNavigationController(
       // traverse forward to the owned sentinel. This preserves history length
       // and avoids manufacturing a new ghost entry on every Back press.
       restoringRef.current = true;
+      restorationTargetRef.current = "sentinel";
       window.history.forward();
     };
 
@@ -170,6 +255,7 @@ export function usePendingFormNavigationController(
         if (entry && ownsEntry(entry)) {
           disarmedRef.current = true;
           restoringRef.current = false;
+          restorationTargetRef.current = null;
           window.history.back();
         }
         finishRelease(false);
