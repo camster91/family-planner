@@ -18,6 +18,7 @@ import AxeBuilder from "@axe-core/playwright";
 import pg from "pg";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { E2E_ANCHOR } from "./support/env";
+import { onboardingEnglish } from "../src/i18n/onboarding";
 import { browserFetch, expect, loginViaUi, test } from "./support/test";
 
 const PROFILE_GATES_ON =
@@ -261,18 +262,29 @@ async function createFamilyAndProfiles(
 ): Promise<void> {
   await loginViaUi(page, x.parent.email, PASSWORD);
   await page.waitForURL(/\/dashboard$/);
-  await page.getByRole("button", { name: "Get Started" }).click();
-  await page.getByPlaceholder("e.g., The Smith Family").fill(x.family);
+  await page
+    .getByRole("button", { name: onboardingEnglish.getStarted, exact: true })
+    .click();
+  await page
+    .getByLabel(onboardingEnglish.familyNameLabel, { exact: true })
+    .fill(x.family);
   const response = page.waitForResponse(
     (r) => r.url().endsWith("/api/family") && r.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Create Family" }).click();
+  await page
+    .getByRole("button", { name: onboardingEnglish.createFamily, exact: true })
+    .click();
   expect((await response).status()).toBe(200);
   await expect(
-    page.getByRole("heading", { name: "Add Everyone in Your Family" }),
+    page.getByRole("heading", {
+      name: onboardingEnglish.addEveryoneTitle,
+      exact: true,
+    }),
   ).toBeVisible();
   await saveProfiles(page, x.profiles);
-  await page.getByRole("link", { name: "Finish Later" }).click();
+  await page
+    .getByRole("link", { name: onboardingEnglish.finishLater, exact: true })
+    .click();
   await page.waitForURL(/\/dashboard\/today/);
 }
 
