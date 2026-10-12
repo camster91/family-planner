@@ -1,3 +1,5 @@
+import { mutateBatchedMeal } from '@/lib/batched-meal-edit'
+import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
@@ -51,7 +53,7 @@ export async function PATCH(request: NextRequest) {
 
     const meal = await prisma!.familyMeal.findUnique({
       where: { id },
-      select: { family_id: true },
+      select: { family_id: true, batch_id: true },
     })
 
     if (!meal) {
@@ -87,6 +89,8 @@ export async function PATCH(request: NextRequest) {
     if (mealDate !== undefined) data.date = mealDate
     if (meal_type !== undefined) data.meal_type = meal_type
 
+    if (meal.batch_id) return mutateBatchedMeal({ userId: auth.user.id, familyId: auth.user.family_id, tokenVersion: auth.payload.tv ?? 0 }, id, data as Prisma.FamilyMealUncheckedUpdateInput)
+
     const updated = await prisma!.familyMeal.update({
       where: { id },
       data,
@@ -118,7 +122,7 @@ export async function DELETE(request: NextRequest) {
 
     const meal = await prisma!.familyMeal.findUnique({
       where: { id },
-      select: { family_id: true },
+      select: { family_id: true, batch_id: true },
     })
 
     if (!meal) {
@@ -128,6 +132,7 @@ export async function DELETE(request: NextRequest) {
     const familyError = requireFamilyMatch(meal.family_id, auth.user.family_id)
     if (familyError) return familyError
 
+    if (meal.batch_id) return mutateBatchedMeal({ userId: auth.user.id, familyId: auth.user.family_id, tokenVersion: auth.payload.tv ?? 0 }, id)
     await prisma!.familyMeal.delete({ where: { id } })
 
     return NextResponse.json({ success: true })

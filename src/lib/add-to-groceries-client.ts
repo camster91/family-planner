@@ -13,6 +13,7 @@ import { IDEMPOTENCY_HEADER } from "@/lib/idempotency-key";
 export interface AddFromRecipeRequest {
   recipeId: string;
   mealId?: string;
+  batchId?: string;
   listId?: string;
   servings?: number;
   ingredientIds?: string[];

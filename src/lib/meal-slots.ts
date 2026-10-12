@@ -35,6 +35,8 @@ export interface PlannedMeal {
   cook_id?: string | null;
   /** ISO string of UTC midnight; the YYYY-MM-DD prefix is the meal's calendar day. */
   date: string;
+  batch_id?: string | null;
+  batch_allocation_key?: string | null;
   recipe_id?: string | null;
   servings?: number | null;
   recipe?: MealRecipeSummary | null;
