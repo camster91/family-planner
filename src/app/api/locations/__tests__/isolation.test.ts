@@ -17,16 +17,18 @@ describe("locations — two households, parent only", () => {
   it("returns 401 to an unauthenticated caller on every handler", async () => {
     expect((await locations.GET(req({ as: null }))).status).toBe(401);
     expect((await locations.POST(req({ body: { label: "Gym" } }))).status).toBe(401);
+    expect((await location.PATCH(req({ body: { label: "Gym" } }), params({ id: "loc-a" }))).status).toBe(401);
     expect((await location.DELETE(req(), params({ id: "loc-a" }))).status).toBe(401);
     expect(db.writes).toHaveLength(0);
   });
 
-  it.each<[UserKey]>([["teenA"], ["childA"]])("%s cannot read, add or delete addresses", async (who) => {
+  it.each<[UserKey]>([["teenA"], ["childA"]])("%s cannot read, add, edit or delete addresses", async (who) => {
     req({ as: who });
     const read = await locations.GET(req({ as: who }));
     expect(read.status).toBe(403);
     expect(JSON.stringify(await read.json())).not.toContain("Street");
     expect((await locations.POST(req({ as: who, body: { label: "Gym" } }))).status).toBe(403);
+    expect((await location.PATCH(req({ as: who, body: { label: "Gym" } }), params({ id: "loc-a" }))).status).toBe(403);
     expect((await location.DELETE(req({ as: who }), params({ id: "loc-a" }))).status).toBe(403);
     expect(db.writes).toHaveLength(0);
   });
@@ -39,6 +41,31 @@ describe("locations — two households, parent only", () => {
 
   it("a parent cannot delete another family's place", async () => {
     await expectDenied(await location.DELETE(req({ as: "parentA" }), params({ id: "loc-b" })));
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("a parent cannot edit another family's place", async () => {
+    await expectDenied(await location.PATCH(req({ as: "parentA", body: { label: "Foreign edit" } }), params({ id: "loc-b" })));
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("a parent updates only their own family place", async () => {
+    const res = await location.PATCH(
+      req({ as: "parentA", body: { label: "School", address: "2 Main" } }),
+      params({ id: "loc-a" }),
+    );
+    expect(res.status).toBe(200);
+    expect(writesTo("familyLocation")[0].args).toMatchObject({
+      where: { id: "loc-a" },
+      data: { label: "School", address: "2 Main", is_primary: false },
+    });
+    const body = await res.json();
+    expect(body.location).toMatchObject({ id: "loc-a", label: "School", address: "2 Main" });
+  });
+
+  it("rejects an invalid edit without writing", async () => {
+    const res = await location.PATCH(req({ as: "parentA", body: { label: "" } }), params({ id: "loc-a" }));
+    expect(res.status).toBe(400);
     expect(db.writes).toHaveLength(0);
   });
 
