@@ -1,7 +1,13 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
 import * as React from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const back = jest.fn();
@@ -20,7 +26,12 @@ import {
   type PendingFormNavigation,
 } from "../pending-form-navigation";
 
-beforeEach(() => {
+beforeEach(async () => {
+  // Let the previous form's real JSDOM traversal finish before another
+  // history-owning form is mounted in this shared window.
+  await waitFor(() =>
+    expect(window.history.state?.__herewovenPendingForm).toBeUndefined(),
+  );
   back.mockReset();
   push.mockReset();
   refresh.mockReset();
@@ -173,32 +184,39 @@ it("owns a same-URL sentinel, blocks Back while busy, and releases once", async 
   window.dispatchEvent(unload);
   expect(unload.defaultPrevented).toBe(true);
 
+  const restoreForward = jest.spyOn(window.history, "forward");
   await act(async () => {
     window.history.back();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() => {
+    expect(restoreForward).toHaveBeenCalledTimes(1);
+    expect(window.location.pathname).toBe("/dashboard/lists/create");
+    expect(window.history.state.__herewovenPendingForm).toEqual(
+      expect.any(String),
+    );
   });
   expect(window.location.pathname).toBe("/dashboard/lists/create");
   expect(window.history.state).toEqual(
     expect.objectContaining({ route: "form" }),
   );
   const sentinelLength = window.history.length;
+  restoreForward.mockRestore();
 
   view.rerender(
     <FormSheet title="Saving list" busy={false}>
       <button>Saving</button>
     </FormSheet>,
   );
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
+  await waitFor(() => expect(window.history.state).toEqual({ route: "form" }));
   expect(window.location.pathname).toBe("/dashboard/lists/create");
   expect(window.history.length).toBe(sentinelLength);
 
   await act(async () => {
     window.history.back();
-    await new Promise((resolve) => setTimeout(resolve, 0));
   });
-  expect(window.location.pathname).toBe("/dashboard/lists");
+  await waitFor(() =>
+    expect(window.location.pathname).toBe("/dashboard/lists"),
+  );
   view.unmount();
   window.history.replaceState({}, "", originalUrl);
 });
