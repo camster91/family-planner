@@ -261,6 +261,12 @@ const PRIVATE_PERSON_ROUTES = [
     path: "/api/locations",
   },
   {
+    route: "PATCH /api/locations/[id]",
+    module: "../locations/[id]/route",
+    method: "PATCH",
+    path: "/api/locations/unknown-id",
+  },
+  {
     route: "DELETE /api/locations/[id]",
     module: "../locations/[id]/route",
     method: "DELETE",

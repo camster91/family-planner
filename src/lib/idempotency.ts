@@ -21,6 +21,9 @@
  *    An expired row (older than the retention) is deleted and the key starts over.
  * 3. Only a 2xx outcome is stored. Any other outcome deletes the in-progress
  *    row so the same key can be retried after a transient error.
+ * Routes that replay private data may provide `beforeReplay`; it runs at the
+ * completed-receipt boundary so the route can take its live actor/household
+ * locks before returning the cached body.
  *
  * `scope` is `user:<userId>` for a person session. Keys are therefore never
  * shared between users, and a record is never replayed into another household.
@@ -161,6 +164,13 @@ export interface EffectRun {
 }
 
 /**
+ * Optional live authorization for a completed replay. The callback belongs to
+ * the route because it may need an actor/household lock before returning a
+ * previously stored response.
+ */
+export type ReplayGuard = () => Promise<EffectResult | null>
+
+/**
  * Run `effect` at most once per (scope, key) while the record lives.
  * `body` is the validated request body; it is hashed, never stored.
  */
@@ -169,7 +179,8 @@ export async function withIdempotency(
   key: string | null,
   ctx: IdempotencyContext,
   body: unknown,
-  effect: (run: EffectRun) => Promise<EffectResult>
+  effect: (run: EffectRun) => Promise<EffectResult>,
+  options?: { beforeReplay?: ReplayGuard },
 ): Promise<NextResponse> {
   if (!key) return respond(await effect({ recordId: null }))
 
@@ -223,6 +234,8 @@ export async function withIdempotency(
       return idempotencyError('IDEMPOTENCY_KEY_REUSED')
     }
     if (existing.response_status != null) {
+      const replayRefusal = await options?.beforeReplay?.()
+      if (replayRefusal) return respond(replayRefusal)
       return respond({ status: existing.response_status, body: existing.response_body }, true)
     }
     if (existing.created_at.getTime() > now.getTime() - IDEMPOTENCY_LOCK_TIMEOUT_MS) {
