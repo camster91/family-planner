@@ -40,6 +40,9 @@ export const captureEnglish = {
     "Could not confirm whether this was saved. Try again to check the same request.",
   couldNotPrepareRetry:
     "Could not prepare a safe retry. Try again in a supported browser.",
+  recoveryStorageUnavailable:
+    "Saved recovery storage is unavailable. Nothing was sent. Try again when storage is available.",
+  retryStorage: "Retry storage",
   couldNotRead: "Could not read that",
   groceryListMissing: "Could not find a grocery list",
   groceryAddFailed: "Could not add to the list",
@@ -130,6 +133,9 @@ export const captureSpanish: Record<CaptureMessage, string> = {
     "No se pudo confirmar si se guardó. Reintenta para consultar la misma solicitud.",
   couldNotPrepareRetry:
     "No se pudo preparar un reintento seguro. Inténtalo en un navegador compatible.",
+  recoveryStorageUnavailable:
+    "El almacenamiento de recuperación no está disponible. No se envió nada. Inténtalo de nuevo cuando esté disponible.",
+  retryStorage: "Reintentar almacenamiento",
   couldNotRead: "No se pudo leer",
   groceryListMissing: "No se pudo encontrar una lista de supermercado",
   groceryAddFailed: "No se pudo añadir a la lista",

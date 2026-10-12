@@ -41,9 +41,9 @@ export function clearCaptureRecoveryStorage(
   storage: RecoveryStorage | null | undefined,
   userId?: string,
   familyId?: string,
-): void {
+): boolean {
   const target = safeStorage(storage);
-  if (!target) return;
+  if (!target) return false;
   try {
     const active = target.getItem(CAPTURE_RECOVERY_ACTIVE_STORAGE_KEY);
     const keys = new Set<string>();
@@ -57,7 +57,15 @@ export function clearCaptureRecoveryStorage(
       keys.add(active);
     for (const key of keys) target.removeItem(key);
     target.removeItem(CAPTURE_RECOVERY_ACTIVE_STORAGE_KEY);
+    for (const key of keys) {
+      if (target.getItem(key) !== null) return false;
+    }
+    if (target.getItem(CAPTURE_RECOVERY_ACTIVE_STORAGE_KEY) !== null) return false;
+    return true;
   } catch {
-    // Storage is optional; logout should continue even if private mode denies removal.
+    // Callers that are enforcing a privacy/recovery boundary must distinguish
+    // an unconfirmed purge from a successful one. Logout itself remains best
+    // effort and can ignore this boolean.
+    return false;
   }
 }

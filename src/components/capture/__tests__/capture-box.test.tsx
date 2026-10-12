@@ -33,7 +33,7 @@ function mockFetch(eventStatus: (title: string) => number) {
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
-    if (url === '/api/capture' && method === 'GET') return json(200, { configured: true, allowed: true })
+    if (url === '/api/capture' && method === 'GET') return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
     if (url === '/api/capture') {
       const body = JSON.parse(String(init?.body))
       if (body.imageBase64) return json(200, { image: { events: PHOTO_EVENTS, note: null } })
@@ -67,6 +67,10 @@ beforeAll(() => {
   ;(global as unknown as { Image: unknown }).Image = FakeImage
   HTMLCanvasElement.prototype.getContext = jest.fn(() => ({ drawImage: jest.fn() })) as never
   HTMLCanvasElement.prototype.toDataURL = jest.fn(() => 'data:image/jpeg;base64,AAAA')
+})
+
+beforeEach(() => {
+  window.localStorage.clear()
 })
 
 async function readPhoto(user: ReturnType<typeof userEvent.setup>) {
@@ -146,7 +150,7 @@ describe('CaptureBox', () => {
     global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       const method = (init?.method ?? 'GET').toUpperCase()
-      if (url === '/api/capture' && method === 'GET') return json(200, { configured: true, allowed: true })
+      if (url === '/api/capture' && method === 'GET') return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
       if (url === '/api/capture') {
         return json(200, { draft: { kind: 'event', title: 'Soccer', start_time: '2026-10-06T15:00', confidence: 'high' } })
       }
@@ -222,7 +226,7 @@ it('keeps each photo row key after partial success and an uncertain response', a
 it('retains the grocery operation key and body after an uncertain combined save', async () => {
   const items: RequestInit[] = []
   global.fetch = jest.fn(async (url, init) => {
-    if (String(url) === '/api/capture') return json(200, init?.method === 'POST' ? { draft: { kind: 'listitem', title: 'Milk', confidence: 'high' } } : { configured: true, allowed: true })
+    if (String(url) === '/api/capture') return json(200, init?.method === 'POST' ? { draft: { kind: 'listitem', title: 'Milk', confidence: 'high' } } : { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
     if (String(url) === '/api/capture/grocery') {
       items.push(init!)
       if (items.length === 1) throw new Error('lost response')
@@ -429,7 +433,7 @@ it('localizes the saved-recovery controls without translating the saved title', 
 it('localizes capture body copy while preserving dynamic titles and raw API errors', async () => {
   global.fetch = jest.fn(async (url, init) => {
     if (String(url) === '/api/capture' && (init?.method ?? 'GET') === 'GET') {
-      return json(200, { configured: true, allowed: true })
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
     }
     if (String(url) === '/api/capture') {
       return json(200, {
@@ -456,4 +460,114 @@ it('localizes capture body copy while preserving dynamic titles and raw API erro
   await user.click(screen.getByRole('button', { name: captureSpanish.addIt }))
   await screen.findByRole('alert')
   expect(screen.getByRole('alert').textContent).toContain('Provider refusal: keep this detail')
+})
+
+it('blocks a confirmed write when recovery storage cannot be persisted', async () => {
+  window.localStorage.clear()
+  const originalSetItem = Storage.prototype.setItem
+  const activeKey = 'family-planner:capture-recovery:v1:active'
+  let eventPosts = 0
+  Storage.prototype.setItem = function (key: string, value: string) {
+    if (key.startsWith('family-planner:capture-recovery:v1:') && key !== activeKey && value !== '[]') {
+      throw new Error('quota')
+    }
+    return originalSetItem.call(this, key, value)
+  }
+  global.fetch = jest.fn(async (url, init) => {
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (String(url) === '/api/capture' && method === 'GET') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/capture') {
+      return json(200, { draft: { kind: 'event', title: 'Dentist', start_time: '2026-10-06T19:00:00.000Z', confidence: 'high' } })
+    }
+    if (String(url) === '/api/events' && method === 'POST') {
+      eventPosts += 1
+      return json(201, { event: { id: 'event-a' } })
+    }
+    throw new Error(`unexpected ${method} ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  try {
+    const user = userEvent.setup()
+    render(<CaptureBox />)
+    await user.type(await screen.findByRole('textbox'), 'dentist Tuesday')
+    await user.click(screen.getByRole('button', { name: 'Read it' }))
+    await user.click(await screen.findByRole('button', { name: 'Add it' }))
+    expect((await screen.findAllByText(captureEnglish.recoveryStorageUnavailable)).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Dentist').length).toBeGreaterThan(0)
+    expect(eventPosts).toBe(0)
+    expect(screen.getByRole('button', { name: captureEnglish.retryStorage })).toBeTruthy()
+  } finally {
+    Storage.prototype.setItem = originalSetItem
+  }
+})
+
+it('clears recovery and exposes no retry when capture is forbidden', async () => {
+  window.localStorage.clear()
+  const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
+  window.localStorage.setItem(storageKey, JSON.stringify([{
+    version: 1,
+    key: 'capture-forbidden-12345678',
+    action: 'event.create',
+    requestHash: 'a'.repeat(64),
+    body: JSON.stringify({ title: 'Dentist', event_type: 'other' }),
+    title: 'Dentist',
+    kind: 'event',
+    createdAt: Date.now(),
+    photo: false,
+  }]))
+  let posts = 0
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/capture' && (init?.method ?? 'GET') === 'GET') {
+      return json(200, { configured: true, allowed: false, userId: 'user-a', familyId: 'family-a' })
+    }
+    posts += 1
+    return json(201, { event: { id: 'must-not-write' } })
+  }) as unknown as typeof fetch
+
+  render(<CaptureBox />)
+  await screen.findByTestId('capture-child-blocked')
+  expect(screen.getByTestId('capture-child-blocked').textContent).toContain('Ask a parent to add this.')
+  expect(window.localStorage.getItem(storageKey)).toBeNull()
+  expect(screen.queryByRole('button', { name: /Retry Dentist/ })).toBeNull()
+  expect(posts).toBe(0)
+})
+
+it.each([401, 403])('clears recovery on an authenticated refusal (%i)', async (status) => {
+  const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
+  window.localStorage.setItem(storageKey, JSON.stringify([]))
+  window.localStorage.setItem('family-planner:capture-recovery:v1:active', storageKey)
+  global.fetch = jest.fn(async () => json(status, { error: 'unauthorized' })) as unknown as typeof fetch
+
+  render(<CaptureBox />)
+  await waitFor(() => expect(window.localStorage.getItem(storageKey)).toBeNull())
+  expect(window.localStorage.getItem('family-planner:capture-recovery:v1:active')).toBeNull()
+})
+
+it('keeps a logical refusal when forbidden-role recovery purge cannot be confirmed', async () => {
+  window.localStorage.clear()
+  const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
+  window.localStorage.setItem(storageKey, JSON.stringify([]))
+  const originalRemoveItem = Storage.prototype.removeItem
+  Storage.prototype.removeItem = function (key: string) {
+    if (key.startsWith('family-planner:capture-recovery:v1:')) throw new Error('private mode')
+    return originalRemoveItem.call(this, key)
+  }
+  global.fetch = jest.fn(async (url) => {
+    if (String(url) === '/api/capture') {
+      return json(200, { configured: true, allowed: false, userId: 'user-a', familyId: 'family-a' })
+    }
+    return json(201, { event: { id: 'must-not-write' } })
+  }) as unknown as typeof fetch
+
+  try {
+    render(<CaptureBox />)
+    await screen.findByTestId('capture-child-blocked')
+    expect((await screen.findAllByText(captureEnglish.recoveryStorageUnavailable)).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: captureEnglish.retryStorage })).toBeTruthy()
+    expect(window.localStorage.getItem(storageKey)).toBe('[]')
+  } finally {
+    Storage.prototype.removeItem = originalRemoveItem
+  }
 })
