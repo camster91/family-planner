@@ -217,9 +217,11 @@ it("requires a discard confirmation before reloading after a definitive conflict
   await user.click(
     screen.getByRole("button", { name: "Reload latest routine" }),
   );
-  expect(screen.getByRole("alertdialog")).toBeTruthy();
+  const discard = screen.getByRole("alertdialog");
+  expect(discard).toBeTruthy();
+  expect(screen.queryByRole("alert")).toBeNull();
   await user.click(
-    within(screen.getByRole("alertdialog")).getByRole("button", {
+    within(discard).getByRole("button", {
       name: "Reload latest routine",
     }),
   );
@@ -299,6 +301,7 @@ it("treats an identity conflict as a localized definitive reload", async () => {
     within(discard).getByRole("button", { name: "Seguir editando" }),
   );
   expect(screen.getByDisplayValue("Borrador de identidad")).toBeTruthy();
+  expect(screen.getByRole("alert")).toBeTruthy();
 
   await user.click(reload);
   await user.click(

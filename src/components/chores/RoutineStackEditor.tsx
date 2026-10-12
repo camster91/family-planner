@@ -1065,7 +1065,7 @@ export default function RoutineStackEditor({
             </button>
           </section>
 
-          {saveError && (
+          {saveError && !discardAction && (
             <div
               role="alert"
               className="rounded-xl bg-[var(--surface-fill-secondary)] p-3 text-body text-label-primary"
