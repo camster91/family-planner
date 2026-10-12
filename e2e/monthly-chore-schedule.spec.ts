@@ -4,6 +4,7 @@ import type { Locator, Page, TestInfo } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { choreScheduleMessages } from "../src/i18n/chore-schedule";
+import { choreFormMessages } from "../src/i18n/chore-forms";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { authFile } from "./support/env";
@@ -277,13 +278,15 @@ for (const locale of ["en", "es"] as const) {
       await runtimeIdentity(page, info, locale);
 
       const frequency = page.getByRole("button", {
-        name: "Monthly",
+        name: choreFormMessages[locale].monthly,
         exact: true,
       });
-      const dueDate = page.getByLabel("Due Date", { exact: true });
-      await expect(page.getByLabel("Assign To", { exact: true })).toHaveValue(
-        MEMBER_ID,
-      );
+      const dueDate = page.getByLabel(choreFormMessages[locale].dueDate, {
+        exact: true,
+      });
+      await expect(
+        page.getByLabel(choreFormMessages[locale].assignTo, { exact: true }),
+      ).toHaveValue(MEMBER_ID);
       await frequency.click();
       await dueDate.fill(MONTHLY_DATE);
       await expect(frequency).toHaveAttribute("aria-pressed", "true");
@@ -303,15 +306,19 @@ for (const locale of ["en", "es"] as const) {
       await page.goto(
         "/dashboard/chores/create?routine=Morning&step=1&date=2026-01-31",
       );
-      await expect(page.getByLabel("Routine", { exact: true })).toHaveValue(
-        "Morning",
-      );
-      await expect(page.getByLabel("Step", { exact: true })).toHaveValue("1");
+      await expect(
+        page.getByLabel(choreFormMessages[locale].routine, { exact: true }),
+      ).toHaveValue("Morning");
+      await expect(
+        page.getByLabel(choreFormMessages[locale].step, { exact: true }),
+      ).toHaveValue("1");
       const routineFrequency = page.getByRole("button", {
-        name: "Monthly",
+        name: choreFormMessages[locale].monthly,
         exact: true,
       });
-      const routineDate = page.getByLabel("Due Date", { exact: true });
+      const routineDate = page.getByLabel(choreFormMessages[locale].dueDate, {
+        exact: true,
+      });
       await routineFrequency.click();
       await expect(routineDate).toHaveValue(MONTHLY_DATE);
       await expect(
@@ -327,14 +334,16 @@ for (const locale of ["en", "es"] as const) {
       // A legacy recurring row has no series template. Opening it must show
       // the stored Jan 31 date unchanged until a parent explicitly saves.
       await page.goto(`/dashboard/chores/edit?id=${LEGACY_ID}`);
-      await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
-        "Synthetic legacy monthly chore",
-      );
+      await expect(
+        page.getByLabel(choreFormMessages[locale].title, { exact: true }),
+      ).toHaveValue("Synthetic legacy monthly chore");
       const legacyFrequency = page.getByRole("button", {
-        name: "Monthly",
+        name: choreFormMessages[locale].monthly,
         exact: true,
       });
-      const legacyDate = page.getByLabel("Due Date", { exact: true });
+      const legacyDate = page.getByLabel(choreFormMessages[locale].dueDate, {
+        exact: true,
+      });
       await expect(legacyFrequency).toHaveAttribute("aria-pressed", "true");
       await expect(legacyDate).toHaveValue(MONTHLY_DATE);
       await expect(

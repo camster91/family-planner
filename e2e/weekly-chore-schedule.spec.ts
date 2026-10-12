@@ -4,6 +4,7 @@ import type { Locator, Page, TestInfo } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { choreScheduleMessages } from "../src/i18n/chore-schedule";
+import { choreFormMessages } from "../src/i18n/chore-forms";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { authFile } from "./support/env";
@@ -294,12 +295,14 @@ for (const locale of ["en", "es"] as const) {
       await runtimeIdentity(page, info, locale);
 
       const weekly = page.getByRole("button", {
-        name: "Weekly",
+        name: choreFormMessages[locale].weekly,
         exact: true,
       });
       await weekly.click();
       await expect(weekly).toHaveAttribute("aria-pressed", "true");
-      await expect(page.getByLabel("Due Date", { exact: true })).toHaveCount(0);
+      await expect(
+        page.getByLabel(choreFormMessages[locale].dueDate, { exact: true }),
+      ).toHaveCount(0);
 
       const weekdayNames = choreScheduleMessages[locale].weekdayNames;
       const monday = weekdayNames[1];
@@ -314,10 +317,10 @@ for (const locale of ["en", "es"] as const) {
       await expect(summary).not.toContainText(/next|próxima|2026|Oct|oct/);
 
       await page
-        .getByLabel("Title", { exact: true })
+        .getByLabel(choreFormMessages[locale].title, { exact: true })
         .fill("Synthetic weekly chore");
       await expect(
-        page.getByRole("button", { name: "Create Chore" }),
+        page.getByRole("button", { name: choreFormMessages[locale].create }),
       ).toBeEnabled();
       await captureForm(page, info, `${locale}-${info.project.name}-create`, [
         weekly,
@@ -325,15 +328,17 @@ for (const locale of ["en", "es"] as const) {
       expect(writes).toEqual([]);
 
       await page.goto(`/dashboard/chores/edit?id=${FUTURE_ID}`);
-      await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
-        "Synthetic future weekly chore",
-      );
+      await expect(
+        page.getByLabel(choreFormMessages[locale].title, { exact: true }),
+      ).toHaveValue("Synthetic future weekly chore");
       const editWeekly = page.getByRole("button", {
-        name: "Weekly",
+        name: choreFormMessages[locale].weekly,
         exact: true,
       });
       await expect(editWeekly).toHaveAttribute("aria-pressed", "true");
-      await expect(page.getByLabel("Due Date", { exact: true })).toHaveCount(0);
+      await expect(
+        page.getByLabel(choreFormMessages[locale].dueDate, { exact: true }),
+      ).toHaveCount(0);
       await expect(
         page.getByRole("checkbox", { name: monday, exact: true }),
       ).toBeChecked();

@@ -59,6 +59,23 @@ it("keeps Create disabled from success until the redirect", async () => {
   expect(creates).toBe(1);
 });
 
+it("keeps the direct Back control noninteractive during the success pause", async () => {
+  jest.useFakeTimers();
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+  render(<CreateListForm />);
+
+  await user.type(screen.getByLabelText("Name"), "Weekly Groceries");
+  await user.click(screen.getByRole("button", { name: /Create List/ }));
+  await screen.findByRole("status");
+
+  expect(screen.getByTestId("list-create-back-busy")).toHaveTextContent(
+    "Lists",
+  );
+  expect(
+    screen.queryByRole("link", { name: "Lists" }),
+  ).not.toBeInTheDocument();
+});
+
 it("a double tap on Create sends one request", async () => {
   const user = userEvent.setup();
   render(<CreateListForm />);

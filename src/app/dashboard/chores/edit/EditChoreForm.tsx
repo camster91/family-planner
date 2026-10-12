@@ -4,12 +4,18 @@ import { routineIconLabel } from "@/lib/routine-icons";
 import { MonthlyScheduleHint } from "@/components/chores/MonthlyScheduleHint";
 import { WeeklyDaysPicker } from "@/components/chores/WeeklyDaysPicker";
 
-import { useState, useEffect, useRef, useId } from "react";
+import { useState, useEffect, useRef, useId, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Camera } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
+import {
+  choreFormMessages,
+  localizedChoreRoutineIconLabel,
+  type ChoreFormMessage,
+} from "@/i18n/chore-forms";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
 import {
   RoutineFields,
@@ -18,28 +24,40 @@ import {
 } from "@/components/chores/RoutineIconPicker";
 import { TakeTurnsPicker } from "@/components/chores/TakeTurnsPicker";
 import { ROTATION_MIN, isRotating } from "@/lib/chore-rotation";
+import {
+  usePendingFormNavigation,
+  usePendingFormNavigationController,
+} from "@/components/layout/pending-form-navigation";
 
 type Difficulty = "easy" | "medium" | "hard";
 type Frequency = "once" | "daily" | "weekly" | "monthly";
 
 const difficultyOptions: {
   value: Difficulty;
-  label: string;
-  description: string;
+  label: ChoreFormMessage;
+  description: ChoreFormMessage;
 }[] = [
-  { value: "easy", label: "Easy", description: "5–10 min" },
-  { value: "medium", label: "Medium", description: "15–30 min" },
-  { value: "hard", label: "Hard", description: "30+ min" },
+  { value: "easy", label: "easy", description: "easyTime" },
+  { value: "medium", label: "medium", description: "mediumTime" },
+  { value: "hard", label: "hard", description: "hardTime" },
 ];
 
-const frequencyOptions: { value: Frequency; label: string }[] = [
-  { value: "once", label: "Once" },
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
+const frequencyOptions: { value: Frequency; label: ChoreFormMessage }[] = [
+  { value: "once", label: "once" },
+  { value: "daily", label: "daily" },
+  { value: "weekly", label: "weekly" },
+  { value: "monthly", label: "monthly" },
 ];
 
 function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
+  const { locale, t } = useTranslation();
+  const message = useCallback(
+    (key: ChoreFormMessage, params?: Record<string, string | number>) =>
+      t(key, params, choreFormMessages),
+    [t],
+  );
+  const messageRef = useRef(message);
+  messageRef.current = message;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   // undefined when the chore API omits points (Points & streaks off, #248):
@@ -70,7 +88,13 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
-  useEffect(() => { onBusyChange?.(loading || photoUploading); }, [loading, photoUploading, onBusyChange]);
+  const busy = loading || photoUploading;
+  const directNavigation = usePendingFormNavigationController(
+    busy && !inSheet,
+  );
+  const sheetNavigation = usePendingFormNavigation();
+  const navigation = inSheet ? sheetNavigation : directNavigation;
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
   // Picture routines (#272).
   const [icon, setIcon] = useState<string | null>(null);
   const [routine, setRoutine] = useState("");
@@ -84,7 +108,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
 
   useEffect(() => {
     if (!choreId) {
-      setError("No chore ID provided");
+      setError(messageRef.current("noIdProvided"));
       setFetching(false);
       return;
     }
@@ -141,10 +165,10 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
               setPhotoPreview(chore.photo_url);
             }
           } else {
-            setError("Chore not found");
+            setError(messageRef.current("notFound"));
           }
         } else {
-          setError("Chore not found");
+          setError(messageRef.current("notFound"));
         }
 
         if (membersRes.ok) {
@@ -155,7 +179,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
         }
       } catch (err) {
         console.error("Error fetching chore:", err);
-        setError("Failed to load chore data");
+        setError(messageRef.current("loadFailed"));
       } finally {
         setFetching(false);
       }
@@ -168,7 +192,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
     e.preventDefault();
     if (!choreId) return;
     if (frequency === "weekly" && !weeklyDays.length) {
-      setError("Choose at least one weekday");
+      setError(message("chooseWeekday"));
       return;
     }
 
@@ -209,14 +233,15 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to update chore");
+        setError(data.error || message("updateFailed"));
         return;
       }
 
+      if ((await navigation?.releaseBeforeNavigation()) === false) return;
       router.push("/dashboard/chores");
       router.refresh();
     } catch (err) {
-      setError("An unexpected error occurred");
+      setError(message("unexpected"));
       console.error(err);
     } finally {
       setLoading(false);
@@ -226,7 +251,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
   if (fetching) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-label-secondary">Loading...</div>
+        <div className="text-label-secondary">{message("loading")}</div>
       </div>
     );
   }
@@ -236,13 +261,13 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
       <div className="max-w-xl mx-auto px-4 py-12 text-center">
         <div className="card-apple p-8">
           <h2 className="text-title-2 text-label-primary mb-2">
-            No Chore Selected
+            {message("noChoreSelected")}
           </h2>
           <p className="text-body text-label-secondary mb-6">
-            Please select a chore to edit.
+            {message("selectChore")}
           </p>
           <Link href="/dashboard/chores" className="btn-filled">
-            Back to Chores
+            {message("backToChores")}
           </Link>
         </div>
       </div>
@@ -254,16 +279,27 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
       {!inSheet && <>
       {/* Back nav */}
       <div className="px-4 pt-4">
-        <Link href="/dashboard/chores" className="btn-plain text-base py-2">
-          <ArrowLeft className="w-5 h-5" />
-          <span>Chores</span>
-        </Link>
+        {busy ? (
+          <span
+            aria-disabled="true"
+            data-testid="chore-edit-back-busy"
+            className="btn-plain text-base py-2 min-h-[44px]"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>{message("back")}</span>
+          </span>
+        ) : (
+          <Link href="/dashboard/chores" className="btn-plain text-base py-2 min-h-[44px]">
+            <ArrowLeft className="w-5 h-5" />
+            <span>{message("back")}</span>
+          </Link>
+        )}
       </div>
 
       <div className="px-4 pt-4">
-        <h1 className="text-large-title font-display">Edit Chore</h1>
+        <h1 className="text-large-title font-display">{message("editTitle")}</h1>
         <p className="text-subhead text-label-secondary mt-1">
-          Update the chore details.
+          {message("editDescription")}
         </p>
       </div>
 
@@ -279,7 +315,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           {/* Title */}
           <div>
             <label className="label-apple" htmlFor="title">
-              Title
+              {message("title")}
             </label>
             <input
               id="title"
@@ -288,7 +324,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="input-apple"
-              placeholder="e.g., Take out the trash"
+              placeholder={message("titlePlaceholder")}
             />
           </div>
 
@@ -296,7 +332,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           <div className="space-y-3">
             <div>
               <label className="label-apple" htmlFor="assignedTo">
-                {rotating ? "This time" : "Assign To"}
+                {rotating ? message("thisTime") : message("assignTo")}
               </label>
               <select
                 id="assignedTo"
@@ -319,12 +355,11 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           {/* Frequency picker */}
           <div>
             <p id={`${fieldId}-frequency`} className="label-apple">
-              Frequency
+              {message("frequency")}
             </p>
             {seriesCopy && (
               <p className="text-caption-1 text-label-secondary mb-2">
-                This chore is part of a repeating series. Changing how often
-                changes the whole series.
+                {message("seriesHint")}
               </p>
             )}
             <div
@@ -345,7 +380,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
                       : "text-label-secondary hover:text-label-primary",
                   )}
                 >
-                  {opt.label}
+                  {message(opt.label)}
                 </button>
               ))}
             </div>
@@ -355,7 +390,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           {frequency !== "weekly" && (
             <div>
               <label className="label-apple" htmlFor="dueDate">
-                Due Date
+                {message("dueDate")}
               </label>
               <input
                 id="dueDate"
@@ -399,20 +434,28 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
         )}
 
         <ChoreFormSection
-          title={gamification ? "Details & points" : "Details"}
-          summary={`${description.trim() ? "Instructions added · " : ""}${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} difficulty${gamification ? ` · ${points} points` : ""}`}
+          title={message(gamification ? "detailsPoints" : "details")}
+          summary={[
+            ...(description.trim() ? [message("instructionsAdded")] : []),
+            message("difficultySummary", {
+              difficulty: message(difficultyOptions.find((option) => option.value === difficulty)!.label),
+            }),
+            ...(gamification && points !== undefined
+              ? [message("pointsSummary", { count: points })]
+              : []),
+          ].join(" · ")}
         >
           {/* Description */}
           <div>
             <label className="label-apple" htmlFor="description">
-              Description
+              {message("description")}
             </label>
             <textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="input-apple min-h-[80px] resize-none"
-              placeholder="Instructions or details..."
+              placeholder={message("descriptionPlaceholder")}
               rows={3}
             />
           </div>
@@ -420,7 +463,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           {/* Difficulty picker */}
           <div>
             <p id={`${fieldId}-difficulty`} className="label-apple">
-              Difficulty
+              {message("difficulty")}
             </p>
             <div
               role="group"
@@ -440,9 +483,9 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
                       : "border-[var(--surface-separator)] bg-[var(--surface-fill)] text-label-primary",
                   )}
                 >
-                  <div className="text-body font-semibold">{opt.label}</div>
+                  <div className="text-body font-semibold">{message(opt.label)}</div>
                   <div className="text-caption-1 text-label-secondary mt-0.5">
-                    {opt.description}
+                    {message(opt.description)}
                   </div>
                 </button>
               ))}
@@ -452,7 +495,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           {gamification && (
             <div>
               <label className="label-apple" htmlFor="points">
-                Points
+                {message("points")}
               </label>
               <input
                 id="points"
@@ -468,12 +511,14 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
         </ChoreFormSection>
 
         <ChoreFormSection
-          title="Pictures & routine"
+          title={message("picturesRoutine")}
           summary={[
             routine.trim()
-              ? `${routine}${routineOrder ? ` · Step ${routineOrder}` : ""}`
-              : "No routine",
-            routineIconLabel(icon) ?? "No picture",
+              ? `${routine}${routineOrder ? ` · ${message("step")} ${routineOrder}` : ""}`
+              : message("noRoutine"),
+            localizedChoreRoutineIconLabel(locale, icon) ??
+              routineIconLabel(icon) ??
+              message("noPicture"),
           ].join(" · ")}
         >
           {/* Picture routines (#272): picture, routine and step */}
@@ -487,19 +532,19 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
         </ChoreFormSection>
 
         <ChoreFormSection
-          title="Photo"
+          title={message("photo")}
           summary={
             photoUploading
-              ? "Uploading…"
+              ? message("uploading")
               : photoPreview
-                ? "Photo selected"
-                : "Optional photo attachment"
+                ? message("photoSelected")
+                : message("optionalPhoto")
           }
         >
           {/* Photo attach */}
           <div>
             <p id={`${fieldId}-photo`} className="label-apple">
-              Photo
+              {message("photo")}
             </p>
             <input
               ref={fileInputRef}
@@ -519,12 +564,12 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
                     body: fd,
                   });
                   const data = await res.json();
-                  if (!res.ok) throw new Error(data.error || "Upload failed");
+                  if (!res.ok) throw new Error(data.error || message("uploadFailed"));
                   setPhotoUrl(data.url);
                   setPhotoPreview(data.url);
                 } catch (err) {
                   console.error("Photo upload error:", err);
-                  alert("Failed to upload photo");
+                  alert(message("uploadFailed"));
                 } finally {
                   setPhotoUploading(false);
                 }
@@ -543,13 +588,13 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
               )}
             >
               {photoUploading ? (
-                <span className="text-sm">Uploading...</span>
+                <span className="text-sm">{message("uploading")}</span>
               ) : photoPreview ? (
-                <span className="text-sm">Photo selected</span>
+                <span className="text-sm">{message("photoSelected")}</span>
               ) : (
                 <>
                   <Camera className="w-5 h-5 mx-auto mb-1" />
-                  <span className="text-sm">Add photo</span>
+                  <span className="text-sm">{message("addPhoto")}</span>
                 </>
               )}
             </button>
@@ -558,7 +603,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={photoPreview}
-                  alt="Preview"
+                  alt={message("preview")}
                   className="w-full h-full object-cover"
                 />
                 <button
@@ -567,7 +612,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
                     setPhotoUrl(null);
                     setPhotoPreview(null);
                   }}
-                  aria-label="Remove photo"
+                  aria-label={message("removePhoto")}
                   className="absolute top-0 right-0 flex h-11 w-11 items-start justify-end p-1"
                 >
                   <span
@@ -595,7 +640,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
             }
             className="btn-filled w-full"
           >
-            {loading ? "Saving..." : "Save Changes"}
+            {loading ? message("saving") : message("save")}
           </button>
         </div>
       </form>
@@ -604,11 +649,18 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
 }
 
 export default function EditChorePage({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
+  const { t } = useTranslation();
+  const message = useCallback(
+    (key: ChoreFormMessage) => t(key, undefined, choreFormMessages),
+    [t],
+  );
   return (
     <Suspense
       fallback={
         <div className="flex items-center justify-center py-20">
-          <div className="text-label-secondary">Loading...</div>
+          <div className="text-label-secondary">
+            {message("loading")}
+          </div>
         </div>
       }
     >

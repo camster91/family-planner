@@ -6,6 +6,8 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { createAllowanceSchema } from '@/lib/validations'
+import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import { createPersonAllowance } from '@/lib/person-allowance-create'
 
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
@@ -60,9 +62,13 @@ export async function POST(request: Request) {
     const gate = await featureGate(user.family_id, 'allowance')
     if (gate) return gate
     if (!user.family_id) return NextResponse.json({ error: 'No family' }, { status: 400 })
+    const familyId = user.family_id
     if (user.role !== 'parent') {
       return NextResponse.json({ error: 'Only parents can create allowance' }, { status: 403 })
     }
+
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return keyError
 
     let json: unknown
     try {
@@ -81,20 +87,19 @@ export async function POST(request: Request) {
       where: { id: body.to_user_id },
       select: { family_id: true },
     })
-    if (!target || target.family_id !== user.family_id) {
+    if (!target || target.family_id !== familyId) {
       return NextResponse.json({ error: 'Target user not in your family' }, { status: 400 })
     }
 
-    const created = await prisma!.allowance.create({
-      data: {
-        family_id: user.family_id,
-        from_user_id: user.id,
-        to_user_id: body.to_user_id,
-        amount: body.amount,
-        reason: body.reason?.trim() || null,
-      },
-    })
-    return NextResponse.json({ allowance: created }, { status: 201 })
+    const response = await withIdempotency(
+      prisma!,
+      key,
+      { scope: `user:${user.id}`, familyId, userId: user.id, action: 'allowance.create' },
+      body,
+      ({ recordId }) => createPersonAllowance(prisma!, body, { familyId, userId: user.id }, recordId),
+    )
+    response.headers.set('Cache-Control', 'private, no-store')
+    return response
   } catch (error) {
     logRouteError('POST /api/allowance', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

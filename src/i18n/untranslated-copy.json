@@ -1,28 +1,13 @@
 [
   {
     "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "10.00",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Add",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
     "text": "Allowance",
     "count": 1
   },
   {
     "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Amount",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
     "text": "Cancel",
-    "count": 2
+    "count": 1
   },
   {
     "file": "src/app/dashboard/allowance/page.tsx",
@@ -31,22 +16,7 @@
   },
   {
     "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Choose a family member",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "For",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
     "text": "Mark paid",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "New allowance",
     "count": 1
   },
   {
@@ -76,32 +46,12 @@
   },
   {
     "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Reason",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
     "text": "Recently paid",
     "count": 1
   },
   {
     "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Save",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Saving…",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
     "text": "Track weekly allowance and money owed between members. Kids can see what they have coming.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Weekly allowance",
     "count": 1
   },
   {
@@ -302,286 +252,6 @@
   {
     "file": "src/app/dashboard/chores/ChoresContent.tsx",
     "text": "Try again",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Add photo",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Assign a task to a family member.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Assign To",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Chores",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Create Chore",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Creating...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Description",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Details",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Details & points",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Difficulty",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Due Date",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "e.g., Take out the trash",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "every day",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "every month",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Frequency",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Instructions or details...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "New Chore",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "on the selected weekdays",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Photo",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Photo selected",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Pictures & routine",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Points",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Preview",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Remove photo",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "This chore keeps repeating",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Title",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "Uploading...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Add photo",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Assign To",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Back to Chores",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Chores",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Description",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Details",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Details & points",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Difficulty",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Due Date",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "e.g., Take out the trash",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Edit Chore",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Frequency",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Instructions or details...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Loading...",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "No Chore Selected",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Photo",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Photo selected",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Pictures & routine",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Please select a chore to edit.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Points",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Preview",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Remove photo",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Save Changes",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Saving...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "This chore is part of a repeating series. Changing how often changes the whole series.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "This time",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Title",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Update the chore details.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/edit/EditChoreForm.tsx",
-    "text": "Uploading...",
     "count": 1
   },
   {
@@ -3405,61 +3075,6 @@
     "count": 1
   },
   {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "e.g. Morning",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "No picture",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "No picture selected. Pictures make steps easier to recognize at any age.",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "No pictures match “",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Picture",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Routine",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Search pictures",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Search pictures, e.g. teeth",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Selected:",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Stack chores for any family member with the same routine name and numbered steps. View the stack under Chores → Routines.",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Step",
-    "count": 1
-  },
-  {
     "file": "src/components/chores/RoutineStacks.tsx",
     "text": "· some awaiting check",
     "count": 1
@@ -3552,51 +3167,6 @@
   {
     "file": "src/components/chores/RoutineStacks.tsx",
     "text": "Up next",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": ", turn",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "Each time it repeats, the next person does it.",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "Off",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "On",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "Order:",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "people.",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "Pick at least",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "Take turns",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "Tap people in the order they take turns. Tap again to take someone out.",
     "count": 1
   },
   {

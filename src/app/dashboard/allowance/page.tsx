@@ -1,28 +1,31 @@
-'use client'
+"use client";
 
-import * as React from 'react'
-import { Plus, Wallet, Check, Trash2 } from 'lucide-react'
-import { LargeHeader } from '@/components/ui/large-header'
-import { FeatureGate } from '@/components/ui/feature-gate'
-import { Avatar } from '@/components/ui/avatar'
-import { EmptyState } from '@/components/ui/empty-state'
-import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
-import { useToast } from '@/components/ui/toast'
-import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
+import * as React from "react";
+import { Wallet, Check, Trash2 } from "lucide-react";
+import { LargeHeader } from "@/components/ui/large-header";
+import { FeatureGate } from "@/components/ui/feature-gate";
+import Link from "next/link";
+import { Avatar } from "@/components/ui/avatar";
+import { EmptyState } from "@/components/ui/empty-state";
+import { InsetList, SectionHeader } from "@/components/ui/list-row";
+import { useToast } from "@/components/ui/toast";
+import { OFFLINE_MESSAGE, responseErrorMessage } from "@/lib/fetch-error";
+import { useTranslation } from "@/i18n";
+import { allowanceCreateMessages } from "@/i18n/allowance-create";
 
 interface AllowanceItem {
-  id: string
-  amount: number
-  reason?: string | null
-  status: 'pending' | 'paid' | 'cancelled'
-  scheduled_for?: string | null
-  paid_at?: string | null
-  from_user_id: string
-  to_user_id: string
-  from_name?: string
-  to_name?: string
-  to_avatar?: string | null
-  created_at: string
+  id: string;
+  amount: number;
+  reason?: string | null;
+  status: "pending" | "paid" | "cancelled";
+  scheduled_for?: string | null;
+  paid_at?: string | null;
+  from_user_id: string;
+  to_user_id: string;
+  from_name?: string;
+  to_name?: string;
+  to_avatar?: string | null;
+  created_at: string;
 }
 
 export default function AllowancePage() {
@@ -30,115 +33,99 @@ export default function AllowancePage() {
     <FeatureGate featureKey="allowance">
       <AllowancePageInner />
     </FeatureGate>
-  )
+  );
 }
 
 function AllowancePageInner() {
-  const [items, setItems] = React.useState<AllowanceItem[]>([])
-  const [members, setMembers] = React.useState<{ id: string; name: string; avatar_url?: string | null }[]>([])
-  const [loading, setLoading] = React.useState(true)
-  const [adding, setAdding] = React.useState(false)
-  const [draft, setDraft] = React.useState({ to_user_id: '', amount: '', reason: '' })
-  const formId = React.useId()
-  const [saving, setSaving] = React.useState(false)
+  const [items, setItems] = React.useState<AllowanceItem[]>([]);
+  const [loading, setLoading] = React.useState(true);
   // D5 (#102): teens and children see only their own allowance, read-only.
   // The API filters the rows; the page hides every control that would write.
   // Null until /api/auth/me answers, so the controls never flash for a kid.
-  const [role, setRole] = React.useState<string | null>(null)
-  const isParent = role === 'parent'
+  const [role, setRole] = React.useState<string | null>(null);
+  const isParent = role === "parent";
+  const { locale } = useTranslation();
+  const createCopy = allowanceCreateMessages[locale];
 
   // KidHome pattern: a refused or failed request says so in a toast instead
   // of doing nothing (or leaving an unhandled rejection when offline).
-  const { addToast } = useToast()
+  const { addToast } = useToast();
   const failed = React.useCallback(
     async (title: string, res?: Response) => {
-      addToast({ type: 'error', title, message: res ? await responseErrorMessage(res) : OFFLINE_MESSAGE })
+      addToast({
+        type: "error",
+        title,
+        message: res ? await responseErrorMessage(res) : OFFLINE_MESSAGE,
+      });
     },
-    [addToast]
-  )
+    [addToast],
+  );
 
   React.useEffect(() => {
-    fetch('/api/auth/me')
+    fetch("/api/auth/me")
       .then((r) => r.json())
       .then((d) => setRole(d?.user?.role ?? null))
-      .catch(() => {})
-  }, [])
+      .catch(() => {});
+  }, []);
 
   const load = React.useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const [a, f] = await Promise.all([
-        fetch('/api/allowance', { cache: 'no-store' }).then((r) => {
-          if (!r.ok) throw new Error('allowance load failed')
-          return r.json()
-        }),
-        fetch('/api/family/members', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ members: [] })),
-      ])
-      setItems(a.items || [])
-      setMembers(f.members || [])
-    } catch {
-      await failed("Couldn't load allowance")
-    } finally {
-      setLoading(false)
-    }
-  }, [failed])
-
-  React.useEffect(() => { load() }, [load])
-
-  async function add(e: React.FormEvent) {
-    e.preventDefault()
-    const amount = parseFloat(draft.amount)
-    if (!draft.to_user_id || isNaN(amount) || amount <= 0) return
-    setSaving(true)
-    try {
-      const res = await fetch('/api/allowance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to_user_id: draft.to_user_id, amount, reason: draft.reason.trim() || null }),
-      })
-      if (res.ok) {
-        setDraft({ to_user_id: '', amount: '', reason: '' })
-        setAdding(false)
-        load()
-      } else {
-        await failed("Couldn't add the allowance", res)
+      const response = await fetch("/api/allowance", { cache: "no-store" });
+      if (!response.ok) throw new Error("allowance load failed");
+      const payload: unknown = await response.json();
+      if (
+        !payload ||
+        typeof payload !== "object" ||
+        !Array.isArray((payload as { items?: unknown }).items)
+      ) {
+        throw new Error("allowance response was invalid");
       }
+      setItems((payload as { items: AllowanceItem[] }).items);
     } catch {
-      await failed("Couldn't add the allowance")
+      await failed("Couldn't load allowance");
     } finally {
-      setSaving(false)
+      setLoading(false);
     }
-  }
+  }, [failed]);
 
-  async function setStatus(id: string, status: 'paid' | 'cancelled', failure: string) {
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  async function setStatus(
+    id: string,
+    status: "paid" | "cancelled",
+    failure: string,
+  ) {
     try {
       const res = await fetch(`/api/allowance/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
-      })
+      });
       if (!res.ok) {
-        await failed(failure, res)
-        return
+        await failed(failure, res);
+        return;
       }
     } catch {
-      await failed(failure)
-      return
+      await failed(failure);
+      return;
     }
-    load()
+    load();
   }
 
   async function markPaid(id: string) {
-    await setStatus(id, 'paid', "Couldn't mark it paid")
+    await setStatus(id, "paid", "Couldn't mark it paid");
   }
 
   async function cancel(id: string) {
-    if (!confirm('Cancel this allowance?')) return
-    await setStatus(id, 'cancelled', "Couldn't cancel the allowance")
+    if (!confirm("Cancel this allowance?")) return;
+    await setStatus(id, "cancelled", "Couldn't cancel the allowance");
   }
 
-  const pending = items.filter((i) => i.status === 'pending')
-  const paid = items.filter((i) => i.status === 'paid').slice(0, 10)
+  const pending = items.filter((i) => i.status === "pending");
+  const paid = items.filter((i) => i.status === "paid").slice(0, 10);
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -147,84 +134,28 @@ function AllowancePageInner() {
         title="Allowance"
         subtitle={
           role === null || isParent
-            ? 'Track weekly allowance and money owed between members.'
-            : 'Your allowance: what you have coming and what has been paid.'
+            ? "Track weekly allowance and money owed between members."
+            : "Your allowance: what you have coming and what has been paid."
         }
         trailing={
-          isParent && !adding ? (
-            <button type="button" onClick={() => setAdding(true)} className="btn-tinted">
-              <Plus className="w-4 h-4" />
-              <span>Add</span>
-            </button>
+          isParent ? (
+            <Link
+              href="/dashboard/allowance/create"
+              className="btn-tinted min-h-[44px]"
+            >
+              {createCopy.add}
+            </Link>
           ) : null
         }
       />
 
-      {isParent && adding && (
-        <form onSubmit={add} className="card-apple p-4 space-y-3 animate-spring-up">
-          <div className="flex items-center gap-2">
-            <div className="glyph bg-tint-budget">
-              <Wallet className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-headline">New allowance</span>
-          </div>
-          <div>
-            <label htmlFor={`${formId}-for`} className="label-apple">For</label>
-            <select
-              id={`${formId}-for`}
-              value={draft.to_user_id}
-              onChange={(e) => setDraft({ ...draft, to_user_id: e.target.value })}
-              className="input-apple"
-            >
-              <option value="">Choose a family member</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor={`${formId}-amount`} className="label-apple">Amount</label>
-            <input
-              id={`${formId}-amount`}
-              type="number"
-              step="0.01"
-              min="0"
-              value={draft.amount}
-              onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
-              placeholder="10.00"
-              className="input-apple"
-            />
-          </div>
-          <div>
-            <label htmlFor={`${formId}-reason`} className="label-apple">Reason</label>
-            <input
-              id={`${formId}-reason`}
-              type="text"
-              value={draft.reason}
-              onChange={(e) => setDraft({ ...draft, reason: e.target.value })}
-              placeholder="Weekly allowance"
-              className="input-apple"
-            />
-          </div>
-          <div className="flex gap-2 justify-end">
-            <button
-              type="button"
-              onClick={() => { setAdding(false); setDraft({ to_user_id: '', amount: '', reason: '' }) }}
-              className="btn-plain"
-            >
-              Cancel
-            </button>
-            <button type="submit" disabled={saving} className="btn-filled">
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </form>
-      )}
-
       {loading ? (
         <div className="list-inset">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="row-apple border-b border-[var(--surface-separator)] last:border-b-0">
+            <div
+              key={i}
+              className="row-apple border-b border-[var(--surface-separator)] last:border-b-0"
+            >
               <div className="glyph bg-surface-fill shimmer" />
               <div className="flex-1 space-y-1.5">
                 <div className="h-3 w-32 rounded-full shimmer" />
@@ -240,8 +171,8 @@ function AllowancePageInner() {
           title="No allowance yet"
           description={
             role === null || isParent
-              ? 'Track weekly allowance and money owed between members. Kids can see what they have coming.'
-              : 'Nothing yet. When a parent adds allowance for you, it shows up here.'
+              ? "Track weekly allowance and money owed between members. Kids can see what they have coming."
+              : "Nothing yet. When a parent adds allowance for you, it shows up here."
           }
         />
       ) : (
@@ -268,7 +199,14 @@ function AllowancePageInner() {
               <SectionHeader>Recently paid</SectionHeader>
               <InsetList>
                 {paid.map((it, i) => (
-                  <AllowanceRow key={it.id} item={it} canManage={isParent} onMarkPaid={markPaid} onCancel={cancel} last={i === paid.length - 1} />
+                  <AllowanceRow
+                    key={it.id}
+                    item={it}
+                    canManage={isParent}
+                    onMarkPaid={markPaid}
+                    onCancel={cancel}
+                    last={i === paid.length - 1}
+                  />
                 ))}
               </InsetList>
             </section>
@@ -276,7 +214,7 @@ function AllowancePageInner() {
         </>
       )}
     </div>
-  )
+  );
 }
 
 function AllowanceRow({
@@ -286,30 +224,33 @@ function AllowanceRow({
   onCancel,
   last,
 }: {
-  item: AllowanceItem
-  canManage: boolean
-  onMarkPaid: (id: string) => void
-  onCancel: (id: string) => void
-  last: boolean
+  item: AllowanceItem;
+  canManage: boolean;
+  onMarkPaid: (id: string) => void;
+  onCancel: (id: string) => void;
+  last: boolean;
 }) {
   return (
-    <div className={last ? '' : 'border-b border-[var(--surface-separator)]'}>
+    <div className={last ? "" : "border-b border-[var(--surface-separator)]"}>
       <div className="row-apple">
-        <Avatar name={item.to_name || '?'} src={item.to_avatar} size="sm" />
+        <Avatar name={item.to_name || "?"} src={item.to_avatar} size="sm" />
         <div className="flex-1 min-w-0">
           <div className="text-body text-label-primary">
             ${item.amount.toFixed(2)} → {item.to_name}
           </div>
           <div className="text-footnote text-label-secondary truncate">
-            {item.reason || (item.status === 'paid' && item.paid_at
-              ? `Paid ${new Date(item.paid_at).toLocaleDateString()}`
-              : 'No reason')}
+            {item.reason ||
+              (item.status === "paid" && item.paid_at
+                ? `Paid ${new Date(item.paid_at).toLocaleDateString()}`
+                : "No reason")}
           </div>
         </div>
-        {item.status === 'pending' && !canManage && (
-          <span className="text-caption-1 font-semibold text-label-secondary uppercase tracking-wide">Pending</span>
+        {item.status === "pending" && !canManage && (
+          <span className="text-caption-1 font-semibold text-label-secondary uppercase tracking-wide">
+            Pending
+          </span>
         )}
-        {item.status === 'pending' && canManage && (
+        {item.status === "pending" && canManage && (
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -329,13 +270,17 @@ function AllowanceRow({
             </button>
           </div>
         )}
-        {item.status === 'paid' && (
-          <span className="text-caption-1 font-semibold text-success-text uppercase tracking-wide">Paid</span>
+        {item.status === "paid" && (
+          <span className="text-caption-1 font-semibold text-success-text uppercase tracking-wide">
+            Paid
+          </span>
         )}
-        {item.status === 'cancelled' && (
-          <span className="text-caption-1 font-semibold text-label-tertiary uppercase tracking-wide">Cancelled</span>
+        {item.status === "cancelled" && (
+          <span className="text-caption-1 font-semibold text-label-tertiary uppercase tracking-wide">
+            Cancelled
+          </span>
         )}
       </div>
     </div>
-  )
+  );
 }

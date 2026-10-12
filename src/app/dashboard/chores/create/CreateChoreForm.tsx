@@ -9,10 +9,15 @@ import { WeeklyDaysPicker } from "@/components/chores/WeeklyDaysPicker";
 
 import { useState, useEffect, useRef, useId } from "react";
 import { useRouter } from "next/navigation";
-import { missingFieldsHint } from "@/lib/form-hints";
 import { ArrowLeft, Plus, Camera } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
+import {
+  choreFormMessages,
+  localizedChoreRoutineIconLabel,
+  type ChoreFormMessage,
+} from "@/i18n/chore-forms";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
 import {
   RoutineFields,
@@ -26,28 +31,37 @@ import {
   normalizeRoutineName,
 } from "@/lib/routine-icons";
 import { ROTATION_MIN } from "@/lib/chore-rotation";
+import {
+  usePendingFormNavigation,
+  usePendingFormNavigationController,
+} from "@/components/layout/pending-form-navigation";
 
 type Difficulty = "easy" | "medium" | "hard";
 type Frequency = "once" | "daily" | "weekly" | "monthly";
 
 const difficultyOptions: {
   value: Difficulty;
-  label: string;
-  description: string;
+  label: ChoreFormMessage;
+  description: ChoreFormMessage;
 }[] = [
-  { value: "easy", label: "Easy", description: "5–10 min" },
-  { value: "medium", label: "Medium", description: "15–30 min" },
-  { value: "hard", label: "Hard", description: "30+ min" },
+  { value: "easy", label: "easy", description: "easyTime" },
+  { value: "medium", label: "medium", description: "mediumTime" },
+  { value: "hard", label: "hard", description: "hardTime" },
 ];
 
-const frequencyOptions: { value: Frequency; label: string }[] = [
-  { value: "once", label: "Once" },
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
+const frequencyOptions: { value: Frequency; label: ChoreFormMessage }[] = [
+  { value: "once", label: "once" },
+  { value: "daily", label: "daily" },
+  { value: "weekly", label: "weekly" },
+  { value: "monthly", label: "monthly" },
 ];
 
 export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
+  const { locale, t } = useTranslation();
+  const message = (
+    key: ChoreFormMessage,
+    params?: Record<string, string | number>,
+  ) => t(key, params, choreFormMessages);
   const todayKey = useTodayKey();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -71,7 +85,13 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
-  useEffect(() => { onBusyChange?.(loading || photoUploading); }, [loading, photoUploading, onBusyChange]);
+  const busy = loading || photoUploading;
+  const directNavigation = usePendingFormNavigationController(
+    busy && !inSheet,
+  );
+  const sheetNavigation = usePendingFormNavigation();
+  const navigation = inSheet ? sheetNavigation : directNavigation;
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
   // Picture routines (#272).
   const [icon, setIcon] = useState<string | null>(null);
   const [routine, setRoutine] = useState("");
@@ -80,23 +100,32 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
   const [takeTurns, setTakeTurns] = useState(false);
   const [rotation, setRotation] = useState<string[]>([]);
   const rotating = frequency !== "once" && takeTurns;
-  const submitHint = missingFieldsHint([
-    ...(title.trim() ? [] : ["a title"]),
+  const missingFields = [
+    ...(title.trim() ? [] : [message("fieldTitle")]),
     ...(frequency === "weekly"
       ? weeklyDays.length
         ? []
-        : ["at least one weekday"]
+        : [message("fieldWeekday")]
       : dueDate
         ? []
-        : ["a due date"]),
+        : [message("fieldDueDate")]),
     ...(rotating
       ? rotation.length < ROTATION_MIN
-        ? [`at least ${ROTATION_MIN} people to take turns`]
+        ? [message("fieldRotation", { count: ROTATION_MIN })]
         : []
       : assignedTo
         ? []
-        : ["who does it"]),
-  ]);
+        : [message("fieldAssignee")]),
+  ];
+  const submitHint =
+    missingFields.length === 0
+      ? null
+      : missingFields.length === 1
+        ? message("missingOne", { field: missingFields[0] })
+        : message("missingMany", {
+            fields: missingFields.slice(0, -1).join(", "),
+            last: missingFields[missingFields.length - 1],
+          });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -138,7 +167,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (frequency === "weekly" && !weeklyDays.length) {
-      setError("Choose at least one weekday");
+      setError(message("chooseWeekday"));
       return;
     }
     setLoading(true);
@@ -176,14 +205,15 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Failed to create chore");
+        setError(data.error || message("createFailed"));
         return;
       }
 
+      if ((await navigation?.releaseBeforeNavigation()) === false) return;
       router.push("/dashboard/chores");
       router.refresh();
     } catch (err) {
-      setError("An unexpected error occurred");
+      setError(message("unexpected"));
       console.error(err);
     } finally {
       setLoading(false);
@@ -195,16 +225,27 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
       {!inSheet && <>
       {/* Back nav */}
       <div className="px-4 pt-4">
-        <Link href="/dashboard/chores" className="btn-plain text-base py-2">
-          <ArrowLeft className="w-5 h-5" />
-          <span>Chores</span>
-        </Link>
+        {busy ? (
+          <span
+            aria-disabled="true"
+            data-testid="chore-create-back-busy"
+            className="btn-plain text-base py-2 min-h-[44px]"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>{message("back")}</span>
+          </span>
+        ) : (
+          <Link href="/dashboard/chores" className="btn-plain text-base py-2 min-h-[44px]">
+            <ArrowLeft className="w-5 h-5" />
+            <span>{message("back")}</span>
+          </Link>
+        )}
       </div>
 
       <div className="px-4 pt-4">
-        <h1 className="text-large-title font-display">New Chore</h1>
+        <h1 className="text-large-title font-display">{message("newTitle")}</h1>
         <p className="text-subhead text-label-secondary mt-1">
-          Assign a task to a family member.
+          {message("newDescription")}
         </p>
       </div>
 
@@ -220,7 +261,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           {/* Title */}
           <div>
             <label className="label-apple" htmlFor="title">
-              Title
+              {message("title")}
             </label>
             <input
               id="title"
@@ -229,7 +270,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="input-apple"
-              placeholder="e.g., Take out the trash"
+              placeholder={message("titlePlaceholder")}
             />
           </div>
 
@@ -239,7 +280,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
             {!rotating && (
               <div>
                 <label className="label-apple" htmlFor="assignedTo">
-                  Assign To
+                  {message("assignTo")}
                 </label>
                 <select
                   id="assignedTo"
@@ -263,7 +304,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           {/* Frequency picker */}
           <div>
             <p id={`${fieldId}-frequency`} className="label-apple">
-              Frequency
+              {message("frequency")}
             </p>
             <div
               role="group"
@@ -283,19 +324,20 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                       : "text-label-secondary hover:text-label-primary",
                   )}
                 >
-                  {opt.label}
+                  {message(opt.label)}
                 </button>
               ))}
             </div>
             {frequency !== "once" && (
               <p className="text-footnote text-label-tertiary mt-1.5">
-                This chore keeps repeating{" "}
-                {frequency === "weekly"
-                  ? "on the selected weekdays"
-                  : frequency === "daily"
-                    ? "every day"
-                    : "every month"}
-                .
+                {message("repeatDescription", {
+                  when:
+                    frequency === "weekly"
+                      ? message("repeatWeekdays")
+                      : frequency === "daily"
+                        ? message("repeatDaily")
+                        : message("repeatMonthly"),
+                })}
               </p>
             )}
           </div>
@@ -304,7 +346,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           {frequency !== "weekly" && (
             <div>
               <label className="label-apple" htmlFor="dueDate">
-                Due Date
+                {message("dueDate")}
               </label>
               <input
                 id="dueDate"
@@ -337,20 +379,26 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         )}
 
         <ChoreFormSection
-          title={gamification ? "Details & points" : "Details"}
-          summary={`${description.trim() ? "Instructions added · " : ""}${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} difficulty${gamification ? ` · ${points} points` : ""}`}
+          title={message(gamification ? "detailsPoints" : "details")}
+          summary={[
+            ...(description.trim() ? [message("instructionsAdded")] : []),
+            message("difficultySummary", {
+              difficulty: message(difficultyOptions.find((option) => option.value === difficulty)!.label),
+            }),
+            ...(gamification ? [message("pointsSummary", { count: points })] : []),
+          ].join(" · ")}
         >
           {/* Description */}
           <div>
             <label className="label-apple" htmlFor="description">
-              Description
+              {message("description")}
             </label>
             <textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="input-apple min-h-[80px] resize-none"
-              placeholder="Instructions or details..."
+              placeholder={message("descriptionPlaceholder")}
               rows={3}
             />
           </div>
@@ -358,7 +406,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           {/* Difficulty picker */}
           <div>
             <p id={`${fieldId}-difficulty`} className="label-apple">
-              Difficulty
+              {message("difficulty")}
             </p>
             <div
               role="group"
@@ -378,9 +426,9 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                       : "border-[var(--surface-separator)] bg-[var(--surface-fill)] text-label-primary",
                   )}
                 >
-                  <div className="text-body font-semibold">{opt.label}</div>
+                  <div className="text-body font-semibold">{message(opt.label)}</div>
                   <div className="text-caption-1 text-label-secondary mt-0.5">
-                    {opt.description}
+                    {message(opt.description)}
                   </div>
                 </button>
               ))}
@@ -390,7 +438,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           {gamification && (
             <div>
               <label className="label-apple" htmlFor="points">
-                Points
+                {message("points")}
               </label>
               <input
                 id="points"
@@ -406,12 +454,14 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         </ChoreFormSection>
 
         <ChoreFormSection
-          title="Pictures & routine"
+          title={message("picturesRoutine")}
           summary={[
             routine.trim()
-              ? `${routine}${routineOrder ? ` · Step ${routineOrder}` : ""}`
-              : "No routine",
-            routineIconLabel(icon) ?? "No picture",
+              ? `${routine}${routineOrder ? ` · ${message("step")} ${routineOrder}` : ""}`
+              : message("noRoutine"),
+            localizedChoreRoutineIconLabel(locale, icon) ??
+              routineIconLabel(icon) ??
+              message("noPicture"),
           ].join(" · ")}
         >
           {/* Picture routines (#272): picture, routine and step */}
@@ -425,19 +475,19 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         </ChoreFormSection>
 
         <ChoreFormSection
-          title="Photo"
+          title={message("photo")}
           summary={
             photoUploading
-              ? "Uploading…"
+              ? message("uploading")
               : photoPreview
-                ? "Photo selected"
-                : "Optional photo attachment"
+                ? message("photoSelected")
+                : message("optionalPhoto")
           }
         >
           {/* Photo attach */}
           <div>
             <p id={`${fieldId}-photo`} className="label-apple">
-              Photo
+              {message("photo")}
             </p>
             <input
               ref={fileInputRef}
@@ -457,12 +507,12 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                     body: fd,
                   });
                   const data = await res.json();
-                  if (!res.ok) throw new Error(data.error || "Upload failed");
+                  if (!res.ok) throw new Error(data.error || message("uploadFailed"));
                   setPhotoUrl(data.url);
                   setPhotoPreview(data.url);
                 } catch (err) {
                   console.error("Photo upload error:", err);
-                  alert("Failed to upload photo");
+                  alert(message("uploadFailed"));
                 } finally {
                   setPhotoUploading(false);
                 }
@@ -481,13 +531,13 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
               )}
             >
               {photoUploading ? (
-                <span className="text-sm">Uploading...</span>
+                <span className="text-sm">{message("uploading")}</span>
               ) : photoPreview ? (
-                <span className="text-sm">Photo selected</span>
+                <span className="text-sm">{message("photoSelected")}</span>
               ) : (
                 <>
                   <Camera className="w-5 h-5 mx-auto mb-1" />
-                  <span className="text-sm">Add photo</span>
+                  <span className="text-sm">{message("addPhoto")}</span>
                 </>
               )}
             </button>
@@ -496,7 +546,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={photoPreview}
-                  alt="Preview"
+                  alt={message("preview")}
                   className="w-full h-full object-cover"
                 />
                 <button
@@ -505,7 +555,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                     setPhotoUrl(null);
                     setPhotoPreview(null);
                   }}
-                  aria-label="Remove photo"
+                  aria-label={message("removePhoto")}
                   className="absolute top-0 right-0 flex h-11 w-11 items-start justify-end p-1"
                 >
                   <span
@@ -528,7 +578,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
             aria-describedby={submitHint ? `${fieldId}-submit-hint` : undefined}
             className="btn-filled w-full"
           >
-            {loading ? "Creating..." : "Create Chore"}
+            {loading ? message("creating") : message("create")}
           </button>
           {submitHint && (
             <p

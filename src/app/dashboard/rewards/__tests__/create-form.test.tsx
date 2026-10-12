@@ -80,6 +80,33 @@ it("preserves the rewards payload, selected icon semantics, and destination", as
   );
 });
 
+it("keeps the direct Back control noninteractive while saving", async () => {
+  const user = userEvent.setup();
+  let finish!: (result: Response) => void;
+  global.fetch = jest.fn(
+    () =>
+      new Promise<Response>((resolve) => {
+        finish = resolve;
+      }),
+  );
+
+  render(<CreateRewardForm />);
+  await user.type(screen.getByLabelText("Name"), "Pending reward");
+  await user.click(screen.getByRole("button", { name: "Create Reward" }));
+
+  expect(screen.getByTestId("reward-create-back-busy")).toHaveTextContent(
+    "Back to Rewards",
+  );
+  expect(
+    screen.queryByRole("link", { name: "Back to Rewards" }),
+  ).not.toBeInTheDocument();
+
+  await act(async () => finish(response(201, { reward: { id: "reward-3" } })));
+  await waitFor(() =>
+    expect(push).toHaveBeenCalledWith("/dashboard/rewards"),
+  );
+});
+
 it("keeps the draft and uses localized safe refusal feedback", async () => {
   const user = userEvent.setup();
   global.fetch = jest
