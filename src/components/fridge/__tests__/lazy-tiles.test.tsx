@@ -10,10 +10,10 @@ import { AmbientCoverFallback, LazyChunkBoundary } from '../TodayBoard'
 
 const state = { ambient: true, dim: false }
 
-function CoveredRetrySurface({ onWake, onRetry }: { onWake: () => void; onRetry: () => void }) {
+function CoveredRetrySurface({ onWake, onRetry, elapsedMs = 60_000 }: { onWake: () => void; onRetry: () => void; elapsedMs?: number }) {
   const { covered } = useIdleCover({
     enabled: true,
-    now: Date.now() + 60_000,
+    now: Date.now() + elapsedMs,
     display: { idleMinutes: 1, night: null },
   })
   return covered ? <AmbientCoverFallback state={state} status="error" onWake={onWake} onRetry={onRetry} /> : null
@@ -74,13 +74,37 @@ describe('lazy Today board surfaces', () => {
   it('lets keyboard activate the explicit retry without waking the covered board', () => {
     const onWake = jest.fn()
     const onRetry = jest.fn()
-    render(<CoveredRetrySurface onWake={onWake} onRetry={onRetry} />)
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000)
+
+    try {
+      render(<CoveredRetrySurface onWake={onWake} onRetry={onRetry} />)
+    } finally {
+      nowSpy.mockRestore()
+    }
 
     const retry = screen.getByRole('button', { name: 'Try again' })
     fireEvent.keyDown(retry, { key: 'Enter', code: 'Enter' })
     expect(onWake).not.toHaveBeenCalled()
     fireEvent.click(retry)
     expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the retry covered until the idle threshold is reached', () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000)
+
+    try {
+      render(
+        <CoveredRetrySurface
+          onWake={() => undefined}
+          onRetry={() => undefined}
+          elapsedMs={59_999}
+        />,
+      )
+    } finally {
+      nowSpy.mockRestore()
+    }
+
+    expect(screen.queryByTestId('ambient-cover')).not.toBeInTheDocument()
   })
 
   it('turns a rejected optional chunk into a recoverable fallback', () => {
