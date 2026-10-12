@@ -525,6 +525,20 @@ async function expectChoreListView(page: Page) {
 async function makeDraft(page: Page, fixture: Fixture, locale: Locale) {
   const text = copy[locale];
   const editor = page.getByTestId("routine-stack-editor");
+  const viewportWidth = page.viewportSize()!.width;
+  const expectStableViewport = async () => {
+    // Checking overflow against innerWidth alone can miss mobile layout
+    // expansion: overflowing content may enlarge innerWidth and shift taps.
+    await expect
+      .poll(async () =>
+        page.evaluate(() => ({
+          innerWidth: window.innerWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+        })),
+      )
+      .toEqual({ innerWidth: viewportWidth, scrollWidth: viewportWidth });
+  };
+  await expectStableViewport();
   const candidates = editor
     .locator("section")
     .filter({ hasText: text.candidates })
@@ -535,11 +549,13 @@ async function makeDraft(page: Page, fixture: Fixture, locale: Locale) {
     const row = candidates.locator("li").filter({ hasText: title }).first();
     await expect(row).toContainText(title);
     await row.getByRole("button", { name: text.add, exact: true }).click();
+    await expectStableViewport();
   }
   await editor.getByLabel(text.label).fill(fixture.label);
   await editor.locator("#routine-new-title").fill(fixture.newTitle);
   await editor.locator("#routine-new-assignee").selectOption(fixture.child);
   await editor.getByRole("button", { name: text.addStep, exact: true }).click();
+  await expectStableViewport();
   return editor;
 }
 
