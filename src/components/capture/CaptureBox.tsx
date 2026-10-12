@@ -62,6 +62,13 @@ class CaptureClientError extends Error {
   }
 }
 
+function recoveryBoundaryErrorKind(error: unknown): 'access' | 'storage' | null {
+  if (!(error instanceof CaptureClientError)) return null
+  if (error.key === 'recoveryAccessUnavailable') return 'access'
+  if (error.key === 'recoveryStorageUnavailable') return 'storage'
+  return null
+}
+
 // Shrink a photo before sending it to the model. A phone photo is several MB;
 // the model only needs enough detail to read dates. This keeps upload and cost
 // low, and always returns a JPEG data payload.
@@ -199,6 +206,7 @@ export function CaptureBox({
   const [recoveryStorageBlocked, setRecoveryStorageBlocked] = React.useState(false)
   const recoveryMutationReady = React.useRef(false)
   const recoveryGuardFailure = React.useRef<CaptureMessage>('recoveryAccessUnavailable')
+  const recoveryErrorKind = React.useRef<'access' | 'storage' | null>(null)
   const recoveryIdentity = React.useRef<RecoveryIdentity | null>(null)
   const recoveryRows = React.useRef(new Map<string, CaptureRecoveryEnvelope>())
   const textInputRef = React.useRef<HTMLInputElement>(null)
@@ -216,6 +224,7 @@ export function CaptureBox({
     setDraft(null)
     setPhotoEvents(null)
     setPhotoNote(null)
+    recoveryErrorKind.current = null
     setError(null)
     setSaved(null)
     const cleared = clearCaptureRecoveryStorage(
@@ -419,7 +428,11 @@ export function CaptureBox({
       setRecoveryStorageBlocked(false)
       setRecoveryMessage(null)
       const persisted = loaded.rows
-      syncRecoveryRows([...persisted, ...pending.filter((row) => !persisted.some((saved) => saved.key === row.key))])
+      const ready = syncRecoveryRows([...persisted, ...pending.filter((row) => !persisted.some((saved) => saved.key === row.key))])
+      if (ready && recoveryErrorKind.current !== null) {
+        recoveryErrorKind.current = null
+        setError(null)
+      }
     } catch {
       setAvailability('retry')
       onAvailabilityChange?.('retry')
@@ -564,6 +577,7 @@ export function CaptureBox({
     const phrase = text.trim()
     if (!phrase) return
     setBusy(true)
+    recoveryErrorKind.current = null
     setError(null)
     setSaved(null)
     setDraft(null)
@@ -581,6 +595,7 @@ export function CaptureBox({
       if (!res.ok) throw new Error(data.error || msg('couldNotRead'))
       setDraft(data.draft)
     } catch (e) {
+      recoveryErrorKind.current = recoveryBoundaryErrorKind(e)
       setError(localizeError(e, 'couldNotRead'))
     } finally {
       setBusy(false)
@@ -590,6 +605,7 @@ export function CaptureBox({
   async function confirm() {
     if (!draft) return
     setBusy(true)
+    recoveryErrorKind.current = null
     setError(null)
     try {
       if (draft.kind === 'listitem') {
@@ -613,6 +629,7 @@ export function CaptureBox({
       setText('')
       onSaved?.()
     } catch (e) {
+      recoveryErrorKind.current = recoveryBoundaryErrorKind(e)
       setError(localizeError(e, 'couldNotSave'))
     } finally {
       setBusy(false)
@@ -622,6 +639,7 @@ export function CaptureBox({
   // Read a photo/screenshot and propose the events it contains.
   async function interpretPhoto(file: File) {
     setPhotoBusy(true)
+    recoveryErrorKind.current = null
     setError(null)
     setSaved(null)
     setDraft(null)
@@ -646,6 +664,7 @@ export function CaptureBox({
       setPhotoEvents(events)
       setPhotoNote(data?.image?.note ?? null)
     } catch (e) {
+      recoveryErrorKind.current = recoveryBoundaryErrorKind(e)
       setError(localizeError(e, 'couldNotReadPhoto'))
     } finally {
       setPhotoBusy(false)
@@ -658,6 +677,7 @@ export function CaptureBox({
   async function confirmPhoto() {
     if (!photoEvents || photoEvents.length === 0) return
     setPhotoBusy(true)
+    recoveryErrorKind.current = null
     setError(null)
     setSaved(null)
     const total = photoEvents.length
@@ -685,6 +705,7 @@ export function CaptureBox({
     } else {
       setPhotoEvents(failed)
       if (added > 0) {
+        recoveryErrorKind.current = null
         setSaved(msg('addedOf', { added, total }))
         setError(
           storageFailure || accessFailure
@@ -692,6 +713,7 @@ export function CaptureBox({
             : msg(failed.length === 1 ? 'couldNotSaveOne' : 'couldNotSaveMany', { count: failed.length }),
         )
       } else {
+        recoveryErrorKind.current = storageFailure ? 'storage' : accessFailure ? 'access' : null
         setError(
           storageFailure
             ? msg('recoveryStorageUnavailable')
