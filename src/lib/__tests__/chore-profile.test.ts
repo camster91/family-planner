@@ -5,6 +5,7 @@ import {
   reopenProfileChoreInTx,
 } from "@/lib/chore-profile-actions";
 import {
+  createProfileOnlyChoreEffect,
   isProfileChoreEnabled,
   profileChoreCreateSchema,
   profileChoreReadRefusal,
@@ -47,7 +48,8 @@ describe("profile-only chore contract", () => {
     else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = originalGate;
     if (originalRollbackGate === undefined)
       delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
-    else process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = originalRollbackGate;
+    else
+      process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = originalRollbackGate;
   });
 
   it("returns a typed profile subject without exposing account details", () => {
@@ -193,6 +195,126 @@ describe("profile-only chore contract", () => {
         ...profileChoreProtocolRefusal(),
       },
     });
+  });
+
+  it("locks membership before the live receipt and stores the response in the same effect", async () => {
+    const lockSql: string[] = [];
+    const receiptUpdate = jest.fn();
+    const choreCreate = jest.fn().mockResolvedValue({
+      id: "chore-a",
+      title: "Put away shoes",
+      description: null,
+      assigned_to: null,
+      assigned_member_id: baseMember.id,
+      member_subject_erased: false,
+      due_date: new Date("2026-10-11T00:00:00.000Z"),
+      status: "pending",
+      frequency: "once",
+      difficulty: "easy",
+      assignee: null,
+      assigneeMember: baseMember,
+    });
+    const tx = {
+      $queryRaw: jest.fn(async (query: TemplateStringsArray) => {
+        lockSql.push(query[0]);
+        return [];
+      }),
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "parent-a",
+          family_id: "family-a",
+          role: "parent",
+        }),
+      },
+      idempotencyRecord: {
+        findFirst: jest.fn().mockResolvedValue({
+          response_status: null,
+          response_body: null,
+        }),
+        update: receiptUpdate,
+      },
+      householdMember: { findFirst: jest.fn().mockResolvedValue(baseMember) },
+      chore: { create: choreCreate },
+    };
+    const db = {
+      $transaction: async (callback: (value: typeof tx) => unknown) =>
+        callback(tx),
+    };
+    const input = profileChoreCreateSchema.parse({
+      protocol: 2,
+      selection: { memberId: baseMember.id },
+      title: "Put away shoes",
+      due_date: "2026-10-11",
+      difficulty: "easy",
+      frequency: "once",
+    });
+
+    const result = await createProfileOnlyChoreEffect(
+      db as never,
+      { id: "parent-a", familyId: "family-a" },
+      input,
+      new Date("2026-10-11T00:00:00.000Z"),
+      null,
+      "receipt-a",
+      new Date("2026-10-11T12:00:00.000Z"),
+    );
+
+    expect(result.status).toBe(200);
+    expect(lockSql).toHaveLength(3);
+    expect(lockSql[0]).not.toContain('"IdempotencyRecord"');
+    expect(lockSql[1]).not.toContain('"IdempotencyRecord"');
+    expect(lockSql[2]).toContain('"IdempotencyRecord"');
+    expect(receiptUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "receipt-a" } }),
+    );
+    expect(choreCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a completed receipt DTO without creating another chore", async () => {
+    const stored = { chore: { id: "chore-a", title: "Put away shoes" } };
+    const choreCreate = jest.fn();
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "parent-a",
+          family_id: "family-a",
+          role: "parent",
+        }),
+      },
+      idempotencyRecord: {
+        findFirst: jest.fn().mockResolvedValue({
+          response_status: 200,
+          response_body: stored,
+        }),
+        update: jest.fn(),
+      },
+      householdMember: { findFirst: jest.fn() },
+      chore: { create: choreCreate },
+    };
+    const result = await createProfileOnlyChoreEffect(
+      {
+        $transaction: async (callback: (value: typeof tx) => unknown) =>
+          callback(tx),
+      } as never,
+      {
+        id: "parent-a",
+        familyId: "family-a",
+      },
+      profileChoreCreateSchema.parse({
+        protocol: 2,
+        selection: { memberId: baseMember.id },
+        title: "Put away shoes",
+        due_date: "2026-10-11",
+        frequency: "once",
+      }),
+      new Date("2026-10-11T00:00:00.000Z"),
+      null,
+      "receipt-a",
+    );
+
+    expect(result).toEqual({ status: 200, body: stored });
+    expect(choreCreate).not.toHaveBeenCalled();
   });
 
   it("uses the shared today-somewhere boundary for profile completion", async () => {

@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import type { EffectResult } from "@/lib/idempotency";
 import {
   isProfileAgeAllowed,
   memberIdentityIdSchema,
@@ -66,6 +67,18 @@ export type ChoreSubjectDTO =
       name: string;
       role: "child" | "teen" | "parent";
     };
+
+export type ProfileChoreDTO = {
+  id: string;
+  title: string;
+  description: string | null;
+  due_date: Date;
+  status: string;
+  frequency: string;
+  difficulty: string;
+  subject: ChoreSubjectDTO;
+  created_at: Date;
+};
 
 type SubjectRow = {
   assigned_to: string | null;
@@ -163,6 +176,18 @@ export function readChoreSubject(
 }
 
 type ProfileCreateDb = Pick<PrismaClient, "$transaction">;
+type ProfileCreateTx = Prisma.TransactionClient;
+
+const profileCreateInProgress = (): EffectResult => ({
+  status: 409,
+  body: {
+    error: {
+      code: "IDEMPOTENCY_IN_PROGRESS",
+      message: "Please retry this profile chore.",
+      retryable: true,
+    },
+  },
+});
 
 type ProfileTarget = {
   id: string;
@@ -213,6 +238,144 @@ function assertProfileTarget(
  * The caller supplies idempotency around this transaction; this helper never
  * sends mail/notifications and never expands a series.
  */
+function profileChoreResponse(chore: ProfileChoreDTO): ProfileChoreDTO {
+  return {
+    id: chore.id,
+    title: chore.title,
+    description: chore.description,
+    due_date: chore.due_date,
+    status: chore.status,
+    frequency: chore.frequency,
+    difficulty: chore.difficulty,
+    subject: chore.subject,
+    created_at: chore.created_at,
+  };
+}
+
+/**
+ * Create the profile chore and its keyed response receipt in one transaction.
+ * The receipt is locked only after the actor and household membership locks,
+ * matching the account deletion order. This makes a takeover or a lost outer
+ * response-store update converge on the existing response instead of creating
+ * a second chore.
+ */
+export async function createProfileOnlyChoreInTx(
+  tx: ProfileCreateTx,
+  actor: { id: string; familyId: string },
+  input: ProfileChoreCreateInput,
+  dueDate: Date,
+  photoUrl: string | null,
+  recordId: string | null,
+  now = new Date(),
+): Promise<EffectResult> {
+  await lockUser(tx, actor.id);
+  await lockHousehold(tx, actor.familyId);
+
+  const currentActor = await tx.user.findUnique({
+    where: { id: actor.id },
+    select: { id: true, family_id: true, role: true },
+  });
+  if (
+    !currentActor ||
+    currentActor.family_id !== actor.familyId ||
+    currentActor.role !== "parent"
+  ) {
+    throw new ProfileChoreError("PROFILE_TARGET_UNAVAILABLE");
+  }
+
+  // A takeover can overlap a slow original effect. Serialize both attempts on
+  // the stable receipt after the membership locks, then re-read completion.
+  if (recordId) {
+    await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
+    const receipt = await tx.idempotencyRecord.findFirst({
+      where: {
+        id: recordId,
+        family_id: actor.familyId,
+        user_id: actor.id,
+      },
+      select: { response_status: true, response_body: true },
+    });
+    if (!receipt) return profileCreateInProgress();
+    if (receipt.response_status != null) {
+      return { status: receipt.response_status, body: receipt.response_body };
+    }
+  }
+
+  const target = await tx.householdMember.findFirst({
+    where: { id: input.selection.memberId, family_id: actor.familyId },
+    select: profileTargetSelect,
+  });
+  assertProfileTarget(target, actor.familyId, input.selection.memberId);
+  const chore = await tx.chore.create({
+    data: {
+      family_id: actor.familyId,
+      title: input.title,
+      description: input.description ?? null,
+      points: input.points,
+      assigned_to: null,
+      assigned_member_id: target.id,
+      member_subject_erased: false,
+      due_date: dueDate,
+      status: "pending",
+      frequency: "once",
+      difficulty: input.difficulty,
+      photo_url: photoUrl,
+      created_by: actor.id,
+    } as unknown as Prisma.ChoreUncheckedCreateInput,
+    include: choreSubjectInclude,
+  });
+  const subject = readChoreSubject(chore, actor.familyId);
+  if (!subject || subject.kind !== "profile")
+    throw new ProfileChoreError("PROFILE_TARGET_CONFLICT");
+  const dto = profileChoreResponse({
+    id: chore.id,
+    title: chore.title,
+    description: chore.description,
+    due_date: chore.due_date,
+    status: chore.status,
+    frequency: chore.frequency,
+    difficulty: chore.difficulty,
+    subject,
+    created_at: now,
+  });
+  const body = { chore: dto };
+  if (recordId) {
+    await tx.idempotencyRecord.update({
+      where: { id: recordId },
+      data: {
+        response_status: 200,
+        response_body: JSON.parse(
+          JSON.stringify(body),
+        ) as Prisma.InputJsonObject,
+      },
+    });
+  }
+  return { status: 200, body };
+}
+
+export async function createProfileOnlyChoreEffect(
+  db: ProfileCreateDb,
+  actor: { id: string; familyId: string },
+  input: ProfileChoreCreateInput,
+  dueDate: Date,
+  photoUrl: string | null,
+  recordId: string | null,
+  now = new Date(),
+): Promise<EffectResult> {
+  return db.$transaction((tx) =>
+    createProfileOnlyChoreInTx(
+      tx,
+      actor,
+      input,
+      dueDate,
+      photoUrl,
+      recordId,
+      now,
+    ),
+  );
+}
+
+/** Legacy direct helper used by non-keyed callers and existing server code. */
 export async function createProfileOnlyChore(
   db: ProfileCreateDb,
   actor: { id: string; familyId: string },
@@ -221,58 +384,16 @@ export async function createProfileOnlyChore(
   photoUrl: string | null,
   now = new Date(),
 ) {
-  return db.$transaction(async (tx) => {
-    await lockUser(tx, actor.id);
-    await lockHousehold(tx, actor.familyId);
-    const currentActor = await tx.user.findUnique({
-      where: { id: actor.id },
-      select: { id: true, family_id: true, role: true },
-    });
-    if (
-      !currentActor ||
-      currentActor.family_id !== actor.familyId ||
-      currentActor.role !== "parent"
-    ) {
-      throw new ProfileChoreError("PROFILE_TARGET_UNAVAILABLE");
-    }
-    const target = await tx.householdMember.findFirst({
-      where: { id: input.selection.memberId, family_id: actor.familyId },
-      select: profileTargetSelect,
-    });
-    assertProfileTarget(target, actor.familyId, input.selection.memberId);
-    const chore = await tx.chore.create({
-      data: {
-        family_id: actor.familyId,
-        title: input.title,
-        description: input.description ?? null,
-        points: input.points,
-        assigned_to: null,
-        assigned_member_id: target.id,
-        member_subject_erased: false,
-        due_date: dueDate,
-        status: "pending",
-        frequency: "once",
-        difficulty: input.difficulty,
-        photo_url: photoUrl,
-        created_by: actor.id,
-      } as unknown as Prisma.ChoreUncheckedCreateInput,
-      include: choreSubjectInclude,
-    });
-    const subject = readChoreSubject(chore, actor.familyId);
-    if (!subject || subject.kind !== "profile")
-      throw new ProfileChoreError("PROFILE_TARGET_CONFLICT");
-    return {
-      id: chore.id,
-      title: chore.title,
-      description: chore.description,
-      due_date: chore.due_date,
-      status: chore.status,
-      frequency: chore.frequency,
-      difficulty: chore.difficulty,
-      subject,
-      created_at: now,
-    };
-  });
+  const result = await createProfileOnlyChoreEffect(
+    db,
+    actor,
+    input,
+    dueDate,
+    photoUrl,
+    null,
+    now,
+  );
+  return (result.body as { chore: ProfileChoreDTO }).chore;
 }
 
 export function profileChoreProtocolRefusal() {
