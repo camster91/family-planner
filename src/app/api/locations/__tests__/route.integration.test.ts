@@ -115,14 +115,18 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
     return { params: Promise.resolve({ id }) };
   }
 
-  async function waitForActorLockWaiter(holderPid: number, userId: string) {
+  async function waitForMembershipLockWaiter(
+    holderPid: number,
+    lockKey: string,
+    lockName: string,
+  ) {
     const observer = new Client({ connectionString: process.env.DATABASE_URL });
     await observer.connect();
     try {
       for (let attempt = 0; attempt < 100; attempt += 1) {
         // This observer stays in autocommit mode. pg_blocking_pids ties the
-        // exact blocked actor-lock request to the transaction holding it;
-        // unrelated advisory waiters cannot satisfy this proof.
+        // exact blocked membership-lock request to the transaction holding
+        // it; unrelated advisory waiters cannot satisfy this proof.
         const result = await observer.query<{
           waiter_pid: number;
           blocker_pid: number;
@@ -142,18 +146,28 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
              AND waiting_lock.objid = (hashtext($1)::bigint & 4294967295)
              AND blocker.pid = $2
              AND waiter.query ILIKE '%pg_advisory_xact_lock%'`,
-          [`user-membership:${userId}`, holderPid],
+          [lockKey, holderPid],
         );
         if (result.rows.length === 1) return result.rows[0];
         if (result.rows.length > 1) {
-          throw new Error("multiple location actor-lock waiters observed");
+          throw new Error("multiple location membership-lock waiters observed");
         }
         await new Promise((resolve) => setTimeout(resolve, 20));
       }
     } finally {
       await observer.end();
     }
-    throw new Error("location mutation did not reach its actor-lock waiter");
+    throw new Error(
+      `location mutation did not reach its ${lockName} lock waiter`,
+    );
+  }
+
+  async function waitForActorLockWaiter(holderPid: number, userId: string) {
+    return waitForMembershipLockWaiter(
+      holderPid,
+      `user-membership:${userId}`,
+      "actor",
+    );
   }
 
   beforeAll(async () => {
@@ -354,6 +368,7 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
   it("re-reads membership after a waiting PATCH and DELETE lock", async () => {
     const patchId = "locations-route-patch-role-race-20261012";
     const deleteId = "locations-route-delete-role-race-20261012";
+    const startedOperations: Promise<Response>[] = [];
     await db.familyLocation.create({
       data: {
         id: patchId,
@@ -381,6 +396,7 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
         `user-membership:${PARENT}`,
       ]);
       const pending = operation();
+      startedOperations.push(pending);
       await waitForActorLockWaiter(holderPid, PARENT);
       await holder.query('UPDATE "User" SET "role" = $1 WHERE "id" = $2', [
         "teen",
@@ -431,8 +447,68 @@ describeWithDatabase("locations routes against PostgreSQL", () => {
       ).not.toBeNull();
     } finally {
       await holder.query("ROLLBACK").catch(() => undefined);
+      await Promise.allSettled(startedOperations);
       await holder.end();
       await db.user.update({ where: { id: PARENT }, data: { role: "parent" } });
+    }
+  });
+
+  it("re-reads feature state after waiting for the household lock", async () => {
+    const key = "locations-route-feature-race-20261012";
+    const holder = new Client({ connectionString: process.env.DATABASE_URL });
+    await holder.connect();
+    let pending: Promise<Response> | undefined;
+    try {
+      await holder.query("BEGIN");
+      const holderPid = Number(
+        (
+          await holder.query<{ pg_backend_pid: number }>(
+            "SELECT pg_backend_pid()",
+          )
+        ).rows[0].pg_backend_pid,
+      );
+      await holder.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+        `household-membership:${FAMILY}`,
+      ]);
+      pending = POST(
+        request(PARENT, { label: "Feature race", address: "8 Main" }, key),
+      );
+      await waitForMembershipLockWaiter(
+        holderPid,
+        `household-membership:${FAMILY}`,
+        "household",
+      );
+      await holder.query(
+        'UPDATE "Family" SET "features" = $1 WHERE "id" = $2',
+        [JSON.stringify({ locations: false }), FAMILY],
+      );
+      await holder.query("COMMIT");
+
+      const response = await pending;
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({
+        error: "This feature is turned off for your family",
+      });
+      expect(
+        await db.familyLocation.count({ where: { family_id: FAMILY } }),
+      ).toBe(0);
+      expect(
+        await db.idempotencyRecord.count({ where: { family_id: FAMILY } }),
+      ).toBe(0);
+      expect(
+        await db.user.findUnique({
+          where: { id: PARENT },
+          select: { role: true },
+        }),
+      ).toEqual({ role: "parent" });
+    } finally {
+      await holder.query("ROLLBACK").catch(() => undefined);
+      await Promise.allSettled(pending ? [pending] : []);
+      await holder.end();
+      await db.family.update({
+        where: { id: FAMILY },
+        data: { features: { locations: true } },
+      });
     }
   });
 
