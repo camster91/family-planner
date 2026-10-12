@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Users, ArrowRight, Check } from 'lucide-react'
 import Link from 'next/link'
@@ -13,16 +13,6 @@ type EmailInvite = {
   familyName: string
   role: string
   email: string
-}
-
-function readJoinError(payload: unknown, fallback: string): string {
-  if (!payload || typeof payload !== 'object') return fallback
-  const value = (payload as { error?: unknown }).error
-  if (typeof value === 'string' && value.trim()) return value
-  if (value && typeof value === 'object' && typeof (value as { message?: unknown }).message === 'string') {
-    return (value as { message: string }).message
-  }
-  return fallback
 }
 
 export default function JoinFamilyPage() {
@@ -47,6 +37,37 @@ export default function JoinFamilyPage() {
   const busy = loading || leaving || !!success
   const router = useRouter()
   usePendingFormNavigationController(busy)
+  const refusalMessage = useCallback((status: number) => {
+    if (status === 404) return t('join.invalidCode')
+    if (status === 401 || status === 403) return t('common.error')
+    return t('common.tryAgain')
+  }, [t])
+
+  const checkFamilyCode = useCallback(async (familyCode: string) => {
+    try {
+      const res = await fetch(`/api/family/lookup?code=${encodeURIComponent(familyCode)}`)
+      // Signed out: the lookup needs a session. Keep the code visible and
+      // offer the existing login flow, which returns to this page after auth.
+      if (res.status === 401) {
+        setFamilyInfo(null)
+        setSignedOutCode(true)
+        setError(null)
+        return
+      }
+      const data = await res.json()
+      if (!res.ok) {
+        setSignedOutCode(false)
+        setError(refusalMessage(res.status))
+        return
+      }
+      setFamilyInfo(data.family)
+      setSignedOutCode(false)
+      setError(null)
+    } catch {
+      setSignedOutCode(false)
+      setError(t('common.networkError'))
+    }
+  }, [refusalMessage, t])
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search)
@@ -63,12 +84,12 @@ export default function JoinFamilyPage() {
         .then(async (res) => {
           const data = await res.json()
           if (!res.ok) {
-            setError(readJoinError(data, 'This invite is invalid or expired'))
+            setError(refusalMessage(res.status))
             return
           }
           setEmailInvite(data)
         })
-        .catch(() => setError('Could not load invite'))
+        .catch(() => setError(t('common.networkError')))
       return
     }
 
@@ -76,33 +97,7 @@ export default function JoinFamilyPage() {
       setCode(urlCode)
       checkFamilyCode(urlCode)
     }
-  }, [])
-
-  const checkFamilyCode = async (familyCode: string) => {
-    try {
-      const res = await fetch(`/api/family/lookup?code=${encodeURIComponent(familyCode)}`)
-      // Signed out: the lookup needs a session. Keep the code visible and
-      // offer the existing login flow, which returns to this page after auth.
-      if (res.status === 401) {
-        setFamilyInfo(null)
-        setSignedOutCode(true)
-        setError(null)
-        return
-      }
-      const data = await res.json()
-      if (!res.ok) {
-        setSignedOutCode(false)
-        setError(readJoinError(data, 'Family not found. Please check the code.'))
-        return
-      }
-      setFamilyInfo(data.family)
-      setSignedOutCode(false)
-      setError(null)
-    } catch {
-      setSignedOutCode(false)
-      setError('Failed to validate family code')
-    }
-  }
+  }, [checkFamilyCode, refusalMessage, t])
 
   const acceptEmailInvite = async () => {
     if (!token || submittingRef.current) return
@@ -125,7 +120,7 @@ export default function JoinFamilyPage() {
       const joinData = await joinRes.json()
       if (!joinRes.ok) {
         submittingRef.current = false
-        setError(readJoinError(joinData, 'Failed to join family'))
+        setError(refusalMessage(joinRes.status))
         return
       }
       setSuccess(`Joined ${joinData.familyName || emailInvite?.familyName || 'your family'}`)
@@ -135,7 +130,7 @@ export default function JoinFamilyPage() {
       }, 1500)
     } catch {
       submittingRef.current = false
-      setError('An unexpected error occurred')
+      setError(t('common.networkError'))
     } finally {
       setLoading(false)
     }
@@ -161,7 +156,7 @@ export default function JoinFamilyPage() {
       }
       if (!familyInfo) {
         submittingRef.current = false
-        setError('Please check the family code first')
+        setError(t('common.tryAgain'))
         return
       }
       const joinRes = await fetch('/api/family/join', {
@@ -172,7 +167,7 @@ export default function JoinFamilyPage() {
       const joinData = await joinRes.json()
       if (!joinRes.ok) {
         submittingRef.current = false
-        setError(readJoinError(joinData, 'Failed to join family'))
+        setError(refusalMessage(joinRes.status))
         return
       }
       setSuccess(`Successfully joined ${joinData.familyName || familyInfo.name}!`)
@@ -182,7 +177,7 @@ export default function JoinFamilyPage() {
       }, 2000)
     } catch {
       submittingRef.current = false
-      setError('An unexpected error occurred')
+      setError(t('common.networkError'))
     } finally {
       setLoading(false)
     }
@@ -312,7 +307,7 @@ export default function JoinFamilyPage() {
                   type="button"
                   onClick={() => checkFamilyCode(code)}
                   disabled={busy || !code.trim()}
-                  className="btn-secondary whitespace-nowrap"
+                  className="btn-secondary min-h-[44px] whitespace-nowrap"
                 >
                   Check Code
                 </button>

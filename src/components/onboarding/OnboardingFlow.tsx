@@ -80,6 +80,31 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 }
 
+type JsonReadResult = { response: Response; payload: unknown };
+
+async function fetchJsonWithinTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<JsonReadResult | null> {
+  return withTimeout(
+    (async () => {
+      const response = await fetch(input, init);
+      let payload: unknown = null;
+      try {
+        // Keep the response body inside the same timeout as fetch(). A
+        // response can be received while its streamed JSON body remains
+        // unavailable, and that must become a truthful stale read.
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+      return { response, payload };
+    })(),
+    timeoutMs,
+  );
+}
+
 function readError(payload: unknown, fallback: string): string {
   if (!payload || typeof payload !== "object") return fallback;
   const value = (payload as { error?: unknown }).error;
@@ -124,15 +149,16 @@ export default function OnboardingFlow({
       // successful authenticated parent-scoped profile read is the actual
       // compatibility proof for this opt-in surface; a 409/refusal keeps the
       // no-email option hidden without advertising a production flag.
-      const response = await fetch("/api/family/profiles", {
-        cache: "no-store",
-      });
-      if (!response.ok) {
+      const result = await fetchJsonWithinTimeout(
+        "/api/family/profiles",
+        { cache: "no-store" },
+        ROSTER_REFRESH_TIMEOUT_MS,
+      );
+      if (!result?.response.ok) {
         setProfileAvailability("unavailable");
         return;
       }
-      const payload: unknown = await response.json();
-      const profiles = readHouseholdProfiles(payload);
+      const profiles = readHouseholdProfiles(result.payload);
       if (!profiles) {
         setProfileAvailability("unavailable");
         return;
@@ -150,21 +176,23 @@ export default function OnboardingFlow({
   const refreshRoster = useCallback(async () => {
     setRosterRefresh("refreshing");
     try {
-      const [memberResponse, profileResponse] = await Promise.all([
-        withTimeout(
-          fetch("/api/family/members", { cache: "no-store" }),
+      const [memberRead, profileRead] = await Promise.all([
+        fetchJsonWithinTimeout(
+          "/api/family/members",
+          { cache: "no-store" },
           ROSTER_REFRESH_TIMEOUT_MS,
         ),
         profileAvailability === "available"
-          ? withTimeout(
-              fetch("/api/family/profiles", { cache: "no-store" }),
+          ? fetchJsonWithinTimeout(
+              "/api/family/profiles",
+              { cache: "no-store" },
               ROSTER_REFRESH_TIMEOUT_MS,
             )
           : Promise.resolve(null),
       ]);
-      let fresh = memberResponse !== null && memberResponse.ok;
-      if (memberResponse?.ok) {
-        const payload: unknown = await memberResponse.json();
+      let fresh = memberRead !== null && memberRead.response.ok;
+      if (memberRead?.response.ok) {
+        const payload = memberRead.payload;
         const members =
           payload && typeof payload === "object"
             ? (payload as { members?: unknown }).members
@@ -184,9 +212,9 @@ export default function OnboardingFlow({
         }
       }
       if (profileAvailability === "available") {
-        fresh = fresh && profileResponse !== null && profileResponse.ok;
-        if (profileResponse?.ok) {
-          const profiles = readHouseholdProfiles(await profileResponse.json());
+        fresh = fresh && profileRead !== null && profileRead.response.ok;
+        if (profileRead?.response.ok) {
+          const profiles = readHouseholdProfiles(profileRead.payload);
           if (profiles) {
             setProfileCount(
               profiles.filter((profile) => !profile.archived_at).length,
@@ -273,6 +301,7 @@ export default function OnboardingFlow({
           : null;
       if (!family || typeof family !== "object") {
         const reconciled = await reconcileFamily();
+        if (reconciled === "found") return;
         setError(
           reconciled === "unknown"
             ? text("reconcileUnknown")
@@ -293,7 +322,7 @@ export default function OnboardingFlow({
       setMemberCount(1);
       setStep(3);
     } catch {
-      if (await reconcileFamily()) return;
+      if ((await reconcileFamily()) === "found") return;
       setError(text("reconcileUnknown"));
     } finally {
       setLoading(false);
@@ -503,7 +532,7 @@ export default function OnboardingFlow({
                 <button
                   type="button"
                   onClick={() => void refreshRoster()}
-                  className="btn-secondary min-h-[40px] px-4"
+                  className="btn-secondary min-h-[44px] px-4"
                 >
                   {text("retryRoster")}
                 </button>
