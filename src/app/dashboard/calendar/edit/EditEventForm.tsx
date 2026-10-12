@@ -12,6 +12,7 @@ import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError 
 import { EventDuration } from '@/components/calendar/EventDuration'
 import { eventFormRange } from '@/lib/dates'
 import { Dialog } from '@/components/ui/dialog'
+import { usePendingFormNavigation, usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 
 function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
   const { t } = useTranslation()
@@ -38,6 +39,10 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
   const cancelRef = useRef<HTMLButtonElement>(null)
   const originalTimes = useRef<{ eventId: string; start: string; end: string | null } | null>(null)
   const router = useRouter()
+  const busy = loading || deleting
+  const directNavigation = usePendingFormNavigationController(busy && !inSheet)
+  const sheetNavigation = usePendingFormNavigation()
+  const navigation = inSheet ? sheetNavigation : directNavigation
   useEffect(() => { onBusyChange?.(loading || deleting) }, [loading, deleting, onBusyChange])
   const searchParams = useSearchParams()
   const eventId = searchParams.get('id')
@@ -162,6 +167,7 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
       }
 
       notifyCalendarChanged()
+      if ((await navigation?.releaseBeforeNavigation()) === false) return
       if (inSheet) router.back()
       else router.push('/dashboard/calendar')
       router.refresh()
@@ -190,6 +196,7 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
       }
       setConfirmOpen(false)
       notifyCalendarChanged()
+      if ((await navigation?.releaseBeforeNavigation()) === false) return
       if (inSheet) router.back()
       else router.push('/dashboard/calendar')
       router.refresh()
@@ -240,10 +247,17 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
       {!inSheet && <>
       {/* Back nav */}
       <div className="px-4 pt-4">
-        <Link href="/dashboard/calendar" className="btn-plain text-base py-2">
-          <ArrowLeft className="w-5 h-5" />
-          <span>{message('calendar')}</span>
-        </Link>
+        {busy ? (
+          <span aria-disabled="true" data-testid="calendar-edit-back-busy" className="btn-plain text-base py-2 min-h-[44px]">
+            <ArrowLeft className="w-5 h-5" />
+            <span>{message('calendar')}</span>
+          </span>
+        ) : (
+          <Link href="/dashboard/calendar" className="btn-plain text-base py-2 min-h-[44px]">
+            <ArrowLeft className="w-5 h-5" />
+            <span>{message('calendar')}</span>
+          </Link>
+        )}
       </div>
 
       <div className="px-4 pt-4">
