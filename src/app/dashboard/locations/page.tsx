@@ -74,6 +74,7 @@ function LocationsPageInner() {
   const editorLabelRef = React.useRef<HTMLInputElement>(null)
   const cancelRemoveRef = React.useRef<HTMLButtonElement>(null)
   const removingRef = React.useRef(false)
+  const focusIntentRef = React.useRef(0)
   const loadGenerationRef = React.useRef(0)
   const createRequestRef = React.useRef<{ payload: string; key: string } | null>(null)
   const { t } = useTranslation()
@@ -129,6 +130,7 @@ function LocationsPageInner() {
   const openEditor = (location?: Location) => {
     // Each opened editor is a new intent. A failed create keeps its key in
     // createRequestRef so an unchanged retry replays the same server receipt.
+    focusIntentRef.current += 1
     createRequestRef.current = null
     setEditorTarget(location ?? 'new')
     setEditorLabel(location?.label ?? 'Home')
@@ -192,6 +194,7 @@ function LocationsPageInner() {
 
   const openRemoveConfirmation = (location: Location) => {
     if (removingRef.current) return
+    focusIntentRef.current += 1
     setRemoveError(null)
     setRemoveTarget(location)
   }
@@ -205,6 +208,7 @@ function LocationsPageInner() {
   const remove = React.useCallback(async () => {
     const location = removeTarget
     if (!location || removingRef.current) return
+    const focusIntent = focusIntentRef.current
     removingRef.current = true
     setRemoving(true)
     setRemoveError(null)
@@ -215,11 +219,17 @@ function LocationsPageInner() {
         return
       }
       setRemoveTarget(null)
-      // Wait for the post-delete read before restoring focus. The dialog's
-      // unmount cleanup restores its opener; scheduling focus before that
-      // refresh can let a stale trigger restoration win on slower desktops.
-      await load()
-      window.requestAnimationFrame(() => (addButtonRef.current ?? editorLabelRef.current)?.focus())
+      // Refresh in the background so mutation busy state ends with DELETE.
+      // The dialog's unmount cleanup restores its opener; scheduling focus
+      // before this read can let a stale trigger restoration win on slower
+      // desktops.
+      void load().then(() => {
+        window.requestAnimationFrame(() => {
+          if (focusIntent !== focusIntentRef.current) return
+          const focusTarget = addButtonRef.current ?? editorLabelRef.current
+          focusTarget?.focus()
+        })
+      })
     } catch {
       setRemoveError('network')
     } finally {

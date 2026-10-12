@@ -6,7 +6,7 @@
 // Add and Remove buttons are 44px targets.
 import '@testing-library/jest-dom'
 import * as React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '@/components/ui/toast'
 import { I18nProvider } from '@/i18n'
@@ -331,6 +331,42 @@ describe('/dashboard/locations', () => {
       json: async () => ({ locations: [] }),
     })
     await waitFor(() => expect(add).toHaveFocus())
+  })
+
+  it('does not steal editor focus when a new form opens during delete refresh', async () => {
+    const user = userEvent.setup()
+    let resolveRefresh: (value: {
+      ok: boolean
+      status: number
+      json: () => Promise<unknown>
+    }) => void = () => undefined
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ locations: [{ id: 'l1', label: 'School', address: null, user_id: 'u1' }] }),
+      })
+      .mockResolvedValueOnce({ ok: true, status: 200 })
+      .mockReturnValueOnce(new Promise((resolve) => { resolveRefresh = resolve })) as unknown as typeof fetch
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Remove School' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+
+    const label = screen.getByLabelText('Label')
+    expect(label).toHaveFocus()
+    await act(async () => {
+      resolveRefresh({
+        ok: true,
+        status: 200,
+        json: async () => ({ locations: [] }),
+      })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+    expect(label).toHaveFocus()
   })
 
   it('keeps the dialog open with safe retry copy after a refused delete', async () => {
