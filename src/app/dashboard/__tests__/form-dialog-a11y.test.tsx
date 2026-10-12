@@ -16,6 +16,8 @@ import NotesPage from "../notes/page";
 import WishlistPage from "../wishlist/page";
 import PickupsPage from "../pickups/page";
 import AllowancePage from "../allowance/page";
+import AllowanceCreateForm from "../allowance/create/AllowanceCreateForm";
+import { AllowanceCreateSheet } from "@/components/layout/AllowanceFormSheets";
 
 const allOn = Object.fromEntries(
   FEATURES.map((f) => [f.key, true]),
@@ -26,7 +28,7 @@ jest.mock("@/components/providers/features-provider", () => ({
   useFeatureEnabled: () => true,
 }));
 jest.mock("next/navigation", () => ({
-  useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }),
+  useRouter: () => ({ push: jest.fn(), refresh: jest.fn(), back: jest.fn() }),
 }));
 
 const json = (body: unknown) =>
@@ -130,7 +132,6 @@ it.each([
     "New pickup",
     ["Title", "When", "Location", "Assigned to", "Notes"],
   ],
-  ["allowance", AllowancePage, "New allowance", ["For", "Amount", "Reason"]],
 ] as const)(
   "%s: add form fields are labelled",
   async (_name, Page, heading, labels) => {
@@ -146,6 +147,37 @@ it.each([
       dialog ?? (screen.getByText(heading).closest("form") as HTMLElement);
     for (const label of labels)
       expect(within(form).getByLabelText(label)).toBeTruthy();
+    expectNamedControls(document.body);
+  },
+);
+
+it("allowance: Add is a named link to the routed creation form", async () => {
+  render(
+    <ToastProvider>
+      <AllowancePage />
+    </ToastProvider>,
+  );
+  const add = await screen.findByRole("link", { name: "Add" });
+  expect(add.getAttribute("href")).toBe("/dashboard/allowance/create");
+  expectNamedControls(document.body);
+});
+
+it.each([
+  ["direct", AllowanceCreateForm],
+  ["intercepted", AllowanceCreateSheet],
+] as const)(
+  "allowance: %s creation fields are labelled",
+  async (variant, Form) => {
+    render(<Form />);
+    await screen.findByRole("option", { name: "Sam" });
+    const form = screen.getByTestId("allowance-create-form");
+    for (const label of ["For", "Amount", "Reason"])
+      expect(within(form).getByLabelText(label)).toBeTruthy();
+    if (variant === "intercepted") {
+      const dialog = screen.getByRole("dialog", { name: "New allowance" });
+      expect(dialog.getAttribute("aria-modal")).toBe("true");
+      expect(dialog.contains(form)).toBe(true);
+    }
     expectNamedControls(document.body);
   },
 );
