@@ -129,7 +129,9 @@ it("uses the canonical routine-name limit in the editor", async () => {
 });
 
 beforeEach(() => {
-  searchParams = new URLSearchParams();
+  // Candidate responses have a fixed occurrence date; keep the requested
+  // date equally explicit so midnight on the runner cannot invalidate them.
+  searchParams = new URLSearchParams("occurrence_date=2026-10-11");
   back.mockReset();
   refresh.mockReset();
   fetchMock.mockReset();
