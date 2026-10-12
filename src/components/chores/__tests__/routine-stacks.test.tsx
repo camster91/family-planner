@@ -96,6 +96,7 @@ it('keeps ungrouped chores visible and supplies an explicit empty state', () => 
 it('keeps profile-only routine steps readable without exposing account mutations', () => {
   const profile = step('profile-step', 1, {
     assigned_to: null as never,
+    assigned_member_id: 'member-no-email',
     assignee: null,
     subject: { kind: 'profile' as const, memberId: 'member-no-email', name: 'Jamie', role: 'child' as const },
   })
@@ -103,6 +104,19 @@ it('keeps profile-only routine steps readable without exposing account mutations
   expect(screen.getAllByText('Jamie · Oct 9')).toHaveLength(2)
   expect(screen.queryByRole('button', { name: 'Complete profile-step' })).toBeNull()
   expect(screen.queryByRole('link', { name: 'Edit profile-step' })).toBeNull()
+})
+
+it('keeps an unreadable profile routine read-only without an account fallback', () => {
+  const profile = step('missing-profile-step', 1, {
+    assigned_to: null as never,
+    assigned_member_id: 'profile-missing',
+    assignee: null,
+  })
+  render(<RoutineStacks chores={[profile]} userRole="parent" currentUserId="adult" locale="en-CA" onComplete={jest.fn()} />)
+  expect(screen.getAllByText(/That profile is no longer available/)).toHaveLength(2)
+  expect(screen.queryByRole('button', { name: 'Complete missing-profile-step' })).toBeNull()
+  expect(screen.queryByRole('link', { name: 'Edit missing-profile-step' })).toBeNull()
+  expect(screen.queryByRole('link', { name: 'Add step' })).toBeNull()
 })
 
 it('uses the viewer local day when an empty routine list opens the builder near midnight UTC', () => {

@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { useChoreVerificationText } from "@/i18n/chore-verification";
+import { useProfileSetupText } from "@/i18n/profile-setup";
 import {
   choreFormMessages,
   type ChoreFormMessage,
@@ -83,6 +84,17 @@ interface ChoresContentProps {
 }
 
 type BoardChore = ChoresContentProps["chores"][number];
+
+/**
+ * Keep the durable subject discriminator authoritative even when the profile
+ * is no longer readable. An absent `subject` means the profile is unavailable,
+ * not that the row can be treated as an unassigned account chore.
+ */
+function isProfileOnlyChore(
+  chore: Pick<BoardChore, "assigned_to" | "assigned_member_id">,
+) {
+  return chore.assigned_to === null && chore.assigned_member_id != null;
+}
 
 function subjectName(chore: Pick<BoardChore, "assignee" | "subject">) {
   return chore.subject?.name ?? chore.assignee?.name ?? null;
@@ -186,6 +198,7 @@ export default function ChoresContent({
   const { addToast } = useToast();
   const showUndo = useUndoToast();
   const { t } = useTranslation();
+  const profileText = useProfileSetupText();
   const message = React.useCallback(
     (key: ChoreFormMessage, params?: Record<string, string | number>) =>
       t(key, params, choreFormMessages),
@@ -827,7 +840,11 @@ export default function ChoresContent({
 
   const renderOpenChore = (chore: (typeof todayChores)[number], i: number) => {
     if (!now) return null;
-    const profileOnly = chore.subject?.kind === "profile";
+    const profileOnly = isProfileOnlyChore(chore);
+    const profileUnavailable = profileOnly && chore.subject?.kind !== "profile";
+    const ownerLabel = profileUnavailable
+      ? profileText("profileTargetRefresh")
+      : subjectName(chore);
     const actions = [
           chore.recurrence_id
             ? {
@@ -888,7 +905,7 @@ export default function ChoresContent({
           onChange={() => handleCompleteChore(chore.id)}
           title={chore.title}
           subtitle={[
-            subjectName(chore),
+            ownerLabel,
             formatRelativeDueDate(chore.due_date, now, displayLocale),
             routineLabel(chore),
             chore.rotation_next_name
@@ -1042,87 +1059,95 @@ export default function ChoresContent({
               <section>
                 <p className="section-header">To check</p>
                 <div className="list-inset">
-                  {pendingVerification.map((chore, i) => (
-                    <div
-                      key={chore.id}
-                      className={cn(
-                        "px-4 py-3 flex items-center gap-3",
-                        "border-b border-[var(--surface-separator)] last:border-b-0",
-                      )}
-                    >
-                      {chore.photo_url && (
-                        <div className="w-10 h-10 rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-fill)] shrink-0">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={chore.photo_url}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-body text-label-primary [overflow-wrap:anywhere]">
-                          {chore.title}
-                        </p>
-                        <p className="text-footnote text-label-secondary">
-                          {[
-                            subjectName(chore)
-                              ? `Assigned to ${subjectName(chore)}`
-                              : null,
-                            routineLabel(chore),
-                            verificationText("waitingForCheck", undefined),
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      </div>
-                      {(() => {
-                        const verificationBusy = verificationBusyIds.has(
-                          chore.id,
-                        );
-                        const verificationDialogOpen =
-                          verificationDialog?.choreId === chore.id;
-                        const actionsDisabled =
-                          verificationBusy || verificationDialogOpen;
-                        return (
-                          <div
-                            className="flex gap-2 shrink-0"
-                            aria-busy={verificationBusy || undefined}
-                          >
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleCheckChore(chore.id, "approve")
-                              }
-                              aria-label={verificationText("verifyAriaLabel", {
-                                title: chore.title,
-                              })}
-                              disabled={actionsDisabled}
-                              className="btn-filled text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
-                            >
-                              {verificationBusy
-                                ? verificationText("verifying", undefined)
-                                : verificationText("verify", undefined)}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleCheckChore(chore.id, "reject")
-                              }
-                              aria-label={verificationText(
-                                "sendBackAriaLabel",
-                                { title: chore.title },
-                              )}
-                              disabled={actionsDisabled}
-                              className="btn-destructive text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
-                            >
-                              {verificationText("sendBack", undefined)}
-                            </button>
+                  {pendingVerification.map((chore, i) => {
+                    const profileUnavailable =
+                      isProfileOnlyChore(chore) &&
+                      chore.subject?.kind !== "profile";
+                    const ownerLabel = profileUnavailable
+                      ? profileText("profileTargetRefresh")
+                      : subjectName(chore)
+                        ? `Assigned to ${subjectName(chore)}`
+                        : null;
+                    return (
+                      <div
+                        key={chore.id}
+                        className={cn(
+                          "px-4 py-3 flex items-center gap-3",
+                          "border-b border-[var(--surface-separator)] last:border-b-0",
+                        )}
+                      >
+                        {chore.photo_url && (
+                          <div className="w-10 h-10 rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-fill)] shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={chore.photo_url}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
                           </div>
-                        );
-                      })()}
-                    </div>
-                  ))}
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-body text-label-primary [overflow-wrap:anywhere]">
+                            {chore.title}
+                          </p>
+                          <p className="text-footnote text-label-secondary">
+                            {[
+                              ownerLabel,
+                              routineLabel(chore),
+                              verificationText("waitingForCheck", undefined),
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        </div>
+                        {!profileUnavailable && (() => {
+                          const verificationBusy = verificationBusyIds.has(
+                            chore.id,
+                          );
+                          const verificationDialogOpen =
+                            verificationDialog?.choreId === chore.id;
+                          const actionsDisabled =
+                            verificationBusy || verificationDialogOpen;
+                          return (
+                            <div
+                              className="flex gap-2 shrink-0"
+                              aria-busy={verificationBusy || undefined}
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCheckChore(chore.id, "approve")
+                                }
+                                aria-label={verificationText("verifyAriaLabel", {
+                                  title: chore.title,
+                                })}
+                                disabled={actionsDisabled}
+                                className="btn-filled text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
+                              >
+                                {verificationBusy
+                                  ? verificationText("verifying", undefined)
+                                  : verificationText("verify", undefined)}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCheckChore(chore.id, "reject")
+                                }
+                                aria-label={verificationText(
+                                  "sendBackAriaLabel",
+                                  { title: chore.title },
+                                )}
+                                disabled={actionsDisabled}
+                                className="btn-destructive text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
+                              >
+                                {verificationText("sendBack", undefined)}
+                              </button>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             );

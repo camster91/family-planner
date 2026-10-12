@@ -165,6 +165,7 @@ describe('ChoresContent profile subjects', () => {
     const profileChore = {
       ...chore('profile-chore', 'Pack the school bag', today, 'pending', null),
       assigned_to: null as never,
+      assigned_member_id: 'member-no-email',
       subject: { kind: 'profile' as const, memberId: 'member-no-email', name: 'Jamie', role: 'child' as const },
     }
 
@@ -178,6 +179,53 @@ describe('ChoresContent profile subjects', () => {
     expect(completeControl.getAttribute('aria-disabled')).toBe('true')
     global.fetch = jest.fn() as unknown as typeof fetch
     await userEvent.setup().click(completeControl)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('keeps archived, erased, missing, and foreign profile chores unavailable', async () => {
+    const date = new Date()
+    const today = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    const unavailable = [
+      {
+        ...chore('profile-archived', 'Archived profile chore', today, 'pending', null),
+        assigned_to: null as never,
+        assigned_member_id: 'profile-archived',
+      },
+      {
+        ...chore('profile-erased', 'Erased profile chore', today, 'pending', null),
+        assigned_to: null as never,
+        assigned_member_id: 'profile-erased',
+        member_subject_erased: true,
+      },
+      {
+        ...chore('profile-missing', 'Missing profile chore', today, 'pending', null),
+        assigned_to: null as never,
+        assigned_member_id: 'profile-missing',
+      },
+      {
+        ...chore('profile-foreign', 'Foreign profile chore', today, 'pending', null),
+        assigned_to: null as never,
+        assigned_member_id: 'profile-foreign',
+      },
+    ]
+
+    render(page(unavailable))
+
+    await waitFor(() =>
+      expect(screen.getAllByText(/That profile is no longer available/)).toHaveLength(4),
+    )
+    expect(screen.queryByRole('button', { name: /More actions for/ })).toBeNull()
+    for (const title of [
+      'Archived profile chore',
+      'Erased profile chore',
+      'Missing profile chore',
+      'Foreign profile chore',
+    ]) {
+      expect(screen.getByRole('checkbox', { name: title }).getAttribute('aria-disabled')).toBe('true')
+    }
+
+    global.fetch = jest.fn() as unknown as typeof fetch
+    await userEvent.setup().click(screen.getByRole('checkbox', { name: 'Missing profile chore' }))
     expect(global.fetch).not.toHaveBeenCalled()
   })
 })
