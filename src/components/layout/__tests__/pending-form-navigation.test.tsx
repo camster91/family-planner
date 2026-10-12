@@ -9,9 +9,11 @@ import {
 import type {
   PendingFormNavigationBootstrap,
   PendingFormNavigationNavigateHandler,
+  PendingFormNavigationPopStateHandler,
 } from "@/lib/pending-form-navigation-bootstrap";
 
 let navigateHandler!: PendingFormNavigationNavigateHandler;
+let popStateHandler!: PendingFormNavigationPopStateHandler;
 let unregisterNavigate: jest.Mock;
 let unregisterPopState: jest.Mock;
 let registerNavigate: jest.Mock;
@@ -34,8 +36,12 @@ function installBootstrap() {
     navigateHandler = handler;
     return unregisterNavigate;
   });
+  const register = jest.fn((handler: PendingFormNavigationPopStateHandler) => {
+    popStateHandler = handler;
+    return unregisterPopState;
+  });
   const bootstrap: PendingFormNavigationBootstrap = {
-    register: jest.fn(() => unregisterPopState),
+    register,
     registerNavigate,
   };
   Object.defineProperty(window, "__herewovenPendingNavigation", {
@@ -122,6 +128,60 @@ it("passes through an authorized release while the request is still marked busy"
   expect(navigateHandler(event())).toBe(false);
   view.unmount();
   await expect(release).resolves.toBe(false);
+});
+
+it("re-arms a retried request after an in-flight release settles", async () => {
+  const view = render(<Harness busy onNavigation={() => {}} />);
+  await waitFor(() =>
+    expect(window.history.state.__herewovenPendingForm).toEqual(
+      expect.any(String),
+    ),
+  );
+  const firstToken = window.history.state.__herewovenPendingForm;
+
+  await act(async () => {
+    view.rerender(<Harness busy={false} onNavigation={() => {}} />);
+  });
+  expect(historyBack).toHaveBeenCalledTimes(1);
+
+  // Retry immediately, before the automatic sentinel-consumption pop settles.
+  await act(async () => {
+    view.rerender(<Harness busy onNavigation={() => {}} />);
+  });
+  window.history.replaceState({ route: "base" }, "", originalUrl);
+  popStateHandler(
+    new PopStateEvent("popstate", { state: window.history.state }),
+  );
+
+  await waitFor(() => {
+    expect(window.history.state.__herewovenPendingForm).toEqual(
+      expect.any(String),
+    );
+    expect(window.history.state.__herewovenPendingForm).not.toBe(firstToken);
+  });
+  expect(navigateHandler(event())).toBe(true);
+  view.unmount();
+});
+
+it("does not re-arm after cleanup cancels an in-flight release", async () => {
+  const view = render(<Harness busy onNavigation={() => {}} />);
+  await waitFor(() =>
+    expect(window.history.state.__herewovenPendingForm).toEqual(
+      expect.any(String),
+    ),
+  );
+  const token = window.history.state.__herewovenPendingForm;
+
+  await act(async () => {
+    view.rerender(<Harness busy={false} onNavigation={() => {}} />);
+  });
+  view.unmount();
+  await act(async () => {
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+  });
+
+  expect(unregisterNavigate).toHaveBeenCalledTimes(1);
+  expect(window.history.state.__herewovenPendingForm).toBe(token);
 });
 
 it("unregisters the Navigation API handler during cleanup", () => {
