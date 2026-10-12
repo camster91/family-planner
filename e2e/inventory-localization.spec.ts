@@ -75,8 +75,7 @@ async function traverseBackTwice(page: Page, path: RegExp) {
   await expect
     .poll(() =>
       page.evaluate(
-        () =>
-          (window as RapidBackWindow).__pendingRapidBackPopstates?.() ?? 0,
+        () => (window as RapidBackWindow).__pendingRapidBackPopstates?.() ?? 0,
       ),
     )
     .toBeGreaterThanOrEqual(2);
@@ -476,205 +475,218 @@ test.describe("inventory localization synthetic server", () => {
       });
 
       try {
-      // Every response below is explicitly synthetic and owns no database row.
-      // The route guard still keeps the browser on loopback and the fixture
-      // session remains the authenticated parentA identity.
-      await page.route("**/api/notes", async (route) => {
-        if (route.request().method() === "GET") {
-          await route.fulfill({ json: { notes: [] } });
-          return;
-        }
-        if (route.request().method() !== "POST") {
-          await route.continue();
-          return;
-        }
-        notesPosts += 1;
-        await notesPending;
-        await route.fulfill({
-          status: 201,
-          json: {
-            note: {
-              id: "synthetic_pending_notes",
-              title: "Synthetic pending note",
-              body: "No database row",
-              color: "yellow",
-              created_at: "2026-01-05T12:00:00.000Z",
-            },
-          },
-        });
-      });
-
-      await page.goto("/dashboard/notes");
-      await expect(page.getByRole("heading", { name: "Notes" })).toBeVisible();
-      await runtime(page, info, "en", "parent");
-      const identity = await browserFetch(page, "/api/auth/me");
-      expect(identity.status, identity.body).toBe(200);
-      expect((JSON.parse(identity.body) as { user?: { role?: unknown } }).user?.role).toBe("parent");
-      await page.getByRole("button", { name: "Add Note" }).click();
-      const notesDialog = page.getByRole("dialog");
-      await notesDialog.getByLabel("Title", { exact: true }).fill("Synthetic pending note");
-      await notesDialog.getByLabel("Body", { exact: true }).fill("No database row");
-      await notesDialog.getByRole("button", { name: "Save", exact: true }).click();
-      await expect.poll(() => notesPosts).toBe(1);
-      await expect(
-        notesDialog.getByRole("button", { name: /Saving/ }),
-      ).toBeDisabled();
-      await traverseBackTwice(page, /\/dashboard\/notes$/);
-      await expect(notesDialog).toBeVisible();
-      releaseNotes();
-      await expect(notesDialog).toHaveCount(0);
-      completedSurfaces.push("notes");
-      await page.unroute("**/api/notes");
-
-      await page.route("**/api/emergency-contacts", async (route) => {
-        if (route.request().method() === "GET") {
+        // Every response below is explicitly synthetic and owns no database row.
+        // The route guard still keeps the browser on loopback and the fixture
+        // session remains the authenticated parentA identity.
+        await page.route("**/api/notes", async (route) => {
+          if (route.request().method() === "GET") {
+            await route.fulfill({ json: { notes: [] } });
+            return;
+          }
+          if (route.request().method() !== "POST") {
+            await route.continue();
+            return;
+          }
+          notesPosts += 1;
+          await notesPending;
           await route.fulfill({
+            status: 201,
             json: {
-              contacts: [
-                {
-                  id: "synthetic_pending_emergency",
-                  person_id: null,
-                  person_name: "Synthetic emergency contact",
-                  relationship: "self",
-                  blood_type: null,
-                  allergies: null,
-                  medications: null,
-                  medical_conditions: null,
-                  doctor_name: null,
-                  doctor_phone: null,
-                  dentist_name: null,
-                  dentist_phone: null,
-                  insurance_provider: null,
-                  insurance_id: null,
-                  emergency_contact_name: null,
-                  emergency_contact_phone: null,
-                  emergency_contact_relation: null,
-                  notes: null,
-                },
-              ],
+              note: {
+                id: "synthetic_pending_notes",
+                title: "Synthetic pending note",
+                body: "No database row",
+                color: "yellow",
+                created_at: "2026-01-05T12:00:00.000Z",
+              },
             },
           });
-          return;
-        }
-        if (route.request().method() !== "POST") {
-          await route.continue();
-          return;
-        }
-        emergencyPosts += 1;
-        await emergencyPending;
-        await route.fulfill({
-          status: 201,
-          json: {
-            contact: {
-              id: "synthetic_pending_emergency_created",
-              person_id: null,
-              person_name: "Synthetic pending emergency",
-              relationship: "self",
-              blood_type: null,
-              allergies: null,
-              medications: null,
-              medical_conditions: null,
-              doctor_name: null,
-              doctor_phone: null,
-              dentist_name: null,
-              dentist_phone: null,
-              insurance_provider: null,
-              insurance_id: null,
-              emergency_contact_name: null,
-              emergency_contact_phone: null,
-              emergency_contact_relation: null,
-              notes: null,
-            },
-          },
         });
-      });
 
-      await page.goto("/dashboard/emergency");
-      await expect(
-        page.getByRole("heading", { name: "Emergency Contacts" }),
-      ).toBeVisible();
-      await page.getByRole("button", { name: "Add Card" }).click();
-      const emergencyDialog = page.getByRole("dialog");
-      await emergencyDialog
-        .getByLabel("Person Name", { exact: true })
-        .fill("Synthetic pending emergency");
-      await emergencyDialog.getByRole("button", { name: "Save", exact: true }).click();
-      await expect.poll(() => emergencyPosts).toBe(1);
-      await expect(
-        emergencyDialog.getByRole("button", { name: /Saving/ }),
-      ).toBeDisabled();
-      await traverseBackTwice(page, /\/dashboard\/emergency$/);
-      await expect(emergencyDialog).toBeVisible();
-      releaseEmergency();
-      await expect(emergencyDialog).toHaveCount(0);
-      completedSurfaces.push("emergency");
-      await page.unroute("**/api/emergency-contacts");
+        await page.goto("/dashboard/notes");
+        await expect(
+          page.getByRole("heading", { name: "Notes" }),
+        ).toBeVisible();
+        await runtime(page, info, "en", "parent");
+        const identity = await browserFetch(page, "/api/auth/me");
+        expect(identity.status, identity.body).toBe(200);
+        expect(
+          (JSON.parse(identity.body) as { user?: { role?: unknown } }).user
+            ?.role,
+        ).toBe("parent");
+        await page.getByRole("button", { name: "Add Note" }).click();
+        const notesDialog = page.getByRole("dialog");
+        await notesDialog
+          .getByLabel("Title", { exact: true })
+          .fill("Synthetic pending note");
+        await notesDialog
+          .getByLabel("Body", { exact: true })
+          .fill("No database row");
+        await notesDialog
+          .getByRole("button", { name: "Save", exact: true })
+          .click();
+        await expect.poll(() => notesPosts).toBe(1);
+        await expect(
+          notesDialog.getByRole("button", { name: /Saving/ }),
+        ).toBeDisabled();
+        await traverseBackTwice(page, /\/dashboard\/notes$/);
+        await expect(notesDialog).toBeVisible();
+        releaseNotes();
+        await expect(notesDialog).toHaveCount(0);
+        completedSurfaces.push("notes");
+        await page.unroute("**/api/notes");
 
-      await page.route(/\/api\/inventory\?/, async (route) => {
-        if (route.request().method() !== "POST") {
-          await route.continue();
-          return;
-        }
-        inventoryPosts += 1;
-        await inventoryPending;
-        await route.fulfill({
-          status: 201,
-          json: {
-            item: {
-              id: "synthetic_pending_inventory",
-              name: "Synthetic pending inventory",
-              location: "fridge",
-              amount: null,
-              unit: null,
-              expires_on: null,
-              date_kind: "best_before",
-              category: null,
-              purchased_on: null,
-              opened_on: null,
+        await page.route("**/api/emergency-contacts", async (route) => {
+          if (route.request().method() === "GET") {
+            await route.fulfill({
+              json: {
+                contacts: [
+                  {
+                    id: "synthetic_pending_emergency",
+                    person_id: null,
+                    person_name: "Synthetic emergency contact",
+                    relationship: "self",
+                    blood_type: null,
+                    allergies: null,
+                    medications: null,
+                    medical_conditions: null,
+                    doctor_name: null,
+                    doctor_phone: null,
+                    dentist_name: null,
+                    dentist_phone: null,
+                    insurance_provider: null,
+                    insurance_id: null,
+                    emergency_contact_name: null,
+                    emergency_contact_phone: null,
+                    emergency_contact_relation: null,
+                    notes: null,
+                  },
+                ],
+              },
+            });
+            return;
+          }
+          if (route.request().method() !== "POST") {
+            await route.continue();
+            return;
+          }
+          emergencyPosts += 1;
+          await emergencyPending;
+          await route.fulfill({
+            status: 201,
+            json: {
+              contact: {
+                id: "synthetic_pending_emergency_created",
+                person_id: null,
+                person_name: "Synthetic pending emergency",
+                relationship: "self",
+                blood_type: null,
+                allergies: null,
+                medications: null,
+                medical_conditions: null,
+                doctor_name: null,
+                doctor_phone: null,
+                dentist_name: null,
+                dentist_phone: null,
+                insurance_provider: null,
+                insurance_id: null,
+                emergency_contact_name: null,
+                emergency_contact_phone: null,
+                emergency_contact_relation: null,
+                notes: null,
+              },
             },
-          },
+          });
         });
-      });
 
-      await page.goto("/dashboard/inventory");
-      await expect(
-        page.getByRole("heading", { name: msg("en", "title"), exact: true }),
-      ).toBeVisible();
-      await page
-        .getByRole("button", { name: msg("en", "addItem"), exact: true })
-        .click();
-      const inventoryDialog = page.getByTestId("inventory-modal");
-      await inventoryDialog
-        .getByLabel(msg("en", "name"), { exact: true })
-        .fill("Synthetic pending inventory");
-      await inventoryDialog
-        .getByRole("button", { name: msg("en", "save"), exact: true })
-        .click();
-      await expect.poll(() => inventoryPosts).toBe(1);
-      await expect(
-        inventoryDialog.getByRole("button", { name: /Saving/ }),
-      ).toBeDisabled();
-      await traverseBackTwice(page, /\/dashboard\/inventory$/);
-      await expect(inventoryDialog).toBeVisible();
-      releaseInventory();
-      await expect(inventoryDialog).toHaveCount(0);
-      completedSurfaces.push("inventory");
+        await page.goto("/dashboard/emergency");
+        await expect(
+          page.getByRole("heading", { name: "Emergency Contacts" }),
+        ).toBeVisible();
+        await page.getByRole("button", { name: "Add Card" }).click();
+        const emergencyDialog = page.getByRole("dialog");
+        await emergencyDialog
+          .getByLabel("Person Name", { exact: true })
+          .fill("Synthetic pending emergency");
+        await emergencyDialog
+          .getByRole("button", { name: "Save", exact: true })
+          .click();
+        await expect.poll(() => emergencyPosts).toBe(1);
+        await expect(
+          emergencyDialog.getByRole("button", { name: /Saving/ }),
+        ).toBeDisabled();
+        await traverseBackTwice(page, /\/dashboard\/emergency$/);
+        await expect(emergencyDialog).toBeVisible();
+        releaseEmergency();
+        await expect(emergencyDialog).toHaveCount(0);
+        completedSurfaces.push("emergency");
+        await page.unroute("**/api/emergency-contacts");
 
-      await info.attach("pending-navigation-two-back-proof", {
-        body: JSON.stringify({
-          surfaces: completedSurfaces,
-          posts: {
-            notes: notesPosts,
-            emergency: emergencyPosts,
-            inventory: inventoryPosts,
-          },
-          transport:
-            "loopback-only parentA browser session; all mutation responses were fabricated and no database row was created",
-          history:
-            "each held request received two real history.back traversals; the second was queued from the first popstate while sentinel restoration was pending",
-        }),
-        contentType: "application/json",
-      });
+        await page.route(/\/api\/inventory\?/, async (route) => {
+          if (route.request().method() !== "POST") {
+            await route.continue();
+            return;
+          }
+          inventoryPosts += 1;
+          await inventoryPending;
+          await route.fulfill({
+            status: 201,
+            json: {
+              item: {
+                id: "synthetic_pending_inventory",
+                name: "Synthetic pending inventory",
+                location: "fridge",
+                amount: null,
+                unit: null,
+                expires_on: null,
+                date_kind: "best_before",
+                category: null,
+                purchased_on: null,
+                opened_on: null,
+              },
+            },
+          });
+        });
+
+        await page.goto("/dashboard/inventory");
+        await expect(
+          page.getByRole("heading", { name: msg("en", "title"), exact: true }),
+        ).toBeVisible();
+        await page
+          .getByRole("button", { name: msg("en", "addItem"), exact: true })
+          .click();
+        const inventoryDialog = page.getByTestId("inventory-modal");
+        await inventoryDialog
+          .getByLabel(msg("en", "name"), { exact: true })
+          .fill("Synthetic pending inventory");
+        await inventoryDialog
+          .getByRole("button", { name: msg("en", "save"), exact: true })
+          .click();
+        await expect.poll(() => inventoryPosts).toBe(1);
+        await expect(
+          inventoryDialog.getByRole("button", { name: /Saving/ }),
+        ).toBeDisabled();
+        await traverseBackTwice(page, /\/dashboard\/inventory$/);
+        await expect(inventoryDialog).toBeVisible();
+        releaseInventory();
+        await expect(inventoryDialog).toHaveCount(0);
+        completedSurfaces.push("inventory");
+
+        await info.attach("pending-navigation-two-back-proof", {
+          body: JSON.stringify({
+            surfaces: completedSurfaces,
+            posts: {
+              notes: notesPosts,
+              emergency: emergencyPosts,
+              inventory: inventoryPosts,
+            },
+            transport:
+              "loopback-only parentA browser session; all mutation responses were fabricated and no database row was created",
+            history:
+              "each held request received two real history.back traversals; the second was queued from the first popstate while sentinel restoration was pending",
+          }),
+          contentType: "application/json",
+        });
       } finally {
         releaseNotes();
         releaseEmergency();
