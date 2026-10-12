@@ -224,6 +224,7 @@ export function CaptureBox({
     setDraft(null)
     setPhotoEvents(null)
     setPhotoNote(null)
+    setText('')
     recoveryErrorKind.current = null
     setError(null)
     setSaved(null)

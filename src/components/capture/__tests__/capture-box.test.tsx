@@ -824,6 +824,7 @@ it('blocks a confirmed write when recovery storage cannot be persisted', async (
     await user.click(await screen.findByRole('button', { name: 'Add it' }))
     expect((await screen.findAllByText(captureEnglish.recoveryStorageUnavailable)).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Dentist').length).toBeGreaterThan(0)
+    expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('dentist Tuesday')
     expect(eventPosts).toBe(0)
     expect(screen.getByRole('button', { name: captureEnglish.retryStorage })).toBeTruthy()
   } finally {
