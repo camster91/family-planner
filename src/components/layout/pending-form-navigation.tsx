@@ -10,12 +10,34 @@ import {
 } from "react";
 
 import { newIdempotencyKey } from "@/lib/idempotency-key";
+import {
+  getPendingFormNavigationBootstrap,
+  type PendingFormNavigationNavigateHandler,
+  type PendingFormNavigationPopStateHandler,
+} from "@/lib/pending-form-navigation-bootstrap";
 
 type HistorySnapshot = {
   url: string;
   state: unknown;
   token: string;
 };
+type RestorationTarget = "sentinel" | "base-then-sentinel" | null;
+
+function sameHistoryState(left: unknown, right: unknown) {
+  if (Object.is(left, right)) return true;
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
+}
+
+function isBaseEntry(
+  entry: HistorySnapshot,
+  state: unknown = window.history.state,
+) {
+  return window.location.href === entry.url && sameHistoryState(state, entry.state);
+}
 
 export type PendingFormNavigation = {
   releaseBeforeNavigation: () => Promise<boolean>;
@@ -53,19 +75,53 @@ export function usePendingFormNavigationController(
   const entryRef = useRef<HistorySnapshot | null>(null);
   const releasePromiseRef = useRef<Promise<boolean> | null>(null);
   const releaseResolveRef = useRef<((allowed: boolean) => void) | null>(null);
+  const releaseStartedWhileBusyRef = useRef(false);
   const disarmedRef = useRef(false);
   const restoringRef = useRef(false);
+  const restorationTargetRef = useRef<RestorationTarget>(null);
+  const consumingRef = useRef(false);
   const cleanupTimerRef = useRef<number | null>(null);
 
   busyRef.current = busy;
 
   const finishRelease = useCallback((allowed = true) => {
+    const entry = entryRef.current;
     entryRef.current = null;
     disarmedRef.current = false;
     restoringRef.current = false;
+    restorationTargetRef.current = null;
+    consumingRef.current = false;
     const resolve = releaseResolveRef.current;
     releaseResolveRef.current = null;
     releasePromiseRef.current = null;
+    const releaseStartedWhileBusy = releaseStartedWhileBusyRef.current;
+    releaseStartedWhileBusyRef.current = false;
+
+    // A failed request can be retried while its automatic release traversal
+    // is still in flight. Re-arm against the exact base entry only after that
+    // traversal settles; never push into a foreign or newer owner's entry.
+    if (
+      allowed &&
+      mountedRef.current &&
+      busyRef.current &&
+      !releaseStartedWhileBusy &&
+      entry &&
+      isBaseEntry(entry)
+    ) {
+      const state = window.history.state;
+      const nextEntry = {
+        url: window.location.href,
+        state,
+        token: newIdempotencyKey(),
+      };
+      window.history.pushState(
+        { ...state, [SENTINEL_KEY]: nextEntry.token },
+        "",
+        nextEntry.url,
+      );
+      entryRef.current = nextEntry;
+    }
+
     resolve?.(allowed);
   }, []);
 
@@ -73,8 +129,15 @@ export function usePendingFormNavigationController(
     if (!mountedRef.current) return Promise.resolve(false);
     const entry = entryRef.current;
     if (!entry) return Promise.resolve(true);
-    if (releasePromiseRef.current) return releasePromiseRef.current;
+    if (releasePromiseRef.current) {
+      // An authorized success/close can join an automatic idle release after
+      // a retry becomes busy. Suppress re-arm for that shared release so the
+      // caller can navigate without inheriting a ghost sentinel.
+      if (busyRef.current) releaseStartedWhileBusyRef.current = true;
+      return releasePromiseRef.current;
+    }
 
+    releaseStartedWhileBusyRef.current = busyRef.current;
     disarmedRef.current = true;
     releasePromiseRef.current = new Promise<boolean>((resolve) => {
       releaseResolveRef.current = resolve;
@@ -88,43 +151,98 @@ export function usePendingFormNavigationController(
       // marked sentinel before resolving; never traverse Back from its base.
       return promise;
     }
-    if (!ownsEntry(entry)) finishRelease(window.location.href === entry.url);
-    else window.history.back();
+    if (ownsEntry(entry)) {
+      consumingRef.current = true;
+      window.history.back();
+    } else if (isBaseEntry(entry)) {
+      // The sentinel was already consumed by a prior Back. Resolve only for
+      // the exact same-URL base state, never for an arbitrary foreign entry.
+      finishRelease(true);
+    } else {
+      // A foreign traversal raced release. Restore the sentinel first; its
+      // pop will enter the consuming branch below.
+      restoringRef.current = true;
+      restorationTargetRef.current = "base-then-sentinel";
+      window.history.forward();
+    }
     return promise;
   }, [finishRelease]);
 
-  // Keep one window listener for the lifetime of this form. A capture-phase
-  // listener alone cannot outrank Next's earlier window listener because both
-  // listeners run at the Window target; the same-URL sentinel is what keeps
-  // Next on this route until this listener can re-arm it.
-  useEffect(() => {
-    mountedRef.current = true;
-    if (cleanupTimerRef.current !== null) {
-      window.clearTimeout(cleanupTimerRef.current);
-      cleanupTimerRef.current = null;
-    }
-    const onPopState = (event: PopStateEvent) => {
+  const onPopState = useCallback<PendingFormNavigationPopStateHandler>(
+    (event) => {
       const entry = entryRef.current;
-      if (!entry) return;
+      if (!entry) return false;
 
       if (disarmedRef.current) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        // Ignore extra base-entry events while our one Forward is queued.
-        // Only its marked destination can begin the release traversal.
-        if (restoringRef.current && !ownsEntry(entry, event.state)) return;
-        restoringRef.current = false;
-        if (ownsEntry(entry, event.state)) window.history.back();
-        else finishRelease();
-        return;
+        if (restoringRef.current) {
+          if (ownsEntry(entry, event.state)) {
+            restoringRef.current = false;
+            restorationTargetRef.current = null;
+            consumingRef.current = true;
+            window.history.back();
+          } else if (isBaseEntry(entry, event.state)) {
+            if (restorationTargetRef.current === "base-then-sentinel") {
+              restorationTargetRef.current = "sentinel";
+              window.history.forward();
+            }
+          } else {
+            // A second Back can reach a foreign prior entry before the first
+            // Forward finishes. Restore again rather than resolving against a
+            // state that does not belong to this form's history slot.
+            restorationTargetRef.current = "base-then-sentinel";
+            window.history.forward();
+          }
+          return true;
+        }
+        if (consumingRef.current) {
+          if (isBaseEntry(entry, event.state)) {
+            consumingRef.current = false;
+            finishRelease(true);
+          } else {
+            // The Back intended to consume our sentinel landed on a foreign
+            // entry. Drain back to the sentinel before resolving release.
+            consumingRef.current = false;
+            restoringRef.current = true;
+            restorationTargetRef.current = "base-then-sentinel";
+            window.history.forward();
+          }
+          return true;
+        }
+        if (ownsEntry(entry, event.state)) {
+          consumingRef.current = true;
+          window.history.back();
+        } else if (isBaseEntry(entry, event.state)) {
+          finishRelease(true);
+        } else {
+          restoringRef.current = true;
+          restorationTargetRef.current = "base-then-sentinel";
+          window.history.forward();
+        }
+        return true;
       }
       if (restoringRef.current) {
-        if (ownsEntry(entry, event.state)) restoringRef.current = false;
+        if (ownsEntry(entry, event.state)) {
+          restoringRef.current = false;
+          restorationTargetRef.current = null;
+        } else if (isBaseEntry(entry, event.state)) {
+          if (restorationTargetRef.current === "base-then-sentinel") {
+            restorationTargetRef.current = "sentinel";
+            window.history.forward();
+          }
+        } else {
+          // The initial Back should report the exact base state. If a rapid
+          // second Back reports an older foreign entry, restore the sentinel
+          // again; ignoring that pop would let the pending form escape.
+          restorationTargetRef.current = "base-then-sentinel";
+          window.history.forward();
+        }
         event.preventDefault();
         event.stopImmediatePropagation();
-        return;
+        return true;
       }
-      if (!busyRef.current || ownsEntry(entry, event.state)) return;
+      if (!busyRef.current || ownsEntry(entry, event.state)) return false;
 
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -132,8 +250,45 @@ export function usePendingFormNavigationController(
       // traverse forward to the owned sentinel. This preserves history length
       // and avoids manufacturing a new ghost entry on every Back press.
       restoringRef.current = true;
+      restorationTargetRef.current = isBaseEntry(entry, event.state)
+        ? "sentinel"
+        : "base-then-sentinel";
       window.history.forward();
-    };
+      return true;
+    },
+    [finishRelease],
+  );
+
+  const onNavigate = useCallback<PendingFormNavigationNavigateHandler>(
+    (event) => {
+      if (
+        event.navigationType !== "traverse" ||
+        !event.cancelable ||
+        event.destination?.sameDocument !== true ||
+        !busyRef.current ||
+        disarmedRef.current
+      ) {
+        return false;
+      }
+      const entry = entryRef.current;
+      // A committed fallback traversal may already be restoring the sentinel.
+      // Let that controller-owned Forward/Back reach popstate; only cancel
+      // while the current entry is still the one owned by this form.
+      return entry ? ownsEntry(entry) : false;
+    },
+    [],
+  );
+
+  // Keep the beforeunload warning local to this form. Popstate uses the
+  // document-head dispatcher above, which was installed before Next's router
+  // listener and therefore can stop same-document navigation before it
+  // unmounts the form.
+  useEffect(() => {
+    mountedRef.current = true;
+    if (cleanupTimerRef.current !== null) {
+      window.clearTimeout(cleanupTimerRef.current);
+      cleanupTimerRef.current = null;
+    }
 
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!busyRef.current) return;
@@ -141,13 +296,20 @@ export function usePendingFormNavigationController(
       event.returnValue = "";
     };
 
-    // Keep capture enabled for browser implementations that dispatch window
-    // listeners in phase order; the sentinel handles Next's same-target order.
-    window.addEventListener("popstate", onPopState, true);
+    const bootstrap = getPendingFormNavigationBootstrap();
+    const unregister = bootstrap
+      ? bootstrap.register(onPopState)
+      : (() => {
+          window.addEventListener("popstate", onPopState, true);
+          return () => window.removeEventListener("popstate", onPopState, true);
+        })();
+    const unregisterNavigate =
+      bootstrap?.registerNavigate?.(onNavigate) ?? (() => {});
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
       mountedRef.current = false;
-      window.removeEventListener("popstate", onPopState, true);
+      unregisterNavigate();
+      unregister();
       window.removeEventListener("beforeunload", onBeforeUnload);
       // A destination navigation should have awaited release. If an external
       // unmount wins the race, consume only our current same-URL sentinel.
@@ -170,12 +332,13 @@ export function usePendingFormNavigationController(
         if (entry && ownsEntry(entry)) {
           disarmedRef.current = true;
           restoringRef.current = false;
+          restorationTargetRef.current = null;
           window.history.back();
         }
         finishRelease(false);
       }, 0);
     };
-  }, [finishRelease]);
+  }, [finishRelease, onNavigate, onPopState]);
 
   useEffect(() => {
     if (busy) {

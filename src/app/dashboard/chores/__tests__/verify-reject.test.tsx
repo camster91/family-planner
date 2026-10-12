@@ -321,6 +321,43 @@ describe("ChoresContent parent check", () => {
     expect(within(queue()!).getByText("Feed the cat")).toBeTruthy();
   });
 
+  it("keeps an unavailable profile chore out of parent verification actions", async () => {
+    const unavailableProfileChore = {
+      ...completedChore("profile-erased", "Erased profile chore"),
+      assigned_to: null as never,
+      assigned_member_id: null,
+      member_subject_erased: true,
+      assignee: null,
+    };
+    render(
+      <ToastProvider>
+        <ChoresContent
+          chores={[unavailableProfileChore]}
+          familyMembers={[]}
+          currentUserId="parent"
+          userRole="parent"
+        />
+      </ToastProvider>,
+    );
+
+    await waitFor(() =>
+      expect(
+        within(queue()!).getByText(/That profile is no longer available/),
+      ).toBeTruthy(),
+    );
+    expect(
+      within(queue()!).queryByRole("button", {
+        name: 'Verify “Erased profile chore”',
+      }),
+    ).toBeNull();
+    expect(
+      within(queue()!).queryByRole("button", {
+        name: 'Send back “Erased profile chore”',
+      }),
+    ).toBeNull();
+    expect(calls).toHaveLength(0);
+  });
+
   it("keeps rejection notes when a conflict can be retried", async () => {
     replies.push({
       status: 409,

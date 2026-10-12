@@ -17,7 +17,7 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: jest.fn(), push: jest.fn() }),
 }))
 
-function chore(id: string, title: string, due: string, status: 'pending' | 'completed' = 'pending') {
+function chore(id: string, title: string, due: string, status: 'pending' | 'completed' = 'pending', assignee: { name: string } | null = { name: 'Casey' }) {
   return {
     id,
     family_id: 'fam',
@@ -30,7 +30,7 @@ function chore(id: string, title: string, due: string, status: 'pending' | 'comp
     difficulty: 'easy' as const,
     photo_verified: false,
     created_at: '2026-09-01T00:00:00.000Z',
-    assignee: { name: 'Casey' },
+    assignee,
     creator: { name: 'Pat' },
   }
 }
@@ -155,6 +155,78 @@ describe('ChoresContent reassign dialog', () => {
       '/api/chores',
       expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ choreId: 'c1', assigned_to: 'kid2' }) })
     )
+  })
+})
+
+describe('ChoresContent profile subjects', () => {
+  it('shows an email-free member subject without inventing an account assignee', async () => {
+    const date = new Date()
+    const today = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    const profileChore = {
+      ...chore('profile-chore', 'Pack the school bag', today, 'pending', null),
+      assigned_to: null as never,
+      assigned_member_id: 'member-no-email',
+      subject: { kind: 'profile' as const, memberId: 'member-no-email', name: 'Jamie', role: 'child' as const },
+    }
+
+    render(page([profileChore]))
+
+    await waitFor(() => expect(screen.getByText('Jamie · Today')).toBeTruthy())
+    expect(screen.queryByText(/Unassigned/)).toBeNull()
+    expect(screen.queryByRole('button', { name: /More actions for/ })).toBeNull()
+
+    const completeControl = screen.getByRole('checkbox', { name: 'Pack the school bag' })
+    expect(completeControl.getAttribute('aria-disabled')).toBe('true')
+    global.fetch = jest.fn() as unknown as typeof fetch
+    await userEvent.setup().click(completeControl)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('keeps archived, erased, missing, and foreign profile chores unavailable', async () => {
+    const date = new Date()
+    const today = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    const unavailable = [
+      {
+        ...chore('profile-archived', 'Archived profile chore', today, 'pending', null),
+        assigned_to: null as never,
+        assigned_member_id: 'profile-archived',
+      },
+      {
+        ...chore('profile-erased', 'Erased profile chore', today, 'pending', null),
+        assigned_to: null as never,
+        assigned_member_id: null,
+        member_subject_erased: true,
+      },
+      {
+        ...chore('profile-missing', 'Missing profile chore', today, 'pending', null),
+        assigned_to: null as never,
+        assigned_member_id: 'profile-missing',
+      },
+      {
+        ...chore('profile-foreign', 'Foreign profile chore', today, 'pending', null),
+        assigned_to: null as never,
+        assigned_member_id: 'profile-foreign',
+      },
+    ]
+
+    render(page(unavailable))
+
+    await waitFor(() =>
+      expect(screen.getAllByText(/That profile is no longer available/)).toHaveLength(4),
+    )
+    expect(screen.queryByRole('button', { name: /More actions for/ })).toBeNull()
+    for (const title of [
+      'Archived profile chore',
+      'Erased profile chore',
+      'Missing profile chore',
+      'Foreign profile chore',
+    ]) {
+      expect(screen.getByRole('checkbox', { name: title }).getAttribute('aria-disabled')).toBe('true')
+    }
+
+    global.fetch = jest.fn() as unknown as typeof fetch
+    await userEvent.setup().click(screen.getByRole('checkbox', { name: 'Missing profile chore' }))
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 })
 

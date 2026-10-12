@@ -99,9 +99,11 @@ describeWithDatabase('account deletion against Postgres', () => {
     await db.familyInvite.create({
       data: { id: id('invite'), family_id: f, email: `${id('invitee')}@example.test`, role: 'child', token_hash: tokens.hashToken(id('invite-token')), expires_at: later, created_by: parent },
     })
+    // Durable routine identity participates in household erasure and creator anonymization.
+    await db.routineStack.create({ data: { id: id('routine-stack'), family_id: f, label: 'Evening', fingerprint: id('routine-fingerprint'), created_by: parent } })
     // Chores
     await db.chore.create({
-      data: { id: id('chore'), family_id: f, title: 'Dishes', assigned_to: child, due_date: t, created_by: parent, photo_url: `/api/files/chores/${filename}` },
+      data: { id: id('chore'), family_id: f, title: 'Dishes', assigned_to: child, due_date: t, created_by: parent, routine_stack_id: id('routine-stack'), photo_url: `/api/files/chores/${filename}` },
     })
     await db.chore.create({ data: { id: id('chore-parent'), family_id: f, title: 'Bins', assigned_to: teen, due_date: t, created_by: parent } })
     await db.choreAssignment.create({ data: { id: id('assign'), family_id: f, chore_id: id('chore'), assigned_to: child, due_date: t } })
@@ -283,6 +285,7 @@ describeWithDatabase('account deletion against Postgres', () => {
     const { removeHouseholdMember } = await import('@/lib/member-removal')
     const beforeB = await rowsOf('b')
     const now = new Date('2026-10-10T12:00:00Z')
+    await prisma.routineStack.update({ where: { id: `${P}-a-routine-stack` }, data: { created_by: uid('a', 'child') } })
     await prisma.chore.update({ where: { id: `${P}-a-chore` }, data: { status: 'verified' } })
     await removeHouseholdMember({ actorId: uid('a', 'parent'), familyId: fam('a'), targetId: uid('a', 'child') }, {
       now: () => now, revokeCalendarGrant: async () => undefined,
@@ -292,6 +295,7 @@ describeWithDatabase('account deletion against Postgres', () => {
     expect(await prisma.householdMemberAccountLink.count({ where: { family_id: fam('a') } })).toBe(0)
     expect(await prisma.user.findUnique({ where: { id: uid('a', 'child') }, select: { family_id: true, token_version: true } })).toEqual({ family_id: null, token_version: 1 })
     expect(await prisma.chore.findUnique({ where: { id: `${P}-a-chore` }, select: { status: true, assigned_to: true } })).toEqual({ status: 'verified', assigned_to: uid('a', 'child') })
+    expect(await prisma.routineStack.findUnique({ where: { id: `${P}-a-routine-stack` }, select: { created_by: true } })).toEqual({ created_by: uid('a', 'child') })
     expect(await rowsOf('b')).toEqual(beforeB)
   })
 
@@ -543,6 +547,8 @@ describeWithDatabase('account deletion against Postgres', () => {
     ] as const) {
       expect([model, await owner(model, id, column)]).toEqual([model, p2])
     }
+    // Preserve stack identity without replacing the erased creator with another actor.
+    expect(await prisma.routineStack.findUnique({ where: { id: `${P}-a-routine-stack` }, select: { id: true, family_id: true, created_by: true } })).toEqual({ id: `${P}-a-routine-stack`, family_id: fam('a'), created_by: null })
     expect(await owner('familyMeal', 'meal', 'cook_id')).toBeNull()
     expect(await owner('listItem', 'item', 'checked_by')).toBeNull()
     // Their personal rows and credentials are gone; the household's tablet stays paired.

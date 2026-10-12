@@ -1,9 +1,15 @@
 import type { ReactNode } from "react";
 import type { Chore } from "@/types";
+import type { ChoreSubjectDTO } from "@/lib/chore-profile";
 import { groupChoreSeries, choreCadence } from "@/lib/chore-series-groups";
 import { formatRelativeDueDate } from "@/lib/dates";
+import { profileSetupMessages } from "@/i18n/profile-setup";
 
-type Row = Chore & { assignee: { name: string } | null };
+type Row = Chore & {
+  assignee: { name: string } | null;
+  /** Safe display-only subject for an email-free household member. */
+  subject?: ChoreSubjectDTO;
+};
 
 /** Disclosure has no mutation: actions always target an expanded occurrence. */
 export function RecurringChoreRows<T extends Row>({
@@ -23,6 +29,11 @@ export function RecurringChoreRows<T extends Row>({
         if (!group.repeating || group.steps.length < 2)
           return renderRow(group.steps[0], 0);
         const next = group.steps[0];
+        const profileUnavailable =
+          next.subject?.kind !== "profile" &&
+          next.assigned_to === null &&
+          (next.assigned_member_id != null ||
+            next.member_subject_erased === true);
         const takesTurns =
           new Set(group.steps.map((c) => c.assigned_to)).size > 1;
         return (
@@ -34,9 +45,14 @@ export function RecurringChoreRows<T extends Row>({
               <span className="text-body font-medium">{next.title}</span>
               <span className="block text-footnote text-label-secondary mt-1">
                 {choreCadence(next)} ·{" "}
-                {takesTurns
-                  ? "Takes turns"
-                  : (next.assignee?.name ?? "Unassigned")}
+                {profileUnavailable
+                  ? profileSetupMessages[locale.startsWith("es") ? "es" : "en"]
+                      .profileTargetRefresh
+                  : takesTurns
+                    ? "Takes turns"
+                    : (next.subject?.name ??
+                      next.assignee?.name ??
+                      "Unassigned")}
               </span>
               <span className="block text-footnote text-label-secondary">
                 Next: {formatRelativeDueDate(next.due_date, now, locale)} ·{" "}

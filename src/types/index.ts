@@ -60,6 +60,8 @@ export interface Chore {
   due_date: string
   status: ChoreStatus
   recurrence_id?: string | null
+  /** True only for the canonical row that owns an active recurring series. */
+  is_template?: boolean
   /** Canonical template cadence for generated copies in the schedule overview. */
   recurrence_frequency?: ChoreFrequency | null
   recurrence_weekly_days?: number[]
@@ -77,6 +79,11 @@ export interface Chore {
   icon?: string | null
   routine?: string | null
   routine_order?: number | null
+  /** Durable current-occurrence routine identity; label grouping remains a legacy fallback. */
+  routine_stack_id?: string | null
+  /** Canonical household subject for the assignee, kept separate from assigned_to account ID. */
+  assigned_member_id?: string | null
+  member_subject_erased?: boolean
   /** Take turns (O-39): who is up after this one, for "Takes turns · next: Alex"; set by the chores page. */
   rotation_next_name?: string | null
 }

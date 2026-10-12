@@ -13,6 +13,10 @@ import { I18nProvider } from '@/i18n'
 const push = jest.fn()
 const refresh = jest.fn()
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh }) }))
+const releaseBeforeNavigation = jest.fn(async () => true)
+jest.mock('@/components/layout/pending-form-navigation', () => ({
+  usePendingFormNavigationController: () => ({ releaseBeforeNavigation }),
+}))
 
 import JoinFamilyPage from '../page'
 
@@ -25,6 +29,7 @@ beforeEach(() => {
   calls = []
   push.mockClear()
   refresh.mockClear()
+  releaseBeforeNavigation.mockClear()
   window.history.replaceState(null, '', '/join')
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -81,4 +86,35 @@ it('says nothing scary when a signed-out person opens a code link', async () => 
     '/login?redirect=%2Fjoin%3Fcode%3DK7QM-4XPD-2HNA',
   )
   expect(screen.queryByRole('button', { name: 'Sign in to join' })).toBeNull()
+})
+
+it('releases the pending guard before a signed-out code redirect', async () => {
+  let authReads = 0
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    calls.push({ url, body: init?.body as string | undefined })
+    if (url === '/api/auth/me') {
+      authReads += 1
+      return reply(
+        authReads === 1 ? { user: { id: 'k1' } } : { error: 'Unauthorized' },
+        authReads === 1 ? 200 : 401,
+      )
+    }
+    if (url.startsWith('/api/family/lookup')) return reply({ family: { name: 'The Smiths' } })
+    return reply({})
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  renderJoin()
+  await user.type(screen.getByLabelText('Family Code'), 'K7QM-4XPD-2HNA')
+  await user.click(screen.getByRole('button', { name: 'Check Code' }))
+  await screen.findByText('Ready to join as a child or teen.')
+  await user.click(screen.getByRole('button', { name: /Join Family/ }))
+
+  expect(releaseBeforeNavigation).toHaveBeenCalledTimes(1)
+  expect(releaseBeforeNavigation.mock.invocationCallOrder[0]).toBeLessThan(
+    push.mock.invocationCallOrder[0],
+  )
+  expect(push).toHaveBeenCalledWith('/login?redirect=%2Fjoin%3Fcode%3DK7QM-4XPD-2HNA')
+  expect((screen.getByRole('button', { name: /Joining/ }) as HTMLButtonElement).disabled).toBe(true)
 })

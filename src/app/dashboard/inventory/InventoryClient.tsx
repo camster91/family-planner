@@ -49,6 +49,7 @@ import { useOnline } from '@/components/ui/use-online'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 import { ScanFridgeDialog } from './ScanFridgeDialog'
+import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { cn } from '@/lib/utils'
 import { formatDateOnly, toDateOnlyLocal } from '@/lib/dates'
@@ -1083,13 +1084,23 @@ function ItemModal({
   const adjustKey = useChangeKey()
   const deleteKey = useChangeKey()
 
+  // Keep browser Back on this route while the item mutation is in flight.
+  // The local close path below also guards Escape/backdrop/close-button
+  // dismissal so an in-flight draft cannot be discarded.
+  usePendingFormNavigationController(saving)
+
+  const guardedClose = React.useCallback(() => {
+    if (saving) return
+    onClose()
+  }, [onClose, saving])
+
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') guardedClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [guardedClose])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1198,7 +1209,7 @@ function ItemModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40" onClick={guardedClose} />
       <div
         role="dialog"
         aria-modal="true"
@@ -1212,7 +1223,7 @@ function ItemModal({
           </h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={guardedClose}
             aria-label={copy('close')}
             className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-[var(--surface-fill)]"
           >

@@ -482,6 +482,14 @@
     "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
   },
   {
+    "relation": "RoutineStack.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "RoutineStack.created_by is nullable and uses ON DELETE SET NULL: preserve the historical authenticated creator during ordinary profile archive/link/unlink operations; only permanent account erasure clears this actor pointer. Never replace the creator or transfer earned credit."
+  },
+  {
     "relation": "ShoppingList.creator",
     "fields": [
       "created_by"

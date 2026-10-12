@@ -11,6 +11,10 @@ import { I18nProvider } from '@/i18n'
 const push = jest.fn()
 const refresh = jest.fn()
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh }) }))
+const releaseBeforeNavigation = jest.fn(async () => true)
+jest.mock('@/components/layout/pending-form-navigation', () => ({
+  usePendingFormNavigationController: () => ({ releaseBeforeNavigation }),
+}))
 
 import JoinFamilyPage from '../page'
 
@@ -23,6 +27,7 @@ const reply = (body: unknown, status = 200) => ({ ok: status < 400, status, json
 beforeEach(() => {
   joinCalls = 0
   push.mockClear()
+  releaseBeforeNavigation.mockClear()
   window.history.replaceState(null, '', '/join')
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -62,7 +67,12 @@ it('keeps Join Family disabled after a successful join until the redirect', asyn
 
   await act(async () => {
     jest.advanceTimersByTime(2500)
+    await Promise.resolve()
   })
+  expect(releaseBeforeNavigation).toHaveBeenCalledTimes(1)
+  expect(releaseBeforeNavigation.mock.invocationCallOrder[0]).toBeLessThan(
+    push.mock.invocationCallOrder[0],
+  )
   expect(push).toHaveBeenCalledWith('/dashboard')
   expect(joinCalls).toBe(1)
 })
@@ -76,4 +86,32 @@ it('a double tap on an email invite sends one join', async () => {
   await user.dblClick(join)
   await screen.findByText(/Joined The Smiths/)
   expect(joinCalls).toBe(1)
+})
+
+it('releases the pending guard before a signed-out email redirect', async () => {
+  window.history.replaceState(null, '', '/join?token=tok123')
+  const user = userEvent.setup()
+  let authReads = 0
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url === '/api/auth/me') {
+      authReads += 1
+      return reply(authReads === 1 ? { user: { id: 'k1' } } : {})
+    }
+    if (url.startsWith('/api/family/invites/preview'))
+      return reply({ familyName: 'The Smiths', role: 'teen', email: 'kid@example.com' })
+    if (url === '/api/family/join' && init?.method === 'POST') return reply({ familyName: 'The Smiths' })
+    return reply({})
+  }) as unknown as typeof fetch
+
+  renderJoin()
+  const join = await screen.findByRole('button', { name: /Join family/ })
+  await user.click(join)
+
+  expect(releaseBeforeNavigation).toHaveBeenCalledTimes(1)
+  expect(releaseBeforeNavigation.mock.invocationCallOrder[0]).toBeLessThan(
+    push.mock.invocationCallOrder[0],
+  )
+  expect(push).toHaveBeenCalledWith('/register?token=tok123')
+  expect((screen.getByRole('button', { name: /Joining/ }) as HTMLButtonElement).disabled).toBe(true)
 })

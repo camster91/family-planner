@@ -25,7 +25,14 @@ import { useLocalNow } from "@/components/ui/use-hydrated";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { cn } from "@/lib/utils";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
+import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { useChoreVerificationText } from "@/i18n/chore-verification";
+import { useProfileSetupText } from "@/i18n/profile-setup";
+import {
+  choreFormMessages,
+  type ChoreFormMessage,
+} from "@/i18n/chore-forms";
+import { useTranslation } from "@/i18n";
 import {
   formatDateOnly,
   formatRelativeDueDate,
@@ -39,8 +46,18 @@ import {
   compareChoreOrder,
 } from "@/lib/chore-paging";
 import type { Chore } from "@/types";
+import type { ChoreSubjectDTO } from "@/lib/chore-profile";
 
 type FilterMode = "today" | "week" | "all";
+
+function isActiveRepeatingChore(chore: Chore): boolean {
+  const frequency = chore.recurrence_frequency ?? chore.frequency;
+  return Boolean(
+    chore.recurrence_id &&
+      frequency &&
+      frequency !== "once",
+  );
+}
 
 // The open-chores heading names the range picked above, so a Week or All list
 // (chores due on many days) is not labelled "Today".
@@ -54,13 +71,39 @@ interface ChoresContentProps {
   chores: (Chore & {
     assignee: { name: string } | null;
     creator: { name: string } | null;
+    /** Safe profile subject returned by the chores API for email-free members. */
+    subject?: ChoreSubjectDTO;
     streak?: number;
   })[];
   familyMembers: { id: string; name: string; role: string; age?: number }[];
   currentUserId: string;
   userRole: string;
+  familyId?: string;
   /** `GET /api/chores` cursor for older verified chores not loaded yet (O-19), or null when all are here. */
   historyCursor?: string | null;
+}
+
+type BoardChore = ChoresContentProps["chores"][number];
+
+/**
+ * Keep the durable subject discriminator authoritative even when the profile
+ * is no longer readable. An absent `subject` means the profile is unavailable,
+ * not that the row can be treated as an unassigned account chore.
+ */
+function isProfileOnlyChore(
+  chore: Pick<
+    BoardChore,
+    "assigned_to" | "assigned_member_id" | "member_subject_erased"
+  >,
+) {
+  return (
+    chore.assigned_to === null &&
+    (chore.assigned_member_id != null || chore.member_subject_erased === true)
+  );
+}
+
+function subjectName(chore: Pick<BoardChore, "assignee" | "subject">) {
+  return chore.subject?.name ?? chore.assignee?.name ?? null;
 }
 
 /** "Morning, step 2" for a chore in a picture routine (#272), else null. */
@@ -151,6 +194,7 @@ export default function ChoresContent({
   familyMembers,
   currentUserId,
   userRole,
+  familyId,
   historyCursor = null,
 }: ChoresContentProps) {
   const [view, setView] = React.useState<"chores" | "routines">("chores");
@@ -159,6 +203,13 @@ export default function ChoresContent({
   const [doneCollapsed, setDoneCollapsed] = React.useState(true);
   const { addToast } = useToast();
   const showUndo = useUndoToast();
+  const { t } = useTranslation();
+  const profileText = useProfileSetupText();
+  const message = React.useCallback(
+    (key: ChoreFormMessage, params?: Record<string, string | number>) =>
+      t(key, params, choreFormMessages),
+    [t],
+  );
   // Points & streaks (#248). When off, the page's server component already
   // omits each chore's points and streak; this only decides what to draw.
   const gamification = useFeatureEnabled("gamification");
@@ -178,11 +229,18 @@ export default function ChoresContent({
   const verificationCancelRef = React.useRef<HTMLButtonElement>(null);
   const verificationReasonRef = React.useRef<HTMLTextAreaElement>(null);
   const verificationRetryRef = React.useRef<HTMLButtonElement>(null);
-  const verificationFallbackRef = React.useRef<HTMLButtonElement>(null);
+  const verificationFallbackRef = React.useRef<HTMLButtonElement | null>(null);
+  const deleteFallbackRef = React.useRef<HTMLButtonElement | null>(null);
+  const deletePendingRef = React.useRef<string | null>(null);
+  const deleteCancelRef = React.useRef<HTMLButtonElement>(null);
+  const deleteRetryRef = React.useRef<HTMLButtonElement>(null);
+  const deleteRefreshRef = React.useRef<HTMLButtonElement>(null);
+  const deleteFallbackConsumedRef = React.useRef(0);
   const verificationFallbackConsumedRef = React.useRef(0);
   const verificationFallbackCancelledRef = React.useRef(0);
   const [verificationFallbackRequest, requestVerificationFallback] =
     React.useState(0);
+  const [deleteFallbackRequest, requestDeleteFallback] = React.useState(0);
   const [verificationBusyIds, setVerificationBusyIds] = React.useState(
     new Set<string>(),
   );
@@ -191,6 +249,17 @@ export default function ChoresContent({
     notes: string;
     error: string | null;
   } | null>(null);
+  const [deleteDialog, setDeleteDialog] = React.useState<{
+    choreId: string;
+    error: string | null;
+    notFound: boolean;
+    pending: boolean;
+  } | null>(null);
+  // Keep the destructive confirmation on the current route while the DELETE
+  // or its explicit recovery readback is pending. The shared controller owns
+  // the browser Back sentinel and prevents a stale page transition from
+  // unmounting this dialog before the request settles.
+  usePendingFormNavigationController(Boolean(deleteDialog?.pending));
 
   const scheduleVerificationFallback = React.useCallback(() => {
     window.setTimeout(() => {
@@ -257,6 +326,41 @@ export default function ChoresContent({
       cancelled = true;
     };
   }, [verificationBusyIds.size, verificationDialog?.error]);
+
+  // A DELETE failure leaves the target and its confirmation mounted. Move
+  // focus to the explicit recovery action after the request latch clears.
+  React.useEffect(() => {
+    if (!deleteDialog?.error || deleteDialog.pending) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      (deleteDialog.notFound ? deleteRefreshRef : deleteRetryRef).current?.focus();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [deleteDialog?.error, deleteDialog?.notFound, deleteDialog?.pending]);
+
+  // The action sheet unmounts its opener before the confirmation dialog opens.
+  // After a close or successful removal, return focus to the stable filter
+  // control rather than leaving keyboard users on document.body.
+  React.useEffect(() => {
+    if (
+      !deleteFallbackRequest ||
+      deleteDialog ||
+      deleteFallbackRequest <= deleteFallbackConsumedRef.current
+    )
+      return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      deleteFallbackRef.current?.focus();
+      deleteFallbackConsumedRef.current = deleteFallbackRequest;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [deleteDialog, deleteFallbackRequest]);
 
   React.useEffect(() => {
     setLocalChores(chores);
@@ -586,30 +690,134 @@ export default function ChoresContent({
     [addToast, familyMembers],
   );
 
-  const handleDeleteChore = React.useCallback(
+  const openDeleteDialog = React.useCallback((choreId: string) => {
+    if (deletePendingRef.current) return;
+    setDeleteDialog({ choreId, error: null, notFound: false, pending: false });
+  }, []);
+
+  const closeDeleteDialog = React.useCallback(() => {
+    if (deletePendingRef.current) return;
+    setDeleteDialog(null);
+    requestDeleteFallback((request) => request + 1);
+  }, []);
+
+  const submitDelete = React.useCallback(
     async (choreId: string) => {
-      if (!confirm("Delete this chore?")) return;
+      if (deletePendingRef.current === choreId) return;
+      if (!localChores.some((chore) => chore.id === choreId)) return;
+
+      // React state is asynchronous; this ref closes the same-tick keyboard
+      // and touch race before a second DELETE can be sent.
+      deletePendingRef.current = choreId;
+      setDeleteDialog((current) =>
+        current?.choreId === choreId
+          ? { ...current, error: null, notFound: false, pending: true }
+          : current,
+      );
       try {
         const response = await fetch("/api/chores", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ choreId }),
         });
+        const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || "Failed to delete chore");
+          const mapped =
+            response.status === 404
+              ? message("deleteOccurrenceNotFound")
+              : data.code === "RECURRING_SERIES_REQUIRES_STOP"
+                ? userRole === "parent"
+                  ? message("recurringSeriesRequiresStop")
+                  : message("recurringSeriesParentOnly")
+                : data.code === "RECURRING_ANCHOR_RETAINS_HISTORY"
+                  ? message("recurringAnchorRetainsHistory")
+                  : message("deleteOccurrenceRefused");
+          setDeleteDialog((current) =>
+            current?.choreId === choreId
+              ? {
+                  ...current,
+                  error: mapped,
+                  notFound: response.status === 404,
+                  pending: false,
+                }
+              : current,
+          );
+          return;
         }
         setLocalChores((prev) => prev.filter((c) => c.id !== choreId));
-        addToast({ type: "success", title: "Chore deleted" });
-      } catch (error) {
-        addToast({
-          type: "error",
-          title: "Failed to delete",
-          message: error instanceof Error ? error.message : "Please try again.",
-        });
+        setDeleteDialog(null);
+        requestDeleteFallback((request) => request + 1);
+        addToast({ type: "success", title: message("deleteOccurrenceSuccess") });
+      } catch {
+        setDeleteDialog((current) =>
+          current?.choreId === choreId
+            ? {
+                ...current,
+                error: message("deleteOccurrenceUnknown"),
+                notFound: false,
+                pending: false,
+              }
+            : current,
+        );
+      } finally {
+        deletePendingRef.current = null;
       }
     },
-    [addToast],
+    [addToast, localChores, message, userRole],
+  );
+
+  const refreshAfterDeleteMiss = React.useCallback(
+    async (choreId: string) => {
+      if (deletePendingRef.current === choreId) return;
+      deletePendingRef.current = choreId;
+      setDeleteDialog((current) =>
+        current?.choreId === choreId
+          ? { ...current, error: null, pending: true }
+          : current,
+      );
+      try {
+        const response = await fetch(
+          `/api/chores?id=${encodeURIComponent(choreId)}`,
+          { cache: "no-store" },
+        );
+        if (response.status === 404) {
+          setLocalChores((prev) => prev.filter((c) => c.id !== choreId));
+          setDeleteDialog(null);
+          requestDeleteFallback((request) => request + 1);
+          addToast({
+            type: "info",
+            title: message("deleteOccurrenceGone"),
+          });
+          return;
+        }
+        setDeleteDialog((current) =>
+          current?.choreId === choreId
+            ? {
+                ...current,
+                error: response.ok
+                  ? message("deleteOccurrenceStillExists")
+                  : message("deleteOccurrenceRefreshFailed"),
+                notFound: false,
+                pending: false,
+              }
+            : current,
+        );
+      } catch {
+        setDeleteDialog((current) =>
+          current?.choreId === choreId
+            ? {
+                ...current,
+                error: message("deleteOccurrenceRefreshFailed"),
+                notFound: false,
+                pending: false,
+              }
+            : current,
+        );
+      } finally {
+        deletePendingRef.current = null;
+      }
+    },
+    [addToast, message],
   );
 
   // "Today" and "Week" are the viewer's local days, unknown on the server
@@ -636,16 +844,14 @@ export default function ChoresContent({
     .filter((c) => c.status === "completed" || c.status === "verified")
     .sort((a, b) => compareChoreOrder(b, a));
 
-  const renderOpenChore = (chore: (typeof todayChores)[number], i: number) =>
-    now && (
-      // A visible "⋯" opens the actions (they used to be long-press
-      // only), and only the check itself completes the chore, so a
-      // parent tapping the name to edit it doesn't tick it off.
-      <LongPressRow
-        key={chore.id}
-        itemName={`“${chore.title}”`}
-        showMenuButton
-        actions={[
+  const renderOpenChore = (chore: (typeof todayChores)[number], i: number) => {
+    if (!now) return null;
+    const profileOnly = isProfileOnlyChore(chore);
+    const profileUnavailable = profileOnly && chore.subject?.kind !== "profile";
+    const ownerLabel = profileUnavailable
+      ? profileText("profileTargetRefresh")
+      : subjectName(chore);
+    const actions = [
           chore.recurrence_id
             ? {
                 // Moving an occurrence onto an already-expanded date violates
@@ -664,6 +870,17 @@ export default function ChoresContent({
             label: "Edit",
             onClick: () => router.push(`/dashboard/chores/edit?id=${chore.id}`),
           },
+          ...(userRole === "parent" && isActiveRepeatingChore(chore)
+            ? [
+                {
+                  label: message("stopRepeating"),
+                  onClick: () =>
+                    router.push(
+                      `/dashboard/chores/edit?id=${encodeURIComponent(chore.id)}&stop=1`,
+                    ),
+                },
+              ]
+            : []),
           {
             label: "Reassign",
             // The action sheet hands focus back to its trigger on a
@@ -677,19 +894,24 @@ export default function ChoresContent({
             onClick: () => handleCompleteChore(chore.id),
           },
           {
-            label: "Delete",
-            onClick: () => handleDeleteChore(chore.id),
+            label: message("deleteOccurrence"),
+            onClick: () => openDeleteDialog(chore.id),
             destructive: true,
           },
-        ]}
-      >
-        <CheckboxRow
+        ] as const;
+    // Profile-only chores are readable on the parent board, but protocol 2 is
+    // intentionally off. Do not expose legacy controls that can only return
+    // MEMBER_PROTOCOL_UNAVAILABLE; paired-device actions arrive with that
+    // protocol in a later vertical slice.
+    const row = (
+      <CheckboxRow
           checked={false}
+          disabled={profileOnly}
           toggleArea="control"
           onChange={() => handleCompleteChore(chore.id)}
           title={chore.title}
           subtitle={[
-            chore.assignee?.name,
+            ownerLabel,
             formatRelativeDueDate(chore.due_date, now, displayLocale),
             routineLabel(chore),
             chore.rotation_next_name
@@ -729,8 +951,22 @@ export default function ChoresContent({
           }
           className={cn("pr-3", i === todayChores.length - 1 && "border-b-0")}
         />
+    );
+    if (profileOnly) return <div key={chore.id}>{row}</div>;
+    // A visible "⋯" opens the actions (they used to be long-press only), and
+    // only the check itself completes the chore, so tapping the name to edit
+    // it does not tick it off.
+    return (
+      <LongPressRow
+        key={chore.id}
+        itemName={`“${chore.title}”`}
+        showMenuButton
+        actions={[...actions]}
+      >
+        {row}
       </LongPressRow>
     );
+  };
 
   const SegmentedControl = ({
     value,
@@ -744,7 +980,14 @@ export default function ChoresContent({
         <button
           key={opt}
           type="button"
-          ref={opt === "today" ? verificationFallbackRef : undefined}
+          ref={
+            opt === "today"
+              ? (node) => {
+                  verificationFallbackRef.current = node;
+                  deleteFallbackRef.current = node;
+                }
+              : undefined
+          }
           onClick={() => onChange(opt)}
           aria-pressed={value === opt}
           className={cn(
@@ -822,87 +1065,95 @@ export default function ChoresContent({
               <section>
                 <p className="section-header">To check</p>
                 <div className="list-inset">
-                  {pendingVerification.map((chore, i) => (
-                    <div
-                      key={chore.id}
-                      className={cn(
-                        "px-4 py-3 flex items-center gap-3",
-                        "border-b border-[var(--surface-separator)] last:border-b-0",
-                      )}
-                    >
-                      {chore.photo_url && (
-                        <div className="w-10 h-10 rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-fill)] shrink-0">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={chore.photo_url}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-body text-label-primary [overflow-wrap:anywhere]">
-                          {chore.title}
-                        </p>
-                        <p className="text-footnote text-label-secondary">
-                          {[
-                            chore.assignee?.name
-                              ? `Assigned to ${chore.assignee.name}`
-                              : null,
-                            routineLabel(chore),
-                            verificationText("waitingForCheck", undefined),
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      </div>
-                      {(() => {
-                        const verificationBusy = verificationBusyIds.has(
-                          chore.id,
-                        );
-                        const verificationDialogOpen =
-                          verificationDialog?.choreId === chore.id;
-                        const actionsDisabled =
-                          verificationBusy || verificationDialogOpen;
-                        return (
-                          <div
-                            className="flex gap-2 shrink-0"
-                            aria-busy={verificationBusy || undefined}
-                          >
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleCheckChore(chore.id, "approve")
-                              }
-                              aria-label={verificationText("verifyAriaLabel", {
-                                title: chore.title,
-                              })}
-                              disabled={actionsDisabled}
-                              className="btn-filled text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
-                            >
-                              {verificationBusy
-                                ? verificationText("verifying", undefined)
-                                : verificationText("verify", undefined)}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleCheckChore(chore.id, "reject")
-                              }
-                              aria-label={verificationText(
-                                "sendBackAriaLabel",
-                                { title: chore.title },
-                              )}
-                              disabled={actionsDisabled}
-                              className="btn-destructive text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
-                            >
-                              {verificationText("sendBack", undefined)}
-                            </button>
+                  {pendingVerification.map((chore, i) => {
+                    const profileUnavailable =
+                      isProfileOnlyChore(chore) &&
+                      chore.subject?.kind !== "profile";
+                    const ownerLabel = profileUnavailable
+                      ? profileText("profileTargetRefresh")
+                      : subjectName(chore)
+                        ? `Assigned to ${subjectName(chore)}`
+                        : null;
+                    return (
+                      <div
+                        key={chore.id}
+                        className={cn(
+                          "px-4 py-3 flex items-center gap-3",
+                          "border-b border-[var(--surface-separator)] last:border-b-0",
+                        )}
+                      >
+                        {chore.photo_url && (
+                          <div className="w-10 h-10 rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-fill)] shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={chore.photo_url}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
                           </div>
-                        );
-                      })()}
-                    </div>
-                  ))}
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-body text-label-primary [overflow-wrap:anywhere]">
+                            {chore.title}
+                          </p>
+                          <p className="text-footnote text-label-secondary">
+                            {[
+                              ownerLabel,
+                              routineLabel(chore),
+                              verificationText("waitingForCheck", undefined),
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        </div>
+                        {!profileUnavailable && (() => {
+                          const verificationBusy = verificationBusyIds.has(
+                            chore.id,
+                          );
+                          const verificationDialogOpen =
+                            verificationDialog?.choreId === chore.id;
+                          const actionsDisabled =
+                            verificationBusy || verificationDialogOpen;
+                          return (
+                            <div
+                              className="flex gap-2 shrink-0"
+                              aria-busy={verificationBusy || undefined}
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCheckChore(chore.id, "approve")
+                                }
+                                aria-label={verificationText("verifyAriaLabel", {
+                                  title: chore.title,
+                                })}
+                                disabled={actionsDisabled}
+                                className="btn-filled text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
+                              >
+                                {verificationBusy
+                                  ? verificationText("verifying", undefined)
+                                  : verificationText("verify", undefined)}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCheckChore(chore.id, "reject")
+                                }
+                                aria-label={verificationText(
+                                  "sendBackAriaLabel",
+                                  { title: chore.title },
+                                )}
+                                disabled={actionsDisabled}
+                                className="btn-destructive text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
+                              >
+                                {verificationText("sendBack", undefined)}
+                              </button>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             );
@@ -920,6 +1171,7 @@ export default function ChoresContent({
             chores={filtered}
             userRole={userRole}
             currentUserId={currentUserId}
+            familyId={familyId}
             locale={displayLocale}
             collapseRepeats={filter !== "today"}
             onComplete={handleCompleteChore}
@@ -1041,6 +1293,62 @@ export default function ChoresContent({
           }}
           onCancel={() => setReassignTarget(null)}
         />
+      )}
+
+      {deleteDialog && (
+        <Dialog
+          open
+          role="alertdialog"
+          onClose={deleteDialog.pending ? undefined : closeDeleteDialog}
+          closeLabel={message("deleteOccurrenceCancel")}
+          title={message("deleteOccurrenceConfirm")}
+          description={message("deleteOccurrenceDescription")}
+          initialFocusRef={deleteCancelRef}
+          testId="chore-delete-dialog"
+        >
+          <div aria-busy={deleteDialog.pending || undefined}>
+            {deleteDialog.error && (
+              <p
+                role="alert"
+                className="mb-4 rounded-lg bg-[var(--danger-fill)] px-3 py-2 text-footnote text-[var(--danger-text)]"
+              >
+                {deleteDialog.error}
+              </p>
+            )}
+            <div className="flex gap-3">
+              <button
+                ref={deleteCancelRef}
+                type="button"
+                onClick={closeDeleteDialog}
+                disabled={deleteDialog.pending}
+                className="flex-1 min-h-[44px] rounded-xl px-3 py-2.5 text-body font-medium text-label-secondary active:bg-[var(--surface-fill-secondary)] disabled:opacity-40"
+              >
+                {message("deleteOccurrenceCancel")}
+              </button>
+              <button
+                ref={
+                  deleteDialog.notFound ? deleteRefreshRef : deleteRetryRef
+                }
+                type="button"
+                onClick={() =>
+                  deleteDialog.notFound
+                    ? void refreshAfterDeleteMiss(deleteDialog.choreId)
+                    : void submitDelete(deleteDialog.choreId)
+                }
+                disabled={deleteDialog.pending}
+                className="btn-destructive flex-1 min-h-[44px] px-3 py-2.5 text-body font-medium disabled:opacity-40"
+              >
+                {deleteDialog.pending
+                  ? message("deleteOccurrencePending")
+                  : deleteDialog.notFound
+                    ? message("deleteOccurrenceRefresh")
+                    : deleteDialog.error
+                      ? message("deleteOccurrenceTryAgain")
+                      : message("deleteOccurrenceButton")}
+              </button>
+            </div>
+          </div>
+        </Dialog>
       )}
 
       {verificationDialog && (

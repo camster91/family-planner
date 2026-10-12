@@ -1,18 +1,18 @@
 'use client'
 
 import * as React from 'react'
-import { Plus, MapPin, Home, Briefcase, GraduationCap, Trash2 } from 'lucide-react'
+import { Plus, MapPin, Home, Briefcase, GraduationCap, Trash2, Pencil } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
 import { FeatureGate } from '@/components/ui/feature-gate'
-import { Avatar } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/ui/empty-state'
-import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
-import { MapPin as MapPinIcon } from 'lucide-react'
+import { InsetList, SectionHeader } from '@/components/ui/list-row'
 import { useToast } from '@/components/ui/toast'
 import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
 import { Dialog } from '@/components/ui/dialog'
+import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 import { useTranslation } from '@/i18n'
 import { useLocationsText } from '@/i18n/locations'
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 
 interface Location {
   id: string
@@ -22,6 +22,26 @@ interface Location {
   user_id: string
   user_name?: string
   user_avatar?: string | null
+}
+
+function isLocation(value: unknown): value is Location {
+  if (!value || typeof value !== 'object') return false
+  const location = value as Record<string, unknown>
+  return (
+    typeof location.id === 'string' &&
+    typeof location.label === 'string' &&
+    typeof location.user_id === 'string' &&
+    (location.address === undefined || location.address === null || typeof location.address === 'string') &&
+    (location.is_primary === undefined || typeof location.is_primary === 'boolean') &&
+    (location.user_name === undefined || typeof location.user_name === 'string') &&
+    (location.user_avatar === undefined || location.user_avatar === null || typeof location.user_avatar === 'string')
+  )
+}
+
+function parseLocationsResponse(value: unknown): Location[] | null {
+  if (!value || typeof value !== 'object') return null
+  const locations = (value as { locations?: unknown }).locations
+  return Array.isArray(locations) && locations.every(isLocation) ? locations : null
 }
 
 const ICON_FOR_LABEL: Record<string, any> = {
@@ -41,19 +61,27 @@ export default function LocationsPage() {
 function LocationsPageInner() {
   const [locations, setLocations] = React.useState<Location[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [adding, setAdding] = React.useState(false)
-  const [newLabel, setNewLabel] = React.useState('Home')
-  const [newAddress, setNewAddress] = React.useState('')
-  const [saving, setSaving] = React.useState(false)
+  const [loadError, setLoadError] = React.useState(false)
+  const [editorTarget, setEditorTarget] = React.useState<Location | 'new' | null>(null)
+  const [editorLabel, setEditorLabel] = React.useState('Home')
+  const [editorAddress, setEditorAddress] = React.useState('')
+  const [editorSaving, setEditorSaving] = React.useState(false)
+  const [editorError, setEditorError] = React.useState<'failed' | 'network' | null>(null)
   const [removeTarget, setRemoveTarget] = React.useState<Location | null>(null)
   const [removing, setRemoving] = React.useState(false)
   const [removeError, setRemoveError] = React.useState<'failed' | 'network' | null>(null)
   const addButtonRef = React.useRef<HTMLButtonElement>(null)
-  const addLabelRef = React.useRef<HTMLInputElement>(null)
+  const editorLabelRef = React.useRef<HTMLInputElement>(null)
   const cancelRemoveRef = React.useRef<HTMLButtonElement>(null)
   const removingRef = React.useRef(false)
+  const focusIntentRef = React.useRef(0)
+  const loadGenerationRef = React.useRef(0)
+  const createRequestRef = React.useRef<{ payload: string; key: string } | null>(null)
   const { t } = useTranslation()
   const locationText = useLocationsText()
+  const locationTextRef = React.useRef(locationText)
+  locationTextRef.current = locationText
+  usePendingFormNavigationController(editorSaving || removing)
 
   // KidHome pattern: a refused or failed request says so in a toast instead
   // of doing nothing (or leaving an unhandled rejection when offline).
@@ -66,19 +94,32 @@ function LocationsPageInner() {
   )
 
   const load = React.useCallback(async () => {
+    const generation = ++loadGenerationRef.current
     setLoading(true)
     try {
       const res = await fetch('/api/locations', { cache: 'no-store' })
       if (res.ok) {
-        const data = await res.json()
-        setLocations(data.locations || [])
+        const data = await res.json().catch(() => null)
+        const nextLocations = parseLocationsResponse(data)
+        if (!nextLocations) {
+          if (generation !== loadGenerationRef.current) return
+          setLoadError(true)
+          return
+        }
+        if (generation !== loadGenerationRef.current) return
+        setLocations(nextLocations)
+        setLoadError(false)
       } else {
-        await failed("Couldn't load locations", res)
+        if (generation !== loadGenerationRef.current) return
+        setLoadError(true)
+        await failed(locationTextRef.current('loadToastTitle'), res)
       }
     } catch {
-      await failed("Couldn't load locations")
+      if (generation !== loadGenerationRef.current) return
+      setLoadError(true)
+      await failed(locationTextRef.current('loadToastTitle'))
     } finally {
-      setLoading(false)
+      if (generation === loadGenerationRef.current) setLoading(false)
     }
   }, [failed])
 
@@ -86,33 +127,74 @@ function LocationsPageInner() {
     load()
   }, [load])
 
-  async function add(e: React.FormEvent) {
+  const openEditor = (location?: Location) => {
+    // Each opened editor is a new intent. A failed create keeps its key in
+    // createRequestRef so an unchanged retry replays the same server receipt.
+    focusIntentRef.current += 1
+    createRequestRef.current = null
+    setEditorTarget(location ?? 'new')
+    setEditorLabel(location?.label ?? 'Home')
+    setEditorAddress(location?.address ?? '')
+    setEditorError(null)
+  }
+
+  const closeEditor = () => {
+    if (editorSaving) return
+    createRequestRef.current = null
+    setEditorTarget(null)
+    setEditorError(null)
+  }
+
+  async function saveEditor(e: React.FormEvent) {
     e.preventDefault()
-    if (!newLabel.trim()) return
-    setSaving(true)
+    const label = editorLabel.trim()
+    if (!label || !editorTarget || editorSaving) return
+    setEditorSaving(true)
+    setEditorError(null)
+    const expectedId = editorTarget === 'new' ? null : editorTarget.id
+    const path = expectedId ? `/api/locations/${encodeURIComponent(expectedId)}` : '/api/locations'
+    const body = { label, address: editorAddress.trim() || null }
+    let idempotencyKey: string | null = null
+    if (!expectedId) {
+      const payload = JSON.stringify(body)
+      const previous = createRequestRef.current
+      idempotencyKey = previous?.payload === payload ? previous.key : newIdempotencyKey()
+      createRequestRef.current = { payload, key: idempotencyKey }
+    }
     try {
-      const res = await fetch('/api/locations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: newLabel.trim(), address: newAddress.trim() || null }),
+      const res = await fetch(path, {
+        method: expectedId ? 'PATCH' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idempotencyKey ? { [IDEMPOTENCY_HEADER]: idempotencyKey } : {}),
+        },
+        body: JSON.stringify(body),
       })
       if (res.ok) {
-        setNewLabel('Home')
-        setNewAddress('')
-        setAdding(false)
-        load()
+        const data = await res.json().catch(() => null)
+        if (!data || typeof data.location?.id !== 'string' || (expectedId && data.location.id !== expectedId)) {
+          setEditorError('failed')
+          await failed(locationText('saveToastTitle'))
+          return
+        }
+        createRequestRef.current = null
+        setEditorTarget(null)
+        void load()
       } else {
-        await failed("Couldn't add the location", res)
+        setEditorError('failed')
+        await failed(locationText('saveToastTitle'), res)
       }
     } catch {
-      await failed("Couldn't add the location")
+      setEditorError('network')
+      await failed(locationText('saveToastTitle'))
     } finally {
-      setSaving(false)
+      setEditorSaving(false)
     }
   }
 
   const openRemoveConfirmation = (location: Location) => {
     if (removingRef.current) return
+    focusIntentRef.current += 1
     setRemoveError(null)
     setRemoveTarget(location)
   }
@@ -126,6 +208,7 @@ function LocationsPageInner() {
   const remove = React.useCallback(async () => {
     const location = removeTarget
     if (!location || removingRef.current) return
+    const focusIntent = focusIntentRef.current
     removingRef.current = true
     setRemoving(true)
     setRemoveError(null)
@@ -136,8 +219,17 @@ function LocationsPageInner() {
         return
       }
       setRemoveTarget(null)
-      window.requestAnimationFrame(() => (addButtonRef.current ?? addLabelRef.current)?.focus())
-      void load()
+      // Refresh in the background so mutation busy state ends with DELETE.
+      // The dialog's unmount cleanup restores its opener; scheduling focus
+      // before this read can let a stale trigger restoration win on slower
+      // desktops.
+      void load().then(() => {
+        window.requestAnimationFrame(() => {
+          if (focusIntent !== focusIntentRef.current) return
+          const focusTarget = addButtonRef.current ?? editorLabelRef.current
+          focusTarget?.focus()
+        })
+      })
     } catch {
       setRemoveError('network')
     } finally {
@@ -152,72 +244,40 @@ function LocationsPageInner() {
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       <LargeHeader
-        greeting="Family"
-        title="Locations"
-        subtitle="Save the places your family goes — home, school, work."
+        greeting={locationText('greeting')}
+        title={locationText('pageTitle')}
+        subtitle={locationText('pageSubtitle')}
         trailing={
-          !adding ? (
-            <button
-              type="button"
-              onClick={() => setAdding(true)}
-              className="btn-tinted min-h-[44px]"
-              ref={addButtonRef}
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add</span>
-            </button>
-          ) : null
+          <button
+            type="button"
+            onClick={() => openEditor()}
+            className="btn-tinted min-h-[44px] min-w-[44px]"
+            ref={addButtonRef}
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            <span>{locationText('add')}</span>
+          </button>
         }
       />
 
-      {adding && (
-        <form onSubmit={add} className="card-apple p-4 space-y-3 animate-spring-up">
-          <div className="flex items-center gap-2">
-            <div className="glyph bg-tint-calendar">
-              <MapPinIcon className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-headline">New location</span>
-          </div>
+      {loadError && !loading && (
+        <div data-testid="locations-load-error" role="alert" className="card-apple flex flex-wrap items-center justify-between gap-3 p-4">
           <div>
-            <label htmlFor="location-label" className="label-apple">Label</label>
-            <input
-              id="location-label"
-              type="text"
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-              placeholder="Home, School, Work…"
-              className="input-apple"
-              ref={addLabelRef}
-              autoFocus
-            />
+            <p className="text-body font-semibold text-label-primary">{locationText('loadErrorTitle')}</p>
+            <p className="text-footnote text-label-secondary">{locationText('loadErrorDescription')}</p>
           </div>
-          <div>
-            <label htmlFor="location-address" className="label-apple">Address</label>
-            <input
-              id="location-address"
-              type="text"
-              value={newAddress}
-              onChange={(e) => setNewAddress(e.target.value)}
-              placeholder="123 Main St"
-              className="input-apple"
-            />
-          </div>
-          <div className="flex gap-2 justify-end">
-            <button
-              type="button"
-              onClick={() => { setAdding(false); setNewLabel('Home'); setNewAddress('') }}
-              className="btn-plain"
-            >
-              Cancel
-            </button>
-            <button type="submit" disabled={saving} className="btn-filled">
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </form>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="btn-tinted min-h-[44px] min-w-[44px]"
+          >
+            {loading ? locationText('refreshing') : locationText('retry')}
+          </button>
+        </div>
       )}
 
-      {loading ? (
+      {loading && locations.length === 0 ? (
         <div className="list-inset">
           {[1, 2, 3].map((i) => (
             <div key={i} className="row-apple border-b border-[var(--surface-separator)] last:border-b-0">
@@ -229,31 +289,43 @@ function LocationsPageInner() {
             </div>
           ))}
         </div>
-      ) : locations.length === 0 ? (
+      ) : !loadError && locations.length === 0 ? (
         <EmptyState
           icon={MapPin}
           glyphColor="calendar"
-          title="No locations yet"
-          description="Add Home, School, Work, or any place the family goes regularly."
+          title={locationText('emptyTitle')}
+          description={locationText('emptyDescription')}
         />
       ) : (
         <>
           {primary.length > 0 && (
             <section>
-              <SectionHeader>Home</SectionHeader>
+              <SectionHeader>{locationText('primarySection')}</SectionHeader>
               <InsetList>
                 {primary.map((l, i) => (
-                  <LocationRow key={l.id} location={l} onRemove={openRemoveConfirmation} last={i === primary.length - 1} />
+                  <LocationRow
+                    key={l.id}
+                    location={l}
+                    onEdit={openEditor}
+                    onRemove={openRemoveConfirmation}
+                    last={i === primary.length - 1}
+                  />
                 ))}
               </InsetList>
             </section>
           )}
           {others.length > 0 && (
             <section>
-              <SectionHeader>Other places</SectionHeader>
+              <SectionHeader>{locationText('otherSection')}</SectionHeader>
               <InsetList>
                 {others.map((l, i) => (
-                  <LocationRow key={l.id} location={l} onRemove={openRemoveConfirmation} last={i === others.length - 1} />
+                  <LocationRow
+                    key={l.id}
+                    location={l}
+                    onEdit={openEditor}
+                    onRemove={openRemoveConfirmation}
+                    last={i === others.length - 1}
+                  />
                 ))}
               </InsetList>
             </section>
@@ -306,11 +378,97 @@ function LocationsPageInner() {
           </div>
         </Dialog>
       )}
+
+      {editorTarget && (
+        <Dialog
+          open
+          variant="form"
+          testId="location-editor-dialog"
+          title={locationText(editorTarget === 'new' ? 'newTitle' : 'editTitle')}
+          description={locationText('formDescription')}
+          initialFocusRef={editorLabelRef}
+          onClose={editorSaving ? undefined : closeEditor}
+          closeLabel={locationText('closeForm')}
+        >
+          <form onSubmit={saveEditor} className="space-y-4" aria-busy={editorSaving}>
+            <div>
+              <label htmlFor="location-label" className="label-apple">
+                {locationText('label')}
+              </label>
+              <input
+                id="location-label"
+                ref={editorLabelRef}
+                type="text"
+                value={editorLabel}
+                onChange={(event) => setEditorLabel(event.target.value)}
+                placeholder={locationText('labelPlaceholder')}
+                className="input-apple min-h-[44px]"
+                disabled={editorSaving}
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="location-address" className="label-apple">
+                {locationText('address')}
+              </label>
+              <input
+                id="location-address"
+                type="text"
+                value={editorAddress}
+                onChange={(event) => setEditorAddress(event.target.value)}
+                placeholder={locationText('addressPlaceholder')}
+                className="input-apple min-h-[44px]"
+                disabled={editorSaving}
+              />
+            </div>
+            {editorError && (
+              <p role="alert" className="text-sm text-danger-text">
+                {editorError === 'network'
+                  ? locationText('saveNetworkError')
+                  : locationText('saveFailed')}
+              </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeEditor}
+                disabled={editorSaving}
+                className="min-h-[44px] min-w-[44px] rounded-lg border border-input px-4 text-foreground disabled:opacity-60"
+              >
+                {locationText('cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={editorSaving || !editorLabel.trim()}
+                className="btn-filled min-h-[44px] min-w-[44px] disabled:opacity-60"
+              >
+                {editorSaving
+                  ? locationText('saving')
+                  : editorError
+                    ? locationText('retrySave')
+                    : editorTarget === 'new'
+                      ? locationText('save')
+                      : locationText('saveChanges')}
+              </button>
+            </div>
+          </form>
+        </Dialog>
+      )}
     </div>
   )
 }
 
-function LocationRow({ location, onRemove, last }: { location: Location; onRemove: (location: Location) => void; last: boolean }) {
+function LocationRow({
+  location,
+  onEdit,
+  onRemove,
+  last,
+}: {
+  location: Location
+  onEdit: (location: Location) => void
+  onRemove: (location: Location) => void
+  last: boolean
+}) {
   const Icon = ICON_FOR_LABEL[location.label] || MapPin
   const locationText = useLocationsText()
   return (
@@ -324,14 +482,24 @@ function LocationRow({ location, onRemove, last }: { location: Location; onRemov
           <div className="text-footnote text-label-secondary truncate">{location.address}</div>
         )}
       </div>
-      <button
-        type="button"
-        onClick={() => onRemove(location)}
-        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-label-tertiary active:text-[var(--danger-text)] transition-colors"
-        aria-label={locationText('removeButton', { label: location.label })}
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onEdit(location)}
+          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-label-tertiary transition-colors"
+          aria-label={locationText('editButton', { label: location.label })}
+        >
+          <Pencil className="w-4 h-4" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onRemove(location)}
+          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-label-tertiary active:text-[var(--danger-text)] transition-colors"
+          aria-label={locationText('removeButton', { label: location.label })}
+        >
+          <Trash2 className="w-4 h-4" aria-hidden="true" />
+        </button>
+      </div>
     </div>
   )
 }

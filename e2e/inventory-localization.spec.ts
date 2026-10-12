@@ -1,5 +1,6 @@
 /** #441 exact-route inventory proof; synthetic provider/server mode is a separate required QA job. */
 import { test, expect, browserFetch, browserSend } from "./support/test";
+import type { Page } from "@playwright/test";
 import { authFile } from "./support/env";
 import { FIXTURE_PASSWORD } from "../src/lib/fixtures/dataset";
 import { FIXTURE_EMAILS } from "../src/lib/fixtures/dataset";
@@ -8,6 +9,12 @@ import {
   IDEMPOTENCY_HEADER,
   IDEMPOTENCY_REPLAYED_HEADER,
 } from "../src/lib/idempotency-key";
+import { messages } from "../src/i18n";
+import {
+  navigationMessages,
+  type NavigationMessage,
+} from "../src/i18n/navigation";
+import { pseudolocalizeTemplate } from "../src/i18n/pseudo";
 import {
   A,
   B,
@@ -18,6 +25,7 @@ import {
   PRIVATE_NAME,
   PRIVATE_UNIT,
   SYNTHETIC_PNG,
+  expanded,
   msg,
   withDb,
   seedRows,
@@ -33,6 +41,217 @@ const projects = [
   "fridge-landscape-1280x800",
 ];
 const api = /\/api\/inventory(?:\?|\/|$)/;
+
+function qaText(value: string) {
+  return expanded ? pseudolocalizeTemplate(value) : value;
+}
+
+function navigationText(key: NavigationMessage) {
+  return qaText(navigationMessages.en[key]);
+}
+
+type StringKey<T> = {
+  [K in keyof T]: T[K] extends string ? K : never;
+}[keyof T];
+
+function notesText(key: StringKey<typeof messages.en.notes>) {
+  return qaText(messages.en.notes[key]);
+}
+
+function emergencyText(key: StringKey<typeof messages.en.emergency>) {
+  return qaText(messages.en.emergency[key]);
+}
+
+function commonText(key: StringKey<typeof messages.en.common>) {
+  return qaText(messages.en.common[key]);
+}
+
+type RapidBackWindow = Window & {
+  __pendingNavigationDocument?: string;
+  __armPendingRapidBack?: () => void;
+  __pendingRapidBackPopstates?: () => number;
+  __pendingRapidBackAttempts?: () => number;
+  __pendingRapidBackCancelled?: () => number;
+  __pendingRapidBackToken?: () => string | null;
+  __pendingRapidBackEvents?: () => Array<{
+    href: string;
+    token: string | null;
+  }>;
+};
+
+async function installRapidBackProbe(page: Page) {
+  await page.addInitScript(() => {
+    (window as RapidBackWindow).__pendingNavigationDocument =
+      crypto.randomUUID();
+    let armed = false;
+    let popstates = 0;
+    let attempts = 0;
+    let cancelled = 0;
+    const nativePreventDefault = Event.prototype.preventDefault;
+    Event.prototype.preventDefault = function () {
+      nativePreventDefault.call(this);
+      // Observe real browser cancellation even when the early dispatcher
+      // stops later event listeners; preserve the native event behavior.
+      if (
+        armed &&
+        this.type === "navigate" &&
+        this.defaultPrevented &&
+        (this as Event & { navigationType?: string }).navigationType ===
+          "traverse"
+      ) {
+        cancelled += 1;
+      }
+    };
+    const nativeBack = history.back.bind(history);
+    history.back = () => {
+      if (armed) attempts += 1;
+      nativeBack();
+    };
+    let events: Array<{ href: string; token: string | null }> = [];
+    const target = window as Window & {
+      __armPendingRapidBack?: () => void;
+      __pendingRapidBackPopstates?: () => number;
+      __pendingRapidBackAttempts?: () => number;
+      __pendingRapidBackCancelled?: () => number;
+      __pendingRapidBackToken?: () => string | null;
+      __pendingRapidBackEvents?: () => Array<{
+        href: string;
+        token: string | null;
+      }>;
+    };
+    target.__armPendingRapidBack = () => {
+      armed = true;
+      popstates = 0;
+      attempts = 0;
+      cancelled = 0;
+      events = [];
+    };
+    target.__pendingRapidBackPopstates = () => popstates;
+    target.__pendingRapidBackAttempts = () => attempts;
+    target.__pendingRapidBackCancelled = () => cancelled;
+    target.__pendingRapidBackToken = () => {
+      const marker = window.history.state?.__herewovenPendingForm;
+      return typeof marker === "string" ? marker : null;
+    };
+    target.__pendingRapidBackEvents = () => events;
+    // Observe committed traversals on hosts using the popstate fallback.
+    // The helper issues two real Back attempts before either settles.
+    window.addEventListener(
+      "popstate",
+      () => {
+        if (!armed) return;
+        popstates += 1;
+        const marker = window.history.state?.__herewovenPendingForm;
+        events.push({
+          href: window.location.href,
+          token: typeof marker === "string" ? marker : null,
+        });
+      },
+      true,
+    );
+  });
+}
+
+async function traverseBackTwice(page: Page, path: RegExp) {
+  const documentId = await page.evaluate(
+    () => (window as RapidBackWindow).__pendingNavigationDocument,
+  );
+  const sentinelToken = await page.evaluate(
+    () => (window as RapidBackWindow).__pendingRapidBackToken?.() ?? null,
+  );
+  if (sentinelToken === null) {
+    throw new Error("Pending form sentinel was not installed before Back");
+  }
+  await page.evaluate(() => {
+    (window as RapidBackWindow).__armPendingRapidBack?.();
+    window.history.back();
+    queueMicrotask(() => window.history.back());
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as RapidBackWindow).__pendingRapidBackAttempts?.() ?? 0,
+      ),
+    )
+    .toBeGreaterThanOrEqual(2);
+  await expect(page).toHaveURL(path);
+  expect(
+    await page.evaluate(
+      () => (window as RapidBackWindow).__pendingNavigationDocument,
+    ),
+  ).toBe(documentId);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as RapidBackWindow).__pendingRapidBackToken?.() ?? null,
+      ),
+    )
+    .toBe(sentinelToken);
+  const events = await page.evaluate(
+    () => (window as RapidBackWindow).__pendingRapidBackEvents?.() ?? [],
+  );
+  const cancelled = await page.evaluate(
+    () => (window as RapidBackWindow).__pendingRapidBackCancelled?.() ?? 0,
+  );
+  const nativeGuardAvailable = await page.evaluate(
+    () =>
+      typeof (window as Window & { navigation?: EventTarget }).navigation
+        ?.addEventListener === "function",
+  );
+  if (nativeGuardAvailable) {
+    expect(cancelled).toBe(2);
+    expect(events).toHaveLength(0);
+  } else {
+    expect(events.length).toBeGreaterThanOrEqual(2);
+    expect(events.some((event) => event.href !== page.url())).toBe(true);
+  }
+  return { sentinelToken, events, cancelled };
+}
+
+async function consumeSentinelAndVisitPrior(
+  page: Page,
+  sentinelToken: string,
+  surface: RegExp,
+) {
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as RapidBackWindow).__pendingRapidBackToken?.() ?? null,
+      ),
+    )
+    .toBeNull();
+  expect(sentinelToken).toEqual(expect.any(String));
+  await expect(page).toHaveURL(surface);
+  await page.evaluate(() => window.history.back());
+  await expect(page).toHaveURL(/\/dashboard\/family\/more$/);
+}
+
+async function openPendingSurfaceFromExplore(page: Page, surface: string) {
+  await page.goto("/dashboard/family/more");
+  const documentId = await page.evaluate(
+    () => (window as RapidBackWindow).__pendingNavigationDocument,
+  );
+  const menu = page.getByRole("button", {
+    name: navigationText("userMenu"),
+    exact: true,
+  });
+  await menu.click();
+  await expect(
+    page
+      .locator("nav")
+      .getByRole("link", { name: navigationText("explore"), exact: true }),
+  ).toBeVisible();
+  await menu.click();
+  const link = page.locator(`a[href="/dashboard/${surface}"]`);
+  await expect(link).toBeVisible();
+  await link.click();
+  await expect(page).toHaveURL(new RegExp(`/dashboard/${surface}$`));
+  expect(
+    await page.evaluate(
+      () => (window as RapidBackWindow).__pendingNavigationDocument,
+    ),
+  ).toBe(documentId);
+}
 function labelPrefix(text: string) {
   return new RegExp("^" + text.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
 }
@@ -393,6 +612,394 @@ test.describe("inventory localization synthetic server", () => {
           contentType: "application/json",
         });
       });
+  });
+  test.describe("parent pending navigation", () => {
+    test.use({ storageState: authFile("parentA") });
+
+    test("held fabricated writes keep Notes, Emergency and Inventory on-route across two real Back attempts", async ({
+      page,
+      context,
+      baseURL,
+    }, info) => {
+      test.skip(
+        info.project.name !== "phone-390x844",
+        "The rapid Back regression runs once at the representative phone size",
+      );
+      await guardContext(context, baseURL!, "en");
+      await installRapidBackProbe(page);
+
+      const completedSurfaces: string[] = [];
+      let releaseNotes!: () => void;
+      let releaseEmergency!: () => void;
+      let releaseInventory!: () => void;
+      let notesPosts = 0;
+      let emergencyPosts = 0;
+      let inventoryPosts = 0;
+      let notesResponseReleased = false;
+      let emergencyResponseReleased = false;
+      let inventoryResponseReleased = false;
+      const pageErrors: string[] = [];
+      page.on("pageerror", (error) => pageErrors.push(error.message));
+      const heldBeforeCleanup = {
+        notes: false,
+        emergency: false,
+        inventory: false,
+      };
+      const notesPending = new Promise<void>((resolve) => {
+        releaseNotes = resolve;
+      });
+      const emergencyPending = new Promise<void>((resolve) => {
+        releaseEmergency = resolve;
+      });
+      const inventoryPending = new Promise<void>((resolve) => {
+        releaseInventory = resolve;
+      });
+
+      try {
+        // Every response below is explicitly synthetic and owns no database row.
+        // The route guard still keeps the browser on loopback and the fixture
+        // session remains the authenticated parentA identity.
+        await page.route("**/api/notes", async (route) => {
+          if (route.request().method() === "GET") {
+            await route.fulfill({ json: { notes: [] } });
+            return;
+          }
+          if (route.request().method() !== "POST") {
+            await route.continue();
+            return;
+          }
+          notesPosts += 1;
+          await notesPending;
+          notesResponseReleased = true;
+          await route.fulfill({
+            status: 201,
+            json: {
+              note: {
+                id: "synthetic_pending_notes",
+                title: "Synthetic pending note",
+                body: "No database row",
+                color: "yellow",
+                created_at: "2026-01-05T12:00:00.000Z",
+              },
+            },
+          });
+        });
+
+        await openPendingSurfaceFromExplore(page, "notes");
+        await expect(
+          page.getByRole("heading", {
+            name: notesText("title"),
+            exact: true,
+          }),
+        ).toBeVisible();
+        await runtime(page, info, "en", "parent");
+        const identity = await browserFetch(page, "/api/auth/me");
+        expect(identity.status, identity.body).toBe(200);
+        expect(
+          (JSON.parse(identity.body) as { user?: { role?: unknown } }).user
+            ?.role,
+        ).toBe("parent");
+        await page.getByLabel(notesText("addNote"), { exact: true }).click();
+        const notesDialog = page.getByRole("dialog");
+        await notesDialog
+          .getByLabel(notesText("noteTitle"), { exact: true })
+          .fill("Synthetic pending note");
+        await notesDialog
+          .getByLabel(notesText("noteBody"), { exact: true })
+          .fill("No database row");
+        await notesDialog
+          .getByRole("button", { name: notesText("save"), exact: true })
+          .click();
+        await expect.poll(() => notesPosts).toBe(1);
+        await expect(
+          notesDialog.getByRole("button", {
+            name: commonText("saving"),
+            exact: true,
+          }),
+        ).toBeDisabled();
+        const notesHistory = await traverseBackTwice(
+          page,
+          /\/dashboard\/notes$/,
+        );
+        await expect(notesDialog).toBeVisible();
+        await expect(
+          notesDialog.getByRole("button", {
+            name: commonText("saving"),
+            exact: true,
+          }),
+        ).toBeDisabled();
+        expect(notesResponseReleased).toBe(false);
+        heldBeforeCleanup.notes = true;
+        releaseNotes();
+        await expect(notesDialog).toHaveCount(0);
+        expect(notesResponseReleased).toBe(true);
+        await consumeSentinelAndVisitPrior(
+          page,
+          notesHistory.sentinelToken,
+          /\/dashboard\/notes$/,
+        );
+        completedSurfaces.push("notes");
+        await page.unroute("**/api/notes");
+
+        await page.route("**/api/emergency-contacts", async (route) => {
+          if (route.request().method() === "GET") {
+            await route.fulfill({
+              json: {
+                contacts: [
+                  {
+                    id: "synthetic_pending_emergency",
+                    person_id: null,
+                    person_name: "Synthetic emergency contact",
+                    relationship: "self",
+                    blood_type: null,
+                    allergies: null,
+                    medications: null,
+                    medical_conditions: null,
+                    doctor_name: null,
+                    doctor_phone: null,
+                    dentist_name: null,
+                    dentist_phone: null,
+                    insurance_provider: null,
+                    insurance_id: null,
+                    emergency_contact_name: null,
+                    emergency_contact_phone: null,
+                    emergency_contact_relation: null,
+                    notes: null,
+                  },
+                ],
+              },
+            });
+            return;
+          }
+          if (route.request().method() !== "POST") {
+            await route.continue();
+            return;
+          }
+          emergencyPosts += 1;
+          await emergencyPending;
+          emergencyResponseReleased = true;
+          await route.fulfill({
+            status: 201,
+            json: {
+              contact: {
+                id: "synthetic_pending_emergency_created",
+                person_id: null,
+                person_name: "Synthetic pending emergency",
+                relationship: "self",
+                blood_type: null,
+                allergies: null,
+                medications: null,
+                medical_conditions: null,
+                doctor_name: null,
+                doctor_phone: null,
+                dentist_name: null,
+                dentist_phone: null,
+                insurance_provider: null,
+                insurance_id: null,
+                emergency_contact_name: null,
+                emergency_contact_phone: null,
+                emergency_contact_relation: null,
+                notes: null,
+              },
+            },
+          });
+        });
+
+        await openPendingSurfaceFromExplore(page, "emergency");
+        await expect(
+          page.getByRole("heading", {
+            name: emergencyText("title"),
+            exact: true,
+          }),
+        ).toBeVisible();
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () =>
+                document.documentElement.scrollWidth <=
+                document.documentElement.clientWidth,
+            ),
+          )
+          .toBe(true);
+        await page
+          .getByRole("button", {
+            name: emergencyText("addCard"),
+            exact: true,
+          })
+          .click();
+        const emergencyDialog = page.getByRole("dialog");
+        await emergencyDialog
+          .getByLabel(emergencyText("personName"), { exact: true })
+          .fill("Synthetic pending emergency");
+        await emergencyDialog
+          .getByRole("button", { name: commonText("save"), exact: true })
+          .click();
+        await expect.poll(() => emergencyPosts).toBe(1);
+        await expect(
+          emergencyDialog.getByRole("button", {
+            name: commonText("saving"),
+            exact: true,
+          }),
+        ).toBeDisabled();
+        const emergencyHistory = await traverseBackTwice(
+          page,
+          /\/dashboard\/emergency$/,
+        );
+        await expect(emergencyDialog).toBeVisible();
+        await expect(
+          emergencyDialog.getByRole("button", {
+            name: commonText("saving"),
+            exact: true,
+          }),
+        ).toBeDisabled();
+        expect(emergencyResponseReleased).toBe(false);
+        heldBeforeCleanup.emergency = true;
+        releaseEmergency();
+        await expect(emergencyDialog).toHaveCount(0);
+        expect(emergencyResponseReleased).toBe(true);
+        await consumeSentinelAndVisitPrior(
+          page,
+          emergencyHistory.sentinelToken,
+          /\/dashboard\/emergency$/,
+        );
+        completedSurfaces.push("emergency");
+        await page.unroute("**/api/emergency-contacts");
+
+        await page.route(/\/api\/inventory\?/, async (route) => {
+          if (route.request().method() !== "POST") {
+            await route.continue();
+            return;
+          }
+          inventoryPosts += 1;
+          await inventoryPending;
+          inventoryResponseReleased = true;
+          await route.fulfill({
+            status: 201,
+            json: {
+              item: {
+                id: "synthetic_pending_inventory",
+                name: "Synthetic pending inventory",
+                location: "fridge",
+                amount: null,
+                unit: null,
+                expires_on: null,
+                date_kind: "best_before",
+                category: null,
+                purchased_on: null,
+                opened_on: null,
+              },
+            },
+          });
+        });
+
+        await openPendingSurfaceFromExplore(page, "inventory");
+        await expect(
+          page.getByRole("heading", { name: msg("en", "title"), exact: true }),
+        ).toBeVisible();
+        await page
+          .getByRole("button", { name: msg("en", "addItem"), exact: true })
+          .click();
+        const inventoryDialog = page.getByTestId("inventory-modal");
+        await inventoryDialog
+          .getByLabel(msg("en", "name"), { exact: true })
+          .fill("Synthetic pending inventory");
+        await inventoryDialog
+          .getByRole("button", { name: msg("en", "save"), exact: true })
+          .click();
+        await expect.poll(() => inventoryPosts).toBe(1);
+        await expect(
+          inventoryDialog.getByRole("button", {
+            name: msg("en", "saving"),
+            exact: true,
+          }),
+        ).toBeDisabled();
+        const inventoryHistory = await traverseBackTwice(
+          page,
+          /\/dashboard\/inventory$/,
+        );
+        await expect(inventoryDialog).toBeVisible();
+        await expect(
+          inventoryDialog.getByRole("button", {
+            name: msg("en", "saving"),
+            exact: true,
+          }),
+        ).toBeDisabled();
+        expect(inventoryResponseReleased).toBe(false);
+        heldBeforeCleanup.inventory = true;
+        releaseInventory();
+        await expect(inventoryDialog).toHaveCount(0);
+        expect(inventoryResponseReleased).toBe(true);
+        await consumeSentinelAndVisitPrior(
+          page,
+          inventoryHistory.sentinelToken,
+          /\/dashboard\/inventory$/,
+        );
+        completedSurfaces.push("inventory");
+
+        await info.attach("pending-navigation-two-back-proof", {
+          body: JSON.stringify({
+            surfaces: completedSurfaces,
+            posts: {
+              notes: notesPosts,
+              emergency: emergencyPosts,
+              inventory: inventoryPosts,
+            },
+            transport:
+              "loopback-only parentA browser session; all mutation responses were fabricated and no database row was created",
+            history: {
+              requirement:
+                "each held request received two real history.back attempts; cancelable native traversals were prevented before commit, with held drafts retained until response release",
+              notes: notesHistory,
+              emergency: emergencyHistory,
+              inventory: inventoryHistory,
+            },
+          }),
+          contentType: "application/json",
+        });
+      } finally {
+        releaseNotes();
+        releaseEmergency();
+        releaseInventory();
+        // Let an already-dispatched synthetic route finish its fulfill before
+        // unroute. This keeps cleanup from racing Playwright's route handler
+        // and hiding the original assertion with "Route already handled".
+        await expect
+          .poll(() => notesPosts === 0 || notesResponseReleased, {
+            timeout: 5_000,
+          })
+          .toBe(true)
+          .catch(() => undefined);
+        await expect
+          .poll(() => emergencyPosts === 0 || emergencyResponseReleased, {
+            timeout: 5_000,
+          })
+          .toBe(true)
+          .catch(() => undefined);
+        await expect
+          .poll(() => inventoryPosts === 0 || inventoryResponseReleased, {
+            timeout: 5_000,
+          })
+          .toBe(true)
+          .catch(() => undefined);
+        await page.unroute("**/api/notes").catch(() => undefined);
+        await page.unroute("**/api/emergency-contacts").catch(() => undefined);
+        await page.unroute(/\/api\/inventory\?/).catch(() => undefined);
+        await info.attach("pending-navigation-cleanup", {
+          body: JSON.stringify({
+            heldResponses: heldBeforeCleanup,
+            settledResponses: {
+              notes: notesResponseReleased,
+              emergency: emergencyResponseReleased,
+              inventory: inventoryResponseReleased,
+            },
+            pageErrors,
+            routesReleased: true,
+          }),
+          contentType: "application/json",
+        });
+      }
+      expect(pageErrors).toEqual([]);
+    });
   });
   test.describe("parent writes", () => {
     test.use({ storageState: authFile("parentA") });

@@ -78,6 +78,26 @@ it('saving an edit PATCHes /api/notes/<id>', async () => {
   expect(patch.body).toMatchObject({ id: 'n 1', title: 'Wifi code' })
 })
 
+it('keeps a note draft open and non-dismissible while saving', async () => {
+  const user = userEvent.setup()
+  let release!: () => void
+  mutationReply = () => new Promise<Response>((resolve) => {
+    release = () => resolve({ ok: true, status: 200, json: async () => ({ success: true }) } as Response)
+  })
+
+  render(<NotesPage />)
+  await user.click(await screen.findByText('Wifi code'))
+  await user.click(screen.getByRole('button', { name: 'notes.save' }))
+
+  expect((screen.getByRole('button', { name: 'common.saving' }) as HTMLButtonElement).disabled).toBe(true)
+  await user.keyboard('{Escape}')
+  expect(screen.getByRole('dialog')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
+
+  release()
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+})
+
 it('deleting DELETEs /api/notes/<id>', async () => {
   const user = userEvent.setup()
   render(<NotesPage />)

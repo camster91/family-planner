@@ -51,7 +51,8 @@ const copy = {
   },
 } as const;
 
-type AvailabilityMode = "transient" | "available" | "disabled" | "refused";
+type AvailabilityMode =
+  "transient" | "available" | "disabled" | "refused" | "refused403";
 
 function sourceHead(): string {
   return execFileSync("git", ["rev-parse", "HEAD"], {
@@ -261,8 +262,14 @@ for (const locale of ["en", "es"] as const) {
           });
           return;
         }
-        if (availabilityMode === "refused") {
-          await route.fulfill({ status: 401, body: "" });
+        if (
+          availabilityMode === "refused" ||
+          availabilityMode === "refused403"
+        ) {
+          await route.fulfill({
+            status: availabilityMode === "refused" ? 401 : 403,
+            body: "",
+          });
           return;
         }
         const fixture = {
@@ -374,8 +381,8 @@ for (const locale of ["en", "es"] as const) {
     expect(providerPosts).toHaveLength(1);
     expect(blockedWrites).toEqual([]);
 
-    // Explicit disabled and authenticated-refusal responses must remove the
-    // launcher rather than leave a misleading enable path behind.
+    // Explicit disabled responses remove the launcher. Authenticated refusal
+    // is a recovery boundary: it also purges the marked private envelope.
     availabilityMode = "disabled";
     await page.reload();
     await expect(
@@ -386,7 +393,22 @@ for (const locale of ["en", "es"] as const) {
     await expect(
       page.getByRole("button", { name: labels.launcher, exact: true }),
     ).toHaveCount(0);
-    expect(availabilityGets).toBe(4);
+    expect(
+      await page.evaluate(
+        (key) => JSON.parse(localStorage.getItem(key) ?? "[]"),
+        storageKey,
+      ),
+    ).toEqual([]);
+    await seedRecoveryRow(page, storageKey, title);
+    await page.evaluate((key) => {
+      localStorage.setItem("family-planner:capture-recovery:v1:active", key);
+    }, storageKey);
+    availabilityMode = "refused403";
+    await page.reload();
+    await expect(
+      page.getByRole("button", { name: labels.launcher, exact: true }),
+    ).toHaveCount(0);
+    expect(availabilityGets).toBe(5);
     expect(providerPosts).toHaveLength(1);
     expect(blockedWrites).toEqual([]);
     expect(
@@ -394,7 +416,7 @@ for (const locale of ["en", "es"] as const) {
         (key) => JSON.parse(localStorage.getItem(key) ?? "[]"),
         storageKey,
       ),
-    ).toEqual([expect.objectContaining({ title })]);
+    ).toEqual([]);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,

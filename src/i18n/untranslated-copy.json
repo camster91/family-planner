@@ -345,71 +345,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "✓ Next, add everyone in your household",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "✓ Start creating chores and events right away",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "✓ You become the family admin (parent role)",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "Already have a family?",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "Cancel",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "Choose a name that represents your family. You can change this later.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "Create Family",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "Creating…",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "Family Name",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "Join an existing family",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "New Family",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "The Smith Family",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/create/page.tsx",
-    "text": "What happens next?",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/family/invite/page.tsx",
     "text": "· expires",
     "count": 1
@@ -1275,76 +1210,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "123 Main St",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "Add",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "Add Home, School, Work, or any place the family goes regularly.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "Address",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "Cancel",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "Home",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "Home, School, Work…",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "Label",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "Locations",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "New location",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "No locations yet",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "Other places",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "Save",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/locations/page.tsx",
-    "text": "Saving…",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/meals/page.tsx",
     "text": "Add",
     "count": 1
@@ -1527,11 +1392,6 @@
   {
     "file": "src/app/dashboard/messages/page.tsx",
     "text": "Loading earlier messages…",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "Loading…",
     "count": 1
   },
   {
@@ -1807,76 +1667,6 @@
   {
     "file": "src/app/dashboard/projects/[id]/SendToCalendarButton.tsx",
     "text": "Sending…",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "(optional)",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "/1000",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "Accent Color",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "After creating, you can add tasks, assign family members, and track progress.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "Back to Projects",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "Color:",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "Create Project",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "Creating...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "Description",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "e.g., Backyard Garden, Spring Cleaning",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "New Project",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "Organize family goals and tasks together.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "Project Name",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/projects/create/page.tsx",
-    "text": "What's this project about?",
     "count": 1
   },
   {
@@ -3205,26 +2995,6 @@
     "count": 1
   },
   {
-    "file": "src/components/dashboard/HomeSummary.tsx",
-    "text": "1 chore to check",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/HomeSummary.tsx",
-    "text": "All chores",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/HomeSummary.tsx",
-    "text": "chores to check",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/HomeSummary.tsx",
-    "text": "Your chores",
-    "count": 2
-  },
-  {
     "file": "src/components/dashboard/KidHome.tsx",
     "text": "🎉 Claimed!",
     "count": 1
@@ -3656,7 +3426,7 @@
   },
   {
     "file": "src/components/device/DeviceTodayScreen.tsx",
-    "text": "Today&apos;s board could not load",
+    "text": "Today's board could not load",
     "count": 1
   },
   {
@@ -4522,81 +4292,6 @@
   {
     "file": "src/components/meals/RecipePicker.tsx",
     "text": "Try again",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Add Everyone in Your Family",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Add Family Members",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Already have a family code or invite?",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Create Family",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Create Your Family",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Creating...",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "e.g., The Smith Family",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Family name",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Finish Later",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Get Started",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Join an existing family",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Let&apos;s get your family set up in 3 simple steps. You&apos;ll be organizing chores and plans in minutes.",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Welcome to",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "What should we call your family group? Next, we’ll add everyone.",
-    "count": 1
-  },
-  {
-    "file": "src/components/onboarding/OnboardingFlow.tsx",
-    "text": "Your family is created. Add the other parents, teens, and children who belong to your household. You can invite each person and choose their role.",
     "count": 1
   },
   {

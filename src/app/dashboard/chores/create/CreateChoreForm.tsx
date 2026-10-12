@@ -35,9 +35,21 @@ import {
   usePendingFormNavigation,
   usePendingFormNavigationController,
 } from "@/components/layout/pending-form-navigation";
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import { canonicalBodySignature } from "@/lib/request-signature";
+import {
+  findActiveHouseholdProfile,
+  readApiErrorCode,
+  readHouseholdProfilesResponse,
+  type HouseholdProfile,
+} from "@/lib/household-profile-types";
+import { useProfileSetupText } from "@/i18n/profile-setup";
 
 type Difficulty = "easy" | "medium" | "hard";
 type Frequency = "once" | "daily" | "weekly" | "monthly";
+type AssignmentTarget =
+  | { kind: "account"; id: string }
+  | { kind: "profile"; id: string };
 
 const difficultyOptions: {
   value: Difficulty;
@@ -69,7 +81,8 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
   // Points & streaks off (#248): the field is hidden and the default is sent,
   // so XP keeps accruing in the background if the family turns it back on.
   const gamification = useFeatureEnabled("gamification");
-  const [assignedTo, setAssignedTo] = useState("");
+  const [assignmentTarget, setAssignmentTarget] = useState<AssignmentTarget>({ kind: "account", id: "" });
+  const [profileOptions, setProfileOptions] = useState<HouseholdProfile[]>([]);
   const [dueDate, setDueDate] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [frequency, setFrequency] = useState<Frequency>("once");
@@ -92,6 +105,14 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
   const sheetNavigation = usePendingFormNavigation();
   const navigation = inSheet ? sheetNavigation : directNavigation;
   useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  const profileText = useProfileSetupText();
+  const profileIdempotencyKey = useRef<{ key: string; signature: string } | null>(null);
+  const profileAmbiguousKeys = useRef(new Map<string, string>());
+  const assignedTo = assignmentTarget.kind === "account" ? assignmentTarget.id : "";
+  const profileTargetId = assignmentTarget.kind === "profile" ? assignmentTarget.id : null;
+  const profileTargetMissing = Boolean(
+    profileTargetId && !findActiveHouseholdProfile(profileOptions, profileTargetId),
+  );
   // Picture routines (#272).
   const [icon, setIcon] = useState<string | null>(null);
   const [routine, setRoutine] = useState("");
@@ -113,12 +134,14 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
       ? rotation.length < ROTATION_MIN
         ? [message("fieldRotation", { count: ROTATION_MIN })]
         : []
-      : assignedTo
+      : assignedTo || profileTargetId
         ? []
         : [message("fieldAssignee")]),
   ];
   const submitHint =
-    missingFields.length === 0
+    profileTargetMissing
+      ? profileText("profileTargetRefresh")
+      : missingFields.length === 0
       ? null
       : missingFields.length === 1
         ? message("missingOne", { field: missingFields[0] })
@@ -151,9 +174,17 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
             const requested = new URLSearchParams(window.location.search).get(
               "member",
             );
-            setAssignedTo(
-              data.members.find((m: { id: string }) => m.id === requested)
-                ?.id ?? data.members[0].id,
+            setAssignmentTarget((current) =>
+              current.kind === "profile"
+                ? current
+                : current.id
+                  ? current
+                  : {
+                    kind: "account",
+                    id:
+                      data.members.find((m: { id: string }) => m.id === requested)
+                        ?.id ?? data.members[0].id,
+                    },
             );
           }
         }
@@ -164,20 +195,69 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
     loadFamilyMembers();
   }, [assignedTo]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadProfiles() {
+      try {
+        const response = await fetch("/api/family/profiles", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload: unknown = await response.json();
+        const profiles = readHouseholdProfilesResponse(payload);
+        if (!cancelled && profiles?.profileChoreSupported) {
+          setProfileOptions(profiles.profiles.filter((profile) => !profile.archived_at));
+        }
+      } catch {
+        // Profile setup is optional; the account assignment path remains available.
+      }
+    }
+    void loadProfiles();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (frequency === "weekly" && !weeklyDays.length) {
       setError(message("chooseWeekday"));
       return;
     }
+    const profileTarget =
+      assignmentTarget.kind === "profile"
+        ? findActiveHouseholdProfile(profileOptions, assignmentTarget.id)
+        : null;
+    const isProfileTarget = assignmentTarget.kind === "profile";
+    if (isProfileTarget && !profileTarget) {
+      setError(profileText("profileTargetRefresh"));
+      return;
+    }
     setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch("/api/chores/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      let requestBody: Record<string, unknown>;
+      if (profileTarget) {
+        requestBody = {
+          protocol: 2,
+          selection: { memberId: profileTarget.id },
+          title: title.trim(),
+          description: description.trim() || null,
+          points: 10,
+          due_date: dueDate,
+          difficulty,
+          frequency: "once",
+          photo_url: photoUrl,
+        };
+        const signature = canonicalBodySignature(requestBody);
+        const key =
+          profileIdempotencyKey.current?.signature === signature
+            ? profileIdempotencyKey.current.key
+            : profileAmbiguousKeys.current.get(signature) ?? newIdempotencyKey();
+        profileIdempotencyKey.current = { key, signature };
+        headers[IDEMPOTENCY_HEADER] = key;
+      } else {
+        requestBody = {
           title,
           description: description || null,
           points,
@@ -200,20 +280,52 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           photo_url: photoUrl,
           icon,
           ...routineRequestFields(routine, routineOrder),
-        }),
+        };
+      }
+      const res = await fetch("/api/chores/create", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(requestBody),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || message("createFailed"));
+        if (isProfileTarget) {
+          const code = readApiErrorCode(data);
+          if (code === "MEMBER_PROTOCOL_UNAVAILABLE") {
+            profileAmbiguousKeys.current.delete(profileIdempotencyKey.current?.signature ?? "");
+            profileIdempotencyKey.current = null;
+            setError(profileText("profileTargetUnsupported"));
+          } else {
+            if (res.status >= 500 && profileIdempotencyKey.current) {
+              profileAmbiguousKeys.current.set(
+                profileIdempotencyKey.current.signature,
+                profileIdempotencyKey.current.key,
+              );
+            }
+            setError(profileText("profileTargetError"));
+          }
+        } else {
+          setError(data.error || message("createFailed"));
+        }
         return;
       }
 
+      if (isProfileTarget && profileIdempotencyKey.current) {
+        profileAmbiguousKeys.current.delete(profileIdempotencyKey.current.signature);
+        profileIdempotencyKey.current = null;
+      }
       if ((await navigation?.releaseBeforeNavigation()) === false) return;
       router.push("/dashboard/chores");
       router.refresh();
     } catch (err) {
-      setError(message("unexpected"));
+      if (isProfileTarget && profileIdempotencyKey.current) {
+        profileAmbiguousKeys.current.set(
+          profileIdempotencyKey.current.signature,
+          profileIdempotencyKey.current.key,
+        );
+      }
+      setError(isProfileTarget ? profileText("profileTargetError") : message("unexpected"));
       console.error(err);
     } finally {
       setLoading(false);
@@ -285,16 +397,36 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                 <select
                   id="assignedTo"
                   required
-                  value={assignedTo}
-                  onChange={(e) => setAssignedTo(e.target.value)}
+                  value={profileTargetId ? `profile:${profileTargetId}` : assignedTo}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value.startsWith("profile:")) {
+                      setAssignmentTarget({ kind: "profile", id: value.slice("profile:".length) });
+                      setFrequency("once");
+                      setTakeTurns(false);
+                      setRotation([]);
+                    } else {
+                      setAssignmentTarget({ kind: "account", id: value });
+                    }
+                  }}
                   className="input-apple"
                 >
                   {familyMembers.map((member) => (
-                    <option key={member.id} value={member.id}>
+                  <option key={member.id} value={member.id}>
                       {member.name}
                     </option>
                   ))}
+                  {profileOptions.length > 0 && (
+                    <optgroup label={profileText("profileTargets")}>
+                      {profileOptions.map((profile) => (
+                        <option key={profile.id} value={`profile:${profile.id}`}>
+                          {profile.name} · {profileText(profile.role === "child" ? "roleChild" : profile.role === "teen" ? "roleTeen" : "roleParent")}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
+                {profileTargetId && <p className="text-footnote text-label-secondary mt-1.5">{profileText("profileTargetOnce")}</p>}
               </div>
             )}
           </div>
@@ -316,6 +448,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                   key={opt.value}
                   type="button"
                   onClick={() => setFrequency(opt.value)}
+                  disabled={Boolean(profileTargetId) && opt.value !== "once"}
                   aria-pressed={frequency === opt.value}
                   className={cn(
                     "flex-1 min-h-[44px] py-2 rounded-md text-sm font-medium transition-all duration-200",
@@ -379,13 +512,13 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         )}
 
         <ChoreFormSection
-          title={message(gamification ? "detailsPoints" : "details")}
+          title={message(gamification && !profileTargetId ? "detailsPoints" : "details")}
           summary={[
             ...(description.trim() ? [message("instructionsAdded")] : []),
             message("difficultySummary", {
               difficulty: message(difficultyOptions.find((option) => option.value === difficulty)!.label),
             }),
-            ...(gamification ? [message("pointsSummary", { count: points })] : []),
+            ...(gamification && !profileTargetId ? [message("pointsSummary", { count: points })] : []),
           ].join(" · ")}
         >
           {/* Description */}
@@ -435,7 +568,7 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
             </div>
           </div>
 
-          {gamification && (
+          {gamification && !profileTargetId && (
             <div>
               <label className="label-apple" htmlFor="points">
                 {message("points")}
@@ -453,26 +586,28 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           )}
         </ChoreFormSection>
 
-        <ChoreFormSection
-          title={message("picturesRoutine")}
-          summary={[
-            routine.trim()
-              ? `${routine}${routineOrder ? ` · ${message("step")} ${routineOrder}` : ""}`
-              : message("noRoutine"),
-            localizedChoreRoutineIconLabel(locale, icon) ??
-              routineIconLabel(icon) ??
-              message("noPicture"),
-          ].join(" · ")}
-        >
-          {/* Picture routines (#272): picture, routine and step */}
-          <RoutineIconPicker value={icon} onChange={setIcon} />
-          <RoutineFields
-            routine={routine}
-            onRoutineChange={setRoutine}
-            order={routineOrder}
-            onOrderChange={setRoutineOrder}
-          />
-        </ChoreFormSection>
+        {!profileTargetId && (
+          <ChoreFormSection
+            title={message("picturesRoutine")}
+            summary={[
+              routine.trim()
+                ? `${routine}${routineOrder ? ` · ${message("step")} ${routineOrder}` : ""}`
+                : message("noRoutine"),
+              localizedChoreRoutineIconLabel(locale, icon) ??
+                routineIconLabel(icon) ??
+                message("noPicture"),
+            ].join(" · ")}
+          >
+            {/* Picture routines (#272): picture, routine and step */}
+            <RoutineIconPicker value={icon} onChange={setIcon} />
+            <RoutineFields
+              routine={routine}
+              onRoutineChange={setRoutine}
+              order={routineOrder}
+              onOrderChange={setRoutineOrder}
+            />
+          </ChoreFormSection>
+        )}
 
         <ChoreFormSection
           title={message("photo")}

@@ -6,10 +6,11 @@
 // check completes the chore: a tap on the name used to tick it off when a
 // parent meant to edit it.
 import * as React from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ChoresContent from '../ChoresContent'
 import { ToastProvider } from '@/components/ui/toast'
+import { I18nProvider } from '@/i18n'
 
 const mockPush = jest.fn()
 jest.mock('next/navigation', () => ({
@@ -42,6 +43,7 @@ const recurringChore = {
   id: 'weekly-c1',
   title: 'Take out trash',
   recurrence_id: 'weekly-template',
+  recurrence_frequency: 'weekly' as const,
 }
 
 const completeCalls = () =>
@@ -75,10 +77,82 @@ describe('chore row actions', () => {
     expect(menuButton().getAttribute('aria-expanded')).toBe('false')
     await user.click(menuButton())
     const sheet = screen.getByRole('dialog', { name: 'More actions for “Feed the cat”' })
-    for (const label of ['Snooze a day', 'Edit', 'Reassign', 'Mark complete', 'Delete']) {
+    for (const label of ['Snooze a day', 'Edit', 'Reassign', 'Mark complete', 'Delete this occurrence']) {
       expect(within(sheet).getByRole('button', { name: label })).toBeTruthy()
     }
     expect(completeCalls()).toHaveLength(0)
+  })
+
+  it('keeps occurrence deletion pending and offers an explicit retry after refusal', async () => {
+    const user = userEvent.setup()
+    let deleteCalls = 0
+    let resolveDelete: ((value: unknown) => void) | undefined
+    global.fetch = jest.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/chores' && init?.method === 'DELETE') {
+        deleteCalls += 1
+        if (deleteCalls === 1) {
+          return new Promise((resolve) => {
+            resolveDelete = resolve
+          })
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ success: true }),
+        })
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({}) })
+    }) as unknown as typeof fetch
+
+    await user.click(menuButton())
+    await user.click(screen.getByRole('button', { name: 'Delete this occurrence' }))
+    expect(screen.getByRole('alertdialog', { name: 'Delete this occurrence?' })).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Delete occurrence' }))
+    const deleting = screen.getByRole('button', { name: 'Deleting…' })
+    expect((deleting as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(true)
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('alertdialog', { name: 'Delete this occurrence?' })).toBeTruthy()
+    await user.click(deleting)
+    expect(deleteCalls).toBe(1)
+
+    resolveDelete?.({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+    })
+    const retry = await screen.findByRole('button', { name: 'Try again' })
+    expect(screen.getByRole('alert').textContent).toContain('The server refused this deletion')
+    expect(screen.getByText('Feed the cat')).toBeTruthy()
+    expect(document.activeElement).toBe(retry)
+    await user.click(retry)
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    expect(deleteCalls).toBe(2)
+  })
+
+  it('does not claim a 404 deletion and requires an explicit authorized readback', async () => {
+    const user = userEvent.setup()
+    const calls: Array<{ url: string; method?: string }> = []
+    global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method })
+      if (init?.method === 'DELETE') {
+        return { ok: false, status: 404, json: async () => ({ error: 'Chore not found' }) }
+      }
+      return { ok: false, status: 404, json: async () => ({ error: 'Chore not found' }) }
+    }) as unknown as typeof fetch
+
+    await user.click(menuButton())
+    await user.click(screen.getByRole('button', { name: 'Delete this occurrence' }))
+    await user.click(screen.getByRole('button', { name: 'Delete occurrence' }))
+    expect(await screen.findByRole('button', { name: 'Refresh chores' })).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toContain('This occurrence is no longer available')
+    expect(screen.getByText('Feed the cat')).toBeTruthy()
+    expect(screen.getByRole('alertdialog')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Refresh chores' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    expect(calls.map((call) => call.method ?? 'GET')).toEqual(['DELETE', 'GET'])
   })
 
   it('Edit goes to the edit page without completing the chore', async () => {
@@ -126,6 +200,66 @@ describe('chore row actions', () => {
       (within(sheet).getByRole('button', { name: 'Snooze unavailable for repeating chores' }) as HTMLButtonElement).disabled
     ).toBe(true)
     expect(global.fetch).not.toHaveBeenCalledWith('/api/chores', expect.anything())
+  })
+
+  it('lets a parent open the existing edit form with a Once stop draft', async () => {
+    const user = userEvent.setup()
+    render(
+      <ToastProvider>
+        <ChoresContent
+          chores={[recurringChore]}
+          familyMembers={[{ id: 'kid', name: 'Casey', role: 'child' }]}
+          currentUserId="parent"
+          userRole="parent"
+        />
+      </ToastProvider>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'More actions for “Take out trash”' }))
+    const sheet = screen.getByRole('dialog', { name: 'More actions for “Take out trash”' })
+    await user.click(within(sheet).getByRole('button', { name: 'Stop repeating' }))
+    expect(mockPush).toHaveBeenCalledWith('/dashboard/chores/edit?id=weekly-c1&stop=1')
+    expect(global.fetch).not.toHaveBeenCalledWith('/api/chores', expect.objectContaining({ method: 'PATCH' }))
+  })
+
+  it('does not expose Stop repeating to a child or teen', async () => {
+    const user = userEvent.setup()
+    render(
+      <ToastProvider>
+        <ChoresContent
+          chores={[recurringChore]}
+          familyMembers={[{ id: 'kid', name: 'Casey', role: 'child' }]}
+          currentUserId="kid"
+          userRole="child"
+        />
+      </ToastProvider>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'More actions for “Take out trash”' }))
+    const sheet = screen.getByRole('dialog', { name: 'More actions for “Take out trash”' })
+    expect(within(sheet).queryByRole('button', { name: 'Stop repeating' })).toBeNull()
+  })
+
+  it('uses the typed Spanish occurrence and stop labels', async () => {
+    const user = userEvent.setup()
+    render(
+      <I18nProvider locale="es">
+        <ToastProvider>
+          <ChoresContent
+            chores={[recurringChore]}
+            familyMembers={[{ id: 'kid', name: 'Casey', role: 'child' }]}
+            currentUserId="parent"
+            userRole="parent"
+          />
+        </ToastProvider>
+      </I18nProvider>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'More actions for “Take out trash”' }))
+    const sheet = screen.getAllByRole('dialog', { name: 'More actions for “Take out trash”' }).at(-1)
+    expect(sheet).toBeTruthy()
+    expect(within(sheet!).getByRole('button', { name: 'Eliminar esta ocurrencia' })).toBeTruthy()
+    expect(within(sheet!).getByRole('button', { name: 'Dejar de repetir' })).toBeTruthy()
   })
 })
 

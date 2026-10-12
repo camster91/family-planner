@@ -4,6 +4,7 @@ import {
   clearCaptureRecoveryStorage,
   hashCaptureRequest,
   loadCaptureRecovery,
+  loadCaptureRecoveryState,
   saveCaptureRecovery,
   type CaptureRecoveryEnvelope,
 } from '../capture-recovery'
@@ -83,5 +84,18 @@ describe('capture recovery envelopes', () => {
     clearCaptureRecoveryStorage(store, 'user-a', 'family-a')
 
     expect(store.values.has(key)).toBe(false)
+  })
+
+  it('reports activation, read, write and purge storage failures', () => {
+    const unavailable = {
+      getItem: () => { throw new Error('private mode') },
+      setItem: () => { throw new Error('quota') },
+      removeItem: () => { throw new Error('private mode') },
+    }
+
+    expect(activateCaptureRecoveryStorage(unavailable, 'user-a', 'family-a')).toBeNull()
+    expect(saveCaptureRecovery(unavailable, 'user-a', 'family-a', [row()])).toBe(false)
+    expect(loadCaptureRecoveryState(unavailable, 'user-a', 'family-a')).toEqual({ rows: [], storageAvailable: false })
+    expect(clearCaptureRecoveryStorage(unavailable, 'user-a', 'family-a')).toBe(false)
   })
 })

@@ -1,4 +1,70 @@
 /** Static assistant shell and review copy. Generated replies, names and IDs stay verbatim. */
+import type { AssistantDestination } from "@/lib/assistant-actions";
+
+export const assistantDestinationLabels: Record<
+  "en" | "es",
+  Record<AssistantDestination, string>
+> = {
+  en: {
+    today: "Today",
+    calendar: "Calendar",
+    chores: "Chores",
+    lists: "Lists",
+    meals: "Meals",
+    family: "Family",
+    features: "Features",
+    settings: "Settings",
+    notes: "Notes",
+    inventory: "Food inventory",
+    projects: "Projects",
+    budget: "Budget",
+    rewards: "Rewards",
+    analytics: "Analytics",
+    anniversaries: "Birthdays & anniversaries",
+    gamification: "Points & streaks",
+    messages: "Family chat",
+    wishlist: "Wishlist",
+    emergency: "Emergency contacts",
+    locations: "Locations",
+    pickups: "Pickups & dropoffs",
+    allowance: "Allowance & IOUs",
+    travel: "Travel mode",
+    handoff: "Babysitter handoff",
+    "sick-days": "Sick days & meds",
+    routines: "Routines",
+    recipes: "Recipe explorer",
+  },
+  es: {
+    today: "Hoy",
+    calendar: "Calendario",
+    chores: "Tareas",
+    lists: "Listas",
+    meals: "Comidas",
+    family: "Familia",
+    features: "Funciones",
+    settings: "Ajustes",
+    notes: "Notas",
+    inventory: "Inventario de alimentos",
+    projects: "Proyectos",
+    budget: "Presupuesto",
+    rewards: "Recompensas",
+    analytics: "Análisis",
+    anniversaries: "Cumpleaños y aniversarios",
+    gamification: "Puntos y rachas",
+    messages: "Chat familiar",
+    wishlist: "Lista de deseos",
+    emergency: "Contactos de emergencia",
+    locations: "Ubicaciones",
+    pickups: "Recogidas y entregas",
+    allowance: "Mesada y deudas",
+    travel: "Modo viaje",
+    handoff: "Entrega a la niñera",
+    "sick-days": "Días de enfermedad y medicinas",
+    routines: "Rutinas",
+    recipes: "Explorar recetas",
+  },
+};
+
 export const assistantEnglish = {
   loading: "Opening assistant…",
   launcherReport: "Report / Suggest",
@@ -12,6 +78,17 @@ export const assistantEnglish = {
   tabReports: "My reports",
   chatIntro:
     "Ask to add an event, chore, list, grocery item or note; remove an event, chore or list; or open another section. Changes need your review. Chat text goes to your household’s configured AI provider. Household records are not attached.",
+  chatIntroWithToday:
+    "Include Today is on: this request sends a short, read-only summary of today’s events, chores, dinner, groceries and food items marked to use soon to your household’s configured AI provider. Chat text also goes there. The summary expires shortly and never performs an action by itself.",
+  includeToday: "Include Today",
+  includeTodayDescription:
+    "When selected, this request sends a short, read-only summary of today’s events, chores, dinner, groceries and food items marked to use soon to your household’s configured AI provider. It expires shortly and never performs an action by itself.",
+  todayContextIncluded: "Today context updated at {time}.",
+  todayContextExpired:
+    "This Today context has expired. Refresh the preview before confirming any action.",
+  refreshTodayContext: "Refresh Today context",
+  todayContextUnavailable:
+    "Today context is unavailable right now. Your draft is still here; try again later.",
   conversation: "Assistant conversation",
   you: "You",
   assistant: "Assistant",
@@ -141,6 +218,17 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   tabReports: "Mis informes",
   chatIntro:
     "Pide añadir un evento, tarea, lista, artículo de compras o nota; eliminar un evento, tarea o lista; o abrir otra sección. Los cambios requieren tu revisión. El texto del chat se envía al proveedor de IA configurado para tu hogar. No se adjuntan registros del hogar.",
+  chatIntroWithToday:
+    "Incluir Hoy está activado: esta solicitud envía un resumen breve y de solo lectura de los eventos, tareas, cena, compras y alimentos marcados para usar pronto al proveedor de IA configurado para tu hogar. El texto del chat también se envía allí. El resumen caduca pronto y nunca ejecuta una acción por sí solo.",
+  includeToday: "Incluir Hoy",
+  includeTodayDescription:
+    "Al seleccionarlo, esta solicitud envía un resumen breve y de solo lectura de los eventos, tareas, cena, compras y alimentos marcados para usar pronto al proveedor de IA configurado para tu hogar. Caduca pronto y nunca ejecuta una acción por sí solo.",
+  todayContextIncluded: "Contexto de Hoy actualizado a las {time}.",
+  todayContextExpired:
+    "Este contexto de Hoy ha caducado. Actualiza la vista previa antes de confirmar una acción.",
+  refreshTodayContext: "Actualizar contexto de Hoy",
+  todayContextUnavailable:
+    "El contexto de Hoy no está disponible ahora. Tu borrador sigue aquí; inténtalo más tarde.",
   conversation: "Conversación con el asistente",
   you: "Tú",
   assistant: "Asistente",

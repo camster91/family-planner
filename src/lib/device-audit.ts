@@ -59,6 +59,8 @@ export async function writeDeviceAudit(
     familyId: string
     deviceId?: string | null
     actorUserId?: string | null
+    subjectMemberId?: string | null
+    subjectMemberErased?: boolean
     /** Event time; defaults to the database clock. Tablet writes pass the device clock. */
     at?: Date
   }
@@ -69,6 +71,8 @@ export async function writeDeviceAudit(
         family_id: entry.familyId,
         device_id: entry.deviceId ?? null,
         actor_user_id: entry.actorUserId ?? null,
+        subject_member_id: entry.subjectMemberId ?? null,
+        subject_member_erased: entry.subjectMemberErased ?? false,
         type: entry.type,
         metadata: entry.metadata as Prisma.InputJsonValue,
         ...(entry.at ? { created_at: entry.at } : {}),

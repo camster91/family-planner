@@ -40,6 +40,13 @@ export const captureEnglish = {
     "Could not confirm whether this was saved. Try again to check the same request.",
   couldNotPrepareRetry:
     "Could not prepare a safe retry. Try again in a supported browser.",
+  recoveryStorageUnavailable:
+    "Saved recovery storage is unavailable. Nothing was sent. Try again when storage is available.",
+  recoveryAccessUnavailable:
+    "Capture recovery is unavailable until access and storage are revalidated. Nothing was sent.",
+  recoveryPartialFailure:
+    "Some items were added. The remaining items were not sent because capture recovery is unavailable. Revalidate access and storage before continuing.",
+  retryStorage: "Retry storage",
   couldNotRead: "Could not read that",
   groceryListMissing: "Could not find a grocery list",
   groceryAddFailed: "Could not add to the list",
@@ -130,6 +137,13 @@ export const captureSpanish: Record<CaptureMessage, string> = {
     "No se pudo confirmar si se guardó. Reintenta para consultar la misma solicitud.",
   couldNotPrepareRetry:
     "No se pudo preparar un reintento seguro. Inténtalo en un navegador compatible.",
+  recoveryStorageUnavailable:
+    "El almacenamiento de recuperación no está disponible. No se envió nada. Inténtalo de nuevo cuando esté disponible.",
+  recoveryAccessUnavailable:
+    "La recuperación de captura no está disponible hasta volver a validar el acceso y el almacenamiento. No se envió nada.",
+  recoveryPartialFailure:
+    "Se añadieron algunos elementos. Los restantes no se enviaron porque la recuperación de captura no está disponible. Vuelve a validar el acceso y el almacenamiento antes de continuar.",
+  retryStorage: "Reintentar almacenamiento",
   couldNotRead: "No se pudo leer",
   groceryListMissing: "No se pudo encontrar una lista de supermercado",
   groceryAddFailed: "No se pudo añadir a la lista",

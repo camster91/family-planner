@@ -39,6 +39,12 @@ export interface CaptureRecoveryEnvelope {
   photo: boolean
 }
 
+export interface CaptureRecoveryLoadResult {
+  rows: CaptureRecoveryEnvelope[]
+  /** False means the browser store could not be read or rewritten safely. */
+  storageAvailable: boolean
+}
+
 function isAction(value: unknown): value is CaptureRecoveryAction {
   return value === 'event.create' || value === 'capture.grocery.add'
 }
@@ -98,26 +104,50 @@ export function activateCaptureRecoveryStorage(
   }
 }
 
-export function loadCaptureRecovery(
+export function loadCaptureRecoveryState(
   storage: RecoveryStorage | null | undefined,
   userId: string,
   familyId: string,
   now = Date.now(),
-): CaptureRecoveryEnvelope[] {
+): CaptureRecoveryLoadResult {
   const target = safeStorage(storage)
-  if (!target) return []
+  if (!target) return { rows: [], storageAvailable: false }
   const key = captureRecoveryStorageKey(userId, familyId)
+  let raw: string | null
   try {
-    const raw = target.getItem(key)
-    if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) throw new Error('Invalid recovery envelope')
-    const rows = parsed
-      .filter(isEnvelope)
-      .filter((row) => now - row.createdAt < CAPTURE_RECOVERY_RETENTION_MS)
-      .slice(0, CAPTURE_RECOVERY_MAX_OPERATIONS)
+    raw = target.getItem(key)
+    if (!raw) return { rows: [], storageAvailable: true }
+  } catch {
+    return { rows: [], storageAvailable: false }
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    try {
+      target.removeItem(key)
+      return { rows: [], storageAvailable: true }
+    } catch {
+      return { rows: [], storageAvailable: false }
+    }
+  }
+  if (!Array.isArray(parsed)) {
+    try {
+      target.removeItem(key)
+      return { rows: [], storageAvailable: true }
+    } catch {
+      return { rows: [], storageAvailable: false }
+    }
+  }
+
+  const rows = parsed
+    .filter(isEnvelope)
+    .filter((row) => now - row.createdAt < CAPTURE_RECOVERY_RETENTION_MS)
+    .slice(0, CAPTURE_RECOVERY_MAX_OPERATIONS)
+  try {
     target.setItem(key, JSON.stringify(rows))
-    return rows
+    return { rows, storageAvailable: true }
   } catch {
     try {
       target.removeItem(key)
@@ -125,8 +155,17 @@ export function loadCaptureRecovery(
       // Storage is optional; a corrupt or unavailable browser store should not
       // block an ordinary mounted capture.
     }
-    return []
+    return { rows: [], storageAvailable: false }
   }
+}
+
+export function loadCaptureRecovery(
+  storage: RecoveryStorage | null | undefined,
+  userId: string,
+  familyId: string,
+  now = Date.now(),
+): CaptureRecoveryEnvelope[] {
+  return loadCaptureRecoveryState(storage, userId, familyId, now).rows
 }
 
 export function saveCaptureRecovery(
@@ -134,16 +173,20 @@ export function saveCaptureRecovery(
   userId: string,
   familyId: string,
   rows: CaptureRecoveryEnvelope[],
-): void {
+): boolean {
   const target = safeStorage(storage)
-  if (!target) return
+  if (!target) return false
   try {
     target.setItem(
       captureRecoveryStorageKey(userId, familyId),
       JSON.stringify(rows.filter(isEnvelope).slice(0, CAPTURE_RECOVERY_MAX_OPERATIONS)),
     )
+    return true
   } catch {
-    // Quota/private-mode failures degrade to mounted-only recovery.
+    // A confirmed mutation must not proceed when its recovery envelope could
+    // not be durably retained. The caller decides how to preserve the draft
+    // and explain the blocked confirmation.
+    return false
   }
 }
 

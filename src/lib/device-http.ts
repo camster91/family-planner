@@ -60,6 +60,7 @@ export type DeviceErrorCode =
   | 'CHORE_ALREADY_VERIFIED'
   | 'UNDO_NOT_ALLOWED'
   | 'IDENTITY_CONFLICT'
+  | 'MEMBER_PROTOCOL_UNAVAILABLE'
   | 'DUPLICATE_OPEN_ITEM'
 
 const DEFAULT_MESSAGES: Record<DeviceErrorCode, string> = {
@@ -95,6 +96,7 @@ const DEFAULT_MESSAGES: Record<DeviceErrorCode, string> = {
   CHORE_ALREADY_VERIFIED: 'A parent has already checked this chore, so it stays done.',
   UNDO_NOT_ALLOWED: 'This can only be undone on the tablet that did it, right after.',
   IDENTITY_CONFLICT: 'Household member identity needs review before this change.',
+  MEMBER_PROTOCOL_UNAVAILABLE: 'This profile chore needs a newer tablet session.',
   DUPLICATE_OPEN_ITEM: 'This item is already on the list and not yet ticked.',
 }
 

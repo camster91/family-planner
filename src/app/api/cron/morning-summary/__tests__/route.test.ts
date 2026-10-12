@@ -224,6 +224,27 @@ describe('POST /api/cron/morning-summary: auth (fail closed)', () => {
 })
 
 describe('POST /api/cron/morning-summary: sending', () => {
+  it('does not attribute a profile-only chore to an account summary', async () => {
+    db.rows('chore').push({
+      id: 'ms-profile-only',
+      family_id: FAMILY_A,
+      title: 'Profile-only chore',
+      assigned_to: null,
+      assigned_member_id: 'profile-child-a',
+      due_date: UTC_MIDNIGHT,
+      status: 'pending',
+      created_at: UTC_MIDNIGHT,
+      created_by: 'parent-a',
+    })
+    optIn('childA')
+
+    const response = await post()
+    expect(response.status).toBe(200)
+    expect((await response.json()).sent).toEqual({ inApp: 0, email: 0 })
+    expect(notifications('childA')).toHaveLength(0)
+    expect(db.find('user', USER_IDS.childA)!.morning_summary_sent_on).toBeNull()
+  })
+
   it('sends nothing to anyone who has not opted in (the default)', async () => {
     seedToday()
     const res = await post()

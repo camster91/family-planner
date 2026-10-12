@@ -1,7 +1,13 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
 import * as React from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider, useTranslation } from "@/i18n";
 import AssistantHost from "../AssistantHost";
@@ -18,7 +24,11 @@ jest.mock("@/components/providers/features-provider", () => ({
     features: require("@/lib/features").defaultFeatures(),
   }),
 }));
-const response = (data: unknown, ok = true) => ({ ok, json: async () => data });
+const response = (
+  data: unknown,
+  ok = true,
+  headers: Record<string, string> = {},
+) => ({ ok, headers: new Headers(headers), json: async () => data });
 beforeEach(() => {
   mockMode = "";
   mockRefresh.mockClear();
@@ -524,4 +534,340 @@ it("re-localizes a static action failure after switching language", async () => 
   expect(within(dialog).getByRole("alert")).toHaveTextContent(
     "Elige un inicio válido y una hora de finalización posterior.",
   );
+});
+
+it("sends an explicit Include Today choice and keeps the draft on an unavailable response", async () => {
+  const user = userEvent.setup();
+  const calls: any[] = [];
+  global.fetch = jest.fn(async (path, options) => {
+    calls.push({ path, options });
+    return response(
+      {
+        error: "Today context is unavailable.",
+        code: "ASSISTANT_TODAY_UNAVAILABLE",
+      },
+      false,
+    );
+  }) as any;
+  render(<AssistantHost role="parent" todayContextEnabled />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.click(
+    within(dialog).getByRole("checkbox", { name: /Include Today/i }),
+  );
+  const draft = "What is on today?";
+  await user.type(within(dialog).getByLabelText("Your message"), draft);
+  await user.click(within(dialog).getByRole("button", { name: "Send" }));
+  expect(calls).toHaveLength(1);
+  expect(JSON.parse(calls[0].options.body).includeToday).toBe(true);
+  expect(within(dialog).getByLabelText("Your message")).toHaveValue(draft);
+  expect(within(dialog).getByRole("alert")).toHaveTextContent(
+    "Today context is unavailable right now.",
+  );
+});
+
+it("discloses the Today provider payload in both locales and tracks the opt-in state", async () => {
+  const user = userEvent.setup();
+  function LocaleSwitcher() {
+    const { setLocale } = useTranslation();
+    return (
+      <button type="button" onClick={() => setLocale("es")}>
+        Cambiar idioma
+      </button>
+    );
+  }
+
+  render(
+    <I18nProvider locale="en">
+      <LocaleSwitcher />
+      <AssistantHost role="parent" todayContextEnabled />
+    </I18nProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  expect(dialog).toHaveTextContent("Household records are not attached.");
+  expect(dialog).toHaveTextContent(
+    "When selected, this request sends a short, read-only summary of today’s events, chores, dinner, groceries and food items marked to use soon to your household’s configured AI provider.",
+  );
+
+  await user.click(
+    within(dialog).getByRole("checkbox", { name: /Include Today/i }),
+  );
+  expect(dialog).not.toHaveTextContent("Household records are not attached.");
+  expect(dialog).toHaveTextContent(
+    "Include Today is on: this request sends a short, read-only summary of today’s events, chores, dinner, groceries and food items marked to use soon to your household’s configured AI provider.",
+  );
+
+  await user.click(screen.getByRole("button", { name: "Cambiar idioma" }));
+  expect(dialog).toHaveTextContent(
+    "Incluir Hoy está activado: esta solicitud envía un resumen breve y de solo lectura de los eventos, tareas, cena, compras y alimentos marcados para usar pronto al proveedor de IA configurado para tu hogar.",
+  );
+  await user.click(
+    within(dialog).getByRole("checkbox", { name: /Incluir Hoy/i }),
+  );
+  expect(dialog).toHaveTextContent("No se adjuntan registros del hogar.");
+});
+
+it("blocks an expired Today action until an explicit fresh preview", async () => {
+  const user = userEvent.setup();
+  let calls = 0,
+    now = 1_000;
+  const expiredGenerated = new Date().toISOString();
+  const expired = {
+    "X-Assistant-Today-Protocol": "herewoven.assistant-today.v1",
+    "X-Assistant-Today-Generated-At": expiredGenerated,
+    "X-Assistant-Today-Expires-At": new Date(
+      Date.parse(expiredGenerated) + 60_000,
+    ).toISOString(),
+  };
+  const fresh = {
+    "X-Assistant-Today-Protocol": "herewoven.assistant-today.v1",
+    "X-Assistant-Today-Generated-At": new Date().toISOString(),
+    "X-Assistant-Today-Expires-At": new Date(Date.now() + 60_000).toISOString(),
+  };
+  global.fetch = jest.fn(async () => {
+    calls += 1;
+    const result = response(
+      {
+        reply: "Review this list.",
+        action: { kind: "list_create", title: "Trip", type: "custom" },
+      },
+      true,
+      calls === 1 ? expired : fresh,
+    );
+    if (calls === 1) {
+      return {
+        ...result,
+        json: async () => {
+          now = 1_001;
+          return result.json();
+        },
+      };
+    }
+    return result;
+  }) as any;
+  render(<AssistantHost role="parent" todayContextEnabled />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.click(
+    within(dialog).getByRole("checkbox", { name: /Include Today/i }),
+  );
+  await user.type(
+    within(dialog).getByLabelText("Your message"),
+    "Plan a trip list",
+  );
+  const performanceSpy = jest
+    .spyOn(performance, "now")
+    .mockImplementation(() => now);
+  try {
+    fireEvent.submit(
+      within(dialog).getByRole("button", { name: "Send" }).closest("form")!,
+    );
+    const confirm = await within(dialog).findByRole("button", {
+      name: "Confirm and save",
+    });
+    now = 61_001;
+    fireEvent(document, new Event("visibilitychange"));
+    await waitFor(() => expect(confirm).toBeDisabled());
+    expect(
+      within(dialog).getByText(/Today context has expired/i),
+    ).toBeInTheDocument();
+    const newerDraft = "Keep this newer draft";
+    await user.type(within(dialog).getByLabelText("Your message"), newerDraft);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Refresh Today context" }),
+    );
+    await waitFor(() => expect(calls).toBe(2));
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Confirm and save" }),
+      ).toBeEnabled(),
+    );
+    expect(within(dialog).getByLabelText("Your message")).toHaveValue(
+      newerDraft,
+    );
+    expect(calls).toBe(2);
+  } finally {
+    performanceSpy.mockRestore();
+  }
+});
+
+it("fails closed for a noncanonical or overlong freshness lease", async () => {
+  const user = userEvent.setup();
+  const generated = new Date().toISOString();
+  global.fetch = jest.fn(async () =>
+    response(
+      {
+        reply: "Review this list.",
+        action: { kind: "list_create", title: "Trip", type: "custom" },
+      },
+      true,
+      {
+        "X-Assistant-Today-Protocol": "wrong.protocol",
+        "X-Assistant-Today-Generated-At": generated,
+        "X-Assistant-Today-Expires-At": new Date(
+          Date.parse(generated) + 60_001,
+        ).toISOString(),
+      },
+    ),
+  ) as any;
+  render(<AssistantHost role="parent" todayContextEnabled />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.click(
+    within(dialog).getByRole("checkbox", { name: /Include Today/i }),
+  );
+  await user.type(within(dialog).getByLabelText("Your message"), "Plan a list");
+  await user.click(within(dialog).getByRole("button", { name: "Send" }));
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    "Today context is unavailable right now.",
+  );
+  expect(within(dialog).queryByRole("region")).toBeNull();
+});
+
+it("expires a Today preview when the tab backgrounds before confirmation", async () => {
+  const user = userEvent.setup();
+  const generated = new Date().toISOString();
+  global.fetch = jest.fn(async () =>
+    response(
+      {
+        reply: "Review this list.",
+        action: { kind: "list_create", title: "Trip", type: "custom" },
+      },
+      true,
+      {
+        "X-Assistant-Today-Protocol": "herewoven.assistant-today.v1",
+        "X-Assistant-Today-Generated-At": generated,
+        "X-Assistant-Today-Expires-At": new Date(
+          Date.parse(generated) + 30_000,
+        ).toISOString(),
+      },
+    ),
+  ) as any;
+  render(<AssistantHost role="parent" todayContextEnabled />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.click(
+    within(dialog).getByRole("checkbox", { name: /Include Today/i }),
+  );
+  await user.type(within(dialog).getByLabelText("Your message"), "Plan a list");
+  await user.click(within(dialog).getByRole("button", { name: "Send" }));
+  const confirm = await within(dialog).findByRole("button", {
+    name: "Confirm and save",
+  });
+  await waitFor(() => expect(confirm).toBeEnabled());
+  const originalVisibility = Object.getOwnPropertyDescriptor(
+    document,
+    "visibilityState",
+  );
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    value: "hidden",
+  });
+  fireEvent(document, new Event("visibilitychange"));
+  await waitFor(() => expect(confirm).toBeDisabled());
+  expect(
+    within(dialog).getByText(/Today context has expired/i),
+  ).toBeInTheDocument();
+  if (originalVisibility) {
+    Object.defineProperty(document, "visibilityState", originalVisibility);
+  } else {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+  }
+});
+
+it("fails closed when the monotonic lease clock moves backwards", async () => {
+  const user = userEvent.setup();
+  const generated = new Date().toISOString();
+  const performanceSpy = jest.spyOn(performance, "now").mockReturnValue(1_000);
+  global.fetch = jest.fn(async () =>
+    response(
+      {
+        reply: "Review this list.",
+        action: { kind: "list_create", title: "Trip", type: "custom" },
+      },
+      true,
+      {
+        "X-Assistant-Today-Protocol": "herewoven.assistant-today.v1",
+        "X-Assistant-Today-Generated-At": generated,
+        "X-Assistant-Today-Expires-At": new Date(
+          Date.parse(generated) + 30_000,
+        ).toISOString(),
+      },
+    ),
+  ) as any;
+  try {
+    render(<AssistantHost role="parent" todayContextEnabled />);
+    await user.click(screen.getByRole("button", { name: "AI assistant" }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("checkbox", { name: /Include Today/i }),
+    );
+    await user.type(
+      within(dialog).getByLabelText("Your message"),
+      "Plan a list",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Send" }));
+    const confirm = await within(dialog).findByRole("button", {
+      name: "Confirm and save",
+    });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    performanceSpy.mockReturnValue(900);
+    await user.click(confirm);
+    await waitFor(() => expect(confirm).toBeDisabled());
+    expect(
+      within(dialog).getByText(/Today context has expired/i),
+    ).toBeInTheDocument();
+  } finally {
+    performanceSpy.mockRestore();
+  }
+});
+
+it("rejects a Today response that arrives after the request-start lease", async () => {
+  const user = userEvent.setup();
+  const generated = new Date().toISOString();
+  global.fetch = jest.fn(async () =>
+    response(
+      {
+        reply: "Review this list.",
+        action: { kind: "list_create", title: "Trip", type: "custom" },
+      },
+      true,
+      {
+        "X-Assistant-Today-Protocol": "herewoven.assistant-today.v1",
+        "X-Assistant-Today-Generated-At": generated,
+        "X-Assistant-Today-Expires-At": new Date(
+          Date.parse(generated) + 60_000,
+        ).toISOString(),
+      },
+    ),
+  ) as any;
+  render(<AssistantHost role="parent" todayContextEnabled />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.click(
+    within(dialog).getByRole("checkbox", { name: /Include Today/i }),
+  );
+  const draft = "Plan a list";
+  await user.type(within(dialog).getByLabelText("Your message"), draft);
+  const performanceSpy = jest
+    .spyOn(performance, "now")
+    .mockReturnValueOnce(1_000)
+    .mockReturnValueOnce(61_001)
+    .mockReturnValue(61_001);
+  try {
+    fireEvent.submit(
+      within(dialog).getByRole("button", { name: "Send" }).closest("form")!,
+    );
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Today context is unavailable right now.",
+    );
+    expect(within(dialog).getByLabelText("Your message")).toHaveValue(draft);
+    expect(within(dialog).queryByRole("region")).toBeNull();
+  } finally {
+    performanceSpy.mockRestore();
+  }
 });

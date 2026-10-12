@@ -18,6 +18,7 @@ import type {
   BoardDinner,
   BoardEvent,
   BoardMember,
+  BoardSubject,
   BoardUseSoonItem,
 } from '@/app/dashboard/today/today-board-data'
 import { DEFAULT_USE_SOON_DAYS, expiryLabel, expiryStatus, isUseSoonStatus } from '@/lib/inventory-display'
@@ -84,6 +85,26 @@ export interface PersonChores {
   awaitingCheckCount: number
 }
 
+/** A typed identity key prevents account and profile IDs sharing a namespace. */
+function subjectKey(subject: BoardSubject): string {
+  return subject.kind === 'account' ? `account:${subject.accountId}` : `profile:${subject.memberId}`
+}
+
+function memberSubject(member: BoardMember): BoardSubject {
+  return (
+    member.subject ?? {
+      kind: 'account',
+      accountId: member.id,
+      name: member.name,
+    }
+  )
+}
+
+function choreSubject(chore: BoardChore): BoardSubject | null {
+  if (chore.subject) return chore.subject
+  return chore.assigneeId ? { kind: 'account', accountId: chore.assigneeId, name: '' } : null
+}
+
 /**
  * Chores due on the viewer's local today, grouped by person in household
  * order. People with nothing due today are omitted. No points, XP or streaks:
@@ -94,7 +115,10 @@ export function choresDueTodayByPerson(chores: BoardChore[], members: BoardMembe
   const due = chores.filter((c) => c.dueDay === today)
   return members
     .map((member) => {
-      const mine = due.filter((c) => c.assigneeId === member.id)
+      const mine = due.filter((c) => {
+        const subject = choreSubject(c)
+        return subject !== null && subjectKey(subject) === subjectKey(memberSubject(member))
+      })
       return {
         member,
         open: mine.filter((c) => !isChoreDone(c.status)),
@@ -121,7 +145,7 @@ export function comingUp(
   dinners: BoardDinner[] | null,
   now: Date,
   days: number,
-  locale: string = 'en-US'
+  locale: string = 'en-US',
 ): ComingUpDay[] {
   const out: ComingUpDay[] = []
   for (let i = 1; i <= days; i++) {
@@ -131,7 +155,10 @@ export function comingUp(
     out.push({
       dayKey,
       label: i === 1 ? 'Tomorrow' : d.toLocaleDateString(locale, { weekday: 'long' }),
-      dateLabel: d.toLocaleDateString(locale, { month: 'short', day: 'numeric' }),
+      dateLabel: d.toLocaleDateString(locale, {
+        month: 'short',
+        day: 'numeric',
+      }),
       events: eventsStartingOn(events, dayKey),
       dinner: dinnerOn(dinners, dayKey),
     })
@@ -141,12 +168,19 @@ export function comingUp(
 
 /** "9:00 AM" (en-US) / "09:00" (en-GB) in the viewer's zone. */
 export function formatTime(value: Date | string, locale: string = 'en-US'): string {
-  return new Date(value).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
+  return new Date(value).toLocaleTimeString(locale, {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 /** "Monday, January 5" (en-US) / "Monday 5 January" (en-GB) in the viewer's zone. */
 export function formatLongDate(now: Date, locale: string = 'en-US'): string {
-  return now.toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric' })
+  return now.toLocaleDateString(locale, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  })
 }
 
 /** First word of a display name, for compact labels ("Avery Fixture-A" -> "Avery"). */
@@ -187,8 +221,7 @@ export interface WeatherView {
  */
 export function weatherView(weather: BoardWeather | null | undefined, now: Date): WeatherView | null {
   if (!weather || weather.days.length === 0) return null
-  const key =
-    typeof weather.utcOffsetSeconds === 'number' ? placeDayKey(now, weather.utcOffsetSeconds) : localDayKey(now)
+  const key = typeof weather.utcOffsetSeconds === 'number' ? placeDayKey(now, weather.utcOffsetSeconds) : localDayKey(now)
   let index = weather.days.findIndex((d) => d.day === key)
   if (index < 0) {
     // Forecast from before local midnight: the last day not after today.
@@ -205,7 +238,10 @@ export function weatherView(weather: BoardWeather | null | undefined, now: Date)
 /** "Tue" for a `YYYY-MM-DD` forecast day (a calendar date, not an instant). */
 export function shortWeekday(dayKey: string, locale: string = 'en-US'): string {
   const [y, m, d] = dayKey.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, { weekday: 'short', timeZone: 'UTC' })
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, {
+    weekday: 'short',
+    timeZone: 'UTC',
+  })
 }
 
 /** First names, unless two members share one (then full names). */
@@ -239,14 +275,21 @@ export function itemsToUseSoon(items: BoardUseSoonItem[] | null | undefined, now
       const kind = item.dateKind ?? 'best_before'
       const { status, daysLeft } = expiryStatus(item.expiresOn, today, DEFAULT_USE_SOON_DAYS, kind)
       if (daysLeft === null || !isUseSoonStatus(status)) return []
-      return [{ ...item, status, daysLeft, label: expiryLabel(status, daysLeft, kind) }]
+      return [
+        {
+          ...item,
+          status,
+          daysLeft,
+          label: expiryLabel(status, daysLeft, kind),
+        },
+      ]
     })
     .sort(
       (a, b) =>
         a.expiresOn.localeCompare(b.expiresOn) ||
         useByFirst(a.dateKind) - useByFirst(b.dateKind) ||
         a.name.localeCompare(b.name) ||
-        a.id.localeCompare(b.id)
+        a.id.localeCompare(b.id),
     )
 }
 

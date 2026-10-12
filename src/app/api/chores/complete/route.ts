@@ -6,6 +6,7 @@ import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
 import { COMPLETABLE_CHORE_SELECT, completeChore } from '@/lib/chore-complete'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { profileChoreLegacyWriteRefusal } from '@/lib/chore-profile'
 
 import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 
@@ -43,6 +44,9 @@ export async function POST(request: NextRequest) {
 
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
+    if (chore.assigned_to === null && chore.assigned_member_id != null) {
+      return NextResponse.json(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     // D3 (#102): a completion photo must be an upload owned by the caller's
     // family. Checked before the transaction so a bad photo changes nothing.

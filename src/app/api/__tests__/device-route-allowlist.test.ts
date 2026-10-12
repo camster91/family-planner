@@ -261,6 +261,12 @@ const PRIVATE_PERSON_ROUTES = [
     path: "/api/locations",
   },
   {
+    route: "PATCH /api/locations/[id]",
+    module: "../locations/[id]/route",
+    method: "PATCH",
+    path: "/api/locations/unknown-id",
+  },
+  {
     route: "DELETE /api/locations/[id]",
     module: "../locations/[id]/route",
     method: "DELETE",
@@ -585,6 +591,9 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "DELETE /api/chores",
   "POST /api/chores/uncomplete",
   "POST /api/chores/verify",
+  "GET /api/chores/stacks",
+  "POST /api/chores/stacks",
+  "GET /api/chores/stacks/candidates",
   "GET /api/events",
   "POST /api/events",
   "PATCH /api/events",

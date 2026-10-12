@@ -5,14 +5,7 @@
  * UTC day, which is the bug class these helpers exist to avoid.
  */
 
-import {
-  choresDueTodayByPerson,
-  comingUp,
-  dinnerOn,
-  eventsLeftToday,
-  firstName,
-  localDayKey,
-} from '../board-model'
+import { choresDueTodayByPerson, comingUp, dinnerOn, eventsLeftToday, firstName, localDayKey } from '../board-model'
 import type { BoardChore, BoardEvent } from '@/app/dashboard/today/today-board-data'
 
 /** Local wall-clock instant as an ISO string. */
@@ -52,9 +45,18 @@ describe('eventsLeftToday', () => {
   it('keeps unfinished events that start on or before the local today', () => {
     const out = eventsLeftToday(events, NOW)
     expect(out.map((e) => e.id)).toEqual(['multi-day', 'now', 'later', 'late-evening'])
-    expect(out.find((e) => e.id === 'now')).toMatchObject({ happeningNow: true, startedEarlier: false })
-    expect(out.find((e) => e.id === 'later')).toMatchObject({ happeningNow: false, startedEarlier: false })
-    expect(out.find((e) => e.id === 'multi-day')).toMatchObject({ happeningNow: true, startedEarlier: true })
+    expect(out.find((e) => e.id === 'now')).toMatchObject({
+      happeningNow: true,
+      startedEarlier: false,
+    })
+    expect(out.find((e) => e.id === 'later')).toMatchObject({
+      happeningNow: false,
+      startedEarlier: false,
+    })
+    expect(out.find((e) => e.id === 'multi-day')).toMatchObject({
+      happeningNow: true,
+      startedEarlier: true,
+    })
   })
 })
 
@@ -82,7 +84,7 @@ describe('choresDueTodayByPerson', () => {
         chore('p-yesterday', 'p', '2026-01-04'),
       ],
       members,
-      NOW
+      NOW,
     )
     expect(out.map((p) => [p.member.id, p.open.map((c) => c.id), p.doneCount])).toEqual([
       ['t', ['t-open'], 1],
@@ -104,6 +106,59 @@ describe('choresDueTodayByPerson', () => {
 
   it('is empty when nothing is due today', () => {
     expect(choresDueTodayByPerson([], members, NOW)).toEqual([])
+  })
+
+  it('matches protocol-2 profile chores by typed subject, never by an overloaded assignee id', () => {
+    const profile = {
+      id: 'profile:member_only',
+      name: 'Little One',
+      color: 'purple' as const,
+      subject: {
+        kind: 'profile' as const,
+        memberId: 'member_only',
+        name: 'Little One',
+        color: 'purple' as const,
+      },
+    }
+    const out = choresDueTodayByPerson(
+      [
+        {
+          id: 'profile-chore',
+          title: 'Put toys away',
+          dueDay: '2026-01-05',
+          status: 'pending',
+          subject: {
+            kind: 'profile',
+            memberId: 'member_only',
+            name: 'Little One',
+            color: 'purple',
+          },
+        },
+      ],
+      [profile],
+      NOW,
+    )
+    expect(out).toEqual([
+      {
+        member: profile,
+        open: [
+          {
+            id: 'profile-chore',
+            title: 'Put toys away',
+            dueDay: '2026-01-05',
+            status: 'pending',
+            subject: {
+              kind: 'profile',
+              memberId: 'member_only',
+              name: 'Little One',
+              color: 'purple',
+            },
+          },
+        ],
+        doneCount: 0,
+        awaitingCheckCount: 0,
+      },
+    ])
   })
 })
 

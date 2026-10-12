@@ -5,6 +5,7 @@ import { Heart, Plus, X, Trash2, Printer } from 'lucide-react'
 import { ListRow, InsetList, SectionHeader } from '@/components/ui/list-row'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { Dialog } from '@/components/ui/dialog'
+import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 import { useTranslation } from '@/i18n'
 
 interface EmergencyContact {
@@ -392,6 +393,12 @@ function EmergencyPageInner() {
   const [previewContact, setPreviewContact] = React.useState<EmergencyContact | null>(null)
   const [editContact, setEditContact] = React.useState<EmergencyContact | null>(null)
   const [saving, setSaving] = React.useState(false)
+  const contactsRevisionRef = React.useRef(0)
+  const contactsReadRef = React.useRef(0)
+  // Keep browser Back on this route while a contact mutation is in flight.
+  // Dialog dismissal is disabled separately below so Escape/backdrop/close
+  // cannot clear the draft before the server answers.
+  usePendingFormNavigationController(saving)
   // D1 (#102): every member can read the cards (a child home alone must find
   // them); only parents can add, edit or delete. Unknown until /api/auth/me
   // answers, so the controls stay hidden rather than flash for a child.
@@ -404,17 +411,24 @@ function EmergencyPageInner() {
       .catch(() => {})
   }, [])
 
-  const fetchContacts = React.useCallback(async () => {
+  const fetchContacts = React.useCallback(async (background = false) => {
+    const readId = ++contactsReadRef.current
+    const revision = contactsRevisionRef.current
+    const isCurrentRead = () =>
+      readId === contactsReadRef.current && revision === contactsRevisionRef.current
     try {
+      if (!background) setLoading(true)
       const res = await fetch('/api/emergency-contacts')
       if (!res.ok) throw new Error('Failed to load')
       const data = await res.json()
+      if (!isCurrentRead()) return
       setContacts(data.contacts || [])
       setError(null)
     } catch {
+      if (!isCurrentRead()) return
       setError(t('common.error'))
     } finally {
-      setLoading(false)
+      if (isCurrentRead()) setLoading(false)
     }
   }, [t])
 
@@ -433,8 +447,12 @@ function EmergencyPageInner() {
           body: JSON.stringify(form),
         })
         if (!res.ok) throw new Error('Failed to update')
+        contactsRevisionRef.current += 1
         const edited = editContact
-        setPreviewContact((prev) => (prev && prev.id === edited.id ? { ...prev, ...form } : prev))
+        const data = await res.json().catch(() => null) as { contact?: EmergencyContact } | null
+        const updated = data?.contact ?? { ...edited, ...form }
+        setContacts((prev) => prev.map((contact) => contact.id === edited.id ? updated : contact))
+        setPreviewContact((prev) => (prev && prev.id === edited.id ? updated : prev))
       } else {
         const res = await fetch('/api/emergency-contacts', {
           method: 'POST',
@@ -442,10 +460,18 @@ function EmergencyPageInner() {
           body: JSON.stringify(form),
         })
         if (!res.ok) throw new Error('Failed to create')
+        contactsRevisionRef.current += 1
+        const data = await res.json().catch(() => null) as { contact?: EmergencyContact } | null
+        if (data?.contact) setContacts((prev) => [data.contact!, ...prev])
       }
       setShowAdd(false)
       setEditContact(null)
-      await fetchContacts()
+      // The mutation is committed; release navigation and dismissal now. A
+      // refresh is reconciliation only, so a slow GET cannot hold the draft
+      // hostage. fetchContacts keeps the committed local result visible and
+      // exposes a retryable page error when the refresh itself fails.
+      setSaving(false)
+      void fetchContacts(true)
     } catch {
       // Keep the modal open and say so.
       setModalError(t('common.error'))
@@ -462,9 +488,15 @@ function EmergencyPageInner() {
     try {
       const res = await fetch(`/api/emergency-contacts/${editContact.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
+      contactsRevisionRef.current += 1
+      const deletedId = editContact.id
+      setContacts((prev) => prev.filter((contact) => contact.id !== deletedId))
       setEditContact(null)
       setPreviewContact(null)
-      await fetchContacts()
+      // Keep the committed deletion visible immediately; reconciliation must
+      // not keep the pending-navigation latch armed while a GET hangs.
+      setSaving(false)
+      void fetchContacts(true)
     } catch {
       setModalError(t('common.error'))
     } finally {
@@ -477,6 +509,7 @@ function EmergencyPageInner() {
   }
 
   const closeModal = () => {
+    if (saving) return
     setModalError(null)
     setShowAdd(false)
     setEditContact(null)
@@ -510,12 +543,24 @@ function EmergencyPageInner() {
       `}</style>
 
       <div className="space-y-6 max-w-2xl mx-auto">
-        <div className="flex items-center justify-between no-print">
-          <div>
-            <h1 className="text-large-title font-display">{t('emergency.title')}</h1>
+        {error && (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--tint-rewards)] bg-[var(--tint-rewards)]/10 px-4 py-3">
+            <p className="text-subhead text-label-primary">{error}</p>
+            <button
+              type="button"
+              onClick={() => void fetchContacts()}
+              className="btn-ghost min-h-[44px] shrink-0 px-3"
+            >
+              {t('common.tryAgain')}
+            </button>
+          </div>
+        )}
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:justify-between no-print">
+          <div className="min-w-0 sm:flex-1">
+            <h1 className="text-large-title font-display break-words">{t('emergency.title')}</h1>
             <p className="text-subhead text-label-secondary mt-0.5">{t('emergency.subtitle')}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {contacts.length > 0 && (
               <button
                 type="button"
@@ -631,14 +676,18 @@ function EmergencyPageInner() {
         {/* Add modal */}
         <Dialog
           open={isParent && showAdd && !editContact}
-          onClose={closeModal}
+          onClose={saving ? undefined : closeModal}
           title={t('emergency.addCard')}
         >
           <AddEditModal mode="add" onSave={handleSave} t={t} saving={saving} error={modalError} />
         </Dialog>
 
         {/* Edit modal */}
-        <Dialog open={isParent && !!editContact} onClose={closeModal} title={t('emergency.editCard')}>
+        <Dialog
+          open={isParent && !!editContact}
+          onClose={saving ? undefined : closeModal}
+          title={t('emergency.editCard')}
+        >
           {isParent && editContact && (
             <AddEditModal
               mode="edit"

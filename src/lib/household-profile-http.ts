@@ -11,7 +11,12 @@ import {
   manageHouseholdProfile,
   type PublicHouseholdProfile,
 } from "@/lib/household-profile-management";
+import {
+  isProfileAgeAllowed,
+  profileRoleSchema,
+} from "@/lib/member-subject-contract";
 import { prisma } from "@/lib/prisma";
+import { isProfileChoreEnabled } from "@/lib/chore-profile";
 
 export const NO_STORE = { "Cache-Control": "private, no-store" };
 export const PROFILE_SETUP_ENABLE_ENV = "HOUSEHOLD_PROFILE_SETUP_ENABLED";
@@ -23,7 +28,27 @@ const CREATE_KEYS = new Set(["name", "role", "age"]);
 const EDIT_KEYS = new Set(["name", "role", "age", "revision"]);
 const ARCHIVE_KEYS = new Set(["revision"]);
 const profileId = z.string().min(1).max(128);
-const publicProfileRole = z.enum(["child", "teen", "parent"]);
+const publicProfileRole = profileRoleSchema;
+const publicProfileDto = z
+  .object({
+    id: z.string(),
+    family_id: z.string(),
+    name: z.string(),
+    role: publicProfileRole,
+    age: z.number().int().nullable(),
+    archived_at: z.string().nullable(),
+    revision: z.number().int(),
+  })
+  .strict()
+  .superRefine((profile, ctx) => {
+    if (!isProfileAgeAllowed(profile.role, profile.age)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["age"],
+        message: "Profile age is not valid for this presentation role.",
+      });
+    }
+  });
 
 export type ProfileAuth = {
   payload: { userId: string; tv?: number };
@@ -272,26 +297,18 @@ export async function runProfileCommand(
 export function toProfileDto(
   profile: PublicHouseholdProfile | Record<string, unknown>,
 ): PublicHouseholdProfile | null {
-  const role = publicProfileRole.safeParse(profile.role);
-  if (!role.success) return null;
   const archivedAt = profile.archived_at;
-  return {
-    id: String(profile.id),
-    family_id: String(profile.family_id),
-    name: String(profile.name),
-    role: role.data,
-    age:
-      profile.age === null || profile.age === undefined
-        ? null
-        : Number(profile.age),
+  const parsed = publicProfileDto.safeParse({
+    id: profile.id,
+    family_id: profile.family_id,
+    name: profile.name,
+    role: profile.role,
+    age: profile.age,
     archived_at:
-      archivedAt === null || archivedAt === undefined
-        ? null
-        : archivedAt instanceof Date
-          ? archivedAt.toISOString()
-          : String(archivedAt),
-    revision: Number(profile.revision),
-  };
+      archivedAt instanceof Date ? archivedAt.toISOString() : archivedAt,
+    revision: profile.revision,
+  });
+  return parsed.success ? parsed.data : null;
 }
 
 export async function listProfiles(
@@ -334,7 +351,10 @@ export async function listProfiles(
         },
       );
     }
-    return NextResponse.json({ profiles: dtos }, { headers: NO_STORE });
+    return NextResponse.json(
+      { profiles: dtos, profileChoreSupported: isProfileChoreEnabled() },
+      { headers: NO_STORE },
+    );
   } catch (error) {
     logRouteError("GET /api/family/profiles", error, getRequestId(request));
     return apiError(

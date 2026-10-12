@@ -186,6 +186,14 @@ it("refuses malformed DTOs without claiming durability", () => {
   expect(values.size).toBe(0);
 });
 
+it("does not persist protocol-2 profile boards", () => {
+  const { storage, values } = store();
+  expect(
+    writeDeviceBoardCache(storage, "device-a", { ...board(), memberProtocol: 2 }, now),
+  ).toBe(false);
+  expect(values.size).toBe(0);
+});
+
 it("tolerates missing, inaccessible and quota-limited storage", () => {
   expect(readDeviceBoardCache(null, "device-a", now)).toEqual({
     state: "missing",
