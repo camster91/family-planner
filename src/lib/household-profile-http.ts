@@ -16,6 +16,7 @@ import {
   profileRoleSchema,
 } from "@/lib/member-subject-contract";
 import { prisma } from "@/lib/prisma";
+import { isProfileChoreEnabled } from "@/lib/chore-profile";
 
 export const NO_STORE = { "Cache-Control": "private, no-store" };
 export const PROFILE_SETUP_ENABLE_ENV = "HOUSEHOLD_PROFILE_SETUP_ENABLED";
@@ -350,7 +351,10 @@ export async function listProfiles(
         },
       );
     }
-    return NextResponse.json({ profiles: dtos }, { headers: NO_STORE });
+    return NextResponse.json(
+      { profiles: dtos, profileChoreSupported: isProfileChoreEnabled() },
+      { headers: NO_STORE },
+    );
   } catch (error) {
     logRouteError("GET /api/family/profiles", error, getRequestId(request));
     return apiError(

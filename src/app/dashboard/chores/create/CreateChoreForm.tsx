@@ -40,7 +40,7 @@ import { canonicalBodySignature } from "@/lib/request-signature";
 import {
   findActiveHouseholdProfile,
   readApiErrorCode,
-  readHouseholdProfiles,
+  readHouseholdProfilesResponse,
   type HouseholdProfile,
 } from "@/lib/household-profile-types";
 import { useProfileSetupText } from "@/i18n/profile-setup";
@@ -202,9 +202,9 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         const response = await fetch("/api/family/profiles", { cache: "no-store" });
         if (!response.ok) return;
         const payload: unknown = await response.json();
-        const profiles = readHouseholdProfiles(payload);
-        if (!cancelled && profiles) {
-          setProfileOptions(profiles.filter((profile) => !profile.archived_at));
+        const profiles = readHouseholdProfilesResponse(payload);
+        if (!cancelled && profiles?.profileChoreSupported) {
+          setProfileOptions(profiles.profiles.filter((profile) => !profile.archived_at));
         }
       } catch {
         // Profile setup is optional; the account assignment path remains available.

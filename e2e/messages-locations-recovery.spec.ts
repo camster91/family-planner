@@ -160,6 +160,7 @@ for (const locale of ["en", "es"] as const) {
 
       await page.goto("/dashboard/locations");
       const locationsMain = page.locator("#main-content");
+      const locationEmptyTitle = recoveryCopy[locale].locations.emptyTitle;
       const locationsRecovery = locationsMain.getByTestId(
         "locations-load-error",
       );
@@ -168,7 +169,7 @@ for (const locale of ["en", "es"] as const) {
       );
       await expect(
         locationsMain.getByRole("heading", {
-          name: "No locations yet",
+          name: locationEmptyTitle,
           exact: true,
         }),
       ).toHaveCount(0);
@@ -183,7 +184,7 @@ for (const locale of ["en", "es"] as const) {
       await locationRetry.click();
       await expect(
         locationsMain.getByRole("heading", {
-          name: "No locations yet",
+          name: locationEmptyTitle,
           exact: true,
         }),
       ).toBeVisible();

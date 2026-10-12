@@ -51,6 +51,9 @@ const manage = manageHouseholdProfile as jest.Mock;
 const refuse = refusePairedDevice as jest.Mock;
 const KEY = "profile-request-0001";
 const initialProfileSetupEnabled = process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED;
+const initialProfileChoreEnabled = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+const initialProfileChoreRollbackReady =
+  process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
 
 function profile(id: string, family_id: string, name = "Toddler") {
   return {
@@ -76,6 +79,8 @@ function keyed(as: UserKey, body: unknown, path = "/api/family/profiles") {
 
 beforeEach(() => {
   process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED = "1";
+  delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+  delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
   db.reset();
   manage.mockReset();
   refuse.mockReset().mockResolvedValue(null);
@@ -88,6 +93,14 @@ afterEach(() => {
   if (initialProfileSetupEnabled === undefined)
     delete process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED;
   else process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED = initialProfileSetupEnabled;
+  if (initialProfileChoreEnabled === undefined)
+    delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+  else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = initialProfileChoreEnabled;
+  if (initialProfileChoreRollbackReady === undefined)
+    delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+  else
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY =
+      initialProfileChoreRollbackReady;
   jest.restoreAllMocks();
 });
 
@@ -135,6 +148,28 @@ describe("GET /api/family/profiles", () => {
         expect(manage).not.toHaveBeenCalled();
         expect(db.writes).toHaveLength(0);
       });
+    }
+  });
+
+  it("reports profile chore writer support separately from profile setup", async () => {
+    const cases = [
+      [undefined, undefined, false],
+      ["1", undefined, false],
+      ["1", "1", true],
+    ] as const;
+    for (const [enabled, rollbackReady, supported] of cases) {
+      if (enabled === undefined)
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+      else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = enabled;
+      if (rollbackReady === undefined)
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+      else process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = rollbackReady;
+
+      const response = await GET(
+        req({ as: "parentA", path: "/api/family/profiles" }),
+      );
+      expect(response.status).toBe(200);
+      expect((await bodyOf(response)).profileChoreSupported).toBe(supported);
     }
   });
 
