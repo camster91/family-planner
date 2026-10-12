@@ -8,8 +8,9 @@
 import * as React from 'react'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { I18nProvider } from '@/i18n'
+import { I18nProvider, useTranslation } from '@/i18n'
 import { TakeTurnsPicker } from '@/components/chores/TakeTurnsPicker'
+import { RoutineFields, RoutineIconPicker } from '@/components/chores/RoutineIconPicker'
 import CreateChorePage from '../create/page'
 import EditChorePage from '../edit/page'
 import ChoresContent from '../ChoresContent'
@@ -88,6 +89,41 @@ describe('TakeTurnsPicker', () => {
     expect(screen.getByRole('button', { name: 'Alex' }).className).toContain('min-h-[44px]')
     expect(screen.getByRole('switch', { name: 'Take turns' }).className).toContain('min-h-[44px]')
   })
+
+  it('localizes the turn control and keeps member names as record data', async () => {
+    const user = userEvent.setup()
+    render(
+      <I18nProvider locale="es">
+        <Harness />
+      </I18nProvider>,
+    )
+    const toggle = screen.getByRole('switch', { name: 'Turnarse' })
+    await user.click(toggle)
+    expect(screen.getByText('Cada vez que se repite, le toca a la siguiente persona.')).toBeTruthy()
+    expect(screen.getByText('Elige al menos 2 personas.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Alex' })).toBeTruthy()
+  })
+})
+
+describe('RoutineIconPicker', () => {
+  it('localizes routine fields and searches built-in icons by Spanish labels', async () => {
+    const user = userEvent.setup()
+    render(
+      <I18nProvider locale="es">
+        <>
+          <RoutineIconPicker value={null} onChange={() => {}} />
+          <RoutineFields routine="Morning" onRoutineChange={() => {}} order="" onOrderChange={() => {}} />
+        </>
+      </I18nProvider>,
+    )
+    expect(screen.getByText('Imagen')).toBeTruthy()
+    const search = screen.getByLabelText('Buscar imágenes')
+    expect(search.getAttribute('placeholder')).toBe('Buscar imágenes, p. ej., dientes')
+    expect(screen.getByLabelText('Rutina').getAttribute('placeholder')).toBe('p. ej., Mañana')
+    expect(screen.getByText(/Agrupa las tareas de cualquier familiar/)).toBeTruthy()
+    await user.type(search, 'dientes')
+    expect(screen.getByRole('button', { name: 'Cepillarse los dientes' })).toBeTruthy()
+  })
 })
 
 describe('New chore form', () => {
@@ -165,11 +201,16 @@ describe('New chore form', () => {
     expect(screen.getByText('Frecuencia')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Crear tarea' })).toBeTruthy()
 
+    await user.click(screen.getByText('Imágenes y rutina'))
+    await user.type(screen.getByLabelText('Rutina'), 'Morning')
+    await user.type(screen.getByLabelText('Paso'), '1')
+    expect(screen.getByText('Morning · Paso 1 · Sin imagen')).toBeTruthy()
+
     await user.type(screen.getByLabelText('Título'), 'Platos')
     await user.type(screen.getByLabelText('Fecha de vencimiento'), '2099-10-05')
     await user.click(screen.getByRole('button', { name: 'Semanal' }))
     await user.click(screen.getByRole('checkbox', { name: 'Lunes' }))
-    await user.click(screen.getByRole('switch', { name: 'Take turns' }))
+    await user.click(screen.getByRole('switch', { name: 'Turnarse' }))
     await user.click(screen.getByRole('button', { name: 'Sam' }))
 
     expect(screen.getByText('Añade al menos 2 personas para turnarse primero.')).toBeTruthy()
@@ -256,6 +297,34 @@ describe('Edit chore form', () => {
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
     await waitFor(() => expect(sent('/api/chores')).toBeDefined())
     expect(sent('/api/chores').rotation).toBeUndefined()
+  })
+
+  it('keeps a dirty draft when the locale changes without refetching the record', async () => {
+    const user = userEvent.setup()
+    function LocaleButton() {
+      const { setLocale } = useTranslation()
+      return <button type="button" onClick={() => setLocale('es')}>Switch language</button>
+    }
+    function LocaleSwitcher() {
+      return (
+        <I18nProvider locale="en">
+          <LocaleButton />
+            <EditChorePage />
+        </I18nProvider>
+      )
+    }
+
+    render(<LocaleSwitcher />)
+    await waitFor(() => expect(screen.getByDisplayValue('Dishes')).toBeTruthy())
+    const initialRecordReads = calls.filter((call) => call.url.startsWith('/api/chores?id=')).length
+    const title = screen.getByLabelText('Title') as HTMLInputElement
+    await user.clear(title)
+    await user.type(title, 'Dirty draft')
+    await user.click(screen.getByRole('button', { name: 'Switch language' }))
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Editar tarea' })).toBeTruthy())
+    expect((screen.getByLabelText('Título') as HTMLInputElement).value).toBe('Dirty draft')
+    expect(calls.filter((call) => call.url.startsWith('/api/chores?id=')).length).toBe(initialRecordReads)
   })
 })
 

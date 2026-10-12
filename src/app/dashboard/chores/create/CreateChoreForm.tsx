@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "@/i18n";
 import {
   choreFormMessages,
+  localizedChoreRoutineIconLabel,
   type ChoreFormMessage,
 } from "@/i18n/chore-forms";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
@@ -56,7 +57,7 @@ const frequencyOptions: { value: Frequency; label: ChoreFormMessage }[] = [
 ];
 
 export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
-  const { t } = useTranslation();
+  const { locale, t } = useTranslation();
   const message = (
     key: ChoreFormMessage,
     params?: Record<string, string | number>,
@@ -456,9 +457,11 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           title={message("picturesRoutine")}
           summary={[
             routine.trim()
-              ? `${routine}${routineOrder ? ` · Step ${routineOrder}` : ""}`
+              ? `${routine}${routineOrder ? ` · ${message("step")} ${routineOrder}` : ""}`
               : message("noRoutine"),
-            routineIconLabel(icon) ?? message("noPicture"),
+            localizedChoreRoutineIconLabel(locale, icon) ??
+              routineIconLabel(icon) ??
+              message("noPicture"),
           ].join(" · ")}
         >
           {/* Picture routines (#272): picture, routine and step */}

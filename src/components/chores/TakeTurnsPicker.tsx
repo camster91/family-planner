@@ -10,6 +10,8 @@
 import { useId } from 'react'
 import { cn } from '@/lib/utils'
 import { ROTATION_MAX, ROTATION_MIN } from '@/lib/chore-rotation'
+import { useTranslation } from '@/i18n'
+import { choreFormMessages, type ChoreFormMessage } from '@/i18n/chore-forms'
 
 export type TakeTurnsMember = { id: string; name: string }
 
@@ -27,6 +29,9 @@ export function TakeTurnsPicker({
   onOrderChange: (order: string[]) => void
 }) {
   const id = useId()
+  const { t } = useTranslation()
+  const message = (key: ChoreFormMessage, params?: Record<string, string | number>) =>
+    t(key, params, choreFormMessages)
   const labelId = `${id}-label`
   const descId = `${id}-desc`
   const names = new Map(members.map((m) => [m.id, m.name]))
@@ -42,10 +47,10 @@ export function TakeTurnsPicker({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p id={labelId} className="label-apple mb-0">
-            Take turns
+            {message('takeTurns')}
           </p>
           <p id={descId} className="text-footnote text-label-secondary">
-            Each time it repeats, the next person does it.
+            {message('takeTurnsDescription')}
           </p>
         </div>
         <button
@@ -59,7 +64,7 @@ export function TakeTurnsPicker({
         >
           {/* The word says the state; colour is not the only cue. */}
           <span className="w-7 text-right text-[14px] font-medium text-label-secondary" aria-hidden="true">
-            {on ? 'On' : 'Off'}
+            {on ? message('on') : message('off')}
           </span>
           <span
             aria-hidden="true"
@@ -81,7 +86,7 @@ export function TakeTurnsPicker({
       {on && (
         <div className="mt-3">
           <p id={`${id}-pick`} className="text-footnote text-label-secondary mb-2">
-            Tap people in the order they take turns. Tap again to take someone out.
+            {message('takeTurnsInstruction')}
           </p>
           <div role="group" aria-labelledby={`${id}-pick`} className="grid grid-cols-2 gap-2">
             {members.map((m) => {
@@ -93,7 +98,7 @@ export function TakeTurnsPicker({
                   type="button"
                   onClick={() => tap(m.id)}
                   aria-pressed={picked}
-                  aria-label={picked ? `${m.name}, turn ${place + 1}` : m.name}
+                  aria-label={picked ? message('turnAria', { name: m.name, count: place + 1 }) : m.name}
                   className={cn(
                     'flex min-h-[44px] items-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-left transition-all duration-200 motion-reduce:transition-none',
                     picked
@@ -117,12 +122,19 @@ export function TakeTurnsPicker({
           </div>
           {order.length > 0 && (
             <p className="text-footnote text-label-secondary mt-2" aria-live="polite">
-              Order: {order.map((x) => names.get(x) ?? 'Someone').join(' → ')}
-              {order.length >= ROTATION_MIN ? ` → ${names.get(order[0]) ?? 'Someone'}` : ''}
+              {message('order', {
+                order: `${order.map((x) => names.get(x) ?? message('someone')).join(' → ')}${
+                  order.length >= ROTATION_MIN
+                    ? ` → ${names.get(order[0]) ?? message('someone')}`
+                    : ''
+                }`,
+              })}
             </p>
           )}
           {tooFew && (
-            <p className="text-footnote text-[var(--danger-text)] mt-1">Pick at least {ROTATION_MIN} people.</p>
+            <p className="text-footnote text-[var(--danger-text)] mt-1">
+              {message('pickAtLeast', { count: ROTATION_MIN })}
+            </p>
           )}
         </div>
       )}

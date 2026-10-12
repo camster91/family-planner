@@ -3075,61 +3075,6 @@
     "count": 1
   },
   {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "e.g. Morning",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "No picture",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "No picture selected. Pictures make steps easier to recognize at any age.",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "No pictures match “",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Picture",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Routine",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Search pictures",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Search pictures, e.g. teeth",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Selected:",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Stack chores for any family member with the same routine name and numbered steps. View the stack under Chores → Routines.",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineIconPicker.tsx",
-    "text": "Step",
-    "count": 1
-  },
-  {
     "file": "src/components/chores/RoutineStacks.tsx",
     "text": "· some awaiting check",
     "count": 1
@@ -3222,51 +3167,6 @@
   {
     "file": "src/components/chores/RoutineStacks.tsx",
     "text": "Up next",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": ", turn",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "Each time it repeats, the next person does it.",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "Off",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "On",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "Order:",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "people.",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "Pick at least",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "Take turns",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/TakeTurnsPicker.tsx",
-    "text": "Tap people in the order they take turns. Tap again to take someone out.",
     "count": 1
   },
   {

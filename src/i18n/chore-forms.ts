@@ -1,4 +1,5 @@
 import type { Locale } from "./types";
+import type { RoutineIconKey } from "@/lib/routine-icons";
 
 export const choreFormsEnglish = {
   back: "Chores",
@@ -40,6 +41,17 @@ export const choreFormsEnglish = {
   noRoutine: "No routine",
   step: "Step",
   noPicture: "No picture",
+  picture: "Picture",
+  selectedPicture: "Selected: {label}",
+  noPictureSelected:
+    "No picture selected. Pictures make steps easier to recognize at any age.",
+  searchPictures: "Search pictures",
+  searchPicturesPlaceholder: "Search pictures, e.g. teeth",
+  noPicturesMatch: "No pictures match “{query}”.",
+  routine: "Routine",
+  routinePlaceholder: "e.g. Morning",
+  routineHelp:
+    "Stack chores for any family member with the same routine name and numbered steps. View the stack under Chores → Routines.",
   photo: "Photo",
   uploading: "Uploading...",
   photoSelected: "Photo selected",
@@ -71,6 +83,16 @@ export const choreFormsEnglish = {
   seriesHint:
     "This chore is part of a repeating series. Changing how often changes the whole series.",
   uploadFailed: "Failed to upload photo",
+  takeTurns: "Take turns",
+  takeTurnsDescription: "Each time it repeats, the next person does it.",
+  on: "On",
+  off: "Off",
+  takeTurnsInstruction:
+    "Tap people in the order they take turns. Tap again to take someone out.",
+  turnAria: "{name}, turn {count}",
+  order: "Order: {order}",
+  someone: "Someone",
+  pickAtLeast: "Pick at least {count} people.",
 } as const;
 
 export type ChoreFormMessage = keyof typeof choreFormsEnglish;
@@ -115,6 +137,17 @@ export const choreFormsSpanish: Record<ChoreFormMessage, string> = {
   noRoutine: "Sin rutina",
   step: "Paso",
   noPicture: "Sin imagen",
+  picture: "Imagen",
+  selectedPicture: "Seleccionada: {label}",
+  noPictureSelected:
+    "No se ha seleccionado ninguna imagen. Las imágenes ayudan a reconocer los pasos a cualquier edad.",
+  searchPictures: "Buscar imágenes",
+  searchPicturesPlaceholder: "Buscar imágenes, p. ej., dientes",
+  noPicturesMatch: "No hay imágenes que coincidan con «{query}».",
+  routine: "Rutina",
+  routinePlaceholder: "p. ej., Mañana",
+  routineHelp:
+    "Agrupa las tareas de cualquier familiar con el mismo nombre de rutina y pasos numerados. Consulta el grupo en Tareas → Rutinas.",
   photo: "Foto",
   uploading: "Subiendo...",
   photoSelected: "Foto seleccionada",
@@ -146,6 +179,17 @@ export const choreFormsSpanish: Record<ChoreFormMessage, string> = {
   seriesHint:
     "Esta tarea forma parte de una serie repetitiva. Cambiar la frecuencia cambia toda la serie.",
   uploadFailed: "No se pudo subir la foto",
+  takeTurns: "Turnarse",
+  takeTurnsDescription:
+    "Cada vez que se repite, le toca a la siguiente persona.",
+  on: "Activado",
+  off: "Desactivado",
+  takeTurnsInstruction:
+    "Toca a las personas en el orden de sus turnos. Toca otra vez para quitar a alguien.",
+  turnAria: "{name}, turno {count}",
+  order: "Orden: {order}",
+  someone: "Alguien",
+  pickAtLeast: "Elige al menos {count} personas.",
 };
 
 export const choreFormMessages: Record<
@@ -155,3 +199,105 @@ export const choreFormMessages: Record<
   en: choreFormsEnglish,
   es: choreFormsSpanish,
 };
+
+export const choreRoutineIconLabelsEnglish: Record<RoutineIconKey, string> = {
+  "wake-up": "Wake up",
+  toilet: "Toilet",
+  "wash-hands": "Wash hands",
+  "wash-face": "Wash face",
+  "brush-teeth": "Brush teeth",
+  "brush-hair": "Brush hair",
+  bath: "Bath",
+  shower: "Shower",
+  "get-dressed": "Get dressed",
+  pyjamas: "Pyjamas",
+  socks: "Socks",
+  shoes: "Shoes",
+  coat: "Coat",
+  hat: "Hat",
+  medicine: "Medicine",
+  "drink-water": "Drink water",
+  breakfast: "Breakfast",
+  lunchbox: "Lunchbox",
+  "set-table": "Set the table",
+  dishes: "Dishes",
+  "help-cook": "Help cook",
+  backpack: "Backpack",
+  homework: "Homework",
+  reading: "Reading",
+  "school-bus": "School bus",
+  "music-practice": "Music practice",
+  "make-bed": "Make the bed",
+  "tidy-toys": "Tidy toys",
+  laundry: "Laundry",
+  trash: "Trash",
+  sweep: "Sweep",
+  "wipe-table": "Wipe the table",
+  "water-plants": "Water the plants",
+  groceries: "Put away groceries",
+  "feed-pet": "Feed the pet",
+  "walk-dog": "Walk the dog",
+  exercise: "Exercise",
+  "play-outside": "Play outside",
+  hug: "Hug",
+  bedtime: "Bedtime",
+};
+
+export const choreRoutineIconLabelsSpanish: Record<RoutineIconKey, string> = {
+  "wake-up": "Despertarse",
+  toilet: "Ir al baño",
+  "wash-hands": "Lavarse las manos",
+  "wash-face": "Lavarse la cara",
+  "brush-teeth": "Cepillarse los dientes",
+  "brush-hair": "Cepillarse el pelo",
+  bath: "Baño",
+  shower: "Ducha",
+  "get-dressed": "Vestirse",
+  pyjamas: "Pijama",
+  socks: "Calcetines",
+  shoes: "Zapatos",
+  coat: "Abrigo",
+  hat: "Gorro",
+  medicine: "Medicinas",
+  "drink-water": "Beber agua",
+  breakfast: "Desayuno",
+  lunchbox: "Lonchera",
+  "set-table": "Poner la mesa",
+  dishes: "Platos",
+  "help-cook": "Ayudar a cocinar",
+  backpack: "Mochila",
+  homework: "Deberes",
+  reading: "Lectura",
+  "school-bus": "Autobús escolar",
+  "music-practice": "Practicar música",
+  "make-bed": "Hacer la cama",
+  "tidy-toys": "Ordenar los juguetes",
+  laundry: "Ropa",
+  trash: "Basura",
+  sweep: "Barrer",
+  "wipe-table": "Limpiar la mesa",
+  "water-plants": "Regar las plantas",
+  groceries: "Guardar las compras",
+  "feed-pet": "Dar de comer a la mascota",
+  "walk-dog": "Pasear al perro",
+  exercise: "Ejercicio",
+  "play-outside": "Jugar afuera",
+  hug: "Abrazo",
+  bedtime: "Hora de dormir",
+};
+
+export const choreRoutineIconLabels: Record<
+  Locale,
+  Record<RoutineIconKey, string>
+> = {
+  en: choreRoutineIconLabelsEnglish,
+  es: choreRoutineIconLabelsSpanish,
+};
+
+export function localizedChoreRoutineIconLabel(
+  locale: Locale,
+  key: string | null | undefined,
+): string | null {
+  if (!key) return null;
+  return choreRoutineIconLabels[locale][key as RoutineIconKey] ?? null;
+}

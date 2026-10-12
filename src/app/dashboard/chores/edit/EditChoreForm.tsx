@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "@/i18n";
 import {
   choreFormMessages,
+  localizedChoreRoutineIconLabel,
   type ChoreFormMessage,
 } from "@/i18n/chore-forms";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
@@ -49,12 +50,14 @@ const frequencyOptions: { value: Frequency; label: ChoreFormMessage }[] = [
 ];
 
 function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
-  const { t } = useTranslation();
+  const { locale, t } = useTranslation();
   const message = useCallback(
     (key: ChoreFormMessage, params?: Record<string, string | number>) =>
       t(key, params, choreFormMessages),
     [t],
   );
+  const messageRef = useRef(message);
+  messageRef.current = message;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   // undefined when the chore API omits points (Points & streaks off, #248):
@@ -105,7 +108,7 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
 
   useEffect(() => {
     if (!choreId) {
-      setError(message("noIdProvided"));
+      setError(messageRef.current("noIdProvided"));
       setFetching(false);
       return;
     }
@@ -162,10 +165,10 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
               setPhotoPreview(chore.photo_url);
             }
           } else {
-            setError(message("notFound"));
+            setError(messageRef.current("notFound"));
           }
         } else {
-          setError(message("notFound"));
+          setError(messageRef.current("notFound"));
         }
 
         if (membersRes.ok) {
@@ -176,14 +179,14 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
         }
       } catch (err) {
         console.error("Error fetching chore:", err);
-        setError(message("loadFailed"));
+        setError(messageRef.current("loadFailed"));
       } finally {
         setFetching(false);
       }
     };
 
     fetchData();
-  }, [choreId, message]);
+  }, [choreId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -511,9 +514,11 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           title={message("picturesRoutine")}
           summary={[
             routine.trim()
-              ? `${routine}${routineOrder ? ` · Step ${routineOrder}` : ""}`
+              ? `${routine}${routineOrder ? ` · ${message("step")} ${routineOrder}` : ""}`
               : message("noRoutine"),
-            routineIconLabel(icon) ?? message("noPicture"),
+            localizedChoreRoutineIconLabel(locale, icon) ??
+              routineIconLabel(icon) ??
+              message("noPicture"),
           ].join(" · ")}
         >
           {/* Picture routines (#272): picture, routine and step */}
