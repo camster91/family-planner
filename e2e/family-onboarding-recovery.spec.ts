@@ -450,6 +450,8 @@ test.describe.serial("family onboarding recovery", () => {
           .filter({ hasText: "2 household people added" }),
       ).toBeVisible();
       await expect.poll(surface.rosterReads).toBeGreaterThan(0);
+      await profileDialog.getByRole("button", { name: "Close" }).click();
+      await expect(profileDialog).toBeHidden();
 
       // Every invite POST below is fulfilled in the browser; no invite row,
       // email, or provider call can be created by this spec.
