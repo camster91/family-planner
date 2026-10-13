@@ -177,6 +177,8 @@ jobs:
           npx jest --ci --runInBand --no-watchman --forceExit
           src/app/api/calendar/import-suggestions/__tests__/commit.integration.test.ts
           src/app/api/capture/receipt/__tests__/route.integration.test.ts
+          src/app/api/capture/__tests__/grocery-receipt.integration.test.ts
+          src/lib/__tests__/person-event-create.integration.test.ts
           src/app/api/chores/__tests__/paging.integration.test.ts
           src/app/api/device/__tests__/device-writes.integration.test.ts
           src/app/api/events/__tests__/create.integration.test.ts

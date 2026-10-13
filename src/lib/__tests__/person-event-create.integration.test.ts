@@ -1,4 +1,5 @@
 // Atomic event/receipt behavior against disposable Postgres (#472).
+import { assertFixtureTargetAllowed } from '@/lib/fixtures/guard'
 export {}
 const dbSuite = process.env.RUN_DB_INTEGRATION === '1' ? describe : describe.skip
 jest.setTimeout(60000)
@@ -13,6 +14,7 @@ dbSuite('person event create replay integrity', () => {
   const ctx = { scope: `user:${user}`, familyId: family, userId: user, action: 'event.create' }
   const key = 'event-create-stable-key-20261010'
   beforeAll(async () => {
+    assertFixtureTargetAllowed(process.env)
     db = (await import('@/lib/prisma')).prisma!
     create = (await import('@/lib/person-event-create')).createPersonEvent
     idem = await import('@/lib/idempotency')
@@ -28,6 +30,7 @@ dbSuite('person event create replay integrity', () => {
     await db.idempotencyRecord.deleteMany({ where: { family_id: family } })
   })
   afterAll(async () => {
+    if (!db) return
     await db.family.deleteMany({ where: { id: family } })
     await db.user.deleteMany({ where: { id: user } })
     await db.$disconnect()

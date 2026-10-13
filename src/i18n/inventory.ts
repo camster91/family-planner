@@ -1,5 +1,12 @@
+import {
+  expiryFeedback as compactExpiryFeedback,
+  inventoryDisplayEnglish,
+  inventoryDisplaySpanish,
+} from './inventory-display'
+
 /** Owned presentation only. Private names, units, model text and API refusals stay raw. */
 export const inventoryEnglish = {
+  ...inventoryDisplayEnglish,
   scanTitle: "Scan the fridge",
   close: "Close",
   scanIntro:
@@ -56,9 +63,6 @@ export const inventoryEnglish = {
   where: "Where",
   use_by: "Use by",
   best_before: "Best before",
-  fridge: "Fridge",
-  freezer: "Freezer",
-  pantry: "Pantry",
   title: "Food inventory",
   subtitle:
     "What's in the fridge, freezer and pantry, as far as the family has noted it.",
@@ -85,7 +89,6 @@ export const inventoryEnglish = {
   clearSearch: "Clear search",
   pastUseBy: "Past use-by",
   pastSafety: "A use-by date is about safety, so these should not be eaten.",
-  useSoon: "Use soon",
   nothingSoon: "Nothing to use in the next 3 days.",
   throwAway: "Throw away",
   throwAwayName: "Throw away {name}",
@@ -176,19 +179,10 @@ export const inventoryEnglish = {
   snacks_drinks: "Snacks & drinks",
   condiments: "Sauces & condiments",
   other: "Other",
-  expiryNone: "No date",
-  expiryPast: "Past use-by — don't eat",
-  expiryYesterday: "Best before was yesterday",
-  expiryAgo: "Best before was {days} days ago",
-  expiryUseToday: "Use by today",
-  expiryBestToday: "Best before today",
-  expiryUseTomorrow: "Use by tomorrow",
-  expiryBestTomorrow: "Best before tomorrow",
-  expiryUseDays: "Use within {days} days",
-  expiryBestDays: "Best before in {days} days",
 } as const;
 export type InventoryMessage = keyof typeof inventoryEnglish;
 export const inventorySpanish: Record<InventoryMessage, string> = {
+  ...inventoryDisplaySpanish,
   scanTitle: "Escanear el refrigerador",
   close: "Cerrar",
   scanIntro:
@@ -246,9 +240,6 @@ export const inventorySpanish: Record<InventoryMessage, string> = {
   where: "Dónde",
   use_by: "Consumir hasta",
   best_before: "Consumo preferente",
-  fridge: "Refrigerador",
-  freezer: "Congelador",
-  pantry: "Despensa",
   title: "Inventario de alimentos",
   subtitle:
     "Lo que hay en el refrigerador, congelador y despensa, según lo que ha anotado la familia.",
@@ -276,7 +267,6 @@ export const inventorySpanish: Record<InventoryMessage, string> = {
   pastUseBy: "Fecha de caducidad pasada",
   pastSafety:
     "La fecha de caducidad indica seguridad, así que estos alimentos no deben comerse.",
-  useSoon: "Usar pronto",
   nothingSoon: "No hay nada que usar en los próximos 3 días.",
   throwAway: "Tirar",
   throwAwayName: "Tirar {name}",
@@ -368,16 +358,6 @@ export const inventorySpanish: Record<InventoryMessage, string> = {
   snacks_drinks: "Aperitivos y bebidas",
   condiments: "Salsas y condimentos",
   other: "Otros",
-  expiryNone: "Sin fecha",
-  expiryPast: "Caducado — no lo comas",
-  expiryYesterday: "El consumo preferente fue ayer",
-  expiryAgo: "El consumo preferente fue hace {days} días",
-  expiryUseToday: "Consumir hasta hoy",
-  expiryBestToday: "Consumo preferente: hoy",
-  expiryUseTomorrow: "Consumir hasta mañana",
-  expiryBestTomorrow: "Consumo preferente: mañana",
-  expiryUseDays: "Consumir en {days} días",
-  expiryBestDays: "Consumo preferente en {days} días",
 };
 export const inventoryMessages = { en: inventoryEnglish, es: inventorySpanish };
 export type InventoryFeedback =
@@ -420,24 +400,5 @@ export function partialScanFeedback(
 
 /** Translate the canonical helper's returned identity; unknown future values remain raw. */
 export function expiryFeedback(text: string): InventoryFeedback {
-  const fixed = {
-    "No date": "expiryNone",
-    "Past use-by — don't eat": "expiryPast",
-    "Best before was yesterday": "expiryYesterday",
-    "Use by today": "expiryUseToday",
-    "Best before today": "expiryBestToday",
-    "Use by tomorrow": "expiryUseTomorrow",
-    "Best before tomorrow": "expiryBestTomorrow",
-  } as const;
-  if (text in fixed)
-    return inventoryFeedback(fixed[text as keyof typeof fixed]);
-  for (const [pattern, key] of [
-    [/^Best before was (.+) days ago$/, "expiryAgo"],
-    [/^Use within (.+) days$/, "expiryUseDays"],
-    [/^Best before in (.+) days$/, "expiryBestDays"],
-  ] as const) {
-    const match = text.match(pattern);
-    if (match) return inventoryFeedback(key, { days: match[1] });
-  }
-  return { raw: text };
+  return compactExpiryFeedback(text);
 }

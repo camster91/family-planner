@@ -1,5 +1,11 @@
 # Current State
 
+## Current quality continuation — 2026-10-13
+
+Accepted web baseline is `ed20d186cb635717aaffdcbe39be54d44d49ce06` (PR #544). Production deployment 399 served that exact image/revision with healthy startup and unchanged capability flags. Normal PR and exact-main build/image, Android and browser checks passed. Coolify Auto Deploy remains enabled: the merge webhook deployed before exact-main CI finished; the verified backup/restore was post-deployment recovery evidence. Owner decision #363 remains open.
+
+The next bounded candidate under #472/#499 retires a mounted capture proposal when receipt reconciliation becomes terminal, preserves unrelated newer previews/photo rows, and registers the existing atomic event/grocery Postgres suites in the protected database gate. It also localizes fridge Use soon presentation with existing inventory copy while preserving food names, expiry rules and layout. Candidate checks and deployment are pending until recorded in its PR; no schema, provider, scheduler, capability or native release changes are included. Broader all-feature/native/customer acceptance remains open.
+
 ## Current release and quality review — 2026-10-13
 
 Released main is `ae23f5d8d618732aa6f665b7515ef45071b6e8ce` (PR #539), adding multi-dish bulk-prep sessions, portions eaten with Undo, and next-prep planning. Candidate and exact-main build/image, Android and browser gates passed. Coolify application 11 deployment 398 finished at `2026-10-13T01:13:43Z`; public version/health, serving image/revision, startup migrations, new prep tables/meal-link columns and private-route refusals were verified. A fresh protected backup restored successfully to an isolated database, migrations ran twice without changing existing row counts, and the temporary database was removed. [Canonical release evidence](https://github.com/camster91/family-planner/issues/538).

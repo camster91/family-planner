@@ -209,9 +209,18 @@ export function CaptureBox({
   const recoveryErrorKind = React.useRef<'access' | 'storage' | null>(null)
   const recoveryIdentity = React.useRef<RecoveryIdentity | null>(null)
   const recoveryRows = React.useRef(new Map<string, CaptureRecoveryEnvelope>())
+  // Keep the in-memory proposal associated with its persisted operation so a
+  // terminal receipt can retire only the stale preview that produced it. A
+  // reload has no proposal object to retire; its recovery row still remains
+  // authoritative and is handled by the receipt controls below.
+  const operationProposals = React.useRef(new Map<string, object>())
+  const retiredOperationKeys = React.useRef(new Set<string>())
+  const photoEventsRef = React.useRef<PhotoEvent[] | null>(null)
+  const photoWorkRef = React.useRef(0)
   const textInputRef = React.useRef<HTMLInputElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const inSheet = presentation === 'sheet'
+  photoEventsRef.current = photoEvents
   // Proposal identity survives retries and partial batch filtering. Do not make
   // a fresh key after an uncertain response, or a repeated effect could result.
   const operations = React.useRef(new WeakMap<object, { key: string; at: number; body?: string }>())
@@ -219,6 +228,8 @@ export function CaptureBox({
     const knownIdentity = recoveryIdentity.current
     recoveryMutationReady.current = false
     recoveryRows.current.clear()
+    operationProposals.current.clear()
+    retiredOperationKeys.current.clear()
     recoveryIdentity.current = null
     setRecoveryOperations([])
     setDraft(null)
@@ -310,6 +321,33 @@ export function CaptureBox({
     syncRecoveryRows([...recoveryRows.current.values()].filter((row) => row.key !== key))
   }
 
+  function retireProposal(key: string) {
+    retiredOperationKeys.current.add(key)
+    const proposal = operationProposals.current.get(key)
+    operationProposals.current.delete(key)
+    if (!proposal) return
+
+    // A newer text preview must survive an older receipt reconciliation.
+    setDraft((current) => (current === proposal ? null : current))
+
+    // Photo rows retain object identity through partial retries, so remove
+    // precisely the terminal row and preserve every unrelated proposal.
+    const currentPhotoEvents = photoEventsRef.current
+    if (currentPhotoEvents?.some((event) => event === proposal)) {
+      if (currentPhotoEvents.length === 1) {
+        setPhotoEvents(null)
+        setPhotoNote(null)
+      } else {
+        setPhotoEvents((current) => (current ? current.filter((event) => event !== proposal) : current))
+      }
+    }
+  }
+
+  function proposalIsRetired(proposal: object): boolean {
+    const operation = operations.current.get(proposal)
+    return operation ? retiredOperationKeys.current.has(operation.key) : false
+  }
+
   async function rememberPayload(
     action: CaptureRecoveryAction,
     operation: { key: string; at: number; body?: string },
@@ -344,6 +382,7 @@ export function CaptureBox({
     const operation = operationFor(proposal)
     const action: CaptureRecoveryAction = url === '/api/events' ? 'event.create' : 'capture.grocery.add'
     const body = await rememberPayload(action, operation, payload, title, photo)
+    operationProposals.current.set(operation.key, proposal)
     if (!ensureRecoveryMutationReady()) {
       throw new CaptureClientError(recoveryGuardFailure.current)
     }
@@ -353,7 +392,10 @@ export function CaptureBox({
         revokeCaptureAccess()
         throw new CaptureClientError('recoveryAccessUnavailable')
       }
-      if (response.ok && recoveryMutationReady.current) forgetRecovery(operation.key)
+      if (response.ok && recoveryMutationReady.current) {
+        forgetRecovery(operation.key)
+        operationProposals.current.delete(operation.key)
+      }
       return response
     } catch (error) {
       if (error instanceof CaptureClientError) throw error
@@ -495,29 +537,35 @@ export function CaptureBox({
         return
       } else if (response.status === 409) {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('captureChanged'))
       } else if (!response.ok) {
         setRecoveryMessage(msg('couldNotCheck'))
       } else if (data.state === 'committed' && data.current === 'present') {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setSaved(msg('alreadyAdded', { title: titleFor(row) }))
         onSaved?.()
       } else if (data.state === 'committed' && data.current === 'removed') {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('savedRemoved'))
       } else if (data.state === 'committed') {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('savedEarlier'))
       } else if (data.state === 'pending') {
         setRecoveryMessage(msg('stillProcessing'))
       } else if (data.state === 'expired') {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('captureTooOld'))
       } else if (data.state === 'absent') {
         // A missing receipt is terminal: the server can no longer prove that
         // this local envelope is the original write, so never keep offering a
         // same-key retry from an orphaned or pruned client row.
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('noSavedResult'))
       } else {
         setRecoveryMessage(msg('noSavedResult'))
@@ -558,9 +606,11 @@ export function CaptureBox({
         await checkRecovery(row)
       } else if (response.status === 422) {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('captureChanged'))
       } else if (response.status === 404 && row.action === 'capture.grocery.add') {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('groceryListChanged'))
       } else if (response.status === 409) {
         setRecoveryMessage(msg('originalProcessing'))
@@ -639,6 +689,7 @@ export function CaptureBox({
 
   // Read a photo/screenshot and propose the events it contains.
   async function interpretPhoto(file: File) {
+    const workId = ++photoWorkRef.current
     setPhotoBusy(true)
     recoveryErrorKind.current = null
     setError(null)
@@ -668,7 +719,7 @@ export function CaptureBox({
       recoveryErrorKind.current = recoveryBoundaryErrorKind(e)
       setError(localizeError(e, 'couldNotReadPhoto'))
     } finally {
-      setPhotoBusy(false)
+      if (photoWorkRef.current === workId) setPhotoBusy(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
@@ -676,55 +727,88 @@ export function CaptureBox({
   // Add every proposed event the user has not removed. Events that fail stay
   // in the list so the person can try again or remove them.
   async function confirmPhoto() {
-    if (!photoEvents || photoEvents.length === 0) return
+    const batch = photoEvents
+    if (!batch || batch.length === 0) return
+    const workId = ++photoWorkRef.current
     setPhotoBusy(true)
     recoveryErrorKind.current = null
     setError(null)
     setSaved(null)
-    const total = photoEvents.length
+    const total = batch.length
     const failed: PhotoEvent[] = []
     let added = 0
+    let processed = 0
     let storageFailure = false
     let accessFailure = false
     try {
-      for (const ev of photoEvents) {
-        const res = await postProposal('/api/events', ev, eventPayload(ev), ev.title, true)
-        if (res.ok) added += 1
-        else failed.push(ev)
+      try {
+        for (const ev of batch) {
+          if (proposalIsRetired(ev)) {
+            processed += 1
+            continue
+          }
+          const res = await postProposal('/api/events', ev, eventPayload(ev), ev.title, true)
+          processed += 1
+          if (res.ok && !proposalIsRetired(ev)) added += 1
+          else if (!proposalIsRetired(ev)) failed.push(ev)
+        }
+      } catch (error) {
+        // Network error: everything not yet saved counts as failed.
+        failed.push(...batch.slice(processed).filter((event) => !proposalIsRetired(event)))
+        storageFailure = error instanceof CaptureClientError && error.key === 'recoveryStorageUnavailable'
+        accessFailure = error instanceof CaptureClientError && error.key === 'recoveryAccessUnavailable'
       }
-    } catch (error) {
-      // Network error: everything not yet saved counts as failed.
-      failed.push(...photoEvents.slice(added + failed.length))
-      storageFailure = error instanceof CaptureClientError && error.key === 'recoveryStorageUnavailable'
-      accessFailure = error instanceof CaptureClientError && error.key === 'recoveryAccessUnavailable'
-    }
-    if (added > 0) onSaved?.()
-    if (failed.length === 0) {
-      setSaved(msg(added === 1 ? 'addedOne' : 'addedMany', { count: added }))
-      setPhotoEvents(null)
-      setPhotoNote(null)
-    } else {
-      setPhotoEvents(failed)
-      if (added > 0) {
-        recoveryErrorKind.current = null
-        setSaved(msg('addedOf', { added, total }))
-        setError(
-          storageFailure || accessFailure
-            ? msg('recoveryPartialFailure')
-            : msg(failed.length === 1 ? 'couldNotSaveOne' : 'couldNotSaveMany', { count: failed.length }),
-        )
+
+      // A successful write still needs to refresh the host even when a
+      // recovery boundary cleared this preview while the batch was in flight.
+      if (added > 0) onSaved?.()
+
+      // A new photo preview or recovery boundary may have replaced this batch
+      // while its request was in flight. Do not let the old completion clear
+      // or overwrite the newer UI state.
+      if (photoEventsRef.current !== batch) {
+        // An authenticated refusal intentionally clears the private preview,
+        // but a batch may already contain confirmed writes. Keep that
+        // aggregate result visible in the access boundary without restoring
+        // the cleared event rows.
+        if (accessFailure) {
+          if (added > 0) setSaved(msg('addedOf', { added, total }))
+          setError(msg(added > 0 ? 'recoveryPartialFailure' : 'recoveryAccessUnavailable'))
+        }
+        return
+      }
+
+      const unresolved = failed.filter((event) => !proposalIsRetired(event))
+      if (unresolved.length === 0) {
+        if (added > 0) setSaved(msg(added === 1 ? 'addedOne' : 'addedMany', { count: added }))
+        setPhotoEvents(null)
+        setPhotoNote(null)
       } else {
-        recoveryErrorKind.current = storageFailure ? 'storage' : accessFailure ? 'access' : null
-        setError(
-          storageFailure
-            ? msg('recoveryStorageUnavailable')
-            : accessFailure
-              ? msg('recoveryAccessUnavailable')
-              : msg('couldNotSaveEvents'),
-        )
+        setPhotoEvents(unresolved)
+        if (added > 0) {
+          recoveryErrorKind.current = null
+          setSaved(msg('addedOf', { added, total }))
+          setError(
+            storageFailure || accessFailure
+              ? msg('recoveryPartialFailure')
+              : msg(unresolved.length === 1 ? 'couldNotSaveOne' : 'couldNotSaveMany', { count: unresolved.length }),
+          )
+        } else {
+          recoveryErrorKind.current = storageFailure ? 'storage' : accessFailure ? 'access' : null
+          setError(
+            storageFailure
+              ? msg('recoveryStorageUnavailable')
+              : accessFailure
+                ? msg('recoveryAccessUnavailable')
+                : msg('couldNotSaveEvents'),
+          )
+        }
       }
+    } finally {
+      // Always release this operation's busy state, but never release a newer
+      // photo read/save that started after this operation.
+      if (photoWorkRef.current === workId) setPhotoBusy(false)
     }
-    setPhotoBusy(false)
   }
 
   const present = (children: React.ReactNode) => {
@@ -881,7 +965,7 @@ export function CaptureBox({
                         <button
                           className="btn-plain min-h-[44px] px-3"
                           onClick={() => checkRecovery(row)}
-                          disabled={recoveryBusyKey !== null}
+                          disabled={recoveryBusyKey !== null || busy || photoBusy}
                           aria-label={msg('checkStatusFor', { title: titleFor(row) })}
                         >
                           {busyRecovery ? msg('checking') : msg('checkStatus')}
@@ -889,7 +973,7 @@ export function CaptureBox({
                         <button
                           className="btn-filled min-h-[44px] px-3"
                           onClick={() => retryRecovery(row)}
-                          disabled={recoveryBusyKey !== null || !row.requestHash}
+                          disabled={recoveryBusyKey !== null || busy || photoBusy || !row.requestHash}
                           aria-label={msg('retryFor', { title: titleFor(row) })}
                         >
                           {msg('retry')}
@@ -929,7 +1013,11 @@ export function CaptureBox({
           )}
 
           <div className="flex gap-2 mt-3">
-            <button className="btn-filled px-4" onClick={confirm} disabled={busy || recoveryStorageBlocked}>
+            <button
+              className="btn-filled px-4"
+              onClick={confirm}
+              disabled={busy || photoBusy || recoveryBusyKey !== null || recoveryStorageBlocked}
+            >
               {busy ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
@@ -967,6 +1055,7 @@ export function CaptureBox({
                   <button
                     className="btn-plain -my-2 min-h-[44px] min-w-[44px] p-1 shrink-0"
                     aria-label={msg('removeEvent', { title: ev.title })}
+                    disabled={photoBusy}
                     onClick={() =>
                       setPhotoEvents((prev) => (prev ? prev.filter((_, j) => j !== i) : prev))
                     }
@@ -991,7 +1080,11 @@ export function CaptureBox({
 
           <div className="flex gap-2 mt-3">
             {photoEvents.length > 0 && (
-              <button className="btn-filled px-4" onClick={confirmPhoto} disabled={photoBusy || recoveryStorageBlocked}>
+              <button
+                className="btn-filled px-4"
+                onClick={confirmPhoto}
+                disabled={photoBusy || busy || recoveryBusyKey !== null || recoveryStorageBlocked}
+              >
                 {photoBusy ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />

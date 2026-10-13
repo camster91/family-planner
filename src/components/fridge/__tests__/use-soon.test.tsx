@@ -4,6 +4,7 @@
 // "Use soon" tile (#263 data in the slot #262 reserved).
 import * as React from 'react'
 import { act, render, screen, within } from '@testing-library/react'
+import { I18nProvider } from '@/i18n'
 import TodayBoard from '../TodayBoard'
 import { itemsToUseSoon } from '../board-model'
 import { UseSoonRegion } from '../use-soon-region'
@@ -118,6 +119,32 @@ describe('UseSoonRegion', () => {
     expect(screen.getAllByTestId('use-soon-item')).toHaveLength(5)
     expect(screen.getByTestId('use-soon-more').textContent).toBe('2 more to use soon')
     expect(screen.getByRole('link', { name: 'Open inventory' }).getAttribute('href')).toBe('/dashboard/inventory')
+  })
+
+  it('localizes the title, link, count, expiry and storage in Spanish', () => {
+    const items = itemsToUseSoon(
+      [item('a', 'Espinaca', '2026-01-04'), item('b', 'Guisantes', '2026-01-07', 'freezer')],
+      NOW
+    )
+    render(
+      <I18nProvider locale="es">
+        <UseSoonRegion items={items} inventoryHref="/dashboard/inventory" />
+      </I18nProvider>
+    )
+    const region = screen.getByRole('region', { name: 'Usar pronto' })
+    expect(within(region).getByRole('link', { name: 'Abrir inventario' }).getAttribute('href')).toBe('/dashboard/inventory')
+    expect(within(region).getAllByTestId('use-soon-item').map((row) => row.textContent)).toEqual([
+      'EspinacaEl consumo preferente fue ayer·Refrigerador',
+      'GuisantesConsumo preferente en 2 días·Congelador',
+    ])
+
+    const many = Array.from({ length: 6 }, (_, i) => item(`i${i}`, `Alimento ${i}`, '2026-01-06'))
+    render(
+      <I18nProvider locale="es">
+        <UseSoonRegion items={itemsToUseSoon(many, NOW)} inventoryHref={null} />
+      </I18nProvider>
+    )
+    expect(screen.getByTestId('use-soon-more').textContent).toBe('1 más para usar pronto')
   })
 
   it('renders nothing when there is nothing to use', () => {
