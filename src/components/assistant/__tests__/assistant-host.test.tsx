@@ -529,6 +529,31 @@ it("locks chat send and retry controls while a recovery request is pending", asy
   await screen.findByText("Done.");
 });
 
+it.each([
+  [429, "Chat limit reached. Your question is still here; try again later."],
+  [413, "That message is too long. Your question is still here; shorten it and try again."],
+])("keeps the draft and avoids actions for chat status %s", async (status, copy) => {
+  const user = userEvent.setup();
+  const calls: string[] = [];
+  global.fetch = jest.fn(async (path) => {
+    calls.push(String(path));
+    return response({ error: "server detail" }, false, {}, status);
+  }) as any;
+
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const message = screen.getByLabelText("Your message");
+  const draft = status === 429 ? "Try again" : "A message that is too long";
+  await user.type(message, draft);
+  await user.click(screen.getByRole("button", { name: "Send" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(copy);
+  expect(message).toHaveValue(draft);
+  expect(screen.queryByRole("button", { name: "Retry message" })).toBeNull();
+  expect(screen.queryByRole("region", { name: "Review proposed action" })).toBeNull();
+  expect(calls).toEqual(["/api/assistant"]);
+});
+
 it("offers a read-only affected-section check after an uncertain action without a mutation retry", async () => {
   const user = userEvent.setup();
   const calls: string[] = [];

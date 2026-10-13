@@ -187,6 +187,41 @@ describe('More list', () => {
     ).toBe('/dashboard/features')
   })
 
+  it('filters enabled More features by localized copy and clears back to the full route inventory', () => {
+    mockFeatures = { ...defaultFeatures(), budget: true }
+    render(
+      <I18nProvider locale="es">
+        <MorePage />
+      </I18nProvider>,
+    )
+    const list = screen.getByTestId('more-list')
+    const search = screen.getByRole('searchbox', { name: 'Buscar funciones activadas' })
+    const allItems = moreItemsFor('parent', mockFeatures)
+    expect(within(list).getAllByRole('listitem')).toHaveLength(allItems.length)
+
+    fireEvent.change(search, { target: { value: 'presupuesto' } })
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByRole('link', { name: /Presupuesto/ }).getAttribute('href')).toBe('/dashboard/budget')
+    expect(screen.queryByRole('link', { name: /Contactos de emergencia/ })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Borrar búsqueda de funciones' }))
+    expect((search as HTMLInputElement).value).toBe('')
+    expect(within(list).getAllByRole('listitem')).toHaveLength(allItems.length)
+    expect(screen.getByRole('link', { name: /Contactos de emergencia/ }).getAttribute('href')).toBe('/dashboard/emergency')
+  })
+
+  it('announces an empty More search and offers a 44px clear action', () => {
+    render(<MorePage />)
+    const list = screen.getByTestId('more-list')
+    const search = screen.getByRole('searchbox', { name: 'Search enabled features' })
+    fireEvent.change(search, { target: { value: 'no such household feature' } })
+    expect(screen.getByRole('status').textContent).toContain('No enabled features match your search.')
+    const clear = screen.getByRole('button', { name: 'Clear search' })
+    expect(clear.className).toContain('min-h-11')
+    fireEvent.click(clear)
+    expect(within(list).getAllByRole('listitem').length).toBeGreaterThan(0)
+  })
+
   it('the command palette offers More and Emergency', () => {
     expect(navItems.find((i) => i.name === 'More')?.href).toBe('/dashboard/family/more')
     expect(navItems.find((i) => i.name === 'Emergency')?.href).toBe('/dashboard/emergency')

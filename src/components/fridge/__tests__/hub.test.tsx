@@ -219,7 +219,7 @@ describe('"Use soon" slot (#263 extension point)', () => {
     expect(slot.className).toContain('lg:landscape:overflow-hidden')
     expect(slot.className).toContain('lg:landscape:[&>section]:overflow-y-auto')
     const grid = boardGridClass(true, true)
-    expect(grid).toContain('"today_usesoon_chores_coming"')
+    expect(grid).toContain('"today_groceries_usesoon_coming"')
     expect(grid).toContain('"usesoon_usesoon"')
   })
 })

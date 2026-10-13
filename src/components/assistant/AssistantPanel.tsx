@@ -372,6 +372,9 @@ export default function AssistantPanel({
         );
       }
       if (!r.ok) {
+        if (r.status === 429)
+          throw new AssistantCopyError("chatRateLimited");
+        if (r.status === 413) throw new AssistantCopyError("chatTooLong");
         const errorBody = isChatErrorBody(body) ? body : null;
         if (
           errorBody?.code === "ASSISTANT_TODAY_UNAVAILABLE" ||
@@ -710,7 +713,8 @@ export default function AssistantPanel({
                     ? msg(error.key)
                     : error.message}
             </p>
-            {error.kind === "chat" && failedChat && (
+            {error.kind === "chat" && failedChat &&
+              !["chatRateLimited", "chatTooLong", "aiSetupRequired"].includes(error.key) && (
               <button
                 type="button"
                 disabled={busy}

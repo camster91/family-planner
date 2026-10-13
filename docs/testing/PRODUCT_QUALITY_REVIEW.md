@@ -26,7 +26,13 @@ performance on the development host, not physical-device or production latency.
 | #540 | Chat connection/provider failures display raw errors; read-only choices and local validation can strand proposals | Localized draft-preserving message/choice retry; editable preflight failures; uncertain writes offer read-only reconciliation |
 | #541 | Child/teen server page passes unused Event fields through its client boundary | Explicit household-scoped selection and minimal title/time/location DTO |
 | #542 | Fridge grocery continuation is clipped; desktop week wraps 4+3; Bulk competes with Add Meal | One grocery scroll owner with reachable controls; seven-day desktop row; context-aware primary action; failed refresh blocks fresh bulk actions |
-| #543 | Explore hidden at tablet widths; More is a long flat list; unavailable calendar setup has no useful explanation | Responsive discovery, existing metadata groups, truthful read-only/provider guidance with working destinations |
+| #543 | Explore hidden at tablet widths; More is a long flat list; unavailable calendar setup has no useful explanation | Responsive discovery, searchable metadata groups, truthful read-only/provider guidance with working destinations |
+
+The compact fridge layout with Use Soon preserves four columns: Today spans
+the first column; Dinner sits above Groceries in the second; Chores sits above
+Use Soon in the third; Coming Up spans the fourth. Groceries spans the two lower
+rows so its item preview and navigation fit together. The no-Use-Soon layout is
+retained. This uses the existing original card/grid foundations.
 
 Regression-first mounted tests cover the source/data and recovery changes.
 Independent reviewers check another agent's changes, with root owning the

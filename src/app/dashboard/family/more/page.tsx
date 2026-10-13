@@ -1,8 +1,10 @@
 'use client'
 
+import * as React from 'react'
 import { Sliders } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
 import { InsetList, ListRow } from '@/components/ui/list-row'
+import { SearchField } from '@/components/ui/search-field'
 import { useFeatures } from '@/components/providers/features-provider'
 import { moreItemsFor, type MoreItem } from '@/lib/nav-items'
 import { FEATURES } from '@/lib/features'
@@ -35,10 +37,19 @@ export default function MorePage() {
   const featureSettingsText = useFeaturesText()
   const more = useMoreText()
   const items = moreItemsFor('parent', features, featureDisplay)
+  const [query, setQuery] = React.useState('')
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const filteredItems = normalizedQuery
+    ? items.filter((item) =>
+        [item.title, item.description].some((value) =>
+          value.toLocaleLowerCase().includes(normalizedQuery),
+        ),
+      )
+    : items
   const others = items.length - 1
   const groups = GROUP_ORDER.map((key) => ({
     key,
-    items: items.filter((item) => groupFor(item) === key),
+    items: filteredItems.filter((item) => groupFor(item) === key),
   })).filter((group) => group.items.length > 0)
 
   return (
@@ -56,37 +67,62 @@ export default function MorePage() {
       />
 
       <div className="px-4 space-y-6" data-testid="more-list">
-        <div className="grid gap-6 md:grid-cols-2 md:items-start">
-          {groups.map((group) => {
-            const copy = GROUP_COPY[group.key]
-            return (
-              <section key={group.key} aria-labelledby={`more-group-${group.key}`}>
-                <h2 id={`more-group-${group.key}`} className="section-header px-1">
-                  {featureSettingsText(copy.title)}
-                </h2>
-                <p className="px-1 pb-2 text-footnote text-label-secondary">
-                  {featureSettingsText(copy.subtitle)}
-                </p>
-                <InsetList>
-                  <ul aria-label={`${featureSettingsText(copy.title)} · ${more('listLabel')}`}>
-                    {group.items.map((item, i) => (
-                      <li key={item.key}>
-                        <ListRow
-                          icon={item.icon}
-                          glyphColor="plain"
-                          title={item.title}
-                          subtitle={item.description}
-                          href={item.href}
-                          last={i === group.items.length - 1}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </InsetList>
-              </section>
-            )
-          })}
+        <div role="search" aria-label={more('searchLabel')}>
+          <div>
+            <SearchField
+              ariaLabel={more('searchLabel')}
+              value={query}
+              onChange={setQuery}
+              placeholder={more('searchPlaceholder')}
+              clearLabel={more('clearSearch')}
+            />
+          </div>
         </div>
+
+        {groups.length > 0 ? (
+          <div className="grid gap-6 md:grid-cols-2 md:items-start">
+            {groups.map((group) => {
+              const copy = GROUP_COPY[group.key]
+              return (
+                <section key={group.key} aria-labelledby={`more-group-${group.key}`}>
+                  <h2 id={`more-group-${group.key}`} className="section-header px-1">
+                    {featureSettingsText(copy.title)}
+                  </h2>
+                  <p className="px-1 pb-2 text-footnote text-label-secondary">
+                    {featureSettingsText(copy.subtitle)}
+                  </p>
+                  <InsetList>
+                    <ul aria-label={`${featureSettingsText(copy.title)} · ${more('listLabel')}`}>
+                      {group.items.map((item, i) => (
+                        <li key={item.key}>
+                          <ListRow
+                            icon={item.icon}
+                            glyphColor="plain"
+                            title={item.title}
+                            subtitle={item.description}
+                            href={item.href}
+                            last={i === group.items.length - 1}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </InsetList>
+                </section>
+              )
+            })}
+          </div>
+        ) : (
+          <div role="status" aria-live="polite" className="rounded-[var(--radius-lg)] bg-surface-fill px-4 py-6 text-center">
+            <p className="text-body text-label-primary">{more('noMatches')}</p>
+            <button
+              type="button"
+              className="mt-3 min-h-11 rounded-full bg-surface-fill-secondary px-4 text-subhead text-label-primary"
+              onClick={() => setQuery('')}
+            >
+              {more('clearFilters')}
+            </button>
+          </div>
+        )}
 
         <InsetList>
           <ListRow

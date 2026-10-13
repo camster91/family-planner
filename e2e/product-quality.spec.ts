@@ -14,6 +14,7 @@ import pg from "pg";
 import { bulkCookingMessages } from "../src/i18n/bulk-cooking";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { assistantEnglish, assistantSpanish } from "../src/i18n/assistant";
+import { moreMessages } from "../src/i18n/more";
 import { getFeatureDisplayCopy } from "../src/i18n/feature-display";
 import { FEATURES } from "../src/lib/features";
 import { featureNavMeta } from "../src/lib/feature-nav-meta";
@@ -346,6 +347,20 @@ for (const locale of ["en", "es"] as const) {
           getFeatureDisplayCopy(locale, key).title,
         );
       }
+      await expect(more.getByRole("listitem")).toHaveCount(moreKeys.length);
+      const featureSearch = more.getByRole("searchbox", {
+        name: moreMessages[locale].searchLabel,
+      });
+      await featureSearch.fill(getFeatureDisplayCopy(locale, "budget").title);
+      await expect(more.locator('a[href="/dashboard/budget"]')).toHaveCount(1);
+      await expect(more.getByRole("listitem")).toHaveCount(1);
+      await more
+        .getByRole("button", {
+          name: moreMessages[locale].clearSearch,
+          exact: true,
+        })
+        .click();
+      await expect(featureSearch).toHaveValue("");
       await expect(more.getByRole("listitem")).toHaveCount(moreKeys.length);
       await expect(
         more.getByRole("heading", {
@@ -687,6 +702,7 @@ for (const locale of ["en", "es"] as const) {
     const copy = assistantCopy(locale);
     const assistantRequests: unknown[] = [];
     const mutationPaths: string[] = [];
+    let releaseRetry: (() => void) | undefined;
     page.on("request", (request) => {
       if (!["GET", "HEAD"].includes(request.method()))
         mutationPaths.push(new URL(request.url()).pathname);
@@ -697,7 +713,10 @@ for (const locale of ["en", "es"] as const) {
         await route.abort("failed");
         return;
       }
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (assistantRequests.length === 2)
+        await new Promise<void>((resolve) => {
+          releaseRetry = resolve;
+        });
       await route.fulfill({
         status: 503,
         contentType: "application/json",
@@ -720,12 +739,17 @@ for (const locale of ["en", "es"] as const) {
       dialog.getByRole("button", { name: copy.retry, exact: true }),
     ).toBeVisible();
     await dialog.getByRole("button", { name: copy.retry, exact: true }).click();
-    await expect(
-      dialog.getByRole("button", { name: copy.retry, exact: true }),
-    ).toBeDisabled();
-    await expect(
-      dialog.getByRole("button", { name: copy.send, exact: true }),
-    ).toBeDisabled();
+    try {
+      await expect.poll(() => assistantRequests.length).toBe(2);
+      await expect(
+        dialog.getByRole("button", { name: copy.retry, exact: true }),
+      ).toBeDisabled();
+      await expect(
+        dialog.getByRole("button", { name: copy.send, exact: true }),
+      ).toBeDisabled();
+    } finally {
+      releaseRetry?.();
+    }
     await expect(dialog.getByRole("alert")).toContainText(copy.unavailable);
     await message.fill("Newer unsent draft");
     await dialog.getByRole("button", { name: copy.retry, exact: true }).click();

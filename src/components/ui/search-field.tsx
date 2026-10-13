@@ -12,6 +12,7 @@ export function SearchField({
   onChange,
   placeholder = 'Search',
   clearLabel = 'Clear',
+  ariaLabel,
   className,
   onSubmit,
 }: {
@@ -19,6 +20,7 @@ export function SearchField({
   onChange: (v: string) => void
   placeholder?: string
   clearLabel?: string
+  ariaLabel?: string
   className?: string
   onSubmit?: () => void
 }) {
@@ -30,6 +32,7 @@ export function SearchField({
       <input
         ref={inputRef}
         type="search"
+        aria-label={ariaLabel}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && onSubmit?.()}

@@ -182,6 +182,10 @@ export const assistantEnglish = {
     "No connection. Your question is still here; retry when you are online.",
   chatUnavailable:
     "Family AI is temporarily unavailable. Your question is still here; try again shortly.",
+  chatRateLimited:
+    "Chat limit reached. Your question is still here; try again later.",
+  chatTooLong:
+    "That message is too long. Your question is still here; shorten it and try again.",
   aiSetupRequired:
     "Family AI is not connected yet. Ask a parent to connect it in Settings.",
   retryChat: "Retry message",
@@ -340,6 +344,10 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
     "No hay conexión. Tu pregunta sigue aquí; reintenta cuando vuelvas a estar conectado.",
   chatUnavailable:
     "La IA del hogar no está disponible temporalmente. Tu pregunta sigue aquí; inténtalo de nuevo en unos momentos.",
+  chatRateLimited:
+    "Se alcanzó el límite del chat. Tu pregunta sigue aquí; inténtalo más tarde.",
+  chatTooLong:
+    "Ese mensaje es demasiado largo. Tu pregunta sigue aquí; acórtalo e inténtalo de nuevo.",
   aiSetupRequired:
     "La IA del hogar aún no está conectada. Pide a un padre o madre que la conecte en Ajustes.",
   retryChat: "Reintentar mensaje",
