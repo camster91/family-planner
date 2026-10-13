@@ -602,6 +602,13 @@ for (const locale of ["en", "es"] as const) {
       await expect(useSoon).toBeVisible();
       await expect(useSoon.getByTestId("use-soon-item")).toHaveCount(5);
       await expect(useSoon).toContainText("QA spinach");
+      await expect(useSoon.getByRole("heading")).toHaveText(
+        locale === "es" ? "Usar pronto" : "Use soon",
+      );
+      await expect(useSoon).toContainText(
+        locale === "es" ? "El consumo preferente fue ayer" : "Best before was yesterday",
+      );
+      await expect(useSoon).toContainText(locale === "es" ? "Refrigerador" : "Fridge");
       const groceryList = groceries.locator("ul").first();
       await expect(groceryList).toHaveAttribute("tabindex", "0");
       await groceryList.focus();

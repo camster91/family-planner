@@ -4,7 +4,9 @@ import * as React from 'react'
 import Link from 'next/link'
 import { CircleAlert, Refrigerator } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { LOCATION_LABELS } from '@/lib/inventory-display'
+import { InventoryText, useInventoryCopy } from '@/app/dashboard/inventory/inventory-copy'
+import { expiryFeedback } from '@/i18n/inventory'
+import { useTodayBoardText } from '@/i18n/today-board'
 import type { UseSoonEntry } from './board-model'
 import { Region } from './regions'
 import { actionLinkClass, itemTextClass, metaTextClass } from './styles'
@@ -21,6 +23,8 @@ export const MAX_USE_SOON_ROWS = 5
  * nothing to use, so the board keeps its four-column layout.
  */
 export function UseSoonRegion({ items, inventoryHref }: { items: UseSoonEntry[]; inventoryHref: string | null }) {
+  const inventory = useInventoryCopy()
+  const boardText = useTodayBoardText()
   if (items.length === 0) return null
   const shown = items.slice(0, MAX_USE_SOON_ROWS)
   const more = items.length - shown.length
@@ -28,13 +32,13 @@ export function UseSoonRegion({ items, inventoryHref }: { items: UseSoonEntry[];
     <Region
       id="board-usesoon"
       area="usesoon"
-      title="Use soon"
+      title={inventory('useSoon')}
       icon={Refrigerator}
       glyph="meals"
       action={
         inventoryHref ? (
           <Link href={inventoryHref} className={actionLinkClass}>
-            Open inventory
+            {boardText('openInventory')}
           </Link>
         ) : undefined
       }
@@ -53,17 +57,21 @@ export function UseSoonRegion({ items, inventoryHref }: { items: UseSoonEntry[];
                 <CircleAlert className="h-4 w-4 shrink-0 text-[var(--warning-text)] 2xl:h-5 2xl:w-5" aria-hidden="true" />
               )}
               <span className={item.status === 'expired' ? 'font-semibold text-[var(--warning-text)]' : undefined}>
-                {item.label}
+                <InventoryText feedback={expiryFeedback(item.label)} />
               </span>
               <span aria-hidden="true">·</span>
-              <span>{LOCATION_LABELS[item.location] ?? item.location}</span>
+              <span>
+                {item.location === 'fridge' || item.location === 'freezer' || item.location === 'pantry'
+                  ? inventory(item.location)
+                  : item.location}
+              </span>
             </p>
           </li>
         ))}
       </ul>
       {more > 0 && (
         <p data-testid="use-soon-more" className={cn(metaTextClass, 'mt-3')}>
-          {more} more to use soon
+          {boardText('moreUseSoon', { count: more })}
         </p>
       )}
     </Region>

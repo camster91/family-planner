@@ -209,9 +209,16 @@ export function CaptureBox({
   const recoveryErrorKind = React.useRef<'access' | 'storage' | null>(null)
   const recoveryIdentity = React.useRef<RecoveryIdentity | null>(null)
   const recoveryRows = React.useRef(new Map<string, CaptureRecoveryEnvelope>())
+  // Keep the in-memory proposal associated with its persisted operation so a
+  // terminal receipt can retire only the stale preview that produced it. A
+  // reload has no proposal object to retire; its recovery row still remains
+  // authoritative and is handled by the receipt controls below.
+  const operationProposals = React.useRef(new Map<string, object>())
+  const photoEventsRef = React.useRef<PhotoEvent[] | null>(null)
   const textInputRef = React.useRef<HTMLInputElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const inSheet = presentation === 'sheet'
+  photoEventsRef.current = photoEvents
   // Proposal identity survives retries and partial batch filtering. Do not make
   // a fresh key after an uncertain response, or a repeated effect could result.
   const operations = React.useRef(new WeakMap<object, { key: string; at: number; body?: string }>())
@@ -219,6 +226,7 @@ export function CaptureBox({
     const knownIdentity = recoveryIdentity.current
     recoveryMutationReady.current = false
     recoveryRows.current.clear()
+    operationProposals.current.clear()
     recoveryIdentity.current = null
     setRecoveryOperations([])
     setDraft(null)
@@ -310,6 +318,27 @@ export function CaptureBox({
     syncRecoveryRows([...recoveryRows.current.values()].filter((row) => row.key !== key))
   }
 
+  function retireProposal(key: string) {
+    const proposal = operationProposals.current.get(key)
+    operationProposals.current.delete(key)
+    if (!proposal) return
+
+    // A newer text preview must survive an older receipt reconciliation.
+    setDraft((current) => (current === proposal ? null : current))
+
+    // Photo rows retain object identity through partial retries, so remove
+    // precisely the terminal row and preserve every unrelated proposal.
+    const currentPhotoEvents = photoEventsRef.current
+    if (currentPhotoEvents?.some((event) => event === proposal)) {
+      if (currentPhotoEvents.length === 1) {
+        setPhotoEvents(null)
+        setPhotoNote(null)
+      } else {
+        setPhotoEvents((current) => (current ? current.filter((event) => event !== proposal) : current))
+      }
+    }
+  }
+
   async function rememberPayload(
     action: CaptureRecoveryAction,
     operation: { key: string; at: number; body?: string },
@@ -344,6 +373,7 @@ export function CaptureBox({
     const operation = operationFor(proposal)
     const action: CaptureRecoveryAction = url === '/api/events' ? 'event.create' : 'capture.grocery.add'
     const body = await rememberPayload(action, operation, payload, title, photo)
+    operationProposals.current.set(operation.key, proposal)
     if (!ensureRecoveryMutationReady()) {
       throw new CaptureClientError(recoveryGuardFailure.current)
     }
@@ -353,7 +383,10 @@ export function CaptureBox({
         revokeCaptureAccess()
         throw new CaptureClientError('recoveryAccessUnavailable')
       }
-      if (response.ok && recoveryMutationReady.current) forgetRecovery(operation.key)
+      if (response.ok && recoveryMutationReady.current) {
+        forgetRecovery(operation.key)
+        operationProposals.current.delete(operation.key)
+      }
       return response
     } catch (error) {
       if (error instanceof CaptureClientError) throw error
@@ -495,29 +528,35 @@ export function CaptureBox({
         return
       } else if (response.status === 409) {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('captureChanged'))
       } else if (!response.ok) {
         setRecoveryMessage(msg('couldNotCheck'))
       } else if (data.state === 'committed' && data.current === 'present') {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setSaved(msg('alreadyAdded', { title: titleFor(row) }))
         onSaved?.()
       } else if (data.state === 'committed' && data.current === 'removed') {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('savedRemoved'))
       } else if (data.state === 'committed') {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('savedEarlier'))
       } else if (data.state === 'pending') {
         setRecoveryMessage(msg('stillProcessing'))
       } else if (data.state === 'expired') {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('captureTooOld'))
       } else if (data.state === 'absent') {
         // A missing receipt is terminal: the server can no longer prove that
         // this local envelope is the original write, so never keep offering a
         // same-key retry from an orphaned or pruned client row.
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('noSavedResult'))
       } else {
         setRecoveryMessage(msg('noSavedResult'))
@@ -558,9 +597,11 @@ export function CaptureBox({
         await checkRecovery(row)
       } else if (response.status === 422) {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('captureChanged'))
       } else if (response.status === 404 && row.action === 'capture.grocery.add') {
         forgetRecovery(row.key)
+        retireProposal(row.key)
         setRecoveryMessage(msg('groceryListChanged'))
       } else if (response.status === 409) {
         setRecoveryMessage(msg('originalProcessing'))

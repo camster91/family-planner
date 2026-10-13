@@ -717,6 +717,127 @@ it('discards an absent receipt as terminal without replaying the local request',
   expect(window.localStorage.getItem('family-planner:capture-recovery:v1:user-a:family-a')).toBe('[]')
 })
 
+it('retires a typed preview after a committed-but-removed receipt', async () => {
+  let eventPosts = 0
+  global.fetch = jest.fn(async (url, init) => {
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (String(url) === '/api/capture' && method === 'GET') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/capture' && method === 'POST') {
+      return json(200, { draft: { kind: 'event', title: 'Dentist', confidence: 'high' } })
+    }
+    if (String(url) === '/api/events' && method === 'POST') {
+      eventPosts += 1
+      throw new Error('response lost after commit')
+    }
+    if (String(url) === '/api/capture/receipt') {
+      return json(200, { state: 'committed', current: 'removed' })
+    }
+    throw new Error(`unexpected ${method} ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<CaptureBox />)
+  await user.type(await screen.findByRole('textbox'), 'dentist Tuesday')
+  await user.click(screen.getByRole('button', { name: 'Read it' }))
+  await user.click(await screen.findByRole('button', { name: 'Add it' }))
+  await screen.findByText(/Could not confirm whether this was saved/)
+  expect(screen.getByRole('button', { name: 'Add it' })).toBeTruthy()
+
+  await user.click(screen.getByRole('button', { name: 'Check status for Dentist' }))
+  await screen.findByText(captureEnglish.savedRemoved)
+  expect(screen.queryByRole('button', { name: 'Add it' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Retry Dentist' })).toBeNull()
+  expect(eventPosts).toBe(1)
+})
+
+it('retires an absent typed preview without clearing a newer preview', async () => {
+  let previewPosts = 0
+  let eventPosts = 0
+  global.fetch = jest.fn(async (url, init) => {
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (String(url) === '/api/capture' && method === 'GET') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/capture' && method === 'POST') {
+      previewPosts += 1
+      return json(200, {
+        draft: {
+          kind: 'event',
+          title: previewPosts === 1 ? 'Dentist' : 'Call mom',
+          confidence: 'high',
+        },
+      })
+    }
+    if (String(url) === '/api/events' && method === 'POST') {
+      eventPosts += 1
+      throw new Error('response lost after commit')
+    }
+    if (String(url) === '/api/capture/receipt') {
+      return json(200, { state: 'absent' })
+    }
+    throw new Error(`unexpected ${method} ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<CaptureBox />)
+  const textbox = await screen.findByRole('textbox')
+  await user.type(textbox, 'dentist Tuesday')
+  await user.click(screen.getByRole('button', { name: 'Read it' }))
+  await user.click(await screen.findByRole('button', { name: 'Add it' }))
+  await screen.findByText(/Could not confirm whether this was saved/)
+
+  await user.clear(textbox)
+  await user.type(textbox, 'call mom tomorrow')
+  await user.click(screen.getByRole('button', { name: 'Read it' }))
+  await screen.findByText('Call mom')
+
+  await user.click(screen.getByRole('button', { name: 'Check status for Dentist' }))
+  await screen.findByText(captureEnglish.noSavedResult)
+  expect(screen.getByText('Call mom')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Add it' })).toBeTruthy()
+  expect(previewPosts).toBe(2)
+  expect(eventPosts).toBe(1)
+})
+
+it('removes only the terminal photo row and preserves other unresolved proposals', async () => {
+  let eventPosts = 0
+  global.fetch = jest.fn(async (url, init) => {
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (String(url) === '/api/capture' && method === 'GET') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/capture' && method === 'POST') {
+      return json(200, { image: { events: PHOTO_EVENTS, note: null } })
+    }
+    if (String(url) === '/api/events' && method === 'POST') {
+      eventPosts += 1
+      const title = JSON.parse(String(init?.body)).title as string
+      if (title !== 'Picture day') return json(500, { error: 'temporary failure' })
+      return json(201, { event: { id: title } })
+    }
+    if (String(url) === '/api/capture/receipt') {
+      return json(200, { state: 'committed', current: 'removed' })
+    }
+    throw new Error(`unexpected ${method} ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<CaptureBox />)
+  await readPhoto(user)
+  await user.click(screen.getByRole('button', { name: 'Add 3' }))
+  await screen.findByText('Added 1 of 3 events')
+  expect(screen.getAllByText('Bake sale')).toHaveLength(2)
+
+  await user.click(screen.getByRole('button', { name: 'Check status for Bake sale' }))
+  await screen.findByText(captureEnglish.savedRemoved)
+  expect(screen.queryByText('Bake sale', { exact: true })).toBeNull()
+  expect(screen.getAllByText('Book fair')).toHaveLength(2)
+  expect(screen.getByRole('button', { name: 'Add 1' })).toBeTruthy()
+  expect(eventPosts).toBe(3)
+})
+
 it('localizes the saved-recovery controls without translating the saved title', async () => {
   window.localStorage.clear()
   const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
