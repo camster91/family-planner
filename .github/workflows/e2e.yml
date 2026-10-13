@@ -32,7 +32,7 @@ jobs:
     # within a shard: existing specs deliberately mutate canonical fixtures.
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 4
       matrix:
         include:
           - group: phone-pair
