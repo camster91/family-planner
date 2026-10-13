@@ -714,7 +714,7 @@ export default function AssistantPanel({
                     : error.message}
             </p>
             {error.kind === "chat" && failedChat &&
-              !["chatRateLimited", "chatTooLong", "aiSetupRequired"].includes(error.key) && (
+              !["chatRateLimited", "chatTooLong"].includes(error.key) && (
               <button
                 type="button"
                 disabled={busy}
