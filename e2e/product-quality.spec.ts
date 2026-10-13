@@ -277,6 +277,7 @@ const assistantCopy = (locale: Locale) =>
         launcher: assistantSpanish.launcherAssistant,
         message: assistantSpanish.yourMessage,
         send: assistantSpanish.send,
+        working: assistantSpanish.working,
         retry: assistantSpanish.retryChat,
         unavailable: assistantSpanish.chatUnavailable,
         offline: assistantSpanish.chatOffline,
@@ -290,6 +291,7 @@ const assistantCopy = (locale: Locale) =>
         launcher: assistantEnglish.launcherAssistant,
         message: assistantEnglish.yourMessage,
         send: assistantEnglish.send,
+        working: assistantEnglish.working,
         retry: assistantEnglish.retryChat,
         unavailable: assistantEnglish.chatUnavailable,
         offline: assistantEnglish.chatOffline,
@@ -745,7 +747,7 @@ for (const locale of ["en", "es"] as const) {
         dialog.getByRole("button", { name: copy.retry, exact: true }),
       ).toBeDisabled();
       await expect(
-        dialog.getByRole("button", { name: copy.send, exact: true }),
+        dialog.getByRole("button", { name: copy.working, exact: true }),
       ).toBeDisabled();
     } finally {
       releaseRetry?.();
