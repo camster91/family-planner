@@ -4,8 +4,12 @@ import * as React from 'react'
 import Link from 'next/link'
 import { CircleAlert, Refrigerator } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { InventoryText, useInventoryCopy } from '@/app/dashboard/inventory/inventory-copy'
-import { expiryFeedback } from '@/i18n/inventory'
+import { useTranslation } from '@/i18n'
+import {
+  expiryFeedback,
+  inventoryDisplayMessages,
+  type InventoryDisplayMessage,
+} from '@/i18n/inventory-display'
 import { useTodayBoardText } from '@/i18n/today-board'
 import type { UseSoonEntry } from './board-model'
 import { Region } from './regions'
@@ -23,7 +27,9 @@ export const MAX_USE_SOON_ROWS = 5
  * nothing to use, so the board keeps its four-column layout.
  */
 export function UseSoonRegion({ items, inventoryHref }: { items: UseSoonEntry[]; inventoryHref: string | null }) {
-  const inventory = useInventoryCopy()
+  const { t } = useTranslation()
+  const inventory = (key: InventoryDisplayMessage, params?: Record<string, string | number>) =>
+    t(key, params, inventoryDisplayMessages)
   const boardText = useTodayBoardText()
   if (items.length === 0) return null
   const shown = items.slice(0, MAX_USE_SOON_ROWS)
@@ -44,30 +50,34 @@ export function UseSoonRegion({ items, inventoryHref }: { items: UseSoonEntry[];
       }
     >
       <ul className="divide-y divide-[var(--surface-separator)]">
-        {shown.map((item) => (
-          <li
-            key={item.id}
-            data-testid="use-soon-item"
-            data-status={item.status}
-            className="py-2.5 first:pt-0 2xl:py-3"
-          >
-            <p className={cn(itemTextClass, 'break-words font-medium md:line-clamp-2')}>{item.name}</p>
-            <p className={cn(metaTextClass, 'mt-0.5 flex flex-wrap items-center gap-x-2')}>
-              {item.status === 'expired' && (
-                <CircleAlert className="h-4 w-4 shrink-0 text-[var(--warning-text)] 2xl:h-5 2xl:w-5" aria-hidden="true" />
-              )}
-              <span className={item.status === 'expired' ? 'font-semibold text-[var(--warning-text)]' : undefined}>
-                <InventoryText feedback={expiryFeedback(item.label)} />
-              </span>
-              <span aria-hidden="true">·</span>
-              <span>
-                {item.location === 'fridge' || item.location === 'freezer' || item.location === 'pantry'
-                  ? inventory(item.location)
-                  : item.location}
-              </span>
-            </p>
-          </li>
-        ))}
+        {shown.map((item) => {
+          const expiry = expiryFeedback(item.label)
+          const expiryText = 'raw' in expiry ? expiry.raw : inventory(expiry.key, expiry.params)
+          return (
+            <li
+              key={item.id}
+              data-testid="use-soon-item"
+              data-status={item.status}
+              className="py-2.5 first:pt-0 2xl:py-3"
+            >
+              <p className={cn(itemTextClass, 'break-words font-medium md:line-clamp-2')}>{item.name}</p>
+              <p className={cn(metaTextClass, 'mt-0.5 flex flex-wrap items-center gap-x-2')}>
+                {item.status === 'expired' && (
+                  <CircleAlert className="h-4 w-4 shrink-0 text-[var(--warning-text)] 2xl:h-5 2xl:w-5" aria-hidden="true" />
+                )}
+                <span className={item.status === 'expired' ? 'font-semibold text-[var(--warning-text)]' : undefined}>
+                  {expiryText}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>
+                  {item.location === 'fridge' || item.location === 'freezer' || item.location === 'pantry'
+                    ? inventory(item.location)
+                    : item.location}
+                </span>
+              </p>
+            </li>
+          )
+        })}
       </ul>
       {more > 0 && (
         <p data-testid="use-soon-more" className={cn(metaTextClass, 'mt-3')}>
