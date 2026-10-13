@@ -84,7 +84,7 @@ export default function MorePage() {
             {groups.map((group) => {
               const copy = GROUP_COPY[group.key]
               return (
-                <section key={group.key} aria-labelledby={`more-group-${group.key}`}>
+                <section key={group.key} className="min-w-0" aria-labelledby={`more-group-${group.key}`}>
                   <h2 id={`more-group-${group.key}`} className="section-header px-1">
                     {featureSettingsText(copy.title)}
                   </h2>
