@@ -905,37 +905,68 @@ test.describe("capture receipt recovery", () => {
     }
   });
 
-  test("terminal receipt checks retire the mounted proposal before another Add", async ({ page, context, baseURL }, info) => {
+  test("terminal receipt checks retire the mounted proposal before another Add", async ({
+    page,
+    context,
+    baseURL,
+  }, info) => {
     assertFixtureAndLoopback(baseURL);
     await installLoopbackNetworkGuard(context);
     await page.goto("/dashboard");
     const { userId, familyId } = await fixtureIdentity(page);
     const title = "Synthetic terminal proposal";
-    const { captureReady } = await installCaptureTransport(page, userId, familyId, title);
+    const { captureReady } = await installCaptureTransport(
+      page,
+      userId,
+      familyId,
+      title,
+    );
     await page.goto("/dashboard/calendar");
     await captureReady;
     await openCaptureSheet(page);
     const identity = await runtimeIdentity(page, info);
     let writes = 0;
     let state: object = { state: "committed", current: "removed" };
-    await page.route("**/api/events", async route => {
+    await page.route("**/api/events", async (route) => {
       if (route.request().method() !== "POST") return route.continue();
       writes++;
       await route.abort("failed");
     });
-    await page.route("**/api/capture/receipt", route => route.fulfill({
-      status: 200, contentType: "application/json", body: JSON.stringify(state),
-    }));
+    await page.route("**/api/capture/receipt", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(state),
+      }),
+    );
     try {
-      for (const terminal of [{ state: "committed", current: "removed" }, { state: "absent" }]) {
+      for (const terminal of [
+        { state: "committed", current: "removed" },
+        { state: "absent" },
+      ]) {
         state = terminal;
-        await page.getByRole("textbox", { name: "What would you like to add?" }).fill("add a synthetic event");
-        await page.getByRole("button", { name: "Read it", exact: true }).click();
+        await page
+          .getByRole("textbox", { name: "What would you like to add?" })
+          .fill("add a synthetic event");
+        await page
+          .getByRole("button", { name: "Read it", exact: true })
+          .click();
         await page.getByRole("button", { name: "Add it", exact: true }).click();
-        await page.getByRole("button", { name: `Check status for ${title}` }).click();
-        await expect(page.getByRole("button", { name: "Add it", exact: true })).toHaveCount(0);
-        await expect(page.getByRole("button", { name: `Retry ${title}` })).toHaveCount(0);
-        await captureState(page, info, identity, `mounted-terminal-${terminal.state}`);
+        await page
+          .getByRole("button", { name: `Check status for ${title}` })
+          .click();
+        await expect(
+          page.getByRole("button", { name: "Add it", exact: true }),
+        ).toHaveCount(0);
+        await expect(
+          page.getByRole("button", { name: `Retry ${title}` }),
+        ).toHaveCount(0);
+        await captureState(
+          page,
+          info,
+          identity,
+          `mounted-terminal-${terminal.state}`,
+        );
       }
       expect(writes).toBe(2);
     } finally {

@@ -4010,21 +4010,6 @@
     "count": 1
   },
   {
-    "file": "src/components/fridge/use-soon-region.tsx",
-    "text": "more to use soon",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/use-soon-region.tsx",
-    "text": "Open inventory",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/use-soon-region.tsx",
-    "text": "Use soon",
-    "count": 1
-  },
-  {
     "file": "src/components/fridge/weather-tile.tsx",
     "text": ", high",
     "count": 1
