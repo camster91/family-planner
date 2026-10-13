@@ -114,6 +114,10 @@ const PUBLIC_ROUTES: Record<string, number[]> = {
  * #253: shared devices stay read-only until #157 device writes exist).
  */
 const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
+  // Bulk prep records belong to signed-in planners, never paired device sessions.
+  "GET /api/meals/bulk": [403],
+  "POST /api/meals/bulk": [403],
+  "POST /api/meals/bulk/actions": [403],
   // Grocery review is a person-only read: paired tablets are explicitly refused.
   "GET /api/lists/items/from-recipe/review": [403],
   "POST /api/lists/items/from-recipe": [403],
@@ -638,6 +642,9 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "DELETE /api/meals/[id]",
   "GET /api/meals",
   "POST /api/meals",
+  "GET /api/meals/bulk",
+  "POST /api/meals/bulk",
+  "POST /api/meals/bulk/actions",
   "PATCH /api/notes/[id]",
   "DELETE /api/notes/[id]",
   "GET /api/notes",

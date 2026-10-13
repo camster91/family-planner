@@ -83,6 +83,9 @@ model User {
   budget_categories             BudgetCategory[]   @relation("CreatedCategories")
   projects                      Project[]          @relation("CreatedProjects")
   project_tasks                 ProjectTask[]      @relation("AssignedProjectTasks")
+  meal_prep_sessions             MealPrepSession[]  @relation("MealPrepCreator")
+  meal_portions_eaten            MealBatchConsumption[] @relation("MealConsumptionCreator")
+  meal_batches_cooked           MealBatch[]        @relation("MealBatchCook")
   meals                         FamilyMeal[]       @relation("FamilyMealCreator")
   meals_cooked                  FamilyMeal[]       @relation("FamilyMealCook")
   pinned_notes                  PinnedNote[]       @relation("CreatedNotes")
@@ -200,6 +203,9 @@ model Family {
   transactions       Transaction[]
   categories         BudgetCategory[]
   projects           Project[]
+  meal_prep_sessions MealPrepSession[]
+  meal_portions_eaten MealBatchConsumption[]
+  meal_batches       MealBatch[]
   meals              FamilyMeal[]
   pinned_notes       PinnedNote[]
   anniversaries      Anniversary[]
@@ -612,6 +618,7 @@ model Recipe {
   ingredients  RecipeIngredient[]
   meal_entries MealPlanEntry[]
   // Canonical links (ADR-0007): meals and grocery items that reference this recipe.
+  meal_batches MealBatch[]
   meals        FamilyMeal[]
   list_items   ListItem[]
 
@@ -1180,6 +1187,62 @@ model RateLimitEntry {
 // === New: per-family feature gates ===
 // Stored on Family.features as a JSON column; this model is the default seed.
 
+// Bulk sessions/portions share the household and canonical meal slots.
+model MealPrepSession {
+  id                String   @id @default(cuid())
+  family_id         String
+  prepared_on       DateTime
+  next_prep_on      DateTime?
+  prepared_at       DateTime?
+  created_by        String?
+  source_request_id String?  @unique
+  created_at        DateTime @default(now())
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  creator User? @relation("MealPrepCreator", fields: [created_by], references: [id], onDelete: SetNull)
+  batches MealBatch[]
+  @@index([family_id, created_at, id])
+}
+
+model MealBatch {
+  id              String   @id @default(cuid())
+  family_id       String
+  prep_session_id String
+  position        Int
+  name            String
+  total_servings  Int
+  reserve_storage String   @default("freezer")
+  recipe_id       String?
+  cook_id         String?
+  created_at      DateTime @default(now())
+  family       Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  prep_session MealPrepSession @relation(fields: [prep_session_id], references: [id], onDelete: Cascade)
+  recipe       Recipe? @relation(fields: [recipe_id], references: [id], onDelete: SetNull)
+  cook         User? @relation("MealBatchCook", fields: [cook_id], references: [id], onDelete: SetNull)
+  meals        FamilyMeal[]
+  consumption  MealBatchConsumption[]
+  @@unique([prep_session_id, position])
+  @@index([family_id])
+}
+
+model MealBatchConsumption {
+  id                String @id @default(cuid())
+  family_id         String
+  batch_id          String
+  allocation_key    String?
+  meal_id           String?
+  servings          Int
+  created_by        String?
+  consumed_at       DateTime @default(now())
+  cancelled_at      DateTime?
+  source_request_id String? @unique
+  family  Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  batch   MealBatch @relation(fields: [batch_id], references: [id], onDelete: Cascade)
+  meal    FamilyMeal? @relation(fields: [meal_id], references: [id], onDelete: SetNull)
+  creator User? @relation("MealConsumptionCreator", fields: [created_by], references: [id], onDelete: SetNull)
+  @@index([family_id, batch_id, cancelled_at])
+  @@index([family_id, batch_id, allocation_key])
+}
+
 model FamilyMeal {
   id          String   @id @default(cuid())
   family_id   String
@@ -1192,6 +1255,8 @@ model FamilyMeal {
   created_at  DateTime @default(now())
   // Recipe link (ADR-0007, #250). recipe_name stays the display snapshot.
   recipe_id   String?
+  batch_id    String?
+  batch_allocation_key String? @unique
   servings    Int?
   updated_at  DateTime @default(now()) @updatedAt
 
@@ -1199,8 +1264,11 @@ model FamilyMeal {
   cook       User?      @relation("FamilyMealCook", fields: [cook_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   creator    User       @relation("FamilyMealCreator", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   recipe     Recipe?    @relation(fields: [recipe_id], references: [id], onDelete: SetNull)
+  consumption MealBatchConsumption[]
+  batch      MealBatch? @relation(fields: [batch_id], references: [id], onDelete: SetNull)
   list_items ListItem[]
 
+  @@index([batch_id])
   @@index([family_id])
   @@index([family_id, date])
   @@index([recipe_id])

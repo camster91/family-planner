@@ -1,3 +1,5 @@
+import { authorizeMealBatchInTx } from "@/lib/meal-batch-api";
+import { lockUser, lockHousehold } from "@/lib/household-lock";
 /**
  * Recipe → grocery add (ADR-0007 child D, #253). Contract:
  * docs/architecture/MEALS_AND_GROCERIES.md §7.
@@ -46,11 +48,13 @@ export const addFromRecipeSchema = z
   .object({
     recipeId: idString,
     mealId: idString.optional(),
+    batchId: idString.optional(),
     listId: idString.optional(),
     servings: z.number().int().min(1).max(50).optional(),
     ingredientIds: z.array(idString).min(1).max(FROM_RECIPE_MAX_INGREDIENTS).optional(),
   })
   .strict()
+  .refine((v) => !(v.mealId && v.batchId), "Choose a meal or a batch, not both")
   // Order and repeats in `ingredientIds` do not change the request, so they
   // must not change the idempotency hash either.
   .transform((v) => ({
@@ -95,6 +99,9 @@ export type FromRecipeErrorCode =
   | 'RECIPE_NOT_FOUND'
   | 'RECIPE_HAS_NO_INGREDIENTS'
   | 'INGREDIENT_NOT_IN_RECIPE'
+  | 'BATCH_NOT_FOUND'
+  | 'BATCH_ALREADY_PREPARED'
+  | 'BATCH_SERVINGS_MISMATCH'
   | 'MEAL_NOT_FOUND'
   | 'MEAL_RECIPE_MISMATCH'
   | 'LIST_NOT_FOUND'
@@ -108,6 +115,9 @@ const MESSAGES: Record<FromRecipeErrorCode, string> = {
   RECIPE_NOT_FOUND: 'Recipe not found.',
   RECIPE_HAS_NO_INGREDIENTS: 'This recipe has no ingredients to add.',
   INGREDIENT_NOT_IN_RECIPE: 'One of the chosen ingredients is not part of this recipe.',
+  BATCH_NOT_FOUND: 'Bulk dish not found.',
+  BATCH_SERVINGS_MISMATCH: 'Review the whole dish’s portions before adding its ingredients.',
+  BATCH_ALREADY_PREPARED: 'This dish is already prepared. Plan the next prep to buy its ingredients again.',
   MEAL_NOT_FOUND: 'Meal not found.',
   MEAL_RECIPE_MISMATCH: 'That meal does not use this recipe.',
   LIST_NOT_FOUND: 'List not found.',
@@ -126,7 +136,7 @@ function fail(status: 400 | 403 | 404 | 409, code: FromRecipeErrorCode): { statu
   return { status, body: { error: { code, message: MESSAGES[code], retryable: code === 'UNDO_IN_PROGRESS' } } }
 }
 
-type Actor = { id: string; family_id: string }
+type Actor = { id: string; family_id: string; tokenVersion?: number }
 
 // ---------------------------------------------------------------------------
 // Default list (O-4)
@@ -213,6 +223,8 @@ async function addInTx(
   actor: Actor,
   requestId: string
 ): Promise<EffectResult> {
+  await lockUser(db, actor.id)
+  await lockHousehold(db, actor.family_id)
   const recipe = await db.recipe.findFirst({
     where: { id: input.recipeId, family_id: actor.family_id },
     select: {
@@ -230,15 +242,29 @@ async function addInTx(
   })
   if (!recipe) return fail(404, 'RECIPE_NOT_FOUND')
 
+  let batchId = input.batchId
   let mealServings: number | null = null
   if (input.mealId) {
     const meal = await db.familyMeal.findFirst({
       where: { id: input.mealId, family_id: actor.family_id },
-      select: { id: true, recipe_id: true, servings: true },
+      select: { id: true, recipe_id: true, servings: true, batch_id: true },
     })
     if (!meal) return fail(404, 'MEAL_NOT_FOUND')
     if (meal.recipe_id !== recipe.id) return fail(400, 'MEAL_RECIPE_MISMATCH')
     mealServings = meal.servings ?? null
+    batchId = meal.batch_id ?? undefined
+  }
+
+  let batchServings: number | null = null
+  if (batchId) {
+    const refusal = await authorizeMealBatchInTx(db, { userId: actor.id, familyId: actor.family_id, tokenVersion: actor.tokenVersion ?? 0 }, true)
+    if (refusal) return refusal
+    const batch = await db.mealBatch.findFirst({ where: { id: batchId, family_id: actor.family_id }, select: { total_servings: true, recipe_id: true, prep_session: { select: { family_id: true, prepared_at: true } } } })
+    if (!batch || batch.prep_session.family_id !== actor.family_id) return fail(404, 'BATCH_NOT_FOUND')
+    if (batch.recipe_id !== recipe.id) return fail(400, 'MEAL_RECIPE_MISMATCH')
+    if (batch.prep_session.prepared_at) return fail(409, 'BATCH_ALREADY_PREPARED')
+    if (input.servings !== undefined && input.servings !== batch.total_servings) return fail(400, 'BATCH_SERVINGS_MISMATCH')
+    batchServings = batch.total_servings
   }
 
   // Defensive: a recipe line whose ingredient is not in the household is never used.
@@ -265,9 +291,9 @@ async function addInTx(
   }
 
   const baseServings = recipe.servings > 0 ? recipe.servings : 1
-  const targetServings = input.servings ?? mealServings ?? baseServings
+  const targetServings = batchServings ?? input.servings ?? mealServings ?? baseServings
   const factor = targetServings / baseServings
-  const sourceKey = input.mealId ? `meal:${input.mealId}` : `recipe:${recipe.id}`
+  const sourceKey = batchId ? `batch:${batchId}` : input.mealId ? `meal:${input.mealId}` : `recipe:${recipe.id}`
 
   const last = await db.listItem.findFirst({
     where: { list_id: list.id },

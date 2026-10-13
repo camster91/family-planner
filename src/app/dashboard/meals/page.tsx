@@ -4,6 +4,10 @@ import * as React from "react";
 import styles from "./meals-board.module.css";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { BulkCookingPanel } from "@/components/meals/BulkCookingPanel";
+import { useBulkCookingText } from "@/i18n/bulk-cooking";
+import { mealPrepListSchema, type MealPrepContext } from "@/lib/meal-batches";
+import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { Plus, UtensilsCrossed, BookOpen, Refrigerator } from "lucide-react";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
@@ -68,6 +72,7 @@ function MealModal({
   isMealMutationPending: () => boolean;
 }) {
   const { t } = useTranslation();
+  const tBulk = useBulkCookingText();
   const [date, setDate] = React.useState(
     initial?.date
       ? toDateOnlyUTC(initial.date)
@@ -175,6 +180,7 @@ function MealModal({
       className="sm:max-w-md space-y-4"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        {initial?.batch_id && <p className="text-subhead text-label-secondary">{tBulk("detachNotice")}</p>}
         <div>
           <label
             htmlFor={`${titleId}-date`}
@@ -396,6 +402,14 @@ function MealsPageInner() {
   const router = useRouter();
   // Keep the existing rolling week: today plus six days, not a locale-dependent
   // weekday boundary. URL dates are calendar days, never UTC instants.
+  const tBulk = useBulkCookingText();
+  const bulkContext = React.useRef<MealPrepContext | null>(null);
+  const view = searchParams.get("view") === "bulk" ? "bulk" : "week";
+  const changeView = (next: "bulk" | "week") => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "week") params.delete("view"); else params.set("view", "bulk");
+    const query = params.toString(); router.push(`${pathname}${query ? `?${query}` : ""}`);
+  };
   const requestedStart = searchParams.get("start");
   const startKey = requestedStart ?? toDateOnlyLocal(new Date());
   const anchor = React.useMemo(() => supportedMealWeek(startKey), [startKey]);
@@ -559,8 +573,21 @@ function MealsPageInner() {
   // Undo over confirm (#269): delete at once, then offer Undo, which
   // re-creates the meal with the same day, slot, name, notes, cook, recipe and
   // servings (as a new row).
-  const restoreMeal = async (meal: MealSlot) => {
+  const restoreMeal = async (meal: MealSlot, scope?: MealPrepContext, key?: string) => {
     try {
+      if (meal.batch_id) {
+        if (!scope || !key || typeof meal.servings !== "number") throw new Error("Batch context unavailable");
+        const res = await fetch("/api/meals/bulk/actions", {
+          method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+          body: JSON.stringify({ action: "allocate", expected_family_id: scope.familyId, expected_user_id: scope.userId,
+            batch_id: meal.batch_id, ...(meal.batch_allocation_key ? { restore_allocation_key: meal.batch_allocation_key } : {}),
+            meals: [{ date: toDateOnlyUTC(meal.date), meal_type: meal.meal_type, servings: meal.servings,
+              ...(meal.recipe_name?.trim() ? { recipe_name: meal.recipe_name } : {}), notes: meal.notes ?? null, cook_id: meal.cook_id ?? null }],
+          }),
+        });
+        if (!res.ok) throw new Error("Could not restore allocation");
+        await fetchMeals(); return;
+      }
       const res = await fetch("/api/meals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -595,6 +622,13 @@ function MealsPageInner() {
     const meal = modal.meal;
     setSaving(true);
     try {
+      let undoScope = bulkContext.current ?? undefined;
+      if (meal.batch_id && !undoScope) {
+        const contextResponse = await fetch("/api/meals/bulk", { cache: "no-store" });
+        if (!contextResponse.ok) throw new Error("Batch context unavailable");
+        undoScope = mealPrepListSchema.parse(await contextResponse.json()).context;
+      }
+      const undoKey = meal.batch_id ? newIdempotencyKey() : undefined;
       const res = await fetch(`/api/meals/${meal.id}?id=${meal.id}`, {
         method: "DELETE",
       });
@@ -603,7 +637,7 @@ function MealsPageInner() {
       await fetchMeals();
       showUndo({
         title: `Deleted ${mealTitle(meal)}`,
-        onUndo: () => void restoreMeal(meal),
+        onUndo: () => void restoreMeal(meal, undoScope, undoKey),
       });
     } catch (err) {
       console.error(err);
@@ -649,8 +683,13 @@ function MealsPageInner() {
         </button>
       </div>
 
+      <nav aria-label={tBulk("views")} className="flex flex-wrap gap-2">
+        <button type="button" className={cn(view === "week" ? "btn-filled" : "btn-tinted", "min-h-[44px]")} aria-pressed={view === "week"} onClick={() => changeView("week")}>{tBulk("week")}</button>
+        <button type="button" className={cn(view === "bulk" ? "btn-filled" : "btn-tinted", "min-h-[44px]")} aria-pressed={view === "bulk"} onClick={() => changeView("bulk")}>{tBulk("title")}</button>
+      </nav>
+      {view === "bulk" && <BulkCookingPanel defaultDay={anchor ? startKey : toDateOnlyLocal(new Date())} refreshKey={meals} onMealsChanged={() => void fetchMeals()} onContext={(scope) => { bulkContext.current = scope; }} />}
       {/* Week section */}
-      <section aria-labelledby="meals-week-heading">
+      {view === "week" && <section aria-labelledby="meals-week-heading">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
           <h2
             id="meals-week-heading"
@@ -766,7 +805,7 @@ function MealsPageInner() {
             </div>
           </>
         )}
-      </section>
+      </section>}
 
       {/* Modal */}
       {modal && (
@@ -804,6 +843,7 @@ function DayCard({
   onAdd: (day: DayPlan, type: MealType) => void;
   onEdit: (meal: MealSlot) => void;
 }) {
+  const tBulk = useBulkCookingText();
   const headingId = `meals-day-${day.dateKey}`;
   const otherId = `${headingId}-other`;
 
@@ -856,6 +896,7 @@ function DayCard({
               >
                 <span className={styles.slotLabel}>{label}</span>
                 <span className={styles.mealTitle}>{mealTitle(meal)}</span>
+                {meal.batch_id && <span className={styles.meta}>{tBulk("fromBatch")}</span>}
                 {meta && (
                   <span className={styles.meta}>{`${label} · ${meta}`}</span>
                 )}

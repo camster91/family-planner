@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       user, family, chores, lists, messages, events, rewards, notifications, activities,
       transactions, projects, recipes, mealPlans, shoppingLists, habits, habitLogs,
       earnedBadges, rewardRedemptions, familyGoals, importJobs, financeArchive,
-      meals, mealBackfillJobs, inventory, inventoryAdjustments, grocerySectionPreferences, groceryShoppingSessions,
+      meals, mealPrepSessions, mealBackfillJobs, inventory, inventoryAdjustments, grocerySectionPreferences, groceryShoppingSessions,
       auditLog, betaMetrics,
       allowances, wishlistItems, sickDays, medications, emergencyContacts, anniversaries, pickups, pinnedNotes,
       familyLocations, handoffs, uploads, choreAssignments, calendarSubscriptions, calendarConnections,
@@ -217,10 +217,35 @@ export async function GET(request: NextRequest) {
         select: {
           id: true, date: true, meal_type: true, recipe_name: true, notes: true,
           cook_id: true, recipe_id: true, servings: true, created_by: true,
+          batch_id: true, batch_allocation_key: true,
           created_at: true, updated_at: true,
         },
         orderBy: [{ date: 'asc' }, { created_at: 'asc' }],
       }),
+      own && mayReadSubscriptions ? prisma!.mealPrepSession.findMany({
+        where: { family_id: familyId! },
+        select: {
+          id: true, prepared_on: true, next_prep_on: true, prepared_at: true,
+          created_by: true, created_at: true,
+          batches: {
+            where: { family_id: familyId! },
+            select: {
+              id: true, position: true, name: true, total_servings: true,
+              reserve_storage: true, recipe_id: true, cook_id: true,
+              consumption: {
+                where: { family_id: familyId! },
+                select: {
+                  id: true, meal_id: true, allocation_key: true, servings: true,
+                  created_by: true, consumed_at: true, cancelled_at: true,
+                },
+                orderBy: [{ consumed_at: 'asc' }, { id: 'asc' }],
+              },
+            },
+            orderBy: [{ position: 'asc' }],
+          },
+        },
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      }) : none,
       // Every member's export carries the legacy MealPlan/ShoppingList rows,
       // so every member's export also carries their archived copies.
       prisma!.importJob.findMany({
@@ -486,6 +511,7 @@ export async function GET(request: NextRequest) {
       transactions,
       projects,
       meals,
+      mealPrepSessions,
       recipes,
       inventory,
       inventoryAdjustments,

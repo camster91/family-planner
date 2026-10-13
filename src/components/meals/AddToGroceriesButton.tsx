@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { z } from "zod";
+import { useBulkCookingText } from "@/i18n/bulk-cooking";
 import { Loader2, ShoppingCart, Undo2 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,7 @@ const groceryReviewSchema = z
       )
       .max(100),
     listsTruncated: z.boolean().optional(),
+    batchPrepared: z.boolean().optional(),
     defaultListId: reviewId.nullable(),
     inventory: z.discriminatedUnion("state", [
       z.object({ state: z.literal("unavailable") }),
@@ -102,6 +104,7 @@ export interface AddToGroceriesButtonProps extends AddFromRecipeRequest {
 export function AddToGroceriesButton({
   recipeId,
   mealId,
+  batchId,
   listId,
   servings,
   ingredientIds,
@@ -111,9 +114,10 @@ export function AddToGroceriesButton({
   onAdded,
   onUndone,
 }: AddToGroceriesButtonProps) {
+  const tBulk = useBulkCookingText();
   const [reviewOpen, setReviewOpen] = React.useState(false);
   const [review, setReview] = React.useState<GroceryReview | null>(null);
-  const [reviewError, setReviewError] = React.useState<string | null>(null);
+  const [reviewError, setReviewError] = React.useState<string | { kind: "prepared-batch" } | null>(null);
   const [destination, setDestination] = React.useState("");
   const [selected, setSelected] = React.useState<string[]>([]);
   const reviewSequence = React.useRef(0);
@@ -146,6 +150,7 @@ export function AddToGroceriesButton({
     const intent = {
       recipeId,
       mealId,
+      batchId,
       servings,
       listId,
       ingredientIds: ingredientIds ? [...ingredientIds] : undefined,
@@ -165,6 +170,7 @@ export function AddToGroceriesButton({
     try {
       const params = new URLSearchParams({ recipeId });
       if (mealId) params.set("mealId", mealId);
+      if (batchId) params.set("batchId", batchId);
       const response = await fetch(
         `/api/lists/items/from-recipe/review?${params}`,
         { cache: "no-store" },
@@ -174,6 +180,7 @@ export function AddToGroceriesButton({
       if (data.recipeId !== intent.recipeId)
         throw new Error("Mismatched recipe");
       if (sequence !== reviewSequence.current) return;
+      if (data.batchPrepared) { setReviewError({ kind: "prepared-batch" }); return; }
       if (intent.listId && !data.lists.some((l) => l.id === intent.listId)) {
         setReviewError(
           "The chosen grocery list is unavailable. Close and choose another list.",
@@ -211,6 +218,7 @@ export function AddToGroceriesButton({
       request: {
         recipeId: reviewedRequest.current!.recipeId,
         mealId: reviewedRequest.current!.mealId,
+        batchId: reviewedRequest.current!.batchId,
         listId: destination || undefined,
         servings: reviewedRequest.current!.servings,
         ingredientIds: [...selected],
@@ -296,7 +304,7 @@ export function AddToGroceriesButton({
         title="Review grocery ingredients"
       >
         {!review && !reviewError && <p role="status">Loading ingredients…</p>}
-        {reviewError && <p role="alert">{reviewError}</p>}
+        {reviewError && <p role="alert">{typeof reviewError === "string" ? reviewError : tBulk("preparedGroceries")}</p>}
         {review && (
           <div className="space-y-4">
             <p className="font-semibold break-words">{review.title}</p>

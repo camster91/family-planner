@@ -338,12 +338,36 @@
     "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution."
   },
   {
+    "relation": "MealBatch.cook",
+    "fields": [
+      "cook_id"
+    ],
+    "kind": "member",
+    "migration": "Retain the current account cook reference for compatibility; clear on membership removal or account erasure. Future canonical profile mapping must preserve dish history and never create a login from a member."
+  },
+  {
+    "relation": "MealBatchConsumption.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep original authenticated actor and eaten portion history during membership/profile changes; permanent User erasure clears the nullable reference without transferring authorship."
+  },
+  {
     "relation": "MealPlan.creator",
     "fields": [
       "created_by"
     ],
     "kind": "actor",
     "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "MealPrepSession.creator",
+    "fields": [
+      "created_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep original authenticated actor during membership/profile changes; permanent User erasure clears the nullable reference without transferring authorship."
   },
   {
     "relation": "Medication.creator",
