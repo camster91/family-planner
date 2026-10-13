@@ -31,8 +31,13 @@ performance on the development host, not physical-device or production latency.
 The compact fridge layout with Use Soon preserves four columns: Today spans
 the first column; Dinner sits above Groceries in the second; Chores sits above
 Use Soon in the third; Coming Up spans the fourth. Groceries spans the two lower
-rows so its item preview and navigation fit together. The no-Use-Soon layout is
-retained. This uses the existing original card/grid foundations.
+rows so its item preview and navigation fit together. Dinner receives 40% of
+the available grid height and Groceries receives 60%, including when weather
+adds header chrome. Without Use Soon, the existing four-column areas are kept.
+Compact fridge landscapes use a 24px dinner title to preserve its cook label;
+the larger hub keeps 40px. The secondary shared-list explanation remains
+accessible and is visually shown outside the compact fridge layout. This uses
+the existing original card/grid foundations.
 
 Regression-first mounted tests cover the source/data and recovery changes.
 Independent reviewers check another agent's changes, with root owning the
