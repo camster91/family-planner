@@ -337,6 +337,26 @@ const region = (
 
 /** Keep actual grocery items and navigation usable with dense fridge chrome. */
 async function assertGroceryPreviewFit(page: Page) {
+  await page.evaluate(() => document.fonts.ready);
+  const dinner = page.getByTestId("region-dinner");
+  for (const content of [
+    dinner.getByTestId("dinner-tonight").locator("p").first(),
+    dinner.getByTestId("dinner-cook"),
+  ]) {
+    await expect(content).toBeVisible();
+    expect(
+      await content.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const card = element.closest("section")!.getBoundingClientRect();
+        return (
+          box.top >= card.top &&
+          box.bottom <= card.bottom &&
+          box.bottom <= window.innerHeight
+        );
+      }),
+      "Dinner title and cook must remain readable without scrolling its card",
+    ).toBe(true);
+  }
   const groceries = page.getByTestId("region-groceries");
   expect(
     await groceries.locator("ul").evaluate((list) => list.clientHeight),

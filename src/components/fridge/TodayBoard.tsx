@@ -76,9 +76,9 @@ const GRID_APP_WITH_SLOT_WITHOUT_CHORES = [
   'lg:grid-cols-3 lg:[grid-template-areas:"today_dinner_groceries"_"coming_coming_coming"_"usesoon_usesoon_usesoon"]',
 ].join(' ')
 const GRID_FRIDGE =
-  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[minmax(0,1fr)_minmax(0,2fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto'
+  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[minmax(0,2fr)_minmax(0,3fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto'
 const GRID_FRIDGE_WITH_SLOT =
-  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"_"today_groceries_usesoon_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto'
+  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[minmax(0,4fr)_minmax(0,3fr)_minmax(0,3fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"_"today_groceries_usesoon_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto'
 
 /**
  * In the fridge hub the slot is a grid cell of fixed height; its tile fills it
@@ -632,6 +632,7 @@ export default function TodayBoard({
             <ScheduleRegion events={view.today} calendarHref={data.links.calendar} people={view.people} />
             <DinnerRegion
               dinner={view.dinner}
+              compactLandscape={fridgeMode}
               mealsEnabled={data.dinners !== null}
               mealsHref={data.links.meals}
               featuresHref={data.links.features}
@@ -645,7 +646,7 @@ export default function TodayBoard({
                 canTick={tiles.canTickChore}
               />
             )}
-            <GroceriesRegion shopping={tiles.shopping} listsHref={data.links.lists} onTick={tiles.tickGrocery} action={groceryAction} />
+            <GroceriesRegion compactLandscape={fridgeMode} shopping={tiles.shopping} listsHref={data.links.lists} onTick={tiles.tickGrocery} action={groceryAction} />
             <ComingUpRegion days={view.comingUp} mealsEnabled={data.dinners !== null} stackInLandscape={fridgeMode} />
             {useSoonSlot && (
               <div data-testid="board-slot-use-soon" className={`min-w-0 ${areaClass.usesoon} ${USE_SOON_SLOT_FIT}`}>
