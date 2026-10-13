@@ -2,7 +2,7 @@
 
 The original candidate `555e4ae6` run `38296504536` kept all tests but its three-viewport fridge/large-tablet/desktop job `114969314093` exceeded the unchanged 40-minute limit before visual checks. The earlier Linux capture job `114957490425` ended at the same limit. Their incomplete logs are historical evidence, never a complete journey or screenshot pass. A separate intermittent Locations focus failure is repaired in application code; splitting jobs does not substitute for that fix.
 
-The current matrix has four independent jobs: phone390/phone430, portrait800, fridge1280, and large-tablet1920/desktop1366. Every original project occurs exactly once. Each job still owns its service database, checkout, and auth files; Playwright keeps one worker, the 40-minute limit stays unchanged, and matrix concurrency remains two with fail-fast disabled. The strict aggregate still requires every viewport and Password/Inventory/Settings dependency to succeed. Triggers, action pins, permissions, install/build/migration commands, test and visual commands, fixtures, screenshots, and tolerances remain unchanged.
+The current matrix has four independent jobs: phone390/phone430, portrait800, fridge1280, and large-tablet1920/desktop1366. Every original project occurs exactly once. Each job still owns its service database, checkout, and auth files; Playwright keeps one worker, the 40-minute limit stays unchanged, and matrix concurrency is four after the PR #544 throughput review with fail-fast disabled. The strict aggregate still requires every viewport and Password/Inventory/Settings dependency to succeed. Triggers, action pins, permissions, install/build/migration commands, test and visual commands, fixtures, screenshots, and tolerances remain unchanged.
 
 Original final-head hosted checks must pass before merge. Earlier evidence below describes superseded layouts and remains preserved.
 
@@ -33,3 +33,8 @@ Applicable types/lint/format/whitespace and full373 suites/4518 tests PASS61.143
 New source changes must trigger their own original Build/Test/fresh-image, all three former viewport-shard journey/visual jobs, aggregate and GitGuardian gates. Verify actual terminal totals, exact head, manual source review, current strict/admin/conversation protections and zero unresolved threads before normal merge; then close only original #428 criteria. The initial cancelled source remains history. No test failures/timeout cancellation can be substituted by a required-only green check.
 
 Rollback is the named original single-job workflow; that restores the known40-minute capacity failure on this suite and is not current acceptance. Full #142/#134/#377/device/provider/production/legal/human/household acceptance remains open.
+
+
+## October 2026 throughput review (#544)
+
+The current four viewport jobs may run concurrently (`max-parallel: 4`). Each still owns an isolated hosted runner, PostgreSQL service, checkout, auth files and shard-named artifacts. The fixture-mutating specs remain serial within each shard (`workers: 1`). All original projects, tests, snapshots, 40-minute job budgets and the strict aggregate gate are retained. This removes inter-shard queue delay without adding jobs; peak hosted capacity is the remaining concurrency constraint.

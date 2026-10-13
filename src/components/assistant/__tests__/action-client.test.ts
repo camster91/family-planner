@@ -3,6 +3,8 @@ import {
   executeAssistantAction,
   removalTargets,
   AssistantActionError,
+  AssistantActionPreflightError,
+  ActionOutcomeUnknown,
 } from "../action-client";
 const fetchMock = jest.fn();
 beforeEach(() => {
@@ -77,6 +79,33 @@ it("grocery adds reuse idempotency and never guesses among multiple lists", asyn
     "stable-key",
   );
 });
+it("tags grocery discovery failures as preflight but keeps item writes uncertain", async () => {
+  fetchMock.mockRejectedValueOnce(new Error("Offline"));
+  const discovery = executeAssistantAction(
+    { kind: "grocery_add", title: "Milk" },
+    "stable-key",
+  );
+  await expect(discovery).rejects.toBeInstanceOf(AssistantActionPreflightError);
+  await expect(discovery).rejects.toMatchObject({ code: "loadChoicesFailed" });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+
+  fetchMock.mockReset();
+  fetchMock
+    .mockResolvedValueOnce(ok({ lists: [{ id: "grocery-a", type: "grocery" }] }))
+    .mockRejectedValueOnce(new Error("Offline after write started"));
+  const itemWrite = executeAssistantAction(
+    { kind: "grocery_add", title: "Milk" },
+    "stable-key",
+  );
+  await expect(itemWrite).rejects.toBeInstanceOf(ActionOutcomeUnknown);
+  await expect(itemWrite).rejects.toMatchObject({
+    code: "connectionInterrupted",
+  });
+  await expect(itemWrite).rejects.not.toBeInstanceOf(
+    AssistantActionPreflightError,
+  );
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
 it("filters read-only imported events from removal choices", async () => {
   fetchMock.mockResolvedValue(
     ok({
@@ -91,6 +120,20 @@ it("filters read-only imported events from removal choices", async () => {
       (t) => t.id,
     ),
   ).toEqual(["a"]);
+});
+it("classifies a failed choice GET as safely reloadable", async () => {
+  fetchMock.mockResolvedValue({
+    ok: false,
+    json: async () => ({ error: "Provider unavailable" }),
+  });
+  const result = removalTargets({ kind: "event_delete", title: "Dentist" });
+  await expect(
+    result,
+  ).rejects.toBeInstanceOf(ActionOutcomeUnknown);
+  await expect(
+    result,
+  ).rejects.toMatchObject({ code: "loadChoicesFailed" });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 it("distinguishes same-named lists by household details", async () => {
   fetchMock.mockResolvedValue(
@@ -150,20 +193,20 @@ it("network loss on mutation reports uncertainty instead of success or auto-retr
 });
 
 it("exposes a semantic code for local validation while retaining its English message", async () => {
-  await expect(
-    executeAssistantAction(
-      {
-        kind: "event_create",
-        title: "Bad",
-        start: "2026-10-10T15:00",
-        end: "2026-10-10T14:00",
-      },
-      "key",
-    ),
-  ).rejects.toMatchObject({
+  const result = executeAssistantAction(
+    {
+      kind: "event_create",
+      title: "Bad",
+      start: "2026-10-10T15:00",
+      end: "2026-10-10T14:00",
+    },
+    "key",
+  );
+  await expect(result).rejects.toMatchObject({
     code: "invalidEventTime",
     message: defaultEnglishError.invalidEventTime.message,
   });
+  await expect(result).rejects.toBeInstanceOf(AssistantActionPreflightError);
   expect(fetchMock).not.toHaveBeenCalled();
 });
 

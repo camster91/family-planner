@@ -189,6 +189,11 @@ export function BulkCookingPanel({
   const current = sessions.find((row) => row.id === selected) ?? sessions[0];
   const modalSession =
     modal && sessions.find((row) => row.id === modal.sessionId);
+  // Keep a previously loaded session visible for recovery, but do not let a
+  // refresh error or in-flight reload start a new mutation from stale data.
+  // Existing editors/action sheets stay mounted so their pending/unknown
+  // receipt hooks can still finish or retry against the original request.
+  const mutationsBlocked = loading || error;
   const saved = (sessionId?: string) => {
     if (sessionId) preferredSession.current = sessionId;
     setEditor(null);
@@ -212,7 +217,7 @@ export function BulkCookingPanel({
         <button
           type="button"
           className="btn-filled min-h-[44px]"
-          disabled={!scope || forbidden || loading}
+          disabled={!scope || forbidden || mutationsBlocked}
           onClick={() => setEditor({ day: defaultDay })}
         >
           {tBulk("add")}
@@ -269,6 +274,7 @@ export function BulkCookingPanel({
                 onClick={() =>
                   setModal({ kind: "prepared", sessionId: current.id })
                 }
+                disabled={mutationsBlocked}
               >
                 {tBulk("markPrepared")}
               </button>
@@ -307,7 +313,6 @@ export function BulkCookingPanel({
                     <button
                       type="button"
                       className="btn-tinted min-h-[44px]"
-                      disabled={counts.unplanned <= 0}
                       onClick={() =>
                         setModal({
                           kind: "allocate",
@@ -315,13 +320,14 @@ export function BulkCookingPanel({
                           batchId: batch.id,
                         })
                       }
+                      disabled={mutationsBlocked || counts.unplanned <= 0}
                     >
                       {tBulk("schedule")}
                     </button>
                     <button
                       type="button"
                       className="btn-tinted min-h-[44px]"
-                      disabled={!current.prepared_at || counts.remaining <= 0}
+                      disabled={mutationsBlocked || !current.prepared_at || counts.remaining <= 0}
                       onClick={() =>
                         setModal({
                           kind: "eaten",
@@ -336,6 +342,7 @@ export function BulkCookingPanel({
                       <button
                         type="button"
                         className="btn-tinted min-h-[44px]"
+                        disabled={mutationsBlocked}
                         onClick={() =>
                           setModal({
                             kind: "undo-eaten",
@@ -354,6 +361,7 @@ export function BulkCookingPanel({
                       recipeId={batch.recipe_id}
                       batchId={batch.id}
                       label={tBulk("groceries")}
+                      disabled={mutationsBlocked}
                     />
                   )}
                 </article>
@@ -371,6 +379,7 @@ export function BulkCookingPanel({
               <button
                 type="button"
                 className="btn-tinted min-h-[44px]"
+                disabled={mutationsBlocked}
                 onClick={() =>
                   setModal({ kind: "next-prep", sessionId: current.id })
                 }
@@ -381,6 +390,7 @@ export function BulkCookingPanel({
                 <button
                   type="button"
                   className="btn-filled min-h-[44px]"
+                  disabled={mutationsBlocked}
                   onClick={() =>
                     setEditor({
                       day: toDateOnlyUTC(current.next_prep_on!),
@@ -400,7 +410,7 @@ export function BulkCookingPanel({
             <button
               type="button"
               className="btn-tinted min-h-[44px]"
-              disabled={loading}
+              disabled={loading || error}
               onClick={() => void load(cursor)}
             >
               {tBulk("more")}
@@ -413,8 +423,10 @@ export function BulkCookingPanel({
           context={scope}
           defaultDay={editor.day}
           seed={editor.seed}
+          freshWritesBlocked={mutationsBlocked}
           onClose={() => setEditor(null)}
           onSaved={saved}
+          onReload={() => load()}
         />
       )}
       {scope && modal && modalSession && (
@@ -424,6 +436,7 @@ export function BulkCookingPanel({
           session={modalSession}
           batch={modalSession.batches.find((row) => row.id === modal.batchId)}
           consumptionId={modal.consumptionId}
+          freshWritesBlocked={mutationsBlocked}
           onClose={() => setModal(null)}
           onSaved={() => saved()}
           onReload={() => load()}

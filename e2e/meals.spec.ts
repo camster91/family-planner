@@ -274,7 +274,7 @@ test.describe("meals (parent)", () => {
         }),
       );
       expect(new Set(boxes.map((box) => box.x)).size).toBe(
-        width < 700 ? 1 : width < 1600 ? 4 : 7,
+        width < 700 ? 1 : width < 1280 ? 4 : 7,
       );
       if (width >= 700)
         expect(Math.max(...boxes.map((box) => box.bottom))).toBeLessThanOrEqual(

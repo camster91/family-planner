@@ -144,6 +144,11 @@ it("renders the localized board regions while preserving household values and li
       name: "All shared lists",
     }),
   ).toHaveAttribute("href", "/dashboard/lists");
+  const groceries = screen.getByTestId("region-groceries");
+  expect(groceries.className).toContain("lg:landscape:flex");
+  expect(
+    within(groceries).getByRole("list", { name: "Groceries" }),
+  ).toHaveAttribute("tabindex", "0");
 });
 
 it("switches every board region to Spanish without translating inserted household values", () => {

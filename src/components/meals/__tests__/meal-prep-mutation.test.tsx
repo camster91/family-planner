@@ -60,6 +60,32 @@ describe("prep receipt recovery", () => {
     });
     expect(fetchMock.mock.calls[2]).toEqual(fetchMock.mock.calls[0]);
   });
+  it("blocks fresh saves while reloading but lets the original uncertain save retry", async () => {
+    fetchMock
+      .mockRejectedValueOnce(new Error("lost"))
+      .mockResolvedValueOnce(reply(200, { sessionId: "prep-1" }));
+    const saved = jest.fn();
+    const { result, rerender } = renderHook(
+      ({ freshWritesBlocked }: { freshWritesBlocked: boolean }) =>
+        useMealPrepMutation(saved, { freshWritesBlocked }),
+      { initialProps: { freshWritesBlocked: false } },
+    );
+    await act(async () => {
+      await result.current.save({ action: "prepared", sessionId: "prep-1" });
+    });
+    const original = fetchMock.mock.calls[0];
+    rerender({ freshWritesBlocked: true });
+    await act(async () => {
+      await result.current.save({ action: "prepared", sessionId: "prep-2" });
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await result.current.retry();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]).toEqual(original);
+    expect(saved).toHaveBeenCalledWith({ sessionId: "prep-1" });
+  });
   it("allows correction after a definitive first refusal, but treats malformed success as uncertain", async () => {
     fetchMock
       .mockResolvedValueOnce(reply(409, { error: { code: "BATCH_FULL" } }))

@@ -57,13 +57,16 @@ export class AssistantActionError extends Error {
   }
 }
 
+/** A proven preflight failure before any mutation request starts. */
+export class AssistantActionPreflightError extends AssistantActionError {}
+
 function validated<T extends ZodTypeAny>(
   schema: T,
   input: unknown,
 ): ZodInfer<T> {
   const result = schema.safeParse(input);
   if (!result.success)
-    throw new AssistantActionError(
+    throw new AssistantActionPreflightError(
       "checkProposedDetails",
       result.error.issues[0]?.message ?? undefined,
     );
@@ -100,6 +103,9 @@ async function request(
   }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
+    // Choice reads are safe to retry. Keep the proposal in the panel even if
+    // the server returned an error body, and never treat this as a mutation.
+    if (method === "GET") throw new ActionOutcomeUnknown("loadChoicesFailed");
     if (data?.error) throw new Error(data.error);
     throw new AssistantActionError("actionFailed");
   }
@@ -177,7 +183,7 @@ export async function executeAssistantAction(
   target?: RemovalTarget,
 ) {
   if (action.kind === "chore_create") {
-    if (!target) throw new AssistantActionError("chooseChoreAssignee");
+    if (!target) throw new AssistantActionPreflightError("chooseChoreAssignee");
     const anchor =
       action.frequency === "weekly"
         ? nextSelectedWeekday(
@@ -189,7 +195,7 @@ export async function executeAssistantAction(
             .slice(0, 10)
         : action.date;
     if (!anchor || !parseDateOnly(anchor))
-      throw new AssistantActionError("invalidChoreSchedule");
+      throw new AssistantActionPreflightError("invalidChoreSchedule");
     return request(
       "/api/chores/create",
       "POST",
@@ -207,7 +213,7 @@ export async function executeAssistantAction(
     );
   }
   if (action.kind.endsWith("_delete")) {
-    if (!target) throw new AssistantActionError("chooseRemovalTarget");
+    if (!target) throw new AssistantActionPreflightError("chooseRemovalTarget");
     const config =
       action.kind === "event_delete"
         ? { path: "/api/events", field: "eventId" }
@@ -220,7 +226,7 @@ export async function executeAssistantAction(
     const start = localDateTimeToISO(action.start),
       end = localDateTimeToISO(action.end);
     if (!start || !end || Date.parse(end) <= Date.parse(start))
-      throw new AssistantActionError("invalidEventTime");
+      throw new AssistantActionPreflightError("invalidEventTime");
     const body = validated(createEventSchema, {
       title: action.title,
       start_time: start,
@@ -247,12 +253,21 @@ export async function executeAssistantAction(
       }),
     );
   if (action.kind === "grocery_add") {
-    const { lists } = await request("/api/lists");
+    let lists: unknown;
+    try {
+      // Discovery is a read-only preflight. A failure here cannot have
+      // consumed the mutation key, so the reviewed action may be confirmed
+      // deliberately again after the lists become available.
+      const data = await request("/api/lists");
+      lists = data.lists;
+    } catch {
+      throw new AssistantActionPreflightError("loadChoicesFailed");
+    }
     const groceries = (lists as Array<{ id: string; type: string }>).filter(
       (l) => l.type === "grocery",
     );
     if (groceries.length !== 1)
-      throw new AssistantActionError("chooseGroceryList");
+      throw new AssistantActionPreflightError("chooseGroceryList");
     return request(
       "/api/lists/items/create",
       "POST",

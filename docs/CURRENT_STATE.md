@@ -1,5 +1,13 @@
 # Current State
 
+## Current release and quality review — 2026-10-13
+
+Released main is `ae23f5d8d618732aa6f665b7515ef45071b6e8ce` (PR #539), adding multi-dish bulk-prep sessions, portions eaten with Undo, and next-prep planning. Candidate and exact-main build/image, Android and browser gates passed. Coolify application 11 deployment 398 finished at `2026-10-13T01:13:43Z`; public version/health, serving image/revision, startup migrations, new prep tables/meal-link columns and private-route refusals were verified. A fresh protected backup restored successfully to an isolated database, migrations ran twice without changing existing row counts, and the temporary database was removed. [Canonical release evidence](https://github.com/camster91/family-planner/issues/538).
+
+`HOUSEHOLD_PROFILE_SETUP_ENABLED`, `HOUSEHOLD_PROFILE_CHORE_ENABLED` and `ASSISTANT_TODAY_ENABLED` remain off. No live-household content, paid provider, scheduler, physical-device, store or customer-validation result is implied by the web release. The broader programme remains open under #128/#499/#480/#473/#144.
+
+Cameron requested a fresh agent product-quality review against this released baseline. #499 remains the canonical alignment scope. Review observations and bounded repairs will distinguish source findings, fabricated rendered journeys and customer/native evidence. Older dated execution sections below are retained history; they do not describe the latest release or pending PR state.
+
 ## Current execution — 2026-10-09, mounted Settings localization candidate
 
 Latest acceptance checkpoint: [hosted Settings proof and original account-dialog compatibility repair](#2026-10-09-hosted-settings-proof-and-original-account-dialog-compatibility-repair). The earlier candidate paragraphs below are retained execution history; they do not establish current acceptance. Original journey checks are red until the scoped follow-up passes fresh CI.

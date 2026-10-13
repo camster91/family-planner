@@ -672,15 +672,17 @@ function MealsPageInner() {
             </Link>
           )}
         </div>
-        <button
-          type="button"
-          className="btn-filled min-h-[44px] shrink-0"
-          onClick={() => setModal({ mode: "add", defaultDate: startKey })}
-          disabled={!anchor}
-        >
-          <Plus className="w-4 h-4" aria-hidden="true" />
-          <span>{t("meals.addMeal")}</span>
-        </button>
+        {view === "week" && (
+          <button
+            type="button"
+            className="btn-filled min-h-[44px] shrink-0"
+            onClick={() => setModal({ mode: "add", defaultDate: startKey })}
+            disabled={!anchor}
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            <span>{t("meals.addMeal")}</span>
+          </button>
+        )}
       </div>
 
       <nav aria-label={tBulk("views")} className="flex flex-wrap gap-2">

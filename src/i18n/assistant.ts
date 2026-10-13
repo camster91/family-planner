@@ -175,11 +175,29 @@ export const assistantEnglish = {
   saved: "Saved “{title}”.",
   removed: "Removed “{title}”.",
   reportsLoadFailed: "Could not load your reports. Try again.",
-  replyUnreadable: "The AI reply was unreadable. Try rephrasing your message.",
-  chatFailed: "Chat failed.",
+  replyUnreadable:
+    "We could not read the AI reply. Your question is still here; retry or rephrase it.",
+  chatFailed: "We could not send that message. Your question is still here.",
+  chatOffline:
+    "No connection. Your question is still here; retry when you are online.",
+  chatUnavailable:
+    "Family AI is temporarily unavailable. Your question is still here; try again shortly.",
+  chatRateLimited:
+    "Chat limit reached. Your question is still here; try again later.",
+  chatTooLong:
+    "That message is too long. Your question is still here; shorten it and try again.",
+  aiSetupRequired:
+    "Family AI is not connected yet. Ask a parent to connect it in Settings.",
+  retryChat: "Retry message",
+  checkCalendar: "Check Calendar",
+  checkChores: "Check Chores",
+  checkLists: "Check Lists",
+  checkNotes: "Check Notes",
+  checkHelp: "Open Help",
   actionFailed: "Action failed. Check the app before retrying.",
   checkProposedDetails: "Check the proposed details.",
   loadChoicesFailed: "Could not load choices.",
+  retryChoices: "Reload choices",
   connectionInterrupted:
     "The connection ended before confirmation. Check the app before trying this action again.",
   unreadableResponse:
@@ -319,12 +337,30 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   removed: "Se eliminó “{title}”.",
   reportsLoadFailed: "No se pudieron cargar tus informes. Inténtalo de nuevo.",
   replyUnreadable:
-    "No se pudo leer la respuesta de IA. Intenta reformular el mensaje.",
-  chatFailed: "No se pudo enviar el chat.",
+    "No se pudo leer la respuesta de IA. Tu pregunta sigue aquí; reintenta o reformúlala.",
+  chatFailed:
+    "No se pudo enviar el mensaje. Tu pregunta sigue aquí.",
+  chatOffline:
+    "No hay conexión. Tu pregunta sigue aquí; reintenta cuando vuelvas a estar conectado.",
+  chatUnavailable:
+    "La IA del hogar no está disponible temporalmente. Tu pregunta sigue aquí; inténtalo de nuevo en unos momentos.",
+  chatRateLimited:
+    "Se alcanzó el límite del chat. Tu pregunta sigue aquí; inténtalo más tarde.",
+  chatTooLong:
+    "Ese mensaje es demasiado largo. Tu pregunta sigue aquí; acórtalo e inténtalo de nuevo.",
+  aiSetupRequired:
+    "La IA del hogar aún no está conectada. Pide a un padre o madre que la conecte en Ajustes.",
+  retryChat: "Reintentar mensaje",
+  checkCalendar: "Revisar Calendario",
+  checkChores: "Revisar Tareas",
+  checkLists: "Revisar Listas",
+  checkNotes: "Revisar Notas",
+  checkHelp: "Abrir Ayuda",
   actionFailed:
     "La acción falló. Revisa la aplicación antes de volver a intentarlo.",
   checkProposedDetails: "Revisa los detalles propuestos.",
   loadChoicesFailed: "No se pudieron cargar las opciones.",
+  retryChoices: "Volver a cargar opciones",
   connectionInterrupted:
     "La conexión terminó antes de la confirmación. Revisa la aplicación antes de volver a intentar esta acción.",
   unreadableResponse:

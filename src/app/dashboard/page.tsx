@@ -19,6 +19,13 @@ const MAX_WINDOW_CHORES = 60;
 /** Bounded own catch-up work; KidHome initially shows three with Show more. */
 const MAX_OLDER_CHORES = 60;
 
+type KidDashboardEvent = {
+  id: string;
+  title: string;
+  start_time: string;
+  location: string | null;
+};
+
 /**
  * `/dashboard` (#269 "one home").
  *
@@ -111,6 +118,12 @@ export default async function DashboardPage() {
       where: { family_id: familyId, start_time: { gte: now } },
       orderBy: { start_time: "asc" },
       take: 5,
+      select: {
+        id: true,
+        title: true,
+        start_time: true,
+        location: true,
+      },
     }),
     // With Rewards off (or Points & streaks off, which it needs) the claim
     // endpoint 403s, so no card is offered.
@@ -142,13 +155,19 @@ export default async function DashboardPage() {
     ...windowChores.slice(0, MAX_WINDOW_CHORES),
   ];
   const visibleChores = gamification ? chores : chores.map(omitChorePoints);
+  const visibleEvents: KidDashboardEvent[] = events.map((event) => ({
+    id: event.id,
+    title: event.title,
+    start_time: event.start_time.toISOString(),
+    location: event.location,
+  }));
 
   return (
     <KidHome
       user={viewer as any}
       chores={visibleChores as any}
       workPreviewLimited={workPreviewLimited}
-      events={events as any}
+      events={visibleEvents}
       rewards={rewards.map((r) => ({
         id: r.id,
         name: r.name,

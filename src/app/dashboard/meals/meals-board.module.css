@@ -108,7 +108,7 @@
     font-size: 1.125rem;
   }
 }
-@media (min-width: 1600px) {
+@media (min-width: 1280px) {
   .board {
     grid-template-columns: repeat(7, minmax(0, 1fr));
   }

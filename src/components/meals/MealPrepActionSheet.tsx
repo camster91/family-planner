@@ -24,6 +24,7 @@ export function MealPrepActionSheet({
   batch,
   consumptionId,
   context,
+  freshWritesBlocked = false,
   onClose,
   onSaved,
   onReload,
@@ -33,6 +34,7 @@ export function MealPrepActionSheet({
   batch?: MealBatchSummary;
   consumptionId?: string;
   context: MealPrepContext;
+  freshWritesBlocked?: boolean;
   onClose: () => void;
   onSaved: () => void;
   onReload: () => Promise<MealPrepSummary[] | null>;
@@ -70,7 +72,7 @@ export function MealPrepActionSheet({
   const [invalid, setInvalid] = React.useState(false);
   const [discard, setDiscard] = React.useState(false);
   const [reloading, setReloading] = React.useState(false);
-  const mutation = useMealPrepMutation(onSaved);
+  const mutation = useMealPrepMutation(onSaved, { freshWritesBlocked });
   const dirty =
     kind === "allocate"
       ? meals.length > 0
@@ -105,7 +107,7 @@ export function MealPrepActionSheet({
             : tBulk("undoEaten");
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (mutation.isPending()) return;
+    if (mutation.isPending() || freshWritesBlocked) return;
     const scope = {
       expected_family_id: origin.current.familyId,
       expected_user_id: origin.current.userId,
@@ -300,6 +302,21 @@ export function MealPrepActionSheet({
               {mutation.error ?? tBulk("invalid")}
             </p>
           )}
+          {freshWritesBlocked && (
+            <div role="status" className="space-y-2">
+              <p className="text-subhead text-label-secondary">
+                {tBulk("reloadBeforeSave")}
+              </p>
+              <button
+                type="button"
+                className="btn-tinted min-h-[44px]"
+                disabled={reloading}
+                onClick={() => void reload()}
+              >
+                {reloading ? tBulk("loading") : tBulk("reload")}
+              </button>
+            </div>
+          )}
           {mutation.unknown && (
             <p className="text-footnote text-label-secondary">
               {tBulk("unknown")}
@@ -322,6 +339,7 @@ export function MealPrepActionSheet({
                 disabled={
                   mutation.busy ||
                   reloading ||
+                  freshWritesBlocked ||
                   (kind === "allocate" && meals.length === 0)
                 }
               >
@@ -342,7 +360,7 @@ export function MealPrepActionSheet({
             >
               {tBulk("cancel")}
             </button>
-            {mutation.error && !mutation.unknown && (
+            {mutation.error && !mutation.unknown && !freshWritesBlocked && (
               <button
                 type="button"
                 className="btn-tinted min-h-[44px]"

@@ -405,7 +405,7 @@ test.describe("Explore feature shortcut", () => {
     assertFixtureTargetAllowed(process.env);
     await page.goto("/dashboard/today");
     const viewport = page.viewportSize()!;
-    if (viewport.width < 1280) {
+    if (viewport.width < 768) {
       await page
         .getByRole("button", {
           name: text(navigationMessages.en.userMenu),
@@ -426,8 +426,11 @@ test.describe("Explore feature shortcut", () => {
     await expect(
       page.getByRole("heading", { name: "More", exact: true }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("list", { name: "Features", exact: true }),
-    ).toBeVisible();
+    const featureLists = page.getByTestId("more-list").getByRole("list");
+    expect(await featureLists.count()).toBeGreaterThan(0);
+    for (const list of await featureLists.all()) {
+      await expect(list).toBeVisible();
+      await expect(list).toHaveAttribute("aria-label", / · Features$/);
+    }
   });
 });

@@ -2,6 +2,11 @@ import { useTranslation } from "@/i18n";
 
 export const moreEnglish = {
   title: "More",
+  searchLabel: "Search enabled features",
+  searchPlaceholder: "Search features",
+  clearSearch: "Clear feature search",
+  noMatches: "No enabled features match your search.",
+  clearFilters: "Clear search",
   choresOnly: "Chores, and anything else you turn on, lives here.",
   withOneFeature: "Chores and one more feature your family uses.",
   withFeatures: "Chores and {count} more features your family uses.",
@@ -15,6 +20,11 @@ export type MoreMessages = Record<MoreMessage, string>;
 
 export const moreSpanish: MoreMessages = {
   title: "Más",
+  searchLabel: "Buscar funciones activadas",
+  searchPlaceholder: "Buscar funciones",
+  clearSearch: "Borrar búsqueda de funciones",
+  noMatches: "Ninguna función activada coincide con tu búsqueda.",
+  clearFilters: "Borrar búsqueda",
   choresOnly: "Las tareas y todo lo que actives aparecen aquí.",
   withOneFeature: "Las tareas y una función más que usa tu familia.",
   withFeatures: "Las tareas y {count} funciones más que usa tu familia.",

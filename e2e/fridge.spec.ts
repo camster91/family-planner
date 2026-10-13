@@ -335,6 +335,59 @@ const region = (
   name: "today" | "dinner" | "chores" | "groceries" | "coming",
 ) => page.getByTestId(`region-${name}`);
 
+/** Keep actual grocery items and navigation usable with dense fridge chrome. */
+async function assertGroceryPreviewFit(page: Page) {
+  await page.evaluate(() => document.fonts.ready);
+  const dinner = page.getByTestId("region-dinner");
+  for (const content of [
+    dinner.getByTestId("dinner-tonight").locator("p").first(),
+    dinner.getByTestId("dinner-cook"),
+  ]) {
+    await expect(content).toBeVisible();
+    expect(
+      await content.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const card = element.closest("section")!.getBoundingClientRect();
+        return (
+          box.top >= card.top &&
+          box.bottom <= card.bottom &&
+          box.bottom <= window.innerHeight
+        );
+      }),
+      "Dinner title and cook must remain readable without scrolling its card",
+    ).toBe(true);
+  }
+  const groceries = page.getByTestId("region-groceries");
+  expect(
+    await groceries.locator("ul").evaluate((list) => list.clientHeight),
+    "Weather and dinner content must leave a touch-sized grocery preview",
+  ).toBeGreaterThanOrEqual(44);
+  for (const link of [
+    groceries.getByRole("link", { name: /more to buy/i }),
+    groceries.getByRole("link", { name: /all shared lists/i }),
+  ]) {
+    await expect(link).toHaveCount(1);
+    expect(
+      await link.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const card = element.closest("section")!.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          box.left + box.width / 2,
+          box.top + box.height / 2,
+        );
+        return (
+          box.top >= card.top &&
+          box.bottom <= card.bottom &&
+          box.bottom <= window.innerHeight &&
+          !!hit &&
+          element.contains(hit)
+        );
+      }),
+      "Grocery navigation must be contained and clickable without scrolling its card",
+    ).toBe(true);
+  }
+}
+
 async function openBoard(page: Page, path = "/dashboard/today") {
   await page.goto(path);
   // The board renders after mount (local "today"), so wait for the regions.
@@ -396,8 +449,43 @@ async function axeScan(page: Page, testInfo: TestInfo, label: string) {
   expect(blocking, `serious/critical axe violations on ${label}`).toEqual([]);
 }
 
+async function expectBoardTypography(page: Page, fridgeMode: boolean) {
+  await page.evaluate(() => document.fonts.ready);
+  const width = page.viewportSize()!.width;
+  const landscape = await page.evaluate(
+    () => matchMedia("(orientation: landscape)").matches,
+  );
+  const dinnerSize =
+    width >= 1536
+      ? "40px"
+      : fridgeMode && landscape && width >= 1024
+        ? "24px"
+        : width >= 768
+          ? "32px"
+          : "28px";
+  await expect(
+    region(page, "dinner").getByTestId("dinner-tonight").locator("p").first(),
+  ).toHaveCSS("font-size", dinnerSize);
+  // Custom typography tokens must survive conditional class composition.
+  const explanation = region(page, "groceries").getByText(
+    "To-dos, wishlists and custom lists",
+    { exact: true },
+  );
+  await expect(explanation).toHaveCSS("font-size", "13px");
+  await expect(explanation).toHaveCSS("line-height", "18px");
+}
+
 test.describe("Today board: Family A parent", () => {
   test.use({ storageState: authFile("parentA") });
+
+  test("preserves responsive typography in ordinary and fridge views", async ({
+    page,
+  }) => {
+    await openBoard(page);
+    await expectBoardTypography(page, false);
+    await openBoard(page, "/dashboard/today?mode=fridge");
+    await expectBoardTypography(page, true);
+  });
 
   test("shows every region from real household data", async ({ page }) => {
     await openBoard(page);
@@ -621,6 +709,7 @@ test.describe("Today board: Family A parent", () => {
           viewport.height,
         );
       }
+      await assertGroceryPreviewFit(page);
       // Four columns side by side: schedule, kitchen, chores, coming up.
       const xs: number[] = [];
       for (const area of ["today", "dinner", "chores", "coming"] as const) {
@@ -742,7 +831,15 @@ test.describe("Today board: Family A parent", () => {
       expect(link!.height).toBeGreaterThanOrEqual(minHeight);
       await expectNoHorizontalOverflow(page);
       await axeScan(page, testInfo, "/dashboard/today?mode=fridge (use soon)");
+      if (LANDSCAPE_HUBS.includes(testInfo.project.name)) {
+        await withDb(enableWeather);
+        await openBoard(page, "/dashboard/today?mode=fridge");
+        await expect(page.getByTestId("board-weather")).toBeVisible();
+        await expect(page.getByTestId("board-slot-use-soon")).toBeVisible();
+        await assertGroceryPreviewFit(page);
+      }
     } finally {
+      await withDb(disableWeather);
       await withDb(removeBoardInventory);
     }
   });

@@ -76,6 +76,7 @@ export function Region({
   href,
   hrefLabel,
   action,
+  className,
   children,
 }: {
   id: string
@@ -92,6 +93,7 @@ export function Region({
   /** Screen-reader words after the title, e.g. "open calendar". */
   hrefLabel?: string
   action?: React.ReactNode
+  className?: string
   children: React.ReactNode
 }) {
   return (
@@ -99,9 +101,11 @@ export function Region({
       aria-labelledby={`${id}-title`}
       data-testid={`region-${area}`}
       // On a landscape fridge tablet each region scrolls inside itself, so it
-      // must be reachable by keyboard to scroll (WCAG 2.1.1).
-      tabIndex={0}
-      className={cn(regionClass, areaClass[area])}
+      // must be reachable by keyboard to scroll (WCAG 2.1.1). Groceries owns
+      // scrolling with its inner list so the continuation stays visible; keep
+      // the card programmatically focusable without adding a second tab stop.
+      tabIndex={area === 'groceries' ? -1 : 0}
+      className={cn(regionClass, areaClass[area], className)}
     >
       <div className="mb-3 flex min-h-[48px] items-center gap-2.5 2xl:mb-4 2xl:min-h-[56px]">
         <Glyph color={glyph} size="md">
@@ -279,11 +283,13 @@ export function missingIngredientsLine(
 }
 
 export function DinnerRegion({
+  compactLandscape = false,
   dinner,
   mealsEnabled,
   mealsHref,
   featuresHref,
 }: {
+  compactLandscape?: boolean
   dinner: BoardDinner | null
   mealsEnabled: boolean
   mealsHref: string | null
@@ -319,7 +325,7 @@ export function DinnerRegion({
     // #274: the tile heading opens meals; no separate "Open meals" button.
     body = (
       <div data-testid="dinner-tonight">
-        <p className="break-words font-display text-[28px] font-bold leading-tight text-label-primary md:text-[32px] 2xl:text-[40px]">
+        <p className={`break-words font-display text-[28px] font-bold leading-tight text-label-primary md:text-[32px] 2xl:text-[40px]${compactLandscape ? ' lg:landscape:text-[24px] 2xl:landscape:text-[40px]' : ''}`} >
           {dinner.recipeName ?? dinner.recipeTitle ?? text('dinnerPlanned')}
         </p>
         {recipeLine && <p className={cn(metaTextClass, 'mt-2 break-words')}>{recipeLine}</p>}
@@ -328,7 +334,7 @@ export function DinnerRegion({
             {missingLine}
           </p>
         )}
-        {dinner.cookName && <p className={cn(metaTextClass, 'mt-2')}>{text('cooking', { name: dinner.cookName })}</p>}
+        {dinner.cookName && <p data-testid="dinner-cook" className={cn(metaTextClass, 'mt-2')}>{text('cooking', { name: dinner.cookName })}</p>}
       </div>
     )
   }
@@ -349,11 +355,13 @@ export function DinnerRegion({
 }
 
 export function GroceriesRegion({
+  compactLandscape = false,
   shopping,
   listsHref,
   onTick,
   action,
 }: {
+  compactLandscape?: boolean
   shopping: ShoppingSnapshot | null
   listsHref: string | null
   action?: React.ReactNode
@@ -373,6 +381,7 @@ export function GroceriesRegion({
       glyph="lists"
       href={groceriesHref}
       hrefLabel={text('openGroceryLists')}
+      className="lg:landscape:min-h-0 lg:landscape:flex lg:landscape:flex-col lg:landscape:overflow-hidden lg:landscape:[&>ul]:min-h-0 lg:landscape:[&>ul]:flex-1 lg:landscape:[&>ul]:overflow-y-auto"
       action={action}
     >
       {shopping.items.length === 0 ? (
@@ -380,7 +389,11 @@ export function GroceriesRegion({
       ) : (
         <>
           <p className={cn(metaTextClass, 'mb-2')}>{text('toBuy', { count: shopping.total })}</p>
-          <ul className="divide-y divide-[var(--surface-separator)]">
+          <ul
+            className="divide-y divide-[var(--surface-separator)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
+            tabIndex={0}
+            aria-label={text('groceries')}
+          >
             {shopping.items.map((item) => {
               const content = (
                 <>
@@ -426,7 +439,7 @@ export function GroceriesRegion({
         ) : (
           <p className={cn(metaTextClass, 'mt-3')}>{text('moreToBuy', { count: more })}</p>
         ))}
-      {listsHref && <div className="mt-3 border-t border-[var(--surface-separator)] pt-2"><Link href="/dashboard/lists" className="inline-flex min-h-[44px] items-center text-subhead text-[var(--accent-text)] 2xl:min-h-[56px]">{text('allSharedLists')} <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" /></Link><p className="text-footnote text-label-secondary">{text('sharedListsDescription')}</p></div>}
+      {listsHref && <div className="mt-3 border-t border-[var(--surface-separator)] pt-2"><Link href="/dashboard/lists" className="inline-flex min-h-[44px] items-center text-subhead text-[var(--accent-text)] 2xl:min-h-[56px]">{text('allSharedLists')} <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" /></Link><p className={`text-footnote text-label-secondary${compactLandscape ? ' lg:landscape:sr-only 2xl:landscape:not-sr-only' : ''}`} >{text('sharedListsDescription')}</p></div>}
     </Region>
   )
 }

@@ -153,6 +153,21 @@ describe('More list', () => {
     expect(screen.getByRole('link', { name: /Turn features on or off/ }).getAttribute('href')).toBe('/dashboard/features')
   })
 
+  it('groups an all-enabled More page by the existing feature sections', () => {
+    const allOn = { ...defaultFeatures() }
+    for (const key of Object.keys(allOn) as Array<keyof FamilyFeatures>) allOn[key] = true
+    mockFeatures = allOn
+    render(<MorePage />)
+    const list = screen.getByTestId('more-list')
+    expect(screen.getByRole('heading', { name: 'Core' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Planning' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Family life' })).toBeTruthy()
+    const hrefs = within(list).getAllByRole('link').map((link) => link.getAttribute('href'))
+    for (const item of moreItemsFor('parent', allOn)) {
+      expect(hrefs.filter((href) => href === item.href)).toHaveLength(1)
+    }
+  })
+
   it('localizes More feature titles while preserving canonical destination hrefs', () => {
     mockFeatures = { ...defaultFeatures(), inventory: true, allowance: true }
     render(
@@ -170,6 +185,41 @@ describe('More list', () => {
     expect(
       screen.getByRole('link', { name: /Activar o desactivar funciones/ }).getAttribute('href'),
     ).toBe('/dashboard/features')
+  })
+
+  it('filters enabled More features by localized copy and clears back to the full route inventory', () => {
+    mockFeatures = { ...defaultFeatures(), budget: true }
+    render(
+      <I18nProvider locale="es">
+        <MorePage />
+      </I18nProvider>,
+    )
+    const list = screen.getByTestId('more-list')
+    const search = screen.getByRole('searchbox', { name: 'Buscar funciones activadas' })
+    const allItems = moreItemsFor('parent', mockFeatures)
+    expect(within(list).getAllByRole('listitem')).toHaveLength(allItems.length)
+
+    fireEvent.change(search, { target: { value: 'presupuesto' } })
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByRole('link', { name: /Presupuesto/ }).getAttribute('href')).toBe('/dashboard/budget')
+    expect(screen.queryByRole('link', { name: /Contactos de emergencia/ })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Borrar búsqueda de funciones' }))
+    expect((search as HTMLInputElement).value).toBe('')
+    expect(within(list).getAllByRole('listitem')).toHaveLength(allItems.length)
+    expect(screen.getByRole('link', { name: /Contactos de emergencia/ }).getAttribute('href')).toBe('/dashboard/emergency')
+  })
+
+  it('announces an empty More search and offers a 44px clear action', () => {
+    render(<MorePage />)
+    const list = screen.getByTestId('more-list')
+    const search = screen.getByRole('searchbox', { name: 'Search enabled features' })
+    fireEvent.change(search, { target: { value: 'no such household feature' } })
+    expect(screen.getByRole('status').textContent).toContain('No enabled features match your search.')
+    const clear = screen.getByRole('button', { name: 'Clear search' })
+    expect(clear.className).toContain('min-h-11')
+    fireEvent.click(clear)
+    expect(within(list).getAllByRole('listitem').length).toBeGreaterThan(0)
   })
 
   it('the command palette offers More and Emergency', () => {
@@ -265,6 +315,13 @@ describe('DashboardNav (top bar)', () => {
     ])
     expect(screen.getByRole('link', { name: 'Herewoven home' }).getAttribute('href')).toBe('/dashboard/today')
     expect(screen.queryByRole('link', { name: 'Emergency' })).toBeNull()
+  })
+
+  it('keeps parent Explore visible from the compact desktop and tablet header', () => {
+    render(<DashboardNav user={user('parent')} />)
+    const explore = screen.getByTestId('desktop-explore')
+    expect(explore.className).toContain('md:inline-flex')
+    expect(explore.className).toContain('min-h-[44px]')
   })
 
   it('gives a child its own tabs and a home link to the kid home', () => {
