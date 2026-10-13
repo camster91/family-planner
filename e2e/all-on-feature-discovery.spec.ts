@@ -312,7 +312,7 @@ async function assertMoreSurface(
   ).toBeVisible();
   const items = expectedMore(features, locale);
   const list = page.getByTestId("more-list");
-  const links = list.locator("a");
+  const links = list.locator("li a[href]");
   const hrefs = await links.evaluateAll((elements) =>
     elements.map((element) => element.getAttribute("href")),
   );
