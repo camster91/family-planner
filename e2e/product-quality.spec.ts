@@ -613,6 +613,42 @@ for (const locale of ["en", "es"] as const) {
       await expect(useSoon).toContainText(
         locale === "es" ? "Refrigerador" : "Fridge",
       );
+      if (
+        info.project.name === "fridge-landscape-1280x800" ||
+        info.project.name === "desktop-1366x768"
+      ) {
+        const firstItem = useSoon.getByTestId("use-soon-item").first();
+        const metadata = firstItem.locator("p").nth(1);
+        await expect(metadata).toBeVisible();
+        const metadataLayout = await metadata.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          const region = element.closest("section")!.getBoundingClientRect();
+          return {
+            top: box.top,
+            bottom: box.bottom,
+            regionTop: region.top,
+            regionBottom: region.bottom,
+            viewportBottom: window.innerHeight,
+            height: box.height,
+          };
+        });
+        expect(
+          metadataLayout.height,
+          "The first Use Soon metadata line must have rendered height",
+        ).toBeGreaterThan(0);
+        expect(
+          metadataLayout.top,
+          "The first Use Soon metadata must start inside its tile",
+        ).toBeGreaterThanOrEqual(metadataLayout.regionTop);
+        expect(
+          metadataLayout.bottom,
+          "The first Use Soon expiry and storage metadata must be glanceable without scrolling",
+        ).toBeLessThanOrEqual(metadataLayout.regionBottom + 1);
+        expect(
+          metadataLayout.bottom,
+          "The first Use Soon metadata must remain inside the viewport",
+        ).toBeLessThanOrEqual(metadataLayout.viewportBottom + 1);
+      }
       const groceryList = groceries.locator("ul").first();
       await expect(groceryList).toHaveAttribute("tabindex", "0");
       await groceryList.focus();
