@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
         {
           error:
             "AI is not connected yet. Ask a parent to connect the household AI provider.",
+          code: "ASSISTANT_PROVIDER_NOT_CONFIGURED",
         },
         { status: 503 },
       );

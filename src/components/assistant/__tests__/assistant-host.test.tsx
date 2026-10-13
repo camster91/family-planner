@@ -28,7 +28,13 @@ const response = (
   data: unknown,
   ok = true,
   headers: Record<string, string> = {},
-) => ({ ok, headers: new Headers(headers), json: async () => data });
+  status = ok ? 200 : 503,
+) => ({
+  ok,
+  status,
+  headers: new Headers(headers),
+  json: async () => data,
+});
 beforeEach(() => {
   mockMode = "";
   mockRefresh.mockClear();
@@ -112,6 +118,134 @@ it("requires choosing an actual record and deletion checkbox", async () => {
     screen.getByRole("button", { name: "Remove selected item" }),
   ).toBeEnabled();
   expect(calls).toEqual(["/api/assistant", "/api/lists"]);
+});
+
+it("keeps a chore proposal and draft when member choices fail, then reloads choices only", async () => {
+  const user = userEvent.setup();
+  const calls: string[] = [];
+  let memberLoads = 0;
+  let releaseMembers: (() => void) | undefined;
+  global.fetch = jest.fn(async (path) => {
+    calls.push(String(path));
+    if (path === "/api/assistant")
+      return response({
+        reply: "Choose who does it.",
+        action: {
+          kind: "chore_create",
+          title: "Recycling",
+          frequency: "weekly",
+          weekdays: [1, 4],
+          points: 10,
+          difficulty: "easy",
+        },
+      });
+    if (path === "/api/family/members") {
+      memberLoads += 1;
+      if (memberLoads === 1) return response({ error: "Provider unavailable" }, false);
+      if (memberLoads === 2)
+        return new Promise((resolve) => {
+          releaseMembers = () =>
+            resolve(
+              response({
+                members: [{ id: "member-a", name: "Avery" }],
+              }),
+            );
+        });
+      return response({ members: [{ id: "member-a", name: "Avery" }] });
+    }
+    return response({ chore: { id: "chore-a" } });
+  }) as any;
+
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  const draft = "Add recycling Mondays and Thursdays";
+  await user.type(within(dialog).getByLabelText("Your message"), draft);
+  await user.click(within(dialog).getByRole("button", { name: "Send" }));
+
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    "Could not load choices.",
+  );
+  expect(within(dialog).getByLabelText("Proposed title")).toHaveValue(
+    "Recycling",
+  );
+  expect(within(dialog).getByLabelText("Your message")).toHaveValue(draft);
+  const reload = within(dialog).getByRole("button", { name: "Reload choices" });
+  const retrying = user.click(reload);
+  await waitFor(() => expect(releaseMembers).toEqual(expect.any(Function)));
+  await user.click(reload);
+  releaseMembers!();
+  await retrying;
+  await within(dialog).findByRole("option", { name: "Avery" });
+  expect(calls).toEqual([
+    "/api/assistant",
+    "/api/family/members",
+    "/api/family/members",
+  ]);
+
+  await user.selectOptions(within(dialog).getByLabelText("Chore assignee"), "member-a");
+  await user.click(within(dialog).getByRole("button", { name: "Confirm and save" }));
+  await within(dialog).findByText("Saved “Recycling”.");
+  expect(calls).toEqual([
+    "/api/assistant",
+    "/api/family/members",
+    "/api/family/members",
+    "/api/chores/create",
+  ]);
+});
+
+it("keeps a removal proposal when its choices GET fails, then reloads that GET only", async () => {
+  const user = userEvent.setup();
+  const calls: string[] = [];
+  let eventLoads = 0;
+  global.fetch = jest.fn(async (path) => {
+    calls.push(String(path));
+    if (path === "/api/assistant")
+      return response({
+        reply: "Choose the exact event.",
+        action: { kind: "event_delete", title: "Dentist" },
+      });
+    if (path === "/api/events") {
+      eventLoads += 1;
+      if (eventLoads === 1) throw new TypeError("Offline");
+      return response({
+        events: [
+          {
+            id: "event-a",
+            title: "Dentist",
+            start_time: "2026-10-12T15:00:00Z",
+          },
+        ],
+      });
+    }
+    return response({ success: true });
+  }) as any;
+
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.type(within(dialog).getByLabelText("Your message"), "Remove dentist");
+  await user.click(within(dialog).getByRole("button", { name: "Send" }));
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    "Could not load choices.",
+  );
+  expect(within(dialog).getByLabelText("Item to remove")).toBeInTheDocument();
+  await user.click(within(dialog).getByRole("button", { name: "Reload choices" }));
+  await within(dialog).findByRole("option", { name: /Dentist/ });
+  expect(calls).toEqual(["/api/assistant", "/api/events", "/api/events"]);
+
+  await user.selectOptions(within(dialog).getByLabelText("Item to remove"), "event-a");
+  await user.click(within(dialog).getByRole("checkbox"));
+  await user.click(
+    within(dialog).getByRole("button", { name: "Remove selected item" }),
+  );
+  await within(dialog).findByText("Removed “Dentist”.");
+  expect(calls).toEqual([
+    "/api/assistant",
+    "/api/events",
+    "/api/events",
+    "/api/events",
+  ]);
 });
 it("child gets reports but no paid assistant; shared fridge shows neither launcher", () => {
   const view = render(<AssistantHost role="child" />);
@@ -279,8 +413,235 @@ it("unconfigured AI is shown honestly and keyboard closes the sheet", async () =
   await user.type(screen.getByLabelText("Your message"), "Add milk");
   await user.click(screen.getByRole("button", { name: "Send" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("not connected");
+  expect(
+    screen.getByRole("link", { name: "Household AI setup in Settings" }),
+  ).toHaveAttribute("href", "/dashboard/settings?setup=ai#ai-capture");
   await user.keyboard("{Escape}");
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});
+
+it("keeps a failed chat request exact while retrying without overwriting a newer draft", async () => {
+  const user = userEvent.setup();
+  const calls: { path: string; body?: any }[] = [];
+  let attempt = 0;
+  global.fetch = jest.fn(async (path, options) => {
+    const body = options?.body ? JSON.parse(String(options.body)) : undefined;
+    calls.push({ path: String(path), body });
+    if (attempt++ === 0) throw new TypeError("Failed to fetch");
+    return response({ reply: "Recovered answer.", action: null });
+  }) as any;
+
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const message = screen.getByLabelText("Your message");
+  await user.type(message, "Add school pickup tomorrow");
+  await user.click(screen.getByRole("button", { name: "Send" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "No connection",
+  );
+  expect(message).toHaveValue("Add school pickup tomorrow");
+  await user.clear(message);
+  await user.type(message, "A newer draft");
+  await user.click(screen.getByRole("button", { name: "Retry message" }));
+
+  await screen.findByText("Recovered answer.");
+  expect(message).toHaveValue("A newer draft");
+  expect(calls).toHaveLength(2);
+  expect(calls[0].path).toBe("/api/assistant");
+  expect(calls[1].path).toBe("/api/assistant");
+  expect(calls[1].body).toEqual(calls[0].body);
+
+  await user.click(screen.getByRole("button", { name: "Send" }));
+  await waitFor(() => expect(calls).toHaveLength(3));
+  expect(calls[2].path).toBe("/api/assistant");
+  expect(calls[2].body.messages.at(-1)).toEqual({
+    role: "user",
+    content: "A newer draft",
+  });
+});
+
+it("localizes provider setup and unreadable chat recovery without granting teen setup access", async () => {
+  const user = userEvent.setup();
+  let mode: "setup" | "unreadable" = "setup";
+  global.fetch = jest.fn(async () =>
+    mode === "setup"
+      ? response(
+          {
+            error:
+              "AI is not connected yet. Ask a parent to connect the household AI provider.",
+          },
+          false,
+        )
+      : response({ reply: "missing action" }),
+  ) as any;
+
+  render(
+    <I18nProvider locale="es">
+      <AssistantHost role="teen" />
+    </I18nProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "Asistente de IA" }));
+  const dialog = screen.getByRole("dialog");
+  const message = within(dialog).getByLabelText("Tu mensaje");
+  await user.type(message, "Ayuda");
+  await user.click(within(dialog).getByRole("button", { name: "Enviar" }));
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    "La IA del hogar aún no está conectada",
+  );
+  expect(
+    within(dialog).queryByRole("link", { name: "Configurar la IA del hogar en Ajustes" }),
+  ).toBeNull();
+  expect(message).toHaveValue("Ayuda");
+
+  mode = "unreadable";
+  await user.click(within(dialog).getByRole("button", { name: "Reintentar mensaje" }));
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    "No se pudo leer la respuesta de IA",
+  );
+  expect(
+    within(dialog).getByRole("button", { name: "Reintentar mensaje" }),
+  ).toBeEnabled();
+});
+
+it("locks chat send and retry controls while a recovery request is pending", async () => {
+  const user = userEvent.setup();
+  let attempt = 0;
+  let release!: (value: unknown) => void;
+  global.fetch = jest.fn(async () => {
+    if (attempt++ === 0) throw new TypeError("Failed to fetch");
+    return new Promise((resolve) => {
+      release = resolve;
+    });
+  }) as any;
+
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const message = screen.getByLabelText("Your message");
+  await user.type(message, "Check the calendar");
+  await user.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByRole("button", { name: "Retry message" });
+  await user.click(screen.getByRole("button", { name: "Retry message" }));
+
+  expect(screen.getByRole("button", { name: "Retry message" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Working…" })).toBeDisabled();
+  release(response({ reply: "Done.", action: null }));
+  await screen.findByText("Done.");
+});
+
+it("offers a read-only affected-section check after an uncertain action without a mutation retry", async () => {
+  const user = userEvent.setup();
+  const calls: string[] = [];
+  global.fetch = jest.fn(async (path) => {
+    calls.push(String(path));
+    if (path === "/api/assistant")
+      return response({
+        reply: "Review this list.",
+        action: { kind: "list_create", title: "Trip", type: "custom" },
+      });
+    throw new TypeError("Connection lost after the write");
+  }) as any;
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await user.type(screen.getByLabelText("Your message"), "Make a trip list");
+  await user.click(screen.getByRole("button", { name: "Send" }));
+  await user.click(await screen.findByRole("button", { name: "Confirm and save" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "connection ended before confirmation",
+  );
+  const checkLink = screen.getByRole("link", { name: "Check Lists" });
+  expect(checkLink).toHaveAttribute("href", "/dashboard/lists");
+  expect(screen.queryByRole("button", { name: "Retry message" })).toBeNull();
+  expect(calls).toEqual(["/api/assistant", "/api/lists/create"]);
+});
+
+it("keeps a grocery proposal editable after list discovery fails until explicit confirm", async () => {
+  const user = userEvent.setup();
+  const calls: string[] = [];
+  let listLoads = 0;
+  global.fetch = jest.fn(async (path) => {
+    calls.push(String(path));
+    if (path === "/api/assistant")
+      return response({
+        reply: "Review this grocery item.",
+        action: { kind: "grocery_add", title: "Milk" },
+      });
+    if (path === "/api/lists") {
+      listLoads += 1;
+      return listLoads === 1
+        ? response({ error: "Lists unavailable" }, false)
+        : response({ lists: [{ id: "grocery-a", type: "grocery" }] });
+    }
+    return response({ item: { id: "item-a" } });
+  }) as any;
+
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await user.type(screen.getByLabelText("Your message"), "Add milk");
+  await user.click(screen.getByRole("button", { name: "Send" }));
+  const confirm = await screen.findByRole("button", {
+    name: "Confirm and save",
+  });
+  await user.click(confirm);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Could not load choices.",
+  );
+  expect(
+    screen.getByRole("region", { name: "Review proposed action" }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Confirm and save" })).toBeEnabled();
+  expect(calls).toEqual(["/api/assistant", "/api/lists"]);
+
+  await user.click(screen.getByRole("button", { name: "Confirm and save" }));
+  await screen.findByText("Saved “Milk”.");
+  expect(calls).toEqual([
+    "/api/assistant",
+    "/api/lists",
+    "/api/lists",
+    "/api/lists/items/create",
+  ]);
+});
+
+it("keeps a grocery item write uncertain after discovery succeeds", async () => {
+  const user = userEvent.setup();
+  const calls: string[] = [];
+  global.fetch = jest.fn(async (path) => {
+    calls.push(String(path));
+    if (path === "/api/assistant")
+      return response({
+        reply: "Review this grocery item.",
+        action: { kind: "grocery_add", title: "Milk" },
+      });
+    if (path === "/api/lists")
+      return response({ lists: [{ id: "grocery-a", type: "grocery" }] });
+    throw new TypeError("Connection lost after the write");
+  }) as any;
+
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await user.type(screen.getByLabelText("Your message"), "Add milk");
+  await user.click(screen.getByRole("button", { name: "Send" }));
+  await user.click(
+    await screen.findByRole("button", { name: "Confirm and save" }),
+  );
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "connection ended before confirmation",
+  );
+  expect(screen.getByRole("link", { name: "Check Lists" })).toHaveAttribute(
+    "href",
+    "/dashboard/lists",
+  );
+  expect(
+    screen.queryByRole("button", { name: "Confirm and save" }),
+  ).toBeNull();
+  expect(calls).toEqual([
+    "/api/assistant",
+    "/api/lists",
+    "/api/lists/items/create",
+  ]);
 });
 
 it("requires choosing a real household member before creating a weekly chore", async () => {
@@ -534,6 +895,50 @@ it("re-localizes a static action failure after switching language", async () => 
   expect(within(dialog).getByRole("alert")).toHaveTextContent(
     "Elige un inicio válido y una hora de finalización posterior.",
   );
+});
+
+it("keeps an invalid event proposal editable without POST, then writes only after correction", async () => {
+  const user = userEvent.setup();
+  const calls: string[] = [];
+  global.fetch = jest.fn(async (path) => {
+    calls.push(String(path));
+    if (path === "/api/assistant")
+      return response({
+        reply: "Review the event time.",
+        action: {
+          kind: "event_create",
+          title: "Pickup",
+          start: "2026-10-10T15:00",
+          end: "2026-10-10T14:00",
+        },
+      });
+    return response({ event: { id: "event-a" } });
+  }) as any;
+
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.type(within(dialog).getByLabelText("Your message"), "Add pickup");
+  await user.click(within(dialog).getByRole("button", { name: "Send" }));
+  const proposal = await within(dialog).findByRole("region", {
+    name: "Review proposed action",
+  });
+  await user.click(
+    within(proposal).getByRole("button", { name: "Confirm and save" }),
+  );
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    "Choose a valid start and later end time.",
+  );
+  expect(
+    within(dialog).getByRole("region", { name: "Review proposed action" }),
+  ).toBeInTheDocument();
+  expect(calls).toEqual(["/api/assistant"]);
+
+  const end = within(proposal).getByLabelText("Proposed end");
+  fireEvent.change(end, { target: { value: "2026-10-10T15:30" } });
+  await user.click(within(proposal).getByRole("button", { name: "Confirm and save" }));
+  await within(dialog).findByText("Saved “Pickup”.");
+  expect(calls).toEqual(["/api/assistant", "/api/events"]);
 });
 
 it("sends an explicit Include Today choice and keeps the draft on an unavailable response", async () => {

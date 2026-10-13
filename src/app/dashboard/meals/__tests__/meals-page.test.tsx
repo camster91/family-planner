@@ -887,6 +887,18 @@ describe("/dashboard/meals", () => {
     },
   );
 
+  it("keeps the week-only Add meal action out of Bulk cooking", async () => {
+    window.history.replaceState({}, "", "/dashboard/meals?view=bulk");
+    setup({ meals: [] });
+    await screen.findByTestId("bulk-cooking-panel");
+    expect(
+      screen.queryByRole("button", { name: /^Add meal$/i }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Plan a prep session" }),
+    ).toHaveProperty("disabled", true);
+  });
+
   it.each(["9999-12-25", "9999-12-28", "0099-12-25", "2026-02-31"])(
     "shows an explicit unsupported complete week for URL start %s without fetching a fallback",
     async (start) => {

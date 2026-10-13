@@ -153,6 +153,21 @@ describe('More list', () => {
     expect(screen.getByRole('link', { name: /Turn features on or off/ }).getAttribute('href')).toBe('/dashboard/features')
   })
 
+  it('groups an all-enabled More page by the existing feature sections', () => {
+    const allOn = { ...defaultFeatures() }
+    for (const key of Object.keys(allOn) as Array<keyof FamilyFeatures>) allOn[key] = true
+    mockFeatures = allOn
+    render(<MorePage />)
+    const list = screen.getByTestId('more-list')
+    expect(screen.getByRole('heading', { name: 'Core' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Planning' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Family life' })).toBeTruthy()
+    const hrefs = within(list).getAllByRole('link').map((link) => link.getAttribute('href'))
+    for (const item of moreItemsFor('parent', allOn)) {
+      expect(hrefs.filter((href) => href === item.href)).toHaveLength(1)
+    }
+  })
+
   it('localizes More feature titles while preserving canonical destination hrefs', () => {
     mockFeatures = { ...defaultFeatures(), inventory: true, allowance: true }
     render(
@@ -265,6 +280,13 @@ describe('DashboardNav (top bar)', () => {
     ])
     expect(screen.getByRole('link', { name: 'Herewoven home' }).getAttribute('href')).toBe('/dashboard/today')
     expect(screen.queryByRole('link', { name: 'Emergency' })).toBeNull()
+  })
+
+  it('keeps parent Explore visible from the compact desktop and tablet header', () => {
+    render(<DashboardNav user={user('parent')} />)
+    const explore = screen.getByTestId('desktop-explore')
+    expect(explore.className).toContain('md:inline-flex')
+    expect(explore.className).toContain('min-h-[44px]')
   })
 
   it('gives a child its own tabs and a home link to the kid home', () => {

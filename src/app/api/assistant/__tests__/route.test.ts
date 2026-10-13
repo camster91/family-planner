@@ -89,7 +89,11 @@ it("children are refused before provider/database access", async () => {
 });
 it("unconfigured AI returns an honest unavailable response", async () => {
   (resolveCaptureConfig as jest.Mock).mockReturnValue(null);
-  expect((await POST(request())).status).toBe(503);
+  const result = await POST(request());
+  expect(result.status).toBe(503);
+  expect(await result.json()).toEqual(
+    expect.objectContaining({ code: "ASSISTANT_PROVIDER_NOT_CONFIGURED" }),
+  );
   expect(structuredAssistantReply).not.toHaveBeenCalled();
 });
 it("blocks forbidden action even when provider proposes it", async () => {

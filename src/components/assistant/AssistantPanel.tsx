@@ -16,6 +16,8 @@ import {
   removalTargets,
   choreAssignees,
   AssistantActionError,
+  AssistantActionPreflightError,
+  ActionOutcomeUnknown,
   type AssistantActionErrorCode,
   type RemovalTarget,
 } from "./action-client";
@@ -30,6 +32,13 @@ import {
 import { useVoiceDraft } from "./use-voice-draft";
 
 type Message = { role: "user" | "assistant"; content: string };
+type ChatRequest = {
+  messages: Message[];
+  inputText: string;
+  localNow: string;
+  timeZone: string;
+  includeToday: boolean;
+};
 type TodayFreshness = {
   generatedAt: number;
   expiresAt: number;
@@ -61,6 +70,7 @@ export type AssistantPanelProps = {
 };
 
 type AssistantError =
+  | { kind: "chat"; key: AssistantMessage }
   | { kind: "copy"; key: AssistantMessage }
   | { kind: "action"; key: AssistantActionErrorCode }
   | { kind: "voice"; key: VoiceErrorCode }
@@ -86,6 +96,38 @@ function toAssistantError(
     return { kind: "copy", key: error.key };
   if (error instanceof Error) return { kind: "raw", message: error.message };
   return { kind: "copy", key: fallback };
+}
+
+function toChatError(
+  error: unknown,
+  fallback: AssistantMessage,
+): Extract<AssistantError, { kind: "chat" }> {
+  if (error instanceof AssistantCopyError)
+    return { kind: "chat", key: error.key };
+  return { kind: "chat", key: fallback };
+}
+
+function isChatErrorBody(
+  value: unknown,
+): value is { code?: unknown; error?: unknown } {
+  return typeof value === "object" && value !== null;
+}
+
+function actionRecoveryPath(action: AssistantAction): string {
+  if (action.kind === "open") return assistantDestination(action.destination);
+  if (action.kind === "event_create" || action.kind === "event_delete")
+    return "/dashboard/calendar";
+  if (action.kind === "chore_create" || action.kind === "chore_delete")
+    return "/dashboard/chores";
+  if (action.kind === "note_create") return "/dashboard/notes";
+  return "/dashboard/lists";
+}
+
+function actionRecoveryMessage(path: string): AssistantMessage {
+  if (path === "/dashboard/calendar") return "checkCalendar";
+  if (path === "/dashboard/chores") return "checkChores";
+  if (path === "/dashboard/notes") return "checkNotes";
+  return path === "/dashboard/lists" ? "checkLists" : "checkHelp";
 }
 
 function parseIsoHeader(value: string | null): number | null {
@@ -150,6 +192,8 @@ export default function AssistantPanel({
     [text, setText] = React.useState(""),
     [busy, setBusy] = React.useState(false),
     [error, setError] = React.useState<AssistantError | null>(null),
+    [failedChat, setFailedChat] = React.useState<ChatRequest | null>(null),
+    [recoveryHref, setRecoveryHref] = React.useState<string | null>(null),
     [includeToday, setIncludeToday] = React.useState(false),
     [todayFreshness, setTodayFreshness] = React.useState<TodayFreshness | null>(
       null,
@@ -158,7 +202,8 @@ export default function AssistantPanel({
   const [action, setAction] = React.useState<AssistantAction | null>(null),
     [targets, setTargets] = React.useState<RemovalTarget[]>([]),
     [selected, setSelected] = React.useState(""),
-    [deleteConfirm, setDeleteConfirm] = React.useState(false);
+    [deleteConfirm, setDeleteConfirm] = React.useState(false),
+    [choiceLoadFailed, setChoiceLoadFailed] = React.useState(false);
   const [kind, setKind] = React.useState("bug"),
     [title, setTitle] = React.useState(""),
     [details, setDetails] = React.useState(""),
@@ -169,7 +214,8 @@ export default function AssistantPanel({
     actionKey = React.useRef(""),
     lock = React.useRef(false),
     consumed = React.useRef(false),
-    lastTodayRequest = React.useRef<Message[] | null>(null),
+    textRef = React.useRef(""),
+    lastTodayRequest = React.useRef<ChatRequest | null>(null),
     lastPerformanceNow = React.useRef<number | null>(null),
     visibilitySuspended = React.useRef(false);
   const canChat = role === "parent" || role === "teen";
@@ -186,6 +232,9 @@ export default function AssistantPanel({
     (t) => setText(t),
     (code) => setError({ kind: "voice", key: code }),
   );
+  React.useEffect(() => {
+    textRef.current = text;
+  }, [text]);
   React.useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
   React.useEffect(() => {
     if (!todayFreshness) {
@@ -251,6 +300,7 @@ export default function AssistantPanel({
     if (busy) return;
     voice.stop();
     setError(null);
+    setRecoveryHref(null);
     setDeleteConfirm(false);
     onTabChange(next);
   };
@@ -272,57 +322,80 @@ export default function AssistantPanel({
     voice.stop();
     onClose();
   };
-  async function requestChat(
-    next: Message[],
-    draft: string,
-    withToday: boolean,
-    preserveDraft = false,
-  ) {
+  async function requestChat(request: ChatRequest, preserveDraft = false) {
     if (lock.current || !canChat) return;
     lock.current = true;
     setBusy(true);
-    setError(null);
+    if (!preserveDraft) {
+      setError(null);
+      setFailedChat(null);
+    }
+    setRecoveryHref(null);
     setAction(null);
     setTargets([]);
     setDeleteConfirm(false);
+    setChoiceLoadFailed(false);
     voice.stop();
-    const leaseStartedAt = withToday ? monotonicNow() : null;
+    const {
+      messages: next,
+      includeToday,
+      localNow,
+      timeZone,
+    } = request;
+    const leaseStartedAt = includeToday ? monotonicNow() : null;
+    let messageFinished = false;
     try {
-      if (withToday && leaseStartedAt === null)
+      if (includeToday && leaseStartedAt === null)
         throw new AssistantCopyError("todayContextUnavailable");
-      const requestBody: {
-        messages: Message[];
-        localNow: string;
-        timeZone: string;
-        includeToday?: boolean;
-      } = {
+      const requestBody = {
         messages: next,
-        localNow: new Date().toString(),
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        localNow,
+        timeZone,
+        ...(includeToday ? { includeToday: true } : {}),
       };
-      if (withToday) requestBody.includeToday = true;
-      const r = await fetch("/api/assistant", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
-        }),
+      let r: Response;
+      try {
+        r = await fetch("/api/assistant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestBody),
+          });
+      } catch {
+        throw new AssistantCopyError("chatOffline");
+      }
+      let body: unknown;
+      try {
         body = await r.json();
+      } catch {
+        throw new AssistantCopyError(
+          r.ok || r.status < 500 ? "replyUnreadable" : "chatUnavailable",
+        );
+      }
       if (!r.ok) {
+        const errorBody = isChatErrorBody(body) ? body : null;
         if (
-          body?.code === "ASSISTANT_TODAY_UNAVAILABLE" ||
-          body?.code === "ASSISTANT_TODAY_INPUT_INVALID"
+          errorBody?.code === "ASSISTANT_TODAY_UNAVAILABLE" ||
+          errorBody?.code === "ASSISTANT_TODAY_INPUT_INVALID"
         ) {
           throw new AssistantCopyError("todayContextUnavailable");
         }
-        if (typeof body.error === "string" && body.error) {
-          throw new Error(body.error);
+        const serverError =
+          typeof errorBody?.error === "string" ? errorBody.error : "";
+        if (
+          errorBody?.code === "ASSISTANT_PROVIDER_NOT_CONFIGURED" ||
+          serverError.toLowerCase().includes("not connected") ||
+          serverError.toLowerCase().includes("ask a parent")
+        ) {
+          throw new AssistantCopyError("aiSetupRequired");
         }
-        throw new AssistantCopyError("chatFailed");
+        throw new AssistantCopyError(
+          r.status >= 500 ? "chatUnavailable" : "chatFailed",
+        );
       }
       const parsedReply = assistantReplySchema.safeParse(body);
       if (!parsedReply.success) throw new AssistantCopyError("replyUnreadable");
-      const responseAt = withToday ? monotonicNow() : null;
-      const freshness = withToday
+      const responseAt = includeToday ? monotonicNow() : null;
+      const freshness = includeToday
         ? readTodayFreshness(
             r.headers,
             leaseStartedAt,
@@ -330,9 +403,12 @@ export default function AssistantPanel({
             document.visibilityState === "visible",
           )
         : null;
-      if (withToday && !freshness)
+      if (includeToday && !freshness)
         throw new AssistantCopyError("todayContextUnavailable");
       const proposal = parsedReply.data;
+      messageFinished = true;
+      setError(null);
+      setFailedChat(null);
       if (!preserveDraft) setText("");
       setMessages(
         [
@@ -342,7 +418,7 @@ export default function AssistantPanel({
       );
       if (freshness) {
         setTodayFreshness(freshness);
-        lastTodayRequest.current = next;
+        lastTodayRequest.current = request;
       } else {
         setTodayFreshness(null);
         lastTodayRequest.current = null;
@@ -354,19 +430,75 @@ export default function AssistantPanel({
         setAction(proposal.action);
         consumed.current = false;
         actionKey.current = crypto.randomUUID();
-        if (proposal.action.kind === "chore_create") {
-          setTargets(await choreAssignees());
+        try {
+          const choices =
+            proposal.action.kind === "chore_create"
+              ? await choreAssignees()
+              : proposal.action.kind.endsWith("_delete")
+                ? await removalTargets(proposal.action)
+                : null;
+          if (choices) setTargets(choices);
           setSelected("");
-        }
-        if (proposal.action.kind.endsWith("_delete")) {
-          setTargets(await removalTargets(proposal.action));
+        } catch (e) {
+          if (!(e instanceof ActionOutcomeUnknown)) throw e;
+          // The provider reply and editable proposal are still valid. Keep
+          // them in place and make recovery a GET-only choice reload.
+          setChoiceLoadFailed(true);
+          setTargets([]);
           setSelected("");
+          // Do not overwrite a newer draft if one was entered while the
+          // provider response was settling; restore only the submitted draft.
+          if (textRef.current === "" || textRef.current === request.inputText)
+            setText(request.inputText);
+          setError(toAssistantError(e, "actionFailed"));
         }
       }
     } catch (e) {
-      setText(draft);
-      setError(toAssistantError(e, "chatFailed"));
+      if (!preserveDraft || textRef.current === request.inputText)
+        setText(request.inputText);
+      if (!messageFinished) setFailedChat(request);
+      if (messageFinished && e instanceof AssistantActionError) {
+        setError(toAssistantError(e, "actionFailed"));
+      } else {
+        setError(toChatError(e, "chatFailed"));
+      }
       setAction(null);
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function retryChoiceLoad() {
+    const pendingAction = action;
+    if (!pendingAction || !choiceLoadFailed || lock.current) return;
+    if (!canUseAssistantAction(pendingAction, role, features)) return;
+    lock.current = true;
+    setBusy(true);
+    setError(null);
+    setRecoveryHref(null);
+    try {
+      const choices =
+        pendingAction.kind === "chore_create"
+          ? await choreAssignees()
+          : pendingAction.kind.endsWith("_delete")
+            ? await removalTargets(pendingAction)
+            : null;
+      if (choices) setTargets(choices);
+      setSelected("");
+      setDeleteConfirm(false);
+      setChoiceLoadFailed(false);
+    } catch (e) {
+      if (e instanceof ActionOutcomeUnknown) {
+        setError(toAssistantError(e, "actionFailed"));
+      } else {
+        // A deterministic refusal such as indistinguishable list targets must
+        // still close the proposal and offer its ordinary read-only check.
+        setChoiceLoadFailed(false);
+        setError(toAssistantError(e, "actionFailed"));
+        setRecoveryHref(actionRecoveryPath(pendingAction));
+        setAction(null);
+      }
     } finally {
       lock.current = false;
       setBusy(false);
@@ -380,14 +512,33 @@ export default function AssistantPanel({
       ...messages,
       { role: "user" as const, content: draft },
     ].slice(-11);
-    await requestChat(next, draft, todayContextEnabled && includeToday);
+    await requestChat({
+      messages: next,
+      inputText: text,
+      localNow: new Date().toString(),
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      includeToday: todayContextEnabled && includeToday,
+    });
+  }
+  async function retryFailedChat() {
+    const request = failedChat;
+    if (!request || lock.current) return;
+    await requestChat(request, true);
   }
   async function refreshTodayContext() {
     const request = lastTodayRequest.current;
     if (!request || lock.current) return;
     // The user may have typed a newer unsent question while the old preview
     // was open. Refresh the saved request, but keep that newer draft visible.
-    await requestChat(request, text, true, true);
+    await requestChat(
+      {
+        ...request,
+        inputText: text,
+        localNow: new Date().toString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+      true,
+    );
   }
   function hasValidTodayLease(): boolean {
     if (!todayFreshness) return true;
@@ -424,6 +575,8 @@ export default function AssistantPanel({
     consumed.current = true;
     setBusy(true);
     setError(null);
+    setRecoveryHref(null);
+    setChoiceLoadFailed(false);
     try {
       await executeAssistantAction(action, actionKey.current, chosen);
       setMessages((prev) => [
@@ -439,10 +592,23 @@ export default function AssistantPanel({
       ]);
       setAction(null);
       setDeleteConfirm(false);
+      setRecoveryHref(null);
       router.refresh();
     } catch (e) {
+      if (e instanceof AssistantActionPreflightError) {
+        // This error is proven to occur before executeAssistantAction starts
+        // any mutation request. Keep the proposal editable and allow a retry.
+        consumed.current = false;
+        setError(toAssistantError(e, "actionFailed"));
+        return;
+      }
       setError(toAssistantError(e, "actionFailed"));
+      // The action may have committed before its response was lost. Always
+      // offer a read-only destination for checking the affected section, but
+      // never reset consumed or offer a mutation retry from this state.
+      setRecoveryHref(actionRecoveryPath(action));
       setAction(null);
+      setChoiceLoadFailed(false);
     } finally {
       lock.current = false;
       setBusy(false);
@@ -531,18 +697,49 @@ export default function AssistantPanel({
           </button>
         </div>
         {error && (
-          <p
-            role="alert"
-            className="mb-3 rounded-xl bg-surface-fill p-3 text-[var(--danger-text)] break-words"
-          >
-            {error.kind === "copy"
-              ? msg(error.key)
-              : error.kind === "action"
+          <div className="mb-3 space-y-2">
+            <p
+              role="alert"
+              className="rounded-xl bg-surface-fill p-3 text-[var(--danger-text)] break-words"
+            >
+              {error.kind === "chat" || error.kind === "copy"
                 ? msg(error.key)
-                : error.kind === "voice"
+                : error.kind === "action"
                   ? msg(error.key)
-                  : error.message}
-          </p>
+                  : error.kind === "voice"
+                    ? msg(error.key)
+                    : error.message}
+            </p>
+            {error.kind === "chat" && failedChat && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void retryFailedChat()}
+                className={`${target} bg-surface-fill`}
+              >
+                {msg("retryChat")}
+              </button>
+            )}
+            {recoveryHref && (
+              <Link
+                href={recoveryHref}
+                onClick={close}
+                className={`${target} inline-flex items-center bg-surface-fill`}
+              >
+                {msg(actionRecoveryMessage(recoveryHref))}
+              </Link>
+            )}
+            {choiceLoadFailed && action && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void retryChoiceLoad()}
+                className={`${target} bg-surface-fill`}
+              >
+                {msg("retryChoices")}
+              </button>
+            )}
+          </div>
         )}
         {tab === "chat" && (
           <div className="space-y-4">
@@ -854,6 +1051,7 @@ export default function AssistantPanel({
                     disabled={busy}
                     onClick={() => {
                       setAction(null);
+                      setChoiceLoadFailed(false);
                       setDeleteConfirm(false);
                     }}
                     className={`${target} bg-surface-fill`}
@@ -901,8 +1099,11 @@ export default function AssistantPanel({
                     voice.stop();
                     setMessages([]);
                     setAction(null);
+                    setChoiceLoadFailed(false);
                     setText("");
                     setError(null);
+                    setFailedChat(null);
+                    setRecoveryHref(null);
                     setTodayFreshness(null);
                     lastTodayRequest.current = null;
                   }}

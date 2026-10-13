@@ -80,7 +80,9 @@ describe('member colours (#262)', () => {
     await renderBoard({ fridgeMode: false })
     expect(boardGridClass(false, false)).toContain('"today_today"_"dinner_groceries"_"chores_chores"')
     expect(screen.getByTestId('region-today').className).toContain('md:[grid-area:today]')
-    expect(boardGridClass(true, false)).toContain('lg:landscape:[&>*]:overflow-y-auto')
+    expect(boardGridClass(true, false)).toContain(
+      'lg:landscape:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto',
+    )
     expect(screen.getByTestId('today-board').className).toContain('[&_[data-testid=region-dinner]]:bg-accent-tint')
   })
   it('keeps long schedule titles readable without clamping and reserves compact phone type with a large hub scale', async () => {
@@ -214,6 +216,8 @@ describe('"Use soon" slot (#263 extension point)', () => {
     const slot = screen.getByTestId('board-slot-use-soon')
     expect(slot.textContent).toBe('Milk expires tomorrow')
     expect(slot.className).toContain('md:[grid-area:usesoon]')
+    expect(slot.className).toContain('lg:landscape:overflow-hidden')
+    expect(slot.className).toContain('lg:landscape:[&>section]:overflow-y-auto')
     const grid = boardGridClass(true, true)
     expect(grid).toContain('"today_usesoon_chores_coming"')
     expect(grid).toContain('"usesoon_usesoon"')

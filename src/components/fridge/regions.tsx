@@ -76,6 +76,7 @@ export function Region({
   href,
   hrefLabel,
   action,
+  className,
   children,
 }: {
   id: string
@@ -92,6 +93,7 @@ export function Region({
   /** Screen-reader words after the title, e.g. "open calendar". */
   hrefLabel?: string
   action?: React.ReactNode
+  className?: string
   children: React.ReactNode
 }) {
   return (
@@ -99,9 +101,11 @@ export function Region({
       aria-labelledby={`${id}-title`}
       data-testid={`region-${area}`}
       // On a landscape fridge tablet each region scrolls inside itself, so it
-      // must be reachable by keyboard to scroll (WCAG 2.1.1).
-      tabIndex={0}
-      className={cn(regionClass, areaClass[area])}
+      // must be reachable by keyboard to scroll (WCAG 2.1.1). Groceries owns
+      // scrolling with its inner list so the continuation stays visible; keep
+      // the card programmatically focusable without adding a second tab stop.
+      tabIndex={area === 'groceries' ? -1 : 0}
+      className={cn(regionClass, areaClass[area], className)}
     >
       <div className="mb-3 flex min-h-[48px] items-center gap-2.5 2xl:mb-4 2xl:min-h-[56px]">
         <Glyph color={glyph} size="md">
@@ -373,6 +377,7 @@ export function GroceriesRegion({
       glyph="lists"
       href={groceriesHref}
       hrefLabel={text('openGroceryLists')}
+      className="lg:landscape:min-h-0 lg:landscape:flex lg:landscape:flex-col lg:landscape:overflow-hidden lg:landscape:[&>ul]:min-h-0 lg:landscape:[&>ul]:flex-1 lg:landscape:[&>ul]:overflow-y-auto"
       action={action}
     >
       {shopping.items.length === 0 ? (
@@ -380,7 +385,11 @@ export function GroceriesRegion({
       ) : (
         <>
           <p className={cn(metaTextClass, 'mb-2')}>{text('toBuy', { count: shopping.total })}</p>
-          <ul className="divide-y divide-[var(--surface-separator)]">
+          <ul
+            className="divide-y divide-[var(--surface-separator)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
+            tabIndex={0}
+            aria-label={text('groceries')}
+          >
             {shopping.items.map((item) => {
               const content = (
                 <>

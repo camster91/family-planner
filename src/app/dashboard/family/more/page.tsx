@@ -4,9 +4,24 @@ import { Sliders } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
 import { InsetList, ListRow } from '@/components/ui/list-row'
 import { useFeatures } from '@/components/providers/features-provider'
-import { moreItemsFor } from '@/lib/nav-items'
+import { moreItemsFor, type MoreItem } from '@/lib/nav-items'
+import { FEATURES } from '@/lib/features'
 import { useFeatureDisplayCopy } from '@/i18n/feature-display'
 import { useMoreText } from '@/i18n/more'
+import { useFeaturesText, type FeaturesMessage } from '@/i18n/features'
+
+const GROUP_ORDER = ['core', 'planning', 'family'] as const
+type MoreGroupKey = (typeof GROUP_ORDER)[number]
+
+const GROUP_COPY: Record<MoreGroupKey, { title: FeaturesMessage; subtitle: FeaturesMessage }> = {
+  core: { title: 'coreTitle', subtitle: 'coreSubtitle' },
+  planning: { title: 'planningTitle', subtitle: 'planningSubtitle' },
+  family: { title: 'familyTitle', subtitle: 'familySubtitle' },
+}
+
+function groupFor(item: MoreItem): MoreGroupKey {
+  return FEATURES.find((feature) => feature.key === item.key)?.group ?? 'family'
+}
 
 /**
  * Family → More (#269): every feature that is not a tab, in one list, showing
@@ -17,12 +32,17 @@ import { useMoreText } from '@/i18n/more'
 export default function MorePage() {
   const { features } = useFeatures()
   const featureDisplay = useFeatureDisplayCopy()
+  const featureSettingsText = useFeaturesText()
   const more = useMoreText()
   const items = moreItemsFor('parent', features, featureDisplay)
   const others = items.length - 1
+  const groups = GROUP_ORDER.map((key) => ({
+    key,
+    items: items.filter((item) => groupFor(item) === key),
+  })).filter((group) => group.items.length > 0)
 
   return (
-    <div className="pb-20 max-w-2xl mx-auto">
+    <div className="pb-20 max-w-5xl mx-auto">
       <LargeHeader
         title={more('title')}
         subtitle={
@@ -35,23 +55,38 @@ export default function MorePage() {
         className="px-4"
       />
 
-      <div className="px-4 space-y-6">
-        <InsetList>
-          <ul aria-label={more('listLabel')} data-testid="more-list">
-            {items.map((item, i) => (
-              <li key={item.key}>
-                <ListRow
-                  icon={item.icon}
-                  glyphColor="plain"
-                  title={item.title}
-                  subtitle={item.description}
-                  href={item.href}
-                  last={i === items.length - 1}
-                />
-              </li>
-            ))}
-          </ul>
-        </InsetList>
+      <div className="px-4 space-y-6" data-testid="more-list">
+        <div className="grid gap-6 md:grid-cols-2 md:items-start">
+          {groups.map((group) => {
+            const copy = GROUP_COPY[group.key]
+            return (
+              <section key={group.key} aria-labelledby={`more-group-${group.key}`}>
+                <h2 id={`more-group-${group.key}`} className="section-header px-1">
+                  {featureSettingsText(copy.title)}
+                </h2>
+                <p className="px-1 pb-2 text-footnote text-label-secondary">
+                  {featureSettingsText(copy.subtitle)}
+                </p>
+                <InsetList>
+                  <ul aria-label={`${featureSettingsText(copy.title)} · ${more('listLabel')}`}>
+                    {group.items.map((item, i) => (
+                      <li key={item.key}>
+                        <ListRow
+                          icon={item.icon}
+                          glyphColor="plain"
+                          title={item.title}
+                          subtitle={item.description}
+                          href={item.href}
+                          last={i === group.items.length - 1}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </InsetList>
+              </section>
+            )
+          })}
+        </div>
 
         <InsetList>
           <ListRow

@@ -20,7 +20,13 @@ export const calendarPlannerEnglish = {
   calendars: "Calendars",
   addConnection: "Add connection",
   connectProvider: "Connect Google or Outlook",
-  subscribeLink: "Subscribe by calendar link",
+  providerUnavailableHelp:
+    "Two-way Google and Outlook sync is not available here yet. You can use a read-only calendar link.",
+  connectionHelp:
+    "Connect a supported calendar for two-way sync, or subscribe to a read-only calendar link.",
+  subscribeLink: "Subscribe to a read-only calendar link",
+  subscriptionHelp:
+    "Calendar links can come from Google Calendar, Apple iCloud or another provider. Events stay read-only here.",
   source: "Calendar source",
   loadingSources: "Loading calendars…",
   sourcesFailed: "Calendar sources could not load.",
@@ -91,7 +97,13 @@ export const calendarPlannerSpanish: Record<CalendarPlannerMessage, string> = {
   calendars: "Calendarios",
   addConnection: "Añadir conexión",
   connectProvider: "Conectar Google u Outlook",
-  subscribeLink: "Suscribirse con un enlace de calendario",
+  providerUnavailableHelp:
+    "La sincronización bidireccional de Google y Outlook aún no está disponible aquí. Puedes usar un enlace de calendario de solo lectura.",
+  connectionHelp:
+    "Conecta un calendario compatible para sincronizarlo en ambas direcciones o suscríbete a un enlace de solo lectura.",
+  subscribeLink: "Suscribirse a un enlace de calendario de solo lectura",
+  subscriptionHelp:
+    "Los enlaces pueden venir de Google Calendar, Apple iCloud u otro proveedor. Aquí los eventos son de solo lectura.",
   source: "Origen del calendario",
   loadingSources: "Cargando calendarios…",
   sourcesFailed: "No se pudieron cargar los orígenes del calendario.",

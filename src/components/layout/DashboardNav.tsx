@@ -209,7 +209,8 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           {canSee("/dashboard/family/more") && (
             <Link
               href="/dashboard/family/more"
-              className="hidden xl:inline-flex min-h-[44px] items-center gap-1.5 px-3 rounded-full text-sm font-medium text-label-secondary hover:text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
+              data-testid="desktop-explore"
+              className="hidden md:inline-flex min-h-[44px] items-center gap-1.5 px-3 rounded-full text-sm font-medium text-label-secondary hover:text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
             >
               <Compass className="w-4 h-4" aria-hidden="true" />
               {msg("explore")}
