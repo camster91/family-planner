@@ -423,8 +423,10 @@ export function BulkCookingPanel({
           context={scope}
           defaultDay={editor.day}
           seed={editor.seed}
+          freshWritesBlocked={mutationsBlocked}
           onClose={() => setEditor(null)}
           onSaved={saved}
+          onReload={() => load()}
         />
       )}
       {scope && modal && modalSession && (
@@ -434,6 +436,7 @@ export function BulkCookingPanel({
           session={modalSession}
           batch={modalSession.batches.find((row) => row.id === modal.batchId)}
           consumptionId={modal.consumptionId}
+          freshWritesBlocked={mutationsBlocked}
           onClose={() => setModal(null)}
           onSaved={() => saved()}
           onReload={() => load()}

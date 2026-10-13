@@ -77,6 +77,7 @@ export const bulkCookingEnglish = {
   retry: "Retry save",
   reload: "Reload latest",
   loadError: "We couldn’t load prep sessions. Try again.",
+  reloadBeforeSave: "Reload prep sessions before saving. Your draft is still here.",
   more: "Load more prep sessions",
   unknown:
     "We couldn’t confirm the save. Keep this draft unchanged and retry to check the same request.",
@@ -176,6 +177,8 @@ export const bulkCookingSpanish: Messages = {
   retry: "Reintentar guardado",
   reload: "Recargar datos",
   loadError: "No pudimos cargar las preparaciones. Inténtalo de nuevo.",
+  reloadBeforeSave:
+    "Recarga las preparaciones antes de guardar. Tu borrador sigue aquí.",
   more: "Cargar más preparaciones",
   unknown:
     "No pudimos confirmar el guardado. Conserva este borrador y reintenta la misma solicitud.",

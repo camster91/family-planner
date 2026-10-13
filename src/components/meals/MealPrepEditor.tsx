@@ -39,14 +39,18 @@ export function MealPrepEditor({
   defaultDay,
   seed,
   context,
+  freshWritesBlocked = false,
   onClose,
   onSaved,
+  onReload,
 }: {
   defaultDay: string;
   context: MealPrepContext;
   seed?: MealPrepSummary;
+  freshWritesBlocked?: boolean;
   onClose: () => void;
   onSaved: (sessionId?: string) => void;
+  onReload?: () => Promise<MealPrepSummary[] | null>;
 }) {
   const tBulk = useBulkCookingText();
   const origin = React.useRef(context);
@@ -84,10 +88,13 @@ export function MealPrepEditor({
     [],
   );
   const [membersError, setMembersError] = React.useState(false);
+  const [reloading, setReloading] = React.useState(false);
   const prefix = React.useId();
   const form = React.useRef<HTMLFormElement>(null);
-  const mutation = useMealPrepMutation((receipt) =>
-    onSaved("sessionId" in receipt ? receipt.sessionId : undefined),
+  const mutation = useMealPrepMutation(
+    (receipt) =>
+      onSaved("sessionId" in receipt ? receipt.sessionId : undefined),
+    { freshWritesBlocked },
   );
   React.useEffect(() => {
     let active = true;
@@ -155,13 +162,26 @@ export function MealPrepEditor({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (mutation.isPending()) return;
-    if (step < 2) { advance(); return; }
+    if (step < 2) {
+      advance();
+      return;
+    }
+    if (freshWritesBlocked) return;
     const parsed = createMealPrepSchema.safeParse(payload());
     if (!parsed.success) {
       setValidation(true);
       return;
     }
     void mutation.save(parsed.data, "/api/meals/bulk");
+  };
+  const reload = async () => {
+    if (!onReload || reloading) return;
+    setReloading(true);
+    try {
+      await onReload();
+    } finally {
+      setReloading(false);
+    }
   };
   const advance = () => {
     if (!form.current?.reportValidity()) return;
@@ -442,6 +462,23 @@ export function MealPrepEditor({
               {mutation.error ?? tBulk("invalid")}
             </p>
           )}
+          {freshWritesBlocked && (
+            <div role="status" className="space-y-2">
+              <p className="text-subhead text-label-secondary">
+                {tBulk("reloadBeforeSave")}
+              </p>
+              {onReload && (
+                <button
+                  type="button"
+                  className="btn-tinted min-h-[44px]"
+                  disabled={reloading}
+                  onClick={() => void reload()}
+                >
+                  {reloading ? tBulk("loading") : tBulk("reload")}
+                </button>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap gap-2 pt-2">
             {step > 0 && (
               <button
@@ -479,7 +516,7 @@ export function MealPrepEditor({
                 key="save-prep-session"
                 type="submit"
                 className="btn-filled min-h-[44px]"
-                disabled={mutation.busy}
+                disabled={mutation.busy || freshWritesBlocked}
               >
                 {mutation.busy ? tBulk("saving") : tBulk("save")}
               </button>

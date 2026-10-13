@@ -20,9 +20,11 @@ const result = z.union([
 /** A failed/ambiguous response retains the exact request, key and navigation lock. */
 export function useMealPrepMutation(
   onSaved: (receipt: z.infer<typeof result>) => void,
+  hookOptions: { freshWritesBlocked?: boolean } = {},
 ) {
   const tBulk = useBulkCookingText();
   const inFlight = useRef(false);
+  const freshWritesBlocked = useRef(Boolean(hookOptions.freshWritesBlocked));
   const pending = useRef<{ key: string; body: object; url: string } | null>(
     null,
   );
@@ -31,8 +33,19 @@ export function useMealPrepMutation(
   const [unknown, setUnknown] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const navigation = usePendingFormNavigationController(busy || unknown);
-  const save = async (body: object, url = "/api/meals/bulk/actions") => {
+  freshWritesBlocked.current = Boolean(hookOptions.freshWritesBlocked);
+  const save = async (
+    body: object,
+    url = "/api/meals/bulk/actions",
+    requestOptions: { allowWhenFreshWritesBlocked?: boolean } = {},
+  ) => {
     if (inFlight.current) return;
+    if (
+      freshWritesBlocked.current &&
+      !requestOptions.allowWhenFreshWritesBlocked
+    ) {
+      return;
+    }
     pending.current ??= {
       key: newIdempotencyKey(),
       body: JSON.parse(JSON.stringify(body)) as object,
@@ -129,6 +142,9 @@ export function useMealPrepMutation(
     isPending: () => inFlight.current || pending.current !== null,
     clearError: () => setErrorCode(null),
     retry: () =>
-      pending.current && save(pending.current.body, pending.current.url),
+      pending.current &&
+      save(pending.current.body, pending.current.url, {
+        allowWhenFreshWritesBlocked: true,
+      }),
   };
 }

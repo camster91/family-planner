@@ -581,6 +581,207 @@ it("offers a read-only affected-section check after an uncertain action without 
   expect(calls).toEqual(["/api/assistant", "/api/lists/create"]);
 });
 
+it("preserves uncertain-action recovery across report tabs until explicitly cleared", async () => {
+  const user = userEvent.setup();
+  const calls: string[] = [];
+  global.fetch = jest.fn(async (path) => {
+    calls.push(String(path));
+    if (path === "/api/assistant")
+      return response({
+        reply: "Review this list.",
+        action: { kind: "list_create", title: "Trip", type: "custom" },
+      });
+    if (path === "/api/feedback")
+      return response({ error: "Reports unavailable" }, false);
+    throw new TypeError("Connection lost after the write");
+  }) as any;
+
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.type(
+    within(dialog).getByLabelText("Your message"),
+    "Make a trip list",
+  );
+  await user.click(within(dialog).getByRole("button", { name: "Send" }));
+  await user.click(
+    await within(dialog).findByRole("button", { name: "Confirm and save" }),
+  );
+  await within(dialog).findByRole("link", { name: "Check Lists" });
+
+  await user.click(within(dialog).getByRole("button", { name: "My reports" }));
+  await waitFor(() =>
+    expect(calls).toEqual([
+      "/api/assistant",
+      "/api/lists/create",
+      "/api/feedback",
+    ]),
+  );
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    "Could not load your reports. Try again.",
+  );
+  expect(within(dialog).queryByText("No saved reports to show.")).toBeNull();
+  await user.click(
+    within(dialog).getByRole("button", { name: "Report / Suggest" }),
+  );
+  expect(
+    within(dialog).getByRole("heading", {
+      name: "Report a bug or suggest a feature",
+    }),
+  ).toBeInTheDocument();
+  await user.click(within(dialog).getByRole("button", { name: "Assistant" }));
+
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    "connection ended before confirmation",
+  );
+  expect(
+    within(dialog).getByRole("link", { name: "Check Lists" }),
+  ).toHaveAttribute("href", "/dashboard/lists");
+  expect(
+    within(dialog).queryByRole("region", { name: "Review proposed action" }),
+  ).toBeNull();
+  expect(
+    within(dialog).queryByRole("button", { name: "Confirm and save" }),
+  ).toBeNull();
+  expect(calls).toEqual([
+    "/api/assistant",
+    "/api/lists/create",
+    "/api/feedback",
+  ]);
+
+  await user.click(within(dialog).getByRole("button", { name: "Clear chat" }));
+  expect(within(dialog).queryByRole("alert")).toBeNull();
+  expect(within(dialog).queryByRole("link", { name: "Check Lists" })).toBeNull();
+});
+
+it("keeps Chat recovery ahead of a Reports request that resolves after the write", async () => {
+  const user = userEvent.setup();
+  const calls: string[] = [];
+  let reportLoads = 0;
+  let releaseReports!: (value: unknown) => void;
+  global.fetch = jest.fn(async (path) => {
+    calls.push(String(path));
+    if (path === "/api/assistant")
+      return response({
+        reply: "Review this list.",
+        action: { kind: "list_create", title: "Trip", type: "custom" },
+      });
+    if (path === "/api/feedback") {
+      reportLoads += 1;
+      if (reportLoads === 1)
+        return new Promise((resolve) => {
+          releaseReports = resolve;
+        });
+      return response({ error: "Reports unavailable" }, false);
+    }
+    throw new TypeError("Connection lost after the write");
+  }) as any;
+
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.type(
+    within(dialog).getByLabelText("Your message"),
+    "Make a trip list",
+  );
+  await user.click(within(dialog).getByRole("button", { name: "Send" }));
+  await within(dialog).findByRole("button", { name: "Confirm and save" });
+
+  await user.click(within(dialog).getByRole("button", { name: "My reports" }));
+  await waitFor(() => expect(reportLoads).toBe(1));
+  await user.click(within(dialog).getByRole("button", { name: "Assistant" }));
+  await user.click(
+    within(dialog).getByRole("button", { name: "Confirm and save" }),
+  );
+  await within(dialog).findByRole("link", { name: "Check Lists" });
+
+  releaseReports(response({ error: "Reports unavailable" }, false));
+  await waitFor(() =>
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "connection ended before confirmation",
+    ),
+  );
+
+  await user.click(within(dialog).getByRole("button", { name: "My reports" }));
+  await within(dialog).findByRole("alert");
+  expect(within(dialog).getByRole("alert")).toHaveTextContent(
+    "Could not load your reports. Try again.",
+  );
+  await user.click(within(dialog).getByRole("button", { name: "Assistant" }));
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    "connection ended before confirmation",
+  );
+  expect(within(dialog).getByRole("link", { name: "Check Lists" })).toBeInTheDocument();
+  expect(
+    within(dialog).queryByRole("button", { name: "Confirm and save" }),
+  ).toBeNull();
+  expect(
+    within(dialog).queryByRole("button", { name: "Retry message" }),
+  ).toBeNull();
+  expect(calls).toEqual([
+    "/api/assistant",
+    "/api/feedback",
+    "/api/lists/create",
+    "/api/feedback",
+  ]);
+});
+
+it("does not resurrect a late Reports failure after Chat recovery is cleared", async () => {
+  const user = userEvent.setup();
+  let releaseReports!: (value: unknown) => void;
+  global.fetch = jest.fn(async (path) => {
+    if (path === "/api/feedback")
+      return new Promise((resolve) => {
+        releaseReports = resolve;
+      });
+    throw new TypeError("Unexpected request");
+  }) as any;
+
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.click(within(dialog).getByRole("button", { name: "My reports" }));
+  await user.click(within(dialog).getByRole("button", { name: "Assistant" }));
+  await user.click(within(dialog).getByRole("button", { name: "Clear chat" }));
+
+  releaseReports(response({ error: "Reports unavailable" }, false));
+  await waitFor(() => expect(within(dialog).queryByRole("alert")).toBeNull());
+  expect(within(dialog).queryByText("No saved reports to show.")).toBeNull();
+});
+
+it("does not let a late Reports failure overwrite Report state", async () => {
+  const user = userEvent.setup();
+  let releaseReports!: (value: unknown) => void;
+  global.fetch = jest.fn(async (path, options) => {
+    if (path === "/api/feedback" && !options?.method)
+      return new Promise((resolve) => {
+        releaseReports = resolve;
+      });
+    if (path === "/api/feedback")
+      return response({ report: { id: "r-1" } });
+    throw new TypeError("Unexpected request");
+  }) as any;
+
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  const dialog = screen.getByRole("dialog");
+  await user.click(within(dialog).getByRole("button", { name: "My reports" }));
+  await user.click(
+    within(dialog).getByRole("button", { name: "Report / Suggest" }),
+  );
+  await user.type(within(dialog).getByLabelText("Title"), "Calendar bug");
+  await user.type(
+    within(dialog).getByLabelText("What happened or what would help?"),
+    "The calendar view needs a clearer loading state.",
+  );
+  await user.click(within(dialog).getByRole("button", { name: "Save report" }));
+  await within(dialog).findByText(/Report saved privately/);
+
+  releaseReports(response({ error: "Reports unavailable" }, false));
+  await waitFor(() => expect(within(dialog).queryByRole("alert")).toBeNull());
+  expect(within(dialog).getByText(/Report saved privately/)).toBeInTheDocument();
+});
+
 it("keeps a grocery proposal editable after list discovery fails until explicit confirm", async () => {
   const user = userEvent.setup();
   const calls: string[] = [];

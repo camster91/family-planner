@@ -286,6 +286,10 @@ const assistantCopy = (locale: Locale) =>
         checkCalendar: assistantSpanish.checkCalendar,
         confirm: assistantSpanish.confirmSave,
         close: assistantSpanish.close,
+        tabAssistant: assistantSpanish.tabAssistant,
+        tabReport: assistantSpanish.tabReport,
+        tabReports: assistantSpanish.tabReports,
+        reportsLoadFailed: assistantSpanish.reportsLoadFailed,
       }
     : {
         launcher: assistantEnglish.launcherAssistant,
@@ -300,6 +304,10 @@ const assistantCopy = (locale: Locale) =>
         checkCalendar: assistantEnglish.checkCalendar,
         confirm: assistantEnglish.confirmSave,
         close: assistantEnglish.close,
+        tabAssistant: assistantEnglish.tabAssistant,
+        tabReport: assistantEnglish.tabReport,
+        tabReports: assistantEnglish.tabReports,
+        reportsLoadFailed: assistantEnglish.reportsLoadFailed,
       };
 
 for (const locale of ["en", "es"] as const) {
@@ -825,6 +833,46 @@ for (const locale of ["en", "es"] as const) {
       actionDialog.getByRole("button", { name: copy.retry, exact: true }),
     ).toHaveCount(0);
     expect(actionCalls).toHaveLength(1);
+    await page.route("**/api/feedback", async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "QA report read unavailable" }),
+      });
+    });
+    await actionDialog
+      .getByRole("button", { name: copy.tabReports, exact: true })
+      .click();
+    await expect(actionDialog.getByRole("alert")).toContainText(
+      copy.reportsLoadFailed,
+    );
+    await actionDialog
+      .getByRole("button", { name: copy.tabAssistant, exact: true })
+      .click();
+    await expect(actionDialog.getByRole("alert")).toContainText(
+      copy.interrupted,
+    );
+    await expect(
+      actionDialog.getByRole("link", { name: copy.checkCalendar, exact: true }),
+    ).toHaveAttribute("href", "/dashboard/calendar");
+    await actionDialog
+      .getByRole("button", { name: copy.tabReport, exact: true })
+      .click();
+    await actionDialog
+      .getByRole("button", { name: copy.tabAssistant, exact: true })
+      .click();
+    await expect(actionDialog.getByRole("alert")).toContainText(
+      copy.interrupted,
+    );
+    await expect(
+      actionDialog.getByRole("link", { name: copy.checkCalendar, exact: true }),
+    ).toHaveAttribute("href", "/dashboard/calendar");
+    await expect(
+      actionDialog.getByRole("button", { name: copy.retry, exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      actionDialog.getByRole("button", { name: copy.confirm, exact: true }),
+    ).toHaveCount(0);
     await page.waitForTimeout(100);
     expect(actionCalls).toHaveLength(1);
     await expectNoSeriousAxe(

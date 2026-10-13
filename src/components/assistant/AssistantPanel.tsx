@@ -76,6 +76,11 @@ type AssistantError =
   | { kind: "voice"; key: VoiceErrorCode }
   | { kind: "raw"; message: string };
 
+type ActionRecovery = {
+  error: AssistantError;
+  href: string;
+};
+
 class AssistantCopyError extends Error {
   readonly key: AssistantMessage;
 
@@ -193,7 +198,8 @@ export default function AssistantPanel({
     [busy, setBusy] = React.useState(false),
     [error, setError] = React.useState<AssistantError | null>(null),
     [failedChat, setFailedChat] = React.useState<ChatRequest | null>(null),
-    [recoveryHref, setRecoveryHref] = React.useState<string | null>(null),
+    [actionRecovery, setActionRecovery] =
+      React.useState<ActionRecovery | null>(null),
     [includeToday, setIncludeToday] = React.useState(false),
     [todayFreshness, setTodayFreshness] = React.useState<TodayFreshness | null>(
       null,
@@ -209,7 +215,8 @@ export default function AssistantPanel({
     [details, setDetails] = React.useState(""),
     [receipt, setReceipt] = React.useState(""),
     [reports, setReports] = React.useState<Report[]>([]),
-    [reportsLoading, setReportsLoading] = React.useState(false);
+    [reportsLoading, setReportsLoading] = React.useState(false),
+    [reportsLoadFailed, setReportsLoadFailed] = React.useState(false);
   const requestId = React.useRef(""),
     actionKey = React.useRef(""),
     lock = React.useRef(false),
@@ -217,7 +224,8 @@ export default function AssistantPanel({
     textRef = React.useRef(""),
     lastTodayRequest = React.useRef<ChatRequest | null>(null),
     lastPerformanceNow = React.useRef<number | null>(null),
-    visibilitySuspended = React.useRef(false);
+    visibilitySuspended = React.useRef(false),
+    reportsLoadGeneration = React.useRef(0);
   const canChat = role === "parent" || role === "teen";
   const monotonicNow = () => {
     const now = performance.now();
@@ -283,6 +291,9 @@ export default function AssistantPanel({
   }, [todayFreshness]);
   React.useEffect(() => {
     if (panelOpen && tab === "reports") void loadReports();
+    return () => {
+      reportsLoadGeneration.current += 1;
+    };
   }, [panelOpen, tab]);
   React.useEffect(() => {
     if (!panelOpen) return;
@@ -299,27 +310,36 @@ export default function AssistantPanel({
   const open = (next: AssistantPanelTab) => {
     if (busy) return;
     voice.stop();
+    if (tab === "reports" && next !== "reports")
+      reportsLoadGeneration.current += 1;
+    // Tab errors belong to the tab being left. An uncertain action has its own
+    // durable recovery state and is rendered again when Chat is reopened.
     setError(null);
-    setRecoveryHref(null);
     setDeleteConfirm(false);
     onTabChange(next);
   };
   async function loadReports() {
+    const generation = ++reportsLoadGeneration.current;
     setReportsLoading(true);
+    setReportsLoadFailed(false);
     try {
       const r = await fetch("/api/feedback", { cache: "no-store" }),
         b = await r.json();
       if (!r.ok) throw new Error(b.error);
+      if (generation !== reportsLoadGeneration.current) return;
       setReports(b.reports ?? []);
     } catch {
-      setError({ kind: "copy", key: "reportsLoadFailed" });
+      if (generation !== reportsLoadGeneration.current) return;
+      setReportsLoadFailed(true);
     } finally {
-      setReportsLoading(false);
+      if (generation === reportsLoadGeneration.current)
+        setReportsLoading(false);
     }
   }
   const close = () => {
     if (busy) return;
     voice.stop();
+    if (tab === "reports") reportsLoadGeneration.current += 1;
     onClose();
   };
   async function requestChat(request: ChatRequest, preserveDraft = false) {
@@ -330,7 +350,7 @@ export default function AssistantPanel({
       setError(null);
       setFailedChat(null);
     }
-    setRecoveryHref(null);
+    setActionRecovery(null);
     setAction(null);
     setTargets([]);
     setDeleteConfirm(false);
@@ -479,7 +499,7 @@ export default function AssistantPanel({
     lock.current = true;
     setBusy(true);
     setError(null);
-    setRecoveryHref(null);
+    setActionRecovery(null);
     try {
       const choices =
         pendingAction.kind === "chore_create"
@@ -498,8 +518,12 @@ export default function AssistantPanel({
         // A deterministic refusal such as indistinguishable list targets must
         // still close the proposal and offer its ordinary read-only check.
         setChoiceLoadFailed(false);
-        setError(toAssistantError(e, "actionFailed"));
-        setRecoveryHref(actionRecoveryPath(pendingAction));
+        const recoveryError = toAssistantError(e, "actionFailed");
+        setError(recoveryError);
+        setActionRecovery({
+          error: recoveryError,
+          href: actionRecoveryPath(pendingAction),
+        });
         setAction(null);
       }
     } finally {
@@ -578,7 +602,7 @@ export default function AssistantPanel({
     consumed.current = true;
     setBusy(true);
     setError(null);
-    setRecoveryHref(null);
+    setActionRecovery(null);
     setChoiceLoadFailed(false);
     try {
       await executeAssistantAction(action, actionKey.current, chosen);
@@ -595,7 +619,6 @@ export default function AssistantPanel({
       ]);
       setAction(null);
       setDeleteConfirm(false);
-      setRecoveryHref(null);
       router.refresh();
     } catch (e) {
       if (e instanceof AssistantActionPreflightError) {
@@ -605,11 +628,15 @@ export default function AssistantPanel({
         setError(toAssistantError(e, "actionFailed"));
         return;
       }
-      setError(toAssistantError(e, "actionFailed"));
+      const recoveryError = toAssistantError(e, "actionFailed");
+      setError(recoveryError);
       // The action may have committed before its response was lost. Always
       // offer a read-only destination for checking the affected section, but
       // never reset consumed or offer a mutation retry from this state.
-      setRecoveryHref(actionRecoveryPath(action));
+      setActionRecovery({
+        error: recoveryError,
+        href: actionRecoveryPath(action),
+      });
       setAction(null);
       setChoiceLoadFailed(false);
     } finally {
@@ -652,6 +679,8 @@ export default function AssistantPanel({
       setBusy(false);
     }
   }
+  const displayedError =
+    tab === "chat" && actionRecovery ? actionRecovery.error : error;
   return (
     <div data-person-assistant-panel>
       <Dialog
@@ -699,22 +728,30 @@ export default function AssistantPanel({
             {msg("tabReports")}
           </button>
         </div>
-        {error && (
+        {tab === "reports" && reportsLoadFailed && (
+          <p
+            role="alert"
+            className="mb-3 rounded-xl bg-surface-fill p-3 text-[var(--danger-text)] break-words"
+          >
+            {msg("reportsLoadFailed")}
+          </p>
+        )}
+        {displayedError && (
           <div className="mb-3 space-y-2">
             <p
               role="alert"
               className="rounded-xl bg-surface-fill p-3 text-[var(--danger-text)] break-words"
             >
-              {error.kind === "chat" || error.kind === "copy"
-                ? msg(error.key)
-                : error.kind === "action"
-                  ? msg(error.key)
-                  : error.kind === "voice"
-                    ? msg(error.key)
-                    : error.message}
+              {displayedError.kind === "chat" || displayedError.kind === "copy"
+                ? msg(displayedError.key)
+                : displayedError.kind === "action"
+                  ? msg(displayedError.key)
+                  : displayedError.kind === "voice"
+                    ? msg(displayedError.key)
+                    : displayedError.message}
             </p>
-            {error.kind === "chat" && failedChat &&
-              !["chatRateLimited", "chatTooLong"].includes(error.key) && (
+            {displayedError.kind === "chat" && failedChat &&
+              !["chatRateLimited", "chatTooLong"].includes(displayedError.key) && (
               <button
                 type="button"
                 disabled={busy}
@@ -724,13 +761,17 @@ export default function AssistantPanel({
                 {msg("retryChat")}
               </button>
             )}
-            {recoveryHref && (
+            {tab === "chat" && actionRecovery && (
               <Link
-                href={recoveryHref}
-                onClick={close}
+                href={actionRecovery.href}
+                onClick={() => {
+                  setError(null);
+                  setActionRecovery(null);
+                  close();
+                }}
                 className={`${target} inline-flex items-center bg-surface-fill`}
               >
-                {msg(actionRecoveryMessage(recoveryHref))}
+                {msg(actionRecoveryMessage(actionRecovery.href))}
               </Link>
             )}
             {choiceLoadFailed && action && (
@@ -1107,7 +1148,7 @@ export default function AssistantPanel({
                     setText("");
                     setError(null);
                     setFailedChat(null);
-                    setRecoveryHref(null);
+                    setActionRecovery(null);
                     setTodayFreshness(null);
                     lastTodayRequest.current = null;
                   }}
@@ -1216,7 +1257,7 @@ export default function AssistantPanel({
             </button>
             {reportsLoading ? (
               <p role="status">{msg("loadingReports")}</p>
-            ) : reports.length === 0 ? (
+            ) : reportsLoadFailed ? null : reports.length === 0 ? (
               <p className="text-label-secondary">{msg("noSavedReports")}</p>
             ) : (
               reports.map((r) => (
