@@ -178,6 +178,7 @@ describe('CaptureBox', () => {
 
   it.each([401, 403])('keeps a truthful partial photo status when a later event is refused (%i)', async (status) => {
     let eventPosts = 0
+    const onSaved = jest.fn()
     global.fetch = jest.fn(async (url, init) => {
       const method = (init?.method ?? 'GET').toUpperCase()
       if (String(url) === '/api/capture' && method === 'GET') {
@@ -195,7 +196,7 @@ describe('CaptureBox', () => {
     }) as unknown as typeof fetch
 
     const user = userEvent.setup()
-    render(<CaptureBox />)
+    render(<CaptureBox onSaved={onSaved} />)
     await readPhoto(user)
     await user.click(screen.getByRole('button', { name: 'Add 3' }))
     await screen.findByText('Added 1 of 3 events')
@@ -204,6 +205,7 @@ describe('CaptureBox', () => {
     expect(screen.getByRole('alert').textContent).toContain(captureEnglish.recoveryPartialFailure)
     expect(screen.queryByRole('button', { name: /Retry/ })).toBeNull()
     expect(eventPosts).toBe(2)
+    expect(onSaved).toHaveBeenCalledTimes(1)
   })
 
   it('keeps failed photo events and says "Added X of Y"', async () => {
@@ -836,6 +838,95 @@ it('removes only the terminal photo row and preserves other unresolved proposals
   expect(screen.getAllByText('Book fair')).toHaveLength(2)
   expect(screen.getByRole('button', { name: 'Add 1' })).toBeTruthy()
   expect(eventPosts).toBe(3)
+})
+
+it('locks receipt controls while a photo write is pending', async () => {
+  let rejectEventPost!: (reason?: unknown) => void
+  const delayedEventPost = new Promise<Response>((_resolve, reject) => {
+    rejectEventPost = reject
+  })
+  global.fetch = jest.fn(async (url, init) => {
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (String(url) === '/api/capture' && method === 'GET') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/capture' && method === 'POST') {
+      return json(200, { image: { events: [PHOTO_EVENTS[0]], note: null } })
+    }
+    if (String(url) === '/api/events' && method === 'POST') return delayedEventPost
+    if (String(url) === '/api/capture/receipt') {
+      return json(200, { state: 'committed', current: 'removed' })
+    }
+    throw new Error(`unexpected ${method} ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<CaptureBox />)
+  const input = screen.getByLabelText('Choose a photo of a flyer or timetable') as HTMLInputElement
+  await user.upload(input, new File(['x'], 'flyer.png', { type: 'image/png' }))
+  await screen.findByText('Found 1 event')
+  await user.click(screen.getByRole('button', { name: 'Add 1' }))
+
+  const checkStatus = await screen.findByRole('button', { name: 'Check status for Picture day' })
+  const retry = screen.getByRole('button', { name: 'Retry Picture day' })
+  const add = screen.getByRole('button', { name: 'Adding…' })
+  expect(checkStatus.hasAttribute('disabled')).toBe(true)
+  expect(retry.hasAttribute('disabled')).toBe(true)
+  expect(add.hasAttribute('disabled')).toBe(true)
+
+  rejectEventPost(new Error('response lost after commit'))
+  await screen.findByText(captureEnglish.couldNotSaveEvents)
+  expect(checkStatus.hasAttribute('disabled')).toBe(false)
+  await user.click(checkStatus)
+  await screen.findByText(captureEnglish.savedRemoved)
+  expect(screen.queryByRole('button', { name: 'Add 1' })).toBeNull()
+})
+
+it('keeps photo rows locked during a delayed save and releases them after it settles', async () => {
+  let eventPosts = 0
+  let rejectEventPost!: (reason?: unknown) => void
+  const delayedEventPost = new Promise<Response>((_resolve, reject) => {
+    rejectEventPost = reject
+  })
+  global.fetch = jest.fn(async (url, init) => {
+    const method = (init?.method ?? 'GET').toUpperCase()
+    if (String(url) === '/api/capture' && method === 'GET') {
+      return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+    }
+    if (String(url) === '/api/capture' && method === 'POST') {
+      return json(200, { image: { events: [PHOTO_EVENTS[0], PHOTO_EVENTS[2]], note: null } })
+    }
+    if (String(url) === '/api/events' && method === 'POST') {
+      eventPosts += 1
+      if (eventPosts === 1) return delayedEventPost
+      return json(201, { event: { id: 'book-fair' } })
+    }
+    throw new Error(`unexpected ${method} ${String(url)}`)
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<CaptureBox />)
+  const input = screen.getByLabelText('Choose a photo of a flyer or timetable') as HTMLInputElement
+  await user.upload(input, new File(['x'], 'flyer.png', { type: 'image/png' }))
+  await screen.findByText('Found 2 events')
+  await user.click(screen.getByRole('button', { name: 'Add 2' }))
+  const removePicture = await screen.findByRole('button', { name: 'Remove Picture day' })
+  expect(removePicture.hasAttribute('disabled')).toBe(true)
+
+  rejectEventPost(new Error('response lost after commit'))
+
+  const remainingAdd = await screen.findByRole('button', { name: 'Add 2' })
+  expect(remainingAdd.hasAttribute('disabled')).toBe(false)
+  const releasedRemovePicture = await screen.findByRole('button', { name: 'Remove Picture day' })
+  expect(releasedRemovePicture.hasAttribute('disabled')).toBe(false)
+  expect(screen.getByText('Book fair')).toBeTruthy()
+
+  await user.click(releasedRemovePicture)
+  const remainingAddAfterRemove = await screen.findByRole('button', { name: 'Add 1' })
+  const photoList = screen.getByRole('button', { name: 'Remove Book fair' }).closest('ul') as HTMLElement
+  expect(within(photoList).queryByText('Picture day', { exact: true })).toBeNull()
+  expect(within(photoList).getByText('Book fair')).toBeTruthy()
+  expect(remainingAddAfterRemove.hasAttribute('disabled')).toBe(false)
 })
 
 it('localizes the saved-recovery controls without translating the saved title', async () => {
