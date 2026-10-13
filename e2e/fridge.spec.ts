@@ -449,8 +449,43 @@ async function axeScan(page: Page, testInfo: TestInfo, label: string) {
   expect(blocking, `serious/critical axe violations on ${label}`).toEqual([]);
 }
 
+async function expectBoardTypography(page: Page, fridgeMode: boolean) {
+  await page.evaluate(() => document.fonts.ready);
+  const width = page.viewportSize()!.width;
+  const landscape = await page.evaluate(
+    () => matchMedia("(orientation: landscape)").matches,
+  );
+  const dinnerSize =
+    width >= 1536
+      ? "40px"
+      : fridgeMode && landscape && width >= 1024
+        ? "24px"
+        : width >= 768
+          ? "32px"
+          : "28px";
+  await expect(
+    region(page, "dinner").getByTestId("dinner-tonight").locator("p").first(),
+  ).toHaveCSS("font-size", dinnerSize);
+  // Custom typography tokens must survive conditional class composition.
+  const explanation = region(page, "groceries").getByText(
+    "To-dos, wishlists and custom lists",
+    { exact: true },
+  );
+  await expect(explanation).toHaveCSS("font-size", "13px");
+  await expect(explanation).toHaveCSS("line-height", "18px");
+}
+
 test.describe("Today board: Family A parent", () => {
   test.use({ storageState: authFile("parentA") });
+
+  test("preserves responsive typography in ordinary and fridge views", async ({
+    page,
+  }) => {
+    await openBoard(page);
+    await expectBoardTypography(page, false);
+    await openBoard(page, "/dashboard/today?mode=fridge");
+    await expectBoardTypography(page, true);
+  });
 
   test("shows every region from real household data", async ({ page }) => {
     await openBoard(page);

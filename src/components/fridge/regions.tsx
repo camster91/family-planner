@@ -325,7 +325,7 @@ export function DinnerRegion({
     // #274: the tile heading opens meals; no separate "Open meals" button.
     body = (
       <div data-testid="dinner-tonight">
-        <p className={cn('break-words font-display text-[28px] font-bold leading-tight text-label-primary md:text-[32px] 2xl:text-[40px]', compactLandscape && 'lg:landscape:text-[24px] 2xl:landscape:text-[40px]')}>
+        <p className={`break-words font-display text-[28px] font-bold leading-tight text-label-primary md:text-[32px] 2xl:text-[40px]${compactLandscape ? ' lg:landscape:text-[24px] 2xl:landscape:text-[40px]' : ''}`} >
           {dinner.recipeName ?? dinner.recipeTitle ?? text('dinnerPlanned')}
         </p>
         {recipeLine && <p className={cn(metaTextClass, 'mt-2 break-words')}>{recipeLine}</p>}
@@ -439,7 +439,7 @@ export function GroceriesRegion({
         ) : (
           <p className={cn(metaTextClass, 'mt-3')}>{text('moreToBuy', { count: more })}</p>
         ))}
-      {listsHref && <div className="mt-3 border-t border-[var(--surface-separator)] pt-2"><Link href="/dashboard/lists" className="inline-flex min-h-[44px] items-center text-subhead text-[var(--accent-text)] 2xl:min-h-[56px]">{text('allSharedLists')} <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" /></Link><p className={cn('text-footnote text-label-secondary', compactLandscape && 'lg:landscape:sr-only 2xl:landscape:not-sr-only')}>{text('sharedListsDescription')}</p></div>}
+      {listsHref && <div className="mt-3 border-t border-[var(--surface-separator)] pt-2"><Link href="/dashboard/lists" className="inline-flex min-h-[44px] items-center text-subhead text-[var(--accent-text)] 2xl:min-h-[56px]">{text('allSharedLists')} <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" /></Link><p className={`text-footnote text-label-secondary${compactLandscape ? ' lg:landscape:sr-only 2xl:landscape:not-sr-only' : ''}`} >{text('sharedListsDescription')}</p></div>}
     </Region>
   )
 }
