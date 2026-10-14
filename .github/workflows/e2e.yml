@@ -144,7 +144,7 @@ jobs:
 
       # These captures contain only synthetic product-quality fixture data.
       - name: Upload compact fridge metadata captures
-        if: ${{ !cancelled() && (matrix.group == 'fridge-landscape' || matrix.group == 'large-tablet-and-desktop') }}
+        if: ${{ !cancelled() && inputs.update_snapshots != true && (matrix.group == 'fridge-landscape' || matrix.group == 'large-tablet-and-desktop') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: product-quality-fridge-captures-${{ matrix.group }}-${{ github.sha }}
