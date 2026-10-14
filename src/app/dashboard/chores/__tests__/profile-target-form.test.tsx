@@ -609,7 +609,7 @@ describe("profile target in the create chore form", () => {
 
   it("preserves a profile draft if an edit races an in-flight create", async () => {
     const user = userEvent.setup();
-    let releaseCreate: ((response: Response) => void) | null = null;
+    const createGate: { release?: (response: Response) => void } = {};
     global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
       if (url === "/api/family/members") {
@@ -633,7 +633,7 @@ describe("profile target in the create chore form", () => {
         };
       }
       return new Promise<Response>((resolve) => {
-        releaseCreate = resolve;
+        createGate.release = resolve;
       });
     }) as unknown as typeof fetch;
     render(<CreateChorePage />);
@@ -648,7 +648,7 @@ describe("profile target in the create chore form", () => {
       target: { value: "2099-10-05" },
     });
     await user.click(screen.getByRole("button", { name: "Create Chore" }));
-    await waitFor(() => expect(releaseCreate).not.toBeNull());
+    await waitFor(() => expect(createGate.release).toBeDefined());
     expect(title.closest("fieldset")?.disabled).toBe(true);
     expect(title.matches(":disabled")).toBe(true);
     expect(
@@ -660,7 +660,7 @@ describe("profile target in the create chore form", () => {
     // though the profile controls are disabled for ordinary user input.
     fireEvent.change(title, { target: { value: "Edited while waiting" } });
     expect(title.value).toBe("Edited while waiting");
-    releaseCreate?.({
+    createGate.release?.({
       ok: true,
       status: 200,
       json: async () => validProfileCreateResponse,

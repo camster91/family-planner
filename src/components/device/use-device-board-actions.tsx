@@ -14,6 +14,7 @@ import type {
 import { DeviceApiError, type DeviceClient } from "@/lib/device-client";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { useTranslation } from "@/i18n";
+import { useProfileSetupText } from "@/i18n/profile-setup";
 import { useTodayBoardText } from "@/i18n/today-board";
 import { getDeviceQueue } from "@/lib/offline-queue-browser";
 import { QueueError, isCheckedOperation } from "@/lib/offline-queue";
@@ -113,6 +114,8 @@ export function useDeviceBoardActions({
   picker: React.ReactNode;
 } {
   const { t } = useTranslation();
+  const profileText = useProfileSetupText();
+  const profileChorePaused = profileText("profileTargetRecurrencePaused");
   const [subject, setSubject] = React.useState<DeviceSubjectChoice | null>(
     null,
   );
@@ -246,6 +249,7 @@ export function useDeviceBoardActions({
       prepare: () => prepareSubject(null),
       prepareChore: (chore) => prepareSubject(profileIdForChore(chore)),
       canCompleteChore: (chore) => {
+        if (chore.actionAvailability?.state === "paused") return false;
         const profileId = profileIdForChore(chore);
         if (profileId)
           return (
@@ -256,12 +260,18 @@ export function useDeviceBoardActions({
         return choresOn && accountMembers.length > 0;
       },
       completeChore: (chore) => {
+        if (chore.actionAvailability?.state === "paused") {
+          return Promise.resolve({ ok: false as const, message: profileChorePaused });
+        }
         return post(
           `/api/device/chores/${encodeURIComponent(chore.id)}/complete`,
           chore,
         );
       },
       undoChore: (chore) => {
+        if (chore.actionAvailability?.state === "paused") {
+          return Promise.resolve({ ok: false as const, message: profileChorePaused });
+        }
         return post(
           `/api/device/chores/${encodeURIComponent(chore.id)}/uncomplete`,
           chore,
@@ -323,7 +333,7 @@ export function useDeviceBoardActions({
       },
       afterChange: () => afterRef.current(),
     };
-  }, [client, choresOn, listsOn, t, members, memberProtocol]);
+  }, [client, choresOn, listsOn, t, members, memberProtocol, profileChorePaused]);
 
   const picker = (
     <WhoIsThisDialog

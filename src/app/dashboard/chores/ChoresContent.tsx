@@ -46,7 +46,10 @@ import {
   compareChoreOrder,
 } from "@/lib/chore-paging";
 import type { Chore } from "@/types";
-import type { ChoreSubjectDTO } from "@/lib/chore-profile";
+import type {
+  ChoreSubjectDTO,
+  ProfileChoreActionAvailability,
+} from "@/lib/chore-profile";
 
 type FilterMode = "today" | "week" | "all";
 
@@ -73,6 +76,8 @@ interface ChoresContentProps {
     creator: { name: string } | null;
     /** Safe profile subject returned by the chores API for email-free members. */
     subject?: ChoreSubjectDTO;
+    /** Per-row compatibility state for profile-only actions. */
+    actionAvailability?: ProfileChoreActionAvailability;
     streak?: number;
   })[];
   familyMembers: { id: string; name: string; role: string; age?: number }[];
@@ -104,6 +109,15 @@ function isProfileOnlyChore(
 
 function subjectName(chore: Pick<BoardChore, "assignee" | "subject">) {
   return chore.subject?.name ?? chore.assignee?.name ?? null;
+}
+
+function isPausedProfileChore(
+  chore: Pick<BoardChore, "subject" | "actionAvailability">,
+) {
+  return (
+    chore.subject?.kind === "profile" &&
+    chore.actionAvailability?.state === "paused"
+  );
 }
 
 /** "Morning, step 2" for a chore in a picture routine (#272), else null. */
@@ -410,6 +424,11 @@ export default function ChoresContent({
 
   const handleCompleteChore = React.useCallback(
     async (choreId: string) => {
+      const target = localChores.find((c) => c.id === choreId);
+      // A rollback can arrive while an action sheet or a routine view is
+      // still mounted. Treat the server's paused capability as authoritative
+      // even if a stale child callback fires before the next render.
+      if (target && isPausedProfileChore(target)) return;
       try {
         const response = await fetch("/api/chores/complete", {
           method: "POST",
@@ -478,6 +497,7 @@ export default function ChoresContent({
       if (verificationBusyRef.current.has(choreId)) return;
       const before = localChores.find((c) => c.id === choreId);
       if (!before) return;
+      if (isPausedProfileChore(before)) return;
 
       // This ref is the synchronous latch. React state alone would allow two
       // same-tick touch/keyboard activations to send duplicate POSTs.
@@ -601,6 +621,8 @@ export default function ChoresContent({
         verificationDialogRef.current === choreId
       )
         return;
+      const chore = localChores.find((c) => c.id === choreId);
+      if (!chore || isPausedProfileChore(chore)) return;
       if (decision === "reject") {
         verificationDialogRef.current = choreId;
         setVerificationDialog({ choreId, notes: "", error: null });
@@ -608,7 +630,7 @@ export default function ChoresContent({
       }
       void submitVerification(choreId, decision);
     },
-    [submitVerification],
+    [localChores, submitVerification],
   );
 
   const handleSnoozeChore = React.useCallback(
@@ -847,6 +869,7 @@ export default function ChoresContent({
   const renderOpenChore = (chore: (typeof todayChores)[number], i: number) => {
     if (!now) return null;
     const profileOnly = isProfileOnlyChore(chore);
+    const profilePaused = isPausedProfileChore(chore);
     const profileUnavailable = profileOnly && chore.subject?.kind !== "profile";
     const ownerLabel = profileUnavailable
       ? profileText("profileTargetRefresh")
@@ -906,13 +929,16 @@ export default function ChoresContent({
     const row = (
       <CheckboxRow
           checked={false}
-          disabled={profileOnly}
+          disabled={profileOnly || profilePaused}
           toggleArea="control"
           onChange={() => handleCompleteChore(chore.id)}
           title={chore.title}
           subtitle={[
             ownerLabel,
             formatRelativeDueDate(chore.due_date, now, displayLocale),
+            profilePaused
+              ? profileText("profileTargetRecurrencePaused")
+              : null,
             routineLabel(chore),
             chore.rotation_next_name
               ? `Takes turns · next: ${chore.rotation_next_name}`
@@ -1069,6 +1095,7 @@ export default function ChoresContent({
                     const profileUnavailable =
                       isProfileOnlyChore(chore) &&
                       chore.subject?.kind !== "profile";
+                    const profilePaused = isPausedProfileChore(chore);
                     const ownerLabel = profileUnavailable
                       ? profileText("profileTargetRefresh")
                       : subjectName(chore)
@@ -1100,13 +1127,15 @@ export default function ChoresContent({
                             {[
                               ownerLabel,
                               routineLabel(chore),
-                              verificationText("waitingForCheck", undefined),
+                              profilePaused
+                                ? profileText("profileTargetRecurrencePaused")
+                                : verificationText("waitingForCheck", undefined),
                             ]
                               .filter(Boolean)
                               .join(" · ")}
                           </p>
                         </div>
-                        {!profileUnavailable && (() => {
+                        {!profileUnavailable && !profilePaused && (() => {
                           const verificationBusy = verificationBusyIds.has(
                             chore.id,
                           );

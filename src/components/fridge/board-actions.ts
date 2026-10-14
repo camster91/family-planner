@@ -163,7 +163,7 @@ export function useBoardTiles(
   }
 
   const undoChore = async (chore: BoardChore) => {
-    if (!actions?.undoChore || busy.current.has(chore.id)) return
+    if (!actions?.undoChore || chore.actionAvailability?.state === 'paused' || busy.current.has(chore.id)) return
     busy.current.add(chore.id)
     setStatus(chore.id, 'pending')
     const result = await actions.undoChore(chore)
@@ -178,7 +178,7 @@ export function useBoardTiles(
 
   const tickChore = actions
     ? async (chore: BoardChore) => {
-        if (busy.current.has(chore.id) || !actions.canCompleteChore(chore)) return
+        if (busy.current.has(chore.id) || chore.actionAvailability?.state === 'paused' || !actions.canCompleteChore(chore)) return
         busy.current.add(chore.id)
         const prepared = actions.prepareChore
           ? await actions.prepareChore(chore)

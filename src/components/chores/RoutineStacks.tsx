@@ -10,12 +10,14 @@ import { groupChoreSeries } from '@/lib/chore-series-groups'
 import { formatDateOnly, toDateOnlyLocal } from '@/lib/dates'
 import { RoutineIcon } from './RoutineIcon'
 import type { Chore } from '@/types'
-import type { ChoreSubjectDTO } from '@/lib/chore-profile'
+import type { ChoreSubjectDTO, ProfileChoreActionAvailability } from '@/lib/chore-profile'
 
 type Step = Chore & {
   assignee: { name: string } | null
   /** Safe display-only subject for an email-free household member. */
   subject?: ChoreSubjectDTO
+  /** Per-row compatibility state for profile-only actions. */
+  actionAvailability?: ProfileChoreActionAvailability
 }
 
 function legacySubjectKey(chore: Step) {
@@ -86,6 +88,7 @@ export function RoutineStacks({ chores, userRole, currentUserId, familyId, local
   const renderStep = (chore: Step, next: boolean, context = false) => {
     const done = isDone(chore)
     const profileOnly = isProfileOnlyStep(chore)
+    const profilePaused = chore.actionAvailability?.state === 'paused'
     const profileUnavailable = profileOnly && chore.subject?.kind !== 'profile'
     const canComplete = !profileOnly && (userRole === 'parent' || chore.assigned_to === currentUserId)
     return (
@@ -94,7 +97,7 @@ export function RoutineStacks({ chores, userRole, currentUserId, familyId, local
         <div className="flex-1 min-w-[120px] [overflow-wrap:anywhere]">
           <p className="text-body text-label-primary">{chore.routine_order ? `${chore.routine_order}. ` : ''}{chore.title}</p>
           {context && <p className="text-footnote text-label-secondary">{profileUnavailable ? profileText('profileTargetRefresh') : chore.subject?.name ?? chore.assignee?.name ?? t('routineViews.unassigned')} · {formatDateOnly(chore.due_date, undefined, locale)}</p>}
-          <p className="text-footnote text-label-secondary">{chore.status === 'verified' ? 'Checked' : done ? 'Done · awaiting check' : next ? 'Up next' : 'To do'}</p>
+          <p className="text-footnote text-label-secondary">{profilePaused ? profileText('profileTargetRecurrencePaused') : chore.status === 'verified' ? 'Checked' : done ? 'Done · awaiting check' : next ? 'Up next' : 'To do'}</p>
         </div>
         {!done && canComplete && <button type="button" onClick={() => onComplete(chore.id)} className="btn-filled min-h-[44px]" aria-label={`Complete ${chore.title}`}>Done</button>}
         {userRole === 'parent' && !profileOnly && <Link href={`/dashboard/chores/edit?id=${encodeURIComponent(chore.id)}`} className="text-footnote text-label-secondary min-h-[44px] inline-flex items-center px-2 underline" aria-label={`Edit ${chore.title}`}>Edit</Link>}
@@ -114,6 +117,7 @@ export function RoutineStacks({ chores, userRole, currentUserId, familyId, local
         const durableStackId = stack.steps.find(c => c.routine_stack_id)?.routine_stack_id ?? null
         const profileOnly = stack.steps.some(isProfileOnlyStep)
         const profileUnavailable = profileOnly && stack.steps.every(c => c.subject?.kind !== 'profile')
+        const profilePaused = stack.steps.some(c => c.actionAvailability?.state === 'paused')
         const firstStep = stack.steps[0]
         const addStepParams = new URLSearchParams({
           routine: stack.name,
@@ -129,9 +133,10 @@ export function RoutineStacks({ chores, userRole, currentUserId, familyId, local
           <h2 className="text-title-3 text-label-primary [overflow-wrap:anywhere]">{stack.name}</h2>
           <p className="text-footnote text-label-secondary">{profileUnavailable ? profileText('profileTargetRefresh') : stack.steps[0].subject?.name ?? stack.steps[0].assignee?.name ?? 'Unassigned'} · {formatDateOnly(stack.steps[0].due_date, undefined, locale)}</p>
           <p className="text-footnote text-label-secondary mt-2" aria-live="polite">{done} of {stack.steps.length} done · {checked} checked</p>
+          {profilePaused && <p className="text-footnote text-label-secondary mt-2" role="status">{profileText('profileTargetRecurrencePaused')}</p>}
           <ol>{stack.steps.filter(c => !focusNext || c.id === next).map(c => renderStep(c, c.id === next, true))}</ol>
           {focusNext && !next && <p className="text-footnote text-label-secondary mt-2">All steps done{checked < done ? " · some awaiting check" : " and checked"}.</p>}
-          {userRole === 'parent' && (!profileOnly || !profileUnavailable) && <div className="flex flex-wrap items-center gap-3">
+          {userRole === 'parent' && (!profileOnly || (!profileUnavailable && !profilePaused)) && <div className="flex flex-wrap items-center gap-3">
             {familyId && durableStackId && <Link className="inline-flex min-h-[44px] items-center text-[var(--accent)] underline text-body" href={`/dashboard/chores/routines?${new URLSearchParams({ stack_id: durableStackId, occurrence_date: stack.steps[0].due_date.slice(0, 10) })}`}>{routineText('edit')}</Link>}
             {familyId && lastOrder < ROUTINE_ORDER_MAX && <Link className="inline-flex items-center min-h-[44px] text-[var(--accent)] underline text-body" href={addStepHref}>Add step</Link>}
           </div>}
