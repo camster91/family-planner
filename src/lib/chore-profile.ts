@@ -31,6 +31,11 @@ export function isProfileChoreEnabled(): boolean {
   );
 }
 
+/** Private profile-list capability for the gated recurring profile slice. */
+export function isProfileChoreRecurrenceSupported(): boolean {
+  return isProfileChoreEnabled();
+}
+
 export const profileChoreCreateSchema = z
   .object({
     protocol: z.literal(2),

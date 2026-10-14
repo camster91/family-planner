@@ -169,7 +169,11 @@ describe("GET /api/family/profiles", () => {
         req({ as: "parentA", path: "/api/family/profiles" }),
       );
       expect(response.status).toBe(200);
-      expect((await bodyOf(response)).profileChoreSupported).toBe(supported);
+      const body = await bodyOf(response);
+      expect(body.profileChoreSupported).toBe(supported);
+      expect(body.profileChoreRecurrenceSupported).toBe(
+        supported ? true : undefined,
+      );
     }
   });
 

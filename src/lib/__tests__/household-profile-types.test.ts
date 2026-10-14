@@ -29,7 +29,21 @@ describe("household profile target resolution", () => {
         profiles: [profile],
         profileChoreSupported: true,
       }),
-    ).toEqual({ profiles: [profile], profileChoreSupported: true });
+    ).toEqual({
+      profiles: [profile],
+      profileChoreSupported: true,
+    });
+    expect(
+      readHouseholdProfilesResponse({
+        profiles: [profile],
+        profileChoreSupported: true,
+        profileChoreRecurrenceSupported: true,
+      }),
+    ).toEqual({
+      profiles: [profile],
+      profileChoreSupported: true,
+      profileChoreRecurrenceSupported: true,
+    });
   });
 
   it("returns only an active profile for the explicit profile target", () => {

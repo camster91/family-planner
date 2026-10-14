@@ -12,6 +12,7 @@ export type HouseholdProfile = {
 export type HouseholdProfilesResponse = {
   profiles: HouseholdProfile[];
   profileChoreSupported: boolean;
+  profileChoreRecurrenceSupported?: boolean;
 };
 
 export function isHouseholdProfile(value: unknown): value is HouseholdProfile {
@@ -36,6 +37,7 @@ export function readHouseholdProfilesResponse(
   const payload = value as {
     profiles?: unknown;
     profileChoreSupported?: unknown;
+    profileChoreRecurrenceSupported?: unknown;
   };
   const profiles = payload.profiles;
   if (!Array.isArray(profiles) || !profiles.every(isHouseholdProfile)) return null;
@@ -44,9 +46,17 @@ export function readHouseholdProfilesResponse(
     typeof payload.profileChoreSupported !== "boolean"
   )
     return null;
+  if (
+    payload.profileChoreRecurrenceSupported !== undefined &&
+    typeof payload.profileChoreRecurrenceSupported !== "boolean"
+  )
+    return null;
   return {
     profiles,
     profileChoreSupported: payload.profileChoreSupported === true,
+    ...(payload.profileChoreRecurrenceSupported === true
+      ? { profileChoreRecurrenceSupported: true }
+      : {}),
   };
 }
 

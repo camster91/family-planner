@@ -16,7 +16,10 @@ import {
   profileRoleSchema,
 } from "@/lib/member-subject-contract";
 import { prisma } from "@/lib/prisma";
-import { isProfileChoreEnabled } from "@/lib/chore-profile";
+import {
+  isProfileChoreEnabled,
+  isProfileChoreRecurrenceSupported,
+} from "@/lib/chore-profile";
 
 export const NO_STORE = { "Cache-Control": "private, no-store" };
 export const PROFILE_SETUP_ENABLE_ENV = "HOUSEHOLD_PROFILE_SETUP_ENABLED";
@@ -351,8 +354,15 @@ export async function listProfiles(
         },
       );
     }
+    const profileChoreSupported = isProfileChoreEnabled();
     return NextResponse.json(
-      { profiles: dtos, profileChoreSupported: isProfileChoreEnabled() },
+      {
+        profiles: dtos,
+        profileChoreSupported,
+        ...(isProfileChoreRecurrenceSupported()
+          ? { profileChoreRecurrenceSupported: true }
+          : {}),
+      },
       { headers: NO_STORE },
     );
   } catch (error) {
