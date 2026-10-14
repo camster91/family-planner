@@ -1,4 +1,5 @@
 /** #413: cold production-build navigation, including chunks requested by hydration. */
+import fs from "node:fs";
 import {
   CORE_JS_BUDGETS,
   enforceJavaScriptBudget,
@@ -76,12 +77,15 @@ for (const [route, budget] of Object.entries(CORE_JS_BUDGETS)) {
       .evaluateAll((elements) =>
         elements.map((el) => new URL((el as HTMLScriptElement).src).pathname),
       );
+    const artifact = { route, budget, ...measured, legacyScripts };
     await info.attach("initial-js-budget", {
-      body: Buffer.from(
-        JSON.stringify({ route, budget, ...measured, legacyScripts }, null, 2),
-      ),
+      body: Buffer.from(JSON.stringify(artifact, null, 2)),
       contentType: "application/json",
     });
+    fs.writeFileSync(
+      info.outputPath("initial-js-budget.json"),
+      JSON.stringify(artifact, null, 2),
+    );
     enforceJavaScriptBudget(measured, budget);
   });
 }
