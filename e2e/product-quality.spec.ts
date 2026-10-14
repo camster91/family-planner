@@ -809,6 +809,10 @@ for (const locale of ["en", "es"] as const) {
       if (compactFridgeMetadataViewport) {
         await expect(page.getByTestId("board-weather")).toHaveCount(0);
         await assertFirstUseSoonMetadataFit(useSoon);
+        fs.writeFileSync(
+          info.outputPath(`product-quality-fridge-${locale}-no-weather.png`),
+          await page.screenshot(),
+        );
 
         await setProductQualityWeather(true);
         await page.goto("/dashboard/today?mode=fridge");
@@ -819,6 +823,10 @@ for (const locale of ["en", "es"] as const) {
           locale === "es" ? "Refrigerador" : "Fridge",
         );
         await assertFirstUseSoonMetadataFit(weatherUseSoon);
+        fs.writeFileSync(
+          info.outputPath(`product-quality-fridge-${locale}-weather.png`),
+          await page.screenshot(),
+        );
       }
       const groceryList = groceries.locator("ul").first();
       await expect(groceryList).toHaveAttribute("tabindex", "0");
