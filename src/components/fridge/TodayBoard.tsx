@@ -53,9 +53,6 @@ function createUseSoonRegion() {
   })
 }
 
-/* The loader stays behind the conditional slot; this identity is replaced on retry. */
-const LazyUseSoonRegion = createUseSoonRegion()
-
 /**
  * Clock, relative "Updated" time and idle tick. Change polling and the slow
  * full refresh (#271) live in src/lib/board-sync.ts; there is no server job.
@@ -257,7 +254,7 @@ function LazyUseSoon({
   onLoaded: () => void
 }) {
   const [attempt, setAttempt] = React.useState(0)
-  const [UseSoonRegion, setUseSoonRegion] = React.useState(LazyUseSoonRegion)
+  const [UseSoonRegion, setUseSoonRegion] = React.useState(createUseSoonRegion)
   const restoreFocus = React.useRef(false)
   const loaded = React.useCallback(() => {
     if (!restoreFocus.current) return

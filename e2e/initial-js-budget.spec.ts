@@ -1,5 +1,6 @@
 /** #413: cold production-build navigation, including chunks requested by hydration. */
 import fs from "node:fs";
+import path from "node:path";
 import {
   CORE_JS_BUDGETS,
   enforceJavaScriptBudget,
@@ -9,6 +10,25 @@ import {
 import { authFile, E2E_BASE_URL } from "./support/env";
 import type { Request } from "@playwright/test";
 import { expect, test } from "./support/test";
+
+/** Find the production React.lazy chunk without reading its module body into output. */
+function useSoonChunkName() {
+  const chunkDir = ".next/static/chunks";
+  const chunk = fs
+    .readdirSync(chunkDir)
+    .filter((name) => name.endsWith(".js"))
+    .find((name) => {
+      const source = fs.readFileSync(path.join(chunkDir, name), "utf8");
+      return (
+        source.includes("use-soon-item") && source.includes("use-soon-more")
+      );
+    });
+  expect(
+    chunk,
+    "the production build must contain the deferred Use Soon chunk",
+  ).toBeTruthy();
+  return chunk!;
+}
 
 test.use({ storageState: authFile("parentA") });
 for (const [route, budget] of Object.entries(CORE_JS_BUDGETS)) {
@@ -71,6 +91,13 @@ for (const [route, budget] of Object.entries(CORE_JS_BUDGETS)) {
     await Promise.all(pending);
     expect(failures).toEqual([]);
     const measured = measureInitialJavaScript(E2E_BASE_URL, scripts);
+    if (route === "today") {
+      await expect(page.getByTestId("board-slot-use-soon")).toHaveCount(0);
+      const useSoonChunk = useSoonChunkName();
+      expect(measured.files.map((file) => file.path)).not.toContain(
+        `/_next/static/chunks/${useSoonChunk}`,
+      );
+    }
     // The modern browser skips nomodule scripts itself; record them separately.
     const legacyScripts = await page
       .locator("script[nomodule][src]")

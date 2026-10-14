@@ -459,7 +459,9 @@ function useSoonChunkName() {
     .filter((name) => name.endsWith(".js"))
     .find((name) => {
       const source = fs.readFileSync(path.join(chunkDir, name), "utf8");
-      return source.includes("use-soon-item") && source.includes("use-soon-more");
+      return (
+        source.includes("use-soon-item") && source.includes("use-soon-more")
+      );
     });
   expect(
     chunk,
@@ -843,9 +845,23 @@ for (const locale of ["en", "es"] as const) {
         let chunkAttempts = 0;
         const recoveryWrites: string[] = [];
         const recoveryPageErrors: string[] = [];
+        const isExpectedUseSoonChunkError = (message: string) =>
+          message.includes(chunk) &&
+          /ChunkLoadError|Loading chunk .* failed|Failed to fetch dynamically imported module|Importing a module script failed/i.test(
+            message,
+          );
+        const assertRecoveryPageErrors = () => {
+          expect(
+            recoveryPageErrors.filter(
+              (message) => !isExpectedUseSoonChunkError(message),
+            ),
+          ).toEqual([]);
+        };
         const onRecoveryRequest = (request: Request) => {
           if (!["GET", "HEAD", "OPTIONS"].includes(request.method())) {
-            recoveryWrites.push(`${request.method()} ${new URL(request.url()).pathname}`);
+            recoveryWrites.push(
+              `${request.method()} ${new URL(request.url()).pathname}`,
+            );
           }
         };
         const onRecoveryPageError = (error: Error) => {
@@ -861,22 +877,13 @@ for (const locale of ["en", "es"] as const) {
           await page.reload({ waitUntil: "domcontentloaded" });
           const failedUseSoon = page.getByTestId("board-slot-use-soon");
           await expect(failedUseSoon).toBeVisible();
-          await expect(
-            failedUseSoon.getByRole("alert"),
-          ).toHaveText(
+          await expect(failedUseSoon.getByRole("alert")).toHaveText(
             locale === "es"
               ? "No se pudieron cargar los alimentos para usar pronto."
               : "Use soon items could not load.",
           );
           expect(chunkAttempts).toBeGreaterThan(0);
-          expect(
-            recoveryPageErrors.filter(
-              (message) =>
-                !/ChunkLoadError|Loading chunk .* failed|Failed to fetch dynamically imported module|Importing a module script failed/i.test(
-                  message,
-                ),
-            ),
-          ).toEqual([]);
+          assertRecoveryPageErrors();
 
           const retry = failedUseSoon.getByRole("button", {
             name: locale === "es" ? "Intentar de nuevo" : "Try again",
@@ -888,7 +895,9 @@ for (const locale of ["en", "es"] as const) {
           await retry.press("Enter");
 
           const restoredUseSoon = page.getByTestId("board-slot-use-soon");
-          await expect(restoredUseSoon.getByTestId("use-soon-item")).toHaveCount(5);
+          await expect(
+            restoredUseSoon.getByTestId("use-soon-item"),
+          ).toHaveCount(5);
           await expect(restoredUseSoon).toContainText("QA spinach");
           await expect(restoredUseSoon.getByRole("heading")).toHaveText(
             locale === "es" ? "Usar pronto" : "Use soon",
@@ -904,6 +913,7 @@ for (const locale of ["en", "es"] as const) {
           await expect(
             restoredUseSoon.getByTestId("region-usesoon"),
           ).toBeFocused();
+          assertRecoveryPageErrors();
           expect(recoveryWrites).toEqual([]);
         } finally {
           await page.unroute(chunkPattern);
