@@ -30,6 +30,35 @@ it('uses durable stack identity when one occurrence spans different members', ()
   expect(groups[1].steps.map(s => s.id)).toEqual(['other-stack'])
 })
 
+it('keeps same-day cards stable when API results arrive in a different order', () => {
+  const chores = [
+    step('b-second', 2, { routine_stack_id: 'stack-b' }),
+    step('a-second', 2, { routine_stack_id: 'stack-a' }),
+    step('b-first', 1, { routine_stack_id: 'stack-b' }),
+    step('a-first', 1, { routine_stack_id: 'stack-a' }),
+    step('earlier', 1, { routine_stack_id: 'stack-z', due_date: '2026-10-08' }),
+  ]
+  const order = (input: typeof chores) => routineStacks(input).map(group => group.steps.map(chore => chore.id))
+  expect(order(chores)).toEqual([['earlier'], ['a-first', 'a-second'], ['b-first', 'b-second']])
+  expect(order([...chores].reverse())).toEqual(order(chores))
+})
+
+it('keeps legacy same-day member cards stable without inferring timing from labels', () => {
+  const chores = [
+    step('morning', 1, { assigned_to: 'teen', routine: 'Morning' }),
+    step('evening', 1, { assigned_to: 'adult', routine: 'Evening' }),
+  ]
+  expect(routineStacks(chores).map(group => group.key)).toEqual(
+    routineStacks([...chores].reverse()).map(group => group.key),
+  )
+})
+
+it('preserves suggested day order within a legacy member occurrence', () => {
+  const chores = [step('evening', 1, { routine: 'Evening' }), step('morning', 1, { routine: 'Morning' })]
+  expect(routineStacks(chores).map(group => group.name)).toEqual(['Morning', 'Evening'])
+  expect(routineStacks([...chores].reverse()).map(group => group.name)).toEqual(['Morning', 'Evening'])
+})
+
 it('shows each durable step owner and routes durable Add step through the stack editor', () => {
   render(<RoutineStacks
     chores={[
