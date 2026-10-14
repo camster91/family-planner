@@ -954,21 +954,26 @@ test.describe.serial("email-free profile chore vertical", () => {
       expect(rows.length).toBeGreaterThanOrEqual(2);
       expect(rows.length).toBeLessThanOrEqual(8);
       expect(rows).toHaveLength(8);
-      expect(rows.every((row) => row.recurrence_id === recurring.recurrenceId)).toBe(
-        true,
-      );
-      expect(rows.every((row) => row.assigned_member_id === recurring.profileId)).toBe(
-        true,
-      );
+      expect(
+        rows.every((row) => row.recurrence_id === recurring.recurrenceId),
+      ).toBe(true);
+      expect(
+        rows.every((row) => row.assigned_member_id === recurring.profileId),
+      ).toBe(true);
       expect(rows.filter((row) => row.is_template)).toHaveLength(1);
-      expect(rows.find((row) => row.id === recurring.id)?.due_date.toISOString().slice(0, 10)).toBe(
-        today,
-      );
+      expect(
+        rows
+          .find((row) => row.id === recurring.id)
+          ?.due_date.toISOString()
+          .slice(0, 10),
+      ).toBe(today);
       expect(
         rows.every((row) => {
           const date = row.due_date.toISOString().slice(0, 10);
           const weekday = row.due_date.getUTCDay();
-          return date >= today && date <= horizonDate && [1, 3].includes(weekday);
+          return (
+            date >= today && date <= horizonDate && [1, 3].includes(weekday)
+          );
         }),
       ).toBe(true);
 
@@ -1007,9 +1012,7 @@ test.describe.serial("email-free profile chore vertical", () => {
       const recurringGroup = page
         .locator("details")
         .filter({
-          has: page
-            .locator("summary")
-            .filter({ hasText: recurring.title }),
+          has: page.locator("summary").filter({ hasText: recurring.title }),
         })
         .first();
       await expect(recurringGroup).toBeVisible();
@@ -1048,7 +1051,9 @@ test.describe.serial("email-free profile chore vertical", () => {
         .getByRole("button");
       const complete = tablet.page.waitForResponse(
         (response) =>
-          response.url().endsWith(`/api/device/chores/${current!.id}/complete`) &&
+          response
+            .url()
+            .endsWith(`/api/device/chores/${current!.id}/complete`) &&
           response.request().method() === "POST",
       );
       await choreButton.click();
@@ -1082,8 +1087,7 @@ test.describe.serial("email-free profile chore vertical", () => {
       );
       expect(
         afterDevice.some(
-          (row) =>
-            row.due_date > current!.due_date && row.status === "pending",
+          (row) => row.due_date > current!.due_date && row.status === "pending",
         ),
       ).toBe(true);
 
@@ -1140,8 +1144,7 @@ test.describe.serial("email-free profile chore vertical", () => {
       );
       expect(
         afterVerify.some(
-          (row) =>
-            row.due_date > current!.due_date && row.status === "pending",
+          (row) => row.due_date > current!.due_date && row.status === "pending",
         ),
       ).toBe(true);
 
