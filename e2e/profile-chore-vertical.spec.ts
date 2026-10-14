@@ -1068,15 +1068,18 @@ test.describe.serial("email-free profile chore vertical", () => {
         );
         await verify.click();
         expect((await verified).status()).toBe(200);
+        // Confirm and dismiss the real success message so it cannot obscure
+        // retained history in the final capture, especially on phones.
+        await page
+          .getByRole("alert")
+          .filter({ hasText: chore.title })
+          .getByRole("button", { name: "Dismiss", exact: true })
+          .click();
       }
-      // Use the normal dismiss controls before capturing retained history;
-      // transient verification messages must not obscure the rows under review.
       const dismissToast = page.getByRole("button", {
         name: "Dismiss",
         exact: true,
       });
-      while ((await dismissToast.count()) > 0)
-        await dismissToast.first().click();
       await expect(dismissToast).toHaveCount(0);
       await expect(doneButton).toBeVisible();
       await expect(doneButton).toHaveAttribute("aria-expanded", "true");
