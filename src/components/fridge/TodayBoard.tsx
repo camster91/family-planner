@@ -48,8 +48,8 @@ import { usePersonBoardActions } from './use-person-board-actions'
 /** Keep optional inventory presentation out of the initial Today bundle. */
 function createUseSoonRegion() {
   return React.lazy(async () => {
-    const module = await import('./use-soon-region')
-    return { default: module.UseSoonRegion }
+    const useSoonModule = await import('./use-soon-region')
+    return { default: useSoonModule.UseSoonRegion }
   })
 }
 
