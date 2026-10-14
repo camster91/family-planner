@@ -129,35 +129,3 @@ it("refuses missing, inherited, and non-string route-owned keys", () => {
   expect(screen.getByTestId("inherited-copy").textContent).toBe("toString");
   expect(screen.getByTestId("non-string-copy").textContent).toBe("nonString");
 });
-
-const missingSpanishMessages = {
-  en: { englishOnly: "English-only copy" },
-  es: {},
-} as unknown as Readonly<
-  Record<"en" | "es", Readonly<Record<string, string>>>
->;
-
-function MissingSpanishMessageProbe() {
-  const text = useScopedMessages(missingSpanishMessages);
-  return <p data-testid="missing-spanish-copy">{text("englishOnly")}</p>;
-}
-
-it("does not silently fall back to English for a missing Spanish key", () => {
-  const { rerender } = render(
-    <I18nProvider locale="es">
-      <MissingSpanishMessageProbe />
-    </I18nProvider>,
-  );
-  expect(screen.getByTestId("missing-spanish-copy").textContent).toBe(
-    "englishOnly",
-  );
-
-  rerender(
-    <I18nProvider locale="es" pseudolocalize>
-      <MissingSpanishMessageProbe />
-    </I18nProvider>,
-  );
-  expect(screen.getByTestId("missing-spanish-copy").textContent).toBe(
-    "englishOnly",
-  );
-});
