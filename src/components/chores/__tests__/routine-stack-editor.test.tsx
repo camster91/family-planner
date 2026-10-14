@@ -193,7 +193,7 @@ it("contains long chore titles and fallback assignee IDs in mobile step controls
   });
   expect(screen.getByLabelText(`Assigned to: ${longTitle}`)).toBe(assignee);
   expect((assignee as HTMLSelectElement).disabled).toBe(false);
-  expect((assignee as HTMLSelectElement).value).toBe(longAssignee);
+  expect((assignee as HTMLSelectElement).value).toBe(`account:${longAssignee}`);
 });
 
 beforeEach(() => {
@@ -419,6 +419,108 @@ it("stages an existing chore and a new step, then sends one atomic draft", async
   });
   expect(refresh).toHaveBeenCalled();
   await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
+});
+
+it("keeps a name-only profile in the profile namespace when editing a routine", async () => {
+  const profileCandidates = {
+    ...candidates,
+    candidates: [
+      {
+        ...candidates.candidates[0],
+        id: "profile-chore",
+        title: "Pack toys",
+        assigned_to: null,
+        assigned_member_id: "member-jamie",
+      },
+    ],
+    assignmentOptions: [
+      ...candidates.assignmentOptions,
+      {
+        memberId: "member-jamie",
+        name: "Jamie",
+        role: "child",
+      },
+    ],
+  };
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  fetchMock.mockImplementation(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.includes("/candidates")) return response(profileCandidates);
+      return response(saveResponse);
+    },
+  );
+
+  const user = userEvent.setup();
+  renderEditor();
+  await user.click(await screen.findByRole("button", { name: "Add" }));
+
+  const assignee = screen.getByRole("combobox", {
+    name: "Assigned to: Pack toys",
+  });
+  expect((assignee as HTMLSelectElement).value).toBe("profile:member-jamie");
+  expect(screen.getByRole("option", { name: "Jamie · child" })).toBeTruthy();
+
+  await user.click(screen.getByRole("button", { name: "Save routine" }));
+  await waitFor(() =>
+    expect(
+      calls.some((call) => call.init?.method === "POST"),
+    ).toBe(true),
+  );
+  const post = calls.find((call) => call.init?.method === "POST");
+  const body = JSON.parse(String(post?.init?.body));
+  expect(body.steps[0]).toMatchObject({
+    assigned_to: null,
+    assigned_member_id: "member-jamie",
+  });
+});
+
+it("creates a new profile step without manufacturing an account ID", async () => {
+  const profileOptions = {
+    ...candidates,
+    candidates: [],
+    assignmentOptions: [
+      ...candidates.assignmentOptions,
+      {
+        memberId: "member-jamie",
+        name: "Jamie",
+        role: "child",
+      },
+    ],
+  };
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  fetchMock.mockImplementation(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.includes("/candidates")) return response(profileOptions);
+      return response(saveResponse);
+    },
+  );
+
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByLabelText("Routine name");
+  await user.type(screen.getByLabelText("Chore title"), "Put away toys");
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "Assigned to" }),
+    "profile:member-jamie",
+  );
+  await user.click(screen.getByRole("button", { name: "Add step" }));
+  await user.click(screen.getByRole("button", { name: "Save routine" }));
+  await waitFor(() =>
+    expect(
+      calls.some((call) => call.init?.method === "POST"),
+    ).toBe(true),
+  );
+  const post = calls.find((call) => call.init?.method === "POST");
+  const body = JSON.parse(String(post?.init?.body));
+  expect(body.steps[0]).toMatchObject({
+    title: "Put away toys",
+    assigned_to: null,
+    assigned_member_id: "member-jamie",
+  });
 });
 
 it("requires a discard confirmation before reloading after a definitive conflict", async () => {

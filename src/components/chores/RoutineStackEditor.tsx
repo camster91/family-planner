@@ -15,13 +15,17 @@ import { useTranslation } from "@/i18n";
 
 type Candidate = ParsedCandidates["candidates"][number];
 type AssignmentOption = ParsedCandidates["assignmentOptions"][number];
+type AssignmentSelection =
+  | { kind: "account"; id: string }
+  | { kind: "profile"; id: string };
 
 type DraftStep = {
   draftId: string;
   choreId?: string;
   title: string;
   description: string | null;
-  assignedTo: string;
+  /** A profile-only step has no login account owner. */
+  assignedTo: string | null;
   assignedMemberId: string | null;
   dueDate: string;
   frequency: "once" | "daily" | "weekly" | "monthly";
@@ -100,7 +104,7 @@ const candidateSchema = z
     id: z.string().min(1),
     title: z.string(),
     description: z.string().nullable(),
-    assigned_to: z.string().min(1),
+    assigned_to: z.string().min(1).nullable(),
     assigned_member_id: z.string().nullable(),
     due_date: z.string().min(1),
     recurrence_id: z.string().nullable(),
@@ -116,13 +120,56 @@ const candidateSchema = z
   })
   .strict();
 
-const assignmentOptionSchema = z
+const canonicalAccountAssignmentOptionSchema = z
   .object({
+    kind: z.literal("account"),
     accountId: z.string().min(1),
     name: z.string(),
     role: z.string(),
   })
   .strict();
+
+const canonicalProfileAssignmentOptionSchema = z
+  .object({
+    kind: z.literal("profile"),
+    memberId: z.string().min(1),
+    name: z.string(),
+    role: z.string(),
+  })
+  .strict();
+
+const legacyAccountAssignmentOptionSchema = z
+  .object({
+    accountId: z.string().min(1),
+    name: z.string(),
+    role: z.string(),
+  })
+  .strict()
+  .transform((option) => ({ kind: "account" as const, ...option }));
+
+/**
+ * Profile IDs are a separate namespace from account IDs. The server may still
+ * return the legacy account option shape during the compatibility window, but
+ * a name-only member must always arrive as an explicit profile option.
+ */
+const profileAssignmentOptionSchema = z
+  .object({
+    memberId: z.string().min(1),
+    name: z.string(),
+    role: z.string(),
+  })
+  .strict()
+  .transform((option) => ({ kind: "profile" as const, ...option }));
+
+const assignmentOptionSchema = z.union([
+  canonicalProfileAssignmentOptionSchema,
+  profileAssignmentOptionSchema,
+  canonicalAccountAssignmentOptionSchema,
+  legacyAccountAssignmentOptionSchema.transform((option) => ({
+    kind: "account" as const,
+    ...option,
+  })),
+]);
 
 const candidatesResponseSchema = z
   .object({
@@ -139,7 +186,7 @@ const readStepSchema = z
     id: z.string().min(1),
     title: z.string(),
     description: z.string().nullable(),
-    assigned_to: z.string().min(1),
+    assigned_to: z.string().min(1).nullable(),
     assigned_member_id: z.string().nullable(),
     member_subject_erased: z.boolean(),
     due_date: z.string().min(1),
@@ -168,7 +215,9 @@ const compactResponseSchema = z
     steps: z.array(
       z.tuple([z.string().min(1), z.number().int(), z.number().int()]),
     ),
-    assignments: z.array(z.tuple([z.string().min(1), z.string().nullable()])),
+    assignments: z.array(
+      z.tuple([z.string().min(1).nullable(), z.string().nullable()]),
+    ),
     members: z.array(z.tuple([z.string().min(1), z.string()])),
     fingerprint: z.string(),
   })
@@ -304,6 +353,32 @@ function safeFrequency(value: string | undefined): DraftStep["frequency"] {
   return value === "daily" || value === "weekly" || value === "monthly"
     ? value
     : "once";
+}
+
+function assignmentOptionValue(option: AssignmentOption): string {
+  return option.kind === "profile"
+    ? `profile:${option.memberId}`
+    : `account:${option.accountId}`;
+}
+
+function assignmentValueForStep(
+  step: Pick<DraftStep, "assignedTo" | "assignedMemberId">,
+): string {
+  if (step.assignedTo) return `account:${step.assignedTo}`;
+  if (step.assignedMemberId) return `profile:${step.assignedMemberId}`;
+  return "";
+}
+
+function parseAssignmentValue(value: string): AssignmentSelection | null {
+  if (value.startsWith("account:")) {
+    const id = value.slice("account:".length);
+    return id ? { kind: "account", id } : null;
+  }
+  if (value.startsWith("profile:")) {
+    const id = value.slice("profile:".length);
+    return id ? { kind: "profile", id } : null;
+  }
+  return null;
 }
 
 function fromCandidate(candidate: Candidate, draftId: string): DraftStep {
@@ -704,7 +779,7 @@ export default function RoutineStackEditor({
 
   React.useEffect(() => {
     if (!newAssignee && assignmentOptions[0])
-      setNewAssignee(assignmentOptions[0].accountId);
+      setNewAssignee(assignmentOptionValue(assignmentOptions[0]));
   }, [assignmentOptions, newAssignee]);
 
   const editingLocked = saving || submission !== null;
@@ -754,7 +829,8 @@ export default function RoutineStackEditor({
   const addNewStep = () => {
     if (savingRef.current || submissionRef.current) return;
     const title = newTitle.trim();
-    if (!title || !newAssignee) {
+    const selection = parseAssignmentValue(newAssignee);
+    if (!title || !selection) {
       setSaveError(!title ? msg("titleRequired") : msg("assignmentRequired"));
       return;
     }
@@ -764,8 +840,8 @@ export default function RoutineStackEditor({
         draftId: newDraftId(),
         title,
         description: null,
-        assignedTo: newAssignee,
-        assignedMemberId: null,
+        assignedTo: selection.kind === "account" ? selection.id : null,
+        assignedMemberId: selection.kind === "profile" ? selection.id : null,
         dueDate: occurrenceDate,
         frequency: "once",
         weeklyDays: [],
@@ -811,16 +887,22 @@ export default function RoutineStackEditor({
     markDirty();
   };
 
-  const changeAssignment = (draftId: string, assignedTo: string) => {
+  const changeAssignment = (draftId: string, value: string) => {
     if (savingRef.current || submissionRef.current) return;
+    const selection = parseAssignmentValue(value);
+    if (!selection) return;
     setSteps((current) =>
       current.map((step) =>
         step.draftId === draftId
           ? {
               ...step,
-              assignedTo,
+              assignedTo: selection.kind === "account" ? selection.id : null,
               assignedMemberId:
-                step.assignedTo === assignedTo ? step.assignedMemberId : null,
+                selection.kind === "profile"
+                  ? selection.id
+                  : step.assignedTo === selection.id
+                    ? step.assignedMemberId
+                    : null,
             }
           : step,
       ),
@@ -982,9 +1064,33 @@ export default function RoutineStackEditor({
   const accountNames = React.useMemo(
     () =>
       new Map(
-        assignmentOptions.map((option) => [option.accountId, option.name]),
+        assignmentOptions.flatMap((option) =>
+          option.kind === "account"
+            ? [[option.accountId, option.name] as const]
+            : [],
+        ),
       ),
     [assignmentOptions],
+  );
+  const profileNames = React.useMemo(
+    () =>
+      new Map(
+        assignmentOptions.flatMap((option) =>
+          option.kind === "profile"
+            ? [[option.memberId, option.name] as const]
+            : [],
+        ),
+      ),
+    [assignmentOptions],
+  );
+  const assignmentName = React.useCallback(
+    (assignedTo: string | null, assignedMemberId: string | null) => {
+      if (assignedTo) return accountNames.get(assignedTo) ?? assignedTo;
+      return assignedMemberId
+        ? profileNames.get(assignedMemberId) ?? msg("notFound")
+        : msg("notFound");
+    },
+    [accountNames, msg, profileNames],
   );
   const allCandidatesAdded =
     candidates.length > 0 &&
@@ -1092,7 +1198,7 @@ export default function RoutineStackEditor({
                       </label>
                       <select
                         id={`routine-assignee-${step.draftId}`}
-                        value={step.assignedTo}
+                        value={assignmentValueForStep(step)}
                         onChange={(event) =>
                           changeAssignment(step.draftId, event.target.value)
                         }
@@ -1101,18 +1207,19 @@ export default function RoutineStackEditor({
                       >
                         {assignmentOptions.map((option) => (
                           <option
-                            key={option.accountId}
-                            value={option.accountId}
+                            key={assignmentOptionValue(option)}
+                            value={assignmentOptionValue(option)}
                           >
                             {option.name} · {option.role}
                           </option>
                         ))}
                         {!assignmentOptions.some(
-                          (option) => option.accountId === step.assignedTo,
+                          (option) =>
+                            assignmentOptionValue(option) ===
+                            assignmentValueForStep(step),
                         ) && (
-                          <option value={step.assignedTo}>
-                            {accountNames.get(step.assignedTo) ??
-                              step.assignedTo}
+                          <option value={assignmentValueForStep(step)}>
+                            {assignmentName(step.assignedTo, step.assignedMemberId)}
                           </option>
                         )}
                       </select>
@@ -1181,8 +1288,10 @@ export default function RoutineStackEditor({
                           {candidate.title}
                         </p>
                         <p className="text-footnote text-label-secondary [overflow-wrap:anywhere]">
-                          {accountNames.get(candidate.assigned_to) ??
-                            candidate.assigned_to}{" "}
+                          {assignmentName(
+                            candidate.assigned_to,
+                            candidate.assigned_member_id,
+                          )}{" "}
                           · {candidate.due_date.slice(0, 10)}
                         </p>
                       </div>
@@ -1258,7 +1367,10 @@ export default function RoutineStackEditor({
                 <option value="">{msg("noAssignments")}</option>
               )}
               {assignmentOptions.map((option) => (
-                <option key={option.accountId} value={option.accountId}>
+                <option
+                  key={assignmentOptionValue(option)}
+                  value={assignmentOptionValue(option)}
+                >
                   {option.name} · {option.role}
                 </option>
               ))}
