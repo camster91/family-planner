@@ -495,7 +495,9 @@ it("keeps a name-only profile in the profile namespace when editing a routine", 
     name: "Assigned to: Pack toys",
   });
   expect((assignee as HTMLSelectElement).value).toBe("profile:member-jamie");
-  expect(screen.getByRole("option", { name: "Jamie · child" })).toBeTruthy();
+  expect(
+    within(assignee).getByRole("option", { name: "Jamie · child" }),
+  ).toBeTruthy();
 
   await user.click(screen.getByRole("button", { name: "Save routine" }));
   await waitFor(() =>
