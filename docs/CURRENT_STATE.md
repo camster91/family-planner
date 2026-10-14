@@ -1,5 +1,11 @@
 # Current State
 
+## Current bounded UI continuation — 2026-10-13
+
+Accepted web main is `1822a944c575e7d3aff1838690c33aaf6d1299f6` (PR #547). Candidate and exact-main checks passed; deployment 400 served the same healthy revision at `2026-10-13T19:28:19Z`. Protected backup/isolated restore preceded dispatch. Capture issue #472 is closed against verified release evidence; #128/#499 and native/customer acceptance remain open. [Canonical release evidence](https://github.com/camster91/family-planner/issues/472#issuecomment-6153637439).
+
+The next #499 slice stabilizes same-day routine occurrence/member buckets by their existing identity before grouping. Legacy suggested day order and all step, permission and completion behavior remain unchanged. It introduces no timing metadata, schema, provider, scheduler or capability changes. Candidate review, browser and release gates remain pending in its PR. Compact fridge Use soon layout remains a separate recorded follow-up.
+
 ## Current quality continuation — 2026-10-13
 
 Accepted web baseline is `ed20d186cb635717aaffdcbe39be54d44d49ce06` (PR #544). Production deployment 399 served that exact image/revision with healthy startup and unchanged capability flags. Normal PR and exact-main build/image, Android and browser checks passed. Coolify Auto Deploy remains enabled: the merge webhook deployed before exact-main CI finished; the verified backup/restore was post-deployment recovery evidence. Owner decision #363 remains open.
