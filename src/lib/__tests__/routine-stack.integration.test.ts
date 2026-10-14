@@ -2118,6 +2118,52 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
     };
 
     try {
+      await db.chore.update({
+        where: { id: CHORE_A },
+        data: { status: "completed" },
+      });
+      const completedAccount = await db.chore.findUniqueOrThrow({
+        where: { id: CHORE_A },
+      });
+      const accountToProfileDraft: RoutineStackDraft = {
+        ...profileDraft,
+        stack_id: STACK_A,
+        steps: [
+          {
+            chore_id: CHORE_A,
+            assigned_to: null,
+            assigned_member_id: MEMBER_PROFILE_CHILD,
+            due_date: OCCURRENCE_DATE,
+            frequency: "once",
+            difficulty: "easy",
+            is_template: false,
+          },
+        ],
+        remove_chore_ids: [],
+        expected_fingerprint: fingerprintRoutineStackSnapshot([
+          completedAccount,
+        ]),
+      };
+      await expect(
+        saveParentRoutineStack(
+          db,
+          accountToProfileDraft,
+          profileActor,
+          `${PREFIX}-profile-history-account-to-profile`,
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "ROUTINE_STACK_CONFLICT",
+      });
+      await expect(
+        db.chore.findUniqueOrThrow({ where: { id: CHORE_A } }),
+      ).resolves.toMatchObject({
+        assigned_to: CHILD_A,
+        assigned_member_id: null,
+        routine_stack_id: STACK_A,
+        status: "completed",
+      });
+
       const first = await saveParentRoutineStack(
         db,
         profileDraft,
@@ -2229,6 +2275,74 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         ]),
       );
       expect(created.map((row: Db) => row.assigned_to)).toEqual([null, null]);
+
+      // A legacy account-only payload can contain no profile assignments while
+      // still removing or reassigning profile-owned rows selected from the
+      // current routine. The mutation coordinator must inspect those locked
+      // rows before receipt creation/replay and refuse the write when the
+      // profile capability is unavailable.
+      const profileFingerprint = fingerprintRoutineStackSnapshot(created);
+      const profileRemovalDraft: RoutineStackDraft = {
+        ...profileDraft,
+        stack_id: stackId!,
+        steps: [],
+        remove_chore_ids: created.map((row: Db) => row.id),
+        expected_fingerprint: profileFingerprint,
+      };
+      process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "0";
+      await expect(
+        saveParentRoutineStack(
+          db,
+          profileRemovalDraft,
+          profileActor,
+          `${PREFIX}-profile-removal-gate-off`,
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "MEMBER_PROTOCOL_UNAVAILABLE",
+      });
+      process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+
+      const profileReassignmentDraft: RoutineStackDraft = {
+        ...profileDraft,
+        stack_id: stackId!,
+        steps: created.map((row: Db) => ({
+          chore_id: row.id,
+          assigned_to: PARENT_A,
+          assigned_member_id: null,
+          due_date: OCCURRENCE_DATE,
+          frequency: "once" as const,
+          difficulty: "easy" as const,
+          is_template: false,
+        })),
+        remove_chore_ids: [],
+        expected_fingerprint: profileFingerprint,
+      };
+      await expect(
+        saveParentRoutineStack(
+          db,
+          profileReassignmentDraft,
+          { ...profileActor, memberProtocol: undefined },
+          `${PREFIX}-profile-reassignment-protocol-1`,
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "MEMBER_PROTOCOL_UNAVAILABLE",
+      });
+      expect(
+        await db.chore.count({
+          where: { family_id: FAMILY_A, routine_stack_id: stackId },
+        }),
+      ).toBe(2);
+      expect(
+        await db.chore.count({
+          where: {
+            family_id: FAMILY_A,
+            assigned_to: null,
+            assigned_member_id: MEMBER_PROFILE_CHILD,
+          },
+        }),
+      ).toBe(2);
 
       await db.householdMember.createMany({
         data: [
@@ -2363,6 +2477,76 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         null,
       ]);
 
+      const reorderedReplay = await saveParentRoutineStack(
+        db,
+        reorderedDraft,
+        profileActor,
+        `${PREFIX}-profile-reorder`,
+      );
+      expect(reorderedReplay).toEqual({
+        status: 200,
+        body: reordered.body,
+        replayed: true,
+      });
+
+      const removedProfileId = created[0]!.id;
+      await db.chore.update({
+        where: { id: removedProfileId },
+        data: { status: "verified" },
+      });
+      const currentBeforeUnstack = await db.chore.findMany({
+        where: { family_id: FAMILY_A, routine_stack_id: stackId },
+        orderBy: { routine_order: "asc" },
+      });
+      const retainedProfile = currentBeforeUnstack.find(
+        (row: Db) => row.id !== removedProfileId,
+      );
+      expect(retainedProfile).toBeDefined();
+      const unstackDraft: RoutineStackDraft = {
+        ...profileDraft,
+        stack_id: stackId!,
+        steps: [
+          {
+            chore_id: retainedProfile!.id,
+            assigned_to: null,
+            assigned_member_id: MEMBER_PROFILE_CHILD,
+            due_date: OCCURRENCE_DATE,
+            frequency: "once",
+            difficulty: "easy",
+            is_template: false,
+          },
+        ],
+        remove_chore_ids: [removedProfileId],
+        expected_fingerprint:
+          fingerprintRoutineStackSnapshot(currentBeforeUnstack),
+      };
+      const unstacked = await saveParentRoutineStack(
+        db,
+        unstackDraft,
+        profileActor,
+        `${PREFIX}-profile-unstack`,
+      );
+      expect(unstacked.status).toBe(200);
+      const unstackReplay = await saveParentRoutineStack(
+        db,
+        unstackDraft,
+        profileActor,
+        `${PREFIX}-profile-unstack`,
+      );
+      expect(unstackReplay).toEqual({
+        status: 200,
+        body: unstacked.body,
+        replayed: true,
+      });
+      expect(
+        await db.chore.findUniqueOrThrow({ where: { id: removedProfileId } }),
+      ).toMatchObject({
+        assigned_to: null,
+        assigned_member_id: MEMBER_PROFILE_CHILD,
+        status: "verified",
+        routine_stack_id: null,
+      });
+
       const deletion = await accountDeletion.deleteMemberAccount(PARENT_A, {
         db,
         uploadDir: path.join(process.cwd(), ".tmp-routine-stack-integration"),
@@ -2374,7 +2558,10 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         await db.routineStack.findUniqueOrThrow({ where: { id: stackId } }),
       ).toMatchObject({ created_by: null });
       const finalProfileRows = await db.chore.findMany({
-        where: { family_id: FAMILY_A, routine_stack_id: stackId },
+        where: {
+          family_id: FAMILY_A,
+          id: { in: created.map((row: Db) => row.id) },
+        },
       });
       expect(finalProfileRows).toHaveLength(2);
       expect(
@@ -2384,6 +2571,9 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
             row.assigned_member_id === MEMBER_PROFILE_CHILD,
         ),
       ).toBe(true);
+      expect(
+        finalProfileRows.find((row: Db) => row.id === removedProfileId),
+      ).toMatchObject({ status: "verified", routine_stack_id: null });
     } finally {
       if (previousEnabled === undefined) {
         delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;

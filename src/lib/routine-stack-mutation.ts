@@ -56,6 +56,12 @@ type TransactionDatabase = {
 };
 
 const REPEATING_FREQUENCIES = new Set(["daily", "weekly", "monthly"]);
+const PROFILE_SUBJECT_HISTORY_STATUSES = new Set([
+  "completed",
+  "check-pending",
+  "verified",
+  "approved",
+]);
 
 export interface RoutineStackActor {
   familyId: string;
@@ -91,6 +97,38 @@ export interface RoutineStackMutationResult {
 
 function hasProfileAssignments(draft: RoutineStackDraft): boolean {
   return draft.steps.some((step) => step.assigned_to === null);
+}
+
+function profileSubjectChanged(
+  row: Record<string, unknown>,
+  draft: RoutineStackDraft,
+): boolean {
+  const rowId = String(row.id ?? "");
+  if (draft.remove_chore_ids.includes(rowId)) return false;
+  const step = draft.steps.find((candidate) => candidate.chore_id === rowId);
+  if (!step) return false;
+  return (
+    step.assigned_to !==
+      (typeof row.assigned_to === "string" ? row.assigned_to : null) ||
+    (step.assigned_member_id ?? null) !==
+      (typeof row.assigned_member_id === "string"
+        ? row.assigned_member_id
+        : null)
+  );
+}
+
+function profileSubjectTouched(
+  row: Record<string, unknown>,
+  draft: RoutineStackDraft,
+): boolean {
+  const isProfileRow = row.assigned_to === null;
+  const rowId = String(row.id ?? "");
+  const target = draft.steps.find((step) => step.chore_id === rowId);
+  const targetsProfile = target?.assigned_to === null;
+  return (
+    (isProfileRow && draft.remove_chore_ids.includes(rowId)) ||
+    (profileSubjectChanged(row, draft) && (isProfileRow || targetsProfile))
+  );
 }
 
 class RoutineStackMutationError extends Error {
@@ -335,6 +373,88 @@ export async function mutateRoutineStackInTx<T extends object>(
   // are re-entrant, so a route that already holds the user lock is safe here.
   await lockUser(tx, actor.userId);
   await lockHousehold(tx, actor.familyId);
+  // Household deletion acquires this advisory lock before its Family row lock.
+  // Match that order before taking the Family row lock as well.
+  await lockFamily(tx, actor.familyId);
+  let stack = draft.stack_id
+    ? asRecord(
+        await tx.routineStack.findFirst({
+          where: { id: draft.stack_id, family_id: actor.familyId },
+        }),
+      )
+    : null;
+  if (draft.stack_id && !stack?.id) throw genericNotFound();
+
+  if (stack?.id && !draft.expected_fingerprint) {
+    throw invalid("Reload this routine before saving it.");
+  }
+  if (!stack?.id && draft.expected_fingerprint) {
+    throw invalid("A new routine cannot include an existing fingerprint.");
+  }
+
+  const selectedIds = draft.steps
+    .flatMap((step) => (step.chore_id ? [step.chore_id] : []))
+    .concat(draft.remove_chore_ids);
+  for (const id of selectedIds)
+    await lockChore(tx, actor.familyId, id, draft.occurrence_date);
+  const { start: occurrenceStart, end: occurrenceEnd } = occurrenceBounds(
+    draft.occurrence_date,
+  );
+  const currentStackRows = stack?.id
+    ? rows(
+        await tx.chore.findMany({
+          where: {
+            family_id: actor.familyId,
+            routine_stack_id: String(stack.id),
+            due_date: { gte: occurrenceStart, lt: occurrenceEnd },
+          },
+          orderBy: { routine_order: "asc" },
+        }),
+      )
+    : [];
+  const existingRows = rows(
+    await tx.chore.findMany({
+      where: {
+        family_id: actor.familyId,
+        id: { in: selectedIds },
+        due_date: { gte: occurrenceStart, lt: occurrenceEnd },
+      },
+      orderBy: { routine_order: "asc" },
+    }),
+  );
+  const existingById = new Map(
+    existingRows.map((row) => [String(row.id), row]),
+  );
+
+  const touchedProfileRows = existingRows.filter((row) =>
+    profileSubjectTouched(row, draft),
+  );
+  if (touchedProfileRows.length > 0) {
+    if (!profileAssignmentEnabled(actor, options)) {
+      throw new RoutineStackMutationError(
+        409,
+        PROFILE_CHORE_UNSUPPORTED_CODE,
+        "Profile-assigned routines require member protocol 2.",
+      );
+    }
+    for (const row of touchedProfileRows) {
+      if (
+        profileSubjectChanged(row, draft) &&
+        PROFILE_SUBJECT_HISTORY_STATUSES.has(
+          typeof row.status === "string" ? row.status : "",
+        )
+      ) {
+        throw conflict(
+          "A completed profile step cannot change its subject or history.",
+        );
+      }
+    }
+  }
+
+  // Check the idempotency receipt only after locked selected rows have proved
+  // that a profile subject is not being removed or reassigned by an old
+  // account-only client. This prevents replaying a legacy success response
+  // while the current profile capability is unavailable.
   if (options.recordId) {
     await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${options.recordId} FOR UPDATE`;
     const record = asRecord(
@@ -395,45 +515,6 @@ export async function mutateRoutineStackInTx<T extends object>(
     }
   }
 
-  // Household deletion acquires this advisory lock before its Family row lock.
-  // Match that order before taking the Family row lock as well.
-  await lockFamily(tx, actor.familyId);
-  let stack = draft.stack_id
-    ? asRecord(
-        await tx.routineStack.findFirst({
-          where: { id: draft.stack_id, family_id: actor.familyId },
-        }),
-      )
-    : null;
-  if (draft.stack_id && !stack?.id) throw genericNotFound();
-
-  if (stack?.id && !draft.expected_fingerprint) {
-    throw invalid("Reload this routine before saving it.");
-  }
-  if (!stack?.id && draft.expected_fingerprint) {
-    throw invalid("A new routine cannot include an existing fingerprint.");
-  }
-
-  const selectedIds = draft.steps
-    .flatMap((step) => (step.chore_id ? [step.chore_id] : []))
-    .concat(draft.remove_chore_ids);
-  for (const id of selectedIds)
-    await lockChore(tx, actor.familyId, id, draft.occurrence_date);
-  const { start: occurrenceStart, end: occurrenceEnd } = occurrenceBounds(
-    draft.occurrence_date,
-  );
-  const currentStackRows = stack?.id
-    ? rows(
-        await tx.chore.findMany({
-          where: {
-            family_id: actor.familyId,
-            routine_stack_id: String(stack.id),
-            due_date: { gte: occurrenceStart, lt: occurrenceEnd },
-          },
-          orderBy: { routine_order: "asc" },
-        }),
-      )
-    : [];
   if (
     stack?.id &&
     fingerprintRoutineStackSnapshot(snapshotRows(currentStackRows)) !==
@@ -454,19 +535,7 @@ export async function mutateRoutineStackInTx<T extends object>(
       );
     }
   }
-  const existingRows = rows(
-    await tx.chore.findMany({
-      where: {
-        family_id: actor.familyId,
-        id: { in: selectedIds },
-        due_date: { gte: occurrenceStart, lt: occurrenceEnd },
-      },
-      orderBy: { routine_order: "asc" },
-    }),
-  );
-  const existingById = new Map(
-    existingRows.map((row) => [String(row.id), row]),
-  );
+
   if (existingRows.length !== selectedIds.length) throw genericNotFound();
   if (existingRows.some((row) => row.is_template === true)) {
     throw invalid(

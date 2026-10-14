@@ -834,7 +834,9 @@ test.describe.serial("email-free profile chore vertical", () => {
     assertFixtureTargetAllowed(process.env);
     const x = names(info);
     const ip = clientIp(info);
-    const routine = `${x.prefix} morning picture routine`;
+    // Keep the fixture within ROUTINE_NAME_MAX (40) while retaining a unique
+    // suffix so this remains a real round-trip of the product limit.
+    const routine = `Morning pictures ${x.prefix.slice(-8)}`;
     const date = E2E_ANCHOR.toISOString().slice(0, 10);
     const profileSpecs = [
       { profile: x.profiles[0], icon: "brush-teeth", order: 1 },
