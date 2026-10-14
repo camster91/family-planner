@@ -8,7 +8,14 @@ import { mutateRoutineStackInTx } from "@/lib/routine-stack-mutation";
 
 type Row = Record<string, unknown>;
 
-function makeTx(initial: { stack?: Row; chores?: Row[]; record?: Row } = {}) {
+function makeTx(
+  initial: {
+    stack?: Row;
+    chores?: Row[];
+    record?: Row;
+    profileMember?: Row;
+  } = {},
+) {
   const state = {
     stack: initial.stack ?? null,
     chores: initial.chores ?? [],
@@ -24,6 +31,9 @@ function makeTx(initial: { stack?: Row; chores?: Row[]; record?: Row } = {}) {
       return [{ id: "family-a" }];
     },
     family: { findFirst: async () => ({ id: "family-a" }) },
+    householdMember: {
+      findFirst: async () => initial.profileMember ?? null,
+    },
     routineStack: {
       findFirst: async () => state.stack,
       create: async ({ data }: { data: Row }) => {
@@ -74,6 +84,27 @@ function makeTx(initial: { stack?: Row; chores?: Row[]; record?: Row } = {}) {
     },
   };
   return { tx, state };
+}
+
+async function withProfileChoresEnabled<T>(work: () => Promise<T>): Promise<T> {
+  const previousEnabled = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+  const previousRollback = process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+  process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+  process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+  try {
+    return await work();
+  } finally {
+    if (previousEnabled === undefined) {
+      delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+    } else {
+      process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = previousEnabled;
+    }
+    if (previousRollback === undefined) {
+      delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+    } else {
+      process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = previousRollback;
+    }
+  }
 }
 
 function existingChore(overrides: Row = {}): Row {
@@ -295,6 +326,268 @@ describe("routine stack transaction coordinator", () => {
     expect(state.writes).toEqual([]);
   });
 
+  it("refuses a completed profile replay before reading the receipt when the gate is off", async () => {
+    await withProfileChoresEnabled(async () => {
+      process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "0";
+      const draft = normalizeRoutineStackDraft({
+        family_id: "family-a",
+        stack_id: null,
+        occurrence_date: "2026-10-12",
+        label: "Morning",
+        steps: [
+          {
+            title: "Brush teeth",
+            assigned_to: null,
+            assigned_member_id: "member-toddler",
+            due_date: "2026-10-12",
+            frequency: "once",
+          },
+        ],
+        remove_chore_ids: [],
+        expected_fingerprint: "",
+      });
+      const { tx, state } = makeTx({
+        record: {
+          action: "routine-stack.mutate",
+          request_hash: hashIdempotentRequest("routine-stack.mutate", draft),
+          response_status: 200,
+          response_body: { stack_id: "stack-a" },
+        },
+      });
+
+      await expect(
+        mutateRoutineStackInTx(
+          tx,
+          draft,
+          {
+            familyId: "family-a",
+            userId: "parent-a",
+            role: "parent",
+            memberProtocol: 2,
+          },
+          { recordId: "record-a", profileAssignmentAllowed: true },
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "MEMBER_PROTOCOL_UNAVAILABLE",
+      });
+      expect(state.writes).toEqual([]);
+      expect(state.queries).toEqual([]);
+    });
+  });
+
+  it.each([
+    {
+      label: "removal",
+      steps: [],
+      remove_chore_ids: ["chore-a"],
+    },
+    {
+      label: "account reassignment",
+      steps: [
+        {
+          chore_id: "chore-a",
+          assigned_to: "user-b",
+          assigned_member_id: null,
+          due_date: "2026-10-12",
+          frequency: "once" as const,
+        },
+      ],
+      remove_chore_ids: [],
+    },
+  ])(
+    "does not replay a profile $label through an account-only draft",
+    async ({ steps, remove_chore_ids }) => {
+      const profile = existingChore({
+        assigned_to: null,
+        assigned_member_id: "member-toddler",
+      });
+      const draft = normalizeRoutineStackDraft(
+        input({
+          expected_fingerprint: fingerprintRoutineStackSnapshot([
+            profile as never,
+          ]),
+          steps,
+          remove_chore_ids,
+        }),
+      );
+      const { tx, state } = makeTx({
+        stack: { id: "stack-a", family_id: "family-a", version: 2 },
+        chores: [profile],
+        record: {
+          action: "routine-stack.mutate",
+          request_hash: hashIdempotentRequest("routine-stack.mutate", draft),
+          response_status: 200,
+          response_body: { stack_id: "stack-a" },
+        },
+      });
+
+      await expect(
+        mutateRoutineStackInTx(
+          tx,
+          draft,
+          { familyId: "family-a", userId: "parent-a", role: "parent" },
+          { recordId: "record-a", profileAssignmentAllowed: true },
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "MEMBER_PROTOCOL_UNAVAILABLE",
+      });
+      expect(state.writes).toEqual([]);
+      expect(
+        state.queries.some((query) => query.includes('"IdempotencyRecord"')),
+      ).toBe(false);
+    },
+  );
+
+  it("protects completed profile history from subject changes but permits unstacking it", async () => {
+    await withProfileChoresEnabled(async () => {
+      const profile = existingChore({
+        assigned_to: null,
+        assigned_member_id: "member-toddler",
+        status: "completed",
+      });
+      const account = existingChore({
+        id: "chore-b",
+        routine_order: 2,
+      });
+      const fingerprint = fingerprintRoutineStackSnapshot([
+        profile as never,
+        account as never,
+      ]);
+      const subjectChange = normalizeRoutineStackDraft(
+        input({
+          expected_fingerprint: fingerprint,
+          steps: [
+            {
+              chore_id: "chore-a",
+              assigned_to: "user-b",
+              assigned_member_id: null,
+              due_date: "2026-10-12",
+              frequency: "once",
+            },
+            {
+              chore_id: "chore-b",
+              assigned_to: "user-a",
+              assigned_member_id: "member-a",
+              due_date: "2026-10-12",
+              frequency: "once",
+            },
+          ],
+        }),
+      );
+      const first = makeTx({
+        stack: { id: "stack-a", family_id: "family-a", version: 2 },
+        chores: [profile, account],
+      });
+      await expect(
+        mutateRoutineStackInTx(
+          first.tx,
+          subjectChange,
+          {
+            familyId: "family-a",
+            userId: "parent-a",
+            role: "parent",
+            memberProtocol: 2,
+          },
+          {
+            profileAssignmentAllowed: true,
+            resolveAssignee: async () => ({ assigned_to: "user-b" }),
+          },
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "ROUTINE_STACK_CONFLICT",
+      });
+      expect(first.state.writes).toEqual([]);
+
+      const completedAccount = existingChore({
+        id: "chore-c",
+        assigned_to: "user-a",
+        assigned_member_id: "member-a",
+        status: "completed",
+        routine_order: 3,
+      });
+      const accountFingerprint = fingerprintRoutineStackSnapshot([
+        completedAccount as never,
+      ]);
+      const accountToProfile = normalizeRoutineStackDraft(
+        input({
+          expected_fingerprint: accountFingerprint,
+          steps: [
+            {
+              chore_id: "chore-c",
+              assigned_to: null,
+              assigned_member_id: "member-toddler",
+              due_date: "2026-10-12",
+              frequency: "once",
+            },
+          ],
+        }),
+      );
+      const accountToProfileTx = makeTx({
+        stack: { id: "stack-a", family_id: "family-a", version: 2 },
+        chores: [completedAccount],
+      });
+      await expect(
+        mutateRoutineStackInTx(
+          accountToProfileTx.tx,
+          accountToProfile,
+          {
+            familyId: "family-a",
+            userId: "parent-a",
+            role: "parent",
+            memberProtocol: 2,
+          },
+          { profileAssignmentAllowed: true },
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "ROUTINE_STACK_CONFLICT",
+      });
+      expect(accountToProfileTx.state.writes).toEqual([]);
+
+      const unstack = normalizeRoutineStackDraft(
+        input({
+          expected_fingerprint: fingerprint,
+          steps: [
+            {
+              chore_id: "chore-b",
+              assigned_to: "user-a",
+              assigned_member_id: "member-a",
+              due_date: "2026-10-12",
+              frequency: "once",
+            },
+          ],
+          remove_chore_ids: ["chore-a"],
+        }),
+      );
+      const second = makeTx({
+        stack: { id: "stack-a", family_id: "family-a", version: 2 },
+        chores: [profile, account],
+      });
+      const result = await mutateRoutineStackInTx(
+        second.tx,
+        unstack,
+        {
+          familyId: "family-a",
+          userId: "parent-a",
+          role: "parent",
+          memberProtocol: 2,
+        },
+        { profileAssignmentAllowed: true },
+      );
+      expect(result.status).toBe(200);
+      expect(profile).toMatchObject({
+        assigned_to: null,
+        assigned_member_id: "member-toddler",
+        status: "completed",
+        routine_stack_id: null,
+      });
+      expect(second.state.writes).toContain("chore.update:chore-a");
+    });
+  });
+
   it("rechecks a selected unstacked token when extending an existing stack", async () => {
     const current = existingChore();
     const candidate = existingChore({
@@ -335,7 +628,9 @@ describe("routine stack transaction coordinator", () => {
             }),
           },
         ],
-        expected_fingerprint: fingerprintRoutineStackSnapshot([current as never]),
+        expected_fingerprint: fingerprintRoutineStackSnapshot([
+          current as never,
+        ]),
       }),
     );
     const { tx, state } = makeTx({
@@ -446,6 +741,248 @@ describe("routine stack transaction coordinator", () => {
       ),
     ).rejects.toMatchObject({ status: 400 });
   });
+
+  it("creates a once profile step without inventing an account subject", async () => {
+    await withProfileChoresEnabled(async () => {
+      const { tx, state } = makeTx({
+        profileMember: {
+          id: "member-toddler",
+          family_id: "family-a",
+          role: "child",
+          age: 3,
+          archived_at: null,
+          erasure_user_id: null,
+          legacy_mapping: null,
+          account_link: null,
+        },
+      });
+      const result = await mutateRoutineStackInTx(
+        tx,
+        {
+          family_id: "family-a",
+          stack_id: null,
+          occurrence_date: "2026-10-12",
+          label: "Morning",
+          steps: [
+            {
+              title: "Brush teeth",
+              assigned_to: null,
+              assigned_member_id: "member-toddler",
+              due_date: "2026-10-12",
+              frequency: "once",
+              weekly_days: [],
+            },
+          ],
+          remove_chore_ids: [],
+          expected_fingerprint: "",
+        },
+        {
+          familyId: "family-a",
+          userId: "parent-a",
+          role: "parent",
+          memberProtocol: 2,
+        },
+        { profileAssignmentAllowed: true },
+      );
+
+      expect(result.status).toBe(200);
+      expect(state.chores).toHaveLength(1);
+      expect(state.chores[0]).toMatchObject({
+        assigned_to: null,
+        assigned_member_id: "member-toddler",
+        frequency: "once",
+      });
+      expect(result.body).toMatchObject({
+        assignments: [[null, "member-toddler"]],
+      });
+      expect(JSON.stringify(result.body)).not.toContain("parent-a");
+    });
+  });
+
+  it("keeps new profile steps out of recurring series", async () => {
+    await withProfileChoresEnabled(async () => {
+      const { tx, state } = makeTx({
+        profileMember: {
+          id: "member-toddler",
+          family_id: "family-a",
+          role: "child",
+          age: 3,
+          archived_at: null,
+          erasure_user_id: null,
+          legacy_mapping: null,
+          account_link: null,
+        },
+      });
+      await expect(
+        mutateRoutineStackInTx(
+          tx,
+          {
+            family_id: "family-a",
+            stack_id: null,
+            occurrence_date: "2026-10-12",
+            label: "Morning",
+            steps: [
+              {
+                title: "Brush teeth",
+                assigned_to: null,
+                assigned_member_id: "member-toddler",
+                due_date: "2026-10-12",
+                frequency: "weekly",
+                weekly_days: [1],
+              },
+            ],
+            remove_chore_ids: [],
+            expected_fingerprint: "",
+          },
+          {
+            familyId: "family-a",
+            userId: "parent-a",
+            role: "parent",
+            memberProtocol: 2,
+          },
+          { profileAssignmentAllowed: true },
+        ),
+      ).rejects.toMatchObject({
+        code: "ROUTINE_STACK_RECURRENCE_UNSUPPORTED",
+      });
+      expect(state.writes).not.toContain("chore.create");
+    });
+  });
+
+  it.each([
+    {
+      label: "without protocol 2",
+      actor: { familyId: "family-a", userId: "parent-a", role: "parent" },
+      options: { profileAssignmentAllowed: true },
+      enabled: true,
+      profileMember: {
+        id: "member-toddler",
+        family_id: "family-a",
+        role: "child",
+        age: 3,
+        archived_at: null,
+        erasure_user_id: null,
+        legacy_mapping: null,
+        account_link: null,
+      },
+      code: "MEMBER_PROTOCOL_UNAVAILABLE",
+      status: 409,
+    },
+    {
+      label: "with the profile flag off",
+      actor: {
+        familyId: "family-a",
+        userId: "parent-a",
+        role: "parent",
+        memberProtocol: 2 as const,
+      },
+      options: { profileAssignmentAllowed: true },
+      enabled: false,
+      profileMember: null,
+      code: "MEMBER_PROTOCOL_UNAVAILABLE",
+      status: 409,
+    },
+    {
+      label: "for an archived profile",
+      actor: {
+        familyId: "family-a",
+        userId: "parent-a",
+        role: "parent",
+        memberProtocol: 2 as const,
+      },
+      options: { profileAssignmentAllowed: true },
+      enabled: true,
+      profileMember: {
+        id: "member-toddler",
+        family_id: "family-a",
+        role: "child",
+        age: 3,
+        archived_at: new Date("2026-01-01T00:00:00.000Z"),
+        erasure_user_id: null,
+        legacy_mapping: null,
+        account_link: null,
+      },
+      code: undefined,
+      status: 409,
+    },
+    {
+      label: "for a linked profile",
+      actor: {
+        familyId: "family-a",
+        userId: "parent-a",
+        role: "parent",
+        memberProtocol: 2 as const,
+      },
+      options: { profileAssignmentAllowed: true },
+      enabled: true,
+      profileMember: {
+        id: "member-toddler",
+        family_id: "family-a",
+        role: "child",
+        age: 3,
+        archived_at: null,
+        erasure_user_id: null,
+        legacy_mapping: null,
+        account_link: { user_id: "child-a" },
+      },
+      code: undefined,
+      status: 409,
+    },
+    {
+      label: "for a foreign profile identity",
+      actor: {
+        familyId: "family-a",
+        userId: "parent-a",
+        role: "parent",
+        memberProtocol: 2 as const,
+      },
+      options: { profileAssignmentAllowed: true },
+      enabled: true,
+      profileMember: null,
+      code: undefined,
+      status: 404,
+    },
+  ])(
+    "rejects a profile assignment $label before chore creation",
+    async ({ actor, options, enabled, profileMember, code, status }) => {
+      const run = async () => {
+        const { tx, state } = makeTx({
+          profileMember: profileMember ?? undefined,
+        });
+        await expect(
+          mutateRoutineStackInTx(
+            tx,
+            {
+              family_id: "family-a",
+              stack_id: null,
+              occurrence_date: "2026-10-12",
+              label: "Morning",
+              steps: [
+                {
+                  title: "Brush teeth",
+                  assigned_to: null,
+                  assigned_member_id: "member-toddler",
+                  due_date: "2026-10-12",
+                  frequency: "once",
+                  weekly_days: [],
+                },
+              ],
+              remove_chore_ids: [],
+              expected_fingerprint: "",
+            },
+            actor,
+            options,
+          ),
+        ).rejects.toMatchObject(code ? { status, code } : { status });
+        expect(state.writes).not.toContain("chore.create");
+      };
+      if (enabled) {
+        await withProfileChoresEnabled(run);
+      } else {
+        await run();
+      }
+    },
+  );
 
   it("stacks a generated recurring occurrence without changing its canonical history", async () => {
     const anchor = seriesAnchor();

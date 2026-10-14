@@ -6,6 +6,7 @@ import { CHORE_PAGE_MAX, decodeChoreCursor } from "@/lib/chore-paging";
 import { parseDateOnly } from "@/lib/dates";
 import { getRequestId } from "@/lib/request-id";
 import { prisma } from "@/lib/prisma";
+import { requestedMemberProtocol } from "@/lib/chore-profile";
 import {
   readParentRoutineStackCandidates,
   type RoutineStackCandidateDb,
@@ -35,6 +36,19 @@ function parseLimit(raw: string | null): number | null {
   if (!/^\d{1,3}$/.test(raw)) return null;
   const limit = Number(raw);
   return limit >= 1 && limit <= CHORE_PAGE_MAX ? limit : null;
+}
+
+function routineStackActor(
+  request: NextRequest,
+  user: { family_id: string; id: string; role: string },
+) {
+  const memberProtocol = requestedMemberProtocol(request);
+  return {
+    familyId: user.family_id,
+    userId: user.id,
+    role: user.role,
+    ...(memberProtocol === 2 ? { memberProtocol } : {}),
+  };
 }
 
 /**
@@ -81,11 +95,7 @@ export async function GET(request: NextRequest) {
 
     const result = await readParentRoutineStackCandidates(
       prisma! as unknown as RoutineStackCandidateDb,
-      {
-        familyId: auth.user.family_id,
-        userId: auth.user.id,
-        role: auth.user.role,
-      },
+      routineStackActor(request, auth.user),
       occurrenceDate,
       { limit, cursor },
     );

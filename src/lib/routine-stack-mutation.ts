@@ -7,15 +7,26 @@
  * the generic post-effect idempotency helper is deliberately not used here.
  */
 import crypto from "node:crypto";
+import {
+  isProfileChoreEnabled,
+  PROFILE_CHORE_UNSUPPORTED_CODE,
+  profileChoreCreateSchema,
+} from "@/lib/chore-profile";
 import { choreAssigneeForCreateInTx } from "@/lib/chore-member-subject";
 import { lockHousehold, lockUser } from "@/lib/household-lock";
 import { hashIdempotentRequest } from "@/lib/idempotency";
+import {
+  isProfileAgeAllowed,
+  profileRoleSchema,
+  type MemberProtocol,
+} from "@/lib/member-subject-contract";
 import { createChoreSchema } from "@/lib/validations";
 import {
   fingerprintRoutineStackSnapshot,
   fingerprintRoutineStackSelectedStep,
   normalizeRoutineStackDraft,
   projectRoutineStackResponse,
+  type RoutineStackDraft,
   type RoutineStackMemberProjection,
   type RoutineStackSnapshotStep,
   RoutineStackValidationError,
@@ -34,6 +45,7 @@ type RuntimeTransaction = {
     ...values: unknown[]
   ): Promise<unknown>;
   family: RuntimeDelegate;
+  householdMember: RuntimeDelegate;
   routineStack: RuntimeDelegate;
   chore: RuntimeDelegate;
   idempotencyRecord: RuntimeDelegate;
@@ -44,12 +56,24 @@ type TransactionDatabase = {
 };
 
 const REPEATING_FREQUENCIES = new Set(["daily", "weekly", "monthly"]);
+const PROFILE_SUBJECT_HISTORY_STATUSES = new Set([
+  "completed",
+  "check-pending",
+  "verified",
+  "approved",
+]);
 
 export interface RoutineStackActor {
   familyId: string;
   userId: string;
   role: string;
+  memberProtocol?: MemberProtocol;
 }
+
+type RoutineStackAssignee = {
+  assigned_to: string | null;
+  assigned_member_id?: string;
+};
 
 export interface RoutineStackMutationOptions {
   /** IdempotencyRecord created by the route transaction; this coordinator locks it. */
@@ -59,7 +83,9 @@ export interface RoutineStackMutationOptions {
     tx: unknown,
     familyId: string,
     userId: string,
-  ) => Promise<{ assigned_to: string; assigned_member_id?: string } | null>;
+  ) => Promise<RoutineStackAssignee | null>;
+  /** Route-owned capability check; direct callers remain account-only by default. */
+  profileAssignmentAllowed?: boolean;
   memberDictionary?: readonly RoutineStackMemberProjection[];
 }
 
@@ -67,6 +93,42 @@ export interface RoutineStackMutationResult {
   status: number;
   body: unknown;
   replayed?: boolean;
+}
+
+function hasProfileAssignments(draft: RoutineStackDraft): boolean {
+  return draft.steps.some((step) => step.assigned_to === null);
+}
+
+function profileSubjectChanged(
+  row: Record<string, unknown>,
+  draft: RoutineStackDraft,
+): boolean {
+  const rowId = String(row.id ?? "");
+  if (draft.remove_chore_ids.includes(rowId)) return false;
+  const step = draft.steps.find((candidate) => candidate.chore_id === rowId);
+  if (!step) return false;
+  return (
+    step.assigned_to !==
+      (typeof row.assigned_to === "string" ? row.assigned_to : null) ||
+    (step.assigned_member_id ?? null) !==
+      (typeof row.assigned_member_id === "string"
+        ? row.assigned_member_id
+        : null)
+  );
+}
+
+function profileSubjectTouched(
+  row: Record<string, unknown>,
+  draft: RoutineStackDraft,
+): boolean {
+  const isProfileRow = row.assigned_to === null;
+  const rowId = String(row.id ?? "");
+  const target = draft.steps.find((step) => step.chore_id === rowId);
+  const targetsProfile = target?.assigned_to === null;
+  return (
+    (isProfileRow && draft.remove_chore_ids.includes(rowId)) ||
+    (profileSubjectChanged(row, draft) && (isProfileRow || targetsProfile))
+  );
 }
 
 class RoutineStackMutationError extends Error {
@@ -95,6 +157,55 @@ function dateValue(value: unknown): Date | string {
   return value instanceof Date || typeof value === "string" ? value : "";
 }
 
+function profileAssignmentEnabled(
+  actor: RoutineStackActor,
+  options: RoutineStackMutationOptions,
+): boolean {
+  return (
+    options.profileAssignmentAllowed === true &&
+    actor.memberProtocol === 2 &&
+    isProfileChoreEnabled()
+  );
+}
+
+async function profileAssigneeForCreateInTx(
+  tx: RuntimeTransaction,
+  familyId: string,
+  memberId: string,
+): Promise<RoutineStackAssignee> {
+  const target = asRecord(
+    await tx.householdMember.findFirst({
+      where: { id: memberId, family_id: familyId },
+      select: {
+        id: true,
+        family_id: true,
+        role: true,
+        age: true,
+        archived_at: true,
+        erasure_user_id: true,
+        legacy_mapping: { select: { user_id: true } },
+        account_link: { select: { user_id: true } },
+      },
+    }),
+  );
+  if (!target.id || target.family_id !== familyId || target.id !== memberId)
+    throw genericNotFound();
+  const role = profileRoleSchema.safeParse(target.role);
+  const validAge = target.age === null || typeof target.age === "number";
+  if (
+    !role.success ||
+    !validAge ||
+    !isProfileAgeAllowed(role.data, target.age as number | null) ||
+    target.archived_at ||
+    target.erasure_user_id ||
+    target.legacy_mapping ||
+    target.account_link
+  ) {
+    throw conflict("The selected profile is no longer available.");
+  }
+  return { assigned_to: null, assigned_member_id: String(target.id) };
+}
+
 function snapshotRows(
   value: readonly Record<string, unknown>[],
 ): RoutineStackSnapshotStep[] {
@@ -103,7 +214,7 @@ function snapshotRows(
     family_id: String(row.family_id ?? ""),
     title: String(row.title ?? ""),
     description: typeof row.description === "string" ? row.description : null,
-    assigned_to: String(row.assigned_to ?? ""),
+    assigned_to: typeof row.assigned_to === "string" ? row.assigned_to : null,
     assigned_member_id:
       typeof row.assigned_member_id === "string"
         ? row.assigned_member_id
@@ -232,6 +343,16 @@ export async function mutateRoutineStackInTx<T extends object>(
   options: RoutineStackMutationOptions = {},
 ): Promise<RoutineStackMutationResult> {
   const draft = normalizeRoutineStackDraft(input);
+  if (
+    hasProfileAssignments(draft) &&
+    !profileAssignmentEnabled(actor, options)
+  ) {
+    throw new RoutineStackMutationError(
+      409,
+      PROFILE_CHORE_UNSUPPORTED_CODE,
+      "Profile-assigned routines require member protocol 2.",
+    );
+  }
   if (actor.role !== "parent") {
     return {
       status: 403,
@@ -252,6 +373,88 @@ export async function mutateRoutineStackInTx<T extends object>(
   // are re-entrant, so a route that already holds the user lock is safe here.
   await lockUser(tx, actor.userId);
   await lockHousehold(tx, actor.familyId);
+  // Household deletion acquires this advisory lock before its Family row lock.
+  // Match that order before taking the Family row lock as well.
+  await lockFamily(tx, actor.familyId);
+  let stack = draft.stack_id
+    ? asRecord(
+        await tx.routineStack.findFirst({
+          where: { id: draft.stack_id, family_id: actor.familyId },
+        }),
+      )
+    : null;
+  if (draft.stack_id && !stack?.id) throw genericNotFound();
+
+  if (stack?.id && !draft.expected_fingerprint) {
+    throw invalid("Reload this routine before saving it.");
+  }
+  if (!stack?.id && draft.expected_fingerprint) {
+    throw invalid("A new routine cannot include an existing fingerprint.");
+  }
+
+  const selectedIds = draft.steps
+    .flatMap((step) => (step.chore_id ? [step.chore_id] : []))
+    .concat(draft.remove_chore_ids);
+  for (const id of selectedIds)
+    await lockChore(tx, actor.familyId, id, draft.occurrence_date);
+  const { start: occurrenceStart, end: occurrenceEnd } = occurrenceBounds(
+    draft.occurrence_date,
+  );
+  const currentStackRows = stack?.id
+    ? rows(
+        await tx.chore.findMany({
+          where: {
+            family_id: actor.familyId,
+            routine_stack_id: String(stack.id),
+            due_date: { gte: occurrenceStart, lt: occurrenceEnd },
+          },
+          orderBy: { routine_order: "asc" },
+        }),
+      )
+    : [];
+  const existingRows = rows(
+    await tx.chore.findMany({
+      where: {
+        family_id: actor.familyId,
+        id: { in: selectedIds },
+        due_date: { gte: occurrenceStart, lt: occurrenceEnd },
+      },
+      orderBy: { routine_order: "asc" },
+    }),
+  );
+  const existingById = new Map(
+    existingRows.map((row) => [String(row.id), row]),
+  );
+
+  const touchedProfileRows = existingRows.filter((row) =>
+    profileSubjectTouched(row, draft),
+  );
+  if (touchedProfileRows.length > 0) {
+    if (!profileAssignmentEnabled(actor, options)) {
+      throw new RoutineStackMutationError(
+        409,
+        PROFILE_CHORE_UNSUPPORTED_CODE,
+        "Profile-assigned routines require member protocol 2.",
+      );
+    }
+    for (const row of touchedProfileRows) {
+      if (
+        profileSubjectChanged(row, draft) &&
+        PROFILE_SUBJECT_HISTORY_STATUSES.has(
+          typeof row.status === "string" ? row.status : "",
+        )
+      ) {
+        throw conflict(
+          "A completed profile step cannot change its subject or history.",
+        );
+      }
+    }
+  }
+
+  // Check the idempotency receipt only after locked selected rows have proved
+  // that a profile subject is not being removed or reassigned by an old
+  // account-only client. This prevents replaying a legacy success response
+  // while the current profile capability is unavailable.
   if (options.recordId) {
     await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${options.recordId} FOR UPDATE`;
     const record = asRecord(
@@ -312,45 +515,6 @@ export async function mutateRoutineStackInTx<T extends object>(
     }
   }
 
-  // Household deletion acquires this advisory lock before its Family row lock.
-  // Match that order before taking the Family row lock as well.
-  await lockFamily(tx, actor.familyId);
-  let stack = draft.stack_id
-    ? asRecord(
-        await tx.routineStack.findFirst({
-          where: { id: draft.stack_id, family_id: actor.familyId },
-        }),
-      )
-    : null;
-  if (draft.stack_id && !stack?.id) throw genericNotFound();
-
-  if (stack?.id && !draft.expected_fingerprint) {
-    throw invalid("Reload this routine before saving it.");
-  }
-  if (!stack?.id && draft.expected_fingerprint) {
-    throw invalid("A new routine cannot include an existing fingerprint.");
-  }
-
-  const selectedIds = draft.steps
-    .flatMap((step) => (step.chore_id ? [step.chore_id] : []))
-    .concat(draft.remove_chore_ids);
-  for (const id of selectedIds)
-    await lockChore(tx, actor.familyId, id, draft.occurrence_date);
-  const { start: occurrenceStart, end: occurrenceEnd } = occurrenceBounds(
-    draft.occurrence_date,
-  );
-  const currentStackRows = stack?.id
-    ? rows(
-        await tx.chore.findMany({
-          where: {
-            family_id: actor.familyId,
-            routine_stack_id: String(stack.id),
-            due_date: { gte: occurrenceStart, lt: occurrenceEnd },
-          },
-          orderBy: { routine_order: "asc" },
-        }),
-      )
-    : [];
   if (
     stack?.id &&
     fingerprintRoutineStackSnapshot(snapshotRows(currentStackRows)) !==
@@ -371,19 +535,7 @@ export async function mutateRoutineStackInTx<T extends object>(
       );
     }
   }
-  const existingRows = rows(
-    await tx.chore.findMany({
-      where: {
-        family_id: actor.familyId,
-        id: { in: selectedIds },
-        due_date: { gte: occurrenceStart, lt: occurrenceEnd },
-      },
-      orderBy: { routine_order: "asc" },
-    }),
-  );
-  const existingById = new Map(
-    existingRows.map((row) => [String(row.id), row]),
-  );
+
   if (existingRows.length !== selectedIds.length) throw genericNotFound();
   if (existingRows.some((row) => row.is_template === true)) {
     throw invalid(
@@ -403,7 +555,8 @@ export async function mutateRoutineStackInTx<T extends object>(
       fingerprintRoutineStackSelectedStep({
         id: String(row.id ?? ""),
         family_id: String(row.family_id ?? ""),
-        assigned_to: String(row.assigned_to ?? ""),
+        assigned_to:
+          typeof row.assigned_to === "string" ? row.assigned_to : null,
         assigned_member_id:
           typeof row.assigned_member_id === "string"
             ? row.assigned_member_id
@@ -418,7 +571,9 @@ export async function mutateRoutineStackInTx<T extends object>(
           typeof row.routine_order === "number" ? row.routine_order : null,
       }) !== expected
     ) {
-      throw conflict("A selected step changed. Reload the routine and try again.");
+      throw conflict(
+        "A selected step changed. Reload the routine and try again.",
+      );
     }
   }
   const recurrenceIds = [
@@ -528,6 +683,7 @@ export async function mutateRoutineStackInTx<T extends object>(
     options.resolveAssignee ??
     ((txValue: unknown, familyId: string, userId: string) =>
       choreAssigneeForCreateInTx(txValue as never, familyId, userId));
+  const allowProfileAssignment = profileAssignmentEnabled(actor, options);
   for (const [index, step] of draft.steps.entries()) {
     const current = step.chore_id ? existingById.get(step.chore_id) : undefined;
     const assignmentUnchanged =
@@ -538,15 +694,52 @@ export async function mutateRoutineStackInTx<T extends object>(
     if (current?.member_subject_erased === true && !assignmentUnchanged) {
       throw invalid("An erased member subject cannot be reassigned.");
     }
-    const assignee = assignmentUnchanged
-      ? {
-          assigned_to: String(current?.assigned_to),
-          assigned_member_id:
-            typeof current?.assigned_member_id === "string"
-              ? current.assigned_member_id
-              : undefined,
-        }
-      : await resolveAssignee(rawTx, actor.familyId, step.assigned_to);
+    let assignee: RoutineStackAssignee | null;
+    if (step.assigned_to === null) {
+      if (!allowProfileAssignment) {
+        throw new RoutineStackMutationError(
+          409,
+          "MEMBER_PROTOCOL_UNAVAILABLE",
+          "Profile-assigned routines require member protocol 2.",
+        );
+      }
+      if (step.frequency !== "once" || step.recurrence_id != null) {
+        throw invalid(
+          "Profile-assigned routine steps must be one-time occurrences.",
+        );
+      }
+      if (
+        current &&
+        (current.frequency !== "once" || current.recurrence_id != null)
+      ) {
+        throw conflict(
+          "Profile-assigned recurring steps must be edited as one-time occurrences.",
+        );
+      }
+      if (!step.assigned_member_id) {
+        throw invalid(
+          "A profile-assigned step needs a stable member identity.",
+        );
+      }
+      assignee = await profileAssigneeForCreateInTx(
+        tx,
+        actor.familyId,
+        step.assigned_member_id,
+      );
+    } else {
+      assignee = assignmentUnchanged
+        ? {
+            assigned_to:
+              typeof current?.assigned_to === "string"
+                ? current.assigned_to
+                : null,
+            assigned_member_id:
+              typeof current?.assigned_member_id === "string"
+                ? current.assigned_member_id
+                : undefined,
+          }
+        : await resolveAssignee(rawTx, actor.familyId, step.assigned_to);
+    }
     if (!assignee)
       throw invalid("Choose an active household member for every step.");
     if (
@@ -569,19 +762,36 @@ export async function mutateRoutineStackInTx<T extends object>(
       if (!current) throw genericNotFound();
       await tx.chore.update({ where: { id: step.chore_id }, data });
     } else {
-      const canonical = createChoreSchema.safeParse({
-        title: step.title,
-        description: step.description ?? null,
-        points: 10,
-        assigned_to: assignee.assigned_to,
-        due_date: step.due_date,
-        difficulty: step.difficulty,
-        frequency: step.frequency,
-        weekly_days: step.frequency === "weekly" ? step.weekly_days : undefined,
-        icon: step.icon ?? null,
-        routine: draft.label,
-        routine_order: index + 1,
-      });
+      const profileMemberId = assignee.assigned_member_id;
+      const canonical =
+        step.assigned_to === null
+          ? profileChoreCreateSchema.safeParse({
+              protocol: 2,
+              selection: { memberId: profileMemberId },
+              title: step.title,
+              description: step.description ?? null,
+              points: 10,
+              due_date: step.due_date,
+              difficulty: step.difficulty,
+              frequency: "once",
+              icon: step.icon ?? null,
+              routine: draft.label,
+              routine_order: index + 1,
+            })
+          : createChoreSchema.safeParse({
+              title: step.title,
+              description: step.description ?? null,
+              points: 10,
+              assigned_to: assignee.assigned_to,
+              due_date: step.due_date,
+              difficulty: step.difficulty,
+              frequency: step.frequency,
+              weekly_days:
+                step.frequency === "weekly" ? step.weekly_days : undefined,
+              icon: step.icon ?? null,
+              routine: draft.label,
+              routine_order: index + 1,
+            });
       if (!canonical.success) {
         throw invalid(
           canonical.error.issues[0]?.message ??

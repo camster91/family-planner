@@ -53,6 +53,26 @@ it('keeps legacy same-day member cards stable without inferring timing from labe
   )
 })
 
+it('keeps same-day email-free profiles in separate legacy routine buckets', () => {
+  const chores = [
+    step('profile-a-step', 1, {
+      assigned_to: null as never,
+      assigned_member_id: 'member-a',
+      assignee: null,
+      subject: { kind: 'profile' as const, memberId: 'member-a', name: 'Jamie', role: 'child' as const },
+    }),
+    step('profile-b-step', 1, {
+      assigned_to: null as never,
+      assigned_member_id: 'member-b',
+      assignee: null,
+      subject: { kind: 'profile' as const, memberId: 'member-b', name: 'Alex', role: 'child' as const },
+    }),
+  ]
+  const groups = routineStacks(chores)
+  expect(groups).toHaveLength(2)
+  expect(new Set(groups.map(group => group.key)).size).toBe(2)
+})
+
 it('preserves suggested day order within a legacy member occurrence', () => {
   const chores = [step('evening', 1, { routine: 'Evening' }), step('morning', 1, { routine: 'Morning' })]
   expect(routineStacks(chores).map(group => group.name)).toEqual(['Morning', 'Evening'])
@@ -146,6 +166,21 @@ it('keeps an unreadable profile routine read-only without an account fallback', 
   expect(screen.queryByRole('button', { name: 'Complete missing-profile-step' })).toBeNull()
   expect(screen.queryByRole('link', { name: 'Edit missing-profile-step' })).toBeNull()
   expect(screen.queryByRole('link', { name: 'Add step' })).toBeNull()
+})
+
+it('routes an active email-free profile Add step through a stable profile query', () => {
+  const profile = step('profile-step', 1, {
+    assigned_to: null as never,
+    assigned_member_id: 'member-no-email',
+    assignee: null,
+    subject: { kind: 'profile' as const, memberId: 'member-no-email', name: 'Jamie', role: 'child' as const },
+  })
+  render(<RoutineStacks chores={[profile]} userRole="parent" currentUserId="adult" familyId="family-a" locale="en-CA" onComplete={jest.fn()} />)
+  const href = screen.getByRole('link', { name: 'Add step' }).getAttribute('href')
+  expect(href).toBeTruthy()
+  const params = new URLSearchParams(href!.split('?')[1])
+  expect(params.get('profile')).toBe('member-no-email')
+  expect(params.get('member')).toBeNull()
 })
 
 it('keeps an erased profile routine read-only without an account fallback', () => {

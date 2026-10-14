@@ -22,6 +22,8 @@ import { hashIdempotentRequest } from "@/lib/idempotency";
 import {
   readParentRoutineStackCandidates,
   readParentRoutineStack,
+  type ParentRoutineStackRead,
+  type ParentRoutineStackReadProtocolRefusal,
   saveParentRoutineStack,
 } from "@/lib/routine-stack-api";
 import { decodeChoreCursor } from "@/lib/chore-paging";
@@ -70,6 +72,7 @@ const MEMBER_PARENT_A = `${PREFIX}-member-parent-a`;
 const MEMBER_OTHER_PARENT_A = `${PREFIX}-member-parent-2`;
 const MEMBER_CHILD_A = `${PREFIX}-member-child-a`;
 const MEMBER_PARENT_B = `${PREFIX}-member-parent-b`;
+const MEMBER_PROFILE_CHILD = `${PREFIX}-member-profile-child`;
 const MEMBER_DORMANT_A = `${PREFIX}-member-dormant-a`;
 const MEMBER_ARCHIVED_A = `${PREFIX}-member-archived-a`;
 const MEMBER_ERASED_A = `${PREFIX}-member-erased-a`;
@@ -106,6 +109,15 @@ const MALFORMED_OCCURRENCE = `${PREFIX}-malformed-occurrence`;
 const EMPTY_OCCURRENCE = `${PREFIX}-empty-occurrence`;
 const OCCURRENCE_DATE = "2026-10-12";
 const OCCURRENCE = new Date(`${OCCURRENCE_DATE}T00:00:00.000Z`);
+
+function requireRoutineStackRead(
+  value: ParentRoutineStackRead | ParentRoutineStackReadProtocolRefusal | null,
+): ParentRoutineStackRead {
+  if (!value || "status" in value || "body" in value) {
+    throw new Error("Expected a readable routine stack response.");
+  }
+  return value;
+}
 
 async function loadDatabase(): Promise<Db> {
   const configuredModule = process.env.ROUTINE_STACK_PRISMA_CLIENT_MODULE;
@@ -290,6 +302,13 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
           family_id: FAMILY_B,
           name: "Parent B profile",
           role: "parent",
+        },
+        {
+          id: MEMBER_PROFILE_CHILD,
+          family_id: FAMILY_A,
+          name: "Profile child",
+          role: "child",
+          age: 3,
         },
       ],
     });
@@ -1036,6 +1055,7 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         }),
       ],
     });
+    const readable = requireRoutineStackRead(read);
     const persistedRows = await db.chore.findMany({
       where: {
         family_id: FAMILY_A,
@@ -1046,10 +1066,10 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         },
       },
     });
-    expect(read?.fingerprint).toBe(
+    expect(readable.fingerprint).toBe(
       fingerprintRoutineStackSnapshot(persistedRows),
     );
-    expect(read?.compact.fingerprint).toBe(read?.fingerprint);
+    expect(readable.compact.fingerprint).toBe(readable.fingerprint);
   });
 
   it("reads only eligible parent candidates and keeps account options privacy-safe", async () => {
@@ -1489,7 +1509,8 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         }),
       ],
     });
-    expect(fresh?.compact.fingerprint).toBe(fresh?.fingerprint);
+    const readableFresh = requireRoutineStackRead(fresh);
+    expect(readableFresh.compact.fingerprint).toBe(readableFresh.fingerprint);
     expect(
       await db.chore.findUniqueOrThrow({ where: { id: CHORE_RECURRING } }),
     ).toMatchObject({
@@ -1944,7 +1965,8 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
       occurrence_date: OCCURRENCE_DATE,
       steps: [expect.objectContaining({ id: CHORE_A })],
     });
-    expect(parent?.members).toEqual(
+    const readableParent = requireRoutineStackRead(parent);
+    expect(readableParent.members).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: MEMBER_CHILD_A,
@@ -1965,10 +1987,10 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
       ]),
     );
     expect(
-      parent?.members.every((member) => member.id.startsWith(PREFIX)),
+      readableParent.members.every((member) => member.id.startsWith(PREFIX)),
     ).toBe(true);
     expect(
-      parent?.members.some((member) => member.id === MEMBER_PARENT_B),
+      readableParent.members.some((member) => member.id === MEMBER_PARENT_B),
     ).toBe(false);
     expect(JSON.stringify(parent)).not.toContain("erasure_user_id");
     expect(JSON.stringify(parent)).not.toContain("@example.test");
@@ -2050,6 +2072,520 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         OCCURRENCE_DATE,
       ),
     ).resolves.toBeNull();
+  });
+
+  it("persists, reorders, replays, and preserves an email-free profile routine through account erasure", async () => {
+    const previousEnabled = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+    const previousRollback = process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+    const profileActor: RoutineStackActor = {
+      ...actorA,
+      memberProtocol: 2,
+    };
+    const profileDraft: RoutineStackDraft = {
+      scope: "occurrence",
+      family_id: FAMILY_A,
+      stack_id: null,
+      occurrence_date: OCCURRENCE_DATE,
+      label: "Toddler morning",
+      steps: [
+        {
+          title: "Brush teeth",
+          description: null,
+          assigned_to: null,
+          assigned_member_id: MEMBER_PROFILE_CHILD,
+          due_date: OCCURRENCE_DATE,
+          frequency: "once",
+          difficulty: "easy",
+          icon: null,
+          is_template: false,
+        },
+        {
+          title: "Put on shoes",
+          description: null,
+          assigned_to: null,
+          assigned_member_id: MEMBER_PROFILE_CHILD,
+          due_date: OCCURRENCE_DATE,
+          frequency: "once",
+          difficulty: "easy",
+          icon: null,
+          is_template: false,
+        },
+      ],
+      remove_chore_ids: [],
+      expected_fingerprint: "",
+    };
+
+    try {
+      await db.chore.update({
+        where: { id: CHORE_A },
+        data: { status: "completed" },
+      });
+      const completedAccount = await db.chore.findUniqueOrThrow({
+        where: { id: CHORE_A },
+      });
+      const accountToProfileDraft: RoutineStackDraft = {
+        ...profileDraft,
+        stack_id: STACK_A,
+        steps: [
+          {
+            chore_id: CHORE_A,
+            assigned_to: null,
+            assigned_member_id: MEMBER_PROFILE_CHILD,
+            due_date: OCCURRENCE_DATE,
+            frequency: "once",
+            difficulty: "easy",
+            is_template: false,
+          },
+        ],
+        remove_chore_ids: [],
+        expected_fingerprint: fingerprintRoutineStackSnapshot([
+          completedAccount,
+        ]),
+      };
+      await expect(
+        saveParentRoutineStack(
+          db,
+          accountToProfileDraft,
+          profileActor,
+          `${PREFIX}-profile-history-account-to-profile`,
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "ROUTINE_STACK_CONFLICT",
+      });
+      await expect(
+        db.chore.findUniqueOrThrow({ where: { id: CHORE_A } }),
+      ).resolves.toMatchObject({
+        assigned_to: CHILD_A,
+        assigned_member_id: null,
+        routine_stack_id: STACK_A,
+        status: "completed",
+      });
+
+      const first = await saveParentRoutineStack(
+        db,
+        profileDraft,
+        profileActor,
+        `${PREFIX}-profile-create`,
+      );
+      expect(first.status).toBe(200);
+      expect(first.body).toMatchObject({
+        assignments: [[null, MEMBER_PROFILE_CHILD]],
+      });
+      const stackId = (first.body as { stack_id?: string }).stack_id;
+      expect(stackId).toEqual(expect.any(String));
+      const profileRead = await readParentRoutineStack(
+        db,
+        profileActor,
+        stackId!,
+        OCCURRENCE_DATE,
+      );
+      expect(profileRead).toMatchObject({
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            assigned_to: null,
+            assigned_member_id: MEMBER_PROFILE_CHILD,
+          }),
+        ]),
+      });
+      const readableProfile = requireRoutineStackRead(profileRead);
+      expect(readableProfile.steps).toHaveLength(2);
+      expect(
+        await readParentRoutineStack(db, actorA, stackId!, OCCURRENCE_DATE),
+      ).toMatchObject({
+        status: 409,
+        body: {
+          code: "MEMBER_PROTOCOL_UNAVAILABLE",
+          recovery: "refresh-and-retain-pending",
+        },
+      });
+
+      const countsBeforeProfileRefusals = await Promise.all([
+        db.chore.count({ where: { family_id: FAMILY_A } }),
+        db.routineStack.count({ where: { family_id: FAMILY_A } }),
+        db.idempotencyRecord.count({ where: { family_id: FAMILY_A } }),
+      ]);
+      process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "0";
+      const gateOffReplay = await saveParentRoutineStack(
+        db,
+        profileDraft,
+        profileActor,
+        `${PREFIX}-profile-create`,
+      );
+      expect(gateOffReplay).toMatchObject({
+        status: 409,
+        body: {
+          error: {
+            code: "MEMBER_PROTOCOL_UNAVAILABLE",
+            recovery: "refresh-and-retain-pending",
+          },
+        },
+      });
+      process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+      process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "0";
+      const rollbackOffReplay = await saveParentRoutineStack(
+        db,
+        profileDraft,
+        profileActor,
+        `${PREFIX}-profile-create`,
+      );
+      expect(rollbackOffReplay).toMatchObject({
+        status: 409,
+        body: {
+          error: { code: "MEMBER_PROTOCOL_UNAVAILABLE" },
+        },
+      });
+      process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+      const protocolOneReplay = await saveParentRoutineStack(
+        db,
+        profileDraft,
+        { ...profileActor, memberProtocol: undefined },
+        `${PREFIX}-profile-create`,
+      );
+      expect(protocolOneReplay).toMatchObject({
+        status: 409,
+        body: {
+          error: { code: "MEMBER_PROTOCOL_UNAVAILABLE" },
+        },
+      });
+      expect(await db.chore.count({ where: { family_id: FAMILY_A } })).toBe(
+        countsBeforeProfileRefusals[0],
+      );
+      expect(
+        await db.routineStack.count({ where: { family_id: FAMILY_A } }),
+      ).toBe(countsBeforeProfileRefusals[1]);
+      expect(
+        await db.idempotencyRecord.count({ where: { family_id: FAMILY_A } }),
+      ).toBe(countsBeforeProfileRefusals[2]);
+
+      const created = await db.chore.findMany({
+        where: { family_id: FAMILY_A, routine_stack_id: stackId },
+        orderBy: { routine_order: "asc" },
+      });
+      expect(created).toHaveLength(2);
+      expect(created).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            assigned_to: null,
+            assigned_member_id: MEMBER_PROFILE_CHILD,
+            member_subject_erased: false,
+          }),
+        ]),
+      );
+      expect(created.map((row: Db) => row.assigned_to)).toEqual([null, null]);
+
+      // A legacy account-only payload can contain no profile assignments while
+      // still removing or reassigning profile-owned rows selected from the
+      // current routine. The mutation coordinator must inspect those locked
+      // rows before receipt creation/replay and refuse the write when the
+      // profile capability is unavailable.
+      const profileFingerprint = fingerprintRoutineStackSnapshot(created);
+      const profileRemovalDraft: RoutineStackDraft = {
+        ...profileDraft,
+        stack_id: stackId!,
+        steps: [],
+        remove_chore_ids: created.map((row: Db) => row.id),
+        expected_fingerprint: profileFingerprint,
+      };
+      process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "0";
+      await expect(
+        saveParentRoutineStack(
+          db,
+          profileRemovalDraft,
+          profileActor,
+          `${PREFIX}-profile-removal-gate-off`,
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "MEMBER_PROTOCOL_UNAVAILABLE",
+      });
+      process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+
+      const profileReassignmentDraft: RoutineStackDraft = {
+        ...profileDraft,
+        stack_id: stackId!,
+        steps: created.map((row: Db) => ({
+          chore_id: row.id,
+          assigned_to: PARENT_A,
+          assigned_member_id: null,
+          due_date: OCCURRENCE_DATE,
+          frequency: "once" as const,
+          difficulty: "easy" as const,
+          is_template: false,
+        })),
+        remove_chore_ids: [],
+        expected_fingerprint: profileFingerprint,
+      };
+      await expect(
+        saveParentRoutineStack(
+          db,
+          profileReassignmentDraft,
+          { ...profileActor, memberProtocol: undefined },
+          `${PREFIX}-profile-reassignment-protocol-1`,
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "MEMBER_PROTOCOL_UNAVAILABLE",
+      });
+      expect(
+        await db.chore.count({
+          where: { family_id: FAMILY_A, routine_stack_id: stackId },
+        }),
+      ).toBe(2);
+      expect(
+        await db.chore.count({
+          where: {
+            family_id: FAMILY_A,
+            assigned_to: null,
+            assigned_member_id: MEMBER_PROFILE_CHILD,
+          },
+        }),
+      ).toBe(2);
+
+      await db.householdMember.createMany({
+        data: [
+          {
+            id: MEMBER_ARCHIVED_A,
+            family_id: FAMILY_A,
+            name: "Archived profile",
+            role: "child",
+            age: 4,
+            archived_at: new Date("2026-10-01T00:00:00.000Z"),
+          },
+        ],
+      });
+      const profileDraftFor = (
+        memberId: string,
+        label: string,
+      ): RoutineStackDraft => ({
+        ...profileDraft,
+        label,
+        steps: [
+          {
+            ...profileDraft.steps[0]!,
+            assigned_member_id: memberId,
+          },
+        ],
+      });
+
+      await expect(
+        saveParentRoutineStack(
+          db,
+          profileDraftFor(MEMBER_PROFILE_CHILD, "Profile gate off"),
+          { ...profileActor, memberProtocol: undefined },
+          `${PREFIX}-profile-protocol-1`,
+        ),
+      ).resolves.toMatchObject({
+        status: 409,
+        body: { error: { code: "MEMBER_PROTOCOL_UNAVAILABLE" } },
+      });
+      process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "0";
+      await expect(
+        saveParentRoutineStack(
+          db,
+          profileDraftFor(MEMBER_PROFILE_CHILD, "Profile flag off"),
+          profileActor,
+          `${PREFIX}-profile-flag-off`,
+        ),
+      ).resolves.toMatchObject({
+        status: 409,
+        body: { error: { code: "MEMBER_PROTOCOL_UNAVAILABLE" } },
+      });
+      process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+      await expect(
+        saveParentRoutineStack(
+          db,
+          profileDraftFor(MEMBER_PARENT_B, "Foreign profile"),
+          profileActor,
+          `${PREFIX}-profile-foreign`,
+        ),
+      ).rejects.toMatchObject({
+        status: 404,
+        code: "ROUTINE_STACK_NOT_FOUND",
+      });
+      await expect(
+        saveParentRoutineStack(
+          db,
+          profileDraftFor(MEMBER_ARCHIVED_A, "Archived profile"),
+          profileActor,
+          `${PREFIX}-profile-archived`,
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "ROUTINE_STACK_CONFLICT",
+      });
+      await expect(
+        saveParentRoutineStack(
+          db,
+          profileDraftFor(MEMBER_CHILD_A, "Mapped profile"),
+          profileActor,
+          `${PREFIX}-profile-mapped`,
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "ROUTINE_STACK_CONFLICT",
+      });
+      const replay = await saveParentRoutineStack(
+        db,
+        profileDraft,
+        profileActor,
+        `${PREFIX}-profile-create`,
+      );
+      expect(replay).toEqual({
+        status: 200,
+        body: first.body,
+        replayed: true,
+      });
+      expect(
+        await db.chore.count({
+          where: { family_id: FAMILY_A, routine_stack_id: stackId },
+        }),
+      ).toBe(2);
+
+      const reorderedDraft: RoutineStackDraft = {
+        ...profileDraft,
+        stack_id: stackId!,
+        steps: [...created].reverse().map((row: Db) => ({
+          chore_id: row.id,
+          assigned_to: null,
+          assigned_member_id: MEMBER_PROFILE_CHILD,
+          due_date: OCCURRENCE_DATE,
+          frequency: "once" as const,
+          difficulty: "easy" as const,
+          is_template: false,
+        })),
+        expected_fingerprint: fingerprintRoutineStackSnapshot(created),
+      };
+      const reordered = await saveParentRoutineStack(
+        db,
+        reorderedDraft,
+        profileActor,
+        `${PREFIX}-profile-reorder`,
+      );
+      expect(reordered.status).toBe(200);
+      const afterReorder = await db.chore.findMany({
+        where: { family_id: FAMILY_A, routine_stack_id: stackId },
+        orderBy: { routine_order: "asc" },
+      });
+      expect(afterReorder.map((row: Db) => row.id)).toEqual(
+        created.map((row: Db) => row.id).reverse(),
+      );
+      expect(afterReorder.map((row: Db) => row.assigned_to)).toEqual([
+        null,
+        null,
+      ]);
+
+      const reorderedReplay = await saveParentRoutineStack(
+        db,
+        reorderedDraft,
+        profileActor,
+        `${PREFIX}-profile-reorder`,
+      );
+      expect(reorderedReplay).toEqual({
+        status: 200,
+        body: reordered.body,
+        replayed: true,
+      });
+
+      const removedProfileId = created[0]!.id;
+      await db.chore.update({
+        where: { id: removedProfileId },
+        data: { status: "verified" },
+      });
+      const currentBeforeUnstack = await db.chore.findMany({
+        where: { family_id: FAMILY_A, routine_stack_id: stackId },
+        orderBy: { routine_order: "asc" },
+      });
+      const retainedProfile = currentBeforeUnstack.find(
+        (row: Db) => row.id !== removedProfileId,
+      );
+      expect(retainedProfile).toBeDefined();
+      const unstackDraft: RoutineStackDraft = {
+        ...profileDraft,
+        stack_id: stackId!,
+        steps: [
+          {
+            chore_id: retainedProfile!.id,
+            assigned_to: null,
+            assigned_member_id: MEMBER_PROFILE_CHILD,
+            due_date: OCCURRENCE_DATE,
+            frequency: "once",
+            difficulty: "easy",
+            is_template: false,
+          },
+        ],
+        remove_chore_ids: [removedProfileId],
+        expected_fingerprint:
+          fingerprintRoutineStackSnapshot(currentBeforeUnstack),
+      };
+      const unstacked = await saveParentRoutineStack(
+        db,
+        unstackDraft,
+        profileActor,
+        `${PREFIX}-profile-unstack`,
+      );
+      expect(unstacked.status).toBe(200);
+      const unstackReplay = await saveParentRoutineStack(
+        db,
+        unstackDraft,
+        profileActor,
+        `${PREFIX}-profile-unstack`,
+      );
+      expect(unstackReplay).toEqual({
+        status: 200,
+        body: unstacked.body,
+        replayed: true,
+      });
+      expect(
+        await db.chore.findUniqueOrThrow({ where: { id: removedProfileId } }),
+      ).toMatchObject({
+        assigned_to: null,
+        assigned_member_id: MEMBER_PROFILE_CHILD,
+        status: "verified",
+        routine_stack_id: null,
+      });
+
+      const deletion = await accountDeletion.deleteMemberAccount(PARENT_A, {
+        db,
+        uploadDir: path.join(process.cwd(), ".tmp-routine-stack-integration"),
+        removeFile: async () => undefined,
+        revokeCalendarGrant: async () => undefined,
+      });
+      expect(deletion.deleted).toBe(true);
+      expect(
+        await db.routineStack.findUniqueOrThrow({ where: { id: stackId } }),
+      ).toMatchObject({ created_by: null });
+      const finalProfileRows = await db.chore.findMany({
+        where: {
+          family_id: FAMILY_A,
+          id: { in: created.map((row: Db) => row.id) },
+        },
+      });
+      expect(finalProfileRows).toHaveLength(2);
+      expect(
+        finalProfileRows.every(
+          (row: Db) =>
+            row.assigned_to === null &&
+            row.assigned_member_id === MEMBER_PROFILE_CHILD,
+        ),
+      ).toBe(true);
+      expect(
+        finalProfileRows.find((row: Db) => row.id === removedProfileId),
+      ).toMatchObject({ status: "verified", routine_stack_id: null });
+    } finally {
+      if (previousEnabled === undefined) {
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+      } else {
+        process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = previousEnabled;
+      }
+      if (previousRollback === undefined) {
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+      } else {
+        process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = previousRollback;
+      }
+    }
   });
 
   it("rereads the current role before creating a receipt", async () => {

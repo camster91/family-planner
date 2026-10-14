@@ -33,7 +33,9 @@ const draftStepSchema = z
     expected_fingerprint: z.string().trim().max(128).optional(),
     title: z.string().trim().min(1).max(200).optional(),
     description: z.string().trim().max(1000).nullable().optional(),
-    assigned_to: z.string().trim().min(1).max(128),
+    // A null account is valid only for an explicit protocol-2 profile subject;
+    // the transaction rechecks the feature gate and stable member identity.
+    assigned_to: z.string().trim().min(1).max(128).nullable(),
     assigned_member_id: z.string().trim().min(1).max(128).nullable().optional(),
     due_date: z.string().trim().min(1).max(64),
     frequency: frequencySchema,
@@ -126,6 +128,12 @@ export function normalizeRoutineStackDraft(input: unknown): RoutineStackDraft {
 
   const seen = new Set<string>();
   for (const step of parsed.data.steps) {
+    if (step.assigned_to === null && !step.assigned_member_id) {
+      throw new RoutineStackValidationError(
+        "ROUTINE_STACK_PROFILE_TARGET_REQUIRED",
+        "A profile-assigned step needs a stable member identity.",
+      );
+    }
     if (step.is_template) {
       throw new RoutineStackValidationError(
         "ROUTINE_STACK_RECURRENCE_UNSUPPORTED",
@@ -220,7 +228,7 @@ export interface RoutineStackSnapshotStep {
   family_id: string;
   title: string;
   description?: string | null;
-  assigned_to: string;
+  assigned_to: string | null;
   assigned_member_id?: string | null;
   member_subject_erased?: boolean;
   due_date: Date | string;
@@ -368,7 +376,10 @@ export interface RoutineStackCompactSource {
  * mutation receipt. Steps refer to this table by array index, so a 99-step
  * cross-member routine does not repeat long account and subject IDs 99 times.
  */
-export type RoutineStackCompactAssignment = readonly [string, string | null];
+export type RoutineStackCompactAssignment = readonly [
+  string | null,
+  string | null,
+];
 
 /**
  * A compact replay-safe projection. Array positions encode display order and
@@ -390,10 +401,10 @@ export function projectRoutineStackResponse(
   const assignments: RoutineStackCompactAssignment[] = [];
   const assignmentIndexes = new Map<string, number>();
   const assignmentIndexFor = (
-    assignedTo: string,
+    assignedTo: string | null,
     assignedMemberId: string | null,
   ): number => {
-    const key = `${assignedTo}\u0000${assignedMemberId ?? ""}`;
+    const key = JSON.stringify([assignedTo, assignedMemberId]);
     const existing = assignmentIndexes.get(key);
     if (existing !== undefined) return existing;
     const index = assignments.length;

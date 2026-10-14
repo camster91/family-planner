@@ -6,6 +6,7 @@ import { idempotencyError, readIdempotencyKey } from "@/lib/idempotency";
 import { parseDateOnly } from "@/lib/dates";
 import { getRequestId } from "@/lib/request-id";
 import { HouseholdMemberIdentityConflict } from "@/lib/household-member-lifecycle";
+import { requestedMemberProtocol } from "@/lib/chore-profile";
 import { prisma } from "@/lib/prisma";
 import {
   readParentRoutineStack,
@@ -41,6 +42,19 @@ function validOccurrenceDate(value: string | null): value is string {
   return value !== null && parseDateOnly(value) !== null;
 }
 
+function routineStackActor(
+  request: NextRequest,
+  user: { family_id: string; id: string; role: string },
+) {
+  const memberProtocol = requestedMemberProtocol(request);
+  return {
+    familyId: user.family_id,
+    userId: user.id,
+    role: user.role,
+    ...(memberProtocol === 2 ? { memberProtocol } : {}),
+  };
+}
+
 /** GET /api/chores/stacks?stack_id=<id>&occurrence_date=YYYY-MM-DD. */
 export async function GET(request: NextRequest) {
   const requestId = getRequestId(request);
@@ -70,11 +84,7 @@ export async function GET(request: NextRequest) {
 
     const result = await readParentRoutineStack(
       prisma! as unknown as RoutineStackReadDb,
-      {
-        familyId: auth.user.family_id,
-        userId: auth.user.id,
-        role: auth.user.role,
-      },
+      routineStackActor(request, auth.user),
       stackId,
       occurrenceDate,
     );
@@ -85,6 +95,15 @@ export async function GET(request: NextRequest) {
         "That routine is not available.",
         requestId,
       );
+    }
+    if (
+      "body" in result &&
+      result.body.code === "MEMBER_PROTOCOL_UNAVAILABLE"
+    ) {
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: NO_STORE,
+      });
     }
     return NextResponse.json(result, { headers: NO_STORE });
   } catch (caught) {
@@ -128,11 +147,7 @@ export async function POST(request: NextRequest) {
     const result = await saveParentRoutineStack(
       prisma! as unknown as RoutineStackWriteDb,
       body,
-      {
-        familyId: auth.user.family_id,
-        userId: auth.user.id,
-        role: auth.user.role,
-      },
+      routineStackActor(request, auth.user),
       key,
     );
     const response = NextResponse.json(result.body, { status: result.status });

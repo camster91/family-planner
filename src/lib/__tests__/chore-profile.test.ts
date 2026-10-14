@@ -140,7 +140,7 @@ describe("profile-only chore contract", () => {
     ).toBeNull();
   });
 
-  it("requires protocol 2 for profile creation and rejects recurring fields", () => {
+  it("requires protocol 2 and accepts picture routines while rejecting recurrence", () => {
     const valid = profileChoreCreateSchema.safeParse({
       protocol: 2,
       selection: { memberId: "member-child" },
@@ -165,8 +165,36 @@ describe("profile-only chore contract", () => {
         title: "Routine profile chore",
         due_date: "2026-10-11",
         routine: "Bedtime",
+        icon: "brush-teeth",
+        routine_order: 2,
       }).success,
-    ).toBe(false);
+    ).toBe(true);
+  });
+
+  it("uses the canonical picture, label and step bounds for email-free routines", () => {
+    const draft = {
+      protocol: 2,
+      selection: { memberId: "member-child" },
+      title: "Brush teeth",
+      due_date: "2026-10-11",
+      routine: "  Bedtime   reset  ",
+      icon: "brush-teeth",
+      routine_order: 2,
+    };
+    expect(profileChoreCreateSchema.parse(draft).routine).toBe("Bedtime reset");
+    for (const invalid of [
+      { icon: "unknown-picture" },
+      { routine: "x".repeat(41) },
+      { routine_order: 0 },
+      { routine_order: 100 },
+      { routine_order: 1.5 },
+      { assigned_to: "fake-account" },
+      { email: "child@example.invalid" },
+    ]) {
+      expect(
+        profileChoreCreateSchema.safeParse({ ...draft, ...invalid }).success,
+      ).toBe(false);
+    }
   });
 
   it("fails closed while the gate is off and exposes a no-store refusal", () => {
@@ -211,6 +239,9 @@ describe("profile-only chore contract", () => {
       status: "pending",
       frequency: "once",
       difficulty: "easy",
+      icon: "shoes",
+      routine: "Morning",
+      routine_order: 1,
       assignee: null,
       assigneeMember: baseMember,
     });
@@ -247,6 +278,9 @@ describe("profile-only chore contract", () => {
       due_date: "2026-10-11",
       difficulty: "easy",
       frequency: "once",
+      icon: "shoes",
+      routine: "Morning",
+      routine_order: 1,
     });
 
     const result = await createProfileOnlyChoreEffect(
@@ -268,6 +302,16 @@ describe("profile-only chore contract", () => {
       expect.objectContaining({ where: { id: "receipt-a" } }),
     );
     expect(choreCreate).toHaveBeenCalledTimes(1);
+    expect(choreCreate.mock.calls[0][0].data).toMatchObject({
+      assigned_to: null,
+      assigned_member_id: baseMember.id,
+      icon: "shoes",
+      routine: "Morning",
+      routine_order: 1,
+    });
+    expect(result.body).toMatchObject({
+      chore: { icon: "shoes", routine: "Morning", routine_order: 1 },
+    });
   });
 
   it("returns a completed receipt DTO without creating another chore", async () => {

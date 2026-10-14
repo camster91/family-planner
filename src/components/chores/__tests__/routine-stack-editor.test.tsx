@@ -193,7 +193,7 @@ it("contains long chore titles and fallback assignee IDs in mobile step controls
   });
   expect(screen.getByLabelText(`Assigned to: ${longTitle}`)).toBe(assignee);
   expect((assignee as HTMLSelectElement).disabled).toBe(false);
-  expect((assignee as HTMLSelectElement).value).toBe(longAssignee);
+  expect((assignee as HTMLSelectElement).value).toBe(`account:${longAssignee}`);
 });
 
 beforeEach(() => {
@@ -215,7 +215,11 @@ it("intercepts browser Back for a dirty draft and preserves it behind discard", 
     return response(saveResponse);
   });
   const user = userEvent.setup();
-  window.history.replaceState({ routineTest: "base" }, "", "/dashboard/chores/routines");
+  window.history.replaceState(
+    { routineTest: "base" },
+    "",
+    "/dashboard/chores/routines",
+  );
   renderEditor();
   await screen.findByText("Pack lunches");
   const label = screen.getByLabelText("Routine name");
@@ -245,7 +249,9 @@ it("retires an owned sentinel on dirty editor unmount and restores the captured 
   await user.type(screen.getByLabelText("Routine name"), "Keep this draft");
 
   expect(window.history.state).toEqual(
-    expect.objectContaining({ __familyPlannerRoutineStackEditor: expect.any(String) }),
+    expect.objectContaining({
+      __familyPlannerRoutineStackEditor: expect.any(String),
+    }),
   );
   view.unmount();
   expect(window.location.pathname).toBe("/dashboard/chores/routines");
@@ -317,7 +323,9 @@ it("resets stale history ownership when the same editor instance loads a new occ
   await screen.findByText("Pack lunches");
   await user.type(screen.getByLabelText("Routine name"), "Old draft");
   expect(window.history.state).toEqual(
-    expect.objectContaining({ __familyPlannerRoutineStackEditor: expect.any(String) }),
+    expect.objectContaining({
+      __familyPlannerRoutineStackEditor: expect.any(String),
+    }),
   );
 
   searchParams = new URLSearchParams("occurrence_date=2026-10-12");
@@ -356,12 +364,20 @@ it("keeps browser Back blocked while a save is pending", async () => {
     });
   });
   const user = userEvent.setup();
-  window.history.replaceState({ routineTest: "pending" }, "", "/dashboard/chores/routines");
+  window.history.replaceState(
+    { routineTest: "pending" },
+    "",
+    "/dashboard/chores/routines",
+  );
   renderEditor();
   await screen.findByText("Pack lunches");
   await user.click(screen.getByRole("button", { name: "Add" }));
   await user.click(screen.getByRole("button", { name: "Save routine" }));
-  await waitFor(() => expect((screen.getByLabelText("Routine name") as HTMLInputElement).disabled).toBe(true));
+  await waitFor(() =>
+    expect(
+      (screen.getByLabelText("Routine name") as HTMLInputElement).disabled,
+    ).toBe(true),
+  );
 
   window.history.back();
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -369,9 +385,7 @@ it("keeps browser Back blocked while a save is pending", async () => {
   expect(screen.getByText(/saving/i)).toBeTruthy();
 
   releaseSave(await response(saveResponse));
-  await waitFor(() =>
-    expect(screen.queryByText("Saving routine…")).toBeNull(),
-  );
+  await waitFor(() => expect(screen.queryByText("Saving routine…")).toBeNull());
 });
 
 it("stages an existing chore and a new step, then sends one atomic draft", async () => {
@@ -419,6 +433,142 @@ it("stages an existing chore and a new step, then sends one atomic draft", async
   });
   expect(refresh).toHaveBeenCalled();
   await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
+});
+
+it("sends protocol 2 on routine candidates, reads, and saves", async () => {
+  searchParams = new URLSearchParams(
+    "stack_id=stack-a&occurrence_date=2026-10-11",
+  );
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  fetchMock.mockImplementation(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.includes("/candidates")) return response(candidates);
+      if (url.includes("/api/chores/stacks?") && !init?.method)
+        return response(existing);
+      return response(saveResponse);
+    },
+  );
+
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText("Brush teeth");
+  await user.click(screen.getByRole("button", { name: "Save routine" }));
+  await waitFor(() =>
+    expect(calls.some((call) => call.init?.method === "POST")).toBe(true),
+  );
+
+  const routineRequests = calls.filter((call) =>
+    call.url.includes("/api/chores/stacks"),
+  );
+  expect(routineRequests).toHaveLength(3);
+  expect(
+    routineRequests.every(
+      (call) =>
+        new Headers(call.init?.headers).get("X-Member-Protocol") === "2",
+    ),
+  ).toBe(true);
+});
+
+it("keeps a name-only profile in the profile namespace when editing a routine", async () => {
+  const profileCandidates = {
+    ...candidates,
+    candidates: [
+      {
+        ...candidates.candidates[0],
+        id: "profile-chore",
+        title: "Pack toys",
+        assigned_to: null,
+        assigned_member_id: "member-jamie",
+      },
+    ],
+    assignmentOptions: [
+      ...candidates.assignmentOptions,
+      {
+        memberId: "member-jamie",
+        name: "Jamie",
+        role: "child",
+      },
+    ],
+  };
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  fetchMock.mockImplementation(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.includes("/candidates")) return response(profileCandidates);
+      return response(saveResponse);
+    },
+  );
+
+  const user = userEvent.setup();
+  renderEditor();
+  await user.click(await screen.findByRole("button", { name: "Add" }));
+
+  const assignee = screen.getByRole("combobox", {
+    name: "Assigned to: Pack toys",
+  });
+  expect((assignee as HTMLSelectElement).value).toBe("profile:member-jamie");
+  expect(
+    within(assignee).getByRole("option", { name: "Jamie · child" }),
+  ).toBeTruthy();
+
+  await user.click(screen.getByRole("button", { name: "Save routine" }));
+  await waitFor(() =>
+    expect(calls.some((call) => call.init?.method === "POST")).toBe(true),
+  );
+  const post = calls.find((call) => call.init?.method === "POST");
+  const body = JSON.parse(String(post?.init?.body));
+  expect(body.steps[0]).toMatchObject({
+    assigned_to: null,
+    assigned_member_id: "member-jamie",
+  });
+});
+
+it("creates a new profile step without manufacturing an account ID", async () => {
+  const profileOptions = {
+    ...candidates,
+    candidates: [],
+    assignmentOptions: [
+      ...candidates.assignmentOptions,
+      {
+        memberId: "member-jamie",
+        name: "Jamie",
+        role: "child",
+      },
+    ],
+  };
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  fetchMock.mockImplementation(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.includes("/candidates")) return response(profileOptions);
+      return response(saveResponse);
+    },
+  );
+
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByLabelText("Routine name");
+  await user.type(screen.getByLabelText("Chore title"), "Put away toys");
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "Assigned to" }),
+    "profile:member-jamie",
+  );
+  await user.click(screen.getByRole("button", { name: "Add step" }));
+  await user.click(screen.getByRole("button", { name: "Save routine" }));
+  await waitFor(() =>
+    expect(calls.some((call) => call.init?.method === "POST")).toBe(true),
+  );
+  const post = calls.find((call) => call.init?.method === "POST");
+  const body = JSON.parse(String(post?.init?.body));
+  expect(body.steps[0]).toMatchObject({
+    title: "Put away toys",
+    assigned_to: null,
+    assigned_member_id: "member-jamie",
+  });
 });
 
 it("requires a discard confirmation before reloading after a definitive conflict", async () => {
@@ -698,6 +848,47 @@ it("maps a known server code to localized copy without rendering its raw message
   expect(screen.queryByText("Parent access is required.")).toBeNull();
 });
 
+it("treats protocol-unavailable as a definitive refusal and keeps the draft retryable", async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  let postCount = 0;
+  fetchMock.mockImplementation(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.includes("/candidates")) return response(candidates);
+      if (init?.method === "POST") {
+        postCount += 1;
+        return postCount === 1
+          ? response({ error: { code: "MEMBER_PROTOCOL_UNAVAILABLE" } }, 409)
+          : response(saveResponse);
+      }
+      return response(saveResponse);
+    },
+  );
+
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText("Pack lunches");
+  await user.click(screen.getByRole("button", { name: "Add" }));
+  await user.click(screen.getByRole("button", { name: "Save routine" }));
+
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "We couldn't load the routine choices. Try again.",
+  );
+  expect(screen.queryByRole("button", { name: "Retry save" })).toBeNull();
+  expect(
+    (screen.getByLabelText("Routine name") as HTMLInputElement).disabled,
+  ).toBe(false);
+
+  await user.click(screen.getByRole("button", { name: "Save routine" }));
+  await waitFor(() => expect(postCount).toBe(2));
+  const posts = calls.filter((call) => call.init?.method === "POST");
+  expect(new Headers(posts[0].init?.headers).get("Idempotency-Key")).not.toBe(
+    new Headers(posts[1].init?.headers).get("Idempotency-Key"),
+  );
+  expect(refresh).toHaveBeenCalled();
+});
+
 it("uses the scoped Spanish editor labels without translating chore data", async () => {
   fetchMock.mockImplementation((input: RequestInfo | URL) => {
     const url = String(input);
@@ -714,4 +905,44 @@ it("uses the scoped Spanish editor labels without translating chore data", async
   ).toBeTruthy();
   expect(await screen.findByText("Pack lunches")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Guardar rutina" })).toBeTruthy();
+});
+
+it("uses page-level section semantics for the direct editor", async () => {
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) return response(candidates);
+    return response(saveResponse);
+  });
+
+  renderEditor();
+  await screen.findByText("Pack lunches");
+  expect(screen.queryByRole("main")).toBeNull();
+  expect(screen.getByRole("region", { name: "New routine" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Steps", level: 2 })).toBeTruthy();
+  expect(screen.queryByRole("heading", { name: "Steps", level: 3 })).toBeNull();
+});
+
+it("keeps sheet content below the dialog title heading", async () => {
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) return response(candidates);
+    return response(saveResponse);
+  });
+
+  render(
+    <I18nProvider>
+      <RoutineStackEditor familyId="family-a" mode="sheet" />
+    </I18nProvider>,
+  );
+  await screen.findByText("Pack lunches");
+  const dialog = screen.getByRole("dialog");
+  expect(
+    within(dialog).getByRole("heading", { name: "New routine", level: 2 }),
+  ).toBeTruthy();
+  expect(
+    within(dialog).getByRole("heading", { name: "Steps", level: 3 }),
+  ).toBeTruthy();
+  expect(
+    within(dialog).queryByRole("heading", { name: "Steps", level: 2 }),
+  ).toBeNull();
 });
