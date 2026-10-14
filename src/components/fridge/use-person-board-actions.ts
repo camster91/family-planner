@@ -5,7 +5,12 @@ import { setChoreDone } from '@/lib/chore-tick-client'
 import { getPersonQueue } from '@/lib/offline-queue-browser'
 import { QueueError, isCheckedOperation } from '@/lib/offline-queue'
 import type { BoardActions } from './board-actions'
-import { useTranslation } from '@/i18n'
+import { useAppLocale } from '@/i18n/locale-context'
+
+const compatibleClientCopy = {
+  en: 'Pending changes need a compatible app version. Refresh or update this app. They are kept on this device and won’t be sent. Don’t add them again.',
+  es: 'Los cambios pendientes necesitan una versión compatible. Actualiza esta app. Se conservan en este dispositivo y no se enviarán. No los añadas de nuevo.',
+} as const
 
 /**
  * Board tile actions for a signed-in person (#274), on /dashboard/today with
@@ -23,7 +28,7 @@ export function usePersonBoardActions(
   viewer: { id: string; role: string } | null | undefined,
   afterChange: () => void
 ): BoardActions | undefined {
-  const { t } = useTranslation()
+  const { locale } = useAppLocale()
   const afterRef = React.useRef(afterChange)
   afterRef.current = afterChange
   const viewerId = viewer?.id ?? null
@@ -56,7 +61,7 @@ export function usePersonBoardActions(
           mine.add(op.id)
           return { ok: true }
         } catch (error) {
-          if (error instanceof QueueError && error.code === 'COMPATIBLE_CLIENT_REQUIRED') return { ok: false, message: t('groceries.compatibleClient') }
+          if (error instanceof QueueError && error.code === 'COMPATIBLE_CLIENT_REQUIRED') return { ok: false, message: compatibleClientCopy[locale] }
           if (error instanceof QueueError && error.code === 'QUEUE_FULL') {
             return { ok: false, message: 'Too many changes are waiting to sync. Reconnect and try again.' }
           }
@@ -80,5 +85,5 @@ export function usePersonBoardActions(
       },
       afterChange: () => afterRef.current(),
     }
-  }, [viewerId, isParent, t])
+  }, [viewerId, isParent, locale])
 }

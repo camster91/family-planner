@@ -8,16 +8,12 @@ import {
   formatRelativeTime,
   type RelativeTimeMessages,
 } from "@/lib/relative-time";
-import { useTranslation } from "@/i18n";
-import { syncStatusMessages, type SyncStatusMessage } from "@/i18n/sync-status";
+import { useScopedMessages } from "@/i18n/locale-context";
+import { syncStatusMessages } from "@/i18n/sync-status";
 import { PRODUCT_BRAND } from "@/lib/brand";
 
 function useSyncCopy() {
-  const { t } = useTranslation();
-  const msg = (
-    key: SyncStatusMessage,
-    params?: Record<string, string | number>,
-  ) => t(key, params, syncStatusMessages);
+  const msg = useScopedMessages(syncStatusMessages);
   const age: RelativeTimeMessages = {
     justNow: msg("justNow"),
     invalid: msg("invalid"),
