@@ -311,8 +311,20 @@ async function requestJson<T>(
   fallback: string,
   parse: (body: unknown) => T,
 ): Promise<T> {
+  const headers: Record<string, string> = {}
+  if (init?.headers instanceof Headers) {
+    init.headers.forEach((value, key) => {
+      headers[key] = value
+    })
+  } else if (Array.isArray(init?.headers)) {
+    for (const [key, value] of init.headers) headers[key] = value
+  } else if (init?.headers) {
+    Object.assign(headers, init.headers)
+  }
+  headers["X-Member-Protocol"] = "2"
   const response = await fetch(url, {
     ...init,
+    headers,
     credentials: "same-origin",
     cache: "no-store",
   });

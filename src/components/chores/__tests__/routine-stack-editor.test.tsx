@@ -421,6 +421,41 @@ it("stages an existing chore and a new step, then sends one atomic draft", async
   await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
 });
 
+it("sends protocol 2 on routine candidates, reads, and saves", async () => {
+  searchParams = new URLSearchParams(
+    "stack_id=stack-a&occurrence_date=2026-10-11",
+  );
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  fetchMock.mockImplementation(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.includes("/candidates")) return response(candidates);
+      if (url.includes("/api/chores/stacks?") && !init?.method)
+        return response(existing);
+      return response(saveResponse);
+    },
+  );
+
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText("Brush teeth");
+  await user.click(screen.getByRole("button", { name: "Save routine" }));
+  await waitFor(() =>
+    expect(calls.some((call) => call.init?.method === "POST")).toBe(true),
+  );
+
+  const routineRequests = calls.filter((call) =>
+    call.url.includes("/api/chores/stacks"),
+  );
+  expect(routineRequests).toHaveLength(3);
+  expect(
+    routineRequests.every(
+      (call) => new Headers(call.init?.headers).get("X-Member-Protocol") === "2",
+    ),
+  ).toBe(true);
+});
+
 it("keeps a name-only profile in the profile namespace when editing a routine", async () => {
   const profileCandidates = {
     ...candidates,

@@ -161,7 +161,19 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
       const date = params.get("date");
       if (date && parseDateOnly(date)) setDueDate(date);
     }
-  }, []);
+    const requestedProfileId = params.get("profile");
+    if (!requestedProfileId || profileOptions.length === 0) return;
+    const requestedProfile = findActiveHouseholdProfile(
+      profileOptions,
+      requestedProfileId,
+    );
+    if (!requestedProfile) return;
+    setAssignmentTarget((current) =>
+      current.id
+        ? current
+        : { kind: "profile", id: requestedProfile.id },
+    );
+  }, [profileOptions]);
 
   useEffect(() => {
     const loadFamilyMembers = async () => {
@@ -170,7 +182,13 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         const data = await res.json();
         if (res.ok && data.members) {
           setFamilyMembers(data.members);
-          if (data.members.length > 0 && !assignedTo) {
+          const requestedProfileId = new URLSearchParams(
+            window.location.search,
+          ).get("profile");
+          // A profile query is resolved against the active profile catalog.
+          // Never turn a stale or still-loading profile request into the first
+          // account in the household.
+          if (data.members.length > 0 && !assignedTo && !requestedProfileId) {
             const requested = new URLSearchParams(window.location.search).get(
               "member",
             );
