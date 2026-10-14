@@ -121,6 +121,18 @@ export default function CreateChoreForm({
     signature: string;
   } | null>(null);
   const profileAmbiguousKeys = useRef(new Map<string, string>());
+  const profileDraftRevision = useRef(0);
+  const profilePendingRequest = useRef<{
+    body: Record<string, unknown>;
+    key: string;
+    signature: string;
+    draftRevision: number;
+  } | null>(null);
+  const markProfileDraftEdited = () => {
+    profileIdempotencyKey.current = null;
+    profilePendingRequest.current = null;
+    profileDraftRevision.current += 1;
+  };
   const assignedTo =
     assignmentTarget.kind === "account" ? assignmentTarget.id : "";
   const profileTargetId =
@@ -297,7 +309,7 @@ export default function CreateChoreForm({
                 .toISOString()
                 .slice(0, 10)
             : dueDate;
-        requestBody = {
+        const computedRequestBody: Record<string, unknown> = {
           protocol: 2,
           selection: { memberId: profileTarget.id },
           title: title.trim(),
@@ -311,12 +323,28 @@ export default function CreateChoreForm({
           icon,
           ...routineRequestFields(routine, routineOrder),
         };
-        const signature = canonicalBodySignature(requestBody);
-        const key =
-          profileIdempotencyKey.current?.signature === signature
-            ? profileIdempotencyKey.current.key
-            : (profileAmbiguousKeys.current.get(signature) ??
-              newIdempotencyKey());
+        const pending = profilePendingRequest.current;
+        let signature: string;
+        let key: string;
+        if (pending && pending.draftRevision === profileDraftRevision.current) {
+          requestBody = pending.body;
+          signature = pending.signature;
+          key = pending.key;
+        } else {
+          requestBody = computedRequestBody;
+          signature = canonicalBodySignature(requestBody);
+          key =
+            (profileIdempotencyKey.current?.signature === signature
+              ? profileIdempotencyKey.current.key
+              : profileAmbiguousKeys.current.get(signature)) ??
+            newIdempotencyKey();
+          profilePendingRequest.current = {
+            body: requestBody,
+            key,
+            signature,
+            draftRevision: profileDraftRevision.current,
+          };
+        }
         profileIdempotencyKey.current = { key, signature };
         headers[IDEMPOTENCY_HEADER] = key;
       } else {
@@ -360,6 +388,7 @@ export default function CreateChoreForm({
               profileIdempotencyKey.current?.signature ?? "",
             );
             profileIdempotencyKey.current = null;
+            profilePendingRequest.current = null;
             setError(
               profileText(
                 frequency !== "once"
@@ -382,7 +411,10 @@ export default function CreateChoreForm({
         return;
       }
 
-      if (isProfileTarget && !readProfileChoreCreateSuccess(data)) {
+      if (
+        isProfileTarget &&
+        !readProfileChoreCreateSuccess(data, profileTarget?.id)
+      ) {
         setError(profileText("invalidResponse"));
         return;
       }
@@ -392,6 +424,7 @@ export default function CreateChoreForm({
           profileIdempotencyKey.current.signature,
         );
         profileIdempotencyKey.current = null;
+        profilePendingRequest.current = null;
       }
       if ((await navigation?.releaseBeforeNavigation()) === false) return;
       router.push("/dashboard/chores");
@@ -471,7 +504,10 @@ export default function CreateChoreForm({
               type="text"
               required
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                markProfileDraftEdited();
+                setTitle(e.target.value);
+              }}
               className="input-apple"
               placeholder={message("titlePlaceholder")}
             />
@@ -492,6 +528,7 @@ export default function CreateChoreForm({
                     profileTargetId ? `profile:${profileTargetId}` : assignedTo
                   }
                   onChange={(e) => {
+                    markProfileDraftEdited();
                     const value = e.target.value;
                     if (value.startsWith("profile:")) {
                       setAssignmentTarget({
@@ -557,7 +594,10 @@ export default function CreateChoreForm({
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => setFrequency(opt.value)}
+                  onClick={() => {
+                    markProfileDraftEdited();
+                    setFrequency(opt.value);
+                  }}
                   disabled={
                     Boolean(profileTargetId) &&
                     !profileRecurrenceSupported &&
@@ -600,7 +640,10 @@ export default function CreateChoreForm({
                 type="date"
                 required
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                onChange={(e) => {
+                  markProfileDraftEdited();
+                  setDueDate(e.target.value);
+                }}
                 className="input-apple"
                 min={todayKey ?? undefined}
               />
@@ -611,7 +654,13 @@ export default function CreateChoreForm({
         {frequency === "monthly" && <MonthlyScheduleHint />}
 
         {frequency === "weekly" && (
-          <WeeklyDaysPicker days={weeklyDays} onChange={setWeeklyDays} />
+          <WeeklyDaysPicker
+            days={weeklyDays}
+            onChange={(days) => {
+              markProfileDraftEdited();
+              setWeeklyDays(days);
+            }}
+          />
         )}
 
         {/* Take turns (O-39): repeating chores only */}
@@ -650,7 +699,10 @@ export default function CreateChoreForm({
             <textarea
               id="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                markProfileDraftEdited();
+                setDescription(e.target.value);
+              }}
               className="input-apple min-h-[80px] resize-none"
               placeholder={message("descriptionPlaceholder")}
               rows={3}
@@ -671,7 +723,10 @@ export default function CreateChoreForm({
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => setDifficulty(opt.value)}
+                  onClick={() => {
+                    markProfileDraftEdited();
+                    setDifficulty(opt.value);
+                  }}
                   aria-pressed={difficulty === opt.value}
                   className={cn(
                     "py-3 rounded-[var(--radius-md)] border text-center transition-all duration-200",
@@ -721,12 +776,24 @@ export default function CreateChoreForm({
           ].join(" · ")}
         >
           {/* Picture routines (#272): picture, routine and step */}
-          <RoutineIconPicker value={icon} onChange={setIcon} />
+          <RoutineIconPicker
+            value={icon}
+            onChange={(value) => {
+              markProfileDraftEdited();
+              setIcon(value);
+            }}
+          />
           <RoutineFields
             routine={routine}
-            onRoutineChange={setRoutine}
+            onRoutineChange={(value) => {
+              markProfileDraftEdited();
+              setRoutine(value);
+            }}
             order={routineOrder}
-            onOrderChange={setRoutineOrder}
+            onOrderChange={(value) => {
+              markProfileDraftEdited();
+              setRoutineOrder(value);
+            }}
           />
         </ChoreFormSection>
 
@@ -754,6 +821,7 @@ export default function CreateChoreForm({
               onChange={async (e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
+                markProfileDraftEdited();
                 setPhotoUploading(true);
                 try {
                   const fd = new FormData();
@@ -809,6 +877,7 @@ export default function CreateChoreForm({
                 <button
                   type="button"
                   onClick={() => {
+                    markProfileDraftEdited();
                     setPhotoUrl(null);
                     setPhotoPreview(null);
                   }}

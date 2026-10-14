@@ -458,4 +458,152 @@ describe("profile target in the create chore form", () => {
       jest.useRealTimers();
     }
   });
+
+  it("reuses the frozen weekly body and key after a response-loss date rollover", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-10-12T12:00:00.000Z"));
+    try {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      let createAttempts = 0;
+      global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url, init });
+        if (url === "/api/family/members") {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              members: [{ id: "account-1", name: "Parent", role: "parent" }],
+            }),
+          };
+        }
+        if (url === "/api/family/profiles") {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              profiles: [profile],
+              profileChoreSupported: true,
+              profileChoreRecurrenceSupported: true,
+            }),
+          };
+        }
+        createAttempts += 1;
+        if (createAttempts === 1) throw new Error("response lost");
+        return {
+          ok: true,
+          status: 200,
+          json: async () => validProfileCreateResponse,
+        };
+      }) as unknown as typeof fetch;
+      render(<CreateChorePage />);
+      await screen.findByRole("option", { name: /Jamie/ });
+      await user.selectOptions(
+        screen.getByLabelText("Assign To"),
+        "profile:profile-jamie",
+      );
+      await user.click(screen.getByRole("button", { name: "Weekly" }));
+      await user.click(screen.getByRole("checkbox", { name: "Monday" }));
+      await user.type(screen.getByLabelText("Title"), "Pack a bag");
+      await user.click(screen.getByRole("button", { name: "Create Chore" }));
+      expect(
+        await screen.findByText(/The profile chore could not be created/),
+      ).toBeTruthy();
+
+      const firstCall = calls.find((call) => call.url === "/api/chores/create")!;
+      const firstKey = new Headers(firstCall.init?.headers).get("Idempotency-Key");
+      const firstBody = firstCall.init?.body;
+      jest.setSystemTime(new Date("2026-10-13T12:00:00.000Z"));
+      await user.click(screen.getByRole("button", { name: "Create Chore" }));
+      await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
+
+      const createCalls = calls.filter((call) => call.url === "/api/chores/create");
+      expect(createCalls).toHaveLength(2);
+      expect(new Headers(createCalls[1].init?.headers).get("Idempotency-Key")).toBe(
+        firstKey,
+      );
+      expect(createCalls[1].init?.body).toBe(firstBody);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("creates a new profile request key after an explicit draft edit", async () => {
+    const user = userEvent.setup();
+    let createAttempts = 0;
+    global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url === "/api/family/members") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            members: [{ id: "account-1", name: "Parent", role: "parent" }],
+          }),
+        };
+      }
+      if (url === "/api/family/profiles") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            profiles: [profile],
+            profileChoreSupported: true,
+            profileChoreRecurrenceSupported: true,
+          }),
+        };
+      }
+      createAttempts += 1;
+      if (createAttempts === 1) throw new Error("response lost");
+      return {
+        ok: true,
+        status: 200,
+        json: async () => validProfileCreateResponse,
+      };
+    }) as unknown as typeof fetch;
+    render(<CreateChorePage />);
+    await screen.findByRole("option", { name: /Jamie/ });
+    await user.selectOptions(
+      screen.getByLabelText("Assign To"),
+      "profile:profile-jamie",
+    );
+    await user.type(screen.getByLabelText("Title"), "Pack a bag");
+    fireEvent.change(screen.getByLabelText("Due Date"), {
+      target: { value: "2099-10-05" },
+    });
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await screen.findByText(/The profile chore could not be created/);
+
+    const firstCall = calls.find((call) => call.url === "/api/chores/create")!;
+    const firstKey = new Headers(firstCall.init?.headers).get("Idempotency-Key");
+    const firstBody = firstCall.init?.body;
+    const title = screen.getByLabelText("Title");
+    await user.clear(title);
+    await user.type(title, "Pack a lunch");
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
+
+    const createCalls = calls.filter((call) => call.url === "/api/chores/create");
+    expect(createCalls).toHaveLength(2);
+    expect(new Headers(createCalls[1].init?.headers).get("Idempotency-Key")).not.toBe(
+      firstKey,
+    );
+    expect(createCalls[1].init?.body).not.toBe(firstBody);
+
+    // Returning to the unresolved canonical draft still reuses its receipt
+    // key, so an ambiguous first write cannot become a second chore.
+    await user.clear(title);
+    await user.type(title, "Pack a bag");
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await waitFor(() =>
+      expect(
+        calls.filter((call) => call.url === "/api/chores/create"),
+      ).toHaveLength(3),
+    );
+    const replayCall = calls.filter(
+      (call) => call.url === "/api/chores/create",
+    )[2];
+    expect(new Headers(replayCall.init?.headers).get("Idempotency-Key")).toBe(
+      firstKey,
+    );
+    expect(replayCall.init?.body).toBe(firstBody);
+  });
 });
