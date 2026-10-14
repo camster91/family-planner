@@ -4011,37 +4011,12 @@
   },
   {
     "file": "src/components/fridge/weather-tile.tsx",
-    "text": ", high",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/weather-tile.tsx",
-    "text": ", low",
-    "count": 2
-  },
-  {
-    "file": "src/components/fridge/weather-tile.tsx",
     "text": "· L",
     "count": 1
   },
   {
     "file": "src/components/fridge/weather-tile.tsx",
     "text": "H",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/weather-tile.tsx",
-    "text": "Next days",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/weather-tile.tsx",
-    "text": "Today: high",
-    "count": 1
-  },
-  {
-    "file": "src/components/fridge/weather-tile.tsx",
-    "text": "Weather in",
     "count": 1
   },
   {
