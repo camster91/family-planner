@@ -76,10 +76,16 @@ const stack = {
   },
 };
 
-function request(url: string, body?: unknown, idempotencyKey?: string) {
+function request(
+  url: string,
+  body?: unknown,
+  idempotencyKey?: string,
+  memberProtocol?: 2,
+) {
   const headers = new Headers({ "x-request-id": "request-a" });
   if (idempotencyKey !== undefined)
     headers.set("Idempotency-Key", idempotencyKey);
+  if (memberProtocol) headers.set("X-Member-Protocol", String(memberProtocol));
   return {
     url,
     headers,
@@ -265,6 +271,25 @@ describe("POST /api/chores/stacks", () => {
       stack_id: "stack-a",
       replayed: false,
     });
+  });
+
+  it("forwards protocol 2 for a profile-capable write", async () => {
+    const response = await POST(
+      request("https://family.test/api/chores/stacks", draft, "key-a", 2),
+    );
+
+    expect(response.status).toBe(200);
+    expect(saveParentRoutineStack).toHaveBeenCalledWith(
+      expect.anything(),
+      draft,
+      {
+        familyId: "family-a",
+        userId: "parent-a",
+        role: "parent",
+        memberProtocol: 2,
+      },
+      "key-a",
+    );
   });
 
   it("preserves coordinator conflict status and retry semantics", async () => {

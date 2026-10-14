@@ -215,7 +215,11 @@ it("intercepts browser Back for a dirty draft and preserves it behind discard", 
     return response(saveResponse);
   });
   const user = userEvent.setup();
-  window.history.replaceState({ routineTest: "base" }, "", "/dashboard/chores/routines");
+  window.history.replaceState(
+    { routineTest: "base" },
+    "",
+    "/dashboard/chores/routines",
+  );
   renderEditor();
   await screen.findByText("Pack lunches");
   const label = screen.getByLabelText("Routine name");
@@ -245,7 +249,9 @@ it("retires an owned sentinel on dirty editor unmount and restores the captured 
   await user.type(screen.getByLabelText("Routine name"), "Keep this draft");
 
   expect(window.history.state).toEqual(
-    expect.objectContaining({ __familyPlannerRoutineStackEditor: expect.any(String) }),
+    expect.objectContaining({
+      __familyPlannerRoutineStackEditor: expect.any(String),
+    }),
   );
   view.unmount();
   expect(window.location.pathname).toBe("/dashboard/chores/routines");
@@ -317,7 +323,9 @@ it("resets stale history ownership when the same editor instance loads a new occ
   await screen.findByText("Pack lunches");
   await user.type(screen.getByLabelText("Routine name"), "Old draft");
   expect(window.history.state).toEqual(
-    expect.objectContaining({ __familyPlannerRoutineStackEditor: expect.any(String) }),
+    expect.objectContaining({
+      __familyPlannerRoutineStackEditor: expect.any(String),
+    }),
   );
 
   searchParams = new URLSearchParams("occurrence_date=2026-10-12");
@@ -356,12 +364,20 @@ it("keeps browser Back blocked while a save is pending", async () => {
     });
   });
   const user = userEvent.setup();
-  window.history.replaceState({ routineTest: "pending" }, "", "/dashboard/chores/routines");
+  window.history.replaceState(
+    { routineTest: "pending" },
+    "",
+    "/dashboard/chores/routines",
+  );
   renderEditor();
   await screen.findByText("Pack lunches");
   await user.click(screen.getByRole("button", { name: "Add" }));
   await user.click(screen.getByRole("button", { name: "Save routine" }));
-  await waitFor(() => expect((screen.getByLabelText("Routine name") as HTMLInputElement).disabled).toBe(true));
+  await waitFor(() =>
+    expect(
+      (screen.getByLabelText("Routine name") as HTMLInputElement).disabled,
+    ).toBe(true),
+  );
 
   window.history.back();
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -369,9 +385,7 @@ it("keeps browser Back blocked while a save is pending", async () => {
   expect(screen.getByText(/saving/i)).toBeTruthy();
 
   releaseSave(await response(saveResponse));
-  await waitFor(() =>
-    expect(screen.queryByText("Saving routine…")).toBeNull(),
-  );
+  await waitFor(() => expect(screen.queryByText("Saving routine…")).toBeNull());
 });
 
 it("stages an existing chore and a new step, then sends one atomic draft", async () => {
@@ -451,7 +465,8 @@ it("sends protocol 2 on routine candidates, reads, and saves", async () => {
   expect(routineRequests).toHaveLength(3);
   expect(
     routineRequests.every(
-      (call) => new Headers(call.init?.headers).get("X-Member-Protocol") === "2",
+      (call) =>
+        new Headers(call.init?.headers).get("X-Member-Protocol") === "2",
     ),
   ).toBe(true);
 });
@@ -501,9 +516,7 @@ it("keeps a name-only profile in the profile namespace when editing a routine", 
 
   await user.click(screen.getByRole("button", { name: "Save routine" }));
   await waitFor(() =>
-    expect(
-      calls.some((call) => call.init?.method === "POST"),
-    ).toBe(true),
+    expect(calls.some((call) => call.init?.method === "POST")).toBe(true),
   );
   const post = calls.find((call) => call.init?.method === "POST");
   const body = JSON.parse(String(post?.init?.body));
@@ -547,9 +560,7 @@ it("creates a new profile step without manufacturing an account ID", async () =>
   await user.click(screen.getByRole("button", { name: "Add step" }));
   await user.click(screen.getByRole("button", { name: "Save routine" }));
   await waitFor(() =>
-    expect(
-      calls.some((call) => call.init?.method === "POST"),
-    ).toBe(true),
+    expect(calls.some((call) => call.init?.method === "POST")).toBe(true),
   );
   const post = calls.find((call) => call.init?.method === "POST");
   const body = JSON.parse(String(post?.init?.body));
@@ -848,10 +859,7 @@ it("treats protocol-unavailable as a definitive refusal and keeps the draft retr
       if (init?.method === "POST") {
         postCount += 1;
         return postCount === 1
-          ? response(
-              { error: { code: "MEMBER_PROTOCOL_UNAVAILABLE" } },
-              409,
-            )
+          ? response({ error: { code: "MEMBER_PROTOCOL_UNAVAILABLE" } }, 409)
           : response(saveResponse);
       }
       return response(saveResponse);
@@ -868,14 +876,16 @@ it("treats protocol-unavailable as a definitive refusal and keeps the draft retr
     "We couldn't load the routine choices. Try again.",
   );
   expect(screen.queryByRole("button", { name: "Retry save" })).toBeNull();
-  expect(screen.getByLabelText("Routine name")).toBeEnabled();
+  expect(
+    (screen.getByLabelText("Routine name") as HTMLInputElement).disabled,
+  ).toBe(false);
 
   await user.click(screen.getByRole("button", { name: "Save routine" }));
   await waitFor(() => expect(postCount).toBe(2));
   const posts = calls.filter((call) => call.init?.method === "POST");
-  expect(
-    new Headers(posts[0].init?.headers).get("Idempotency-Key"),
-  ).not.toBe(new Headers(posts[1].init?.headers).get("Idempotency-Key"));
+  expect(new Headers(posts[0].init?.headers).get("Idempotency-Key")).not.toBe(
+    new Headers(posts[1].init?.headers).get("Idempotency-Key"),
+  );
   expect(refresh).toHaveBeenCalled();
 });
 

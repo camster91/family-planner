@@ -49,10 +49,12 @@ const candidates = {
   nextCursor: null,
 };
 
-function request(url: string) {
+function request(url: string, memberProtocol?: 2) {
+  const headers = new Headers({ "x-request-id": "request-a" });
+  if (memberProtocol) headers.set("X-Member-Protocol", String(memberProtocol));
   return {
     url,
-    headers: new Headers({ "x-request-id": "request-a" }),
+    headers,
   } as any;
 }
 
@@ -116,6 +118,28 @@ describe("GET /api/chores/stacks/candidates", () => {
           id: "chore-a",
         },
       },
+    );
+  });
+
+  it("forwards an explicit protocol-2 request without changing the legacy default", async () => {
+    const response = await GET(
+      request(
+        "https://family.test/api/chores/stacks/candidates?occurrence_date=2026-10-11",
+        2,
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(readParentRoutineStackCandidates).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        familyId: "family-a",
+        userId: "parent-a",
+        role: "parent",
+        memberProtocol: 2,
+      },
+      "2026-10-11",
+      { limit: 200, cursor: null },
     );
   });
 

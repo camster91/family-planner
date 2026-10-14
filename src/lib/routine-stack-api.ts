@@ -10,6 +10,16 @@ import {
 import { hashIdempotentRequest, IDEMPOTENCY_TTL_MS } from "@/lib/idempotency";
 import { lockHousehold, lockUser } from "@/lib/household-lock";
 import {
+  isProfileChoreEnabled,
+  profileChoreLegacyWriteRefusal,
+  profileChoreProtocolRefusal,
+} from "@/lib/chore-profile";
+import {
+  isProfileAgeAllowed,
+  profileRoleSchema,
+  type MemberProtocol,
+} from "@/lib/member-subject-contract";
+import {
   mutateRoutineStackInTx,
   type RoutineStackActor,
   type RoutineStackMutationResult,
@@ -20,6 +30,7 @@ import {
   normalizeRoutineStackDraft,
   projectRoutineStackResponse,
   type RoutineStackMemberProjection,
+  type RoutineStackDraft,
   type RoutineStackSnapshotStep,
 } from "@/lib/routine-stack";
 
@@ -28,6 +39,7 @@ export const ROUTINE_STACK_ACTION = "routine-stack.mutate";
 export type ParentRoutineStackActor = RoutineStackActor & {
   familyId: string;
   userId: string;
+  memberProtocol?: MemberProtocol;
 };
 
 const ROUTINE_STACK_STEP_SELECT = {
@@ -92,7 +104,7 @@ type ParentStep = {
   family_id: string;
   title: string;
   description: string | null;
-  assigned_to: string;
+  assigned_to: string | null;
   assigned_member_id: string | null;
   member_subject_erased: boolean;
   due_date: Date;
@@ -111,6 +123,11 @@ type ParentStep = {
   verified_at: Date | null;
   verified_notes: string | null;
   completed_at: Date | null;
+};
+
+export type ParentRoutineStackReadProtocolRefusal = {
+  status: 409;
+  body: ReturnType<typeof profileChoreLegacyWriteRefusal>;
 };
 
 function occurrenceBounds(value: string): { start: Date; end: Date } | null {
@@ -203,7 +220,7 @@ type CandidateChore = {
   id: string;
   title: string;
   description: string | null;
-  assigned_to: string;
+  assigned_to: string | null;
   assigned_member_id: string | null;
   member_subject_erased: boolean;
   due_date: Date;
@@ -221,8 +238,13 @@ type CandidateChore = {
 
 type CandidateMember = {
   id: string;
+  name: string;
+  role?: string;
+  age?: number | null;
   archived_at: Date | null;
   erasure_user_id: string | null;
+  legacy_mapping?: { user_id: string } | null;
+  account_link?: { user_id: string } | null;
 };
 
 type CandidateAccount = { id: string; name: string; role: string };
@@ -238,7 +260,7 @@ export type ParentRoutineStackCandidates = {
     id: string;
     title: string;
     description: string | null;
-    assigned_to: string;
+    assigned_to: string | null;
     assigned_member_id: string | null;
     due_date: string;
     recurrence_id: string | null;
@@ -252,11 +274,18 @@ export type ParentRoutineStackCandidates = {
     icon: string | null;
     expected_fingerprint: string;
   }>;
-  assignmentOptions: Array<{
-    accountId: string;
-    name: string;
-    role: string;
-  }>;
+  assignmentOptions: Array<
+    | {
+        accountId: string;
+        name: string;
+        role: string;
+      }
+    | {
+        memberId: string;
+        name: string;
+        role: string;
+      }
+  >;
   hasMore: boolean;
   nextCursor: string | null;
 };
@@ -267,6 +296,38 @@ export type RoutineStackCandidatePage = {
 };
 
 const activeSeriesFrequencies = new Set(["daily", "weekly", "monthly"]);
+
+function profileAssignmentsEnabled(actor: ParentRoutineStackActor): boolean {
+  return actor.memberProtocol === 2 && isProfileChoreEnabled();
+}
+
+function hasProfileAssignments(draft: RoutineStackDraft): boolean {
+  return draft.steps.some((step) => step.assigned_to === null);
+}
+
+function profileAssignmentUnavailable(): RoutineStackMutationResult {
+  return {
+    status: 409,
+    body: {
+      error: {
+        ...profileChoreProtocolRefusal(),
+        message: "Profile-assigned routines require member protocol 2.",
+      },
+    },
+  };
+}
+
+function eligibleProfile(member: CandidateMember): boolean {
+  const role = profileRoleSchema.safeParse(member.role);
+  return Boolean(
+    role.success &&
+    isProfileAgeAllowed(role.data, member.age) &&
+    !member.archived_at &&
+    !member.erasure_user_id &&
+    !member.legacy_mapping &&
+    !member.account_link,
+  );
+}
 
 function candidateAnchorIsValid(anchor: {
   id: string;
@@ -333,7 +394,17 @@ export async function readParentRoutineStackCandidates(
   const [members, legacyMappings, accountLinks, rows] = await Promise.all([
     db.householdMember.findMany({
       where: { family_id: actor.familyId },
-      select: { id: true, archived_at: true, erasure_user_id: true },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        age: true,
+        archived_at: true,
+        erasure_user_id: true,
+        legacy_mapping: { select: { user_id: true } },
+        account_link: { select: { user_id: true } },
+      },
+      orderBy: { name: "asc" },
     }),
     userIds.length
       ? db.householdMemberLegacyMapping.findMany({
@@ -380,6 +451,13 @@ export async function readParentRoutineStackCandidates(
       .filter((member) => !member.archived_at && !member.erasure_user_id)
       .map((member) => member.id),
   );
+  const eligibleProfileIds = new Set(
+    profileAssignmentsEnabled(actor)
+      ? [...memberMap.values()]
+          .filter(eligibleProfile)
+          .map((member) => member.id)
+      : [],
+  );
   const rawRows = rows as CandidateChore[];
   const pageRows = rawRows.slice(0, limit);
   const recurrenceIds = [
@@ -414,14 +492,24 @@ export async function readParentRoutineStackCandidates(
     .filter((row) => {
       if (row.is_template || row.routine_stack_id || row.member_subject_erased)
         return false;
-      if (!eligibleAccountIds.has(row.assigned_to)) return false;
-      if (
-        row.assigned_member_id !== null &&
-        (!eligibleMemberIds.has(row.assigned_member_id) ||
-          byUser.get(row.assigned_to)?.size !== 1 ||
-          !byUser.get(row.assigned_to)?.has(row.assigned_member_id))
-      ) {
-        return false;
+      if (row.assigned_to === null) {
+        if (
+          !row.assigned_member_id ||
+          !eligibleProfileIds.has(row.assigned_member_id) ||
+          row.frequency !== "once" ||
+          row.recurrence_id != null
+        )
+          return false;
+      } else {
+        if (!eligibleAccountIds.has(row.assigned_to)) return false;
+        if (
+          row.assigned_member_id !== null &&
+          (!eligibleMemberIds.has(row.assigned_member_id) ||
+            byUser.get(row.assigned_to)?.size !== 1 ||
+            !byUser.get(row.assigned_to)?.has(row.assigned_member_id))
+        ) {
+          return false;
+        }
       }
       if (typeof row.recurrence_id === "string") {
         if (!row.recurrence_id || !validAnchors.has(row.recurrence_id))
@@ -466,11 +554,20 @@ export async function readParentRoutineStackCandidates(
   return {
     occurrence_date: occurrenceDate,
     candidates,
-    assignmentOptions: eligibleAccounts.map((user) => ({
-      accountId: user.id,
-      name: user.name,
-      role: user.role,
-    })),
+    assignmentOptions: [
+      ...eligibleAccounts.map((user) => ({
+        accountId: user.id,
+        name: user.name,
+        role: user.role,
+      })),
+      ...(profileAssignmentsEnabled(actor)
+        ? [...memberMap.values()].filter(eligibleProfile).map((member) => ({
+            memberId: member.id,
+            name: member.name,
+            role: member.role!,
+          }))
+        : []),
+    ],
     hasMore,
     nextCursor,
   };
@@ -482,7 +579,9 @@ export async function readParentRoutineStack(
   actor: ParentRoutineStackActor,
   stackId: string,
   occurrenceDate: string,
-): Promise<ParentRoutineStackRead | null> {
+): Promise<
+  ParentRoutineStackRead | ParentRoutineStackReadProtocolRefusal | null
+> {
   // Keep the helper safe when called outside the route. The route authenticates
   // first, but a future server caller must not accidentally turn this broad
   // parent projection into a child/teen read model.
@@ -520,6 +619,22 @@ export async function readParentRoutineStack(
       orderBy: { name: "asc" },
     }),
   ]);
+
+  // A protocol-1 caller must never receive a null account subject. Return a
+  // typed refusal so the editor can retain the pending profile draft while it
+  // refreshes to a compatible member protocol. A foreign stack was already
+  // filtered by the family-scoped lookup above and remains an ordinary 404.
+  if (
+    !profileAssignmentsEnabled(actor) &&
+    (
+      steps as Array<{
+        assigned_to: string | null;
+        assigned_member_id: string | null;
+      }>
+    ).some((step) => step.assigned_to === null)
+  ) {
+    return { status: 409, body: profileChoreLegacyWriteRefusal() };
+  }
 
   const snapshot = fingerprintRoutineStackSnapshot(
     steps as unknown as readonly RoutineStackSnapshotStep[],
@@ -580,6 +695,9 @@ export async function saveParentRoutineStack(
   now = new Date(),
 ): Promise<RoutineStackMutationResult> {
   const draft = normalizeRoutineStackDraft(input);
+  if (hasProfileAssignments(draft) && !profileAssignmentsEnabled(actor)) {
+    return profileAssignmentUnavailable();
+  }
   const requestHash = hashIdempotentRequest(ROUTINE_STACK_ACTION, draft);
   const scope = `user:${actor.userId}`;
 
@@ -670,6 +788,9 @@ export async function saveParentRoutineStack(
     return mutateRoutineStackInTx(tx as object, draft, actor, {
       recordId: receipt.id,
       memberDictionary,
+      ...(profileAssignmentsEnabled(actor)
+        ? { profileAssignmentAllowed: true }
+        : {}),
     });
   });
 }

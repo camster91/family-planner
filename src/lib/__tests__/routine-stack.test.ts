@@ -33,6 +33,44 @@ describe("routine stack contract", () => {
     expect(draft.steps[0]?.weekly_days).toEqual([1, 3]);
   });
 
+  it("accepts a profile subject only with its stable member identity", () => {
+    const draft = normalizeRoutineStackDraft({
+      family_id: "family-a",
+      occurrence_date: "2026-10-12",
+      label: "Morning",
+      steps: [
+        step({
+          assigned_to: null,
+          assigned_member_id: "member-toddler",
+          frequency: "once",
+          weekly_days: [],
+        }),
+      ],
+      expected_fingerprint: "",
+    });
+
+    expect(draft.steps[0]).toMatchObject({
+      assigned_to: null,
+      assigned_member_id: "member-toddler",
+    });
+    expect(() =>
+      normalizeRoutineStackDraft({
+        family_id: "family-a",
+        occurrence_date: "2026-10-12",
+        label: "Morning",
+        steps: [
+          step({
+            assigned_to: null,
+            assigned_member_id: null,
+            frequency: "once",
+            weekly_days: [],
+          }),
+        ],
+        expected_fingerprint: "",
+      }),
+    ).toThrow(/stable member identity/);
+  });
+
   it("rejects future-series scope, duplicate rows, and invalid weekday cadence", () => {
     expect(() =>
       normalizeRoutineStackDraft({
@@ -193,6 +231,25 @@ describe("routine stack contract", () => {
     expect(response.assignments).toEqual([["user-a", "member-a"]]);
     expect(JSON.stringify(response)).not.toContain("private note");
     expect(routineStackResponseByteLength(response)).toBeLessThanOrEqual(8192);
+  });
+
+  it("preserves a profile null account in compact receipt assignments", () => {
+    const response = projectRoutineStackResponse({
+      stack_id: "stack-profile",
+      version: 1,
+      fingerprint: "f".repeat(64),
+      steps: [
+        {
+          id: "chore-profile",
+          assigned_to: null,
+          assigned_member_id: "member-toddler",
+        },
+      ],
+    });
+
+    expect(response.assignments).toEqual([[null, "member-toddler"]]);
+    expect(JSON.stringify(response)).not.toContain('["", "member-toddler"]');
+    expect(JSON.stringify(response)).not.toContain('"null"');
   });
 
   it("enforces the UTF-8 receipt cap for an oversized 99-step projection", () => {

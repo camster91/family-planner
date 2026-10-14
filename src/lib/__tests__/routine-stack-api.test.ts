@@ -157,6 +157,58 @@ describe("routine-stack API helper", () => {
     expect(JSON.stringify(parent)).not.toContain("private@example.test");
   });
 
+  it("returns a protocol refusal for a stored profile stack instead of hiding it as not found", async () => {
+    const previousEnabled = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+    const previousRollback = process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+    try {
+      const db = readDb();
+      db.routineStack.findFirst.mockResolvedValue({
+        id: "stack-profile",
+        family_id: "family-a",
+        label: "Morning",
+        version: 1,
+      });
+      db.chore.findMany.mockResolvedValue([
+        step({
+          id: "profile-chore",
+          assigned_to: null,
+          assigned_member_id: "member-toddler",
+        }),
+      ]);
+      db.householdMember.findMany.mockResolvedValue([]);
+
+      const result = await readParentRoutineStack(
+        db,
+        actor,
+        "stack-profile",
+        "2026-10-11",
+      );
+
+      expect(result).toEqual({
+        status: 409,
+        body: expect.objectContaining({
+          code: "MEMBER_PROTOCOL_UNAVAILABLE",
+          recovery: "refresh-and-retain-pending",
+          requiredProtocol: 2,
+          receivedProtocol: 1,
+        }),
+      });
+    } finally {
+      if (previousEnabled === undefined) {
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+      } else {
+        process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = previousEnabled;
+      }
+      if (previousRollback === undefined) {
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+      } else {
+        process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = previousRollback;
+      }
+    }
+  });
+
   it("creates a pending receipt before invoking the atomic coordinator", async () => {
     const draft = {
       family_id: "family-a",

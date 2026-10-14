@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { updateChoreSchema } from "@/lib/validations";
 import type { EffectResult } from "@/lib/idempotency";
 import {
   isProfileAgeAllowed,
@@ -41,6 +42,9 @@ export const profileChoreCreateSchema = z
     difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
     frequency: z.literal("once").default("once"),
     photo_url: z.string().max(500).nullable().optional(),
+    icon: updateChoreSchema.innerType().shape.icon,
+    routine: updateChoreSchema.innerType().shape.routine,
+    routine_order: updateChoreSchema.innerType().shape.routine_order,
   })
   .strict();
 
@@ -76,6 +80,9 @@ export type ProfileChoreDTO = {
   status: string;
   frequency: string;
   difficulty: string;
+  icon: string | null;
+  routine: string | null;
+  routine_order: number | null;
   subject: ChoreSubjectDTO;
   created_at: Date;
 };
@@ -247,6 +254,9 @@ function profileChoreResponse(chore: ProfileChoreDTO): ProfileChoreDTO {
     status: chore.status,
     frequency: chore.frequency,
     difficulty: chore.difficulty,
+    icon: chore.icon ?? null,
+    routine: chore.routine ?? null,
+    routine_order: chore.routine_order ?? null,
     subject: chore.subject,
     created_at: chore.created_at,
   };
@@ -320,6 +330,9 @@ export async function createProfileOnlyChoreInTx(
       frequency: "once",
       difficulty: input.difficulty,
       photo_url: photoUrl,
+      icon: input.icon ?? null,
+      routine: input.routine ?? null,
+      routine_order: input.routine_order ?? null,
       created_by: actor.id,
     } as unknown as Prisma.ChoreUncheckedCreateInput,
     include: choreSubjectInclude,
@@ -335,6 +348,9 @@ export async function createProfileOnlyChoreInTx(
     status: chore.status,
     frequency: chore.frequency,
     difficulty: chore.difficulty,
+    icon: chore.icon ?? null,
+    routine: chore.routine ?? null,
+    routine_order: chore.routine_order ?? null,
     subject,
     created_at: now,
   });

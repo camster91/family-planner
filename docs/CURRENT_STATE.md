@@ -1,5 +1,22 @@
 # Current State
 
+## Email-free routine candidate — 2026-10-14
+
+The current #480 candidate starts from verified `origin/main`
+`b5cb6dd839d3921cc0f20f926962547f00773389` (PR #553). It extends the gated
+protocol-2 profile chore path with picture/routine metadata and the existing
+parent current-occurrence stack editor. Null account subjects retain stable
+member IDs, compatible read refusals and gate checks before receipt replay.
+Profile Add step links and legacy grouping preserve the selected person.
+
+[Scope and acceptance](plans/email-free-profile-routines.md) covers all-age
+name-only members, draft/retry recovery, isolated PostgreSQL proof and an
+additional six-viewport profile-enabled browser gate. Candidate CI, rendered
+review and guarded release proof remain pending until recorded in its PR.
+Production profile flags and public member protocols are unchanged. Recurring
+profile series, conversion, native hardware/store acceptance and the wider #480
+outcome remain open. Older dated paragraphs below are historical checkpoints.
+
 ## Current release and #499 continuation — 2026-10-14
 
 Verified web main is `9e36c440aa53ad11709e8c7b9517e891646400bf` (PR #548), and deployment 401 served that revision. The same-day routine-order repair is merged and released. [Canonical #499 progress](https://github.com/camster91/family-planner/issues/499#issuecomment-6159917388) records the current alignment state.

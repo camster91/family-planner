@@ -48,8 +48,7 @@ import { useProfileSetupText } from "@/i18n/profile-setup";
 type Difficulty = "easy" | "medium" | "hard";
 type Frequency = "once" | "daily" | "weekly" | "monthly";
 type AssignmentTarget =
-  | { kind: "account"; id: string }
-  | { kind: "profile"; id: string };
+  { kind: "account"; id: string } | { kind: "profile"; id: string };
 
 const difficultyOptions: {
   value: Difficulty;
@@ -68,7 +67,10 @@ const frequencyOptions: { value: Frequency; label: ChoreFormMessage }[] = [
   { value: "monthly", label: "monthly" },
 ];
 
-export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
+export default function CreateChoreForm({
+  inSheet = false,
+  onBusyChange,
+}: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
   const { locale, t } = useTranslation();
   const message = (
     key: ChoreFormMessage,
@@ -81,7 +83,10 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
   // Points & streaks off (#248): the field is hidden and the default is sent,
   // so XP keeps accruing in the background if the family turns it back on.
   const gamification = useFeatureEnabled("gamification");
-  const [assignmentTarget, setAssignmentTarget] = useState<AssignmentTarget>({ kind: "account", id: "" });
+  const [assignmentTarget, setAssignmentTarget] = useState<AssignmentTarget>({
+    kind: "account",
+    id: "",
+  });
   const [profileOptions, setProfileOptions] = useState<HouseholdProfile[]>([]);
   const [dueDate, setDueDate] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
@@ -99,19 +104,25 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const busy = loading || photoUploading;
-  const directNavigation = usePendingFormNavigationController(
-    busy && !inSheet,
-  );
+  const directNavigation = usePendingFormNavigationController(busy && !inSheet);
   const sheetNavigation = usePendingFormNavigation();
   const navigation = inSheet ? sheetNavigation : directNavigation;
-  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
   const profileText = useProfileSetupText();
-  const profileIdempotencyKey = useRef<{ key: string; signature: string } | null>(null);
+  const profileIdempotencyKey = useRef<{
+    key: string;
+    signature: string;
+  } | null>(null);
   const profileAmbiguousKeys = useRef(new Map<string, string>());
-  const assignedTo = assignmentTarget.kind === "account" ? assignmentTarget.id : "";
-  const profileTargetId = assignmentTarget.kind === "profile" ? assignmentTarget.id : null;
+  const assignedTo =
+    assignmentTarget.kind === "account" ? assignmentTarget.id : "";
+  const profileTargetId =
+    assignmentTarget.kind === "profile" ? assignmentTarget.id : null;
   const profileTargetMissing = Boolean(
-    profileTargetId && !findActiveHouseholdProfile(profileOptions, profileTargetId),
+    profileTargetId &&
+    !findActiveHouseholdProfile(profileOptions, profileTargetId),
   );
   // Picture routines (#272).
   const [icon, setIcon] = useState<string | null>(null);
@@ -138,10 +149,9 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         ? []
         : [message("fieldAssignee")]),
   ];
-  const submitHint =
-    profileTargetMissing
-      ? profileText("profileTargetRefresh")
-      : missingFields.length === 0
+  const submitHint = profileTargetMissing
+    ? profileText("profileTargetRefresh")
+    : missingFields.length === 0
       ? null
       : missingFields.length === 1
         ? message("missingOne", { field: missingFields[0] })
@@ -198,10 +208,11 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                 : current.id
                   ? current
                   : {
-                    kind: "account",
-                    id:
-                      data.members.find((m: { id: string }) => m.id === requested)
-                        ?.id ?? data.members[0].id,
+                      kind: "account",
+                      id:
+                        data.members.find(
+                          (m: { id: string }) => m.id === requested,
+                        )?.id ?? data.members[0].id,
                     },
             );
           }
@@ -217,12 +228,16 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
     let cancelled = false;
     async function loadProfiles() {
       try {
-        const response = await fetch("/api/family/profiles", { cache: "no-store" });
+        const response = await fetch("/api/family/profiles", {
+          cache: "no-store",
+        });
         if (!response.ok) return;
         const payload: unknown = await response.json();
         const profiles = readHouseholdProfilesResponse(payload);
         if (!cancelled && profiles?.profileChoreSupported) {
-          setProfileOptions(profiles.profiles.filter((profile) => !profile.archived_at));
+          setProfileOptions(
+            profiles.profiles.filter((profile) => !profile.archived_at),
+          );
         }
       } catch {
         // Profile setup is optional; the account assignment path remains available.
@@ -253,7 +268,9 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
     setError(null);
 
     try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
       let requestBody: Record<string, unknown>;
       if (profileTarget) {
         requestBody = {
@@ -266,12 +283,15 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           difficulty,
           frequency: "once",
           photo_url: photoUrl,
+          icon,
+          ...routineRequestFields(routine, routineOrder),
         };
         const signature = canonicalBodySignature(requestBody);
         const key =
           profileIdempotencyKey.current?.signature === signature
             ? profileIdempotencyKey.current.key
-            : profileAmbiguousKeys.current.get(signature) ?? newIdempotencyKey();
+            : (profileAmbiguousKeys.current.get(signature) ??
+              newIdempotencyKey());
         profileIdempotencyKey.current = { key, signature };
         headers[IDEMPOTENCY_HEADER] = key;
       } else {
@@ -311,7 +331,9 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         if (isProfileTarget) {
           const code = readApiErrorCode(data);
           if (code === "MEMBER_PROTOCOL_UNAVAILABLE") {
-            profileAmbiguousKeys.current.delete(profileIdempotencyKey.current?.signature ?? "");
+            profileAmbiguousKeys.current.delete(
+              profileIdempotencyKey.current?.signature ?? "",
+            );
             profileIdempotencyKey.current = null;
             setError(profileText("profileTargetUnsupported"));
           } else {
@@ -330,7 +352,9 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
       }
 
       if (isProfileTarget && profileIdempotencyKey.current) {
-        profileAmbiguousKeys.current.delete(profileIdempotencyKey.current.signature);
+        profileAmbiguousKeys.current.delete(
+          profileIdempotencyKey.current.signature,
+        );
         profileIdempotencyKey.current = null;
       }
       if ((await navigation?.releaseBeforeNavigation()) === false) return;
@@ -343,7 +367,11 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           profileIdempotencyKey.current.key,
         );
       }
-      setError(isProfileTarget ? profileText("profileTargetError") : message("unexpected"));
+      setError(
+        isProfileTarget
+          ? profileText("profileTargetError")
+          : message("unexpected"),
+      );
       console.error(err);
     } finally {
       setLoading(false);
@@ -352,35 +380,44 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
 
   return (
     <div className={inSheet ? "" : "max-w-xl mx-auto pb-20"}>
-      {!inSheet && <>
-      {/* Back nav */}
-      <div className="px-4 pt-4">
-        {busy ? (
-          <span
-            aria-disabled="true"
-            data-testid="chore-create-back-busy"
-            className="btn-plain text-base py-2 min-h-[44px]"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span>{message("back")}</span>
-          </span>
-        ) : (
-          <Link href="/dashboard/chores" className="btn-plain text-base py-2 min-h-[44px]">
-            <ArrowLeft className="w-5 h-5" />
-            <span>{message("back")}</span>
-          </Link>
-        )}
-      </div>
+      {!inSheet && (
+        <>
+          {/* Back nav */}
+          <div className="px-4 pt-4">
+            {busy ? (
+              <span
+                aria-disabled="true"
+                data-testid="chore-create-back-busy"
+                className="btn-plain text-base py-2 min-h-[44px]"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span>{message("back")}</span>
+              </span>
+            ) : (
+              <Link
+                href="/dashboard/chores"
+                className="btn-plain text-base py-2 min-h-[44px]"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span>{message("back")}</span>
+              </Link>
+            )}
+          </div>
 
-      <div className="px-4 pt-4">
-        <h1 className="text-large-title font-display">{message("newTitle")}</h1>
-        <p className="text-subhead text-label-secondary mt-1">
-          {message("newDescription")}
-        </p>
-      </div>
-
-      </>}
-      <form onSubmit={handleSubmit} className={inSheet ? "space-y-4" : "mt-6 space-y-4 px-4"}>
+          <div className="px-4 pt-4">
+            <h1 className="text-large-title font-display">
+              {message("newTitle")}
+            </h1>
+            <p className="text-subhead text-label-secondary mt-1">
+              {message("newDescription")}
+            </p>
+          </div>
+        </>
+      )}
+      <form
+        onSubmit={handleSubmit}
+        className={inSheet ? "space-y-4" : "mt-6 space-y-4 px-4"}
+      >
         {error && (
           <div className="card-apple p-4 border border-[var(--danger)]">
             <p className="text-body text-[var(--danger-text)]">{error}</p>
@@ -415,11 +452,16 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                 <select
                   id="assignedTo"
                   required
-                  value={profileTargetId ? `profile:${profileTargetId}` : assignedTo}
+                  value={
+                    profileTargetId ? `profile:${profileTargetId}` : assignedTo
+                  }
                   onChange={(e) => {
                     const value = e.target.value;
                     if (value.startsWith("profile:")) {
-                      setAssignmentTarget({ kind: "profile", id: value.slice("profile:".length) });
+                      setAssignmentTarget({
+                        kind: "profile",
+                        id: value.slice("profile:".length),
+                      });
                       setFrequency("once");
                       setTakeTurns(false);
                       setRotation([]);
@@ -430,21 +472,35 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                   className="input-apple"
                 >
                   {familyMembers.map((member) => (
-                  <option key={member.id} value={member.id}>
+                    <option key={member.id} value={member.id}>
                       {member.name}
                     </option>
                   ))}
                   {profileOptions.length > 0 && (
                     <optgroup label={profileText("profileTargets")}>
                       {profileOptions.map((profile) => (
-                        <option key={profile.id} value={`profile:${profile.id}`}>
-                          {profile.name} · {profileText(profile.role === "child" ? "roleChild" : profile.role === "teen" ? "roleTeen" : "roleParent")}
+                        <option
+                          key={profile.id}
+                          value={`profile:${profile.id}`}
+                        >
+                          {profile.name} ·{" "}
+                          {profileText(
+                            profile.role === "child"
+                              ? "roleChild"
+                              : profile.role === "teen"
+                                ? "roleTeen"
+                                : "roleParent",
+                          )}
                         </option>
                       ))}
                     </optgroup>
                   )}
                 </select>
-                {profileTargetId && <p className="text-footnote text-label-secondary mt-1.5">{profileText("profileTargetOnce")}</p>}
+                {profileTargetId && (
+                  <p className="text-footnote text-label-secondary mt-1.5">
+                    {profileText("profileTargetOnce")}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -530,13 +586,20 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         )}
 
         <ChoreFormSection
-          title={message(gamification && !profileTargetId ? "detailsPoints" : "details")}
+          title={message(
+            gamification && !profileTargetId ? "detailsPoints" : "details",
+          )}
           summary={[
             ...(description.trim() ? [message("instructionsAdded")] : []),
             message("difficultySummary", {
-              difficulty: message(difficultyOptions.find((option) => option.value === difficulty)!.label),
+              difficulty: message(
+                difficultyOptions.find((option) => option.value === difficulty)!
+                  .label,
+              ),
             }),
-            ...(gamification && !profileTargetId ? [message("pointsSummary", { count: points })] : []),
+            ...(gamification && !profileTargetId
+              ? [message("pointsSummary", { count: points })]
+              : []),
           ].join(" · ")}
         >
           {/* Description */}
@@ -577,7 +640,9 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                       : "border-[var(--surface-separator)] bg-[var(--surface-fill)] text-label-primary",
                   )}
                 >
-                  <div className="text-body font-semibold">{message(opt.label)}</div>
+                  <div className="text-body font-semibold">
+                    {message(opt.label)}
+                  </div>
                   <div className="text-caption-1 text-label-secondary mt-0.5">
                     {message(opt.description)}
                   </div>
@@ -604,28 +669,26 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
           )}
         </ChoreFormSection>
 
-        {!profileTargetId && (
-          <ChoreFormSection
-            title={message("picturesRoutine")}
-            summary={[
-              routine.trim()
-                ? `${routine}${routineOrder ? ` · ${message("step")} ${routineOrder}` : ""}`
-                : message("noRoutine"),
-              localizedChoreRoutineIconLabel(locale, icon) ??
-                routineIconLabel(icon) ??
-                message("noPicture"),
-            ].join(" · ")}
-          >
-            {/* Picture routines (#272): picture, routine and step */}
-            <RoutineIconPicker value={icon} onChange={setIcon} />
-            <RoutineFields
-              routine={routine}
-              onRoutineChange={setRoutine}
-              order={routineOrder}
-              onOrderChange={setRoutineOrder}
-            />
-          </ChoreFormSection>
-        )}
+        <ChoreFormSection
+          title={message("picturesRoutine")}
+          summary={[
+            routine.trim()
+              ? `${routine}${routineOrder ? ` · ${message("step")} ${routineOrder}` : ""}`
+              : message("noRoutine"),
+            localizedChoreRoutineIconLabel(locale, icon) ??
+              routineIconLabel(icon) ??
+              message("noPicture"),
+          ].join(" · ")}
+        >
+          {/* Picture routines (#272): picture, routine and step */}
+          <RoutineIconPicker value={icon} onChange={setIcon} />
+          <RoutineFields
+            routine={routine}
+            onRoutineChange={setRoutine}
+            order={routineOrder}
+            onOrderChange={setRoutineOrder}
+          />
+        </ChoreFormSection>
 
         <ChoreFormSection
           title={message("photo")}
@@ -660,7 +723,8 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
                     body: fd,
                   });
                   const data = await res.json();
-                  if (!res.ok) throw new Error(data.error || message("uploadFailed"));
+                  if (!res.ok)
+                    throw new Error(data.error || message("uploadFailed"));
                   setPhotoUrl(data.url);
                   setPhotoPreview(data.url);
                 } catch (err) {
@@ -724,7 +788,13 @@ export default function CreateChoreForm({ inSheet = false, onBusyChange }: { inS
         </ChoreFormSection>
 
         {/* Submit */}
-        <div className={inSheet ? "sticky bottom-0 bg-[var(--surface-elevated)] pt-3 pb-1" : "pt-2"}>
+        <div
+          className={
+            inSheet
+              ? "sticky bottom-0 bg-[var(--surface-elevated)] pt-3 pb-1"
+              : "pt-2"
+          }
+        >
           <button
             type="submit"
             disabled={loading || submitHint !== null}

@@ -149,6 +149,178 @@ describe("readParentRoutineStackCandidates", () => {
     );
   });
 
+  it("exposes eligible email-free profile rows only for protocol 2", async () => {
+    const previousEnabled = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+    const previousRollback = process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+    try {
+      const database = db();
+      setup(database, [
+        row({
+          id: "chore-profile",
+          assigned_to: null,
+          assigned_member_id: "member-toddler",
+          frequency: "once",
+          recurrence_id: null,
+        }),
+      ]);
+      database.householdMember.findMany.mockResolvedValue([
+        {
+          id: "member-toddler",
+          name: "Toddler",
+          role: "child",
+          age: 3,
+          archived_at: null,
+          erasure_user_id: null,
+          legacy_mapping: null,
+          account_link: null,
+        },
+      ]);
+
+      const result = await readParentRoutineStackCandidates(
+        database,
+        { ...actor, memberProtocol: 2 },
+        date,
+      );
+
+      expect(result?.candidates.map((candidate) => candidate.id)).toEqual([
+        "chore-profile",
+      ]);
+      expect(result?.candidates[0]).toMatchObject({
+        assigned_to: null,
+        assigned_member_id: "member-toddler",
+      });
+      expect(result?.assignmentOptions).toContainEqual({
+        memberId: "member-toddler",
+        name: "Toddler",
+        role: "child",
+      });
+
+      const protocolOne = await readParentRoutineStackCandidates(
+        database,
+        actor,
+        date,
+      );
+      expect(protocolOne?.candidates).toEqual([]);
+      expect(protocolOne?.assignmentOptions).not.toContainEqual({
+        memberId: "member-toddler",
+        name: "Toddler",
+        role: "child",
+      });
+    } finally {
+      if (previousEnabled === undefined) {
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+      } else {
+        process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = previousEnabled;
+      }
+      if (previousRollback === undefined) {
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+      } else {
+        process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = previousRollback;
+      }
+    }
+  });
+
+  it("does not offer archived, linked, or repeating profile subjects", async () => {
+    const previousEnabled = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+    const previousRollback = process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+    try {
+      const database = db();
+      setup(database, [
+        row({
+          id: "chore-archived-profile",
+          assigned_to: null,
+          assigned_member_id: "member-archived-profile",
+        }),
+        row({
+          id: "chore-linked-profile",
+          assigned_to: null,
+          assigned_member_id: "member-linked-profile",
+        }),
+        row({
+          id: "chore-repeating-profile",
+          assigned_to: null,
+          assigned_member_id: "member-good-profile",
+          frequency: "weekly",
+        }),
+      ]);
+      database.householdMember.findMany.mockResolvedValue([
+        {
+          id: "member-archived-profile",
+          name: "Archived",
+          role: "child",
+          age: 4,
+          archived_at: new Date("2026-01-01T00:00:00.000Z"),
+          erasure_user_id: null,
+          legacy_mapping: null,
+          account_link: null,
+        },
+        {
+          id: "member-linked-profile",
+          name: "Linked",
+          role: "child",
+          age: 4,
+          archived_at: null,
+          erasure_user_id: null,
+          legacy_mapping: null,
+          account_link: { user_id: "user-linked" },
+        },
+        {
+          id: "member-good-profile",
+          name: "Good",
+          role: "child",
+          age: 4,
+          archived_at: null,
+          erasure_user_id: null,
+          legacy_mapping: null,
+          account_link: null,
+        },
+      ]);
+
+      const result = await readParentRoutineStackCandidates(
+        database,
+        { ...actor, memberProtocol: 2 },
+        date,
+      );
+      expect(result?.candidates).toEqual([]);
+      expect(result?.assignmentOptions).toEqual(
+        expect.arrayContaining([
+          { accountId: "user-unmapped", name: "Unmapped", role: "parent" },
+          { memberId: "member-good-profile", name: "Good", role: "child" },
+        ]),
+      );
+      expect(result?.assignmentOptions).toHaveLength(2);
+      expect(result?.assignmentOptions).not.toEqual(
+        expect.arrayContaining([
+          {
+            memberId: "member-archived-profile",
+            name: "Archived",
+            role: "child",
+          },
+          {
+            memberId: "member-linked-profile",
+            name: "Linked",
+            role: "child",
+          },
+        ]),
+      );
+    } finally {
+      if (previousEnabled === undefined) {
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+      } else {
+        process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = previousEnabled;
+      }
+      if (previousRollback === undefined) {
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+      } else {
+        process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = previousRollback;
+      }
+    }
+  });
+
   it("preserves valid generated recurrence metadata and rejects bad anchors", async () => {
     const database = db();
     setup(database, [
