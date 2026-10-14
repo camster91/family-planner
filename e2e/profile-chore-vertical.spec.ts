@@ -1045,13 +1045,16 @@ test.describe.serial("email-free profile chore vertical", () => {
       // the durable history surface.
       await page.goto("/dashboard/chores");
       await page.getByRole("button", { name: "All", exact: true }).click();
-      await expect(
-        page.getByRole("button", { name: "Done", exact: true }),
-      ).toBeVisible();
-      await page.getByRole("button", { name: "Done", exact: true }).click();
+      const doneButton = page.getByRole("button", {
+        name: /^Done \d+\+?$/,
+      });
+      await expect(doneButton).toBeVisible();
+      await doneButton.click();
+      await expect(doneButton).toHaveAttribute("aria-expanded", "true");
+      const history = page.locator("section").filter({ has: doneButton });
       for (const chore of chores) {
         await expect(
-          page.getByText(chore.title, { exact: true }),
+          history.getByText(chore.title, { exact: true }),
         ).toBeVisible();
         const verify = page.getByRole("button", {
           name: `Verify “${chore.title}”`,
@@ -1066,14 +1069,11 @@ test.describe.serial("email-free profile chore vertical", () => {
         await verify.click();
         expect((await verified).status()).toBe(200);
       }
-      await page.getByRole("button", { name: "All", exact: true }).click();
-      await expect(
-        page.getByRole("button", { name: "Done", exact: true }),
-      ).toBeVisible();
-      await page.getByRole("button", { name: "Done", exact: true }).click();
+      await expect(doneButton).toBeVisible();
+      await expect(doneButton).toHaveAttribute("aria-expanded", "true");
       for (const chore of chores)
         await expect(
-          page.getByText(chore.title, { exact: true }),
+          history.getByText(chore.title, { exact: true }),
         ).toBeVisible();
       await expectNoHorizontalOverflow(page, "profile routine history");
       await info.attach(`${info.project.name}-profile-routine-history`, {
