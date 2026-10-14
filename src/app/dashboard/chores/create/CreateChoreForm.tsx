@@ -42,7 +42,10 @@ import {
   readApiErrorCode,
   type HouseholdProfile,
 } from "@/lib/household-profile-types";
-import { fetchHouseholdProfiles } from "@/lib/household-profile-client";
+import {
+  fetchHouseholdProfiles,
+  readProfileChoreCreateSuccess,
+} from "@/lib/household-profile-client";
 import { useProfileSetupText } from "@/i18n/profile-setup";
 
 type Difficulty = "easy" | "medium" | "hard";
@@ -347,7 +350,7 @@ export default function CreateChoreForm({
         headers,
         body: JSON.stringify(requestBody),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
       if (!res.ok) {
         if (isProfileTarget) {
@@ -376,6 +379,11 @@ export default function CreateChoreForm({
         } else {
           setError(data.error || message("createFailed"));
         }
+        return;
+      }
+
+      if (isProfileTarget && !readProfileChoreCreateSuccess(data)) {
+        setError(profileText("invalidResponse"));
         return;
       }
 

@@ -23,6 +23,31 @@ const profile = {
   revision: 0,
 };
 
+const validProfileCreateResponse = {
+  chore: {
+    id: "chore-1",
+    title: "Pack a bag",
+    description: null,
+    due_date: "2099-10-05",
+    status: "pending",
+    frequency: "once",
+    weekly_days: [],
+    recurrence_id: null,
+    is_template: false,
+    difficulty: "medium",
+    icon: null,
+    routine: null,
+    routine_order: null,
+    subject: {
+      kind: "profile",
+      memberId: "profile-jamie",
+      name: "Jamie",
+      role: "child",
+    },
+    created_at: "2026-10-14T16:00:00.000Z",
+  },
+};
+
 describe("profile target in the create chore form", () => {
   beforeEach(() => {
     calls.length = 0;
@@ -154,6 +179,72 @@ describe("profile target in the create chore form", () => {
     expect(createCall.init?.headers).toEqual(
       expect.objectContaining({ "Idempotency-Key": expect.any(String) }),
     );
+  });
+
+  it("retains the profile draft and idempotency key after malformed success", async () => {
+    const user = userEvent.setup();
+    let createAttempts = 0;
+    global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url === "/api/family/members") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            members: [{ id: "account-1", name: "Parent", role: "parent" }],
+          }),
+        };
+      }
+      if (url === "/api/family/profiles") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            profiles: [profile],
+            profileChoreSupported: true,
+            profileChoreRecurrenceSupported: true,
+          }),
+        };
+      }
+      createAttempts += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () =>
+          createAttempts === 1 ? {} : validProfileCreateResponse,
+      };
+    }) as unknown as typeof fetch;
+    render(<CreateChorePage />);
+    await screen.findByRole("option", { name: /Jamie/ });
+    await user.selectOptions(
+      screen.getByLabelText("Assign To"),
+      "profile:profile-jamie",
+    );
+    await user.type(screen.getByLabelText("Title"), "Pack a bag");
+    fireEvent.change(screen.getByLabelText("Due Date"), {
+      target: { value: "2099-10-05" },
+    });
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+
+    expect(
+      await screen.findByText(
+        "The server returned an unsupported profile response.",
+      ),
+    ).toBeTruthy();
+    expect(push).not.toHaveBeenCalled();
+    const firstCall = calls.find((call) => call.url === "/api/chores/create")!;
+    const firstKey = new Headers(firstCall.init?.headers).get("Idempotency-Key");
+    const firstBody = firstCall.init?.body;
+    expect(firstKey).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
+    const createCalls = calls.filter((call) => call.url === "/api/chores/create");
+    expect(createCalls).toHaveLength(2);
+    expect(new Headers(createCalls[1].init?.headers).get("Idempotency-Key")).toBe(
+      firstKey,
+    );
+    expect(createCalls[1].init?.body).toBe(firstBody);
   });
 
   it("explains an unavailable profile chore protocol without falling back to an account", async () => {
