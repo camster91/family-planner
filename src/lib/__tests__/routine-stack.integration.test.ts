@@ -22,6 +22,8 @@ import { hashIdempotentRequest } from "@/lib/idempotency";
 import {
   readParentRoutineStackCandidates,
   readParentRoutineStack,
+  type ParentRoutineStackRead,
+  type ParentRoutineStackReadProtocolRefusal,
   saveParentRoutineStack,
 } from "@/lib/routine-stack-api";
 import { decodeChoreCursor } from "@/lib/chore-paging";
@@ -107,6 +109,15 @@ const MALFORMED_OCCURRENCE = `${PREFIX}-malformed-occurrence`;
 const EMPTY_OCCURRENCE = `${PREFIX}-empty-occurrence`;
 const OCCURRENCE_DATE = "2026-10-12";
 const OCCURRENCE = new Date(`${OCCURRENCE_DATE}T00:00:00.000Z`);
+
+function requireRoutineStackRead(
+  value: ParentRoutineStackRead | ParentRoutineStackReadProtocolRefusal | null,
+): ParentRoutineStackRead {
+  if (!value || "status" in value || "body" in value) {
+    throw new Error("Expected a readable routine stack response.");
+  }
+  return value;
+}
 
 async function loadDatabase(): Promise<Db> {
   const configuredModule = process.env.ROUTINE_STACK_PRISMA_CLIENT_MODULE;
@@ -1044,6 +1055,7 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         }),
       ],
     });
+    const readable = requireRoutineStackRead(read);
     const persistedRows = await db.chore.findMany({
       where: {
         family_id: FAMILY_A,
@@ -1054,10 +1066,10 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         },
       },
     });
-    expect(read?.fingerprint).toBe(
+    expect(readable.fingerprint).toBe(
       fingerprintRoutineStackSnapshot(persistedRows),
     );
-    expect(read?.compact.fingerprint).toBe(read?.fingerprint);
+    expect(readable.compact.fingerprint).toBe(readable.fingerprint);
   });
 
   it("reads only eligible parent candidates and keeps account options privacy-safe", async () => {
@@ -1497,7 +1509,8 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
         }),
       ],
     });
-    expect(fresh?.compact.fingerprint).toBe(fresh?.fingerprint);
+    const readableFresh = requireRoutineStackRead(fresh);
+    expect(readableFresh.compact.fingerprint).toBe(readableFresh.fingerprint);
     expect(
       await db.chore.findUniqueOrThrow({ where: { id: CHORE_RECURRING } }),
     ).toMatchObject({
@@ -1952,7 +1965,8 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
       occurrence_date: OCCURRENCE_DATE,
       steps: [expect.objectContaining({ id: CHORE_A })],
     });
-    expect(parent?.members).toEqual(
+    const readableParent = requireRoutineStackRead(parent);
+    expect(readableParent.members).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: MEMBER_CHILD_A,
@@ -1973,10 +1987,10 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
       ]),
     );
     expect(
-      parent?.members.every((member) => member.id.startsWith(PREFIX)),
+      readableParent.members.every((member) => member.id.startsWith(PREFIX)),
     ).toBe(true);
     expect(
-      parent?.members.some((member) => member.id === MEMBER_PARENT_B),
+      readableParent.members.some((member) => member.id === MEMBER_PARENT_B),
     ).toBe(false);
     expect(JSON.stringify(parent)).not.toContain("erasure_user_id");
     expect(JSON.stringify(parent)).not.toContain("@example.test");
@@ -2130,7 +2144,8 @@ describeWithDatabase("routine stack against disposable PostgreSQL", () => {
           }),
         ]),
       });
-      expect(profileRead?.steps).toHaveLength(2);
+      const readableProfile = requireRoutineStackRead(profileRead);
+      expect(readableProfile.steps).toHaveLength(2);
       expect(
         await readParentRoutineStack(db, actorA, stackId!, OCCURRENCE_DATE),
       ).toMatchObject({
