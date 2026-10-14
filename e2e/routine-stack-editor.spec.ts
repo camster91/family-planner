@@ -553,7 +553,9 @@ async function makeDraft(page: Page, fixture: Fixture, locale: Locale) {
   }
   await editor.getByLabel(text.label).fill(fixture.label);
   await editor.locator("#routine-new-title").fill(fixture.newTitle);
-  await editor.locator("#routine-new-assignee").selectOption(fixture.child);
+  await editor
+    .locator("#routine-new-assignee")
+    .selectOption(`account:${fixture.child}`);
   await editor.getByRole("button", { name: text.addStep, exact: true }).click();
   await expectStableViewport();
   return editor;
@@ -704,7 +706,7 @@ for (const locale of LOCALES) {
         await editor
           .locator('select[id^="routine-assignee-"]')
           .first()
-          .selectOption(fixture.parent);
+          .selectOption(`account:${fixture.parent}`);
         await editor
           .getByRole("button", {
             name: copy[locale].moveDown(fixture.childTitle),

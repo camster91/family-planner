@@ -906,3 +906,37 @@ it("uses the scoped Spanish editor labels without translating chore data", async
   expect(await screen.findByText("Pack lunches")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Guardar rutina" })).toBeTruthy();
 });
+
+it("uses page-level section semantics for the direct editor", async () => {
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) return response(candidates);
+    return response(saveResponse);
+  });
+
+  renderEditor();
+  await screen.findByText("Pack lunches");
+  expect(screen.queryByRole("main")).toBeNull();
+  expect(screen.getByRole("region", { name: "New routine" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Steps", level: 2 })).toBeTruthy();
+  expect(screen.queryByRole("heading", { name: "Steps", level: 3 })).toBeNull();
+});
+
+it("keeps sheet content below the dialog title heading", async () => {
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/candidates")) return response(candidates);
+    return response(saveResponse);
+  });
+
+  render(
+    <I18nProvider>
+      <RoutineStackEditor familyId="family-a" mode="sheet" />
+    </I18nProvider>,
+  );
+  await screen.findByText("Pack lunches");
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByRole("heading", { name: "New routine", level: 2 })).toBeTruthy();
+  expect(within(dialog).getByRole("heading", { name: "Steps", level: 3 })).toBeTruthy();
+  expect(within(dialog).queryByRole("heading", { name: "Steps", level: 2 })).toBeNull();
+});

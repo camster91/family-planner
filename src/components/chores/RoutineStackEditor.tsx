@@ -1109,6 +1109,7 @@ export default function RoutineStackEditor({
       steps.some((step) => step.choreId === candidate.id),
     );
   const title = stackId ? msg("title") : msg("newTitle");
+  const SectionHeading = mode === "sheet" ? "h3" : "h2";
   const content = (
     <form
       onSubmit={save}
@@ -1122,9 +1123,9 @@ export default function RoutineStackEditor({
         </p>
       ) : loadError ? (
         <div className="space-y-3" role="alert">
-          <h3 className="text-title-3 text-label-primary">
+          <SectionHeading className="text-title-3 text-label-primary">
             {msg("loadErrorTitle")}
-          </h3>
+          </SectionHeading>
           <p className="text-body text-label-secondary">{loadError}</p>
           <button
             type="button"
@@ -1163,12 +1164,12 @@ export default function RoutineStackEditor({
             className="space-y-3"
           >
             <div className="flex items-center justify-between gap-3">
-              <h3
+              <SectionHeading
                 id="routine-steps-heading"
                 className="text-title-3 text-label-primary"
               >
                 {msg("steps")}
-              </h3>
+              </SectionHeading>
               <span className="text-footnote text-label-secondary">
                 {steps.length}/{ROUTINE_STACK_MAX_STEPS}
               </span>
@@ -1276,12 +1277,12 @@ export default function RoutineStackEditor({
             aria-labelledby="routine-candidates-heading"
             className="space-y-3"
           >
-            <h3
+            <SectionHeading
               id="routine-candidates-heading"
               className="text-title-3 text-label-primary"
             >
               {msg("candidates")}
-            </h3>
+            </SectionHeading>
             {candidates.length === 0 ? (
               <p className="text-body text-label-secondary">
                 {msg("noCandidates")}
@@ -1343,12 +1344,12 @@ export default function RoutineStackEditor({
             aria-labelledby="routine-new-step-heading"
             className="min-w-0 max-w-full space-y-3 rounded-xl border border-[var(--surface-separator)] p-3"
           >
-            <h3
+            <SectionHeading
               id="routine-new-step-heading"
               className="text-title-3 text-label-primary"
             >
               {msg("newStep")}
-            </h3>
+            </SectionHeading>
             <label htmlFor="routine-new-title" className="sr-only">
               {msg("stepTitle")}
             </label>
@@ -1508,18 +1509,26 @@ export default function RoutineStackEditor({
 
   return (
     <>
-      <main className="mx-auto min-w-0 w-full max-w-3xl px-4 pb-24 pt-6">
+      <section
+        aria-labelledby="routine-editor-page-heading"
+        className="mx-auto min-w-0 w-full max-w-3xl px-4 pb-24 pt-6"
+      >
         <div className="mb-6">
           <p className="text-footnote uppercase tracking-wide text-label-secondary">
             {msg("occurrence")} · {occurrenceDate}
           </p>
-          <h1 className="mt-1 text-title-1 text-label-primary">{title}</h1>
+          <h1
+            id="routine-editor-page-heading"
+            className="mt-1 text-title-1 text-label-primary"
+          >
+            {title}
+          </h1>
           <p className="mt-2 text-body text-label-secondary">
             {msg("description")}
           </p>
         </div>
         {content}
-      </main>
+      </section>
       {discardDialog}
     </>
   );
