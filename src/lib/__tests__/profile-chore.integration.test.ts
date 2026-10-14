@@ -253,6 +253,29 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
     }
   }
 
+  async function withProfileRecurrenceEnabled<T>(work: () => Promise<T>) {
+    const enabled = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+    const rollback = process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+    const recurrence = process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED;
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+    process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED = "1";
+    try {
+      return await work();
+    } finally {
+      if (enabled === undefined)
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+      else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = enabled;
+      if (rollback === undefined)
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+      else process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = rollback;
+      if (recurrence === undefined)
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED;
+      else
+        process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED = recurrence;
+    }
+  }
+
   async function expectSqlFailure(
     text: string,
     values: unknown[],
@@ -283,7 +306,8 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
     assertFixtureTargetAllowed(process.env);
     if (
       process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED === "1" ||
-      process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY === "1"
+      process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY === "1" ||
+      process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED === "1"
     ) {
       throw new Error(
         "Profile-chore integration proof must run with HOUSEHOLD_PROFILE_CHORE_ENABLED unset or 0; it never enables production behavior.",
@@ -474,7 +498,7 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
   });
 
   it("creates bounded selected-weekday profile occurrences and stops safely on lifecycle change", async () => {
-    await withProfileFeatureEnabled(async () => {
+    await withProfileRecurrenceEnabled(async () => {
       const input = recurringProfileInput(CHILD_A, "Recurring profile routine");
       const template = await createProfileOnlyChore(
         db,
@@ -558,6 +582,155 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
       expect(
         await db.chore.count({ where: { recurrence_id: template.id } }),
       ).toBe(7);
+    });
+  });
+
+  it("refuses recurring creation before a completed receipt can replay", async () => {
+    const input = recurringProfileInput(CHILD_A, "Held recurring profile draft");
+    const key = "fx-profile-recurring-gate-20261011";
+    const receiptBody = { chore: { id: "never-replay-this" } };
+    await db.idempotencyRecord.create({
+      data: {
+        scope: `user:${PARENT_A}`,
+        key,
+        family_id: FAMILY_A,
+        user_id: PARENT_A,
+        action: "chore.profile.create",
+        request_hash: hashIdempotentRequest("chore.profile.create", input),
+        response_status: 200,
+        response_body: receiptBody,
+        created_at: NOON,
+        expires_at: new Date(NOON.getTime() + 60_000),
+      },
+    });
+
+    await withProfileFeatureEnabled(async () => {
+      const refused = await createProfileOnlyChoreEffect(
+        db,
+        { id: PARENT_A, familyId: FAMILY_A },
+        input,
+        DATE,
+        null,
+        "receipt-not-replayed",
+        NOON,
+      );
+      expect(refused.status).toBe(409);
+      expect(refused.body).toMatchObject({
+        error: "MEMBER_PROTOCOL_UNAVAILABLE",
+      });
+    });
+    expect(
+      await db.chore.count({
+        where: { family_id: FAMILY_A, assigned_member_id: CHILD_A },
+      }),
+    ).toBe(0);
+    expect(
+      await db.idempotencyRecord.findUniqueOrThrow({
+        where: { id: (await db.idempotencyRecord.findFirstOrThrow({ where: { key } })).id },
+      }),
+    ).toMatchObject({ response_status: 200, response_body: receiptBody });
+  });
+
+  it("retains a pending repeated occurrence when the recurrence gate rolls back", async () => {
+    const template = await withProfileRecurrenceEnabled(() =>
+      createProfileOnlyChore(
+        db,
+        { id: PARENT_A, familyId: FAMILY_A },
+        recurringProfileInput(CHILD_A, "Rollback repeated profile"),
+        new Date("2026-10-12T00:00:00.000Z"),
+        null,
+        new Date("2026-10-12T12:00:00.000Z"),
+      ),
+    );
+    const occurrence = await db.chore.findFirstOrThrow({
+      where: { recurrence_id: template.id, id: { not: template.id } },
+      orderBy: { due_date: "asc" },
+    });
+    const outcome = await completeProfileChoreInTx(db, {
+      choreId: occurrence.id,
+      familyId: FAMILY_A,
+      memberId: CHILD_A,
+      deviceId: DEVICE_A,
+      now: occurrence.due_date,
+    });
+    expect(outcome).toBe("profile_unavailable");
+    expect(
+      await db.chore.findUniqueOrThrow({ where: { id: occurrence.id } }),
+    ).toMatchObject({ status: "pending", assigned_to: null });
+    expect(
+      await db.deviceAuditEvent.count({
+        where: { family_id: FAMILY_A, subject_member_id: CHILD_A },
+      }),
+    ).toBe(0);
+  });
+
+  it("serializes concurrent top-ups and keeps one monthly Jan-31 anchor", async () => {
+    await withProfileRecurrenceEnabled(async () => {
+      const monthly = profileChoreCreateSchema.parse({
+        protocol: 2,
+        selection: { memberId: CHILD_A },
+        title: "Monthly profile anchor",
+        due_date: "2027-01-31",
+        difficulty: "easy",
+        frequency: "monthly",
+        photo_url: null,
+      });
+      const template = await createProfileOnlyChore(
+        db,
+        { id: PARENT_A, familyId: FAMILY_A },
+        monthly,
+        new Date("2027-01-31T00:00:00.000Z"),
+        null,
+        new Date("2027-01-31T12:00:00.000Z"),
+      );
+      expect(
+        (
+          await db.chore.findMany({
+            where: { recurrence_id: template.id },
+            orderBy: { due_date: "asc" },
+          })
+        ).map((row: any) => row.due_date.toISOString().slice(0, 10)),
+      ).toEqual(["2027-01-31", "2027-02-28", "2027-03-31"]);
+
+      const results = await Promise.all(
+        [0, 1].map(() =>
+          db.$transaction((tx: any) =>
+            expandSeriesInTx(
+              tx,
+              template.id,
+              FAMILY_A,
+              new Date("2027-02-28T12:00:00.000Z"),
+            ),
+          ),
+        ),
+      );
+      expect(results.filter((count) => count > 0)).toHaveLength(1);
+      expect(results.reduce((sum, count) => sum + count, 0)).toBe(1);
+      expect(
+        (
+          await db.chore.findMany({
+            where: { recurrence_id: template.id },
+            orderBy: { due_date: "asc" },
+          })
+        ).map((row: any) => row.due_date.toISOString().slice(0, 10)),
+      ).toEqual(["2027-01-31", "2027-02-28", "2027-03-31", "2027-04-30"]);
+
+      await db.$transaction((tx: any) =>
+        expandSeriesInTx(
+          tx,
+          template.id,
+          FAMILY_A,
+          new Date("2027-03-31T12:00:00.000Z"),
+        ),
+      );
+      expect(
+        (
+          await db.chore.findMany({
+            where: { recurrence_id: template.id },
+            orderBy: { due_date: "asc" },
+          })
+        ).map((row: any) => row.due_date.toISOString().slice(0, 10)),
+      ).toContain("2027-05-31");
     });
   });
 
@@ -646,6 +819,91 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
         where: { family_id: FAMILY_A, assigned_member_id: CHILD_A },
       }),
     ).toBe(1);
+  });
+
+  it("replays a recurring profile series after the outer response store is lost", async () => {
+    await withProfileRecurrenceEnabled(async () => {
+      const input = recurringProfileInput(CHILD_A, "Lost recurring response");
+      const key = "fx-profile-recurring-response-loss-20261011";
+      const context = {
+        scope: `user:${PARENT_A}`,
+        familyId: FAMILY_A,
+        userId: PARENT_A,
+        action: "chore.profile.create",
+      };
+      const real = db;
+      let outerStoreFailures = 0;
+      const failingRecords = new Proxy(real.idempotencyRecord, {
+        get(target, property) {
+          if (property === "update" && outerStoreFailures === 0) {
+            return async () => {
+              outerStoreFailures += 1;
+              throw new Error("connection reset after transaction");
+            };
+          }
+          const value = Reflect.get(target, property);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+      const failingDb = new Proxy(real, {
+        get(target, property) {
+          if (property === "idempotencyRecord") return failingRecords;
+          const value = Reflect.get(target, property);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }) as TestDb;
+
+      const first = await withIdempotency(
+        failingDb,
+        key,
+        context,
+        input,
+        ({ recordId }) =>
+          createProfileOnlyChoreEffect(
+            failingDb,
+            { id: PARENT_A, familyId: FAMILY_A },
+            input,
+            new Date("2026-10-12T00:00:00.000Z"),
+            null,
+            recordId,
+            new Date("2026-10-12T12:00:00.000Z"),
+          ),
+      );
+      expect(first.status).toBe(200);
+      expect(outerStoreFailures).toBe(1);
+      const firstBody = await first.json();
+      const receipt = await db.idempotencyRecord.findFirstOrThrow({
+        where: { family_id: FAMILY_A, key },
+      });
+      expect(receipt.response_status).toBe(200);
+      expect(receipt.response_body).toEqual(firstBody);
+      expect(
+        await db.chore.count({ where: { recurrence_id: firstBody.chore.recurrence_id } }),
+      ).toBe(8);
+
+      const retry = await withIdempotency(
+        db,
+        key,
+        context,
+        input,
+        ({ recordId }) =>
+          createProfileOnlyChoreEffect(
+            db,
+            { id: PARENT_A, familyId: FAMILY_A },
+            input,
+            new Date("2026-10-12T00:00:00.000Z"),
+            null,
+            recordId,
+            new Date("2026-10-12T12:00:00.000Z"),
+          ),
+      );
+      expect(retry.status).toBe(200);
+      expect(retry.headers.get("Idempotency-Replayed")).toBe("true");
+      expect(await retry.json()).toEqual(firstBody);
+      expect(
+        await db.chore.count({ where: { recurrence_id: firstBody.chore.recurrence_id } }),
+      ).toBe(8);
+    });
   });
 
   it("takes over an abandoned receipt without creating a second profile chore", async () => {

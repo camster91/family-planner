@@ -10,31 +10,22 @@ import {
 } from "@/lib/member-subject-contract";
 import { lockHousehold, lockUser } from "@/lib/household-lock";
 import { expandSeriesInTx } from "@/lib/recurringChores";
+import {
+  isProfileChoreEnabled,
+  isProfileChoreRecurrenceSupported,
+  PROFILE_CHORE_ENABLE_ENV,
+  PROFILE_CHORE_ROLLBACK_READY_ENV,
+} from "@/lib/profile-chore-gates";
 
-/** Server-only gate. It is deliberately absent from the capability manifest. */
-export const PROFILE_CHORE_ENABLE_ENV = "HOUSEHOLD_PROFILE_CHORE_ENABLED";
-/**
- * Release-controller acknowledgement for the forward-only schema change.
- * Profile-only rows make an account-only server an unsafe rollback target, so
- * the feature must stay dark until the compatible reader/writer candidate and
- * its recovery path are ready together.
- */
-export const PROFILE_CHORE_ROLLBACK_READY_ENV =
-  "HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY";
+export {
+  isProfileChoreEnabled,
+  isProfileChoreRecurrenceSupported,
+  PROFILE_CHORE_ENABLE_ENV,
+  PROFILE_CHORE_ROLLBACK_READY_ENV,
+  PROFILE_CHORE_RECURRENCE_ENABLE_ENV,
+} from "@/lib/profile-chore-gates";
 export const PROFILE_CHORE_UNSUPPORTED_CODE =
   "MEMBER_PROTOCOL_UNAVAILABLE" as const;
-
-export function isProfileChoreEnabled(): boolean {
-  return (
-    process.env[PROFILE_CHORE_ENABLE_ENV] === "1" &&
-    process.env[PROFILE_CHORE_ROLLBACK_READY_ENV] === "1"
-  );
-}
-
-/** Private profile-list capability for the gated recurring profile slice. */
-export function isProfileChoreRecurrenceSupported(): boolean {
-  return isProfileChoreEnabled();
-}
 
 export const profileChoreCreateSchema = z
   .object({
@@ -313,6 +304,22 @@ export async function createProfileOnlyChoreInTx(
   recordId: string | null,
   now = new Date(),
 ): Promise<EffectResult> {
+  // Refuse a recurring profile request before touching the idempotency receipt
+  // or creating its template. A rollout can therefore turn this opt-in off
+  // without replaying a cached recurring response or leaving a new series
+  // half-created. One-off profile writes continue to use the existing gate.
+  if (
+    input.frequency !== "once" &&
+    !isProfileChoreRecurrenceSupported()
+  ) {
+    return {
+      status: 409,
+      body: {
+        error: PROFILE_CHORE_UNSUPPORTED_CODE,
+        ...profileChoreProtocolRefusal(),
+      },
+    };
+  }
   await lockUser(tx, actor.id);
   await lockHousehold(tx, actor.familyId);
 

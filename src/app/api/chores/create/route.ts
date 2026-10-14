@@ -18,6 +18,7 @@ import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycl
 import {
   createProfileOnlyChoreEffect,
   isProfileChoreEnabled,
+  isProfileChoreRecurrenceSupported,
   profileChoreCreateSchema,
   profileChoreProtocolRefusal,
   ProfileChoreError,
@@ -56,6 +57,15 @@ export async function POST(request: NextRequest) {
       const profile = profileChoreCreateSchema.safeParse(body)
       if (!profile.success) {
         return NextResponse.json({ error: 'The profile chore request is not valid.' }, { status: 400 })
+      }
+      // Keep recurring profile writes behind their own private rollout gate.
+      // This check intentionally precedes idempotency-key lookup so a cached
+      // response cannot replay after the recurrence capability is withdrawn.
+      if (profile.data.frequency !== 'once' && !isProfileChoreRecurrenceSupported()) {
+        return NextResponse.json(
+          { error: PROFILE_CHORE_UNSUPPORTED_CODE, ...profileChoreProtocolRefusal() },
+          { status: 409, headers: { 'Cache-Control': 'private, no-store' } },
+        )
       }
       const { key, error: keyError } = readIdempotencyKey(request)
       if (keyError) return keyError

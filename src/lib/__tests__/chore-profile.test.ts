@@ -7,10 +7,12 @@ import {
 import {
   createProfileOnlyChoreEffect,
   isProfileChoreEnabled,
+  isProfileChoreRecurrenceSupported,
   profileChoreCreateSchema,
   profileChoreReadRefusal,
   profileChoreProtocolRefusal,
   PROFILE_CHORE_ROLLBACK_READY_ENV,
+  PROFILE_CHORE_RECURRENCE_ENABLE_ENV,
   readChoreSubject,
 } from "@/lib/chore-profile";
 
@@ -41,6 +43,8 @@ describe("profile-only chore contract", () => {
   const originalGate = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
   const originalRollbackGate =
     process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+  const originalRecurrenceGate =
+    process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED;
 
   afterEach(() => {
     if (originalGate === undefined)
@@ -50,6 +54,10 @@ describe("profile-only chore contract", () => {
       delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
     else
       process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = originalRollbackGate;
+    if (originalRecurrenceGate === undefined)
+      delete process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV];
+    else
+      process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV] = originalRecurrenceGate;
   });
 
   it("returns a typed profile subject without exposing account details", () => {
@@ -271,6 +279,19 @@ describe("profile-only chore contract", () => {
         ...profileChoreProtocolRefusal(),
       },
     });
+  });
+
+  it("keeps recurring profile support behind its separate private opt-in", () => {
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+    delete process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV];
+    expect(isProfileChoreRecurrenceSupported()).toBe(false);
+
+    process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV] = "1";
+    expect(isProfileChoreRecurrenceSupported()).toBe(true);
+
+    delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+    expect(isProfileChoreRecurrenceSupported()).toBe(false);
   });
 
   it("locks membership before the live receipt and stores the response in the same effect", async () => {

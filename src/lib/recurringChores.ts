@@ -7,6 +7,7 @@ import { planRotationTurns } from '@/lib/chore-rotation'
 import { eligibleChoreAssigneeInTx } from '@/lib/chore-member-subject'
 import { lockHousehold } from '@/lib/household-lock'
 import { isProfileAgeAllowed, profileRoleSchema } from '@/lib/member-subject-contract'
+import { isProfileChoreRecurrenceSupported } from '@/lib/profile-chore-gates'
 
 const FREQUENCY_CONFIG: Record<Exclude<ChoreFrequency, 'once'>, { occurrences: number; unit: 'day' | 'week' | 'month'; amount: number }> = {
   daily: { occurrences: 7, unit: 'day', amount: 1 },
@@ -129,7 +130,7 @@ export async function expandSeriesInTx(
   // expansion rather than inventing a User or account assignment.
   const profileMemberId = original.assigned_member_id
   if (assignedTo === null) {
-    if (process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED !== '1' || process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY !== '1') return 0
+    if (!isProfileChoreRecurrenceSupported()) return 0
     if (!profileMemberId || original.member_subject_erased || original.recurrence_id !== original.id || !original.is_template || original.rotation_member_ids.length > 0) return 0
     const member = await tx.householdMember.findFirst({
       where: { id: profileMemberId, family_id: familyId },
@@ -364,6 +365,8 @@ export type FrequencyEditChore = {
   family_id: string
   frequency: string
   recurrence_id: string | null
+  assigned_to?: string | null
+  assigned_member_id?: string | null
   weekly_days?: number[]
 }
 
@@ -397,12 +400,49 @@ export async function applyFrequencyEditInTx(
   options: { applyToSeries?: boolean; now?: Date; weeklyDays?: number[] } = {}
 ): Promise<void> {
   const now = options.now ?? new Date()
+  let assignedTo = chore.assigned_to
+  let assignedMemberId = chore.assigned_member_id
+  if (
+    newFrequency !== 'once' &&
+    assignedTo === undefined &&
+    assignedMemberId === undefined
+  ) {
+    const current = await tx.chore.findUnique({
+      where: { id: chore.id },
+      select: { assigned_to: true, assigned_member_id: true },
+    })
+    assignedTo = current?.assigned_to
+    assignedMemberId = current?.assigned_member_id
+  }
+  if (
+    newFrequency !== 'once' &&
+    assignedTo === null &&
+    assignedMemberId != null &&
+    !isProfileChoreRecurrenceSupported()
+  ) {
+    throw new Error('MEMBER_PROTOCOL_UNAVAILABLE')
+  }
   const template = chore.recurrence_id
     ? await tx.chore.findFirst({
         where: { id: chore.recurrence_id, family_id: chore.family_id },
-        select: { id: true, frequency: true, weekly_days: true },
+        select: {
+          id: true,
+          frequency: true,
+          weekly_days: true,
+          assigned_to: true,
+          assigned_member_id: true,
+        },
       })
     : null
+
+  if (
+    newFrequency !== 'once' &&
+    template?.assigned_to === null &&
+    template.assigned_member_id != null &&
+    !isProfileChoreRecurrenceSupported()
+  ) {
+    throw new Error('MEMBER_PROTOCOL_UNAVAILABLE')
+  }
 
   const priorDays = normalizedWeekdays(template?.weekly_days ?? chore.weekly_days)
   const nextDays = newFrequency === 'weekly' ? normalizedWeekdays(options.weeklyDays ?? priorDays) : []
