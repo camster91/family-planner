@@ -837,6 +837,48 @@ it("maps a known server code to localized copy without rendering its raw message
   expect(screen.queryByText("Parent access is required.")).toBeNull();
 });
 
+it("treats protocol-unavailable as a definitive refusal and keeps the draft retryable", async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  let postCount = 0;
+  fetchMock.mockImplementation(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.includes("/candidates")) return response(candidates);
+      if (init?.method === "POST") {
+        postCount += 1;
+        return postCount === 1
+          ? response(
+              { error: { code: "MEMBER_PROTOCOL_UNAVAILABLE" } },
+              409,
+            )
+          : response(saveResponse);
+      }
+      return response(saveResponse);
+    },
+  );
+
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText("Pack lunches");
+  await user.click(screen.getByRole("button", { name: "Add" }));
+  await user.click(screen.getByRole("button", { name: "Save routine" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "We couldn't load the routine choices. Try again.",
+  );
+  expect(screen.queryByRole("button", { name: "Retry save" })).toBeNull();
+  expect(screen.getByLabelText("Routine name")).toBeEnabled();
+
+  await user.click(screen.getByRole("button", { name: "Save routine" }));
+  await waitFor(() => expect(postCount).toBe(2));
+  const posts = calls.filter((call) => call.init?.method === "POST");
+  expect(
+    new Headers(posts[0].init?.headers).get("Idempotency-Key"),
+  ).not.toBe(new Headers(posts[1].init?.headers).get("Idempotency-Key"));
+  expect(refresh).toHaveBeenCalled();
+});
+
 it("uses the scoped Spanish editor labels without translating chore data", async () => {
   fetchMock.mockImplementation((input: RequestInfo | URL) => {
     const url = String(input);

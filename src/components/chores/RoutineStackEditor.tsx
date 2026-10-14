@@ -165,10 +165,7 @@ const assignmentOptionSchema = z.union([
   canonicalProfileAssignmentOptionSchema,
   profileAssignmentOptionSchema,
   canonicalAccountAssignmentOptionSchema,
-  legacyAccountAssignmentOptionSchema.transform((option) => ({
-    kind: "account" as const,
-    ...option,
-  })),
+  legacyAccountAssignmentOptionSchema,
 ]);
 
 const candidatesResponseSchema = z
@@ -282,6 +279,8 @@ function localizedRequestError(
       return msg("conflict");
     case "FORBIDDEN":
       return msg("forbidden");
+    case "MEMBER_PROTOCOL_UNAVAILABLE":
+      return msg("loadError");
     case "ROUTINE_STACK_NOT_FOUND":
       return msg("notFound");
     case "ROUTINE_STACK_INVALID_DRAFT":
@@ -957,6 +956,13 @@ export default function RoutineStackEditor({
         ) {
           setSubmissionState({ phase: "conflict", packet });
           setSaveError(localizedRequestError(error, msg, "conflict"));
+        } else if (requestError?.code === "MEMBER_PROTOCOL_UNAVAILABLE") {
+          // The server refused this protocol before writing anything. Keep the
+          // exact draft editable, but release the pending save lock and key so
+          // a later compatible session starts a fresh idempotent command.
+          setSubmissionState(null);
+          idempotencyKeyRef.current = null;
+          setSaveError(localizedRequestError(error, msg, "loadError"));
         } else if (
           !requestError ||
           requestError.status >= 500 ||
