@@ -936,7 +936,13 @@ it("keeps sheet content below the dialog title heading", async () => {
   );
   await screen.findByText("Pack lunches");
   const dialog = screen.getByRole("dialog");
-  expect(within(dialog).getByRole("heading", { name: "New routine", level: 2 })).toBeTruthy();
-  expect(within(dialog).getByRole("heading", { name: "Steps", level: 3 })).toBeTruthy();
-  expect(within(dialog).queryByRole("heading", { name: "Steps", level: 2 })).toBeNull();
+  expect(
+    within(dialog).getByRole("heading", { name: "New routine", level: 2 }),
+  ).toBeTruthy();
+  expect(
+    within(dialog).getByRole("heading", { name: "Steps", level: 3 }),
+  ).toBeTruthy();
+  expect(
+    within(dialog).queryByRole("heading", { name: "Steps", level: 2 }),
+  ).toBeNull();
 });
