@@ -15,6 +15,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTranslation } from '@/i18n'
+import { getWeatherCopy, localizeWeatherSummary } from '@/i18n/weather'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import type { WeatherIconKind } from '@/lib/weather/codes'
 import { shortWeekday, type WeatherView } from './board-model'
@@ -41,9 +43,9 @@ export function iconFor(kind: WeatherIconKind, isDay = true): LucideIcon {
 }
 
 /** "40% chance of rain" style line, only when there is a meaningful chance. */
-function precipitationText(chance: number | null): string | null {
+function precipitationText(chance: number | null, copy: ReturnType<typeof getWeatherCopy>): string | null {
   if (chance === null || chance < 20) return null
-  return `${chance}% chance of rain or snow`
+  return copy.precipitation(chance)
 }
 
 /**
@@ -55,10 +57,12 @@ function precipitationText(chance: number | null): string | null {
  */
 export function WeatherTile({ view }: { view: WeatherView }) {
   const { weather, today, next } = view
-  const locale = useDisplayLocale()
+  const { locale } = useTranslation()
+  const displayLocale = useDisplayLocale()
+  const copy = getWeatherCopy(locale)
   const CurrentIcon = iconFor(weather.current.icon, weather.current.isDay)
   const unit = `°${weather.unit}`
-  const precip = today ? precipitationText(today.precipitationChance) : null
+  const precip = today ? precipitationText(today.precipitationChance, copy) : null
   return (
     <section
       aria-labelledby="board-weather-title"
@@ -66,7 +70,7 @@ export function WeatherTile({ view }: { view: WeatherView }) {
       className="flex min-w-0 items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-3 py-2 md:px-4 md:py-3 2xl:gap-6 2xl:px-6 2xl:py-4"
     >
       <h2 id="board-weather-title" className="sr-only">
-        Weather in {weather.label}
+        {copy.weatherIn(weather.label)}
       </h2>
       <CurrentIcon className="h-8 w-8 shrink-0 text-label-primary md:h-10 md:w-10 2xl:h-14 2xl:w-14" aria-hidden="true" />
       <div className="min-w-0">
@@ -79,15 +83,15 @@ export function WeatherTile({ view }: { view: WeatherView }) {
             {unit}
           </span>
           <span className="text-[15px] font-medium leading-tight text-label-primary md:text-[19px] 2xl:text-[22px]">
-            {weather.current.summary}
+            {localizeWeatherSummary(locale, weather.current.summary)}
           </span>
         </p>
         <p className="mt-1 text-[13px] leading-snug text-label-secondary md:text-[17px] 2xl:text-[19px]">
           {today && (
             <span className="tabular-nums">
-              <span className="sr-only">Today: high </span>
+              <span className="sr-only">{copy.todayHigh}</span>
               <span aria-hidden="true">H </span>
-              {today.high}°<span className="sr-only">, low</span>
+              {today.high}°<span className="sr-only">{copy.low}</span>
               <span aria-hidden="true"> · L </span>
               {today.low}°
             </span>
@@ -98,18 +102,20 @@ export function WeatherTile({ view }: { view: WeatherView }) {
       </div>
       {next.length > 0 && (
         <ul
-          aria-label="Next days"
+          aria-label={copy.nextDays}
           className="hidden shrink-0 gap-5 border-l border-[var(--surface-separator)] pl-6 2xl:flex"
         >
           {next.map((d) => {
             const Icon = iconFor(d.icon)
             return (
               <li key={d.day} data-testid="weather-day" className="flex flex-col items-center text-center">
-                <span className="text-[17px] font-semibold text-label-primary">{shortWeekday(d.day, locale)}</span>
+                <span className="text-[17px] font-semibold text-label-primary">{shortWeekday(d.day, displayLocale)}</span>
                 <Icon className="my-1 h-7 w-7 text-label-secondary" aria-hidden="true" />
-                <span className="sr-only">{d.summary}, high </span>
+                <span className="sr-only">
+                  {localizeWeatherSummary(locale, d.summary)}{copy.dayHigh}
+                </span>
                 <span className={cn('text-[17px] tabular-nums text-label-primary')}>
-                  {d.high}°<span className="sr-only">, low</span>
+                  {d.high}°<span className="sr-only">{copy.dayLow}</span>
                   <span aria-hidden="true"> / </span>
                   <span className="text-label-secondary">{d.low}°</span>
                 </span>

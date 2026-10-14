@@ -816,7 +816,21 @@ for (const locale of ["en", "es"] as const) {
 
         await setProductQualityWeather(true);
         await page.goto("/dashboard/today?mode=fridge");
-        await expect(page.getByTestId("board-weather")).toBeVisible();
+        const weatherTile = page.getByTestId("board-weather");
+        await expect(weatherTile).toBeVisible();
+        if (locale === "es") {
+          await expect(
+            page.getByRole("region", {
+              name: `Tiempo en ${WEATHER_PLACE.label}`,
+            }),
+          ).toBeVisible();
+          await expect(weatherTile).toContainText("Nieve ligera");
+          await expect(weatherTile).toContainText(
+            "80% de probabilidad de lluvia o nieve",
+          );
+          await expect(weatherTile).not.toContainText("Light snow");
+          await expect(weatherTile).not.toContainText("chance of rain or snow");
+        }
         const weatherUseSoon = page.getByTestId("board-slot-use-soon");
         await expect(weatherUseSoon).toBeVisible();
         await expect(weatherUseSoon).toContainText(
@@ -827,6 +841,56 @@ for (const locale of ["en", "es"] as const) {
           info.outputPath(`product-quality-fridge-${locale}-weather.png`),
           await page.screenshot(),
         );
+        const chores = page.getByTestId("region-chores");
+        const lowerChore = chores
+          .getByTestId("board-chore")
+          .filter({ hasText: "Vacuum living room" });
+        await expect(lowerChore).toHaveCount(1);
+        await expect(chores).toHaveAttribute("tabindex", "0");
+        const choreLayout = await chores.evaluate((element) => ({
+          scrollHeight: element.scrollHeight,
+          clientHeight: element.clientHeight,
+          overflowY: getComputedStyle(element).overflowY,
+        }));
+        expect(choreLayout.overflowY).toMatch(/auto|scroll/);
+        if (choreLayout.scrollHeight > choreLayout.clientHeight + 1) {
+          const assertLowerChoreReachable = async () => {
+            await expect
+              .poll(() => chores.evaluate((element) => element.scrollTop))
+              .toBeGreaterThan(0);
+            await expect
+              .poll(() =>
+                lowerChore.evaluate((element) => {
+                  const box = element.getBoundingClientRect();
+                  const region = element
+                    .closest("section")!
+                    .getBoundingClientRect();
+                  const hit = document.elementFromPoint(
+                    box.left + box.width / 2,
+                    box.top + box.height / 2,
+                  );
+                  return (
+                    box.top >= region.top &&
+                    box.bottom <= region.bottom &&
+                    box.bottom <= window.innerHeight &&
+                    !!hit &&
+                    element.contains(hit)
+                  );
+                }),
+              )
+              .toBe(true);
+          };
+          await chores.focus();
+          await expect(chores).toBeFocused();
+          await chores.press("End");
+          await assertLowerChoreReachable();
+          await chores.evaluate((element) => {
+            element.scrollTop = 0;
+          });
+          await chores.hover();
+          await page.mouse.wheel(0, choreLayout.scrollHeight);
+          await assertLowerChoreReachable();
+        }
       }
       const groceryList = groceries.locator("ul").first();
       await expect(groceryList).toHaveAttribute("tabindex", "0");
