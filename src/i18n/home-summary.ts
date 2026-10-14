@@ -1,4 +1,4 @@
-import { useAppLocale } from './locale-context'
+import { useTranslation } from '@/i18n'
 import {
   defaultHomeSummaryMessages,
   type HomeSummaryPresentationMessages,
@@ -34,6 +34,6 @@ export const homeSummaryMessages = {
 } as const
 
 export function useHomeSummaryText(): HomeSummaryPresentationMessages {
-  const { locale } = useAppLocale()
+  const { locale } = useTranslation()
   return homeSummaryMessages[locale]
 }

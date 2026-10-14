@@ -4,10 +4,11 @@ import * as React from 'react'
 import Link from 'next/link'
 import { CircleAlert, Refrigerator } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useScopedMessages } from '@/i18n/locale-context'
+import { useTranslation } from '@/i18n'
 import {
   expiryFeedback,
   inventoryDisplayMessages,
+  type InventoryDisplayMessage,
 } from '@/i18n/inventory-display'
 import { useTodayBoardText } from '@/i18n/today-board'
 import type { UseSoonEntry } from './board-model'
@@ -26,7 +27,9 @@ export const MAX_USE_SOON_ROWS = 5
  * nothing to use, so the board keeps its four-column layout.
  */
 export function UseSoonRegion({ items, inventoryHref }: { items: UseSoonEntry[]; inventoryHref: string | null }) {
-  const inventory = useScopedMessages(inventoryDisplayMessages)
+  const { t } = useTranslation()
+  const inventory = (key: InventoryDisplayMessage, params?: Record<string, string | number>) =>
+    t(key, params, inventoryDisplayMessages)
   const boardText = useTodayBoardText()
   if (items.length === 0) return null
   const shown = items.slice(0, MAX_USE_SOON_ROWS)

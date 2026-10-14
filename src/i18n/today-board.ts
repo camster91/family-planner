@@ -1,6 +1,6 @@
 "use client";
 
-import { useScopedMessages } from './locale-context'
+import { useTranslation } from "@/i18n";
 
 /** Visible Today/fridge-board copy. Event, member, recipe and list values stay caller-supplied. */
 export const todayBoardEnglish = {
@@ -195,5 +195,6 @@ export const defaultTodayBoardText: TodayBoardTranslator = (key, params) =>
   interpolate(todayBoardEnglish[key], params);
 
 export function useTodayBoardText(): TodayBoardTranslator {
-  return useScopedMessages(todayBoardMessages)
+  const { t } = useTranslation();
+  return (key, params) => t(key, params, todayBoardMessages);
 }

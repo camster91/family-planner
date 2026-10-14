@@ -11,7 +11,6 @@ import { PRODUCT_BRAND } from '@/lib/brand'
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { Locale } from './types'
 import { pseudolocalizeTemplate } from './pseudo'
-import { LocaleContext } from './locale-context'
 
 // Inline messages — no external library needed
 const messages = {
@@ -1084,11 +1083,9 @@ export function I18nProvider({
   )
 
   return (
-    <LocaleContext.Provider value={{ locale: currentLocale, pseudolocalize }}>
-      <I18nContext.Provider value={{ locale: currentLocale, t, setLocale }}>
-        {children}
-      </I18nContext.Provider>
-    </LocaleContext.Provider>
+    <I18nContext.Provider value={{ locale: currentLocale, t, setLocale }}>
+      {children}
+    </I18nContext.Provider>
   )
 }
 
