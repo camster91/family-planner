@@ -1,5 +1,13 @@
 # Current State
 
+## Current release and #499 continuation — 2026-10-14
+
+Verified web main is `9e36c440aa53ad11709e8c7b9517e891646400bf` (PR #548), and deployment 401 served that revision. The same-day routine-order repair is merged and released. [Canonical #499 progress](https://github.com/camster91/family-planner/issues/499#issuecomment-6159917388) records the current alignment state.
+
+The isolated `fridge-fit-499` candidate is prepared in commits `685a2f57` and `18c53bfc`: compact fridge Use Soon row fit plus guarded first-item metadata bounds for weather-present and weather-absent EN/ES journeys. It has source and focused-check evidence only; browser, hosted-QA and integration acceptance remain root-owned.
+
+Combined #549 now integrates the prepared fridge #550 slice and compatible dependency updates (source commits `e0801d5c` and `70358dea`), retaining validated Next 16.3.8. The Next 16.4.0 trial `5f8ecd72` failed the unchanged Today startup limit at 251,433 gzip bytes versus 250,000; measured framework growth was 1,934 gzip bytes, and its unsuccessful locale change was reverted normally. #545 stays open for the held Next upgrade. Fresh combined-source hosted QA and exported synthetic fridge captures are required before acceptance. No new merge, deployment or customer/native/store acceptance is inferred.
+
 ## Current bounded UI continuation — 2026-10-13
 
 Accepted web main is `1822a944c575e7d3aff1838690c33aaf6d1299f6` (PR #547). Candidate and exact-main checks passed; deployment 400 served the same healthy revision at `2026-10-13T19:28:19Z`. Protected backup/isolated restore preceded dispatch. Capture issue #472 is closed against verified release evidence; #128/#499 and native/customer acceptance remain open. [Canonical release evidence](https://github.com/camster91/family-planner/issues/472#issuecomment-6153637439).
