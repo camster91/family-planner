@@ -140,7 +140,7 @@ describe("profile-only chore contract", () => {
     ).toBeNull();
   });
 
-  it("requires protocol 2 and accepts picture routines while rejecting recurrence", () => {
+  it("requires protocol 2 and validates profile schedules without weakening one-offs", () => {
     const valid = profileChoreCreateSchema.safeParse({
       protocol: 2,
       selection: { memberId: "member-child" },
@@ -155,7 +155,55 @@ describe("profile-only chore contract", () => {
         selection: { memberId: "member-child" },
         title: "Repeating profile chore",
         due_date: "2026-10-11",
+        frequency: "daily",
+      }).success,
+    ).toBe(true);
+    expect(
+      profileChoreCreateSchema.parse({
+        protocol: 2,
+        selection: { memberId: "member-child" },
+        title: "Normalized days",
+        due_date: "2026-10-11",
         frequency: "weekly",
+        weekly_days: [4, 1, 4],
+      }).weekly_days,
+    ).toEqual([1, 4]);
+    expect(
+      profileChoreCreateSchema.safeParse({
+        protocol: 2,
+        selection: { memberId: "member-child" },
+        title: "Selected days",
+        due_date: "2026-10-11",
+        frequency: "weekly",
+        weekly_days: [1, 4],
+      }).success,
+    ).toBe(true);
+    expect(
+      profileChoreCreateSchema.safeParse({
+        protocol: 2,
+        selection: { memberId: "member-child" },
+        title: "Missing days",
+        due_date: "2026-10-11",
+        frequency: "weekly",
+      }).success,
+    ).toBe(false);
+    expect(
+      profileChoreCreateSchema.safeParse({
+        protocol: 2,
+        selection: { memberId: "member-child" },
+        title: "Monthly profile chore",
+        due_date: "2026-10-11",
+        frequency: "monthly",
+      }).success,
+    ).toBe(true);
+    expect(
+      profileChoreCreateSchema.safeParse({
+        protocol: 2,
+        selection: { memberId: "member-child" },
+        title: "Invalid weekday payload",
+        due_date: "2026-10-11",
+        frequency: "daily",
+        weekly_days: [1],
       }).success,
     ).toBe(false);
     expect(

@@ -61,7 +61,10 @@ export async function POST(request: NextRequest) {
       if (keyError) return keyError
       if (!key) return idempotencyError('IDEMPOTENCY_KEY_REQUIRED')
       const startDate = normalizeDateOnlyInput(profile.data.due_date)
-      if (!startDate) return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+      const dueDate = startDate && profile.data.frequency === 'weekly'
+        ? nextSelectedWeekday(startDate, profile.data.weekly_days, true)
+        : startDate
+      if (!dueDate) return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
       const photo = await resolveChorePhotoForWrite(auth.user.family_id, profile.data.photo_url)
       if (!photo.ok) return NextResponse.json({ error: photo.error }, { status: 400 })
       const response = await withIdempotency(
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
             prisma!,
             { id: auth.user.id, familyId: auth.user.family_id },
             profile.data,
-            startDate,
+            dueDate,
             photo.value ?? null,
             recordId,
           ),

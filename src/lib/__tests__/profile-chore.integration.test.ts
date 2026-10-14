@@ -23,6 +23,7 @@ import {
 } from "@/lib/chore-profile-actions";
 import { lockHousehold } from "@/lib/household-lock";
 import { hashIdempotentRequest, withIdempotency } from "@/lib/idempotency";
+import { expandSeriesInTx } from "@/lib/recurringChores";
 
 const dbDescribe =
   process.env.RUN_DB_INTEGRATION === "1" && process.env.FIXTURES_ALLOW === "1"
@@ -216,6 +217,40 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
       null,
       NOON,
     );
+  }
+
+  function recurringProfileInput(memberId: string, title: string) {
+    return profileChoreCreateSchema.parse({
+      protocol: 2,
+      selection: { memberId },
+      title,
+      description: "A recurring profile routine integration fixture",
+      points: 10,
+      due_date: "2026-10-12",
+      difficulty: "easy",
+      frequency: "weekly",
+      weekly_days: [1, 4],
+      photo_url: null,
+      routine: "Morning reset",
+      routine_order: 1,
+    });
+  }
+
+  async function withProfileFeatureEnabled<T>(work: () => Promise<T>) {
+    const enabled = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+    const rollback = process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+    try {
+      return await work();
+    } finally {
+      if (enabled === undefined)
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
+      else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = enabled;
+      if (rollback === undefined)
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+      else process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = rollback;
+    }
   }
 
   async function expectSqlFailure(
@@ -436,6 +471,94 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
       async () => ({ status: 200, body: { shouldNotRun: true } }),
     );
     expect(changed.status).toBe(422);
+  });
+
+  it("creates bounded selected-weekday profile occurrences and stops safely on lifecycle change", async () => {
+    await withProfileFeatureEnabled(async () => {
+      const input = recurringProfileInput(CHILD_A, "Recurring profile routine");
+      const template = await createProfileOnlyChore(
+        db,
+        { id: PARENT_A, familyId: FAMILY_A },
+        input,
+        new Date("2026-10-12T00:00:00.000Z"),
+        null,
+        new Date("2026-10-12T12:00:00.000Z"),
+      );
+      expect(template).toMatchObject({
+        frequency: "weekly",
+        weekly_days: [1, 4],
+        recurrence_id: template.id,
+        is_template: true,
+        subject: { kind: "profile", memberId: CHILD_A },
+      });
+
+      const series = await db.chore.findMany({
+        where: { recurrence_id: template.id },
+        orderBy: { due_date: "asc" },
+      });
+      expect(series.length).toBe(8);
+      expect(
+        series.map((row: any) => row.due_date.toISOString().slice(0, 10)),
+      ).toEqual([
+        "2026-10-12",
+        "2026-10-15",
+        "2026-10-19",
+        "2026-10-22",
+        "2026-10-26",
+        "2026-10-29",
+        "2026-11-02",
+        "2026-11-05",
+      ]);
+      expect(
+        series.every(
+          (row: any) =>
+            row.assigned_to === null && row.assigned_member_id === CHILD_A,
+        ),
+      ).toBe(true);
+      expect(series.filter((row: any) => row.is_template)).toHaveLength(1);
+      expect(
+        await db.choreAssignment.count({ where: { family_id: FAMILY_A } }),
+      ).toBe(0);
+
+      expect(
+        await completeProfileChoreInTx(db, {
+          choreId: template.id,
+          familyId: FAMILY_A,
+          memberId: CHILD_A,
+          deviceId: DEVICE_A,
+          now: new Date("2026-10-12T12:00:00.000Z"),
+        }),
+      ).toBe("completed");
+      expect(
+        await db.chore.count({ where: { recurrence_id: template.id } }),
+      ).toBe(8);
+
+      await db.chore.deleteMany({
+        where: {
+          recurrence_id: template.id,
+          id: { not: template.id },
+          status: "pending",
+          due_date: { gt: new Date("2026-10-12T00:00:00.000Z") },
+          OR: [{ due_date: new Date("2026-11-05T00:00:00.000Z") }],
+        },
+      });
+      await sql.query(
+        'UPDATE "HouseholdMember" SET archived_at = $1 WHERE id = $2',
+        [NOON, CHILD_A],
+      );
+      const toppedUp = await db.$transaction((tx: any) =>
+        expandSeriesInTx(
+          tx,
+          template.id,
+          FAMILY_A,
+          new Date("2026-10-12T12:00:00.000Z"),
+        ),
+      );
+      expect(toppedUp).toBe(0);
+      expect(
+        await db.chore.count({ where: { recurrence_id: template.id } }),
+      ).toBe(7);
+    });
   });
 
   it("keeps the chore and receipt complete when the outer response store is lost", async () => {

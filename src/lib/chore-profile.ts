@@ -2,12 +2,14 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { updateChoreSchema } from "@/lib/validations";
 import type { EffectResult } from "@/lib/idempotency";
+import { normalizedWeekdays } from "@/lib/chore-weekdays";
 import {
   isProfileAgeAllowed,
   memberIdentityIdSchema,
   profileRoleSchema,
 } from "@/lib/member-subject-contract";
 import { lockHousehold, lockUser } from "@/lib/household-lock";
+import { expandSeriesInTx } from "@/lib/recurringChores";
 
 /** Server-only gate. It is deliberately absent from the capability manifest. */
 export const PROFILE_CHORE_ENABLE_ENV = "HOUSEHOLD_PROFILE_CHORE_ENABLED";
@@ -40,13 +42,35 @@ export const profileChoreCreateSchema = z
       .string()
       .refine((value) => !Number.isNaN(Date.parse(value)), "Invalid date"),
     difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
-    frequency: z.literal("once").default("once"),
+    frequency: z.enum(["once", "daily", "weekly", "monthly"]).default("once"),
+    weekly_days: z.array(z.number().int().min(0).max(6)).max(7).default([]),
     photo_url: z.string().max(500).nullable().optional(),
     icon: updateChoreSchema.innerType().shape.icon,
     routine: updateChoreSchema.innerType().shape.routine,
     routine_order: updateChoreSchema.innerType().shape.routine_order,
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const days = [...new Set(value.weekly_days)].sort((a, b) => a - b);
+    if (value.frequency === "weekly" && days.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["weekly_days"],
+        message: "Select at least one weekday for a weekly profile chore.",
+      });
+    }
+    if (value.frequency !== "weekly" && days.length > 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["weekly_days"],
+        message: "Weekdays are only valid for weekly profile chores.",
+      });
+    }
+  })
+  .transform((value) => ({
+    ...value,
+    weekly_days: normalizedWeekdays(value.weekly_days),
+  }));
 
 export type ProfileChoreCreateInput = z.infer<typeof profileChoreCreateSchema>;
 
@@ -79,6 +103,9 @@ export type ProfileChoreDTO = {
   due_date: Date;
   status: string;
   frequency: string;
+  weekly_days: number[];
+  recurrence_id: string | null;
+  is_template: boolean;
   difficulty: string;
   icon: string | null;
   routine: string | null;
@@ -253,6 +280,9 @@ function profileChoreResponse(chore: ProfileChoreDTO): ProfileChoreDTO {
     due_date: chore.due_date,
     status: chore.status,
     frequency: chore.frequency,
+    weekly_days: chore.weekly_days,
+    recurrence_id: chore.recurrence_id,
+    is_template: chore.is_template,
     difficulty: chore.difficulty,
     icon: chore.icon ?? null,
     routine: chore.routine ?? null,
@@ -316,7 +346,7 @@ export async function createProfileOnlyChoreInTx(
     select: profileTargetSelect,
   });
   assertProfileTarget(target, actor.familyId, input.selection.memberId);
-  const chore = await tx.chore.create({
+  const created = await tx.chore.create({
     data: {
       family_id: actor.familyId,
       title: input.title,
@@ -327,7 +357,8 @@ export async function createProfileOnlyChoreInTx(
       member_subject_erased: false,
       due_date: dueDate,
       status: "pending",
-      frequency: "once",
+      frequency: input.frequency,
+      weekly_days: input.weekly_days,
       difficulty: input.difficulty,
       photo_url: photoUrl,
       icon: input.icon ?? null,
@@ -337,6 +368,17 @@ export async function createProfileOnlyChoreInTx(
     } as unknown as Prisma.ChoreUncheckedCreateInput,
     include: choreSubjectInclude,
   });
+  const chore =
+    input.frequency === "once"
+      ? created
+      : await tx.chore.update({
+          where: { id: created.id },
+          data: { recurrence_id: created.id, is_template: true },
+          include: choreSubjectInclude,
+        });
+  if (input.frequency !== "once") {
+    await expandSeriesInTx(tx, chore.id, actor.familyId, now);
+  }
   const subject = readChoreSubject(chore, actor.familyId);
   if (!subject || subject.kind !== "profile")
     throw new ProfileChoreError("PROFILE_TARGET_CONFLICT");
@@ -347,6 +389,9 @@ export async function createProfileOnlyChoreInTx(
     due_date: chore.due_date,
     status: chore.status,
     frequency: chore.frequency,
+    weekly_days: chore.weekly_days ?? [],
+    recurrence_id: chore.recurrence_id ?? null,
+    is_template: chore.is_template ?? false,
     difficulty: chore.difficulty,
     icon: chore.icon ?? null,
     routine: chore.routine ?? null,

@@ -6,6 +6,7 @@ import type { ChoreFrequency } from '@/types'
 import { planRotationTurns } from '@/lib/chore-rotation'
 import { eligibleChoreAssigneeInTx } from '@/lib/chore-member-subject'
 import { lockHousehold } from '@/lib/household-lock'
+import { isProfileAgeAllowed, profileRoleSchema } from '@/lib/member-subject-contract'
 
 const FREQUENCY_CONFIG: Record<Exclude<ChoreFrequency, 'once'>, { occurrences: number; unit: 'day' | 'week' | 'month'; amount: number }> = {
   daily: { occurrences: 7, unit: 'day', amount: 1 },
@@ -107,12 +108,15 @@ export async function expandSeriesInTx(
       family_id: true,
       assigned_to: true,
       assigned_member_id: true,
+      member_subject_erased: true,
       created_by: true,
       due_date: true,
       icon: true,
       routine: true,
       routine_order: true,
       rotation_member_ids: true,
+      recurrence_id: true,
+      is_template: true,
     },
   })
 
@@ -120,12 +124,29 @@ export async function expandSeriesInTx(
   if (!original || original.family_id !== familyId || original.frequency === 'once') return 0
   const assignedTo = original.assigned_to
 
-  // Profile-only chores are one-off rows in this dormant slice. Recurrence
-  // expansion still resolves account subjects and writes the legacy
-  // occurrence ledger, so refusing a null account owner here avoids turning a
-  // presentation profile into a fabricated account assignment. A canonical
-  // account row may still carry both IDs and follows the existing path.
-  if (assignedTo === null) return 0
+  // A profile series is a gated, canonical member-owned template. Never pass
+  // it through the account resolver: an unavailable profile stops future
+  // expansion rather than inventing a User or account assignment.
+  const profileMemberId = original.assigned_member_id
+  if (assignedTo === null) {
+    if (process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED !== '1' || process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY !== '1') return 0
+    if (!profileMemberId || original.member_subject_erased || original.recurrence_id !== original.id || !original.is_template || original.rotation_member_ids.length > 0) return 0
+    const member = await tx.householdMember.findFirst({
+      where: { id: profileMemberId, family_id: familyId },
+      select: {
+        id: true,
+        family_id: true,
+        role: true,
+        age: true,
+        archived_at: true,
+        erasure_user_id: true,
+        legacy_mapping: { select: { user_id: true } },
+        account_link: { select: { user_id: true } },
+      },
+    })
+    const role = member ? profileRoleSchema.safeParse(member.role) : null
+    if (!member || member.id !== profileMemberId || member.family_id !== familyId || member.archived_at !== null || member.erasure_user_id !== null || member.legacy_mapping !== null || member.account_link !== null || !role?.success || !isProfileAgeAllowed(role.data, member.age)) return 0
+  }
 
   const windowSize = WINDOW_SIZE[original.frequency as Exclude<ChoreFrequency, 'once'>] * (original.frequency === 'weekly' ? Math.max(1, normalizedWeekdays(original.weekly_days).length) : 1)
   if (!windowSize) return 0
@@ -173,6 +194,35 @@ export async function expandSeriesInTx(
   }
 
   if (candidates.length === 0) return 0
+
+  if (assignedTo === null) {
+    const occurrences = candidates.map((due_date) => ({
+      family_id: familyId,
+      title: original.title,
+      description: original.description,
+      points: original.points,
+      difficulty: original.difficulty,
+      frequency: 'once',
+      assigned_to: null,
+      assigned_member_id: profileMemberId,
+      member_subject_erased: false,
+      rotation_index: null,
+      created_by: original.created_by,
+      icon: original.icon,
+      routine: original.routine,
+      routine_order: original.routine_order,
+      due_date,
+      status: 'pending',
+      recurrence_id: seriesId,
+      is_template: false,
+      routine_stack_id: null,
+    }))
+    const { count } = await tx.chore.createMany({
+      data: occurrences,
+      skipDuplicates: true,
+    })
+    return count
+  }
 
   // Take turns (O-39, src/lib/chore-rotation.ts): each new copy takes the
   // place after the latest occurrence, in due-date order. Members no longer

@@ -7,6 +7,7 @@ import { lockHousehold } from "@/lib/household-lock";
 import { isDueTodaySomewhere } from "@/lib/chore-complete";
 import type { ChoreWithSubject } from "@/lib/chore-profile";
 import { readChoreSubject } from "@/lib/chore-profile";
+import { expandSeriesInTx } from "@/lib/recurringChores";
 
 type ActionDb = Pick<PrismaClient, "$transaction">;
 
@@ -103,10 +104,36 @@ export async function completeProfileChoreInTx(
     });
     if (!activeUnlinkedProfile(target, input.familyId, input.memberId))
       return "profile_unavailable";
+    let profileSeries = false;
+    if (chore.recurrence_id !== null) {
+      const template = await tx.chore.findFirst({
+        where: { id: chore.recurrence_id, family_id: input.familyId },
+        select: {
+          id: true,
+          assigned_to: true,
+          assigned_member_id: true,
+          member_subject_erased: true,
+          frequency: true,
+          recurrence_id: true,
+          is_template: true,
+          rotation_member_ids: true,
+        },
+      });
+      profileSeries = Boolean(
+        template &&
+        template.assigned_to === null &&
+        template.assigned_member_id === input.memberId &&
+        !template.member_subject_erased &&
+        template.recurrence_id === template.id &&
+        template.is_template &&
+        template.frequency !== "once" &&
+        template.rotation_member_ids.length === 0,
+      );
+    }
     if (
-      chore.frequency !== "once" ||
-      chore.recurrence_id !== null ||
-      chore.is_template ||
+      (!profileSeries && chore.frequency !== "once") ||
+      (!profileSeries && chore.recurrence_id !== null) ||
+      (!profileSeries && chore.is_template) ||
       chore.rotation_member_ids.length > 0
     )
       return "profile_unavailable";
@@ -138,6 +165,14 @@ export async function completeProfileChoreInTx(
       },
       select: { id: true },
     });
+    if (profileSeries) {
+      await expandSeriesInTx(
+        tx,
+        chore.recurrence_id!,
+        input.familyId,
+        input.now,
+      );
+    }
     return "completed";
   });
 }
