@@ -346,6 +346,53 @@ describe("person board (#274)", () => {
     expect(setChoreDone).not.toHaveBeenCalled();
   });
 
+  it("keeps paused recurring profile chores visible without a completion control", async () => {
+    const profile = {
+      id: "profile:casey",
+      name: "Casey Child",
+      color: "green" as const,
+      subject: {
+        kind: "profile" as const,
+        memberId: "profile-casey",
+        name: "Casey Child",
+        color: "green" as const,
+      },
+    };
+    await renderBoard({
+      viewer: { id: "p", role: "parent" },
+      data: data({
+        memberProtocol: 2,
+        members: [profile],
+        chores: [
+          {
+            id: "profile-weekly",
+            title: "Brush teeth",
+            dueDay: TODAY,
+            status: "pending",
+            subject: profile.subject,
+            actionAvailability: {
+              state: "paused" as const,
+              reason: "RECURRENCE_CAPABILITY_UNAVAILABLE" as const,
+              recovery: "refresh-and-retain-pending" as const,
+              requiresCompatibleClient: true as const,
+              actions: { complete: false as const, undo: false as const, verify: false as const, reject: false as const },
+            },
+          },
+        ],
+      }),
+    });
+    expect(within(chores()).getByText("Brush teeth")).toBeInTheDocument();
+    expect(
+      within(chores()).getByText(/paused while compatibility is refreshed/),
+    ).toBeInTheDocument();
+    expect(
+      within(chores()).queryByRole("button", {
+        name: /Mark Brush teeth done/,
+      }),
+    ).toBeNull();
+    expect(setChoreDone).not.toHaveBeenCalled();
+  });
+
   it("without a viewer the board stays read-only", async () => {
     await renderBoard();
     expect(within(chores()).queryAllByRole("button")).toHaveLength(0);

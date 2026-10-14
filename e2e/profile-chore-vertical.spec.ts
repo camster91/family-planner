@@ -25,6 +25,9 @@ const PROFILE_GATES_ON =
   process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED === "1" &&
   process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED === "1" &&
   process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY === "1";
+const PROFILE_RECURRENCE_GATE_ON =
+  PROFILE_GATES_ON &&
+  process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED === "1";
 const PASSWORD = [
   "A",
   "a",
@@ -46,6 +49,7 @@ type OwnedNames = {
   parent: { name: string; email: string };
   profiles: { name: string; role: "child" | "teen" | "parent"; age: number }[];
   chore: string;
+  recurringChore: string;
 };
 
 type ProfileRoutineChore = {
@@ -56,6 +60,14 @@ type ProfileRoutineChore = {
   icon: string;
   routine: string;
   order: number;
+};
+
+type ProfileRecurringChore = {
+  id: string;
+  title: string;
+  profileId: string;
+  profileName: string;
+  recurrenceId: string;
 };
 
 function names(info: TestInfo): OwnedNames {
@@ -72,6 +84,7 @@ function names(info: TestInfo): OwnedNames {
       { name: "Morgan Profileparent", role: "parent", age: 32 },
     ],
     chore: `${prefix} profile chore`,
+    recurringChore: `${prefix} weekly profile chore`,
   };
 }
 
@@ -330,6 +343,70 @@ async function createProfileChore(
     profileName: x.profiles[0].name,
     profileRole: "child",
   });
+}
+
+async function createProfileWeeklyChore(
+  page: Page,
+  x: OwnedNames,
+  profileId: string,
+): Promise<ProfileRecurringChore> {
+  await page.goto("/dashboard/chores/create");
+  await expect(
+    page.locator(`#assignedTo option[value="profile:${profileId}"]`),
+  ).toHaveCount(1);
+  await page.locator("#title").fill(x.recurringChore);
+  await page.locator("#assignedTo").selectOption(`profile:${profileId}`);
+  await expect(
+    page.getByText(
+      "This profile chore can repeat. Points and taking turns stay off.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Weekly", exact: true }).click();
+  await page.getByRole("checkbox", { name: "Monday", exact: true }).check();
+  await page.getByRole("checkbox", { name: "Wednesday", exact: true }).check();
+  await expect(page.getByTestId("weekly-schedule-summary")).toContainText(
+    "Monday, Wednesday",
+  );
+  const response = page.waitForResponse(
+    (r) =>
+      r.url().endsWith("/api/chores/create") && r.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Create Chore", exact: true }).click();
+  const result = await response;
+  const resultText = await result.text();
+  expect(result.status(), resultText).toBe(200);
+  const body = JSON.parse(resultText) as {
+    chore?: {
+      id?: string;
+      frequency?: string;
+      weekly_days?: number[];
+      recurrence_id?: string | null;
+      is_template?: boolean;
+      subject?: { kind: string; memberId?: string; name?: string };
+    };
+  };
+  const chore = body.chore;
+  expect(chore).toMatchObject({
+    frequency: "weekly",
+    weekly_days: [1, 3],
+    is_template: true,
+    subject: {
+      kind: "profile",
+      memberId: profileId,
+      name: x.profiles[0].name,
+    },
+  });
+  expect(chore?.id).toBeTruthy();
+  expect(chore?.recurrence_id).toBe(chore?.id);
+  await page.waitForURL(/\/dashboard\/chores/);
+  return {
+    id: chore!.id!,
+    title: x.recurringChore,
+    profileId,
+    profileName: x.profiles[0].name,
+    recurrenceId: chore!.recurrence_id!,
+  };
 }
 
 async function createProfileRoutineChore(
@@ -810,6 +887,302 @@ test.describe.serial("email-free profile chore vertical", () => {
     } finally {
       await tabletContext?.close().catch(() => undefined);
       await foreignContext?.context.close().catch(() => undefined);
+      if (familyId) {
+        await withDb((db) =>
+          db.query(`UPDATE "Family" SET device_writes_enabled=$2 WHERE id=$1`, [
+            familyId,
+            originalDeviceWrites,
+          ]),
+        ).catch(() => undefined);
+      }
+      await cleanupOwned(x);
+    }
+  });
+
+  test("creates a bounded weekly profile series and verifies its current occurrence", async ({
+    page,
+    browser,
+  }, info) => {
+    test.skip(
+      !PROFILE_RECURRENCE_GATE_ON,
+      "Requires all profile gates plus HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED=1",
+    );
+    test.setTimeout(300_000);
+    assertFixtureTargetAllowed(process.env);
+    const x = names(info);
+    const ip = clientIp(info);
+    const today = E2E_ANCHOR.toISOString().slice(0, 10);
+    const horizon = new Date(E2E_ANCHOR);
+    horizon.setUTCDate(horizon.getUTCDate() + 28);
+    const horizonDate = horizon.toISOString().slice(0, 10);
+    let tabletContext: BrowserContext | undefined;
+    let familyId = "";
+    let originalDeviceWrites = false;
+    try {
+      await page.setExtraHTTPHeaders({ "X-Forwarded-For": ip });
+      await register(page, x.parent, ip);
+      const profileIds = await createFamilyAndProfiles(page, x);
+      await identity(page, info);
+      const device = await enableOwnedDeviceWrites(x);
+      familyId = device.familyId;
+      originalDeviceWrites = device.original;
+
+      const recurring = await createProfileWeeklyChore(
+        page,
+        x,
+        profileIds[x.profiles[0].name],
+      );
+      const rows = await withDb(async (db) => {
+        const result = await db.query<{
+          id: string;
+          due_date: Date;
+          status: string;
+          frequency: string;
+          weekly_days: number[];
+          recurrence_id: string | null;
+          is_template: boolean;
+          assigned_member_id: string | null;
+        }>(
+          `SELECT id, due_date, status, frequency, weekly_days, recurrence_id, is_template, assigned_member_id
+             FROM "Chore"
+            WHERE family_id=$1 AND recurrence_id=$2
+            ORDER BY due_date, id`,
+          [familyId, recurring.recurrenceId],
+        );
+        return result.rows;
+      });
+      expect(rows.length).toBeGreaterThanOrEqual(2);
+      expect(rows.length).toBeLessThanOrEqual(8);
+      expect(rows).toHaveLength(8);
+      expect(
+        rows.every((row) => row.recurrence_id === recurring.recurrenceId),
+      ).toBe(true);
+      expect(
+        rows.every((row) => row.assigned_member_id === recurring.profileId),
+      ).toBe(true);
+      expect(rows.filter((row) => row.is_template)).toHaveLength(1);
+      expect(
+        rows
+          .find((row) => row.id === recurring.id)
+          ?.due_date.toISOString()
+          .slice(0, 10),
+      ).toBe(today);
+      expect(
+        rows.every((row) => {
+          const date = row.due_date.toISOString().slice(0, 10);
+          const weekday = row.due_date.getUTCDay();
+          return (
+            date >= today && date <= horizonDate && [1, 3].includes(weekday)
+          );
+        }),
+      ).toBe(true);
+
+      const apiBefore = await page.request.get(
+        `/api/chores?limit=200&from=${today}&to=${horizonDate}`,
+        { headers: { "X-Member-Protocol": "2" } },
+      );
+      const apiBeforeText = await apiBefore.text();
+      expect(apiBefore.status(), apiBeforeText).toBe(200);
+      const apiBeforeRows = (
+        JSON.parse(apiBeforeText) as {
+          chores: Array<{
+            id: string;
+            status: string;
+            due_date: string;
+            recurrence_id: string | null;
+            assigned_to: string | null;
+            assigned_member_id: string | null;
+            subject?: { kind: string; memberId?: string };
+          }>;
+        }
+      ).chores.filter((row) => row.recurrence_id === recurring.recurrenceId);
+      expect(apiBeforeRows).toHaveLength(rows.length);
+      expect(apiBeforeRows.every((row) => row.assigned_to === null)).toBe(true);
+      expect(
+        apiBeforeRows.every(
+          (row) =>
+            row.assigned_member_id === recurring.profileId &&
+            row.subject?.kind === "profile" &&
+            row.subject.memberId === recurring.profileId,
+        ),
+      ).toBe(true);
+
+      await page.goto("/dashboard/chores");
+      await page.getByRole("button", { name: "Week", exact: true }).click();
+      const recurringGroup = page
+        .locator("details")
+        .filter({
+          has: page.locator("summary").filter({ hasText: recurring.title }),
+        })
+        .first();
+      await expect(recurringGroup).toBeVisible();
+      const summary = recurringGroup.locator("summary");
+      await expect(summary).toContainText("Weekly");
+      await expect(summary).toContainText("Monday, Wednesday");
+      await expect(summary).toContainText(/\d+ open dates/);
+      await expect(
+        summary.getByText(recurring.title, { exact: true }),
+      ).toHaveCount(1);
+      await info.attach(`${info.project.name}-profile-recurring-group`, {
+        body: await page.screenshot({ fullPage: true }),
+        contentType: "image/png",
+      });
+
+      const current = rows.find(
+        (row) => row.due_date.toISOString().slice(0, 10) === today,
+      );
+      expect(current).toBeTruthy();
+      const tablet = await openContext(browser, info);
+      tabletContext = tablet.context;
+      await pairViaApi(page, tablet.page, "Profile recurring QA tablet");
+      const board = await deviceFetch(tablet.page, "/api/device/today", "2");
+      expect(board.status, board.body).toBe(200);
+      expect(board.body).toContain(recurring.title);
+      expect(board.body).toContain(recurring.profileName);
+      await inspectBoard(
+        tablet.page,
+        recurring.title,
+        info,
+        `${info.project.name}-profile-recurring-device-board`,
+      );
+      const choreButton = tablet.page
+        .getByTestId("board-chore")
+        .filter({ hasText: recurring.title })
+        .getByRole("button");
+      const complete = tablet.page.waitForResponse(
+        (response) =>
+          response
+            .url()
+            .endsWith(`/api/device/chores/${current!.id}/complete`) &&
+          response.request().method() === "POST",
+      );
+      await choreButton.click();
+      const chooser = tablet.page.getByTestId("who-is-this");
+      await expect(chooser).toBeVisible();
+      await chooser
+        .getByRole("button", { name: recurring.profileName, exact: true })
+        .click();
+      expect((await complete).status()).toBe(200);
+      await expect(
+        tablet.page
+          .getByTestId("board-chore")
+          .filter({ hasText: recurring.title }),
+      ).toHaveCount(0);
+
+      const afterDevice = await withDb(async (db) => {
+        const result = await db.query<{
+          id: string;
+          due_date: Date;
+          status: string;
+        }>(
+          `SELECT id, due_date, status FROM "Chore"
+            WHERE family_id=$1 AND recurrence_id=$2
+            ORDER BY due_date, id`,
+          [familyId, recurring.recurrenceId],
+        );
+        return result.rows;
+      });
+      expect(afterDevice.find((row) => row.id === current!.id)?.status).toBe(
+        "completed",
+      );
+      expect(
+        afterDevice.some(
+          (row) => row.due_date > current!.due_date && row.status === "pending",
+        ),
+      ).toBe(true);
+
+      await page.goto("/dashboard/chores");
+      const verify = page.getByRole("button", {
+        name: `Verify “${recurring.title}”`,
+        exact: true,
+      });
+      await expect(verify).toBeVisible();
+      const verified = page.waitForResponse(
+        (response) =>
+          response.url().endsWith("/api/chores/verify") &&
+          response.request().method() === "POST",
+      );
+      await verify.click();
+      expect((await verified).status()).toBe(200);
+      await page
+        .getByRole("alert")
+        .filter({ hasText: recurring.title })
+        .getByRole("button", { name: "Dismiss", exact: true })
+        .click();
+      const dismissToast = page.getByRole("button", {
+        name: "Dismiss",
+        exact: true,
+      });
+      await expect(dismissToast).toHaveCount(0);
+      await page.getByRole("button", { name: "All", exact: true }).click();
+      const doneButton = page.getByRole("button", {
+        name: /^Done \d+\+?$/,
+      });
+      await expect(doneButton).toBeVisible();
+      await doneButton.click();
+      await expect(doneButton).toHaveAttribute("aria-expanded", "true");
+      const history = page.locator("section").filter({ has: doneButton });
+      await expect(
+        history.getByText(recurring.title, { exact: true }),
+      ).toBeVisible();
+
+      const afterVerify = await withDb(async (db) => {
+        const result = await db.query<{
+          id: string;
+          due_date: Date;
+          status: string;
+        }>(
+          `SELECT id, due_date, status FROM "Chore"
+            WHERE family_id=$1 AND recurrence_id=$2
+            ORDER BY due_date, id`,
+          [familyId, recurring.recurrenceId],
+        );
+        return result.rows;
+      });
+      expect(afterVerify.find((row) => row.id === current!.id)?.status).toBe(
+        "verified",
+      );
+      expect(
+        afterVerify.some(
+          (row) => row.due_date > current!.due_date && row.status === "pending",
+        ),
+      ).toBe(true);
+
+      const apiAfter = await page.request.get(
+        `/api/chores?limit=200&from=${today}&to=${horizonDate}`,
+        { headers: { "X-Member-Protocol": "2" } },
+      );
+      const apiAfterText = await apiAfter.text();
+      expect(apiAfter.status(), apiAfterText).toBe(200);
+      const apiAfterRows = (
+        JSON.parse(apiAfterText) as {
+          chores: Array<{
+            id: string;
+            status: string;
+            recurrence_id: string | null;
+          }>;
+        }
+      ).chores.filter((row) => row.recurrence_id === recurring.recurrenceId);
+      expect(apiAfterRows.find((row) => row.id === current!.id)?.status).toBe(
+        "verified",
+      );
+      expect(
+        apiAfterRows.some(
+          (row) => row.id !== current!.id && row.status === "pending",
+        ),
+      ).toBe(true);
+      await expect(dismissToast).toHaveCount(0);
+      await expect(doneButton).toHaveAttribute("aria-expanded", "true");
+      await expect(
+        history.getByText(recurring.title, { exact: true }),
+      ).toBeVisible();
+      await expectNoHorizontalOverflow(page, "profile recurring verification");
+      await info.attach(`${info.project.name}-profile-recurring-history`, {
+        body: await page.screenshot({ fullPage: true }),
+        contentType: "image/png",
+      });
+    } finally {
+      await tabletContext?.close().catch(() => undefined);
       if (familyId) {
         await withDb((db) =>
           db.query(`UPDATE "Family" SET device_writes_enabled=$2 WHERE id=$1`, [

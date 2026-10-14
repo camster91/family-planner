@@ -54,6 +54,8 @@ const initialProfileSetupEnabled = process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED;
 const initialProfileChoreEnabled = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
 const initialProfileChoreRollbackReady =
   process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+const initialProfileChoreRecurrenceEnabled =
+  process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED;
 
 function profile(id: string, family_id: string, name = "Toddler") {
   return {
@@ -81,6 +83,7 @@ beforeEach(() => {
   process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED = "1";
   delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
   delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+  delete process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED;
   db.reset();
   manage.mockReset();
   refuse.mockReset().mockResolvedValue(null);
@@ -101,6 +104,11 @@ afterEach(() => {
   else
     process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY =
       initialProfileChoreRollbackReady;
+  if (initialProfileChoreRecurrenceEnabled === undefined)
+    delete process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED;
+  else
+    process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED =
+      initialProfileChoreRecurrenceEnabled;
   jest.restoreAllMocks();
 });
 
@@ -153,23 +161,32 @@ describe("GET /api/family/profiles", () => {
 
   it("reports profile chore writer support separately from profile setup", async () => {
     const cases = [
-      [undefined, undefined, false],
-      ["1", undefined, false],
-      ["1", "1", true],
+      [undefined, undefined, undefined, false, false],
+      ["1", undefined, "1", false, false],
+      ["1", "1", undefined, true, false],
+      ["1", "1", "1", true, true],
     ] as const;
-    for (const [enabled, rollbackReady, supported] of cases) {
+    for (const [enabled, rollbackReady, recurrenceEnabled, supported, recurrenceSupported] of cases) {
       if (enabled === undefined)
         delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
       else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = enabled;
       if (rollbackReady === undefined)
         delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
       else process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = rollbackReady;
+      if (recurrenceEnabled === undefined)
+        delete process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED;
+      else
+        process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED = recurrenceEnabled;
 
       const response = await GET(
         req({ as: "parentA", path: "/api/family/profiles" }),
       );
       expect(response.status).toBe(200);
-      expect((await bodyOf(response)).profileChoreSupported).toBe(supported);
+      const body = await bodyOf(response);
+      expect(body.profileChoreSupported).toBe(supported);
+      expect(body.profileChoreRecurrenceSupported).toBe(
+        recurrenceSupported ? true : undefined,
+      );
     }
   });
 

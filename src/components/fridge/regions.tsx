@@ -548,6 +548,11 @@ export function ChoresRegion({
                             {c.status === 'in_progress' && (
                               <span className={cn(metaTextClass, 'block')}>{text('inProgress')}</span>
                             )}
+                            {c.actionAvailability?.state === 'paused' && (
+                              <span className={cn(metaTextClass, 'block')} role="status">
+                                {text('profileChorePaused')}
+                              </span>
+                            )}
                           </span>
                         )
                         return (

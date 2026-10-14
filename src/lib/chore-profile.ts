@@ -2,32 +2,30 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { updateChoreSchema } from "@/lib/validations";
 import type { EffectResult } from "@/lib/idempotency";
+import { normalizedWeekdays } from "@/lib/chore-weekdays";
 import {
   isProfileAgeAllowed,
   memberIdentityIdSchema,
   profileRoleSchema,
 } from "@/lib/member-subject-contract";
 import { lockHousehold, lockUser } from "@/lib/household-lock";
+import { expandSeriesInTx } from "@/lib/recurringChores";
+import {
+  isProfileChoreEnabled,
+  isProfileChoreRecurrenceSupported,
+  PROFILE_CHORE_ENABLE_ENV,
+  PROFILE_CHORE_ROLLBACK_READY_ENV,
+} from "@/lib/profile-chore-gates";
 
-/** Server-only gate. It is deliberately absent from the capability manifest. */
-export const PROFILE_CHORE_ENABLE_ENV = "HOUSEHOLD_PROFILE_CHORE_ENABLED";
-/**
- * Release-controller acknowledgement for the forward-only schema change.
- * Profile-only rows make an account-only server an unsafe rollback target, so
- * the feature must stay dark until the compatible reader/writer candidate and
- * its recovery path are ready together.
- */
-export const PROFILE_CHORE_ROLLBACK_READY_ENV =
-  "HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY";
+export {
+  isProfileChoreEnabled,
+  isProfileChoreRecurrenceSupported,
+  PROFILE_CHORE_ENABLE_ENV,
+  PROFILE_CHORE_ROLLBACK_READY_ENV,
+  PROFILE_CHORE_RECURRENCE_ENABLE_ENV,
+} from "@/lib/profile-chore-gates";
 export const PROFILE_CHORE_UNSUPPORTED_CODE =
   "MEMBER_PROTOCOL_UNAVAILABLE" as const;
-
-export function isProfileChoreEnabled(): boolean {
-  return (
-    process.env[PROFILE_CHORE_ENABLE_ENV] === "1" &&
-    process.env[PROFILE_CHORE_ROLLBACK_READY_ENV] === "1"
-  );
-}
 
 export const profileChoreCreateSchema = z
   .object({
@@ -40,13 +38,35 @@ export const profileChoreCreateSchema = z
       .string()
       .refine((value) => !Number.isNaN(Date.parse(value)), "Invalid date"),
     difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
-    frequency: z.literal("once").default("once"),
+    frequency: z.enum(["once", "daily", "weekly", "monthly"]).default("once"),
+    weekly_days: z.array(z.number().int().min(0).max(6)).max(7).default([]),
     photo_url: z.string().max(500).nullable().optional(),
     icon: updateChoreSchema.innerType().shape.icon,
     routine: updateChoreSchema.innerType().shape.routine,
     routine_order: updateChoreSchema.innerType().shape.routine_order,
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const days = [...new Set(value.weekly_days)].sort((a, b) => a - b);
+    if (value.frequency === "weekly" && days.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["weekly_days"],
+        message: "Select at least one weekday for a weekly profile chore.",
+      });
+    }
+    if (value.frequency !== "weekly" && days.length > 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["weekly_days"],
+        message: "Weekdays are only valid for weekly profile chores.",
+      });
+    }
+  })
+  .transform((value) => ({
+    ...value,
+    weekly_days: normalizedWeekdays(value.weekly_days),
+  }));
 
 export type ProfileChoreCreateInput = z.infer<typeof profileChoreCreateSchema>;
 
@@ -79,6 +99,9 @@ export type ProfileChoreDTO = {
   due_date: Date;
   status: string;
   frequency: string;
+  weekly_days: number[];
+  recurrence_id: string | null;
+  is_template: boolean;
   difficulty: string;
   icon: string | null;
   routine: string | null;
@@ -182,6 +205,77 @@ export function readChoreSubject(
   };
 }
 
+/**
+ * Capability state for actions on a readable profile-only chore.
+ *
+ * Recurring profile rows can outlive the private recurrence opt-in during a
+ * rollback. They remain readable so the household does not lose the child's
+ * name or history, but clients must not render controls that will be refused
+ * by the action routes. The field is intentionally per-row: one-off profile
+ * chores remain actionable while only recurring rows are paused.
+ */
+export type ProfileChoreActionAvailability =
+  | {
+      state: "active";
+      requiresCompatibleClient: false;
+      actions: {
+        complete: true;
+        undo: true;
+        verify: true;
+        reject: true;
+      };
+    }
+  | {
+      state: "paused";
+      reason: "RECURRENCE_CAPABILITY_UNAVAILABLE";
+      recovery: "refresh-and-retain-pending";
+      requiresCompatibleClient: true;
+      actions: {
+        complete: false;
+        undo: false;
+        verify: false;
+        reject: false;
+      };
+    };
+
+type ProfileChoreActionRow = {
+  assigned_to: string | null;
+  assigned_member_id: string | null;
+  frequency?: string | null;
+  recurrence_id?: string | null;
+};
+
+/**
+ * Return the canonical action state for a profile-only row. Account rows and
+ * invalid/unreadable profile rows return null so callers cannot accidentally
+ * apply profile semantics to an account subject or manufacture a fallback.
+ */
+export function profileChoreActionAvailability(
+  row: ProfileChoreActionRow,
+): ProfileChoreActionAvailability | null {
+  if (row.assigned_to !== null || row.assigned_member_id === null) return null;
+
+  const recurring =
+    (row.recurrence_id !== null && row.recurrence_id !== undefined) ||
+    (row.frequency !== undefined &&
+      row.frequency !== null &&
+      row.frequency !== "once");
+  if (!recurring || isProfileChoreRecurrenceSupported()) {
+    return {
+      state: "active",
+      requiresCompatibleClient: false,
+      actions: { complete: true, undo: true, verify: true, reject: true },
+    };
+  }
+  return {
+    state: "paused",
+    reason: "RECURRENCE_CAPABILITY_UNAVAILABLE",
+    recovery: "refresh-and-retain-pending",
+    requiresCompatibleClient: true,
+    actions: { complete: false, undo: false, verify: false, reject: false },
+  };
+}
+
 type ProfileCreateDb = Pick<PrismaClient, "$transaction">;
 type ProfileCreateTx = Prisma.TransactionClient;
 
@@ -253,6 +347,9 @@ function profileChoreResponse(chore: ProfileChoreDTO): ProfileChoreDTO {
     due_date: chore.due_date,
     status: chore.status,
     frequency: chore.frequency,
+    weekly_days: chore.weekly_days,
+    recurrence_id: chore.recurrence_id,
+    is_template: chore.is_template,
     difficulty: chore.difficulty,
     icon: chore.icon ?? null,
     routine: chore.routine ?? null,
@@ -278,6 +375,22 @@ export async function createProfileOnlyChoreInTx(
   recordId: string | null,
   now = new Date(),
 ): Promise<EffectResult> {
+  // Refuse a recurring profile request before touching the idempotency receipt
+  // or creating its template. A rollout can therefore turn this opt-in off
+  // without replaying a cached recurring response or leaving a new series
+  // half-created. One-off profile writes continue to use the existing gate.
+  if (
+    input.frequency !== "once" &&
+    !isProfileChoreRecurrenceSupported()
+  ) {
+    return {
+      status: 409,
+      body: {
+        error: PROFILE_CHORE_UNSUPPORTED_CODE,
+        ...profileChoreProtocolRefusal(),
+      },
+    };
+  }
   await lockUser(tx, actor.id);
   await lockHousehold(tx, actor.familyId);
 
@@ -316,7 +429,7 @@ export async function createProfileOnlyChoreInTx(
     select: profileTargetSelect,
   });
   assertProfileTarget(target, actor.familyId, input.selection.memberId);
-  const chore = await tx.chore.create({
+  const created = await tx.chore.create({
     data: {
       family_id: actor.familyId,
       title: input.title,
@@ -327,7 +440,8 @@ export async function createProfileOnlyChoreInTx(
       member_subject_erased: false,
       due_date: dueDate,
       status: "pending",
-      frequency: "once",
+      frequency: input.frequency,
+      weekly_days: input.weekly_days,
       difficulty: input.difficulty,
       photo_url: photoUrl,
       icon: input.icon ?? null,
@@ -337,6 +451,17 @@ export async function createProfileOnlyChoreInTx(
     } as unknown as Prisma.ChoreUncheckedCreateInput,
     include: choreSubjectInclude,
   });
+  const chore =
+    input.frequency === "once"
+      ? created
+      : await tx.chore.update({
+          where: { id: created.id },
+          data: { recurrence_id: created.id, is_template: true },
+          include: choreSubjectInclude,
+        });
+  if (input.frequency !== "once") {
+    await expandSeriesInTx(tx, chore.id, actor.familyId, now);
+  }
   const subject = readChoreSubject(chore, actor.familyId);
   if (!subject || subject.kind !== "profile")
     throw new ProfileChoreError("PROFILE_TARGET_CONFLICT");
@@ -347,6 +472,9 @@ export async function createProfileOnlyChoreInTx(
     due_date: chore.due_date,
     status: chore.status,
     frequency: chore.frequency,
+    weekly_days: chore.weekly_days ?? [],
+    recurrence_id: chore.recurrence_id ?? null,
+    is_template: chore.is_template ?? false,
     difficulty: chore.difficulty,
     icon: chore.icon ?? null,
     routine: chore.routine ?? null,

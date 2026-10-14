@@ -39,7 +39,7 @@ import { isRoutineIconKey } from '@/lib/routine-icons'
 import type { BoardDisplay } from '@/lib/ambient'
 import { COMING_UP_DAYS } from '@/lib/board-constants'
 import { isProfileAgeAllowed, profileRoleSchema, type MemberProtocol } from '@/lib/member-subject-contract'
-import { isProfileChoreEnabled, profileChoreProtocolRefusal, readChoreSubject } from '@/lib/chore-profile'
+import { isProfileChoreEnabled, profileChoreActionAvailability, profileChoreProtocolRefusal, readChoreSubject, type ProfileChoreActionAvailability } from '@/lib/chore-profile'
 
 export { COMING_UP_DAYS } from '@/lib/board-constants'
 
@@ -95,6 +95,8 @@ export interface BoardChore {
   assigneeId?: string
   /** Protocol 2's explicit account/profile subject. */
   subject?: BoardSubject
+  /** Per-row profile capability; paused recurring work stays readable but not actionable. */
+  actionAvailability?: ProfileChoreActionAvailability
   /**
    * Picture key from the built-in chore icon set (#272), or null. A fixed
    * catalogue key, never user text, so it is safe for every audience including
@@ -437,6 +439,8 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         assigned_to: true,
         assigned_member_id: true,
         member_subject_erased: true,
+        frequency: true,
+        recurrence_id: true,
         icon: true,
         assignee: { select: { id: true, name: true, family_id: true } },
         assigneeMember: { select: profileChoreSubjectSelect },
@@ -620,6 +624,8 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     assigned_to: string | null
     assigned_member_id: string | null
     member_subject_erased: boolean
+    frequency?: string | null
+    recurrence_id?: string | null
     icon: string | null
     assignee?: { id: string; name: string; family_id: string | null } | null
     assigneeMember?: {
@@ -668,6 +674,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     const subject = readChoreSubject(chore, familyId)
     const profile = subject?.kind === 'profile' ? profileById.get(subject.memberId) : undefined
     if (!profile) return []
+    const actionAvailability = profileChoreActionAvailability(chore)
     return [
       {
         ...base,
@@ -677,6 +684,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
           name: profile.name,
           color: colors.get(profileBoardId(profile.id))!,
         },
+        ...(actionAvailability ? { actionAvailability } : {}),
       },
     ]
   })

@@ -42,6 +42,59 @@ describe('GET /api/chores?id=', () => {
     expect((await GET(req({ as: 'parentA', query: { id: 'chore-b' } }))).status).toBe(404)
     expect((await GET(req({ as: 'parentA', query: { id: 'no-such-chore' } }))).status).toBe(404)
   })
+
+  it('keeps recurring profile rows readable with paused action availability after rollback', async () => {
+    const previous = {
+      enabled: process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED,
+      rollback: process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY,
+      recurrence: process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED,
+    }
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = '1'
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = '1'
+    delete process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED
+    db.rows('householdMember').push({
+      id: 'member-profile-a', family_id: FAMILY_A, name: 'Little One', role: 'child', age: 3,
+      archived_at: null, erasure_user_id: null, legacy_mapping: null, account_link: null,
+    })
+    addChore('profile-recurring', '2026-10-01', {
+      assigned_to: null, assigned_member_id: 'member-profile-a', member_subject_erased: false,
+      frequency: 'once', recurrence_id: 'profile-series-a',
+    })
+    addChore('profile-once', '2026-10-02', {
+      assigned_to: null, assigned_member_id: 'member-profile-a', member_subject_erased: false,
+      frequency: 'once', recurrence_id: null,
+    })
+    try {
+      const body = await bodyOf(await GET(req({
+        as: 'parentA', headers: { 'X-Member-Protocol': '2' },
+        query: { from: '2026-10-01', to: '2026-10-03' },
+      })))
+      const recurring = body.chores.find((chore: { id: string }) => chore.id === 'profile-recurring')
+      const oneOff = body.chores.find((chore: { id: string }) => chore.id === 'profile-once')
+      expect(recurring).toEqual(expect.objectContaining({
+        subject: { kind: 'profile', memberId: 'member-profile-a', name: 'Little One', role: 'child' },
+        actionAvailability: {
+          state: 'paused', reason: 'RECURRENCE_CAPABILITY_UNAVAILABLE', recovery: 'refresh-and-retain-pending',
+          requiresCompatibleClient: true, actions: { complete: false, undo: false, verify: false, reject: false },
+        },
+      }))
+      expect(oneOff).toEqual(expect.objectContaining({
+        subject: { kind: 'profile', memberId: 'member-profile-a', name: 'Little One', role: 'child' },
+        actionAvailability: {
+          state: 'active', requiresCompatibleClient: false,
+          actions: { complete: true, undo: true, verify: true, reject: true },
+        },
+      }))
+      expect(body.chores.filter((chore: { subject?: unknown }) => !chore.subject).every((chore: { actionAvailability?: unknown }) => chore.actionAvailability === undefined)).toBe(true)
+    } finally {
+      if (previous.enabled === undefined) delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED
+      else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = previous.enabled
+      if (previous.rollback === undefined) delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY
+      else process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = previous.rollback
+      if (previous.recurrence === undefined) delete process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED
+      else process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED = previous.recurrence
+    }
+  })
 })
 
 describe('GET /api/chores from/to', () => {

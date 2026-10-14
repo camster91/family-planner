@@ -54,6 +54,11 @@ Profile-aware HTTP/device requests need an explicit versioned wire envelope at t
 { "protocol": 2, "selection": { "memberId": "opaque-member-id" } }
 ```
 
+The JSON envelope is the write contract. `X-Member-Protocol: 2` is a separate
+reader/routine-stack negotiation header; it does not replace `protocol` and
+`selection` in a chore write body, and a body containing `memberId` does not
+implicitly upgrade a reader.
+
 The legacy account body and `actingMemberId` remain the protocol-1 shape. A missing `protocol` is exactly protocol 1; the server must never infer protocol from the presence of `memberId`, a name or an email. Invalid, unsupported or protocol-1 profile selections return the stable refusal envelope without private identifiers:
 
 ```json
@@ -141,8 +146,9 @@ Use separate default-off gates:
 1. `HOUSEHOLD_PROFILE_SETUP_ENABLED=1` for the existing profile roster route.
 2. A new server-only `HOUSEHOLD_PROFILE_CHORE_ENABLED=1` for profile-targeted chore writes/readers.
 3. A release-controller acknowledgement, `HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY=1`, only after the compatible reader/writer candidate, backup and recovery path are ready. This is required with the profile chore flag; it is not a capability advertisement.
-4. Existing household `features.chores` and `device_writes_enabled` for the relevant route.
-5. Protocol negotiation from the client/request; a manifest response never grants authority.
+4. A separate private `HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED=1` for the recurring profile candidate. It is required alongside the first two gates and is advertised only through the private profile-list field; it does not modify the public capability manifest.
+5. Existing household `features.chores` and `device_writes_enabled` for the relevant route.
+6. Protocol negotiation from the client/request; a manifest response never grants authority.
 
 The order is:
 

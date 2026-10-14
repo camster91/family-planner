@@ -7,10 +7,13 @@ import {
 import {
   createProfileOnlyChoreEffect,
   isProfileChoreEnabled,
+  isProfileChoreRecurrenceSupported,
   profileChoreCreateSchema,
   profileChoreReadRefusal,
   profileChoreProtocolRefusal,
+  profileChoreActionAvailability,
   PROFILE_CHORE_ROLLBACK_READY_ENV,
+  PROFILE_CHORE_RECURRENCE_ENABLE_ENV,
   readChoreSubject,
 } from "@/lib/chore-profile";
 
@@ -41,6 +44,8 @@ describe("profile-only chore contract", () => {
   const originalGate = process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED;
   const originalRollbackGate =
     process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+  const originalRecurrenceGate =
+    process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED;
 
   afterEach(() => {
     if (originalGate === undefined)
@@ -50,6 +55,10 @@ describe("profile-only chore contract", () => {
       delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
     else
       process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = originalRollbackGate;
+    if (originalRecurrenceGate === undefined)
+      delete process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV];
+    else
+      process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV] = originalRecurrenceGate;
   });
 
   it("returns a typed profile subject without exposing account details", () => {
@@ -140,7 +149,7 @@ describe("profile-only chore contract", () => {
     ).toBeNull();
   });
 
-  it("requires protocol 2 and accepts picture routines while rejecting recurrence", () => {
+  it("requires protocol 2 and validates profile schedules without weakening one-offs", () => {
     const valid = profileChoreCreateSchema.safeParse({
       protocol: 2,
       selection: { memberId: "member-child" },
@@ -155,7 +164,55 @@ describe("profile-only chore contract", () => {
         selection: { memberId: "member-child" },
         title: "Repeating profile chore",
         due_date: "2026-10-11",
+        frequency: "daily",
+      }).success,
+    ).toBe(true);
+    expect(
+      profileChoreCreateSchema.parse({
+        protocol: 2,
+        selection: { memberId: "member-child" },
+        title: "Normalized days",
+        due_date: "2026-10-11",
         frequency: "weekly",
+        weekly_days: [4, 1, 4],
+      }).weekly_days,
+    ).toEqual([1, 4]);
+    expect(
+      profileChoreCreateSchema.safeParse({
+        protocol: 2,
+        selection: { memberId: "member-child" },
+        title: "Selected days",
+        due_date: "2026-10-11",
+        frequency: "weekly",
+        weekly_days: [1, 4],
+      }).success,
+    ).toBe(true);
+    expect(
+      profileChoreCreateSchema.safeParse({
+        protocol: 2,
+        selection: { memberId: "member-child" },
+        title: "Missing days",
+        due_date: "2026-10-11",
+        frequency: "weekly",
+      }).success,
+    ).toBe(false);
+    expect(
+      profileChoreCreateSchema.safeParse({
+        protocol: 2,
+        selection: { memberId: "member-child" },
+        title: "Monthly profile chore",
+        due_date: "2026-10-11",
+        frequency: "monthly",
+      }).success,
+    ).toBe(true);
+    expect(
+      profileChoreCreateSchema.safeParse({
+        protocol: 2,
+        selection: { memberId: "member-child" },
+        title: "Invalid weekday payload",
+        due_date: "2026-10-11",
+        frequency: "daily",
+        weekly_days: [1],
       }).success,
     ).toBe(false);
     expect(
@@ -223,6 +280,70 @@ describe("profile-only chore contract", () => {
         ...profileChoreProtocolRefusal(),
       },
     });
+  });
+
+  it("keeps recurring profile support behind its separate private opt-in", () => {
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+    delete process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV];
+    expect(isProfileChoreRecurrenceSupported()).toBe(false);
+
+    process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV] = "1";
+    expect(isProfileChoreRecurrenceSupported()).toBe(true);
+
+    delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
+    expect(isProfileChoreRecurrenceSupported()).toBe(false);
+  });
+
+  it("projects paused recurring rows without changing one-off or account subjects", () => {
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+    delete process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV];
+
+    expect(
+      profileChoreActionAvailability({
+        assigned_to: null,
+        assigned_member_id: "member-child",
+        frequency: "weekly",
+        recurrence_id: "series-1",
+      }),
+    ).toEqual({
+      state: "paused",
+      reason: "RECURRENCE_CAPABILITY_UNAVAILABLE",
+      recovery: "refresh-and-retain-pending",
+      requiresCompatibleClient: true,
+      actions: { complete: false, undo: false, verify: false, reject: false },
+    });
+    expect(
+      profileChoreActionAvailability({
+        assigned_to: null,
+        assigned_member_id: "member-child",
+        frequency: "once",
+        recurrence_id: null,
+      }),
+    ).toEqual({
+      state: "active",
+      requiresCompatibleClient: false,
+      actions: { complete: true, undo: true, verify: true, reject: true },
+    });
+    expect(
+      profileChoreActionAvailability({
+        assigned_to: "account-child",
+        assigned_member_id: null,
+        frequency: "weekly",
+        recurrence_id: "series-2",
+      }),
+    ).toBeNull();
+
+    process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV] = "1";
+    expect(
+      profileChoreActionAvailability({
+        assigned_to: null,
+        assigned_member_id: "member-child",
+        frequency: "weekly",
+        recurrence_id: "series-1",
+      })?.state,
+    ).toBe("active");
   });
 
   it("locks membership before the live receipt and stores the response in the same effect", async () => {

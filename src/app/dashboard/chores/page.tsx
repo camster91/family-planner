@@ -12,7 +12,7 @@ import {
 } from '@/lib/chore-paging'
 import { topUpHouseholdSeries } from '@/lib/recurringChores'
 import { nextRotationMember } from '@/lib/chore-rotation'
-import { choreSubjectInclude, readChoreSubject } from '@/lib/chore-profile'
+import { choreSubjectInclude, profileChoreActionAvailability, readChoreSubject } from '@/lib/chore-profile'
 
 export default async function ChoresPage() {
   const sessionUser = await getServerUser()
@@ -155,6 +155,7 @@ export default async function ChoresPage() {
 
   const serializedChores = chores.map((c) => {
     const subject = familyId ? readChoreSubject(c, familyId) : null
+    const actionAvailability = subject?.kind === 'profile' ? profileChoreActionAvailability(c) : null
     const { assigneeMember: _assigneeMember, assignee: _assignee, ...safeChore } = c
     // The release owner regenerates Prisma in the migration checkout. Keep
     // this additive projection type-safe for the pre-generated client used by
@@ -171,6 +172,7 @@ export default async function ChoresPage() {
       // particular, never manufacture a User for an email-free member.
       assignee: subject ? { name: subject.name } : null,
       ...(subject?.kind === 'profile' ? { subject } : {}),
+      ...(actionAvailability ? { actionAvailability } : {}),
       due_date: c.due_date.toISOString(),
       created_at: c.created_at.toISOString(),
       completed_at: c.completed_at?.toISOString() ?? null,

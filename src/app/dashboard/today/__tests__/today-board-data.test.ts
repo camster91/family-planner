@@ -165,6 +165,8 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         'icon',
         'id',
         'status',
+        'frequency',
+        'recurrence_id',
         'title',
         'assignee',
         'assigneeMember',
@@ -497,6 +499,60 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = previous
       if (previousRollback === undefined) delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY
       else process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = previousRollback
+    }
+  })
+
+  it('keeps a recurring profile row readable but pauses actions after recurrence rollback', async () => {
+    const previous = {
+      enabled: process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED,
+      rollback: process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY,
+      recurrence: process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED,
+    }
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = '1'
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = '1'
+    delete process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED
+    try {
+      const db = mockDb({
+        householdMember: {
+          findMany: jest.fn().mockResolvedValue([{
+            id: 'member_only', family_id: FAMILY, name: 'Little One', role: 'child', age: 3,
+            board_color: 'purple', archived_at: null, erasure_user_id: null,
+            legacy_mapping: null, account_link: null,
+          }]),
+        },
+        chore: {
+          findMany: jest.fn().mockResolvedValue([{
+            id: 'profile-recurring', title: 'Brush teeth', due_date: NOW, status: 'pending',
+            assigned_to: null, assigned_member_id: 'member_only', member_subject_erased: false,
+            frequency: 'once', recurrence_id: 'series-1', icon: null,
+            assigneeMember: {
+              id: 'member_only', family_id: FAMILY, name: 'Little One', role: 'child', age: 3,
+              archived_at: null, erasure_user_id: null, legacy_mapping: null, account_link: null,
+            },
+          }]),
+          findFirst: jest.fn().mockResolvedValue(null),
+        },
+      })
+      const data = await buildTodayBoard(db as any, {
+        familyId: FAMILY, audience: 'device', memberProtocol: 2,
+        features: defaultFeatures(), now: NOW,
+      })
+      const chore = data.chores.find((item) => item.id === 'profile-recurring')
+      expect(data.protocolError).toBeUndefined()
+      expect(chore).toEqual(expect.objectContaining({
+        subject: expect.objectContaining({ kind: 'profile', memberId: 'member_only', name: 'Little One' }),
+        actionAvailability: {
+          state: 'paused', reason: 'RECURRENCE_CAPABILITY_UNAVAILABLE', recovery: 'refresh-and-retain-pending',
+          requiresCompatibleClient: true, actions: { complete: false, undo: false, verify: false, reject: false },
+        },
+      }))
+    } finally {
+      if (previous.enabled === undefined) delete process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED
+      else process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = previous.enabled
+      if (previous.rollback === undefined) delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY
+      else process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = previous.rollback
+      if (previous.recurrence === undefined) delete process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED
+      else process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED = previous.recurrence
     }
   })
 

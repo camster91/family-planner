@@ -7,6 +7,8 @@ import { lockHousehold } from "@/lib/household-lock";
 import { isDueTodaySomewhere } from "@/lib/chore-complete";
 import type { ChoreWithSubject } from "@/lib/chore-profile";
 import { readChoreSubject } from "@/lib/chore-profile";
+import { expandSeriesInTx } from "@/lib/recurringChores";
+import { isProfileChoreRecurrenceSupported } from "@/lib/profile-chore-gates";
 
 type ActionDb = Pick<PrismaClient, "$transaction">;
 
@@ -103,12 +105,42 @@ export async function completeProfileChoreInTx(
     });
     if (!activeUnlinkedProfile(target, input.familyId, input.memberId))
       return "profile_unavailable";
+    let profileSeries = false;
+    if (chore.recurrence_id !== null) {
+      const template = await tx.chore.findFirst({
+        where: { id: chore.recurrence_id, family_id: input.familyId },
+        select: {
+          id: true,
+          assigned_to: true,
+          assigned_member_id: true,
+          member_subject_erased: true,
+          frequency: true,
+          recurrence_id: true,
+          is_template: true,
+          rotation_member_ids: true,
+        },
+      });
+      profileSeries = Boolean(
+        template &&
+        template.assigned_to === null &&
+        template.assigned_member_id === input.memberId &&
+        !template.member_subject_erased &&
+        template.recurrence_id === template.id &&
+        template.is_template &&
+        template.frequency !== "once" &&
+        template.rotation_member_ids.length === 0,
+      );
+    }
     if (
-      chore.frequency !== "once" ||
-      chore.recurrence_id !== null ||
-      chore.is_template ||
+      (!profileSeries && chore.frequency !== "once") ||
+      (!profileSeries && chore.recurrence_id !== null) ||
+      (!profileSeries && chore.is_template) ||
       chore.rotation_member_ids.length > 0
     )
+      return "profile_unavailable";
+    // A rollback of the private recurrence opt-in retains pending work rather
+    // than completing an old occurrence and attempting a new expansion.
+    if (profileSeries && !isProfileChoreRecurrenceSupported())
       return "profile_unavailable";
     if (!isDueTodaySomewhere(chore.due_date, input.now)) return "not_due";
     const updated = await tx.chore.updateMany({
@@ -138,6 +170,14 @@ export async function completeProfileChoreInTx(
       },
       select: { id: true },
     });
+    if (profileSeries) {
+      await expandSeriesInTx(
+        tx,
+        chore.recurrence_id!,
+        input.familyId,
+        input.now,
+      );
+    }
     return "completed";
   });
 }
@@ -172,6 +212,8 @@ export async function reopenProfileChoreInTx(
         member_subject_erased: true,
         status: true,
         completed_at: true,
+        frequency: true,
+        recurrence_id: true,
       },
     });
     if (!chore) return "not_found";
@@ -187,6 +229,14 @@ export async function reopenProfileChoreInTx(
     });
     if (!activeUnlinkedProfile(target, input.familyId, input.memberId))
       return "profile_unavailable";
+    // The profile recurrence gate covers undo as well as completion. This
+    // avoids changing an old repeated occurrence while expansion is disabled.
+    if (
+      (chore.recurrence_id != null ||
+        (chore.frequency != null && chore.frequency !== "once"))
+    ) {
+      if (!isProfileChoreRecurrenceSupported()) return "profile_unavailable";
+    }
     if (chore.status === "verified") return "verified";
     const since = new Date(input.now.getTime() - input.windowMs);
     const audits = await tx.deviceAuditEvent.findMany({
@@ -302,6 +352,8 @@ export async function profileSubjectForVerify(
     },
   });
   if (!row) return null;
+  if (row.recurrence_id !== null && !isProfileChoreRecurrenceSupported())
+    return null;
   const subject = readChoreSubject(row, familyId);
   return subject?.kind === "profile" ? subject : null;
 }

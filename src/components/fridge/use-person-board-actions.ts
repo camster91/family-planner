@@ -6,6 +6,7 @@ import { getPersonQueue } from '@/lib/offline-queue-browser'
 import { QueueError, isCheckedOperation } from '@/lib/offline-queue'
 import type { BoardActions } from './board-actions'
 import { useTranslation } from '@/i18n'
+import { useTodayBoardText } from '@/i18n/today-board'
 
 /**
  * Board tile actions for a signed-in person (#274), on /dashboard/today with
@@ -24,11 +25,13 @@ export function usePersonBoardActions(
   afterChange: () => void
 ): BoardActions | undefined {
   const { t } = useTranslation()
+  const todayText = useTodayBoardText()
   const afterRef = React.useRef(afterChange)
   afterRef.current = afterChange
   const viewerId = viewer?.id ?? null
   const isParent = viewer?.role === 'parent'
   const profileChoreUnsupported = 'This profile chore needs a newer supported board.'
+  const profileChorePaused = todayText('profileChorePaused')
   const isProfileChore = (chore: Parameters<BoardActions['canCompleteChore']>[0]) =>
     chore.subject?.kind === 'profile'
 
@@ -39,15 +42,19 @@ export function usePersonBoardActions(
     // list page keeps showing its own failed ticks with Retry.
     const mine = new Set<string>()
     return {
-      canCompleteChore: (chore) => !isProfileChore(chore) && (isParent || chore.assigneeId === viewerId),
+      canCompleteChore: (chore) => chore.actionAvailability?.state !== 'paused' && !isProfileChore(chore) && (isParent || chore.assigneeId === viewerId),
       canTickGroceries: true,
       completeChore: (chore) =>
-        isProfileChore(chore)
-          ? Promise.resolve({ ok: false as const, message: profileChoreUnsupported })
+        chore.actionAvailability?.state === 'paused'
+          ? Promise.resolve({ ok: false as const, message: profileChorePaused })
+          : isProfileChore(chore)
+            ? Promise.resolve({ ok: false as const, message: profileChoreUnsupported })
           : setChoreDone(chore.id, true),
       undoChore: (chore) =>
-        isProfileChore(chore)
-          ? Promise.resolve({ ok: false as const, message: profileChoreUnsupported })
+        chore.actionAvailability?.state === 'paused'
+          ? Promise.resolve({ ok: false as const, message: profileChorePaused })
+          : isProfileChore(chore)
+            ? Promise.resolve({ ok: false as const, message: profileChoreUnsupported })
           : setChoreDone(chore.id, false),
       choreDoneNote: () => (isParent ? undefined : 'A parent will check it.'),
       async setGroceryChecked(item, checked) {
@@ -80,5 +87,5 @@ export function usePersonBoardActions(
       },
       afterChange: () => afterRef.current(),
     }
-  }, [viewerId, isParent, t])
+  }, [viewerId, isParent, t, profileChorePaused])
 }

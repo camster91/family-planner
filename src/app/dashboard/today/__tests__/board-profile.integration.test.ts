@@ -388,7 +388,15 @@ dbDescribe("Today profile subjects against disposable PostgreSQL", () => {
     for (const chore of board.chores) {
       expect(Object.keys(chore).sort()).toEqual(
         chore.subject?.kind === "profile"
-          ? ["dueDay", "icon", "id", "status", "subject", "title"]
+          ? [
+              "actionAvailability",
+              "dueDay",
+              "icon",
+              "id",
+              "status",
+              "subject",
+              "title",
+            ]
           : [
               "assigneeId",
               "dueDay",
@@ -399,6 +407,13 @@ dbDescribe("Today profile subjects against disposable PostgreSQL", () => {
               "title",
             ],
       );
+      if (chore.subject?.kind === "profile") {
+        expect(chore.actionAvailability).toEqual({
+          state: "active",
+          requiresCompatibleClient: false,
+          actions: { complete: true, undo: true, verify: true, reject: true },
+        });
+      }
       if (chore.subject)
         expect(Object.keys(chore.subject).sort()).toEqual(
           chore.subject.kind === "profile"

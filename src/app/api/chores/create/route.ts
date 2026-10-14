@@ -18,6 +18,7 @@ import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycl
 import {
   createProfileOnlyChoreEffect,
   isProfileChoreEnabled,
+  isProfileChoreRecurrenceSupported,
   profileChoreCreateSchema,
   profileChoreProtocolRefusal,
   ProfileChoreError,
@@ -57,11 +58,23 @@ export async function POST(request: NextRequest) {
       if (!profile.success) {
         return NextResponse.json({ error: 'The profile chore request is not valid.' }, { status: 400 })
       }
+      // Keep recurring profile writes behind their own private rollout gate.
+      // This check intentionally precedes idempotency-key lookup so a cached
+      // response cannot replay after the recurrence capability is withdrawn.
+      if (profile.data.frequency !== 'once' && !isProfileChoreRecurrenceSupported()) {
+        return NextResponse.json(
+          { error: PROFILE_CHORE_UNSUPPORTED_CODE, ...profileChoreProtocolRefusal() },
+          { status: 409, headers: { 'Cache-Control': 'private, no-store' } },
+        )
+      }
       const { key, error: keyError } = readIdempotencyKey(request)
       if (keyError) return keyError
       if (!key) return idempotencyError('IDEMPOTENCY_KEY_REQUIRED')
       const startDate = normalizeDateOnlyInput(profile.data.due_date)
-      if (!startDate) return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+      const dueDate = startDate && profile.data.frequency === 'weekly'
+        ? nextSelectedWeekday(startDate, profile.data.weekly_days, true)
+        : startDate
+      if (!dueDate) return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
       const photo = await resolveChorePhotoForWrite(auth.user.family_id, profile.data.photo_url)
       if (!photo.ok) return NextResponse.json({ error: photo.error }, { status: 400 })
       const response = await withIdempotency(
@@ -74,7 +87,7 @@ export async function POST(request: NextRequest) {
             prisma!,
             { id: auth.user.id, familyId: auth.user.family_id },
             profile.data,
-            startDate,
+            dueDate,
             photo.value ?? null,
             recordId,
           ),

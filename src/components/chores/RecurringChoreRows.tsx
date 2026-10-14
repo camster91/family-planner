@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import type { Chore } from "@/types";
-import type { ChoreSubjectDTO } from "@/lib/chore-profile";
+import type {
+  ChoreSubjectDTO,
+  ProfileChoreActionAvailability,
+} from "@/lib/chore-profile";
 import { groupChoreSeries, choreCadence } from "@/lib/chore-series-groups";
 import { formatRelativeDueDate } from "@/lib/dates";
 import { profileSetupMessages } from "@/i18n/profile-setup";
@@ -9,6 +12,8 @@ type Row = Chore & {
   assignee: { name: string } | null;
   /** Safe display-only subject for an email-free household member. */
   subject?: ChoreSubjectDTO;
+  /** Per-row compatibility state for profile-only actions. */
+  actionAvailability?: ProfileChoreActionAvailability;
 };
 
 /** Disclosure has no mutation: actions always target an expanded occurrence. */
@@ -36,6 +41,9 @@ export function RecurringChoreRows<T extends Row>({
             next.member_subject_erased === true);
         const takesTurns =
           new Set(group.steps.map((c) => c.assigned_to)).size > 1;
+        const profilePaused = group.steps.some(
+          (c) => c.actionAvailability?.state === "paused",
+        );
         return (
           <details
             key={group.key}
@@ -48,7 +56,11 @@ export function RecurringChoreRows<T extends Row>({
                 {profileUnavailable
                   ? profileSetupMessages[locale.startsWith("es") ? "es" : "en"]
                       .profileTargetRefresh
-                  : takesTurns
+                  : profilePaused
+                    ? profileSetupMessages[
+                        locale.startsWith("es") ? "es" : "en"
+                      ].profileTargetRecurrencePaused
+                    : takesTurns
                     ? "Takes turns"
                     : (next.subject?.name ??
                       next.assignee?.name ??

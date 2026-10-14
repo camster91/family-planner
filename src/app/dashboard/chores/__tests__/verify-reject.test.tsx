@@ -358,6 +358,91 @@ describe("ChoresContent parent check", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("keeps a paused recurring profile row and recovery copy without verification actions", async () => {
+    const pausedProfileChore = {
+      ...completedChore("profile-paused", "Brush teeth"),
+      assigned_to: null as never,
+      assigned_member_id: "profile-casey",
+      assignee: null,
+      subject: {
+        kind: "profile" as const,
+        memberId: "profile-casey",
+        name: "Casey",
+        role: "child" as const,
+      },
+      recurrence_id: "profile-series",
+      frequency: "weekly" as const,
+      actionAvailability: {
+        state: "paused" as const,
+        reason: "RECURRENCE_CAPABILITY_UNAVAILABLE" as const,
+        recovery: "refresh-and-retain-pending" as const,
+        requiresCompatibleClient: true as const,
+        actions: { complete: false as const, undo: false as const, verify: false as const, reject: false as const },
+      },
+    };
+    render(
+      <ToastProvider>
+        <ChoresContent
+          chores={[pausedProfileChore]}
+          familyMembers={[]}
+          currentUserId="parent"
+          userRole="parent"
+        />
+      </ToastProvider>,
+    );
+
+    const copy = "This recurring profile chore is paused while compatibility is refreshed.";
+    expect(await screen.findAllByText(new RegExp(copy))).not.toHaveLength(0);
+    expect(
+      within(queue()!).queryByRole("button", {
+        name: 'Verify “Brush teeth”',
+      }),
+    ).toBeNull();
+    expect(
+      within(queue()!).queryByRole("button", {
+        name: 'Send back “Brush teeth”',
+      }),
+    ).toBeNull();
+    expect(calls).toHaveLength(0);
+  });
+
+  it("keeps verification actions for an active one-off profile row", async () => {
+    const activeProfileChore = {
+      ...completedChore("profile-once", "Put away blocks"),
+      assigned_to: null as never,
+      assigned_member_id: "profile-casey",
+      assignee: null,
+      subject: {
+        kind: "profile" as const,
+        memberId: "profile-casey",
+        name: "Casey",
+        role: "child" as const,
+      },
+      actionAvailability: {
+        state: "active" as const,
+        requiresCompatibleClient: false as const,
+        actions: { complete: true as const, undo: true as const, verify: true as const, reject: true as const },
+      },
+    };
+    render(
+      <ToastProvider>
+        <ChoresContent
+          chores={[activeProfileChore]}
+          familyMembers={[]}
+          currentUserId="parent"
+          userRole="parent"
+        />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: 'Verify “Put away blocks”' }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: 'Send back “Put away blocks”' }),
+    ).toBeTruthy();
+  });
+
   it("keeps rejection notes when a conflict can be retried", async () => {
     replies.push({
       status: 409,

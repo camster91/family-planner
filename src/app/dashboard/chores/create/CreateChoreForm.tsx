@@ -40,9 +40,12 @@ import { canonicalBodySignature } from "@/lib/request-signature";
 import {
   findActiveHouseholdProfile,
   readApiErrorCode,
-  readHouseholdProfilesResponse,
   type HouseholdProfile,
 } from "@/lib/household-profile-types";
+import {
+  fetchHouseholdProfiles,
+  readProfileChoreCreateSuccess,
+} from "@/lib/household-profile-client";
 import { useProfileSetupText } from "@/i18n/profile-setup";
 
 type Difficulty = "easy" | "medium" | "hard";
@@ -88,6 +91,8 @@ export default function CreateChoreForm({
     id: "",
   });
   const [profileOptions, setProfileOptions] = useState<HouseholdProfile[]>([]);
+  const [profileRecurrenceSupported, setProfileRecurrenceSupported] =
+    useState(false);
   const [dueDate, setDueDate] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [frequency, setFrequency] = useState<Frequency>("once");
@@ -116,6 +121,18 @@ export default function CreateChoreForm({
     signature: string;
   } | null>(null);
   const profileAmbiguousKeys = useRef(new Map<string, string>());
+  const profileDraftRevision = useRef(0);
+  const profilePendingRequest = useRef<{
+    body: Record<string, unknown>;
+    key: string;
+    signature: string;
+    draftRevision: number;
+  } | null>(null);
+  const markProfileDraftEdited = () => {
+    profileIdempotencyKey.current = null;
+    profilePendingRequest.current = null;
+    profileDraftRevision.current += 1;
+  };
   const assignedTo =
     assignmentTarget.kind === "account" ? assignmentTarget.id : "";
   const profileTargetId =
@@ -228,12 +245,13 @@ export default function CreateChoreForm({
     let cancelled = false;
     async function loadProfiles() {
       try {
-        const response = await fetch("/api/family/profiles", {
-          cache: "no-store",
-        });
-        if (!response.ok) return;
-        const payload: unknown = await response.json();
-        const profiles = readHouseholdProfilesResponse(payload);
+        const profiles = await fetchHouseholdProfiles();
+        if (!cancelled && profiles) {
+          setProfileRecurrenceSupported(
+            profiles.profileChoreSupported === true &&
+              profiles.profileChoreRecurrenceSupported === true,
+          );
+        }
         if (!cancelled && profiles?.profileChoreSupported) {
           setProfileOptions(
             profiles.profiles.filter((profile) => !profile.archived_at),
@@ -264,8 +282,19 @@ export default function CreateChoreForm({
       setError(profileText("profileTargetRefresh"));
       return;
     }
+    if (
+      isProfileTarget &&
+      frequency !== "once" &&
+      !profileRecurrenceSupported
+    ) {
+      setError(profileText("profileTargetRecurrenceUnsupported"));
+      return;
+    }
     setLoading(true);
     setError(null);
+    const submittedProfileDraftRevision = isProfileTarget
+      ? profileDraftRevision.current
+      : null;
 
     try {
       const headers: Record<string, string> = {
@@ -273,25 +302,52 @@ export default function CreateChoreForm({
       };
       let requestBody: Record<string, unknown>;
       if (profileTarget) {
-        requestBody = {
+        const profileDueDate =
+          frequency === "weekly"
+            ? nextSelectedWeekday(
+                parseDateOnly(toDateOnlyLocal(new Date()))!,
+                weeklyDays,
+                true,
+              )!
+                .toISOString()
+                .slice(0, 10)
+            : dueDate;
+        const computedRequestBody: Record<string, unknown> = {
           protocol: 2,
           selection: { memberId: profileTarget.id },
           title: title.trim(),
           description: description.trim() || null,
           points: 10,
-          due_date: dueDate,
+          due_date: profileDueDate,
           difficulty,
-          frequency: "once",
+          frequency,
+          weekly_days: frequency === "weekly" ? weeklyDays : [],
           photo_url: photoUrl,
           icon,
           ...routineRequestFields(routine, routineOrder),
         };
-        const signature = canonicalBodySignature(requestBody);
-        const key =
-          profileIdempotencyKey.current?.signature === signature
-            ? profileIdempotencyKey.current.key
-            : (profileAmbiguousKeys.current.get(signature) ??
-              newIdempotencyKey());
+        const pending = profilePendingRequest.current;
+        let signature: string;
+        let key: string;
+        if (pending && pending.draftRevision === profileDraftRevision.current) {
+          requestBody = pending.body;
+          signature = pending.signature;
+          key = pending.key;
+        } else {
+          requestBody = computedRequestBody;
+          signature = canonicalBodySignature(requestBody);
+          key =
+            (profileIdempotencyKey.current?.signature === signature
+              ? profileIdempotencyKey.current.key
+              : profileAmbiguousKeys.current.get(signature)) ??
+            newIdempotencyKey();
+          profilePendingRequest.current = {
+            body: requestBody,
+            key,
+            signature,
+            draftRevision: profileDraftRevision.current,
+          };
+        }
         profileIdempotencyKey.current = { key, signature };
         headers[IDEMPOTENCY_HEADER] = key;
       } else {
@@ -325,7 +381,7 @@ export default function CreateChoreForm({
         headers,
         body: JSON.stringify(requestBody),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
       if (!res.ok) {
         if (isProfileTarget) {
@@ -335,7 +391,14 @@ export default function CreateChoreForm({
               profileIdempotencyKey.current?.signature ?? "",
             );
             profileIdempotencyKey.current = null;
-            setError(profileText("profileTargetUnsupported"));
+            profilePendingRequest.current = null;
+            setError(
+              profileText(
+                frequency !== "once"
+                  ? "profileTargetRecurrenceUnsupported"
+                  : "profileTargetUnsupported",
+              ),
+            );
           } else {
             if (res.status >= 500 && profileIdempotencyKey.current) {
               profileAmbiguousKeys.current.set(
@@ -351,11 +414,30 @@ export default function CreateChoreForm({
         return;
       }
 
+      if (
+        isProfileTarget &&
+        !readProfileChoreCreateSuccess(data, profileTarget?.id)
+      ) {
+        setError(profileText("invalidResponse"));
+        return;
+      }
+
+      // A native event can still reach a controlled input while a request is
+      // in flight (for example through automation). Keep a newly edited draft
+      // on screen instead of letting an older response navigate away.
+      if (
+        isProfileTarget &&
+        submittedProfileDraftRevision !== profileDraftRevision.current
+      ) {
+        return;
+      }
+
       if (isProfileTarget && profileIdempotencyKey.current) {
         profileAmbiguousKeys.current.delete(
           profileIdempotencyKey.current.signature,
         );
         profileIdempotencyKey.current = null;
+        profilePendingRequest.current = null;
       }
       if ((await navigation?.releaseBeforeNavigation()) === false) return;
       router.push("/dashboard/chores");
@@ -424,6 +506,11 @@ export default function CreateChoreForm({
           </div>
         )}
 
+        <fieldset
+          disabled={Boolean(profileTargetId) && loading}
+          className="m-0 min-w-0 space-y-4 border-0 p-0"
+          aria-busy={Boolean(profileTargetId) && loading}
+        >
         <div className="grid gap-4 sm:grid-cols-2">
           {/* Title */}
           <div>
@@ -435,7 +522,10 @@ export default function CreateChoreForm({
               type="text"
               required
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                markProfileDraftEdited();
+                setTitle(e.target.value);
+              }}
               className="input-apple"
               placeholder={message("titlePlaceholder")}
             />
@@ -456,15 +546,14 @@ export default function CreateChoreForm({
                     profileTargetId ? `profile:${profileTargetId}` : assignedTo
                   }
                   onChange={(e) => {
+                    markProfileDraftEdited();
                     const value = e.target.value;
                     if (value.startsWith("profile:")) {
                       setAssignmentTarget({
                         kind: "profile",
                         id: value.slice("profile:".length),
                       });
-                      setFrequency("once");
                       setTakeTurns(false);
-                      setRotation([]);
                     } else {
                       setAssignmentTarget({ kind: "account", id: value });
                     }
@@ -498,7 +587,9 @@ export default function CreateChoreForm({
                 </select>
                 {profileTargetId && (
                   <p className="text-footnote text-label-secondary mt-1.5">
-                    {profileText("profileTargetOnce")}
+                    {profileRecurrenceSupported
+                      ? profileText("profileTargetRecurrence")
+                      : profileText("profileTargetOnce")}
                   </p>
                 )}
               </div>
@@ -521,8 +612,15 @@ export default function CreateChoreForm({
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => setFrequency(opt.value)}
-                  disabled={Boolean(profileTargetId) && opt.value !== "once"}
+                  onClick={() => {
+                    markProfileDraftEdited();
+                    setFrequency(opt.value);
+                  }}
+                  disabled={
+                    Boolean(profileTargetId) &&
+                    !profileRecurrenceSupported &&
+                    opt.value !== "once"
+                  }
                   aria-pressed={frequency === opt.value}
                   className={cn(
                     "flex-1 min-h-[44px] py-2 rounded-md text-sm font-medium transition-all duration-200",
@@ -560,7 +658,10 @@ export default function CreateChoreForm({
                 type="date"
                 required
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                onChange={(e) => {
+                  markProfileDraftEdited();
+                  setDueDate(e.target.value);
+                }}
                 className="input-apple"
                 min={todayKey ?? undefined}
               />
@@ -571,11 +672,17 @@ export default function CreateChoreForm({
         {frequency === "monthly" && <MonthlyScheduleHint />}
 
         {frequency === "weekly" && (
-          <WeeklyDaysPicker days={weeklyDays} onChange={setWeeklyDays} />
+          <WeeklyDaysPicker
+            days={weeklyDays}
+            onChange={(days) => {
+              markProfileDraftEdited();
+              setWeeklyDays(days);
+            }}
+          />
         )}
 
         {/* Take turns (O-39): repeating chores only */}
-        {frequency !== "once" && (
+        {frequency !== "once" && !profileTargetId && (
           <TakeTurnsPicker
             members={familyMembers}
             on={takeTurns}
@@ -610,7 +717,10 @@ export default function CreateChoreForm({
             <textarea
               id="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                markProfileDraftEdited();
+                setDescription(e.target.value);
+              }}
               className="input-apple min-h-[80px] resize-none"
               placeholder={message("descriptionPlaceholder")}
               rows={3}
@@ -631,7 +741,10 @@ export default function CreateChoreForm({
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => setDifficulty(opt.value)}
+                  onClick={() => {
+                    markProfileDraftEdited();
+                    setDifficulty(opt.value);
+                  }}
                   aria-pressed={difficulty === opt.value}
                   className={cn(
                     "py-3 rounded-[var(--radius-md)] border text-center transition-all duration-200",
@@ -681,12 +794,24 @@ export default function CreateChoreForm({
           ].join(" · ")}
         >
           {/* Picture routines (#272): picture, routine and step */}
-          <RoutineIconPicker value={icon} onChange={setIcon} />
+          <RoutineIconPicker
+            value={icon}
+            onChange={(value) => {
+              markProfileDraftEdited();
+              setIcon(value);
+            }}
+          />
           <RoutineFields
             routine={routine}
-            onRoutineChange={setRoutine}
+            onRoutineChange={(value) => {
+              markProfileDraftEdited();
+              setRoutine(value);
+            }}
             order={routineOrder}
-            onOrderChange={setRoutineOrder}
+            onOrderChange={(value) => {
+              markProfileDraftEdited();
+              setRoutineOrder(value);
+            }}
           />
         </ChoreFormSection>
 
@@ -714,6 +839,7 @@ export default function CreateChoreForm({
               onChange={async (e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
+                markProfileDraftEdited();
                 setPhotoUploading(true);
                 try {
                   const fd = new FormData();
@@ -769,6 +895,7 @@ export default function CreateChoreForm({
                 <button
                   type="button"
                   onClick={() => {
+                    markProfileDraftEdited();
                     setPhotoUrl(null);
                     setPhotoPreview(null);
                   }}
@@ -786,6 +913,8 @@ export default function CreateChoreForm({
             )}
           </div>
         </ChoreFormSection>
+
+        </fieldset>
 
         {/* Submit */}
         <div
