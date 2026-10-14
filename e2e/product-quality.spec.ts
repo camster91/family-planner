@@ -841,6 +841,56 @@ for (const locale of ["en", "es"] as const) {
           info.outputPath(`product-quality-fridge-${locale}-weather.png`),
           await page.screenshot(),
         );
+        const chores = page.getByTestId("region-chores");
+        const lowerChore = chores
+          .getByTestId("board-chore")
+          .filter({ hasText: "Vacuum living room" });
+        await expect(lowerChore).toHaveCount(1);
+        await expect(chores).toHaveAttribute("tabindex", "0");
+        const choreLayout = await chores.evaluate((element) => ({
+          scrollHeight: element.scrollHeight,
+          clientHeight: element.clientHeight,
+          overflowY: getComputedStyle(element).overflowY,
+        }));
+        expect(choreLayout.overflowY).toMatch(/auto|scroll/);
+        if (choreLayout.scrollHeight > choreLayout.clientHeight + 1) {
+          const assertLowerChoreReachable = async () => {
+            await expect
+              .poll(() => chores.evaluate((element) => element.scrollTop))
+              .toBeGreaterThan(0);
+            await expect
+              .poll(() =>
+                lowerChore.evaluate((element) => {
+                  const box = element.getBoundingClientRect();
+                  const region = element
+                    .closest("section")!
+                    .getBoundingClientRect();
+                  const hit = document.elementFromPoint(
+                    box.left + box.width / 2,
+                    box.top + box.height / 2,
+                  );
+                  return (
+                    box.top >= region.top &&
+                    box.bottom <= region.bottom &&
+                    box.bottom <= window.innerHeight &&
+                    !!hit &&
+                    element.contains(hit)
+                  );
+                }),
+              )
+              .toBe(true);
+          };
+          await chores.focus();
+          await expect(chores).toBeFocused();
+          await chores.press("End");
+          await assertLowerChoreReachable();
+          await chores.evaluate((element) => {
+            element.scrollTop = 0;
+          });
+          await chores.hover();
+          await page.mouse.wheel(0, choreLayout.scrollHeight);
+          await assertLowerChoreReachable();
+        }
       }
       const groceryList = groceries.locator("ul").first();
       await expect(groceryList).toHaveAttribute("tabindex", "0");

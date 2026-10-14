@@ -187,7 +187,7 @@ describe('weather tile (#262)', () => {
     expect(tile.textContent).toContain('80% de probabilidad de lluvia o nieve')
     expect(tile.textContent).not.toContain('Light snow')
     expect(tile.textContent).not.toContain('chance of rain or snow')
-    expect(within(tile).getByRole('list', { name: 'Próximos días' })).toBeInTheDocument()
+    expect(within(tile).getByRole('list', { name: 'Próximos días' })).not.toBeNull()
   })
 
   it('keeps unknown and inherited weather summaries as raw strings', () => {
