@@ -828,7 +828,6 @@ test.describe.serial("email-free profile chore vertical", () => {
   }, info) => {
     test.skip(
       !PROFILE_GATES_ON,
-      !PROFILE_GATES_ON,
       "Requires HOUSEHOLD_PROFILE_SETUP_ENABLED=1, HOUSEHOLD_PROFILE_CHORE_ENABLED=1 and HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY=1",
     );
     test.setTimeout(300_000);
