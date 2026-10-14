@@ -606,4 +606,67 @@ describe("profile target in the create chore form", () => {
     );
     expect(replayCall.init?.body).toBe(firstBody);
   });
+
+  it("preserves a profile draft if an edit races an in-flight create", async () => {
+    const user = userEvent.setup();
+    let releaseCreate: ((response: Response) => void) | null = null;
+    global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url === "/api/family/members") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            members: [{ id: "account-1", name: "Parent", role: "parent" }],
+          }),
+        };
+      }
+      if (url === "/api/family/profiles") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            profiles: [profile],
+            profileChoreSupported: true,
+            profileChoreRecurrenceSupported: true,
+          }),
+        };
+      }
+      return new Promise<Response>((resolve) => {
+        releaseCreate = resolve;
+      });
+    }) as unknown as typeof fetch;
+    render(<CreateChorePage />);
+    await screen.findByRole("option", { name: /Jamie/ });
+    await user.selectOptions(
+      screen.getByLabelText("Assign To"),
+      "profile:profile-jamie",
+    );
+    const title = screen.getByLabelText("Title") as HTMLInputElement;
+    await user.type(title, "Pack a bag");
+    fireEvent.change(screen.getByLabelText("Due Date"), {
+      target: { value: "2099-10-05" },
+    });
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await waitFor(() => expect(releaseCreate).not.toBeNull());
+    expect(title.closest("fieldset")?.disabled).toBe(true);
+    expect(title.matches(":disabled")).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Once" }) as HTMLButtonElement)
+        .matches(":disabled"),
+    ).toBe(true);
+
+    // A native event can still be dispatched by an automation layer even
+    // though the profile controls are disabled for ordinary user input.
+    fireEvent.change(title, { target: { value: "Edited while waiting" } });
+    expect(title.value).toBe("Edited while waiting");
+    releaseCreate?.({
+      ok: true,
+      status: 200,
+      json: async () => validProfileCreateResponse,
+    } as Response);
+    await waitFor(() => expect(title.matches(":disabled")).toBe(false));
+    expect(title.value).toBe("Edited while waiting");
+    expect(push).not.toHaveBeenCalled();
+  });
 });

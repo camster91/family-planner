@@ -292,6 +292,9 @@ export default function CreateChoreForm({
     }
     setLoading(true);
     setError(null);
+    const submittedProfileDraftRevision = isProfileTarget
+      ? profileDraftRevision.current
+      : null;
 
     try {
       const headers: Record<string, string> = {
@@ -419,6 +422,16 @@ export default function CreateChoreForm({
         return;
       }
 
+      // A native event can still reach a controlled input while a request is
+      // in flight (for example through automation). Keep a newly edited draft
+      // on screen instead of letting an older response navigate away.
+      if (
+        isProfileTarget &&
+        submittedProfileDraftRevision !== profileDraftRevision.current
+      ) {
+        return;
+      }
+
       if (isProfileTarget && profileIdempotencyKey.current) {
         profileAmbiguousKeys.current.delete(
           profileIdempotencyKey.current.signature,
@@ -493,6 +506,11 @@ export default function CreateChoreForm({
           </div>
         )}
 
+        <fieldset
+          disabled={Boolean(profileTargetId) && loading}
+          className="m-0 min-w-0 space-y-4 border-0 p-0"
+          aria-busy={Boolean(profileTargetId) && loading}
+        >
         <div className="grid gap-4 sm:grid-cols-2">
           {/* Title */}
           <div>
@@ -895,6 +913,8 @@ export default function CreateChoreForm({
             )}
           </div>
         </ChoreFormSection>
+
+        </fieldset>
 
         {/* Submit */}
         <div
