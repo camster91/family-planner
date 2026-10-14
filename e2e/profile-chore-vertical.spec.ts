@@ -48,6 +48,16 @@ type OwnedNames = {
   chore: string;
 };
 
+type ProfileRoutineChore = {
+  id: string;
+  title: string;
+  profileId: string;
+  profileName: string;
+  icon: string;
+  routine: string;
+  order: number;
+};
+
 function names(info: TestInfo): OwnedNames {
   const project = info.project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const suffix = `${Date.now().toString(36)}-${crypto.randomBytes(4).toString("hex")}`;
@@ -259,7 +269,7 @@ async function saveProfiles(
 async function createFamilyAndProfiles(
   page: Page,
   x: OwnedNames,
-): Promise<void> {
+): Promise<Record<string, string>> {
   await loginViaUi(page, x.parent.email, PASSWORD);
   await page.waitForURL(/\/dashboard$/);
   await page
@@ -281,11 +291,12 @@ async function createFamilyAndProfiles(
       exact: true,
     }),
   ).toBeVisible();
-  await saveProfiles(page, x.profiles);
+  const profileIds = await saveProfiles(page, x.profiles);
   await page
     .getByRole("link", { name: onboardingEnglish.finishLater, exact: true })
     .click();
   await page.waitForURL(/\/dashboard\/today/);
+  return profileIds;
 }
 
 async function enableOwnedDeviceWrites(
@@ -313,20 +324,58 @@ async function createProfileChore(
   x: OwnedNames,
   childId: string,
 ): Promise<string> {
+  return createProfileRoutineChore(page, {
+    title: x.chore,
+    profileId: childId,
+    profileName: x.profiles[0].name,
+    profileRole: "child",
+  });
+}
+
+async function createProfileRoutineChore(
+  page: Page,
+  input: Omit<ProfileRoutineChore, "id" | "icon" | "routine" | "order"> & {
+    profileRole: "child" | "teen" | "parent";
+    icon?: string;
+    routine?: string;
+    order?: number;
+  },
+): Promise<string> {
   await page.goto("/dashboard/chores/create");
-  await page.locator("#title").fill(x.chore);
-  await page.locator("#assignedTo").selectOption(`profile:${childId}`);
+  await expect(
+    page.locator(`#assignedTo option[value="profile:${input.profileId}"]`),
+  ).toHaveCount(1);
+  await page.locator("#title").fill(input.title);
+  await page.locator("#assignedTo").selectOption(`profile:${input.profileId}`);
   await page.locator("#dueDate").fill(E2E_ANCHOR.toISOString().slice(0, 10));
+  const pictureRoutine = page
+    .locator("details")
+    .filter({ has: page.getByTestId("routine-icon-picker") });
+  await pictureRoutine.locator("summary").click();
+  if (input.icon) {
+    await page
+      .getByTestId("routine-icon-picker")
+      .locator(`[data-icon-key="${input.icon}"]`)
+      .click();
+  }
+  if (input.routine) {
+    await page.locator("#chore-routine").fill(input.routine);
+    await page.locator("#chore-routine-order").fill(String(input.order ?? 1));
+  }
   const response = page.waitForResponse(
     (r) =>
       r.url().endsWith("/api/chores/create") && r.request().method() === "POST",
   );
   await page.getByRole("button", { name: "Create Chore" }).click();
   const result = await response;
-  expect(result.status(), await result.text()).toBe(200);
-  const body = (await result.json()) as {
+  const resultText = await result.text();
+  expect(result.status(), resultText).toBe(200);
+  const body = JSON.parse(resultText) as {
     chore?: {
       id?: string;
+      icon?: string | null;
+      routine?: string | null;
+      routine_order?: number | null;
       subject?: {
         kind: string;
         memberId?: string;
@@ -338,14 +387,60 @@ async function createProfileChore(
   expect(body.chore?.id).toBeTruthy();
   expect(body.chore?.subject).toEqual({
     kind: "profile",
-    memberId: childId,
-    name: x.profiles[0].name,
-    role: "child",
+    memberId: input.profileId,
+    name: input.profileName,
+    role: input.profileRole,
   });
   expect(body.chore).not.toHaveProperty("assigned_to");
   expect(body.chore).not.toHaveProperty("assigned_member_id");
+  if (input.icon) expect(body.chore?.icon).toBe(input.icon);
+  if (input.routine) {
+    expect(body.chore?.routine).toBe(input.routine);
+    expect(body.chore?.routine_order).toBe(input.order ?? 1);
+  }
   await page.waitForURL(/\/dashboard\/chores/);
   return body.chore!.id!;
+}
+
+async function readProfileRoutineStack(
+  page: Page,
+  stackId: string,
+): Promise<{
+  stack: { id: string; label: string };
+  steps: Array<{
+    id: string;
+    assigned_to: string | null;
+    assigned_member_id: string | null;
+    routine_order: number | null;
+    icon: string | null;
+  }>;
+}> {
+  const response = await page.request.get(
+    `/api/chores/stacks?stack_id=${encodeURIComponent(stackId)}&occurrence_date=${E2E_ANCHOR.toISOString().slice(0, 10)}`,
+    { headers: { "X-Member-Protocol": "2" } },
+  );
+  const responseText = await response.text();
+  expect(response.status(), responseText).toBe(200);
+  return JSON.parse(responseText) as {
+    stack: { id: string; label: string };
+    steps: Array<{
+      id: string;
+      assigned_to: string | null;
+      assigned_member_id: string | null;
+      routine_order: number | null;
+      icon: string | null;
+    }>;
+  };
+}
+
+async function routineStepTitles(page: Page): Promise<string[]> {
+  return page
+    .locator("[data-testid='routine-stack-editor'] ol > li")
+    .evaluateAll((rows) =>
+      rows
+        .map((row) => row.querySelector("p")?.textContent?.trim() ?? "")
+        .filter(Boolean),
+    );
 }
 
 async function pairViaApi(
@@ -712,6 +807,283 @@ test.describe.serial("email-free profile chore vertical", () => {
         body: await foreignContext.page.screenshot({ fullPage: true }),
         contentType: "image/png",
       });
+    } finally {
+      await tabletContext?.close().catch(() => undefined);
+      await foreignContext?.context.close().catch(() => undefined);
+      if (familyId) {
+        await withDb((db) =>
+          db.query(`UPDATE "Family" SET device_writes_enabled=$2 WHERE id=$1`, [
+            familyId,
+            originalDeviceWrites,
+          ]),
+        ).catch(() => undefined);
+      }
+      await cleanupOwned(x);
+    }
+  });
+
+  test("builds, persists and completes a picture routine for email-free profiles", async ({
+    page,
+    browser,
+  }, info) => {
+    test.skip(
+      !PROFILE_GATES_ON,
+      !PROFILE_GATES_ON,
+      "Requires HOUSEHOLD_PROFILE_SETUP_ENABLED=1, HOUSEHOLD_PROFILE_CHORE_ENABLED=1 and HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY=1",
+    );
+    test.setTimeout(300_000);
+    assertFixtureTargetAllowed(process.env);
+    const x = names(info);
+    const ip = clientIp(info);
+    const routine = `${x.prefix} morning picture routine`;
+    const date = E2E_ANCHOR.toISOString().slice(0, 10);
+    const profileSpecs = [
+      { profile: x.profiles[0], icon: "brush-teeth", order: 1 },
+      { profile: x.profiles[1], icon: "backpack", order: 2 },
+      { profile: x.profiles[2], icon: "make-bed", order: 3 },
+    ];
+    let tabletContext: BrowserContext | undefined;
+    let foreignContext: { context: BrowserContext; page: Page } | undefined;
+    let familyId = "";
+    let originalDeviceWrites = false;
+    try {
+      await page.setExtraHTTPHeaders({ "X-Forwarded-For": ip });
+      await register(page, x.parent, ip);
+      const profileIds = await createFamilyAndProfiles(page, x);
+      await identity(page, info);
+      const device = await enableOwnedDeviceWrites(x);
+      familyId = device.familyId;
+      originalDeviceWrites = device.original;
+
+      const chores: ProfileRoutineChore[] = [];
+      for (const [index, spec] of profileSpecs.entries()) {
+        const title = `${x.prefix} ${spec.profile.role} picture step`;
+        const id = await createProfileRoutineChore(page, {
+          title,
+          profileId: profileIds[spec.profile.name],
+          profileName: spec.profile.name,
+          profileRole: spec.profile.role,
+          icon: spec.icon,
+          routine,
+          order: spec.order,
+        });
+        chores.push({
+          id,
+          title,
+          profileId: profileIds[spec.profile.name],
+          profileName: spec.profile.name,
+          icon: spec.icon,
+          routine,
+          order: spec.order,
+        });
+        const persisted = await withDb((db) =>
+          db.query<{
+            assigned_member_id: string | null;
+            assigned_to: string | null;
+            icon: string | null;
+            routine: string | null;
+            routine_order: number | null;
+          }>(
+            `SELECT assigned_member_id, assigned_to, icon, routine, routine_order FROM "Chore" WHERE id=$1 AND family_id=$2`,
+            [id, familyId],
+          ),
+        );
+        expect(persisted.rows).toEqual([
+          {
+            assigned_member_id: profileIds[spec.profile.name],
+            assigned_to: null,
+            icon: spec.icon,
+            routine,
+            routine_order: spec.order,
+          },
+        ]);
+        expect(index).toBeLessThan(profileSpecs.length);
+      }
+
+      // The stack API is deliberately opt-in for the email-free member
+      // protocol. Keep the header on this parent page only; no account or
+      // device request is widened by the profile journey.
+      await page.setExtraHTTPHeaders({
+        "X-Forwarded-For": ip,
+        "X-Member-Protocol": "2",
+      });
+      await page.goto("/dashboard/chores");
+      await page.getByRole("button", { name: "Routines", exact: true }).click();
+      await page
+        .getByRole("link", { name: "Build a routine", exact: true })
+        .click();
+      await expect(page.getByTestId("routine-stack-editor")).toBeVisible();
+      await expect(
+        page.getByText(chores[0].title, { exact: true }),
+      ).toBeVisible();
+
+      // Add each real profile chore, then use the editor's move control so the
+      // persisted order proves an actual reorder rather than insertion order.
+      for (const chore of chores) {
+        const candidate = page
+          .locator("[data-testid='routine-stack-editor'] li")
+          .filter({ hasText: chore.title })
+          .filter({
+            has: page.getByRole("button", { name: "Add", exact: true }),
+          })
+          .first();
+        await candidate
+          .getByRole("button", { name: "Add", exact: true })
+          .click();
+      }
+      await page.locator("#routine-label").fill(routine);
+      await expect(
+        page.locator("[data-testid='routine-stack-editor'] ol > li"),
+      ).toHaveCount(3);
+      await page
+        .locator("[data-testid='routine-stack-editor'] ol > li")
+        .filter({ hasText: chores[0].title })
+        .getByRole("button", {
+          name: `Move ${chores[0].title} down`,
+          exact: true,
+        })
+        .click();
+      expect(await routineStepTitles(page)).toEqual([
+        chores[1].title,
+        chores[0].title,
+        chores[2].title,
+      ]);
+      await expect(
+        page.locator("select[id^='routine-assignee-']").first(),
+      ).toContainText(chores[0].profileName);
+
+      const saveResponse = page.waitForResponse(
+        (response) =>
+          response.url().endsWith("/api/chores/stacks") &&
+          response.request().method() === "POST",
+      );
+      await page
+        .getByRole("button", { name: "Save routine", exact: true })
+        .click();
+      const saved = await saveResponse;
+      const savedText = await saved.text();
+      expect(saved.status(), savedText).toBe(200);
+      const savedBody = JSON.parse(savedText) as { stack_id?: string };
+      expect(savedBody.stack_id).toMatch(/^[a-z0-9-]+$/);
+      const stackId = savedBody.stack_id!;
+
+      const read = await readProfileRoutineStack(page, stackId);
+      expect(read.stack).toMatchObject({ id: stackId, label: routine });
+      expect(read.steps.map((step) => step.id)).toEqual([
+        chores[1].id,
+        chores[0].id,
+        chores[2].id,
+      ]);
+      expect(read.steps).toEqual(
+        expect.arrayContaining(
+          chores.map((chore) =>
+            expect.objectContaining({
+              id: chore.id,
+              assigned_to: null,
+              assigned_member_id: chore.profileId,
+              routine_order: expect.any(Number),
+              icon: chore.icon,
+            }),
+          ),
+        ),
+      );
+      await page.goto(
+        `/dashboard/chores/routines?stack_id=${encodeURIComponent(stackId)}&occurrence_date=${date}`,
+      );
+      await expect(page.locator("#routine-label")).toHaveValue(routine);
+      expect(await routineStepTitles(page)).toEqual([
+        chores[1].title,
+        chores[0].title,
+        chores[2].title,
+      ]);
+      await expectNoHorizontalOverflow(page, "profile routine editor");
+      const editorAxe = await new AxeBuilder({ page }).analyze();
+      expect(
+        editorAxe.violations,
+        "profile routine editor accessibility",
+      ).toEqual([]);
+
+      const tablet = await openContext(browser, info);
+      tabletContext = tablet.context;
+      await pairViaApi(page, tablet.page, "Profile routine QA tablet");
+      const board = await deviceFetch(tablet.page, "/api/device/today", "2");
+      expect(board.status, board.body).toBe(200);
+      for (const chore of chores) {
+        const choreButton = tablet.page
+          .getByTestId("board-chore")
+          .filter({ hasText: chore.title })
+          .getByRole("button");
+        await expect(choreButton).toBeVisible();
+        const completion = tablet.page.waitForResponse(
+          (response) =>
+            response
+              .url()
+              .endsWith(`/api/device/chores/${chore.id}/complete`) &&
+            response.request().method() === "POST",
+        );
+        await choreButton.click();
+        const chooser = tablet.page.getByTestId("who-is-this");
+        await expect(chooser).toBeVisible();
+        await chooser
+          .getByRole("button", { name: chore.profileName, exact: true })
+          .click();
+        expect((await completion).status()).toBe(200);
+        await expect(
+          tablet.page
+            .getByTestId("board-chore")
+            .filter({ hasText: chore.title }),
+        ).toHaveCount(0);
+      }
+
+      // Completion is visible in the parent's real Done/history projection;
+      // verify each row through the existing parent action before asserting
+      // the durable history surface.
+      await page.goto("/dashboard/chores");
+      await page.getByRole("button", { name: "All", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "Done", exact: true }),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "Done", exact: true }).click();
+      for (const chore of chores) {
+        await expect(
+          page.getByText(chore.title, { exact: true }),
+        ).toBeVisible();
+        const verify = page.getByRole("button", {
+          name: `Verify “${chore.title}”`,
+          exact: true,
+        });
+        await expect(verify).toBeVisible();
+        const verified = page.waitForResponse(
+          (response) =>
+            response.url().endsWith("/api/chores/verify") &&
+            response.request().method() === "POST",
+        );
+        await verify.click();
+        expect((await verified).status()).toBe(200);
+      }
+      await page.getByRole("button", { name: "All", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "Done", exact: true }),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "Done", exact: true }).click();
+      for (const chore of chores)
+        await expect(
+          page.getByText(chore.title, { exact: true }),
+        ).toBeVisible();
+      await expectNoHorizontalOverflow(page, "profile routine history");
+
+      foreignContext = await openContext(
+        browser,
+        info,
+        "e2e/.auth/parentB.json",
+      );
+      await foreignContext.page.goto("/dashboard/chores");
+      await expect(
+        foreignContext.page.getByText(routine, { exact: true }),
+      ).toHaveCount(0);
+      await expect(foreignContext.page.locator("body")).not.toContainText(
+        chores[0].title,
+      );
     } finally {
       await tabletContext?.close().catch(() => undefined);
       await foreignContext?.context.close().catch(() => undefined);
