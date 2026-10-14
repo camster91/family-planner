@@ -6,7 +6,7 @@ Verified web main is `9e36c440aa53ad11709e8c7b9517e891646400bf` (PR #548), and d
 
 The isolated `fridge-fit-499` candidate is prepared in commits `685a2f57` and `18c53bfc`: compact fridge Use Soon row fit plus guarded first-item metadata bounds for weather-present and weather-absent EN/ES journeys. It has source and focused-check evidence only; browser, hosted-QA and integration acceptance remain root-owned.
 
-Dependency #549 exact candidate `5f8ecd72` remains hosted-QA pending and is not accepted. No merge, deployment or customer/native/store acceptance is inferred for that candidate.
+Combined #549 now integrates the prepared fridge #550 slice and compatible dependency updates (source commits `e0801d5c` and `70358dea`), retaining validated Next 16.3.8. The Next 16.4.0 trial `5f8ecd72` failed the unchanged Today startup limit at 251,433 gzip bytes versus 250,000; measured framework growth was 1,934 gzip bytes, and its unsuccessful locale change was reverted normally. #545 stays open for the held Next upgrade. Fresh combined-source hosted QA and exported synthetic fridge captures are required before acceptance. No new merge, deployment or customer/native/store acceptance is inferred.
 
 ## Current bounded UI continuation — 2026-10-13
 
