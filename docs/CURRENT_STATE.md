@@ -1,5 +1,23 @@
 # Current State
 
+## Recurring email-free profile candidate — 2026-10-14
+
+Merged source parent is `dadcb015a9fd757727d09820e5ef6cfbcdf62f3d`
+(PR #554), with candidate build/image, Android, full browser and six-viewport
+profile routine evidence accepted. Its exact-main/runtime release evidence is
+tracked in [#480](https://github.com/camster91/family-planner/issues/480#issuecomment-6176025002).
+
+This candidate adds daily, selected-weekday and monthly profile chore series,
+bounded event-driven expansion, stable retry bodies, and a retained paused state
+when the private recurrence capability is rolled back. Local PostgreSQL and
+focused UI/API checks plus independent source review passed. Hosted bundle,
+browser, exported-capture and release gates remain pending. The separate
+`HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED` opt-in and all existing production
+profile gates remain unchanged. No migration, scheduler, provider, fake login,
+profile XP/rotation or durable multi-date routine editor is introduced. Wider
+#480 and native/customer acceptance remain open. Older dated entries below are
+retained checkpoints.
+
 ## Email-free routine candidate — 2026-10-14
 
 The current #480 candidate starts from verified `origin/main`
