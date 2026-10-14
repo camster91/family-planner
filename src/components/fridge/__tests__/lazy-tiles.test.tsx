@@ -6,7 +6,11 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { I18nProvider } from '@/i18n'
 import { useIdleCover } from '../ambient'
-import { AmbientCoverFallback, LazyChunkBoundary } from '../TodayBoard'
+import {
+  AmbientCoverFallback,
+  LazyChunkBoundary,
+  UseSoonRegionFallback,
+} from '../TodayBoard'
 
 const state = { ambient: true, dim: false }
 
@@ -20,6 +24,36 @@ function CoveredRetrySurface({ onWake, onRetry, elapsedMs = 60_000 }: { onWake: 
 }
 
 describe('lazy Today board surfaces', () => {
+  it('keeps the optional use-soon tile accessible while its chunk loads', () => {
+    render(<UseSoonRegionFallback status="loading" />)
+
+    const tile = screen.getByTestId('use-soon-fallback')
+    expect(tile).toHaveAttribute('aria-busy', 'true')
+    expect(tile).toHaveAttribute('aria-label', 'Loading use soon items')
+    expect(screen.getByRole('status')).toHaveTextContent('Loading use soon items')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('shows localized use-soon recovery copy and retries without a hidden action', () => {
+    const onRetry = jest.fn()
+    render(
+      <I18nProvider locale="es">
+        <UseSoonRegionFallback status="error" onRetry={onRetry} />
+      </I18nProvider>,
+    )
+
+    const tile = screen.getByTestId('use-soon-fallback')
+    expect(tile).not.toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'No se pudieron cargar los alimentos para usar pronto.',
+    )
+    const retry = screen.getByRole('button', { name: 'Intentar de nuevo' })
+    expect(retry).toHaveClass('min-h-11')
+    expect(retry).toHaveClass('min-w-[44px]')
+    fireEvent.click(retry)
+    expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps the board wake control accessible while the ambient chunk loads', () => {
     const onWake = jest.fn()
     render(

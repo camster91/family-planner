@@ -7,10 +7,17 @@
  * mocked or unsubmitted.
  */
 import AxeBuilder from "@axe-core/playwright";
-import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
+import type {
+  BrowserContext,
+  Locator,
+  Page,
+  Request,
+  TestInfo,
+} from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import pg from "pg";
 import { bulkCookingMessages } from "../src/i18n/bulk-cooking";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
@@ -444,6 +451,25 @@ async function assertFirstUseSoonMetadataFit(useSoon: Locator) {
   ).toBeLessThanOrEqual(metadataLayout.viewportBottom + 1);
 }
 
+/** Find the production React.lazy chunk without baking in a webpack hash. */
+function useSoonChunkName() {
+  const chunkDir = ".next/static/chunks";
+  const chunk = fs
+    .readdirSync(chunkDir)
+    .filter((name) => name.endsWith(".js"))
+    .find((name) => {
+      const source = fs.readFileSync(path.join(chunkDir, name), "utf8");
+      return (
+        source.includes("use-soon-item") && source.includes("use-soon-more")
+      );
+    });
+  expect(
+    chunk,
+    "the production build must contain the deferred Use Soon chunk",
+  ).toBeTruthy();
+  return chunk!;
+}
+
 async function preparePage(
   page: Page,
   context: BrowserContext,
@@ -813,6 +839,87 @@ for (const locale of ["en", "es"] as const) {
           info.outputPath(`product-quality-fridge-${locale}-no-weather.png`),
           await page.screenshot(),
         );
+
+        const chunk = useSoonChunkName();
+        const chunkPattern = `**/_next/static/chunks/${chunk}`;
+        let chunkAttempts = 0;
+        const recoveryWrites: string[] = [];
+        const recoveryPageErrors: string[] = [];
+        const isExpectedUseSoonChunkError = (message: string) =>
+          message.includes(chunk) &&
+          /ChunkLoadError|Loading chunk .* failed|Failed to fetch dynamically imported module|Importing a module script failed/i.test(
+            message,
+          );
+        const assertRecoveryPageErrors = () => {
+          expect(
+            recoveryPageErrors.filter(
+              (message) => !isExpectedUseSoonChunkError(message),
+            ),
+          ).toEqual([]);
+        };
+        const onRecoveryRequest = (request: Request) => {
+          if (!["GET", "HEAD", "OPTIONS"].includes(request.method())) {
+            recoveryWrites.push(
+              `${request.method()} ${new URL(request.url()).pathname}`,
+            );
+          }
+        };
+        const onRecoveryPageError = (error: Error) => {
+          recoveryPageErrors.push(error.message);
+        };
+        page.on("request", onRecoveryRequest);
+        page.on("pageerror", onRecoveryPageError);
+        await page.route(chunkPattern, async (route) => {
+          chunkAttempts += 1;
+          await route.abort("failed");
+        });
+        try {
+          await page.reload({ waitUntil: "domcontentloaded" });
+          const failedUseSoon = page.getByTestId("board-slot-use-soon");
+          await expect(failedUseSoon).toBeVisible();
+          await expect(failedUseSoon.getByRole("alert")).toHaveText(
+            locale === "es"
+              ? "No se pudieron cargar los alimentos para usar pronto."
+              : "Use soon items could not load.",
+          );
+          expect(chunkAttempts).toBeGreaterThan(0);
+          assertRecoveryPageErrors();
+
+          const retry = failedUseSoon.getByRole("button", {
+            name: locale === "es" ? "Intentar de nuevo" : "Try again",
+            exact: true,
+          });
+          await retry.focus();
+          await expect(retry).toBeFocused();
+          await page.unroute(chunkPattern);
+          await retry.press("Enter");
+
+          const restoredUseSoon = page.getByTestId("board-slot-use-soon");
+          await expect(
+            restoredUseSoon.getByTestId("use-soon-item"),
+          ).toHaveCount(5);
+          await expect(restoredUseSoon).toContainText("QA spinach");
+          await expect(restoredUseSoon.getByRole("heading")).toHaveText(
+            locale === "es" ? "Usar pronto" : "Use soon",
+          );
+          await expect(restoredUseSoon).toContainText(
+            locale === "es"
+              ? "El consumo preferente fue ayer"
+              : "Best before was yesterday",
+          );
+          await expect(restoredUseSoon).toContainText(
+            locale === "es" ? "Refrigerador" : "Fridge",
+          );
+          await expect(
+            restoredUseSoon.getByTestId("region-usesoon"),
+          ).toBeFocused();
+          assertRecoveryPageErrors();
+          expect(recoveryWrites).toEqual([]);
+        } finally {
+          await page.unroute(chunkPattern);
+          page.off("request", onRecoveryRequest);
+          page.off("pageerror", onRecoveryPageError);
+        }
 
         await setProductQualityWeather(true);
         await page.goto("/dashboard/today?mode=fridge");

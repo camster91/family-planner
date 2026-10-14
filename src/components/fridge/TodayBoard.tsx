@@ -25,6 +25,7 @@ import {
   weatherView,
   itemsToUseSoon,
   type NextEventView,
+  type UseSoonEntry,
   type WeatherView,
 } from './board-model'
 import { useIdleCover } from './use-idle-cover'
@@ -39,11 +40,18 @@ import {
   areaClass,
   type BoardPerson,
 } from './regions'
-import { actionLinkClass } from './styles'
+import { actionLinkClass, regionClass } from './styles'
 import TodayControls from './TodayControls'
-import { UseSoonRegion } from './use-soon-region'
 import { useBoardTiles, type BoardActions } from './board-actions'
 import { usePersonBoardActions } from './use-person-board-actions'
+
+/** Keep optional inventory presentation out of the initial Today bundle. */
+function createUseSoonRegion() {
+  return React.lazy(async () => {
+    const useSoonModule = await import('./use-soon-region')
+    return { default: useSoonModule.UseSoonRegion }
+  })
+}
 
 /**
  * Clock, relative "Updated" time and idle tick. Change polling and the slow
@@ -193,6 +201,85 @@ export class LazyChunkBoundary extends React.Component<LazyChunkBoundaryProps, L
   render() {
     return this.state.failed ? this.props.fallback : this.props.children
   }
+}
+
+/** The optional inventory tile keeps its reserved slot while its chunk loads. */
+export function UseSoonRegionFallback({
+  status,
+  onRetry,
+}: {
+  status: 'loading' | 'error'
+  onRetry?: () => void
+}) {
+  const text = useTodayBoardText()
+  return (
+    <section
+      aria-busy={status === 'loading' ? 'true' : undefined}
+      aria-label={status === 'loading' ? text('lazyUseSoonLoading') : text('lazyUseSoonError')}
+      data-testid="use-soon-fallback"
+      className={regionClass}
+    >
+      <p role={status === 'error' ? 'alert' : 'status'} className="text-[16px] leading-relaxed text-label-secondary">
+        {status === 'loading' ? text('lazyUseSoonLoading') : text('lazyUseSoonError')}
+      </p>
+      {status === 'error' && onRetry && (
+        <button type="button" className="btn-secondary mt-4 min-h-11 min-w-[44px]" onClick={onRetry}>
+          {text('retry')}
+        </button>
+      )}
+      {status === 'loading' && (
+        <div aria-hidden="true" className="mt-4 space-y-3">
+          <div className="h-7 w-32 rounded-[var(--radius-md)] bg-[var(--surface-fill)]" />
+          <div className="h-12 rounded-[var(--radius-md)] bg-[var(--surface-fill)]" />
+        </div>
+      )}
+    </section>
+  )
+}
+
+function UseSoonRegionLoaded({ onLoaded, children }: { onLoaded: () => void; children: React.ReactNode }) {
+  React.useEffect(() => {
+    onLoaded()
+  }, [onLoaded])
+  return children
+}
+
+function LazyUseSoon({
+  items,
+  inventoryHref,
+  onLoaded,
+}: {
+  items: UseSoonEntry[]
+  inventoryHref: string | null
+  onLoaded: () => void
+}) {
+  const [attempt, setAttempt] = React.useState(0)
+  const [UseSoonRegion, setUseSoonRegion] = React.useState(createUseSoonRegion)
+  const restoreFocus = React.useRef(false)
+  const loaded = React.useCallback(() => {
+    if (!restoreFocus.current) return
+    restoreFocus.current = false
+    onLoaded()
+  }, [onLoaded])
+  const retry = React.useCallback(() => {
+    restoreFocus.current = document.activeElement instanceof HTMLElement
+      && document.activeElement.tagName.toLowerCase() === 'button'
+    setUseSoonRegion(createUseSoonRegion())
+    setAttempt((value) => value + 1)
+  }, [])
+
+  return (
+    <LazyChunkBoundary
+      key={attempt}
+      fallback={<UseSoonRegionFallback status="error" onRetry={retry} />}
+    >
+      <React.Suspense fallback={<UseSoonRegionFallback status="loading" />}>
+        <UseSoonRegionLoaded onLoaded={loaded}>
+          <UseSoonRegion items={items} inventoryHref={inventoryHref} />
+        </UseSoonRegionLoaded>
+      </React.Suspense>
+    </LazyChunkBoundary>
+  )
 }
 
 type AmbientCoverFallbackProps = {
@@ -490,12 +577,22 @@ export default function TodayBoard({
   }, [data, now, tiles.chores, displayLocale, fridgeMode, choresShownElsewhere])
 
   const showChores = fridgeMode || !choresShownElsewhere?.length || Boolean(view?.chores.length)
+  const useSoonSlotRef = React.useRef<HTMLDivElement>(null)
+  const onUseSoonLoaded = React.useCallback(() => {
+    useSoonSlotRef.current
+      ?.querySelector<HTMLElement>('[data-testid="region-usesoon"]')
+      ?.focus({ preventScroll: true })
+  }, [])
 
   // "Use soon" tile (#263): only when there is something to use (null otherwise).
   const useSoonSlot =
     useSoon ??
     (view && view.useSoon.length > 0 ? (
-      <UseSoonRegion items={view.useSoon} inventoryHref={data.links.inventory ?? null} />
+      <LazyUseSoon
+        items={view.useSoon}
+        inventoryHref={data.links.inventory ?? null}
+        onLoaded={onUseSoonLoaded}
+      />
     ) : null)
 
   // A legacy reader must never show an account-only partial board when a
@@ -649,7 +746,7 @@ export default function TodayBoard({
             <GroceriesRegion compactLandscape={fridgeMode} shopping={tiles.shopping} listsHref={data.links.lists} onTick={tiles.tickGrocery} action={groceryAction} />
             <ComingUpRegion days={view.comingUp} mealsEnabled={data.dinners !== null} stackInLandscape={fridgeMode} />
             {useSoonSlot && (
-              <div data-testid="board-slot-use-soon" className={`min-w-0 ${areaClass.usesoon} ${USE_SOON_SLOT_FIT}`}>
+              <div ref={useSoonSlotRef} data-testid="board-slot-use-soon" className={`min-w-0 ${areaClass.usesoon} ${USE_SOON_SLOT_FIT}`}>
                 {useSoonSlot}
               </div>
             )}
