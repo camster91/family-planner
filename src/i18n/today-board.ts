@@ -38,6 +38,8 @@ export const todayBoardEnglish = {
   choresEmpty: "No chores due today.",
   allDoneToday: "All done for today",
   inProgress: "In progress",
+  profileChorePaused:
+    "This recurring profile chore is paused while compatibility is refreshed. Your pending chore and history are still here; refresh to try again.",
   more: "{count} more",
   markDone: "Mark {title} done, {name}",
   tickOff: "Tick off {item}{quantity}",
@@ -125,6 +127,8 @@ export const todayBoardSpanish: TodayBoardMessages = {
   choresEmpty: "No hay tareas para hoy.",
   allDoneToday: "Todo listo por hoy",
   inProgress: "En curso",
+  profileChorePaused:
+    "Esta tarea recurrente del perfil está en pausa mientras se actualiza la compatibilidad. Tu tarea pendiente y tu historial siguen aquí; actualiza para intentarlo de nuevo.",
   more: "{count} más",
   markDone: "Marcar {title} como hecha, {name}",
   tickOff: "Marcar {item}{quantity}",

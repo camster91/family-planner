@@ -1105,6 +1105,22 @@ test.describe.serial("email-free profile chore vertical", () => {
         .filter({ hasText: recurring.title })
         .getByRole("button", { name: "Dismiss", exact: true })
         .click();
+      const dismissToast = page.getByRole("button", {
+        name: "Dismiss",
+        exact: true,
+      });
+      await expect(dismissToast).toHaveCount(0);
+      await page.getByRole("button", { name: "All", exact: true }).click();
+      const doneButton = page.getByRole("button", {
+        name: /^Done \d+\+?$/,
+      });
+      await expect(doneButton).toBeVisible();
+      await doneButton.click();
+      await expect(doneButton).toHaveAttribute("aria-expanded", "true");
+      const history = page.locator("section").filter({ has: doneButton });
+      await expect(
+        history.getByText(recurring.title, { exact: true }),
+      ).toBeVisible();
 
       const afterVerify = await withDb(async (db) => {
         const result = await db.query<{
@@ -1152,6 +1168,11 @@ test.describe.serial("email-free profile chore vertical", () => {
           (row) => row.id !== current!.id && row.status === "pending",
         ),
       ).toBe(true);
+      await expect(dismissToast).toHaveCount(0);
+      await expect(doneButton).toHaveAttribute("aria-expanded", "true");
+      await expect(
+        history.getByText(recurring.title, { exact: true }),
+      ).toBeVisible();
       await expectNoHorizontalOverflow(page, "profile recurring verification");
       await info.attach(`${info.project.name}-profile-recurring-history`, {
         body: await page.screenshot({ fullPage: true }),

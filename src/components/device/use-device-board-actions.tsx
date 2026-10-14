@@ -14,7 +14,6 @@ import type {
 import { DeviceApiError, type DeviceClient } from "@/lib/device-client";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { useTranslation } from "@/i18n";
-import { useProfileSetupText } from "@/i18n/profile-setup";
 import { useTodayBoardText } from "@/i18n/today-board";
 import { getDeviceQueue } from "@/lib/offline-queue-browser";
 import { QueueError, isCheckedOperation } from "@/lib/offline-queue";
@@ -114,8 +113,8 @@ export function useDeviceBoardActions({
   picker: React.ReactNode;
 } {
   const { t } = useTranslation();
-  const profileText = useProfileSetupText();
-  const profileChorePaused = profileText("profileTargetRecurrencePaused");
+  const todayText = useTodayBoardText();
+  const profileChorePaused = todayText("profileChorePaused");
   const [subject, setSubject] = React.useState<DeviceSubjectChoice | null>(
     null,
   );

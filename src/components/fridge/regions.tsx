@@ -27,7 +27,6 @@ import {
   useTodayBoardText,
   type TodayBoardTranslator,
 } from '@/i18n/today-board'
-import { useProfileSetupText } from '@/i18n/profile-setup'
 import {
   actionLinkClass,
   emptyTextClass,
@@ -502,7 +501,6 @@ export function ChoresRegion({
   canTick?: (chore: BoardChore) => boolean
 }) {
   const text = useTodayBoardText()
-  const profileText = useProfileSetupText()
   const names = displayNames(people)
   return (
     <Region
@@ -552,7 +550,7 @@ export function ChoresRegion({
                             )}
                             {c.actionAvailability?.state === 'paused' && (
                               <span className={cn(metaTextClass, 'block')} role="status">
-                                {profileText('profileTargetRecurrencePaused')}
+                                {text('profileChorePaused')}
                               </span>
                             )}
                           </span>

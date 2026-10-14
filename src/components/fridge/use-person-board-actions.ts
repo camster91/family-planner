@@ -6,7 +6,7 @@ import { getPersonQueue } from '@/lib/offline-queue-browser'
 import { QueueError, isCheckedOperation } from '@/lib/offline-queue'
 import type { BoardActions } from './board-actions'
 import { useTranslation } from '@/i18n'
-import { useProfileSetupText } from '@/i18n/profile-setup'
+import { useTodayBoardText } from '@/i18n/today-board'
 
 /**
  * Board tile actions for a signed-in person (#274), on /dashboard/today with
@@ -25,13 +25,13 @@ export function usePersonBoardActions(
   afterChange: () => void
 ): BoardActions | undefined {
   const { t } = useTranslation()
-  const profileText = useProfileSetupText()
+  const todayText = useTodayBoardText()
   const afterRef = React.useRef(afterChange)
   afterRef.current = afterChange
   const viewerId = viewer?.id ?? null
   const isParent = viewer?.role === 'parent'
   const profileChoreUnsupported = 'This profile chore needs a newer supported board.'
-  const profileChorePaused = profileText('profileTargetRecurrencePaused')
+  const profileChorePaused = todayText('profileChorePaused')
   const isProfileChore = (chore: Parameters<BoardActions['canCompleteChore']>[0]) =>
     chore.subject?.kind === 'profile'
 
