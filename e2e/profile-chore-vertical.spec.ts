@@ -1003,6 +1003,10 @@ test.describe.serial("email-free profile chore vertical", () => {
         editorAxe.violations,
         "profile routine editor accessibility",
       ).toEqual([]);
+      await info.attach(`${info.project.name}-profile-routine-editor`, {
+        body: await page.screenshot({ fullPage: true }),
+        contentType: "image/png",
+      });
 
       const tablet = await openContext(browser, info);
       tabletContext = tablet.context;
@@ -1072,6 +1076,10 @@ test.describe.serial("email-free profile chore vertical", () => {
           page.getByText(chore.title, { exact: true }),
         ).toBeVisible();
       await expectNoHorizontalOverflow(page, "profile routine history");
+      await info.attach(`${info.project.name}-profile-routine-history`, {
+        body: await page.screenshot({ fullPage: true }),
+        contentType: "image/png",
+      });
 
       foreignContext = await openContext(
         browser,
