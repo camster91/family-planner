@@ -1069,6 +1069,15 @@ test.describe.serial("email-free profile chore vertical", () => {
         await verify.click();
         expect((await verified).status()).toBe(200);
       }
+      // Use the normal dismiss controls before capturing retained history;
+      // transient verification messages must not obscure the rows under review.
+      const dismissToast = page.getByRole("button", {
+        name: "Dismiss",
+        exact: true,
+      });
+      while ((await dismissToast.count()) > 0)
+        await dismissToast.first().click();
+      await expect(dismissToast).toHaveCount(0);
       await expect(doneButton).toBeVisible();
       await expect(doneButton).toHaveAttribute("aria-expanded", "true");
       for (const chore of chores)
