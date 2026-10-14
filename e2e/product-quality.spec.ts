@@ -816,7 +816,21 @@ for (const locale of ["en", "es"] as const) {
 
         await setProductQualityWeather(true);
         await page.goto("/dashboard/today?mode=fridge");
-        await expect(page.getByTestId("board-weather")).toBeVisible();
+        const weatherTile = page.getByTestId("board-weather");
+        await expect(weatherTile).toBeVisible();
+        if (locale === "es") {
+          await expect(
+            page.getByRole("region", {
+              name: `Tiempo en ${WEATHER_PLACE.label}`,
+            }),
+          ).toBeVisible();
+          await expect(weatherTile).toContainText("Nieve ligera");
+          await expect(weatherTile).toContainText(
+            "80% de probabilidad de lluvia o nieve",
+          );
+          await expect(weatherTile).not.toContainText("Light snow");
+          await expect(weatherTile).not.toContainText("chance of rain or snow");
+        }
         const weatherUseSoon = page.getByTestId("board-slot-use-soon");
         await expect(weatherUseSoon).toBeVisible();
         await expect(weatherUseSoon).toContainText(

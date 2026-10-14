@@ -5,9 +5,11 @@
 // state and the "Use soon" slot (#263) on the Today board.
 import * as React from 'react'
 import { act, render, screen, within } from '@testing-library/react'
+import { I18nProvider } from '@/i18n'
 import TodayBoard, { boardGridClass } from '../TodayBoard'
 import { memberColors, memberDisplayNames, placeDayKey, shortWeekday, weatherView } from '../board-model'
 import { resolveMemberColors, MEMBER_COLOR_KEYS } from '@/lib/member-colors'
+import { localizeWeatherSummary } from '@/i18n/weather'
 import type { TodayBoardData } from '@/app/dashboard/today/today-board-data'
 import type { BoardWeather } from '@/lib/weather/board-weather'
 
@@ -62,9 +64,13 @@ function data(overrides: Partial<TodayBoardData> = {}): TodayBoardData {
   }
 }
 
-async function renderBoard(props: Partial<React.ComponentProps<typeof TodayBoard>> = {}) {
+async function renderBoard(props: Partial<React.ComponentProps<typeof TodayBoard>> = {}, locale: 'en' | 'es' = 'en') {
   jest.useFakeTimers({ now: NOW })
-  const utils = render(<TodayBoard data={data()} fridgeMode {...props} />)
+  const utils = render(
+    <I18nProvider locale={locale}>
+      <TodayBoard data={data()} fridgeMode {...props} />
+    </I18nProvider>,
+  )
   await act(async () => {
     jest.advanceTimersByTime(0)
   })
@@ -171,6 +177,24 @@ describe('weather tile (#262)', () => {
       'WedClear, high 4°, low / -2°',
       'ThuRain, high 5°, low / 1°',
     ])
+  })
+
+  it('localizes weather summaries, precipitation and accessible labels in Spanish', async () => {
+    await renderBoard({ data: data({ weather: WEATHER }) }, 'es')
+    const tile = screen.getByTestId('board-weather')
+    expect(screen.getByRole('region', { name: 'Tiempo en Toronto, Ontario, Canada' })).toBe(tile)
+    expect(tile.textContent).toContain('Nieve ligera')
+    expect(tile.textContent).toContain('80% de probabilidad de lluvia o nieve')
+    expect(tile.textContent).not.toContain('Light snow')
+    expect(tile.textContent).not.toContain('chance of rain or snow')
+    expect(within(tile).getByRole('list', { name: 'Próximos días' })).toBeInTheDocument()
+  })
+
+  it('keeps unknown and inherited weather summaries as raw strings', () => {
+    expect(localizeWeatherSummary('es', 'Light snow')).toBe('Nieve ligera')
+    expect(localizeWeatherSummary('es', 'Future condition')).toBe('Future condition')
+    expect(localizeWeatherSummary('es', 'constructor')).toBe('constructor')
+    expect(localizeWeatherSummary('es', '__proto__')).toBe('__proto__')
   })
 
   it("picks today by the weather place's date across the date line, not the viewer's", () => {
