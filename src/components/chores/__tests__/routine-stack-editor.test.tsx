@@ -864,7 +864,7 @@ it("treats protocol-unavailable as a definitive refusal and keeps the draft retr
   await user.click(screen.getByRole("button", { name: "Add" }));
   await user.click(screen.getByRole("button", { name: "Save routine" }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent(
+  expect((await screen.findByRole("alert")).textContent).toContain(
     "We couldn't load the routine choices. Try again.",
   );
   expect(screen.queryByRole("button", { name: "Retry save" })).toBeNull();
