@@ -3,6 +3,7 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import CreateChorePage from "../create/page";
+import { profileSetupMessages } from "@/i18n/profile-setup";
 
 const push = jest.fn();
 jest.mock("next/navigation", () => ({
@@ -94,7 +95,16 @@ describe("profile target in the create chore form", () => {
 
   afterEach(() => jest.restoreAllMocks());
 
-  it("uses protocol 2 selection for a profile and excludes account/recurrence fields", async () => {
+  it("keeps the unsupported recurrence draft message localized", () => {
+    expect(profileSetupMessages.en.profileTargetRecurrenceUnsupported).toContain(
+      "Your schedule is still here",
+    );
+    expect(profileSetupMessages.es.profileTargetRecurrenceUnsupported).toContain(
+      "Tu programación sigue aquí",
+    );
+  });
+
+  it("uses protocol 2 selection for a profile without account or rotation fields", async () => {
     const user = userEvent.setup();
     render(<CreateChorePage />);
     const profileOption = await screen.findByRole("option", { name: /Jamie/ });
@@ -132,6 +142,7 @@ describe("profile target in the create chore form", () => {
       due_date: "2099-10-05",
       difficulty: "medium",
       frequency: "once",
+      weekly_days: [],
       photo_url: null,
       icon: null,
       routine: "Morning",
@@ -183,5 +194,177 @@ describe("profile target in the create chore form", () => {
     expect(
       calls.filter((call) => call.url === "/api/chores/create"),
     ).toHaveLength(1);
+  });
+
+  it("keeps a repeated draft when the server has no profile recurrence capability", async () => {
+    const user = userEvent.setup();
+    render(<CreateChorePage />);
+    await screen.findByRole("option", { name: /Jamie/ });
+    await user.click(screen.getByRole("button", { name: "Weekly" }));
+    await user.click(screen.getByRole("checkbox", { name: "Monday" }));
+    await user.selectOptions(
+      screen.getByLabelText("Assign To"),
+      "profile:profile-jamie",
+    );
+    await user.type(screen.getByLabelText("Title"), "Pack a bag");
+
+    expect(
+      screen.getByRole("button", { name: "Weekly" }).getAttribute(
+        "aria-pressed",
+      ),
+    ).toBe("true");
+    expect(
+      (screen.getByRole("button", { name: "Weekly" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("checkbox", { name: "Monday" }) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    expect(
+      await screen.findByText(/cannot repeat profile chores yet/i),
+    ).toBeTruthy();
+    expect(
+      calls.filter((call) => call.url === "/api/chores/create"),
+    ).toHaveLength(0);
+  });
+
+  it("sends the selected profile recurrence without account or rotation fields", async () => {
+    const user = userEvent.setup();
+    global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url === "/api/family/members") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            members: [{ id: "account-1", name: "Parent", role: "parent" }],
+          }),
+        };
+      }
+      if (url === "/api/family/profiles") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            profiles: [profile],
+            profileChoreSupported: true,
+            profileChoreRecurrenceSupported: true,
+          }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ chore: { id: "chore-1" } }),
+      };
+    }) as unknown as typeof fetch;
+    render(<CreateChorePage />);
+    await screen.findByRole("option", { name: /Jamie/ });
+    await user.selectOptions(
+      screen.getByLabelText("Assign To"),
+      "profile:profile-jamie",
+    );
+    expect(
+      screen.getByText(
+        "This profile chore can repeat. Points and taking turns stay off.",
+      ),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Daily" }));
+    await user.type(screen.getByLabelText("Title"), "Pack a bag");
+    fireEvent.change(screen.getByLabelText("Due Date"), {
+      target: { value: "2099-10-05" },
+    });
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+
+    await waitFor(() =>
+      expect(
+        calls.find((call) => call.url === "/api/chores/create"),
+      ).toBeTruthy(),
+    );
+    const createCall = calls.find((call) => call.url === "/api/chores/create")!;
+    const body = JSON.parse(String(createCall.init?.body));
+    expect(body).toMatchObject({
+      protocol: 2,
+      selection: { memberId: "profile-jamie" },
+      due_date: "2099-10-05",
+      frequency: "daily",
+      weekly_days: [],
+      points: 10,
+    });
+    expect(body.assigned_to).toBeUndefined();
+    expect(body.rotation).toBeUndefined();
+    expect(createCall.init?.headers).toEqual(
+      expect.objectContaining({ "Idempotency-Key": expect.any(String) }),
+    );
+  });
+
+  it("uses the next selected UTC weekday for a weekly profile chore", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-10-14T12:00:00.000Z"));
+    try {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url, init });
+        if (url === "/api/family/members") {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              members: [{ id: "account-1", name: "Parent", role: "parent" }],
+            }),
+          };
+        }
+        if (url === "/api/family/profiles") {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              profiles: [profile],
+              profileChoreSupported: true,
+              profileChoreRecurrenceSupported: true,
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ chore: { id: "chore-1" } }),
+        };
+      }) as unknown as typeof fetch;
+      render(<CreateChorePage />);
+      await screen.findByRole("option", { name: /Jamie/ });
+      await user.selectOptions(
+        screen.getByLabelText("Assign To"),
+        "profile:profile-jamie",
+      );
+      await user.click(screen.getByRole("button", { name: "Weekly" }));
+      await user.click(screen.getByRole("checkbox", { name: "Monday" }));
+      await user.click(screen.getByRole("checkbox", { name: "Thursday" }));
+      await user.type(screen.getByLabelText("Title"), "Pack a bag");
+      await user.click(screen.getByRole("button", { name: "Create Chore" }));
+
+      await waitFor(() =>
+        expect(
+          calls.find((call) => call.url === "/api/chores/create"),
+        ).toBeTruthy(),
+      );
+      const createCall = calls.find(
+        (call) => call.url === "/api/chores/create",
+      )!;
+      const body = JSON.parse(String(createCall.init?.body));
+      expect(body).toMatchObject({
+        protocol: 2,
+        selection: { memberId: "profile-jamie" },
+        due_date: "2026-10-15",
+        frequency: "weekly",
+        weekly_days: [1, 4],
+      });
+      expect(body.assigned_to).toBeUndefined();
+      expect(body.rotation).toBeUndefined();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

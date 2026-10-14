@@ -38,6 +38,10 @@ export const profileSetupEnglish = {
   profileSaved: "Profile saved.",
   profileTargets: "Household profiles",
   profileTargetOnce: "Profiles support one-off chores only.",
+  profileTargetRecurrence:
+    "This profile chore can repeat. Points and taking turns stay off.",
+  profileTargetRecurrenceUnsupported:
+    "This server cannot repeat profile chores yet. Your schedule is still here; choose an account or try again later.",
   profileTargetUnsupported:
     "This server cannot create a profile chore yet. Your chore details are still here; try again later or choose an account.",
   profileTargetError:
@@ -81,6 +85,10 @@ export const profileSetupSpanish = {
   profileSaved: "Perfil guardado.",
   profileTargets: "Perfiles del hogar",
   profileTargetOnce: "Los perfiles solo admiten tareas únicas.",
+  profileTargetRecurrence:
+    "Esta tarea del perfil se puede repetir. Los puntos y los turnos están desactivados.",
+  profileTargetRecurrenceUnsupported:
+    "Este servidor todavía no puede repetir tareas de perfiles. Tu programación sigue aquí; elige una cuenta o inténtalo más tarde.",
   profileTargetUnsupported:
     "Este servidor todavía no puede crear una tarea para un perfil. Tus datos siguen aquí; inténtalo más tarde o elige una cuenta.",
   profileTargetError:

@@ -40,9 +40,9 @@ import { canonicalBodySignature } from "@/lib/request-signature";
 import {
   findActiveHouseholdProfile,
   readApiErrorCode,
-  readHouseholdProfilesResponse,
   type HouseholdProfile,
 } from "@/lib/household-profile-types";
+import { fetchHouseholdProfiles } from "@/lib/household-profile-client";
 import { useProfileSetupText } from "@/i18n/profile-setup";
 
 type Difficulty = "easy" | "medium" | "hard";
@@ -88,6 +88,8 @@ export default function CreateChoreForm({
     id: "",
   });
   const [profileOptions, setProfileOptions] = useState<HouseholdProfile[]>([]);
+  const [profileRecurrenceSupported, setProfileRecurrenceSupported] =
+    useState(false);
   const [dueDate, setDueDate] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [frequency, setFrequency] = useState<Frequency>("once");
@@ -228,12 +230,13 @@ export default function CreateChoreForm({
     let cancelled = false;
     async function loadProfiles() {
       try {
-        const response = await fetch("/api/family/profiles", {
-          cache: "no-store",
-        });
-        if (!response.ok) return;
-        const payload: unknown = await response.json();
-        const profiles = readHouseholdProfilesResponse(payload);
+        const profiles = await fetchHouseholdProfiles();
+        if (!cancelled && profiles) {
+          setProfileRecurrenceSupported(
+            profiles.profileChoreSupported === true &&
+              profiles.profileChoreRecurrenceSupported === true,
+          );
+        }
         if (!cancelled && profiles?.profileChoreSupported) {
           setProfileOptions(
             profiles.profiles.filter((profile) => !profile.archived_at),
@@ -264,6 +267,14 @@ export default function CreateChoreForm({
       setError(profileText("profileTargetRefresh"));
       return;
     }
+    if (
+      isProfileTarget &&
+      frequency !== "once" &&
+      !profileRecurrenceSupported
+    ) {
+      setError(profileText("profileTargetRecurrenceUnsupported"));
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -273,15 +284,26 @@ export default function CreateChoreForm({
       };
       let requestBody: Record<string, unknown>;
       if (profileTarget) {
+        const profileDueDate =
+          frequency === "weekly"
+            ? nextSelectedWeekday(
+                parseDateOnly(toDateOnlyLocal(new Date()))!,
+                weeklyDays,
+                true,
+              )!
+                .toISOString()
+                .slice(0, 10)
+            : dueDate;
         requestBody = {
           protocol: 2,
           selection: { memberId: profileTarget.id },
           title: title.trim(),
           description: description.trim() || null,
           points: 10,
-          due_date: dueDate,
+          due_date: profileDueDate,
           difficulty,
-          frequency: "once",
+          frequency,
+          weekly_days: frequency === "weekly" ? weeklyDays : [],
           photo_url: photoUrl,
           icon,
           ...routineRequestFields(routine, routineOrder),
@@ -335,7 +357,13 @@ export default function CreateChoreForm({
               profileIdempotencyKey.current?.signature ?? "",
             );
             profileIdempotencyKey.current = null;
-            setError(profileText("profileTargetUnsupported"));
+            setError(
+              profileText(
+                frequency !== "once"
+                  ? "profileTargetRecurrenceUnsupported"
+                  : "profileTargetUnsupported",
+              ),
+            );
           } else {
             if (res.status >= 500 && profileIdempotencyKey.current) {
               profileAmbiguousKeys.current.set(
@@ -462,9 +490,7 @@ export default function CreateChoreForm({
                         kind: "profile",
                         id: value.slice("profile:".length),
                       });
-                      setFrequency("once");
                       setTakeTurns(false);
-                      setRotation([]);
                     } else {
                       setAssignmentTarget({ kind: "account", id: value });
                     }
@@ -498,7 +524,9 @@ export default function CreateChoreForm({
                 </select>
                 {profileTargetId && (
                   <p className="text-footnote text-label-secondary mt-1.5">
-                    {profileText("profileTargetOnce")}
+                    {profileRecurrenceSupported
+                      ? profileText("profileTargetRecurrence")
+                      : profileText("profileTargetOnce")}
                   </p>
                 )}
               </div>
@@ -522,7 +550,11 @@ export default function CreateChoreForm({
                   key={opt.value}
                   type="button"
                   onClick={() => setFrequency(opt.value)}
-                  disabled={Boolean(profileTargetId) && opt.value !== "once"}
+                  disabled={
+                    Boolean(profileTargetId) &&
+                    !profileRecurrenceSupported &&
+                    opt.value !== "once"
+                  }
                   aria-pressed={frequency === opt.value}
                   className={cn(
                     "flex-1 min-h-[44px] py-2 rounded-md text-sm font-medium transition-all duration-200",
@@ -575,7 +607,7 @@ export default function CreateChoreForm({
         )}
 
         {/* Take turns (O-39): repeating chores only */}
-        {frequency !== "once" && (
+        {frequency !== "once" && !profileTargetId && (
           <TakeTurnsPicker
             members={familyMembers}
             on={takeTurns}
