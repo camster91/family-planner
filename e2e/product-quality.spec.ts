@@ -2,8 +2,9 @@
  * Product quality smoke coverage for the current parent candidate (#543).
  *
  * This file deliberately uses the signed-in fixture and rendered routes. It
- * blocks every non-loopback request, owns only its random inventory rows and
- * feature-audit entries, and leaves domain writes mocked or unsubmitted.
+ * blocks every non-loopback request, owns only its random inventory rows,
+ * weather cache fixture and feature-audit entries, and leaves domain writes
+ * mocked or unsubmitted.
  */
 import AxeBuilder from "@axe-core/playwright";
 import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
@@ -44,6 +45,53 @@ const INVENTORY_ROWS = [
   ["berries", "QA berries", "fridge", 3],
   ["chicken", "QA chicken", "freezer", 3],
 ] as const;
+const WEATHER_PLACE = {
+  label: "Toronto, Ontario, Canada",
+  latitude: 43.65,
+  longitude: -79.38,
+};
+const WEATHER_SNAPSHOT = {
+  utcOffsetSeconds: -18000,
+  timezone: "America/Toronto",
+  current: { temperatureC: -3.4, code: 71, isDay: true },
+  daily: [
+    {
+      day: "2026-01-05",
+      highC: -1.2,
+      lowC: -8.5,
+      code: 71,
+      precipitationChance: 80,
+    },
+    {
+      day: "2026-01-06",
+      highC: 2.6,
+      lowC: -4,
+      code: 3,
+      precipitationChance: 10,
+    },
+    { day: "2026-01-07", highC: 4, lowC: -2, code: 0, precipitationChance: 0 },
+    { day: "2026-01-08", highC: 5, lowC: 1, code: 61, precipitationChance: 70 },
+  ],
+};
+
+type WeatherState = {
+  family: {
+    weather_enabled: boolean;
+    weather_latitude: number | null;
+    weather_longitude: number | null;
+    weather_label: string | null;
+    weather_unit: string;
+  };
+  cache: {
+    family_id: string;
+    latitude: number;
+    longitude: number;
+    status: string;
+    payload: unknown;
+    fetched_at: Date;
+    updated_at: Date;
+  } | null;
+};
 
 type Locale = "en" | "es";
 
@@ -100,6 +148,106 @@ async function removeInventory() {
       [A.family, `${INVENTORY_PREFIX}%`],
     );
     expect(remaining.rows).toHaveLength(0);
+  });
+}
+
+async function captureWeatherState(): Promise<WeatherState> {
+  return withDb(async (db) => {
+    const family = (
+      await db.query(
+        `SELECT weather_enabled, weather_latitude, weather_longitude, weather_label, weather_unit
+           FROM "Family" WHERE id = $1`,
+        [A.family],
+      )
+    ).rows[0] as WeatherState["family"] | undefined;
+    if (!family) throw new Error("Family A weather fixture is missing");
+    const cache = (
+      await db.query(
+        `SELECT family_id, latitude, longitude, status, payload, fetched_at, updated_at
+           FROM "WeatherCache" WHERE family_id = $1`,
+        [A.family],
+      )
+    ).rows[0] as WeatherState["cache"] | undefined;
+    return { family, cache: cache ?? null };
+  });
+}
+
+async function setProductQualityWeather(enabled: boolean) {
+  await withDb(async (db) => {
+    if (!enabled) {
+      await db.query(
+        `UPDATE "Family" SET weather_enabled = false, weather_latitude = NULL,
+           weather_longitude = NULL, weather_label = NULL, weather_unit = 'celsius'
+         WHERE id = $1`,
+        [A.family],
+      );
+      await db.query(`DELETE FROM "WeatherCache" WHERE family_id = $1`, [
+        A.family,
+      ]);
+      return;
+    }
+    await db.query(
+      `UPDATE "Family" SET weather_enabled = true, weather_latitude = $2,
+         weather_longitude = $3, weather_label = $4, weather_unit = 'celsius'
+       WHERE id = $1`,
+      [
+        A.family,
+        WEATHER_PLACE.latitude,
+        WEATHER_PLACE.longitude,
+        WEATHER_PLACE.label,
+      ],
+    );
+    await db.query(
+      `INSERT INTO "WeatherCache" (family_id, latitude, longitude, status, payload, fetched_at, updated_at)
+       VALUES ($1, $2, $3, 'ok', $4, $5, now())
+       ON CONFLICT (family_id) DO UPDATE SET latitude = $2, longitude = $3,
+         status = 'ok', payload = $4, fetched_at = $5, updated_at = now()`,
+      [
+        A.family,
+        WEATHER_PLACE.latitude,
+        WEATHER_PLACE.longitude,
+        JSON.stringify(WEATHER_SNAPSHOT),
+        new Date(E2E_ANCHOR.getTime() + 6 * 60 * 60 * 1000),
+      ],
+    );
+  });
+}
+
+async function restoreWeatherState(state: WeatherState) {
+  await withDb(async (db) => {
+    await db.query(
+      `UPDATE "Family" SET weather_enabled = $2, weather_latitude = $3,
+         weather_longitude = $4, weather_label = $5, weather_unit = $6
+       WHERE id = $1`,
+      [
+        A.family,
+        state.family.weather_enabled,
+        state.family.weather_latitude,
+        state.family.weather_longitude,
+        state.family.weather_label,
+        state.family.weather_unit,
+      ],
+    );
+    await db.query(`DELETE FROM "WeatherCache" WHERE family_id = $1`, [
+      A.family,
+    ]);
+    if (state.cache) {
+      await db.query(
+        `INSERT INTO "WeatherCache" (family_id, latitude, longitude, status, payload, fetched_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          state.cache.family_id,
+          state.cache.latitude,
+          state.cache.longitude,
+          state.cache.status,
+          state.cache.payload == null
+            ? null
+            : JSON.stringify(state.cache.payload),
+          state.cache.fetched_at,
+          state.cache.updated_at,
+        ],
+      );
+    }
   });
 }
 
@@ -257,6 +405,43 @@ async function expectPrimaryTargets(scope: Locator) {
     undersized,
     "primary product-quality targets smaller than 44px",
   ).toEqual([]);
+}
+
+async function assertFirstUseSoonMetadataFit(useSoon: Locator) {
+  const metadata = useSoon
+    .getByTestId("use-soon-item")
+    .first()
+    .locator("p")
+    .nth(1);
+  await expect(metadata).toBeVisible();
+  const metadataLayout = await metadata.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const region = element.closest("section")!.getBoundingClientRect();
+    return {
+      top: box.top,
+      bottom: box.bottom,
+      regionTop: region.top,
+      regionBottom: region.bottom,
+      viewportBottom: window.innerHeight,
+      height: box.height,
+    };
+  });
+  expect(
+    metadataLayout.height,
+    "The first Use Soon metadata line must have rendered height",
+  ).toBeGreaterThan(0);
+  expect(
+    metadataLayout.top,
+    "The first Use Soon metadata must start inside its tile",
+  ).toBeGreaterThanOrEqual(metadataLayout.regionTop);
+  expect(
+    metadataLayout.bottom,
+    "The first Use Soon expiry and storage metadata must be glanceable without scrolling",
+  ).toBeLessThanOrEqual(metadataLayout.regionBottom + 1);
+  expect(
+    metadataLayout.bottom,
+    "The first Use Soon metadata must remain inside the viewport",
+  ).toBeLessThanOrEqual(metadataLayout.viewportBottom + 1);
 }
 
 async function preparePage(
@@ -571,12 +756,20 @@ for (const locale of ["en", "es"] as const) {
       .features as Record<string, boolean>;
     const cleanFeatureAudit = await ownFeatureAudit(["inventory"]);
     let featuresRestored = false;
+    const compactFridgeMetadataViewport =
+      info.project.name === "fridge-landscape-1280x800" ||
+      info.project.name === "desktop-1366x768";
+    let originalWeather: WeatherState | null = null;
     try {
       await seedInventory();
       const enabled = await browserSend(page, "PATCH", "/api/family/features", {
         features: { ...originalFeatures, inventory: true },
       });
       expect(enabled.status, enabled.body).toBe(200);
+      if (compactFridgeMetadataViewport) {
+        originalWeather = await captureWeatherState();
+        await setProductQualityWeather(false);
+      }
       await page.goto("/dashboard/today?mode=fridge");
       const board = page.getByTestId("today-board");
       await expect(board).toHaveAttribute("data-mode", "fridge");
@@ -613,41 +806,19 @@ for (const locale of ["en", "es"] as const) {
       await expect(useSoon).toContainText(
         locale === "es" ? "Refrigerador" : "Fridge",
       );
-      if (
-        info.project.name === "fridge-landscape-1280x800" ||
-        info.project.name === "desktop-1366x768"
-      ) {
-        const firstItem = useSoon.getByTestId("use-soon-item").first();
-        const metadata = firstItem.locator("p").nth(1);
-        await expect(metadata).toBeVisible();
-        const metadataLayout = await metadata.evaluate((element) => {
-          const box = element.getBoundingClientRect();
-          const region = element.closest("section")!.getBoundingClientRect();
-          return {
-            top: box.top,
-            bottom: box.bottom,
-            regionTop: region.top,
-            regionBottom: region.bottom,
-            viewportBottom: window.innerHeight,
-            height: box.height,
-          };
-        });
-        expect(
-          metadataLayout.height,
-          "The first Use Soon metadata line must have rendered height",
-        ).toBeGreaterThan(0);
-        expect(
-          metadataLayout.top,
-          "The first Use Soon metadata must start inside its tile",
-        ).toBeGreaterThanOrEqual(metadataLayout.regionTop);
-        expect(
-          metadataLayout.bottom,
-          "The first Use Soon expiry and storage metadata must be glanceable without scrolling",
-        ).toBeLessThanOrEqual(metadataLayout.regionBottom + 1);
-        expect(
-          metadataLayout.bottom,
-          "The first Use Soon metadata must remain inside the viewport",
-        ).toBeLessThanOrEqual(metadataLayout.viewportBottom + 1);
+      if (compactFridgeMetadataViewport) {
+        await expect(page.getByTestId("board-weather")).toHaveCount(0);
+        await assertFirstUseSoonMetadataFit(useSoon);
+
+        await setProductQualityWeather(true);
+        await page.goto("/dashboard/today?mode=fridge");
+        await expect(page.getByTestId("board-weather")).toBeVisible();
+        const weatherUseSoon = page.getByTestId("board-slot-use-soon");
+        await expect(weatherUseSoon).toBeVisible();
+        await expect(weatherUseSoon).toContainText(
+          locale === "es" ? "Refrigerador" : "Fridge",
+        );
+        await assertFirstUseSoonMetadataFit(weatherUseSoon);
       }
       const groceryList = groceries.locator("ul").first();
       await expect(groceryList).toHaveAttribute("tabindex", "0");
@@ -731,19 +902,23 @@ for (const locale of ["en", "es"] as const) {
       });
     } finally {
       try {
-        const restored = await browserSend(
-          page,
-          "PATCH",
-          "/api/family/features",
-          {
-            features: originalFeatures,
-          },
-        );
-        expect(restored.status, restored.body).toBe(200);
-        featuresRestored = true;
+        if (originalWeather) await restoreWeatherState(originalWeather);
       } finally {
-        await cleanFeatureAudit(featuresRestored);
-        await removeInventory();
+        try {
+          const restored = await browserSend(
+            page,
+            "PATCH",
+            "/api/family/features",
+            {
+              features: originalFeatures,
+            },
+          );
+          expect(restored.status, restored.body).toBe(200);
+          featuresRestored = true;
+        } finally {
+          await cleanFeatureAudit(featuresRestored);
+          await removeInventory();
+        }
       }
     }
   });

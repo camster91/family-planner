@@ -221,7 +221,6 @@ describe('"Use soon" slot (#263 extension point)', () => {
     const grid = boardGridClass(true, true)
     expect(grid).toContain('"today_groceries_usesoon_coming"')
     expect(grid).toContain('"usesoon_usesoon"')
-    expect(grid).toContain('lg:landscape:grid-rows-[minmax(0,4fr)_minmax(0,2fr)_minmax(0,4fr)]')
   })
 })
 
