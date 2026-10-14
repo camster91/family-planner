@@ -11,6 +11,7 @@ import {
   profileChoreCreateSchema,
   profileChoreReadRefusal,
   profileChoreProtocolRefusal,
+  profileChoreActionAvailability,
   PROFILE_CHORE_ROLLBACK_READY_ENV,
   PROFILE_CHORE_RECURRENCE_ENABLE_ENV,
   readChoreSubject,
@@ -292,6 +293,57 @@ describe("profile-only chore contract", () => {
 
     delete process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY;
     expect(isProfileChoreRecurrenceSupported()).toBe(false);
+  });
+
+  it("projects paused recurring rows without changing one-off or account subjects", () => {
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+    delete process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV];
+
+    expect(
+      profileChoreActionAvailability({
+        assigned_to: null,
+        assigned_member_id: "member-child",
+        frequency: "weekly",
+        recurrence_id: "series-1",
+      }),
+    ).toEqual({
+      state: "paused",
+      reason: "RECURRENCE_CAPABILITY_UNAVAILABLE",
+      recovery: "refresh-and-retain-pending",
+      requiresCompatibleClient: true,
+      actions: { complete: false, undo: false, verify: false, reject: false },
+    });
+    expect(
+      profileChoreActionAvailability({
+        assigned_to: null,
+        assigned_member_id: "member-child",
+        frequency: "once",
+        recurrence_id: null,
+      }),
+    ).toEqual({
+      state: "active",
+      requiresCompatibleClient: false,
+      actions: { complete: true, undo: true, verify: true, reject: true },
+    });
+    expect(
+      profileChoreActionAvailability({
+        assigned_to: "account-child",
+        assigned_member_id: null,
+        frequency: "weekly",
+        recurrence_id: "series-2",
+      }),
+    ).toBeNull();
+
+    process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV] = "1";
+    expect(
+      profileChoreActionAvailability({
+        assigned_to: null,
+        assigned_member_id: "member-child",
+        frequency: "weekly",
+        recurrence_id: "series-1",
+      })?.state,
+    ).toBe("active");
   });
 
   it("locks membership before the live receipt and stores the response in the same effect", async () => {

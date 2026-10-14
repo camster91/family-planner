@@ -13,7 +13,9 @@ import { assertFixtureTargetAllowed } from "@/lib/fixtures/guard";
 import {
   createProfileOnlyChore,
   createProfileOnlyChoreEffect,
+  profileChoreActionAvailability,
   profileChoreCreateSchema,
+  readChoreSubject,
 } from "@/lib/chore-profile";
 import {
   completeProfileChoreInTx,
@@ -582,6 +584,77 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
       expect(
         await db.chore.count({ where: { recurrence_id: template.id } }),
       ).toBe(7);
+    });
+  });
+
+  it("retains the recurring profile subject and history when the read capability is rolled back", async () => {
+    await withProfileRecurrenceEnabled(async () => {
+      const template = await createProfileOnlyChore(
+        db,
+        { id: PARENT_A, familyId: FAMILY_A },
+        recurringProfileInput(CHILD_A, "Paused profile routine"),
+        new Date("2026-10-12T00:00:00.000Z"),
+        null,
+        new Date("2026-10-12T12:00:00.000Z"),
+      );
+      const stored = await db.chore.findUnique({
+        where: { id: template.id },
+        select: {
+          id: true,
+          assigned_to: true,
+          assigned_member_id: true,
+          member_subject_erased: true,
+          frequency: true,
+          recurrence_id: true,
+          status: true,
+          title: true,
+        },
+      });
+      const member = await db.householdMember.findUnique({
+        where: { id: CHILD_A },
+        select: {
+          id: true,
+          family_id: true,
+          name: true,
+          role: true,
+          age: true,
+          archived_at: true,
+          erasure_user_id: true,
+          legacy_mapping: { select: { user_id: true } },
+          account_link: { select: { user_id: true } },
+        },
+      });
+      const previous = process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED;
+      delete process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED;
+      try {
+        expect(stored).not.toBeNull();
+        if (!stored) throw new Error("profile recurrence fixture was not stored");
+        expect(stored).toMatchObject({
+          assigned_to: null,
+          assigned_member_id: CHILD_A,
+          frequency: "weekly",
+          recurrence_id: template.id,
+          status: "pending",
+          title: "Paused profile routine",
+        });
+        expect(
+          readChoreSubject(
+            { ...stored, assignee: null, assigneeMember: member },
+            FAMILY_A,
+          ),
+        ).toEqual({
+          kind: "profile",
+          memberId: CHILD_A,
+          name: "Fixture child A",
+          role: "child",
+        });
+        expect(profileChoreActionAvailability(stored)?.state).toBe("paused");
+        expect(stored.status).toBe("pending");
+      } finally {
+        if (previous === undefined)
+          delete process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED;
+        else process.env.HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED = previous;
+      }
     });
   });
 

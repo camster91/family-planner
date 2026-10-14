@@ -21,7 +21,7 @@ import {
 import { getRequestId } from '@/lib/request-id'
 import { applyFrequencyEditInTx } from '@/lib/recurringChores'
 import { applyRotationEditInTx, rotationMembersInHousehold } from '@/lib/chore-rotation'
-import { profileChoreLegacyWriteRefusal, profileChoreReadRefusal, readChoreSubject } from '@/lib/chore-profile'
+import { profileChoreActionAvailability, profileChoreLegacyWriteRefusal, profileChoreReadRefusal, readChoreSubject } from '@/lib/chore-profile'
 
 type HydratedProfileMember = {
   id: string
@@ -145,7 +145,8 @@ async function handleGET(request: NextRequest) {
       if (row.assigned_to === null && row.assigned_member_id != null) {
         const subject = readChoreSubject(row, auth.user.family_id)
         if (!subject) return safe
-        return { ...safe, subject }
+        const actionAvailability = profileChoreActionAvailability(row)
+        return { ...safe, subject, ...(actionAvailability ? { actionAvailability } : {}) }
       }
       return safe
     })
@@ -204,8 +205,10 @@ async function getOneChore(id: string, familyId: string, request: NextRequest) {
     return subject.kind === 'profile' ? { ...safe, subject } : safe
   })()
   const gamified = await isGamificationOn(familyId)
+  const actionAvailability = subject.kind === 'profile' ? profileChoreActionAvailability(chore) : null
+  const projectedChore = subject.kind === 'profile' && actionAvailability ? { ...safeChore, actionAvailability } : safeChore
   return NextResponse.json({
-    chore: gamified ? safeChore : omitChorePoints(safeChore),
+    chore: gamified ? projectedChore : omitChorePoints(projectedChore),
     template: template ?? null,
     rotation: seriesRotation.length > 0 ? seriesRotation : null,
   })

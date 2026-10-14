@@ -205,6 +205,77 @@ export function readChoreSubject(
   };
 }
 
+/**
+ * Capability state for actions on a readable profile-only chore.
+ *
+ * Recurring profile rows can outlive the private recurrence opt-in during a
+ * rollback. They remain readable so the household does not lose the child's
+ * name or history, but clients must not render controls that will be refused
+ * by the action routes. The field is intentionally per-row: one-off profile
+ * chores remain actionable while only recurring rows are paused.
+ */
+export type ProfileChoreActionAvailability =
+  | {
+      state: "active";
+      requiresCompatibleClient: false;
+      actions: {
+        complete: true;
+        undo: true;
+        verify: true;
+        reject: true;
+      };
+    }
+  | {
+      state: "paused";
+      reason: "RECURRENCE_CAPABILITY_UNAVAILABLE";
+      recovery: "refresh-and-retain-pending";
+      requiresCompatibleClient: true;
+      actions: {
+        complete: false;
+        undo: false;
+        verify: false;
+        reject: false;
+      };
+    };
+
+type ProfileChoreActionRow = {
+  assigned_to: string | null;
+  assigned_member_id: string | null;
+  frequency?: string | null;
+  recurrence_id?: string | null;
+};
+
+/**
+ * Return the canonical action state for a profile-only row. Account rows and
+ * invalid/unreadable profile rows return null so callers cannot accidentally
+ * apply profile semantics to an account subject or manufacture a fallback.
+ */
+export function profileChoreActionAvailability(
+  row: ProfileChoreActionRow,
+): ProfileChoreActionAvailability | null {
+  if (row.assigned_to !== null || row.assigned_member_id === null) return null;
+
+  const recurring =
+    (row.recurrence_id !== null && row.recurrence_id !== undefined) ||
+    (row.frequency !== undefined &&
+      row.frequency !== null &&
+      row.frequency !== "once");
+  if (!recurring || isProfileChoreRecurrenceSupported()) {
+    return {
+      state: "active",
+      requiresCompatibleClient: false,
+      actions: { complete: true, undo: true, verify: true, reject: true },
+    };
+  }
+  return {
+    state: "paused",
+    reason: "RECURRENCE_CAPABILITY_UNAVAILABLE",
+    recovery: "refresh-and-retain-pending",
+    requiresCompatibleClient: true,
+    actions: { complete: false, undo: false, verify: false, reject: false },
+  };
+}
+
 type ProfileCreateDb = Pick<PrismaClient, "$transaction">;
 type ProfileCreateTx = Prisma.TransactionClient;
 

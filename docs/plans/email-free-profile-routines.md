@@ -38,6 +38,19 @@ refresh/recovery. The gate is also required to complete, undo or verify an
 existing repeated profile occurrence so a rollback cannot mutate one occurrence
 while silently disabling the next one.
 
+Readers use the same per-row `actionAvailability` projection on the chores API,
+person Today board and shared-device Today board. A readable recurring profile
+row remains paired with its real `subject`, name and status/history, but when
+the recurrence gate is off it carries a paused state with reason
+`RECURRENCE_CAPABILITY_UNAVAILABLE`, recovery `refresh-and-retain-pending`,
+`requiresCompatibleClient: true`, and `complete`, `undo`, `verify` and `reject`
+actions set to false. Clients must hide or disable those actions and preserve
+the row. One-off profile rows carry the active action state, and account rows
+keep their existing shape. Protocol-1 readers still receive the stable
+compatibility refusal before rendering a profile row, so an older client cannot
+silently treat paused recurring work as active. A rollback never assigns a
+profile chore to an account or marks it complete.
+
 The protocol boundary has two separate signals. Profile chore writes keep the
 JSON body `{ "protocol": 2, "selection": { "memberId": "..." } }`; the
 `X-Member-Protocol: 2` header negotiates compatible readers and routine-stack
