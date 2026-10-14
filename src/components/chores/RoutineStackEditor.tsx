@@ -16,8 +16,7 @@ import { useTranslation } from "@/i18n";
 type Candidate = ParsedCandidates["candidates"][number];
 type AssignmentOption = ParsedCandidates["assignmentOptions"][number];
 type AssignmentSelection =
-  | { kind: "account"; id: string }
-  | { kind: "profile"; id: string };
+  { kind: "account"; id: string } | { kind: "profile"; id: string };
 
 type DraftStep = {
   draftId: string;
@@ -75,7 +74,8 @@ function ownsCurrentHistoryEntry(entry: RoutineHistoryEntry): boolean {
   if (typeof window === "undefined") return false;
   return (
     window.location.href === entry.url &&
-    historyStateKey(window.history.state) === historyStateKey(entry.sentinelState)
+    historyStateKey(window.history.state) ===
+      historyStateKey(entry.sentinelState)
   );
 }
 
@@ -310,17 +310,17 @@ async function requestJson<T>(
   fallback: string,
   parse: (body: unknown) => T,
 ): Promise<T> {
-  const headers: Record<string, string> = {}
+  const headers: Record<string, string> = {};
   if (init?.headers instanceof Headers) {
     init.headers.forEach((value, key) => {
-      headers[key] = value
-    })
+      headers[key] = value;
+    });
   } else if (Array.isArray(init?.headers)) {
-    for (const [key, value] of init.headers) headers[key] = value
+    for (const [key, value] of init.headers) headers[key] = value;
   } else if (init?.headers) {
-    Object.assign(headers, init.headers)
+    Object.assign(headers, init.headers);
   }
-  headers["X-Member-Protocol"] = "2"
+  headers["X-Member-Protocol"] = "2";
   const response = await fetch(url, {
     ...init,
     headers,
@@ -529,26 +529,23 @@ export default function RoutineStackEditor({
     setDirty(false);
   }, []);
 
-  const retireHistoryEntry = React.useCallback(
-    (entry: RoutineHistoryEntry) => {
-      if (typeof window !== "undefined") {
-        if (ownsCurrentHistoryEntry(entry)) {
-          // Retire only our duplicate entry. The exact state captured from
-          // Next is restored in place, so an unrelated SPA destination is
-          // never consumed by a cleanup path.
-          window.history.replaceState(entry.baseState, "", entry.url);
-        }
+  const retireHistoryEntry = React.useCallback((entry: RoutineHistoryEntry) => {
+    if (typeof window !== "undefined") {
+      if (ownsCurrentHistoryEntry(entry)) {
+        // Retire only our duplicate entry. The exact state captured from
+        // Next is restored in place, so an unrelated SPA destination is
+        // never consumed by a cleanup path.
+        window.history.replaceState(entry.baseState, "", entry.url);
       }
-      if (historyEntryRef.current?.token === entry.token) {
-        historyEntryRef.current = null;
-      }
-      if (releasingHistoryRef.current?.token === entry.token) {
-        releasingHistoryRef.current = null;
-        afterHistoryReleaseRef.current = null;
-      }
-    },
-    [],
-  );
+    }
+    if (historyEntryRef.current?.token === entry.token) {
+      historyEntryRef.current = null;
+    }
+    if (releasingHistoryRef.current?.token === entry.token) {
+      releasingHistoryRef.current = null;
+      afterHistoryReleaseRef.current = null;
+    }
+  }, []);
 
   const removeHistorySentinel = React.useCallback(() => {
     const entry = historyEntryRef.current;
@@ -642,11 +639,7 @@ export default function RoutineStackEditor({
       }
     };
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (
-        !dirtyRef.current &&
-        !savingRef.current &&
-        !submissionRef.current
-      )
+      if (!dirtyRef.current && !savingRef.current && !submissionRef.current)
         return;
       event.preventDefault();
       event.returnValue = "";
@@ -1105,7 +1098,7 @@ export default function RoutineStackEditor({
     (assignedTo: string | null, assignedMemberId: string | null) => {
       if (assignedTo) return accountNames.get(assignedTo) ?? assignedTo;
       return assignedMemberId
-        ? profileNames.get(assignedMemberId) ?? msg("notFound")
+        ? (profileNames.get(assignedMemberId) ?? msg("notFound"))
         : msg("notFound");
     },
     [accountNames, msg, profileNames],
@@ -1237,7 +1230,10 @@ export default function RoutineStackEditor({
                             assignmentValueForStep(step),
                         ) && (
                           <option value={assignmentValueForStep(step)}>
-                            {assignmentName(step.assignedTo, step.assignedMemberId)}
+                            {assignmentName(
+                              step.assignedTo,
+                              step.assignedMemberId,
+                            )}
                           </option>
                         )}
                       </select>
