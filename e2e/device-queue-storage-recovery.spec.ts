@@ -1,6 +1,8 @@
 import { preserveQueueRecoveryProof } from "./support/queue-recovery-proof";
 /** #473: a paired tablet must retain unread queue bytes until explicit recovery. */
 import type { Browser, BrowserContext, Page, TestInfo } from "@playwright/test";
+import pg from "pg";
+import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { E2E_ANCHOR, authFile } from "./support/env";
 import { browserFetch, browserSend, expect, test } from "./support/test";
@@ -13,6 +15,30 @@ const A = FIXTURE_IDS.familyA;
 const DEVICE_QUEUE_KEY = "fp-device:v1:queue";
 const DEVICE_QUEUE_DB = "fp-device";
 const PARENT_NAME = "Avery Fixture-A";
+
+// Projects share one disposable fixture database and run serially. Pairing
+// quotas must not carry over from another viewport or an earlier device suite.
+// Reset only pairing-create keys for this fixture household and claim quotas;
+// production limits and saved queue/idempotency records remain untouched.
+test.beforeEach(async () => {
+  assertFixtureTargetAllowed(process.env);
+  const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await db.connect();
+  try {
+    await db.query(
+      `DELETE FROM "RateLimitEntry"
+       WHERE key = ANY($1) OR key LIKE 'device-pair-claim:%'`,
+      [
+        [
+          `device-pair-create:${A.parent}`,
+          `device-pair-create-fam:${A.family}`,
+        ],
+      ],
+    );
+  } finally {
+    await db.end();
+  }
+});
 
 type RecoveryWindow = Window & {
   __deviceQueueReadRecovery: {

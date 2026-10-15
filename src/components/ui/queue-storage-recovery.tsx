@@ -7,10 +7,15 @@ import { useTranslation } from "@/i18n";
 /** A deliberate read retry, never a replacement or discard of unread work. */
 export function QueueStorageRecovery({ queue }: { queue: OfflineQueue | null }) {
   const { t } = useTranslation();
-  const [state, setState] = React.useState<{
-    queue: OfflineQueue | null;
-    blocked: boolean;
-  }>({ queue: null, blocked: false });
+  const subscribe = React.useCallback(
+    (listener: () => void) => queue?.subscribe(listener) ?? (() => {}),
+    [queue],
+  );
+  const blocked = React.useSyncExternalStore(
+    subscribe,
+    () => queue?.hasStorageReadError() ?? false,
+    () => false,
+  );
   const [busy, setBusy] = React.useState(false);
   const generation = React.useRef(0);
   const retrying = React.useRef(false);
@@ -19,20 +24,12 @@ export function QueueStorageRecovery({ queue }: { queue: OfflineQueue | null }) 
     const current = ++generation.current;
     retrying.current = false;
     setBusy(false);
-    const update = () => {
-      if (generation.current === current)
-        setState({ queue, blocked: queue?.hasStorageReadError() ?? false });
-    };
-    const unsubscribe = queue?.subscribe(update);
-    if (queue) void queue.ready.then(update);
-    else update();
     return () => {
       generation.current = current + 1;
-      unsubscribe?.();
     };
   }, [queue]);
 
-  if (!queue || state.queue !== queue || !state.blocked) return null;
+  if (!queue || !blocked) return null;
 
   const retry = async () => {
     if (retrying.current) return;
@@ -47,7 +44,6 @@ export function QueueStorageRecovery({ queue }: { queue: OfflineQueue | null }) 
       if (generation.current === current) {
         retrying.current = false;
         setBusy(false);
-        setState({ queue, blocked: queue.hasStorageReadError() });
       }
     }
   };
