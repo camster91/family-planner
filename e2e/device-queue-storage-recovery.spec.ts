@@ -1,3 +1,4 @@
+import { preserveQueueRecoveryProof } from "./support/queue-recovery-proof";
 /** #473: a paired tablet must retain unread queue bytes until explicit recovery. */
 import type { Browser, BrowserContext, Page, TestInfo } from "@playwright/test";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
@@ -368,6 +369,10 @@ for (const locale of ["en", "es"] as const) {
         fullPage: true,
         animations: "disabled",
       });
+      await preserveQueueRecoveryProof(tablet, testInfo, "device", locale, [
+        `device-storage-recovery-${locale}.png`,
+        `${locale}-device-storage-recovered.png`,
+      ]);
     } finally {
       await tablet
         .evaluate(() =>

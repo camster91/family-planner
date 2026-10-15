@@ -1,3 +1,4 @@
+import { preserveQueueRecoveryProof } from "./support/queue-recovery-proof";
 /** #473/#480: unread stored work must survive failed reads and deliberate recovery. */
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { authFile, E2E_ANCHOR } from "./support/env";
@@ -197,6 +198,10 @@ for (const locale of ["en", "es"] as const) {
         fullPage: true,
         animations: "disabled",
       });
+      await preserveQueueRecoveryProof(page, info, "person", locale, [
+        `${locale}-storage-paused.png`,
+        `${locale}-storage-recovered.png`,
+      ]);
     } finally {
       await page
         .evaluate(() =>
