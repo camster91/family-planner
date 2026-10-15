@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
-import { isRoutineIconKey, routineIconLabel, type RoutineIconKey } from '@/lib/routine-icons'
+import type { RoutineIconKey } from '@/lib/routine-icons'
 
 /**
  * Chore picture icons (#272). Original line art drawn for Family Planner, not
@@ -327,7 +327,9 @@ export interface RoutineIconProps extends Omit<React.SVGProps<SVGSVGElement>, 'c
 
 /** One chore picture. Size it with `className` (e.g. `w-24 h-24`); colour follows `currentColor`. */
 export function RoutineIcon({ icon, title, className, ...rest }: RoutineIconProps) {
-  const drawing = isRoutineIconKey(icon) ? DRAWINGS[icon] : FALLBACK
+  // The renderer needs its drawings, not the picker's searchable metadata.
+  const known = typeof icon === 'string' && Object.prototype.hasOwnProperty.call(DRAWINGS, icon)
+  const drawing = known ? DRAWINGS[icon as RoutineIconKey] : FALLBACK
   return (
     <svg
       viewBox="0 0 24 24"
@@ -337,7 +339,7 @@ export function RoutineIcon({ icon, title, className, ...rest }: RoutineIconProp
       strokeLinecap="round"
       strokeLinejoin="round"
       className={cn('shrink-0', className)}
-      data-icon={isRoutineIconKey(icon) ? icon : 'none'}
+      data-icon={known ? icon : 'none'}
       {...(title ? { role: 'img', 'aria-label': title } : { 'aria-hidden': true, focusable: false })}
       {...rest}
     >
@@ -348,5 +350,3 @@ export function RoutineIcon({ icon, title, className, ...rest }: RoutineIconProp
 
 /** Keys with a drawing (the tests check this matches the catalogue exactly). */
 export const DRAWN_ICON_KEYS = Object.keys(DRAWINGS)
-
-export { routineIconLabel }
