@@ -230,7 +230,9 @@ they become queueable.
 - Storage: IndexedDB when available (database `fp-sync`, store `kv`), else localStorage. One key per
   signed-in person: `fp-sync:v1:<userId>:queue`. If the current store later refuses a write (quota, eviction,
   WebView storage error), the whole queue is written to the next store, which becomes current (the failed one
-  is cleared best-effort).
+  is cleared best-effort). Every selection scans available stores; distinct nonempty
+  snapshots pause loading rather than selecting an arbitrary copy. Identical copies
+  can load, and ordinary empty-queue cleanup attempts every candidate.
 - Durability is reported, never assumed: when no store accepts a write, `enqueue` returns `durable: false`,
   `isDurable()` is false and the list page shows "Couldn't save changes on this device. Keep this page open
   until they sync, or they will be lost." The list's offline detail then drops its "saved on this device" wording.
@@ -429,3 +431,42 @@ The queue loader now pauses the entire existing container when it finds a positi
 Personal list ticks, grocery adds, pending-tick recovery and shared grocery actions explain that pending changes need a compatible app version, are retained on this device and should not be added again. New grocery draft text stays in the form after refusal. Refreshing/updating into a compatible client is the recovery path; there is no automatic conversion, renewed key or generic request replay. Storage remains in the same per-person/device namespace, with no extra copy or telemetry payload. Sign-out/revocation still explicitly purges that namespace, including unfamiliar work.
 
 Corrupt data, wrong-namespace known actions, bounds and age rules retain their existing refusal/drop behavior when the container is readable by this client. `parseStoredQueue` is still a low-level supported-operation parser; its dropped result must not be used to overwrite an unfamiliar container. The live loader checks compatibility before calling it. Older shipped browser bundles still have the previous drop behavior: this patch cannot retroactively protect them. Do not persist new queue protocols until supported previous clients and real rollback candidates are verified. Synthetic host/browser fixtures do not establish physical-device or previous-binary acceptance.
+
+
+## Unread saved work: deliberate storage recovery (#473/#480)
+
+A failed initial storage read is unknown saved state, not an empty queue. The
+loader pauses enqueue, replay, retry and discard before creating a new operation
+key. It leaves saved bytes unchanged. Personal list details, pending-tick review,
+grocery adds and shared-device grocery controls offer “Try loading saved changes”
+in English and Spanish. New grocery draft text remains in the form after refusal.
+The explicit retry is serialized; success reloads original keys and bodies,
+checks compatibility, then resumes ordinary bounded replay. Failed retries remain
+paused. A recovered future-version container enters compatible-client quarantine
+rather than being rewritten or sent.
+
+This differs from a known in-memory queue whose storage write fails: the existing
+memory-only warning and replay behavior still apply to that known work. Explicit
+sign-out/revocation purge and abandoned/disposed queue guards remain in effect.
+No queue protocol, migration, profile action allowlist or native plugin changes.
+Synthetic browser fault injection and host tests are not physical process-death
+or previous-binary rollback acceptance.
+
+Multiple-store cleanup is conservative: distinct readable snapshots remain
+untouched and paused; manual retry never merges them or chooses one by priority.
+A failed purge or failed final removal blocks the current adapter until an
+intentional purge succeeds. The retry control does not delete uncertain copies.
+Without new durable authority metadata, a fresh instance cannot distinguish a
+sole stale snapshot left after a failed purge from valid pending work. That
+remaining recovery limitation and physical restart/rollback proof stay open in
+#473/#480; this slice does not claim complete multi-store recovery.
+
+Storage mutations use an ordered lane shared by the built-in stores for the same
+persisted namespace. Replacement queues wait for existing cleanup before reading.
+Generation checks fence delayed reads, queued writes, drains and timers around
+clear/abandon. Sign-out retires all personal queues before any storage await and
+starts namespace cleanup independently; its one-second UI deadline grants no
+continued replay authority. A successful fresh device pairing emits the existing
+purge event so a same-client lookup cannot reuse the previous device queue.
+Custom store wrappers must share their `persistenceLane` when they address the
+same storage; independently constructed wrappers cannot infer that identity.

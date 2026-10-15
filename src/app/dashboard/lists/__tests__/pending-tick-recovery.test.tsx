@@ -46,13 +46,17 @@ beforeEach(() => {
     op("key-two", false, "syncing"),
     { ...op("device-key", true), action: "device.list-item.set-checked" },
   ];
+  const subscribers = new Set<(event: any) => void>();
+  listener = event => subscribers.forEach(fn => fn(event));
   queue = {
     ready: Promise.resolve(),
     requiresCompatibleClient: () => false,
+    hasStorageReadError: () => false,
+    retryStorageRead: jest.fn().mockResolvedValue(undefined),
     list: () => ops,
     subscribe: jest.fn((fn) => {
-      listener = fn;
-      return jest.fn();
+      subscribers.add(fn);
+      return () => subscribers.delete(fn);
     }),
     retry: jest.fn().mockResolvedValue(undefined),
     discard: jest.fn(async (id) => {
@@ -176,7 +180,7 @@ it("translates a live retry notice and open discard confirmation without subscri
     ),
   ).toBeVisible();
   expect(screen.getByText("Cambio 1: Marcar un artículo")).toBeVisible();
-  expect(queue.subscribe).toHaveBeenCalledTimes(1);
+  expect(queue.subscribe).toHaveBeenCalledTimes(2);
   expect(getQueue).toHaveBeenCalledTimes(1);
   expect(ops).toEqual(before);
   fireEvent.click(
@@ -202,4 +206,26 @@ it("shows retained-work recovery instead of claiming there are no pending change
   ).not.toBeInTheDocument();
   expect(queue.retry).not.toHaveBeenCalled();
   expect(queue.discard).not.toHaveBeenCalled();
+});
+
+
+it("offers safe storage recovery rather than an empty-state claim for unread ticks", async () => {
+  ops = [];
+  let blocked = true;
+  queue.hasStorageReadError = () => blocked;
+  queue.retryStorageRead.mockImplementation(async () => {
+    blocked = false;
+    ops = [op("original-key", true)];
+    listener({ type: "change" });
+  });
+  render(<PendingTickRecovery userId="viewer" />);
+  fireEvent.click(screen.getByRole("button", { name: "Review waiting ticks" }));
+  const retry = await screen.findByRole("button", { name: "Try loading saved changes" });
+  expect(screen.queryByText("No saved ticks are waiting.")).not.toBeInTheDocument();
+  expect(queue.retry).not.toHaveBeenCalled();
+  expect(queue.discard).not.toHaveBeenCalled();
+  fireEvent.click(retry);
+  await screen.findByText("Change 1: Tick an item");
+  expect(ops[0].id).toBe("original-key");
+  expect(screen.queryByTestId("queue-storage-recovery")).not.toBeInTheDocument();
 });

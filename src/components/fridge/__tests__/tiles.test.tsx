@@ -30,6 +30,7 @@ function fakeQueue() {
   let ops: any[] = [];
   let seq = 0;
   return {
+    ready: Promise.resolve(),
     enqueue: jest.fn(async (action: string, payload: any) => {
       const op = { id: `op-${++seq}`, action, payload, state: "pending" };
       ops.push(op);
@@ -301,6 +302,19 @@ describe("person board (#274)", () => {
     expect(within(groceries()).getByText("Milk")).toBeInTheDocument();
     expect(screen.getByText(/couldn’t load saved changes/i)).toBeInTheDocument();
     expect(personQueue.list()).toEqual([]);
+  });
+  it("offers deliberate storage recovery on a personal Today board", async () => {
+    personQueue.hasStorageReadError = () => true;
+    personQueue.retryStorageRead.mockImplementation(async () => {
+      personQueue.hasStorageReadError = () => false;
+    });
+    await renderBoard({ viewer: { id: "p", role: "parent" } });
+    const recovery = screen.getByTestId("queue-storage-recovery");
+    expect(recovery).toHaveTextContent(/couldn’t load saved changes/i);
+    fireEvent.click(within(recovery).getByRole("button", { name: "Try loading saved changes" }));
+    await settle();
+    expect(personQueue.retryStorageRead).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("queue-storage-recovery")).toBeNull();
   });
   it("a child can tick only their own chore; a parent any chore", async () => {
     const { unmount } = await renderBoard({

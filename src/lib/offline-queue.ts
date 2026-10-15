@@ -207,7 +207,7 @@ export function isCheckedOperation(op: QueuedOperation): op is CheckedQueuedOper
   return op.action === 'list-item.set-checked' || op.action === 'device.list-item.set-checked'
 }
 
-export type QueueErrorCode = 'NOT_QUEUEABLE' | 'INVALID_PAYLOAD' | 'QUEUE_FULL' | 'COMPATIBLE_CLIENT_REQUIRED'
+export type QueueErrorCode = 'NOT_QUEUEABLE' | 'INVALID_PAYLOAD' | 'QUEUE_FULL' | 'COMPATIBLE_CLIENT_REQUIRED' | 'STORAGE_UNAVAILABLE'
 
 export class QueueError extends Error {
   readonly code: QueueErrorCode
@@ -222,6 +222,8 @@ export interface QueueStore {
   read(): Promise<string | null>
   write(value: string): Promise<void>
   remove(): Promise<void>
+  /** Stable lane token for wrappers around the same persisted namespace. */
+  persistenceLane?: object
 }
 
 export interface SendRequest {
@@ -404,10 +406,22 @@ export function requiresCompatibleQueueClient(text: string | null, namespace: Qu
 
 export type OfflineQueue = ReturnType<typeof createOfflineQueue>
 
+// Queue instances can be retired and recreated around a browser purge. Share
+// the mutation lane for the same store object so an abandoned queue's cleanup
+// cannot delete bytes written by its replacement.
+const persistenceLanes = new WeakMap<object, Promise<void>>()
+
 export function createOfflineQueue(deps: OfflineQueueDeps) {
   const namespace = deps.namespace ?? 'person'
   let ops: QueuedOperation[] = []
   let compatibleClientRequired = false
+  let storageReadError = false
+  let storageReadRetry: Promise<void> | null = null
+  let storageReadGeneration = 0
+  let persistenceGeneration = 0
+  let persistenceTail: Promise<void> = Promise.resolve()
+  let purging = false
+  let purgeInProgress: Promise<void> | null = null
   let draining: Promise<void> | null = null
   let timer: unknown = null
   let disposed = false
@@ -433,7 +447,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
       version: 1,
       depth: Object.values(states).reduce((a, b) => a + b, 0),
       states,
-      durable: disposed ? true : durable,
+      durable: disposed ? true : durable && !storageReadError,
       dropped,
       replay: { attempts, completed, successes, failures, conflicts },
       rates: {
@@ -454,6 +468,40 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     }
   }
 
+  type PersistenceResult = 'success' | 'failed' | 'skipped'
+
+  /**
+   * Storage writes and removals share one lane. A generation change fences
+   * mutations that have not started yet; a purge is queued behind any write
+   * already in flight, so its remove is the last operation that can reach the
+   * store. The lane always settles, even when a store rejects.
+   */
+  function enqueuePersistenceMutation(
+    generation: number,
+    mutation: () => Promise<void>,
+    options: { force?: boolean } = {}
+  ): Promise<PersistenceResult> {
+    const lane = deps.store.persistenceLane ?? deps.store
+    const previous = persistenceLanes.get(lane) ?? persistenceTail
+    const task = previous.then(async (): Promise<PersistenceResult> => {
+      if (!options.force && (disposed || purging || storageReadError || generation !== persistenceGeneration)) return 'skipped'
+      try {
+        await mutation()
+        return 'success'
+      } catch {
+        return 'failed'
+      }
+    })
+    persistenceTail = task.then(() => undefined, () => undefined)
+    persistenceLanes.set(lane, persistenceTail)
+    return task
+  }
+
+  function waitForPersistenceLane(): Promise<void> {
+    const lane = deps.store.persistenceLane ?? deps.store
+    return persistenceLanes.get(lane) ?? Promise.resolve()
+  }
+
   /**
    * Write the queue through. Returns false when storage refused the write
    * (quota, eviction, blocked WebView storage): the operations then live only
@@ -463,14 +511,22 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
   async function persist(): Promise<boolean> {
     // A disposed queue never writes again: after a device purge its storage was
     // deleted on purpose, and writing would recreate it with the old ids (#274).
-    if (disposed || compatibleClientRequired) return durable
-    let ok = true
-    try {
-      if (ops.length === 0) await deps.store.remove()
-      else await deps.store.write(serializeQueue(ops))
-    } catch {
-      ok = false
-    }
+    if (disposed || purging || compatibleClientRequired || storageReadError) return false
+    const generation = persistenceGeneration
+    const result = await enqueuePersistenceMutation(generation, async () => {
+      const removing = ops.length === 0
+      try {
+        if (removing) await deps.store.remove()
+        else await deps.store.write(serializeQueue(ops))
+      } catch (error) {
+        // A failed removal after a successful send, or an uncertain cleanup
+        // after a successful fallback write, leaves persisted work unknown.
+        if (removing || isStorageCleanupError(error)) storageReadError = true
+        throw error
+      }
+    })
+    if (result === 'skipped') return false
+    const ok = result === 'success'
     if (ok !== durable) {
       durable = ok
       emit({ type: 'change' })
@@ -501,20 +557,16 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     return { changed, dropped }
   }
 
-  const ready: Promise<void> = (async () => {
-    let text: string | null = null
-    try {
-      text = await deps.store.read()
-    } catch {
-      text = null
-    }
-    if (disposed) return
+  async function loadStoredText(text: string | null, generation?: number): Promise<void> {
+    if (disposed || (generation !== undefined && generation !== storageReadGeneration)) return
+    storageReadError = false
     if (requiresCompatibleQueueClient(text, namespace)) {
       compatibleClientRequired = true
       // Do not parse, rewrite, age, send or expose unfamiliar payloads.
       emit({ type: 'change' })
       return
     }
+    compatibleClientRequired = false
     const parsed = parseStoredQueue(text, namespace)
     ops = parsed.ops
     const aged = applyAgeRules(deps.now())
@@ -522,10 +574,55 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     increment('dropped', loadReport.dropped)
     if (parsed.dropped > 0 || aged.changed || (text !== null && ops.some((o) => o.state === 'pending'))) {
       await persist()
+      if (disposed || (generation !== undefined && generation !== storageReadGeneration)) return
     }
     if (loadReport.dropped > 0) emit({ type: 'dropped', count: loadReport.dropped })
     emit({ type: 'change' })
+  }
+
+  const ready: Promise<void> = (async () => {
+    const generation = storageReadGeneration
+    try {
+      await waitForPersistenceLane()
+      if (disposed || generation !== storageReadGeneration) return
+      const text = await deps.store.read()
+      return loadStoredText(text, generation)
+    } catch {
+      if (disposed || generation !== storageReadGeneration) return
+      storageReadError = true
+      emit({ type: 'change' })
+    }
   })()
+
+  function assertStorageReadable(): void {
+    if (purging || (storageReadError && !compatibleClientRequired)) throw new QueueError('STORAGE_UNAVAILABLE')
+  }
+
+  async function retryStorageRead(): Promise<void> {
+    await ready
+    if (disposed || purging || !storageReadError) return
+    if (!storageReadRetry) {
+      const generation = storageReadGeneration
+      storageReadRetry = (async () => {
+        try {
+          await waitForPersistenceLane()
+          if (disposed || purging || generation !== storageReadGeneration) return
+          const text = await deps.store.read()
+          if (disposed || generation !== storageReadGeneration) return
+          await loadStoredText(text, generation)
+          if (!disposed && generation === storageReadGeneration && !storageReadError && !compatibleClientRequired) await drain()
+        } catch {
+          if (!disposed) {
+            storageReadError = true
+            emit({ type: 'change' })
+          }
+        } finally {
+          storageReadRetry = null
+        }
+      })()
+    }
+    await storageReadRetry
+  }
 
   function snapshot(): QueuedOperation[] {
     return ops.map((o) => ({ ...o, payload: { ...o.payload } } as QueuedOperation))
@@ -538,7 +635,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     }
     // Offline: no timers at all. The `online` event (handleOnline) resumes the
     // drain, so an outage never spins a zero-delay retry loop.
-    if (disposed || !deps.isOnline()) return
+    if (disposed || purging || storageReadError || compatibleClientRequired || !deps.isOnline()) return
     const waiting = ops.filter((o) => o.state === 'pending')
     if (waiting.length === 0) return
     const next = Math.min(...waiting.map((o) => o.nextAttemptAt))
@@ -567,6 +664,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     payload: PayloadOf<A> | unknown
   ): Promise<Extract<QueuedOperation, { action: A }> & { durable: boolean }> {
     await ready
+    assertStorageReadable()
     if (compatibleClientRequired) throw new QueueError('COMPATIBLE_CLIENT_REQUIRED')
     if (!isQueueableAction(action)) throw new QueueError('NOT_QUEUEABLE')
     const spec = specOf(action)
@@ -668,6 +766,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     draining = (async () => {
       await ready
       try {
+        if (storageReadError || purging) return
         while (!disposed && !compatibleClientRequired && deps.isOnline()) {
           const now = deps.now()
           const aged = applyAgeRules(now)
@@ -675,12 +774,18 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
             increment('dropped', aged.dropped)
             await persist()
             emit({ type: 'change' })
+            if (storageReadError || purging) break
           }
           const op = nextDue(now)
           if (!op) break
           op.state = 'syncing'
           await persist()
           emit({ type: 'change' })
+          if (storageReadError || purging || disposed) {
+            if (!disposed && !purging && ops.includes(op)) op.state = 'pending'
+            emit({ type: 'change' })
+            break
+          }
           const spec = specOf(op.action)
           let outcome: Outcome
           let body: unknown = null
@@ -710,6 +815,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
 
   async function retry(id: string): Promise<void> {
     await ready
+    assertStorageReadable()
     const op = ops.find((o) => o.id === id)
     if (!op || (op.state !== 'failed' && op.state !== 'conflict')) return
     const now = deps.now()
@@ -738,6 +844,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
 
   async function discard(id: string): Promise<void> {
     await ready
+    assertStorageReadable()
     const before = ops.length
     ops = ops.filter((o) => o.id !== id || o.state === 'syncing')
     if (ops.length === before) return
@@ -747,20 +854,44 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
 
   /** Drop everything (logout, terminal auth). Pending operations are never replayed. */
   async function clear(): Promise<void> {
-    await ready
+    if (purgeInProgress) {
+      await purgeInProgress
+      return
+    }
+    purging = true
+    storageReadError = true
+    storageReadGeneration++
+    persistenceGeneration++
     ops = []
     resetDiagnostics()
     if (timer !== null) {
       deps.clearTimer(timer)
       timer = null
     }
+    const generation = persistenceGeneration
+    const run = (async () => {
+      const result = await enqueuePersistenceMutation(generation, () => deps.store.remove(), { force: true })
+      const cleared = result === 'success'
+      if (cleared) {
+        compatibleClientRequired = false
+        storageReadError = false
+        durable = true
+      } else if (!compatibleClientRequired) {
+        // Keep the queue blocked: a failed purge may have left saved work behind.
+        storageReadError = true
+        durable = false
+      }
+      emit({ type: 'change' })
+    })()
+    purgeInProgress = run
     try {
-      await deps.store.remove()
-      compatibleClientRequired = false
-    } catch {
-      // Nothing more to do; the store is gone or blocked.
+      await run
+    } finally {
+      if (purgeInProgress === run) {
+        purgeInProgress = null
+        purging = false
+      }
     }
-    emit({ type: 'change' })
   }
 
   /** Reconnect: operations waiting on backoff are tried now (attempt counts are kept). */
@@ -777,8 +908,11 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     loadReport: () => loadReport,
     /** Stored work remains untouched; reload with a compatible client to recover it. */
     requiresCompatibleClient: () => compatibleClientRequired,
+    /** True when the initial or explicit storage read failed; all queue mutations are paused. */
+    hasStorageReadError: () => storageReadError,
+    retryStorageRead,
     /** False while queued changes exist only in memory because storage refused the last write. */
-    isDurable: () => durable,
+    isDurable: () => durable && !storageReadError,
     list: snapshot,
     enqueue,
     drain,
@@ -791,17 +925,21 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
       return () => listeners.delete(listener)
     },
     /**
-     * Drop everything in memory and stop for good, WITHOUT touching storage
-     * (#274). For the shared-tablet purge: the purge has already deleted the
-     * stored queue, and an operation still in flight must not write it back.
+     * Drop everything in memory and stop for good (#274). The browser purge
+     * retires the queue first; the ordered compensating remove below ensures
+     * an older in-flight write cannot recreate the purged queue.
      */
     abandon() {
+      const generation = ++persistenceGeneration
       disposed = true
       resetDiagnostics()
       ops = []
       if (timer !== null) deps.clearTimer(timer)
       timer = null
       listeners.clear()
+      // A purge may have deleted storage while an older write was in flight.
+      // Queue an ordered remove behind it so the old bytes cannot resurrect.
+      void enqueuePersistenceMutation(generation, () => deps.store.remove(), { force: true })
     },
     dispose() {
       disposed = true
@@ -904,26 +1042,38 @@ export function indexedDbQueueStore(idb: IDBFactory, dbName: string, key: string
       await run('readwrite', (s) => s.put(value, key))
     },
     remove: async () => {
+      // A browser device purge deletes the database after retiring its queue.
+      // Do not reopen that database just to delete a key that is already gone.
+      if (!dbPromise) return
       await run('readwrite', (s) => s.delete(key))
     },
   }
 }
 
 export class QueueStorageError extends Error {
-  constructor() {
+  readonly cleanupFailed: boolean
+  constructor(options: { cleanupFailed?: boolean } = {}) {
     super('No storage accepted the offline queue')
     this.name = 'QueueStorageError'
+    this.cleanupFailed = options.cleanupFailed === true
   }
 }
 
+function isStorageCleanupError(error: unknown): error is QueueStorageError {
+  return error instanceof QueueStorageError && error.cleanupFailed
+}
+
+const preferredPersistenceLanes = new Map<string, object>()
+
 /**
- * IndexedDB when it works, localStorage otherwise. The first store that can be
- * read is used. If a later write to it fails (quota, eviction, a WebView
- * storage error), the next store is tried with the whole queue and becomes the
- * current one; the failed store is cleared on a best-effort basis so a later
- * load does not read a stale copy. When no store accepts a write, `write`
- * throws, so the queue reports that it is not durable. There is deliberately
- * no silent in-memory store here: the queue itself holds operations in memory.
+ * IndexedDB when it works, localStorage otherwise. Every candidate is probed
+ * before choosing an authority. Identical copies, or one known nonempty copy,
+ * can recover; divergent nonempty copies and an unreadable empty fallback fail
+ * closed so stale work is never selected arbitrarily. A successful write keeps
+ * one authoritative copy and must clear other copies before reporting success;
+ * `remove` always attempts every candidate and blocks the adapter if cleanup
+ * fails. There is deliberately no silent in-memory store here: the queue
+ * itself holds operations in memory.
  */
 export function preferredQueueStore(
   location: { dbName: string; key: string },
@@ -932,29 +1082,58 @@ export function preferredQueueStore(
   const candidates: QueueStore[] = []
   if (env.indexedDB) candidates.push(indexedDbQueueStore(env.indexedDB, location.dbName, location.key))
   if (env.localStorage) candidates.push(localStorageQueueStore(env.localStorage, location.key))
-  return fallbackQueueStore(candidates)
+  const laneKey = `${location.dbName}\u0000${location.key}`
+  let persistenceLane = preferredPersistenceLanes.get(laneKey)
+  if (!persistenceLane) {
+    persistenceLane = {}
+    preferredPersistenceLanes.set(laneKey, persistenceLane)
+  }
+  return fallbackQueueStore(candidates, persistenceLane)
 }
 
 /** The fallback chain behind `preferredQueueStore`, in preference order. */
-export function fallbackQueueStore(candidates: QueueStore[]): QueueStore {
+export function fallbackQueueStore(candidates: QueueStore[], persistenceLane?: object): QueueStore {
   let current = -1
-  let chosen: Promise<void> | null = null
+  let authorityBlocked = false
+  let choosing: Promise<string | null> | null = null
 
-  function choose(): Promise<void> {
-    if (!chosen) {
-      chosen = (async () => {
-        for (let i = 0; i < candidates.length; i++) {
+  function choose(): Promise<string | null> {
+    if (authorityBlocked) return Promise.reject(new QueueStorageError())
+    if (!choosing) {
+      choosing = (async () => {
+        const order = current >= 0 ? [current, ...candidates.map((_, i) => i).filter((i) => i !== current)] : candidates.map((_, i) => i)
+        const readable: Array<{ index: number; value: string | null }> = []
+        let readFailures = 0
+        for (const i of order) {
           try {
-            await candidates[i].read()
-            current = i
-            return
+            readable.push({ index: i, value: await candidates[i].read() })
           } catch {
-            // Blocked or unavailable (private mode, old WebView): try the next one.
+            // Blocked or unavailable (private mode, old WebView): keep probing every candidate.
+            readFailures++
           }
         }
-      })()
+        const nonempty = readable.filter(({ value }) => value !== null) as Array<{ index: number; value: string }>
+        const snapshots = new Set(nonempty.map(({ value }) => value))
+        if (snapshots.size > 1) {
+          // Do not choose a primary or fallback when both contain different work.
+          current = -1
+          throw new QueueStorageError()
+        }
+        if (nonempty.length === 0) {
+          if (readFailures > 0 || readable.length === 0) {
+            current = -1
+            throw new QueueStorageError()
+          }
+          current = readable[0].index
+          return null
+        }
+        current = nonempty[0].index
+        return nonempty[0].value
+      })().finally(() => {
+        choosing = null
+      })
     }
-    return chosen
+    return choosing
   }
 
   async function writeThrough(op: (store: QueueStore) => Promise<void>): Promise<void> {
@@ -963,26 +1142,60 @@ export function fallbackQueueStore(candidates: QueueStore[]): QueueStore {
     for (let i = current; i < candidates.length; i++) {
       try {
         await op(candidates[i])
-        if (i !== current) {
-          const failed = candidates[current]
-          current = i
-          await failed.remove().catch(() => {})
+        current = i
+        // Keep one authoritative copy after a successful write. Any stale or
+        // duplicate fallback must be removed before reporting durability. A
+        // failed cleanup leaves an unknown second authority, so pause instead
+        // of claiming the write is safely durable.
+        let cleanupFailed = false
+        for (let j = 0; j < candidates.length; j++) {
+          if (j !== i) {
+            try {
+              await candidates[j].remove()
+            } catch {
+              cleanupFailed = true
+            }
+          }
+        }
+        if (cleanupFailed) {
+          current = -1
+          authorityBlocked = true
+          throw new QueueStorageError({ cleanupFailed: true })
         }
         return
       } catch {
+        if (authorityBlocked) throw new QueueStorageError({ cleanupFailed: true })
         // This store refused the write: fall through to the next one.
       }
     }
     throw new QueueStorageError()
   }
 
+  async function removeAll(): Promise<void> {
+    if (choosing) await choosing.catch(() => {})
+    let failed = false
+    let removed = false
+    for (const candidate of candidates) {
+      try {
+        await candidate.remove()
+        removed = true
+      } catch {
+        failed = true
+      }
+    }
+    current = -1
+    if (failed || !removed) {
+      authorityBlocked = true
+      throw new QueueStorageError()
+    }
+    authorityBlocked = false
+  }
+
   return {
-    read: async () => {
-      await choose()
-      return current < 0 ? null : candidates[current].read()
-    },
+    read: () => choose(),
     write: (v) => writeThrough((store) => store.write(v)),
-    remove: () => writeThrough((store) => store.remove()),
+    remove: removeAll,
+    persistenceLane,
   }
 }
 

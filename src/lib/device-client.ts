@@ -571,6 +571,10 @@ export function createDeviceClient(deps: DeviceClientDeps) {
           purged = false
           generation++
           accessExpiresAt = null
+          // Re-pairing replaces the household behind this browser. Reuse the
+          // purge event so the cached device queue abandons the old queue
+          // before any new page-level client can replay it.
+          emit('purge')
           return { status: 'paired', device: body.device }
         }
         return { status: 'pending' }
