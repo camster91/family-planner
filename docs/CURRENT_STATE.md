@@ -1,5 +1,20 @@
 # Current State
 
+## Saved-change recovery candidate — 2026-10-14
+
+Verified main is `4082e7db80ce2a1b690ffd013094d29febfe85bf` (PR #555),
+served by deployment 432 after exact-main CI, browser, recovery and runtime
+checks. Both bounded profile-routine releases are recorded in the
+[canonical #480 progress](https://github.com/camster91/family-planner/issues/480#issuecomment-6176025002).
+Production profile and recurrence gates remain off; broader #480 is open.
+
+The next bounded #473/#480 candidate protects unread pending changes from
+being treated as an empty queue. Personal and shared-device surfaces offer a
+deliberate storage-read retry and retain entered grocery drafts. Local and
+hosted verification are in progress; this candidate is not a release claim.
+Account linking, production activation and native hardware acceptance remain
+separate work. Older entries below preserve their original checkpoints.
+
 ## Recurring email-free profile candidate — 2026-10-14
 
 Merged source parent is `dadcb015a9fd757727d09820e5ef6cfbcdf62f3d`

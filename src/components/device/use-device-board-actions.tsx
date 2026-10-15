@@ -306,6 +306,11 @@ export function useDeviceBoardActions({
             error.code === "COMPATIBLE_CLIENT_REQUIRED"
           )
             return { ok: false, message: t("groceries.compatibleClient") };
+          if (
+            error instanceof QueueError &&
+            error.code === "STORAGE_UNAVAILABLE"
+          )
+            return { ok: false, message: t("groceries.storageUnavailable") };
           if (error instanceof QueueError && error.code === "QUEUE_FULL") {
             return {
               ok: false,
