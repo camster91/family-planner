@@ -77,6 +77,6 @@ it("uses Spanish recovery copy and has no discard or clear-storage control", asy
   const f = fixture();
   render(<I18nProvider locale="es"><QueueStorageRecovery queue={f.queue} /></I18nProvider>);
   expect(await screen.findByRole("button", { name: "Intentar cargar los cambios guardados" })).toBeVisible();
-  expect(screen.getByRole("status")).toHaveTextContent("Los cambios nuevos están en pausa");
+  expect(screen.getByRole("status")).toHaveTextContent("Pausamos los cambios nuevos para protegerlos.");
   expect(screen.getAllByRole("button")).toHaveLength(1);
 });

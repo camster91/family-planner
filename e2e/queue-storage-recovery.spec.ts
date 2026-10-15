@@ -92,7 +92,7 @@ for (const locale of ["en", "es"] as const) {
       });
       expect(added.status).toBe(200);
       const itemId: string = JSON.parse(added.body).item.id;
-      const operationKey = `original-storage-${locale}-${info.project.name}`;
+      const operationKey = `original-storage-${itemId}`;
       const raw = JSON.stringify({
         v: 1,
         ops: [

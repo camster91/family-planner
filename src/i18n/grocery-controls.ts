@@ -3,7 +3,7 @@
  * These keys describe display state, not persisted operation or API codes. */
 export const groceryEnglish = {
   storageUnavailable:
-    "We couldn’t load saved changes on this device. New changes are paused to protect them.",
+    "We couldn’t load saved changes. New changes are paused to protect them.",
   storageRetry: "Try loading saved changes",
   storageRetrying: "Loading saved changes…",
   compatibleClient:
@@ -145,7 +145,7 @@ export const groceryEnglish = {
 export type GroceryMessage = keyof typeof groceryEnglish;
 export const grocerySpanish: Record<GroceryMessage, string> = {
   storageUnavailable:
-    "No pudimos cargar los cambios guardados en este dispositivo. Los cambios nuevos están en pausa para protegerlos.",
+    "No pudimos cargar los cambios guardados. Pausamos los cambios nuevos para protegerlos.",
   storageRetry: "Intentar cargar los cambios guardados",
   storageRetrying: "Cargando los cambios guardados…",
   compatibleClient:
