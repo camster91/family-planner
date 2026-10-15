@@ -4,9 +4,14 @@ import * as React from "react";
 import { useTranslation } from "@/i18n";
 import type { GroceryMessage } from "@/i18n/grocery-controls";
 import { Dialog } from "@/components/ui/dialog";
+import { QueueStorageRecovery } from "@/components/ui/queue-storage-recovery";
 import type { DeviceClient } from "@/lib/device-client";
 import { getDeviceQueue } from "@/lib/offline-queue-browser";
-import { QueueError, type AddGroceryOperation } from "@/lib/offline-queue";
+import {
+  QueueError,
+  type AddGroceryOperation,
+  type OfflineQueue,
+} from "@/lib/offline-queue";
 import {
   errorTextClass,
   inputClass,
@@ -37,27 +42,31 @@ export function DeviceGroceryAdd({
   const [error, setError] = React.useState<GroceryMessage | null>(null);
   const [notice, setNotice] = React.useState<GroceryMessage | null>(null);
   const [ops, setOps] = React.useState<AddGroceryOperation[]>([]);
+  const [queue, setQueue] = React.useState<OfflineQueue | null>(null);
   const [durable, setDurable] = React.useState(true);
   const [online, setOnline] = React.useState(true);
   const input = React.useRef<HTMLInputElement>(null);
   const generation = React.useRef(0);
   const sending = React.useRef(false);
+  const preserveDraftOnClose = React.useRef(false);
   const afterRef = React.useRef(afterChange);
   afterRef.current = afterChange;
 
   const close = React.useCallback(() => {
     generation.current++;
     setOpen(false);
-    setContent("");
+    if (!preserveDraftOnClose.current) setContent("");
     setError(null);
   }, []);
 
   React.useEffect(() => {
     const queue = getDeviceQueue(client);
+    setQueue(queue);
     let active = true;
     const refreshedMissingLists = new Set<string>();
     const update = () => {
       if (!active) return;
+      if (!queue.hasStorageReadError()) preserveDraftOnClose.current = false;
       if (queue.requiresCompatibleClient()) setNotice("compatibleClient");
       setOps(
         queue
@@ -91,6 +100,7 @@ export function DeviceGroceryAdd({
         setNotice("deviceConfirmed");
       }
       if (event.type === "auth-lost" && active) {
+        preserveDraftOnClose.current = false;
         close();
         setNotice(null);
       }
@@ -100,6 +110,7 @@ export function DeviceGroceryAdd({
     return () => {
       active = false;
       unsubscribe();
+      setQueue(null);
     };
   }, [client, close]);
 
@@ -163,14 +174,24 @@ export function DeviceGroceryAdd({
       }
     } catch (failure) {
       if (generation.current !== current) return;
-      setError(
-        failure instanceof QueueError && failure.code === "QUEUE_FULL"
-          ? "deviceFull"
-          : failure instanceof QueueError &&
-              failure.code === "COMPATIBLE_CLIENT_REQUIRED"
-            ? "compatibleClient"
-            : "deviceQueueFailed",
-      );
+      if (
+        failure instanceof QueueError &&
+        failure.code === "STORAGE_UNAVAILABLE"
+      ) {
+        // Keep recovery available inside the modal and retain the draft if the
+        // user closes it before the deliberate storage retry succeeds.
+        preserveDraftOnClose.current = true;
+        setError(null);
+      } else {
+        setError(
+          failure instanceof QueueError && failure.code === "QUEUE_FULL"
+            ? "deviceFull"
+            : failure instanceof QueueError &&
+                failure.code === "COMPATIBLE_CLIENT_REQUIRED"
+              ? "compatibleClient"
+              : "deviceQueueFailed",
+        );
+      }
     } finally {
       sending.current = false;
       setBusy(false);
@@ -190,8 +211,11 @@ export function DeviceGroceryAdd({
     }
   };
 
+  const storageRecovery = <QueueStorageRecovery queue={queue} />;
+
   return (
     <>
+      {!open && storageRecovery}
       <button
         type="button"
         disabled={busy}
@@ -199,7 +223,7 @@ export function DeviceGroceryAdd({
         onClick={async () => {
           setNotice(null);
           setListId(lists.length === 1 ? lists[0].id : "");
-          setContent("");
+          if (!preserveDraftOnClose.current) setContent("");
           setError(null);
           const current = generation.current;
           if (
@@ -277,6 +301,7 @@ export function DeviceGroceryAdd({
         initialFocusRef={input}
         testId="device-grocery-add"
       >
+        {open && storageRecovery}
         {!lists.length ? (
           <p>{t("groceries.deviceNoLists")}</p>
         ) : (

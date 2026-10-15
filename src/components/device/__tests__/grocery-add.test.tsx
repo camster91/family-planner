@@ -51,6 +51,7 @@ function setup(
     lists?: typeof lists;
     prepare?: jest.Mock;
     blockedStore?: boolean;
+    readError?: boolean;
     initial?: string | null;
   } = {},
 ) {
@@ -59,11 +60,15 @@ function setup(
     jest.fn().mockResolvedValue({ item: { id: "new-item" } });
   const client = { request } as unknown as DeviceClient;
   saved = options.initial ?? null;
+  let readError = options.readError ?? false;
   let key = 0;
   mockQueue = createOfflineQueue({
     namespace: "device",
     store: {
-      read: async () => saved,
+      read: async () => {
+        if (readError) throw new Error("storage read unavailable");
+        return saved;
+      },
       write: async (v) => {
         if (options.blockedStore) throw Error("quota");
         saved = v;
@@ -90,7 +95,16 @@ function setup(
     afterChange,
   };
   const view = render(<DeviceGroceryAdd {...props} />);
-  return { ...view, props, request, prepare, afterChange };
+  return {
+    ...view,
+    props,
+    request,
+    prepare,
+    afterChange,
+    setReadError: (value: boolean) => {
+      readError = value;
+    },
+  };
 }
 async function open() {
   fireEvent.click(screen.getByRole("button", { name: "Add grocery" }));
@@ -266,6 +280,53 @@ it("warns when storage fails and does not label the add as saved remotely", asyn
   );
   expect(screen.queryByText("Item added to the grocery list.")).toBeNull();
 });
+it("retains a new draft when storage cannot be read, then recovers only after an explicit retry", async () => {
+  const { request, setReadError } = setup({ readError: true });
+  await screen.findByRole("button", { name: "Try loading saved changes" });
+  await add("Keep this draft");
+  const dialog = screen.getByTestId("device-grocery-add");
+  expect(
+    within(dialog).getByTestId("queue-storage-recovery"),
+  ).toBeInTheDocument();
+  expect(screen.getAllByTestId("queue-storage-recovery")).toHaveLength(1);
+  expect(screen.getByRole("textbox", { name: "Item" })).toHaveValue(
+    "Keep this draft",
+  );
+  expect(screen.getByText(/couldn’t load saved changes/i)).toBeInTheDocument();
+  expect(request).not.toHaveBeenCalled();
+  expect(saved).toBeNull();
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Add item" })).toBeEnabled(),
+  );
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("textbox", { name: "Item" })).toBeNull();
+  expect(
+    await screen.findByTestId("queue-storage-recovery"),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Add grocery" }));
+  expect(await screen.findByRole("textbox", { name: "Item" })).toHaveValue(
+    "Keep this draft",
+  );
+  expect(
+    within(screen.getByTestId("device-grocery-add")).getByTestId(
+      "queue-storage-recovery",
+    ),
+  ).toBeInTheDocument();
+
+  setReadError(false);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Try loading saved changes" }),
+  );
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("button", { name: "Try loading saved changes" }),
+    ).toBeNull(),
+  );
+  expect(screen.getByRole("textbox", { name: "Item" })).toHaveValue(
+    "Keep this draft",
+  );
+});
 it("does not offer to retry an expired create with a renewed key or timestamp", async () => {
   const { request } = setup();
   connection(false);
@@ -342,14 +403,30 @@ it("changes language without clearing a device draft, reattributing a queued add
 });
 
 it("keeps unfamiliar shared work and refuses a new add without losing its draft", async () => {
-  const original = JSON.stringify({ v: 2, ops: [{ id: "original-key-123456", action: "device.list-item.add", v: 2, payload: { content: "PRIVATE UNKNOWN TEXT" } }] });
+  const original = JSON.stringify({
+    v: 2,
+    ops: [
+      {
+        id: "original-key-123456",
+        action: "device.list-item.add",
+        v: 2,
+        payload: { content: "PRIVATE UNKNOWN TEXT" },
+      },
+    ],
+  });
   const { request } = setup({ initial: original });
   await screen.findByText(/Pending changes need a compatible app version/);
   expect(screen.queryByText("PRIVATE UNKNOWN TEXT")).not.toBeInTheDocument();
   await add("Keep this shared draft");
-  expect(screen.getByRole("textbox", { name: "Item" })).toHaveValue("Keep this shared draft");
+  expect(screen.getByRole("textbox", { name: "Item" })).toHaveValue(
+    "Keep this shared draft",
+  );
   expect(saved).toBe(original);
   expect(request).not.toHaveBeenCalled();
   await act(async () => changeLocale("es"));
-  expect(screen.getAllByText(/Los cambios pendientes necesitan una versión compatible/).length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText(
+      /Los cambios pendientes necesitan una versión compatible/,
+    ).length,
+  ).toBeGreaterThan(0);
 });

@@ -43,6 +43,8 @@ function fakeQueue() {
       listeners.add(l);
       return () => listeners.delete(l);
     },
+    hasStorageReadError: () => false,
+    retryStorageRead: jest.fn(async () => undefined),
     fail(id: string) {
       ops.find((o) => o.id === id)!.state = "conflict";
       for (const l of Array.from(listeners)) l({ type: "change" });
@@ -287,6 +289,17 @@ describe("person board (#274)", () => {
       screen.getByText(/Pending changes need a compatible app version/),
     ).toBeInTheDocument();
     expect(within(groceries()).getByText("Milk")).toBeInTheDocument();
+    expect(personQueue.list()).toEqual([]);
+  });
+  it("keeps a grocery tick visible when queue storage cannot be read", async () => {
+    personQueue.enqueue.mockRejectedValue(new QueueError("STORAGE_UNAVAILABLE"));
+    await renderBoard({ viewer: { id: "p", role: "parent" } });
+    fireEvent.click(
+      within(groceries()).getByRole("button", { name: /Tick off Milk/ }),
+    );
+    await settle();
+    expect(within(groceries()).getByText("Milk")).toBeInTheDocument();
+    expect(screen.getByText(/couldn’t load saved changes/i)).toBeInTheDocument();
     expect(personQueue.list()).toEqual([]);
   });
   it("a child can tick only their own chore; a parent any chore", async () => {
@@ -569,9 +582,11 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
   async function renderDevice(enabled = true) {
     const fc = fakeClient();
     render(
-      <ToastProvider>
-        <DeviceBoard client={fc.client} enabled={enabled} />
-      </ToastProvider>,
+      <I18nProvider locale="en">
+        <ToastProvider>
+          <DeviceBoard client={fc.client} enabled={enabled} />
+        </ToastProvider>
+      </I18nProvider>,
     );
     await settle();
     return fc;
@@ -634,6 +649,24 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
         actingMemberId: "c",
       },
     );
+  });
+
+  it("keeps a grocery tick visible when tablet queue storage cannot be read", async () => {
+    deviceQueue.enqueue.mockRejectedValue(new QueueError("STORAGE_UNAVAILABLE"));
+    await renderDevice();
+    fireEvent.click(
+      within(groceries()).getByRole("button", { name: "Tick off Bread" }),
+    );
+    await settle();
+    fireEvent.click(
+      within(screen.getByTestId("who-is-this")).getByRole("button", {
+        name: "Casey Child",
+      }),
+    );
+    await settle();
+    expect(within(groceries()).getByText("Bread")).toBeInTheDocument();
+    expect(screen.getByText(/couldn’t load saved changes/i)).toBeInTheDocument();
+    expect(deviceQueue.list()).toEqual([]);
   });
 
   it('closing "Who\'s this?" cancels the tap with nothing changed', async () => {
