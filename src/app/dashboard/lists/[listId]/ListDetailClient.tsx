@@ -762,7 +762,6 @@ export function SyncBanner({
   const { t } = useTranslation()
   const noticeText: Record<Exclude<SyncNotice, null>, string> = {
     'compatible-client': t('groceries.compatibleClient'),
-    'storage-unavailable': t('groceries.storageUnavailable'),
     'queue-full': 'Too many changes are waiting to sync. Reconnect, then try again.',
     'signed-out': 'You were signed out, so changes made offline were not saved.',
     dropped: 'Some changes saved on this device could not be kept.',
@@ -787,7 +786,7 @@ export function SyncBanner({
           </p>
         </div>
       )}
-      {notice && !(storageBlocked && notice === 'storage-unavailable') && (
+      {notice && (
         <div className="card-apple flex items-start justify-between gap-3 p-4">
           <p className="text-subhead text-label-primary">{noticeText[notice]}</p>
           <button type="button" onClick={onDismiss} className="min-h-[44px] px-3 text-subhead text-[var(--accent)]">

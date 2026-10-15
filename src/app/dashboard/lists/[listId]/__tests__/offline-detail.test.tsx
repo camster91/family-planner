@@ -30,7 +30,7 @@ describe('list offline detail', () => {
   })
 
   it('does not promise ticking or saved changes while storage cannot be read', () => {
-    render(<SyncBanner storageBlocked online={false} durable={false} pendingCount={3} notice="storage-unavailable" onDismiss={noop} />)
+    render(<SyncBanner storageBlocked online={false} durable={false} pendingCount={3} notice={null} onDismiss={noop} />)
     expect(screen.queryByTestId('list-offline-detail')).toBeNull()
     expect(screen.queryByTestId('not-durable-banner')).toBeNull()
   })

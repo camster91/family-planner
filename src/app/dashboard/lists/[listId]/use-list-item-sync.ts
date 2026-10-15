@@ -4,7 +4,7 @@ import * as React from 'react'
 import { getPersonQueue } from '@/lib/offline-queue-browser'
 import { QueueError, isCheckedOperation, type OfflineQueue, type CheckedQueuedOperation } from '@/lib/offline-queue'
 
-export type SyncNotice = 'queue-full' | 'signed-out' | 'dropped' | 'compatible-client' | 'storage-unavailable' | null
+export type SyncNotice = 'queue-full' | 'signed-out' | 'dropped' | 'compatible-client' | null
 
 /**
  * Offline tick/untick for list items (#162). Wraps the signed-in person's
@@ -39,9 +39,8 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
       setDurable(queue.isDurable())
       setStorageBlocked(queue.hasStorageReadError())
       setNotice(previous => previous === 'signed-out' ? previous
-        : queue.hasStorageReadError() ? 'storage-unavailable'
         : queue.requiresCompatibleClient() ? 'compatible-client'
-        : previous === 'storage-unavailable' || previous === 'compatible-client' ? null : previous)
+        : previous === 'compatible-client' ? null : previous)
     })
     void queue.ready.then(() => {
       if (!active) return
@@ -50,9 +49,8 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
       setDurable(queue.isDurable())
       setStorageBlocked(queue.hasStorageReadError())
       setNotice(previous => previous === 'signed-out' ? previous
-        : queue.hasStorageReadError() ? 'storage-unavailable'
         : queue.requiresCompatibleClient() ? 'compatible-client'
-        : previous === 'storage-unavailable' || previous === 'compatible-client' ? null : previous)
+        : previous === 'compatible-client' ? null : previous)
       if (!queue.hasStorageReadError() && !queue.requiresCompatibleClient() && queue.loadReport().dropped > 0)
         setNotice(previous => previous === 'signed-out' ? previous : 'dropped')
     })
@@ -82,7 +80,7 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
       await queue.enqueue('list-item.set-checked', { itemId, checked })
     } catch (error) {
       if (error instanceof QueueError && error.code === 'QUEUE_FULL') setNotice('queue-full')
-      else if (error instanceof QueueError && error.code === 'STORAGE_UNAVAILABLE') setNotice('storage-unavailable')
+      else if (error instanceof QueueError && error.code === 'STORAGE_UNAVAILABLE') return // Persistent recovery owns this blocking state.
       else if (error instanceof QueueError && error.code === 'COMPATIBLE_CLIENT_REQUIRED') setNotice('compatible-client')
       else throw error
     }

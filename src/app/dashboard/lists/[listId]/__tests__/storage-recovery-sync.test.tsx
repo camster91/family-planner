@@ -18,7 +18,8 @@ it('changes from unread storage to compatible-client recovery without sending or
   })
   jest.mocked(getPersonQueue).mockReturnValue(queue)
   const { result, unmount } = renderHook(() => useListItemSync('parent-a', jest.fn()))
-  await waitFor(() => expect(result.current.notice).toBe('storage-unavailable'))
+  await waitFor(() => expect(result.current.storageBlocked).toBe(true))
+  expect(result.current.notice).toBeNull()
   expect(result.current.storageBlocked).toBe(true)
   blocked = false
   await act(async () => { await queue.retryStorageRead() })

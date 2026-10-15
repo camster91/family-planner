@@ -252,7 +252,7 @@ for (const locale of ["en", "es"] as const) {
       deviceId = await pairViaApi(
         parent.page,
         tablet,
-        `Storage recovery ${locale} ${testInfo.project.name}`,
+        `Queue ${locale} ${testInfo.project.name}`,
       );
       const raw = JSON.stringify({
         v: 1,
