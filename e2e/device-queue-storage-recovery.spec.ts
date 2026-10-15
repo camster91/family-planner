@@ -41,6 +41,7 @@ async function openParent(
   });
   const page = await context.newPage();
   await page.clock.install({ time: E2E_ANCHOR });
+  await page.goto("/dashboard/settings/devices");
   return { context, page };
 }
 
@@ -144,56 +145,63 @@ for (const locale of ["en", "es"] as const) {
     let originalDeviceWrites: boolean | undefined;
     const sentKeys: string[] = [];
 
-    await tablet.addInitScript((queueKey) => {
-      let blocked = true;
-      const indexedGet = IDBObjectStore.prototype.get;
-      const localGet = Storage.prototype.getItem;
-      IDBObjectStore.prototype.get = function (target) {
-        if (blocked && target === queueKey)
-          throw new DOMException(
-            "QA device queue read unavailable",
-            "UnknownError",
-          );
-        return indexedGet.call(this, target);
-      };
-      Storage.prototype.getItem = function (target) {
-        if (blocked && target === queueKey)
-          throw new DOMException(
-            "QA device queue read unavailable",
-            "SecurityError",
-          );
-        return localGet.call(this, target);
-      };
-      (window as unknown as RecoveryWindow).__deviceQueueReadRecovery = {
-        unblock() {
-          blocked = false;
-        },
-        async read() {
-          const db = await new Promise<IDBDatabase>((resolve, reject) => {
-            const request = indexedDB.open("fp-device", 1);
-            request.onupgradeneeded = () => {
-              if (!request.result.objectStoreNames.contains("kv"))
-                request.result.createObjectStore("kv");
-            };
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-          });
-          try {
-            const indexed = await new Promise<string | null>(
-              (resolve, reject) => {
-                const tx = db.transaction("kv", "readonly");
-                const request = indexedGet.call(tx.objectStore("kv"), queueKey);
-                request.onsuccess = () => resolve(request.result ?? null);
-                request.onerror = () => reject(request.error);
-              },
+    await tablet.addInitScript(
+      ({ queueKey, locale }) => {
+        localStorage.setItem("familyPlanner_language", locale);
+        let blocked = true;
+        const indexedGet = IDBObjectStore.prototype.get;
+        const localGet = Storage.prototype.getItem;
+        IDBObjectStore.prototype.get = function (target) {
+          if (blocked && target === queueKey)
+            throw new DOMException(
+              "QA device queue read unavailable",
+              "UnknownError",
             );
-            return { indexed, local: localGet.call(localStorage, queueKey) };
-          } finally {
-            db.close();
-          }
-        },
-      };
-    }, DEVICE_QUEUE_KEY);
+          return indexedGet.call(this, target);
+        };
+        Storage.prototype.getItem = function (target) {
+          if (blocked && target === queueKey)
+            throw new DOMException(
+              "QA device queue read unavailable",
+              "SecurityError",
+            );
+          return localGet.call(this, target);
+        };
+        (window as unknown as RecoveryWindow).__deviceQueueReadRecovery = {
+          unblock() {
+            blocked = false;
+          },
+          async read() {
+            const db = await new Promise<IDBDatabase>((resolve, reject) => {
+              const request = indexedDB.open("fp-device", 1);
+              request.onupgradeneeded = () => {
+                if (!request.result.objectStoreNames.contains("kv"))
+                  request.result.createObjectStore("kv");
+              };
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
+            });
+            try {
+              const indexed = await new Promise<string | null>(
+                (resolve, reject) => {
+                  const tx = db.transaction("kv", "readonly");
+                  const request = indexedGet.call(
+                    tx.objectStore("kv"),
+                    queueKey,
+                  );
+                  request.onsuccess = () => resolve(request.result ?? null);
+                  request.onerror = () => reject(request.error);
+                },
+              );
+              return { indexed, local: localGet.call(localStorage, queueKey) };
+            } finally {
+              db.close();
+            }
+          },
+        };
+      },
+      { queueKey: DEVICE_QUEUE_KEY, locale },
+    );
 
     tablet.on("request", (request) => {
       if (
