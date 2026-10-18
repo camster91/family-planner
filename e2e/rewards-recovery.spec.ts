@@ -743,8 +743,9 @@ for (const locale of ["en", "es"] as const) {
           .locator('[data-testid="family-reward"]')
           .filter({ hasText: name });
         if (locale === "es") {
-          await expect(row).toContainText(/\b1 punto\b/);
-          await expect(row).not.toContainText(/\b1 puntos\b/);
+          const pointDetails = row.locator("p").filter({ hasText: /^1 / });
+          await expect(pointDetails).toContainText(/^1 punto\b/);
+          await expect(pointDetails).not.toContainText(/^1 puntos\b/);
         }
         await row.getByRole("button", { name: new RegExp(name) }).click();
         await expect(
