@@ -220,6 +220,26 @@ it('keeps the confirmed saved row and marks stale totals until a GET catches up'
   expect(screen.getByRole('button', { name: 'Retry budget refresh' })).toBeTruthy()
 })
 
+it('keeps a confirmed save notice when stats returns 503 and retries only GET', async () => {
+  fetchMock = jest
+    .fn()
+    .mockResolvedValueOnce({ ok: false, status: 503 })
+    .mockResolvedValueOnce({ ok: true, status: 200, json: async () => pageData({ recent_transactions: [MOCK_SAVED_TRANSACTION] }) })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={pageData({ recent_transactions: [] })} userId="u1" />)
+  await user.click(screen.getAllByRole('button', { name: 'Add expense' })[0]!)
+  await user.click(screen.getByTestId('mock-transaction-success'))
+
+  expect(await screen.findByText('Confirmed saved row')).toBeTruthy()
+  expect((await screen.findByRole('alert')).textContent).toContain('Transaction saved')
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  await user.click(screen.getByRole('button', { name: 'Retry budget refresh' }))
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+  expect(fetchMock.mock.calls.map(([, init]) => init?.method ?? 'GET')).toEqual(['GET', 'GET'])
+})
+
 it('keeps a confirmed deletion out of stale stats rows and marks the summary', async () => {
   fetchMock = jest.fn().mockResolvedValueOnce({
     ok: true,
@@ -236,6 +256,26 @@ it('keeps a confirmed deletion out of stale stats rows and marks the summary', a
   expect(screen.queryByText('Still here')).toBeNull()
   expect((await screen.findByRole('alert')).textContent).toContain('Transaction deleted')
   expect(screen.getByRole('button', { name: 'Retry budget refresh' })).toBeTruthy()
+})
+
+it('keeps a confirmed deletion notice when stats returns 503 and retries only GET', async () => {
+  fetchMock = jest
+    .fn()
+    .mockResolvedValueOnce({ ok: false, status: 503 })
+    .mockResolvedValueOnce({ ok: true, status: 200, json: async () => pageData({ recent_transactions: [] }) })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={pageData({ recent_transactions: [transaction()] })} userId="u1" />)
+  await user.click(screen.getByRole('button', { name: /Still here/ }))
+  await user.click(screen.getByTestId('mock-transaction-delete'))
+
+  expect(screen.queryByText('Still here')).toBeNull()
+  expect((await screen.findByRole('alert')).textContent).toContain('Transaction deleted')
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  await user.click(screen.getByRole('button', { name: 'Retry budget refresh' }))
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+  expect(fetchMock.mock.calls.map(([, init]) => init?.method ?? 'GET')).toEqual(['GET', 'GET'])
 })
 
 it('allows only one budget refresh while the current request is pending', async () => {

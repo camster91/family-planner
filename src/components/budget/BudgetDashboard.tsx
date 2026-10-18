@@ -345,6 +345,7 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
       const res = await fetch(`/api/budget/stats?month=${localYearMonth()}`)
       if (!res.ok) {
         setRefreshError('server')
+        setMutationRefreshNotice(pendingMutationKind(confirmedMutations.current))
         return
       }
       const json = await res.json().catch(() => undefined)
