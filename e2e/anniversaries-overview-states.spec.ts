@@ -239,7 +239,7 @@ for (const locale of ["en", "es"] as const) {
                 add: "Agregar fecha",
                 error: "No se pudieron cargar las fechas",
                 retry: "Intentar de nuevo",
-                empty: "No hay fechas todavía",
+                empty: "Aún no hay fechas",
                 edit: "Editar",
                 save: "Guardar",
                 delete: "Eliminar",

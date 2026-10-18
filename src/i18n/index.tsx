@@ -815,7 +815,7 @@ const messages = {
       tomorrow: 'Mañana',
       daysAway: ' días restantes',
       empty: 'Aún no hay fechas',
-      emptySubtitle: 'Agrega cumpleanos y aniversarios para que la familia no se pierda ningún momento',
+      emptySubtitle: 'Agrega cumpleaños y aniversarios para que la familia no se pierda ningún momento',
       loading: 'Cargando fechas...',
       errorLoad: 'No se pudieron cargar las fechas',
     },

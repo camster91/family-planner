@@ -118,6 +118,8 @@ Page: `/dashboard/allowance` is on the kid allowlist; for kids it hides Add / Ma
 | Pickups | R / C / U (complete) | yes | yes | yes | no (O-11) | |
 | Pickups | D | yes | no | no | no | |
 
+Page: `/dashboard/anniversaries` follows D9 for person sessions: all members may read/create, teens and children edit only their own rows, and deletion remains parent-only. Shared devices are refused before person authentication. The shared route allowlist, metadata-driven controls and direct API checks enforce the same policy.
+
 Page: `/dashboard/lists` (and its sub-pages) is on the kid allowlist and in the kid nav. Create-list links are
 hidden for a child; delete-list and swipe-to-delete-item are hidden for teens and children.
 

@@ -6,7 +6,10 @@ Anniversaries handlers and additive server-computed edit/delete permissions unde
 the existing role policy. Its overview uses mixed chronological annual dates,
 a quieter later-date disclosure, localized calendar labels, one Add action,
 short accessible forms and read-only details. Initial affected API/page/date/
-dialog checks and independent source review pass. Fresh optimized build,
+dialog checks and independent source review pass. Rendered role testing exposed
+a stale route allowlist that redirected teens/children despite canonical D9
+authority; the bounded repair adds only the Dates person route and retains all
+Settings/device/finance refusals. Fresh optimized build,
 real-role/synthetic-state six-size browser proof and hosted/release gates remain
 pending. The existing ambiguous-write and stale-refresh recovery audit is still
 open; reminder scheduling, profile/provider/native activation is not introduced.

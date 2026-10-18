@@ -17,7 +17,7 @@ export const anniversariesEnglish = {
   annual:
     "These dates repeat every year. You can update them whenever plans change.",
   householdVisibility:
-    "Shared with household members. Account and shared-device permissions still apply.",
+    "Everyone in your household can see these dates. Only parents can remove them.",
   namePlaceholder: "e.g. Emma Johnson",
   optionalDetails: "Optional details",
   close: "Close date details",
@@ -43,7 +43,7 @@ export const anniversariesSpanish: Record<AnniversariesMessage, string> = {
   annual:
     "Estas fechas se repiten cada año. Puedes actualizarlas cuando cambien los planes.",
   householdVisibility:
-    "Se comparten con los miembros del hogar. Se aplican los permisos de cuenta y dispositivo compartido.",
+    "Todos los miembros del hogar pueden ver estas fechas. Solo los padres pueden quitarlas.",
   namePlaceholder: "p. ej., Emma Johnson",
   optionalDetails: "Detalles opcionales",
   close: "Cerrar detalles de la fecha",
