@@ -541,6 +541,14 @@ for (const locale of ["en", "es"] as const) {
               .user as { xp: number }
           ).xp,
         ).toBe((childXp as number) - 1);
+        await expect(
+          child.page.getByText(
+            locale === "es"
+              ? rewardsSpanish.recoveryTitle
+              : rewardsEnglish.recoveryTitle,
+            { exact: true },
+          ),
+        ).toHaveCount(0);
         await captureState(
           child.page,
           info,

@@ -243,7 +243,7 @@ export default function KidHome({
   const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const celebrationRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const { addToast } = useToast();
+  const { addToast, removeToast } = useToast();
   const showUndo = useUndoToast();
   // A short page can end (the Rewards card) right where the Undo card sits:
   // while one shows, reserve its height below the content and lift the end
@@ -437,6 +437,9 @@ export default function KidHome({
     return { rewardId: reward.id, xp: data.xp };
   };
 
+  const rewardClaimNoticeId = (rewardId: string) =>
+    `kid-reward-claim:${user.id ?? ""}:${rewardId}`;
+
   async function handleClaimReward(rewardId: string) {
     if (claimingReward) return;
     setClaimingReward(true);
@@ -454,12 +457,14 @@ export default function KidHome({
         const data = parseClaimResult(await res.json().catch(() => null), rewardId);
         if (!data) {
           addToast({
+            id: rewardClaimNoticeId(rewardId),
             type: "error",
             title: rewardsText("recoveryTitle"),
             message: rewardsText("recoveryDescription"),
           });
           return;
         }
+        removeToast(rewardClaimNoticeId(rewardId));
         rewardClaimKeys.current.delete(rewardId);
         setXpAfterClaim({ from: user.xp, xp: data.xp });
         setCelebratingReward(rewardId);
@@ -471,6 +476,7 @@ export default function KidHome({
       } else {
         await res.json().catch(() => null);
         addToast({
+          id: rewardClaimNoticeId(rewardId),
           type: "error",
           title: rewardsText("claimErrorTitle"),
           message: rewardsText("claimErrorDescription"),
@@ -479,6 +485,7 @@ export default function KidHome({
     } catch {
       // Offline or the request failed: say so instead of an unhandled rejection.
       addToast({
+        id: rewardClaimNoticeId(rewardId),
         type: "error",
         title: rewardsText("connectionErrorTitle"),
         message: rewardsText("connectionErrorDescription"),

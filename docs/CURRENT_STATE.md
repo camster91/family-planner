@@ -1,16 +1,23 @@
 # Current State
 
-## Subsequent child home localization candidate — 2026-10-18
+## Child home localization and resolved-notice follow-up — 2026-10-18
 
-This isolated candidate normally combines reviewed child UI19ed11cb and
-browser QA18ba9828 over parent4381659b (draft PR581). It localizes child home
-and routines product copy, dates, errors, Undo and screen-reader labels while
-keeping household text and permissions unchanged. Author checks pass62 focused
-cases/types/lint, the exact stale copy inventory is reduced, and source review
-is clear. A24-case EN/ES/six-size browser suite is prepared but has not run.
-Integrated baseline/build/rendered review and parent acceptance remain required.
-This is not included in the current PR581 head or a production release.
+PR581 now incorporates reviewed child UI19ed11cb and browser QA18ba9828 over
+4381659b. Product dates, missions, routine states, errors, Undo and screen-reader
+labels use typed EN/ES copy; household text and permissions remain unchanged.
+The prior438 exact build and six-size Rewards/Budget matrix pass140 cases,
+25 declared desktop scopes and all36 unchanged startup budgets, with180 unique
+PNG captures. Independent visual review found a stale claim error toast after
+successful retry. That source is retained as a conditional checkpoint.
 
+The follow-up gives an action notice a stable caller-owned identity, replaces
+only repeated notices for that action, and dismisses the reward notice after a
+validated successful claim. Existing toast callers and Undo behavior retain
+unchanged defaults. EN/ES mounted tests verify the notice clears and the same
+idempotency key is retained; a separate test verifies other alerts survive.
+All92 affected child/routine/toast/copy-guard cases pass. Fresh combined baseline,
+exact build, expanded rendered matrix and original hosted gates remain required;
+the24 new child cases are prepared but not yet run. Projects is separate work.
 
 ## Combined Rewards/Budget rebuild checkpoint — 2026-10-18
 

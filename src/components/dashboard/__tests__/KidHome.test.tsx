@@ -470,6 +470,31 @@ describe("KidHome reward claim", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it.each(["en", "es"] as const)("clears the reward recovery notice after a confirmed %s retry", async (locale) => {
+    replies["/api/rewards/claim"] = [
+      { status: 200, body: { reward: { id: "r1" }, xp: 30 } },
+      { status: 200, body: claimedReward("r1", 30) },
+    ];
+    renderHome([], {
+      user: { name: "Casey", role: "child", xp: 80, level: 1 },
+      rewards: [{ id: "r1", name: "Movie night", cost: 50, status: "available" }],
+    }, locale);
+    const claim = locale === "es" ? "Reclamar" : "Claim";
+    const recovery = locale === "es"
+      ? "La conexión se interrumpió antes de confirmar."
+      : "The connection dropped before we could confirm.";
+    await userEvent.click(screen.getByRole("button", { name: claim }));
+    expect(await screen.findByText(recovery)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: claim }));
+    expect(await screen.findByText(locale === "es" ? "¡Lo lograste!" : "You got it!")).toBeTruthy();
+    expect(screen.queryByText(recovery)).toBeNull();
+    const keys = requestInits.filter((_init, i) => calls[i] === "/api/rewards/claim")
+      .map((init) => (init.headers as Record<string, string>)["Idempotency-Key"]);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[1]).toBe(keys[0]);
+  });
+
   it("offers an affordable reward before one the XP cannot cover", async () => {
     replies["/api/rewards/claim"] = [
       { status: 200, body: claimedReward("r2", 10) },
