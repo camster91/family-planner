@@ -1186,22 +1186,12 @@
   },
   {
     "file": "src/app/dashboard/lists/[listId]/page.tsx",
-    "text": "Back",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/page.tsx",
     "text": "list image",
     "count": 1
   },
   {
     "file": "src/app/dashboard/lists/[listId]/page.tsx",
     "text": "List not found",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/page.tsx",
-    "text": "Lists",
     "count": 1
   },
   {
