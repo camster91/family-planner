@@ -13,7 +13,7 @@ import type { BudgetPageData } from '@/app/dashboard/budget/page'
 jest.mock('../TransactionForm', () => ({
   __esModule: true,
   default: ({ onSuccess }: { onSuccess: () => void }) => (
-    <button type="button" data-testid="mock-transaction-success" onClick={onSuccess}>
+    <button type="button" data-testid="mock-transaction-success" onClick={() => onSuccess()}>
       Mock transaction saved
     </button>
   ),
@@ -82,6 +82,27 @@ it('shows only the total spent when no category has a limit', () => {
   expect(screen.queryByText(/limit/)).toBeNull()
   expect(screen.queryByText(/%$/)).toBeNull()
   expect(screen.queryByText(/Over budget/)).toBeNull()
+})
+
+it('renders canonical category spending with a bounded progress summary', () => {
+  render(
+    <BudgetDashboard
+      initialData={pageData({
+        category_breakdown: [
+          { category_id: 'cat-food', name: 'Groceries', icon: '🛒', color: '#4ade80', budget_limit: 450, total: 312, percentage: 72 },
+          { category_id: 'cat-fun', name: 'Activities', icon: '🎟️', color: '#c084fc', budget_limit: null, total: 120, percentage: 28 },
+        ],
+      })}
+      userId="u1"
+    />
+  )
+
+  expect(screen.getByRole('heading', { name: 'Spending by category' })).toBeTruthy()
+  expect(screen.getByText('Groceries')).toBeTruthy()
+  expect(screen.getByText('$312.00 of $450.00 limit')).toBeTruthy()
+  expect(screen.getByText('Activities')).toBeTruthy()
+  expect(screen.getByText('28% of expenses')).toBeTruthy()
+  expect(screen.getByRole('progressbar', { name: 'Groceries' }).getAttribute('aria-valuenow')).toBe('69')
 })
 
 it('refreshes the viewer’s local month', async () => {
@@ -179,7 +200,7 @@ it('queues a fresh refresh when a save finishes during an older refresh', async 
   const user = userEvent.setup()
   render(<BudgetDashboard initialData={pageData()} userId="u1" />)
   await user.click(screen.getByRole('button', { name: 'Refresh budget' }))
-  await user.click(screen.getByRole('button', { name: 'Add transaction' }))
+  await user.click(screen.getAllByRole('button', { name: 'Add expense' })[0])
   await user.click(screen.getByTestId('mock-transaction-success'))
   expect(fetchMock).toHaveBeenCalledTimes(1)
 

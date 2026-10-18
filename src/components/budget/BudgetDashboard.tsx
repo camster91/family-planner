@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Plus, RefreshCw, LucideIcon } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ProgressRing } from '@/components/ui/progress-ring'
 import { InsetList, ListRow, SectionHeader } from '@/components/ui/list-row'
@@ -287,22 +287,36 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
     setEditing(null)
   }, [])
 
-  const handleSuccess = React.useCallback(() => {
+  const handleSuccess = React.useCallback((transaction?: Transaction) => {
     closeForm()
-    refreshData()
+    if (transaction) {
+      setData((current) => ({
+        ...current,
+        recent_transactions: current.recent_transactions.some((row) => row.id === transaction.id)
+          ? current.recent_transactions.map((row) => row.id === transaction.id ? transaction : row)
+          : [transaction, ...current.recent_transactions],
+      }))
+    }
+    void refreshData()
   }, [closeForm, refreshData])
 
-  const handleDeleted = React.useCallback(() => {
+  const handleDeleted = React.useCallback((transactionId?: string) => {
     closeForm()
-    addToast({ type: 'success', title: 'Transaction deleted' })
-    refreshData()
-  }, [closeForm, addToast, refreshData])
+    if (transactionId) {
+      setData((current) => ({
+        ...current,
+        recent_transactions: current.recent_transactions.filter((row) => row.id !== transactionId),
+      }))
+    }
+    addToast({ type: 'success', title: text('transactionDeleted') })
+    void refreshData()
+  }, [closeForm, addToast, refreshData, text])
 
   return (
     <div className="pb-20">
       <LargeHeader
-        greeting="Family"
-        title="Budget"
+        greeting={text('pageEyebrow')}
+        title={text('pageTitle')}
         subtitle={data.month}
         trailing={
           <button
@@ -356,39 +370,110 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
             </p>
             <p className="text-subhead text-label-secondary mt-0.5">
               {ring && budgetLimit !== null
-                ? `of ${formatCurrency(budgetLimit, displayLocale)} limit`
-                : 'spent this month'}
+                ? text('householdLimit', { limit: formatCurrency(budgetLimit, displayLocale) })
+                : text('spentThisMonth')}
             </p>
             {ring?.over && (
               <p className="text-footnote text-[var(--tint-rewards-text)] mt-1 font-medium">
-                Over budget by {formatCurrency(ring.overBy, displayLocale)}
+                {text('overBudgetBy', { amount: formatCurrency(ring.overBy, displayLocale) })}
               </p>
             )}
           </div>
           <button
             onClick={() => setShowForm(true)}
-            className="btn-filled shrink-0"
-            aria-label="Add transaction"
+            className="btn-filled min-h-[44px] shrink-0 gap-2 px-4"
+            aria-label={text('addExpense')}
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            <span>{text('addExpense')}</span>
           </button>
         </div>
 
         {/* Stats row */}
         <div className="grid grid-cols-2 gap-3">
           <div className="card-apple p-4">
-            <p className="text-footnote text-label-secondary">Income</p>
+            <p className="text-footnote text-label-secondary">{text('incomeTotal')}</p>
             <p className="text-title-3 text-[var(--tint-lists-text)] font-semibold mt-1">
               +{formatCurrency(data.total_income, displayLocale)}
             </p>
           </div>
           <div className="card-apple p-4">
-            <p className="text-footnote text-label-secondary">Expenses</p>
+            <p className="text-footnote text-label-secondary">{text('expenseTotal')}</p>
             <p className="text-title-3 text-[var(--tint-rewards-text)] font-semibold mt-1">
               -{formatCurrency(data.total_expenses, displayLocale)}
             </p>
           </div>
         </div>
+
+        <section aria-labelledby="budget-category-heading" className="space-y-3">
+          <div>
+            <h2 id="budget-category-heading" className="section-header">{text('categoryOverview')}</h2>
+            <p className="text-footnote text-label-secondary">{text('categoryOverviewDescription')}</p>
+          </div>
+          {data.category_breakdown.length === 0 ? (
+            <div className="card-apple p-4 text-subhead text-label-secondary" data-testid="budget-category-empty">
+              {text('noCategorySpending')}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="budget-category-breakdown">
+              {data.category_breakdown.map((category) => {
+                const hasLimit = category.budget_limit !== null && category.budget_limit > 0
+                const progress = hasLimit
+                  ? (category.total / category.budget_limit!) * 100
+                  : category.percentage
+                const boundedProgress = Math.min(100, Math.max(0, progress))
+                const overBy = hasLimit ? Math.max(0, category.total - category.budget_limit!) : 0
+                return (
+                  <article key={category.category_id ?? 'uncategorized'} className="card-apple min-w-0 p-4" data-testid="budget-category-card">
+                    <div className="flex items-start gap-3">
+                      <span
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl"
+                        style={{ backgroundColor: `${category.color}22`, color: category.color }}
+                        aria-hidden="true"
+                      >
+                        {category.icon}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-body font-semibold text-label-primary [overflow-wrap:anywhere]">{category.name}</h3>
+                        <p className="text-title-3 font-semibold text-label-primary tabular-nums">
+                          {formatCurrency(category.total, displayLocale)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      <div
+                        className="h-2 overflow-hidden rounded-full bg-[var(--surface-fill)]"
+                        role="progressbar"
+                        aria-label={category.name}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(boundedProgress)}
+                      >
+                        <span className="block h-full rounded-full bg-[var(--accent-fill)]" style={{ width: `${boundedProgress}%` }} />
+                      </div>
+                      <p className="text-footnote text-label-secondary">
+                        {hasLimit
+                          ? text('categoryLimit', {
+                            spent: formatCurrency(category.total, displayLocale),
+                            limit: formatCurrency(category.budget_limit!, displayLocale),
+                          })
+                          : text('categoryShare', { percentage: category.percentage })}
+                      </p>
+                      {hasLimit && overBy > 0 && (
+                        <p className="text-footnote font-medium text-[var(--tint-rewards-text)]">
+                          {text('categoryOverBy', { amount: formatCurrency(overBy, displayLocale) })}
+                        </p>
+                      )}
+                      {!hasLimit && (
+                        <p className="text-caption-1 text-label-tertiary">{text('categoryNoLimit')}</p>
+                      )}
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </section>
 
         {/* Transactions grouped by date */}
         {sortedDates.length > 0 ? (
@@ -431,12 +516,12 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
           <EmptyState
             icon={Plus}
             glyphColor="budget"
-            title="No transactions"
-            description="Add your first transaction to start tracking."
+            title={text('noTransactions')}
+            description={text('noTransactionsDescription')}
             action={
-              <button onClick={() => setShowForm(true)} className="btn-filled">
-                <Plus className="w-4 h-4" />
-                <span>Add Transaction</span>
+              <button onClick={() => setShowForm(true)} className="btn-filled min-h-[44px] gap-2 px-4">
+                <Plus className="w-4 h-4" aria-hidden="true" />
+                <span>{text('addExpense')}</span>
               </button>
             }
           />
