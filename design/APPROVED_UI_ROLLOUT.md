@@ -59,12 +59,12 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Rewards | Clear costs and role-appropriate actions | Reviewed role-aware create/claim/approval, canonical receipts and durable intent recovery are included in verified live release #581 at `d752df36`. Broader feature/state and customer acceptance remain open |
 | Budget | Private summaries and contextual details | Reviewed private summaries, category detail, canonical transaction receipts and recovery repairs are included in verified live release #581 at `d752df36`. Broader feature/state and customer acceptance remain open |
 | Projects | Next steps, owner and detail context | PR #582 is included unchanged in release #581, verified serving main `d752df36`. Bounded source/rendered/recovery acceptance exists; broader feature/state acceptance remains open |
-| Messages | Private conversation linked to work | Reviewed private conversation/photo/pickup-link slice merged through PR #587 atafb15426; all original gates and150 exact-candidate capture reviews pass. Coolify deployment563 is in progress; exact-live and broader feature acceptance pending |
+| Messages | Private conversation linked to work | Reviewed private conversation/photo/pickup-link slice merged through PR #587 atafb15426; all original gates and150 exact-candidate capture reviews pass. Coolify deployment563 finished and exact image/runtime, readiness, migrations and private upload storage are verified atafb15426; broader feature acceptance remains open |
 | Analytics | Useful private trends, dependency-aware | Parent Progress55f417bd uses canonical API and localized strict-response recovery; 102 UI/localization and29 API/isolation/gamification cases pass, exact build and51 browser/startup-budget checks plus final phone visual review pass; combined #580 hosted and exact-main QA pass; serving main `5cf9720b` verified; broader acceptance pending |
-| Wishlist | Capture and compare family ideas | Reviewed canonical states/roles/recovery slice merged through PR #587 atafb15426; original gates/capture review pass. Deployment563 and exact-live verification pending; compare/curation expansion not implied |
-| Emergency | Fast authorized access, private medical/contact fields | Reviewed private short forms/preview/print/recovery slice merged through PR #587 atafb15426; original gates/capture review pass. Deployment563/exact-live pending; shared/public permissions unchanged |
+| Wishlist | Capture and compare family ideas | Reviewed canonical states/roles/recovery slice merged through PR #587 atafb15426; original gates/capture review pass. Deployment563 and exact-live verification pass atafb15426; broader acceptance and compare/curation expansion are not implied |
+| Emergency | Fast authorized access, private medical/contact fields | Reviewed private short forms/preview/print/recovery slice merged through PR #587 atafb15426; original gates/capture review pass. Deployment563/exact-live verification pass atafb15426; shared/public permissions unchanged; wider acceptance remains open |
 | Locations | Saved places with private addresses protected | Live source includes short create/edit, pending input protection and removal/focus recovery (latest owned source b8cef86b). Approved all-feature rendered/state adoption still needs evidence reconciliation; retained code alone does not mark complete |
-| Pickups | Explicit responsibility, confirmation and backup | Reviewed member/parent coordination/removal slice merged through PR #587 atafb15426; original gates/capture review pass. Deployment563/exact-live and broader responsibility/backup acceptance pending |
+| Pickups | Explicit responsibility, confirmation and backup | Reviewed member/parent coordination/removal slice merged through PR #587 atafb15426; original gates/capture review pass. Deployment563/exact-live verification pass atafb15426; broader responsibility/backup acceptance remains open |
 | Allowance | Own balance versus parent administration | PR #588 now combines reviewed Allowance/Inventory sourceb34 and chore-photo sourcec73 over mainafb15426. Canonical receipt/cancellation/history checks and source review pass; fresh integrated hosted/rendered/release acceptance pending |
 | Travel | Trip preparation and deliberate recurrence changes | Live source retains unknown-write reconciliation (2a250f1d) and narrow-screen date layout (49f4f054). Approved all-feature layout/state acceptance remains pending; no new recurrence/provider behavior is inferred |
 | Handoff | Scoped brief, expiry and owned responsibility | Live source retains localized load recovery and guarded removal/refresh (537b286b). Approved all-feature layout/state acceptance remains pending; scoped share/expiry/privacy contracts are unchanged |
@@ -72,7 +72,28 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Supporting routes | Auth, onboarding, search, notifications, help, settings, devices | Existing behavior retained; approved layout review pending |
 | Shared fridge | Sanitized device Today, large targets, privacy boundaries | Existing behavior retained; approved layout review pending |
 
-## Evidence reconciliation — 2026-10-18
+## Current evidence checkpoint — 2026-10-18
+
+Production is verified PR #587 at `afb15426d9fdb63a7f4f6c437d2c23e20d55dab9`.
+Deployment563 finished through the existing Coolify route. Original candidate
+checks and all150 native capture reviews pass; exact-main Build/Test and Android
+follow-ups pass, while exact-main E2E is separately tracked. Public/private-route
+and exact image/runtime checks do not imply authenticated production QA.
+
+PR #588 at `ea1d85d29a6907e56ae9cd21cf337b9e218ab36c` remains pending original
+hosted acceptance. Its shared form scroll-body repair follows a real Inventory
+accessibility failure in bf31; no check was waived. Exact repaired build,
+97 affected mounted cases and28 local browser journeys pass, with6 authentication
+setup cases separate. Fresh restore preserves all72 existing tables and rows,
+including attachments. Source/schema/permissions/activation remain separately
+verified; this is not a new deployment claim.
+
+Sick days and Handoff follow-up implementations and Travel long-text reflow are
+local, unaccepted slices. Supporting routes, Add Everyone/account linking,
+quiet mode, shared-fridge and full role/device/offline/customer acceptance remain
+open. Canonical #499/#128 checkpoints hold current run/review details.
+
+## Historical checkpoint before PR587 merged — 2026-10-18
 
 The ledger distinguishes verified live source `d752df36` from pending combined
 candidate `590e5a04`, stacked Allowance/Inventory b34e976d and isolated chore-photo

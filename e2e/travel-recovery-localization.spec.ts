@@ -20,6 +20,10 @@ const ACTIVE = {
   travel_end_date: "2026-10-05",
   travel_destination: "Lisbon",
 };
+const LONG_CHORE_TITLE =
+  "Before leaving, check every window upstairs and leave the spare keys with the neighbour 李 " +
+  "HouseholdInstructions".repeat(8);
+const LONG_ASSIGNEE = "Alexandria Household Member 李 ".repeat(5);
 
 const COPY = {
   en: {
@@ -213,7 +217,17 @@ for (const locale of ["en", "es"] as const) {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ chores: [] }),
+          body: JSON.stringify({
+            chores: [
+              {
+                id: "synthetic-travel-long-chore",
+                title: LONG_CHORE_TITLE,
+                status: "pending",
+                due_date: "2026-10-02",
+                assignee: { name: LONG_ASSIGNEE },
+              },
+            ],
+          }),
         });
       });
 
@@ -235,6 +249,25 @@ for (const locale of ["en", "es"] as const) {
         exact: true,
       });
       await expect(toggle).toBeVisible();
+
+      // Household text stays fully readable, including unbroken pasted text,
+      // beside the due date on narrow phone and shared-tablet layouts.
+      for (const text of [LONG_CHORE_TITLE, LONG_ASSIGNEE]) {
+        const content = page.getByText(text, { exact: true });
+        await expect(content).toBeVisible();
+        expect(
+          await content.evaluate(
+            (el) =>
+              el.scrollWidth <= el.clientWidth &&
+              el.scrollHeight <= el.clientHeight,
+          ),
+        ).toBe(true);
+      }
+      await assertSurface(page);
+      await info.attach("travel-long-household-text", {
+        body: await page.screenshot(),
+        contentType: "image/png",
+      });
 
       const destination = page.getByLabel(copy.destination, { exact: true });
       const save = page.getByRole("button", { name: copy.save, exact: true });
