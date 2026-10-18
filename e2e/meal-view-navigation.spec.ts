@@ -17,6 +17,8 @@ for (const locale of ["en", "es"] as const) {
         ? route.continue()
         : route.abort();
     });
+    await loginViaUi(page, FIXTURE_EMAILS.familyA.parent);
+    await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
     await page.addInitScript(
       ({ locale, localeKey, themeKey }) => {
         localStorage.setItem(localeKey, locale);
@@ -24,8 +26,6 @@ for (const locale of ["en", "es"] as const) {
       },
       { locale, localeKey: LOCALE_STORAGE_KEY, themeKey: THEME_STORAGE_KEY },
     );
-    await loginViaUi(page, FIXTURE_EMAILS.familyA.parent);
-    await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
     const writes: string[] = [];
     page.on("request", (request) => {
       if (!["GET", "HEAD", "OPTIONS"].includes(request.method()))
