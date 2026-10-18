@@ -29,12 +29,18 @@ const PROJECTS = new Set([
   "tablet-large-1920x1200",
   "desktop-1366x768",
 ]);
+const PARENT_PROJECTS = new Set(["phone-390x844", "desktop-1366x768"]);
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const routineName = `Morning café ${suffix}`;
 const catchupName = `After school ${suffix}`;
 const retryNote = `Use the blue towel — café ${suffix}`;
 const todayMission = `Feed the cat — café ${suffix}`;
 const tomorrowMission = `Pack the lunchbox — café ${suffix}`;
+const routineStepTitles = [
+  `Brush teeth — café ${suffix}`,
+  `Get dressed — café ${suffix}`,
+  `Shoes on — café ${suffix}`,
+] as const;
 const IDS = {
   next: `fx_e2e_kid_localization_${suffix}_next`,
   waiting: `fx_e2e_kid_localization_${suffix}_waiting`,
@@ -55,7 +61,7 @@ function utcDay(offset: number) {
       E2E_ANCHOR.getUTCMonth(),
       E2E_ANCHOR.getUTCDate() + offset,
     ),
-  );
+  ).toISOString();
 }
 
 function copy(
@@ -116,7 +122,7 @@ async function seedRows() {
         routine: routineName,
         order: 2,
         notes: null,
-        completedAt: E2E_ANCHOR,
+        completedAt: E2E_ANCHOR.toISOString(),
         verifiedAt: null,
       },
       {
@@ -128,8 +134,8 @@ async function seedRows() {
         routine: routineName,
         order: 3,
         notes: null,
-        completedAt: E2E_ANCHOR,
-        verifiedAt: E2E_ANCHOR,
+        completedAt: E2E_ANCHOR.toISOString(),
+        verifiedAt: E2E_ANCHOR.toISOString(),
       },
       {
         id: IDS.catchup,
@@ -184,7 +190,7 @@ async function seedRows() {
           row.due,
           row.status,
           A.parent,
-          E2E_ANCHOR,
+          E2E_ANCHOR.toISOString(),
           row.icon,
           row.routine,
           row.order,
@@ -271,12 +277,11 @@ test.afterAll(async () => {
   await withDb(cleanup);
 });
 
-test.beforeEach(async ({ page, baseURL }, info) => {
+test.beforeEach(async ({}, info) => {
   test.skip(
     !PROJECTS.has(info.project.name),
     "Child localization runs across the six configured viewport projects",
   );
-  await configureContext(page, "en", baseURL);
 });
 
 for (const locale of ["en", "es"] as const) {
@@ -285,23 +290,13 @@ for (const locale of ["en", "es"] as const) {
       storageState: authFile("childA"),
       timezoneId: "America/Toronto",
     });
+    test.beforeEach(async ({ page, baseURL }) => {
+      await configureContext(page, locale, baseURL);
+    });
 
     test(`${locale}: localized routine states keep household text and targets usable`, async ({
       page,
     }, info) => {
-      // The init script is installed by beforeEach, and this second init script
-      // lets each locale describe the same real fixture without mutating data.
-      await page.addInitScript(
-        ({ language, localeKey, themeKey }) => {
-          localStorage.setItem(localeKey, language);
-          localStorage.setItem(themeKey, language === "es" ? "dark" : "light");
-        },
-        {
-          language: locale,
-          localeKey: LOCALE_STORAGE_KEY,
-          themeKey: THEME_STORAGE_KEY,
-        },
-      );
       const writes: string[] = [];
       page.on("request", (request) => {
         if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method())) {
@@ -350,6 +345,9 @@ for (const locale of ["en", "es"] as const) {
       await expect(page.getByText(retryNote, { exact: true })).toBeVisible();
 
       const first = routine.getByTestId("routine-step").nth(0);
+      // Keep the focus and capture target on the actionable card itself. The
+      // test id is intentionally on the button, not its layout wrapper.
+      await expect(first).toHaveRole("button");
       await expect(first).toHaveAttribute(
         "aria-label",
         [
@@ -387,22 +385,29 @@ for (const locale of ["en", "es"] as const) {
           exact: false,
         }),
       ).toBeVisible();
-      await expect(
-        page.getByText(text("today"), { exact: true }),
-      ).toBeVisible();
-      await expect(
-        page.getByText(text("tomorrow"), { exact: true }),
-      ).toBeVisible();
       await expect(page.getByText(todayMission, { exact: true })).toBeVisible();
+      const tomorrowSection = page
+        .locator("section")
+        .filter({ hasText: tomorrowMission });
+      await expect(tomorrowSection).toHaveCount(1);
       await expect(
-        page.getByText(tomorrowMission, { exact: true }),
-      ).toBeVisible();
+        tomorrowSection.getByText(text("tomorrow"), { exact: true }),
+      ).toHaveCount(1);
       await expect(
-        page.getByText(text("comingUp"), { exact: true }),
-      ).toBeVisible();
+        tomorrowSection.getByText(tomorrowMission, { exact: true }),
+      ).toHaveCount(1);
+
+      const comingUpSection = page
+        .locator("section")
+        .filter({ hasText: text("comingUp") });
+      await expect(comingUpSection).toHaveCount(1);
+      const dentistRow = comingUpSection.locator(".row-apple").filter({
+        has: page.getByText("Dentist (Casey)", { exact: true }),
+      });
+      await expect(dentistRow).toHaveCount(1);
       await expect(
-        page.getByText("Dentist (Casey)", { exact: true }),
-      ).toBeVisible();
+        dentistRow.getByText(text("today"), { exact: true }),
+      ).toHaveCount(1);
       await expect(
         page.getByText(text("level", { level: 2 }), { exact: true }),
       ).toBeVisible();
@@ -427,20 +432,16 @@ for (const locale of ["en", "es"] as const) {
       storageState: authFile("parentA"),
       timezoneId: "America/Toronto",
     });
+    test.beforeEach(async ({ page, baseURL }) => {
+      await configureContext(page, locale, baseURL);
+    });
 
     test(`${locale}: parent sees routine rows without child-only home copy`, async ({
       page,
     }, info) => {
-      await page.addInitScript(
-        ({ language, localeKey, themeKey }) => {
-          localStorage.setItem(localeKey, language);
-          localStorage.setItem(themeKey, language === "es" ? "dark" : "light");
-        },
-        {
-          language: locale,
-          localeKey: LOCALE_STORAGE_KEY,
-          themeKey: THEME_STORAGE_KEY,
-        },
+      test.skip(
+        !PARENT_PROJECTS.has(info.project.name),
+        "The parent routine-row check runs on the smallest phone and support desktop; the child home journey retains all six projects.",
       );
       const response = await page.goto("/dashboard/chores");
       expect(response?.status()).toBe(200);
@@ -455,6 +456,49 @@ for (const locale of ["en", "es"] as const) {
       await expect(page.getByText(routineName, { exact: true })).toBeVisible();
       await expect(
         page.getByText(textForParent(locale, "routinePanel"), { exact: true }),
+      ).toBeVisible();
+      // The parent surface keeps the routine workspace in its existing
+      // expandable panel. Explicitly verify the panel is open before checking
+      // every seeded row, including completed and verified steps; this avoids
+      // passing solely because the routine label exists above a collapsed list.
+      const routineSummary = page
+        .locator("summary")
+        .filter({ hasText: textForParent(locale, "routinePanel") });
+      await expect(routineSummary).toHaveCount(1);
+      const routinePanel = routineSummary.locator("..");
+      if (
+        !(await routinePanel.evaluate((element) =>
+          element.hasAttribute("open"),
+        ))
+      ) {
+        await routineSummary.click();
+      }
+      await expect(routinePanel).toHaveAttribute("open", "");
+      const routineStacks = routinePanel.getByRole("region", {
+        name: textForParent(locale, "routinePanel"),
+        exact: true,
+      });
+      await expect(routineStacks).toHaveCount(1);
+      const seededStack = routineStacks.getByRole("region", {
+        name: new RegExp(routineName),
+      });
+      await expect(seededStack).toHaveCount(1);
+      const seededRows = seededStack.locator("ol > li");
+      await expect(seededRows).toHaveCount(3);
+      // The open parent row keeps its raw title; completed and verified rows
+      // render their canonical routine order before the raw household title.
+      await expect(
+        seededRows.nth(0).getByText(routineStepTitles[0], { exact: true }),
+      ).toBeVisible();
+      await expect(
+        seededRows
+          .nth(1)
+          .getByText(`2. ${routineStepTitles[1]}`, { exact: true }),
+      ).toBeVisible();
+      await expect(
+        seededRows
+          .nth(2)
+          .getByText(`3. ${routineStepTitles[2]}`, { exact: true }),
       ).toBeVisible();
       await expect(
         page.getByText(copy(locale, "greeting", { name: "Casey" }), {

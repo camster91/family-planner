@@ -23,6 +23,7 @@ import { browserFetch, browserSend, expect, test } from "./support/test";
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const MUTATING_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
+const REPRESENTATIVE_PROJECTS = new Set(["phone-390x844", "desktop-1366x768"]);
 const A = FIXTURE_IDS.familyA;
 
 type Locale = "en" | "es";
@@ -240,6 +241,10 @@ for (const locale of ["en", "es"] as const) {
       page,
       context,
     }, testInfo: TestInfo) => {
+      test.skip(
+        !REPRESENTATIVE_PROJECTS.has(testInfo.project.name),
+        "The create-sheet mutation journey runs on the smallest phone and support desktop; the responsive overview retains all six projects.",
+      );
       assertFixtureTargetAllowed(process.env);
       const blockedWrites: string[] = [];
       const postBodies: unknown[] = [];

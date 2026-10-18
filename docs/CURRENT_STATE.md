@@ -1,5 +1,28 @@
 # Current State
 
+## Combined child, Rewards and Budget verification — 2026-10-18
+
+The child localization and resolved reward-notice product source is reviewed at
+c89ee28d. All92 affected cases pass. Full baseline has5895 passing cases,
+410 established opt-in skips, and three unchanged Mac backup-prune failures;
+full types/lint/format and optimized builds pass. The original Linux gate is
+retained, and all hosted checks on remote4381659b have now passed.
+
+The later child browser repairs preserve UTC date-only fixtures with ISO SQL
+parameters and scope date assertions to their event/mission content. A phone
+diagnostic using compiled b9473aa0 and test77438bbf passes all seven cases,
+including setup and both EN/ES child and parent routine views. This diagnostic
+has different application/test commits and is not final exact-head acceptance.
+The prior exactfe878 phone run separately verifies both malformed-claim retries
+remove the resolved notice. Fresh exact-head build, expanded six-size matrix,
+independent capture review and original hosted gates are still required.
+
+Cameron requested test consolidation. A separate cleanup removes only confirmed
+duplicate navigation checks and implementation-class mirrors while preserving
+behavioral, role, privacy and recovery checks. Current release gates remain
+unchanged. Projects remains separate and its reviewed retry/replay repairs are
+being integrated; no production household data has been changed.
+
 ## Child home localization and resolved-notice follow-up — 2026-10-18
 
 PR581 now incorporates reviewed child UI19ed11cb and browser QA18ba9828 over
