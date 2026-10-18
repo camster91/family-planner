@@ -36,3 +36,11 @@ npx eslint \
 ```
 
 Rendered phone/desktop capture and hosted release checks remain separate gates.
+The paired `e2e/handoff-recovery.spec.ts` cases also cover malformed list and
+public-share recovery, the short-form pending-save draft, and the synthetic
+write-interception receipt across the existing English/Spanish representative
+projects. Collection can be checked without starting a browser with:
+
+```sh
+npx playwright test e2e/handoff-recovery.spec.ts --list
+```
