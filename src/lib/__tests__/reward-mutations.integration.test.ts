@@ -379,10 +379,42 @@ describeWithDatabase("Rewards mutations against disposable PostgreSQL", () => {
         ),
       ),
     );
-    expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
-    expect(responses.filter((response) => response.status === 409)).toHaveLength(5);
+    const successful = responses.filter((response) => response.status === 200);
+    const inProgress = responses.filter((response) => response.status === 409);
+    expect(responses).toHaveLength(6);
+    expect(successful.length).toBeGreaterThanOrEqual(1);
+    expect(inProgress.length + successful.length).toBe(responses.length);
+    expect(successful.filter((response) => response.headers.get("Idempotency-Replayed") !== "true")).toHaveLength(1);
+
+    const successfulBodies = (await Promise.all(successful.map((response) => response.json()))).map((body) =>
+      JSON.parse(JSON.stringify(body)),
+    );
+    const [freshBody, ...replayBodies] = successfulBodies;
+    expect(freshBody).toMatchObject({
+      reward: {
+        id: rewardId,
+        status: "claimed",
+        claimed_by: CHILD_A,
+        cost: 100,
+      },
+      xp: 400,
+    });
+    for (const replayBody of replayBodies) {
+      expect(replayBody).toEqual(freshBody);
+    }
+
+    const inProgressBodies = await Promise.all(inProgress.map((response) => response.json()));
+    for (const responseBody of inProgressBodies) {
+      expect(responseBody).toMatchObject({
+        error: {
+          code: "IDEMPOTENCY_IN_PROGRESS",
+          retryable: true,
+        },
+      });
+    }
     expect(await db.user.findUnique({ where: { id: CHILD_A }, select: { xp: true } })).toEqual({ xp: 400 });
     expect(await db.reward.findUnique({ where: { id: rewardId }, select: { status: true, claimed_by: true } })).toEqual({ status: "claimed", claimed_by: CHILD_A });
+    expect(await db.idempotencyRecord.count({ where: { family_id: FAMILY_A, key, response_status: 200 } })).toBe(1);
 
     const replay = await runEffect(
       key,
@@ -390,9 +422,11 @@ describeWithDatabase("Rewards mutations against disposable PostgreSQL", () => {
       "reward.claim",
       body,
       async (recordId) => (await claimReward(db, body, child, recordId)).result,
+      () => authorizeRewardReplay(db, child, false),
     );
     expect(replay.status).toBe(200);
     expect(replay.headers.get("Idempotency-Replayed")).toBe("true");
+    expect(JSON.parse(JSON.stringify(await replay.json()))).toEqual(freshBody);
     expect(await db.user.findUnique({ where: { id: CHILD_A }, select: { xp: true } })).toEqual({ xp: 400 });
   });
 
