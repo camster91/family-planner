@@ -373,6 +373,66 @@ describe('bounds and cleanup', () => {
     expect(t.queue.list()).toHaveLength(0)
     expect((t.store as any).value).toBeNull()
   })
+
+  it('serializes a delayed write before clear removes the queue', async () => {
+    let releaseWrite!: () => void
+    let writeStarted!: () => void
+    const writeReady = new Promise<void>((resolve) => { writeStarted = resolve })
+    const writeGate = new Promise<void>((resolve) => { releaseWrite = resolve })
+    let value: string | null = null
+    const remove = jest.fn(async () => { value = null })
+    const store: QueueStore = {
+      read: async () => value,
+      write: jest.fn(async (next) => {
+        writeStarted()
+        await writeGate
+        value = next
+      }),
+      remove,
+    }
+    const queue = createOfflineQueue({
+      store,
+      send: async () => ({ status: 200, body: null }),
+      now: () => 1000,
+      random: () => 0.5,
+      newKey: () => 'delayed-key-abcdefghijkl',
+      isOnline: () => false,
+      setTimer: () => null,
+      clearTimer: () => {},
+    })
+    const enqueue = queue.enqueue('list-item.set-checked', tick('item-1'))
+    await writeReady
+    const clear = queue.clear()
+    expect(remove).not.toHaveBeenCalled()
+    releaseWrite()
+    await Promise.all([enqueue, clear])
+    expect(remove).toHaveBeenCalledTimes(1)
+    expect(value).toBeNull()
+    expect(queue.list()).toEqual([])
+  })
+
+  it('fences clear before the initial storage read resolves', async () => {
+    let releaseRead!: (value: string | null) => void
+    const read = new Promise<string | null>((resolve) => { releaseRead = resolve })
+    const remove = jest.fn(async () => {})
+    const queue = createOfflineQueue({
+      store: { read: () => read, write: async () => {}, remove },
+      send: async () => ({ status: 200, body: null }),
+      now: () => 1000,
+      random: () => 0.5,
+      newKey: () => 'clear-before-read-abcdefghijkl',
+      isOnline: () => false,
+      setTimer: () => null,
+      clearTimer: () => {},
+    })
+    const clear = queue.clear()
+    await flush()
+    expect(remove).toHaveBeenCalledTimes(1)
+    releaseRead(JSON.stringify({ v: 1, ops: [{ id: 'saved-key-abcdefghijkl', action: 'list-item.set-checked', v: 1, payload: tick('saved'), createdAt: 1, state: 'pending', attempts: 0, nextAttemptAt: 0 }] }))
+    await Promise.all([queue.ready, clear])
+    expect(queue.list()).toEqual([])
+    expect(remove).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('versioning and corruption', () => {
@@ -546,6 +606,7 @@ describe('persistence across restart', () => {
   it('falls back to localStorage when IndexedDB is unavailable', async () => {
     const storage = new MemoryStorage()
     const loc = queueLocation({ kind: 'person', userId: 'user-1' })
+    storage.setItem(loc.key, JSON.stringify({ v: QUEUE_SCHEMA_VERSION, ops: [] }))
     const broken = { open: () => { throw new Error('blocked') } } as unknown as IDBFactory
     const first = setup({ online: false, store: preferredQueueStore(loc, { indexedDB: broken, localStorage: storage }) })
     const op = await first.queue.enqueue('list-item.set-checked', tick('item-1'))
@@ -746,14 +807,36 @@ describe('durability (Codex P2 on #247)', () => {
 
     primary.failing = true
     const op = await t.queue.enqueue('list-item.set-checked', tick('item-2'))
-    expect(op.durable).toBe(true)
+    expect(op.durable).toBe(false)
+    expect(t.queue.hasStorageReadError()).toBe(true)
     expect(secondary.value).toContain('item-2')
     expect(secondary.value).toContain('item-1')
 
-    // A restart reads the store that holds the data.
+    // The failed cleanup left a divergent primary copy. A restart must pause
+    // instead of resurrecting the stale primary operation.
     primary.failing = false
-    const reread = await store.read()
-    expect(reread).toContain('item-2')
+    await expect(store.read()).rejects.toBeInstanceOf(QueueStorageError)
+    expect(primary.value).not.toContain('item-2')
+  })
+
+  it('returns to the preferred primary when a recovered fallback later refuses a write', async () => {
+    const saved = JSON.stringify({ v: 1, ops: [{ id: 'saved-key-abcdefghijkl', action: 'list-item.set-checked', v: 1, payload: { itemId: 'saved-item', checked: true }, createdAt: 1, state: 'pending', attempts: 0, nextAttemptAt: 0 }] })
+    const next = JSON.stringify({ v: 1, ops: [{ id: 'next-key-abcdefghijkl', action: 'list-item.set-checked', v: 1, payload: { itemId: 'next-item', checked: true }, createdAt: 2, state: 'pending', attempts: 0, nextAttemptAt: 0 }] })
+    const primary = memoryStore()
+    const fallback = memoryStore(saved)
+    const primaryWrite = jest.spyOn(primary, 'write')
+    fallback.write = jest.fn(async () => {
+      throw new Error('fallback write blocked')
+    })
+    const store = fallbackQueueStore([primary, fallback])
+
+    expect(await store.read()).toBe(saved)
+    await expect(store.write(next)).resolves.toBeUndefined()
+
+    expect(primaryWrite).toHaveBeenCalledWith(next)
+    expect(primary.value).toBe(next)
+    expect(fallback.value).toBeNull()
+    expect(await store.read()).toBe(next)
   })
 
   it('is not durable when every store refuses writes, and never pretends to be', async () => {
@@ -769,7 +852,73 @@ describe('durability (Codex P2 on #247)', () => {
     expect(t.queue.isDurable()).toBe(false)
   })
 
-  it('with no readable store at all, reads are empty and writes are not durable', async () => {
+  it('fails closed when readable stores contain divergent snapshots', async () => {
+    const primary = memoryStore(JSON.stringify({ v: 1, ops: [] }))
+    const secondary = memoryStore(JSON.stringify({ v: 1, ops: [{ id: 'saved-key-abcdefghijkl', action: 'list-item.set-checked', v: 1, payload: { itemId: 'saved-item', checked: true }, createdAt: 1, state: 'pending', attempts: 0, nextAttemptAt: 0 }] }))
+    const store = fallbackQueueStore([primary, secondary])
+
+    await expect(store.read()).rejects.toBeInstanceOf(QueueStorageError)
+    expect(primary.value).toContain('ops')
+    expect(secondary.value).toContain('saved-item')
+  })
+
+  it('recovers identical duplicate copies and removes every copy after drain', async () => {
+    const raw = JSON.stringify({ v: 1, ops: [] })
+    const primary = memoryStore(raw)
+    const secondary = memoryStore(raw)
+    const store = fallbackQueueStore([primary, secondary])
+    const primaryRead = jest.spyOn(primary, 'read')
+    const secondaryRead = jest.spyOn(secondary, 'read')
+    const t = setup({ online: false, store })
+
+    await t.queue.ready
+    expect(primaryRead).toHaveBeenCalled()
+    expect(secondaryRead).toHaveBeenCalled()
+    await t.queue.enqueue('list-item.set-checked', tick('item-1'))
+    t.setOnline(true)
+    await t.queue.handleOnline()
+    expect(primary.value).toBeNull()
+    expect(secondary.value).toBeNull()
+  })
+
+  it('does not select a stale primary when it recovers after a readable fallback', async () => {
+    const stale = JSON.stringify({ v: 1, ops: [] })
+    const saved = JSON.stringify({ v: 1, ops: [{ id: 'saved-key-abcdefghijkl', action: 'list-item.set-checked', v: 1, payload: { itemId: 'saved-item', checked: true }, createdAt: 1, state: 'pending', attempts: 0, nextAttemptAt: 0 }] })
+    let primaryReadable = false
+    const primary: QueueStore = {
+      read: async () => {
+        if (!primaryReadable) throw new Error('temporarily unreadable')
+        return stale
+      },
+      write: async () => {},
+      remove: async () => {},
+    }
+    const secondary = memoryStore(saved)
+    const store = fallbackQueueStore([primary, secondary])
+
+    expect(await store.read()).toBe(saved)
+    primaryReadable = true
+    await expect(store.read()).rejects.toBeInstanceOf(QueueStorageError)
+    expect(secondary.value).toBe(saved)
+  })
+
+  it('keeps fallback authority blocked when an intentional remove cannot clear every copy', async () => {
+    const raw = JSON.stringify({ v: 1, ops: [] })
+    const primary = memoryStore(raw)
+    const secondary = memoryStore(raw)
+    secondary.remove = jest.fn(async () => {
+      throw new Error('blocked remove')
+    })
+    const store = fallbackQueueStore([primary, secondary])
+
+    await expect(store.remove()).rejects.toBeInstanceOf(QueueStorageError)
+    expect(primary.value).toBeNull()
+    expect(secondary.value).toBe(raw)
+    await expect(store.read()).rejects.toBeInstanceOf(QueueStorageError)
+    await expect(store.write(raw)).rejects.toBeInstanceOf(QueueStorageError)
+  })
+
+  it('with no readable store at all, reads fail closed and writes are not durable', async () => {
     const broken: QueueStore = {
       read: async () => {
         throw new Error('blocked')
@@ -782,10 +931,250 @@ describe('durability (Codex P2 on #247)', () => {
       },
     }
     const store = fallbackQueueStore([broken])
-    expect(await store.read()).toBeNull()
+    await expect(store.read()).rejects.toBeInstanceOf(QueueStorageError)
     await expect(store.write('x')).rejects.toBeInstanceOf(QueueStorageError)
     const none = preferredQueueStore(queueLocation({ kind: 'person', userId: 'u1' }), {})
     await expect(none.write('x')).rejects.toBeInstanceOf(QueueStorageError)
+  })
+
+  it('does not treat a readable but empty fallback as proof that an unreadable primary is empty', async () => {
+    const broken: QueueStore = {
+      read: async () => {
+        throw new Error('blocked')
+      },
+      write: async () => {},
+      remove: async () => {},
+    }
+    const empty: QueueStore = {
+      read: async () => null,
+      write: async () => {},
+      remove: async () => {},
+    }
+    await expect(fallbackQueueStore([broken, empty]).read()).rejects.toBeInstanceOf(QueueStorageError)
+  })
+})
+
+describe('storage read recovery', () => {
+  const personOp = {
+    id: 'saved-key-abcdefghijkl',
+    action: 'list-item.set-checked',
+    v: 1,
+    payload: { itemId: 'saved-item', checked: true },
+    createdAt: 1,
+    state: 'pending',
+    attempts: 0,
+    nextAttemptAt: 0,
+  }
+  const deviceOp = {
+    id: 'device-key-abcdefghijk',
+    action: 'device.list-item.set-checked',
+    v: 1,
+    payload: { itemId: 'saved-item', checked: true, actingMemberId: 'member-1' },
+    createdAt: 1,
+    state: 'pending',
+    attempts: 0,
+    nextAttemptAt: 0,
+  }
+
+  function unreadStore(raw: string) {
+    let readable = false
+    let value: string | null = raw
+    const read = jest.fn(async () => {
+      if (!readable) throw new Error('temporarily unreadable')
+      return value
+    })
+    const write = jest.fn(async (next: string) => {
+      value = next
+    })
+    const remove = jest.fn(async () => {
+      value = null
+    })
+    return {
+      store: { read, write, remove } as QueueStore,
+      read,
+      write,
+      remove,
+      raw,
+      value: () => value,
+      makeReadable: () => {
+        readable = true
+      },
+    }
+  }
+
+  it.each([
+    {
+      namespace: 'person' as const,
+      action: personOp.action,
+      payload: personOp.payload,
+      raw: JSON.stringify({ v: 1, ops: [personOp] }),
+    },
+    {
+      namespace: 'device' as const,
+      action: deviceOp.action,
+      payload: deviceOp.payload,
+      raw: JSON.stringify({ v: 1, ops: [deviceOp] }),
+    },
+  ])('pauses $namespace queues after an unreadable initial read without overwriting saved bytes', async ({ namespace, action, payload, raw }) => {
+    const blocked = unreadStore(raw)
+    const t = setup({ namespace, online: true, store: blocked.store })
+    await t.queue.ready
+    expect(t.queue.hasStorageReadError()).toBe(true)
+    expect(t.queue.isDurable()).toBe(false)
+    expect(t.queue.diagnostics().durable).toBe(false)
+    expect(t.queue.list()).toEqual([])
+
+    await expect(t.queue.enqueue(action as any, payload)).rejects.toMatchObject({ code: 'STORAGE_UNAVAILABLE' })
+    await expect(t.queue.retry('saved-key-abcdefghijkl')).rejects.toMatchObject({ code: 'STORAGE_UNAVAILABLE' })
+    await expect(t.queue.discard('saved-key-abcdefghijkl')).rejects.toMatchObject({ code: 'STORAGE_UNAVAILABLE' })
+    await t.queue.drain()
+    await t.queue.handleOnline()
+
+    expect(t.sent).toEqual([])
+    expect(blocked.write).not.toHaveBeenCalled()
+    expect(blocked.remove).not.toHaveBeenCalled()
+    expect(blocked.value()).toBe(raw)
+  })
+
+  it('serializes explicit read retries, rehydrates the original operation and replays its key/body once', async () => {
+    const raw = JSON.stringify({ v: 1, ops: [personOp] })
+    const blocked = unreadStore(raw)
+    const t = setup({ store: blocked.store, online: true })
+    await t.queue.ready
+    blocked.makeReadable()
+
+    const first = t.queue.retryStorageRead()
+    const second = t.queue.retryStorageRead()
+    await Promise.all([first, second])
+
+    expect(blocked.read).toHaveBeenCalledTimes(2)
+    expect(t.queue.hasStorageReadError()).toBe(false)
+    expect(t.sent).toEqual([
+      {
+        method: 'PATCH',
+        path: '/api/lists/items/update',
+        body: { itemId: 'saved-item', checked: true },
+        idempotencyKey: personOp.id,
+      },
+    ])
+    expect(t.queue.list()).toEqual([])
+    await t.queue.drain()
+    expect(t.sent).toHaveLength(1)
+  })
+
+  it('keeps a compatible future container quarantined after a successful retry read', async () => {
+    const future = JSON.stringify({ v: 2, ops: [personOp] })
+    const blocked = unreadStore(future)
+    const t = setup({ store: blocked.store, online: true })
+    await t.queue.ready
+    blocked.makeReadable()
+    await t.queue.retryStorageRead()
+
+    expect(t.queue.hasStorageReadError()).toBe(false)
+    expect(t.queue.requiresCompatibleClient()).toBe(true)
+    expect(t.queue.list()).toEqual([])
+    expect(t.sent).toEqual([])
+    expect(blocked.write).not.toHaveBeenCalled()
+    expect(blocked.remove).not.toHaveBeenCalled()
+    await expect(t.queue.enqueue('list-item.set-checked', tick('new'))).rejects.toMatchObject({ code: 'COMPATIBLE_CLIENT_REQUIRED' })
+    expect(blocked.value()).toBe(future)
+  })
+
+  it('remains paused when explicit recovery still cannot read and clear can intentionally purge it', async () => {
+    const raw = JSON.stringify({ v: 1, ops: [personOp] })
+    const blocked = unreadStore(raw)
+    const t = setup({ store: blocked.store, online: true })
+    await t.queue.ready
+    await Promise.all([t.queue.retryStorageRead(), t.queue.retryStorageRead()])
+    expect(t.queue.hasStorageReadError()).toBe(true)
+    expect(blocked.read).toHaveBeenCalledTimes(2)
+    expect(blocked.write).not.toHaveBeenCalled()
+    expect(blocked.remove).not.toHaveBeenCalled()
+    expect(blocked.value()).toBe(raw)
+
+    await t.queue.clear()
+    expect(blocked.remove).toHaveBeenCalledTimes(1)
+    expect(t.queue.hasStorageReadError()).toBe(false)
+    expect(t.queue.list()).toEqual([])
+  })
+
+  it('does not rehydrate from a retry that finishes after dispose', async () => {
+    const raw = JSON.stringify({ v: 1, ops: [personOp] })
+    let reads = 0
+    let resolve!: (value: string) => void
+    const write = jest.fn()
+    const remove = jest.fn()
+    const read = jest.fn(async () => {
+      reads++
+      if (reads === 1) throw new Error('blocked')
+      return new Promise<string>((r) => {
+        resolve = r
+      })
+    })
+    const queue = createOfflineQueue({
+      store: { read, write, remove },
+      send: async () => ({ status: 200, body: null }),
+      now: () => 100,
+      random: () => 0.5,
+      newKey: () => 'new-key-abcdefghijkl',
+      isOnline: () => true,
+      setTimer: () => null,
+      clearTimer: () => {},
+    })
+    await queue.ready
+    const retry = queue.retryStorageRead()
+    await flush()
+    queue.dispose()
+    resolve(raw)
+    await retry
+    expect(queue.list()).toEqual([])
+    expect(write).not.toHaveBeenCalled()
+    expect(remove).not.toHaveBeenCalled()
+  })
+
+  it('pauses after a successful send cannot remove its persisted copy', async () => {
+    const raw = JSON.stringify({ v: 1, ops: [{ id: 'saved-key-abcdefghijkl', action: 'list-item.set-checked', v: 1, payload: { itemId: 'saved-item', checked: true }, createdAt: 1, state: 'pending', attempts: 0, nextAttemptAt: 0 }] })
+    const remove = jest.fn(async () => {
+      throw new Error('blocked cleanup')
+    })
+    const store: QueueStore = {
+      read: async () => raw,
+      write: async () => {},
+      remove,
+    }
+    const t = setup({ store, online: true })
+    await t.queue.ready
+    await t.queue.drain()
+
+    expect(t.sent).toHaveLength(1)
+    expect(t.queue.list()).toEqual([])
+    expect(t.queue.hasStorageReadError()).toBe(true)
+    expect(t.queue.isDurable()).toBe(false)
+    expect(t.timers).toEqual([])
+    await expect(t.queue.enqueue('list-item.set-checked', tick('new'))).rejects.toMatchObject({ code: 'STORAGE_UNAVAILABLE' })
+    await t.queue.drain()
+    expect(t.sent).toHaveLength(1)
+  })
+
+  it('blocks new work when an intentional purge cannot remove saved storage', async () => {
+    const raw = JSON.stringify({ v: 1, ops: [{ id: 'saved-key-abcdefghijkl', action: 'list-item.set-checked', v: 1, payload: { itemId: 'saved-item', checked: true }, createdAt: 1, state: 'pending', attempts: 0, nextAttemptAt: 0 }] })
+    const remove = jest.fn(async () => {
+      throw new Error('blocked purge')
+    })
+    const store: QueueStore = {
+      read: async () => raw,
+      write: async () => {},
+      remove,
+    }
+    const t = setup({ store, online: true })
+    await t.queue.ready
+    await t.queue.clear()
+
+    expect(remove).toHaveBeenCalledTimes(1)
+    expect(t.queue.hasStorageReadError()).toBe(true)
+    await expect(t.queue.enqueue('list-item.set-checked', tick('new'))).rejects.toMatchObject({ code: 'STORAGE_UNAVAILABLE' })
+    await t.queue.drain()
+    expect(t.sent).toEqual([])
   })
 })
 
@@ -912,6 +1301,95 @@ describe('abandon (device purge)', () => {
     expect(store.value).toBeNull()
     expect(queue.list()).toEqual([])
   })
+
+  it('orders abandoned cleanup before a replacement queue writes the same store', async () => {
+    let releaseWrite!: () => void
+    let writeStarted!: () => void
+    const writeReady = new Promise<void>((resolve) => { writeStarted = resolve })
+    const writeGate = new Promise<void>((resolve) => { releaseWrite = resolve })
+    let value: string | null = null
+    let writes = 0
+    const store: QueueStore = {
+      read: async () => value,
+      write: async (next) => {
+        writes++
+        if (writes === 1) {
+          writeStarted()
+          await writeGate
+        }
+        value = next
+      },
+      remove: async () => { value = null },
+    }
+    const deps = (newKey: string): OfflineQueueDeps => ({
+      store,
+      send: async () => ({ status: 200, body: null }),
+      now: () => 1000,
+      random: () => 0.5,
+      newKey: () => newKey,
+      isOnline: () => false,
+      setTimer: () => null,
+      clearTimer: () => {},
+    })
+    const retired = createOfflineQueue(deps('retired-key-abcdefghijkl'))
+    const oldEnqueue = retired.enqueue('list-item.set-checked', tick('old'))
+    await writeReady
+    retired.abandon()
+
+    const replacement = createOfflineQueue(deps('replacement-key-abcdefghijkl'))
+    const newEnqueue = replacement.enqueue('list-item.set-checked', tick('new'))
+    releaseWrite()
+    await Promise.all([oldEnqueue, newEnqueue])
+    expect(value).toContain('"itemId":"new"')
+    expect(value).toContain('replacement-key-abcdefghijkl')
+    expect(value).not.toContain('old')
+  })
+
+  it('waits for abandoned cleanup before a replacement queue reads the store', async () => {
+    const oldRaw = JSON.stringify({ v: 1, ops: [{ id: 'old-key-abcdefghijkl', action: 'list-item.set-checked', v: 1, payload: tick('old'), createdAt: 1, state: 'pending', attempts: 0, nextAttemptAt: 0 }] })
+    let value: string | null = oldRaw
+    let releaseRemove!: () => void
+    let removeStarted!: () => void
+    const removeGate = new Promise<void>((resolve) => { releaseRemove = resolve })
+    const removeReady = new Promise<void>((resolve) => { removeStarted = resolve })
+    const read = jest.fn(async () => value)
+    const store: QueueStore = {
+      read,
+      write: async (next) => { value = next },
+      remove: async () => {
+        removeStarted()
+        await removeGate
+        value = null
+      },
+    }
+    const deps = (newKey: string): OfflineQueueDeps => ({
+      store,
+      send: async () => ({ status: 200, body: null }),
+      now: () => 1000,
+      random: () => 0.5,
+      newKey: () => newKey,
+      isOnline: () => false,
+      setTimer: () => null,
+      clearTimer: () => {},
+    })
+    const retired = createOfflineQueue(deps('retired-key-abcdefghijkl'))
+    await retired.ready
+    retired.abandon()
+    await removeReady
+
+    const replacement = createOfflineQueue(deps('replacement-key-abcdefghijkl'))
+    const replacementReady = replacement.ready
+    await flush()
+    expect(read).toHaveBeenCalledTimes(1)
+    releaseRemove()
+    await replacementReady
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(replacement.list()).toEqual([])
+
+    await replacement.enqueue('list-item.set-checked', tick('new'))
+    expect(value).toContain('"itemId":"new"')
+    expect(value).not.toContain('"itemId":"old"')
+  })
 })
 
 describe('content-free sync diagnostics', () => {
@@ -1037,6 +1515,7 @@ describe('bounded device grocery creates', () => {
     let resolve!: (value: string) => void
     const write = jest.fn(), remove = jest.fn()
     const late = setup({ namespace: 'device', store: { read: () => new Promise(r => { resolve = r }), write, remove } })
+    await flush()
     late.queue.abandon()
     resolve(raw)
     await late.queue.ready
@@ -1044,7 +1523,7 @@ describe('bounded device grocery creates', () => {
     expect(late.queue.list()).toEqual([])
     expect(late.sent).toEqual([])
     expect(write).not.toHaveBeenCalled()
-    expect(remove).not.toHaveBeenCalled()
+    expect(remove).toHaveBeenCalledTimes(1)
   })
 })
 

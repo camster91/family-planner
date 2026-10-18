@@ -202,12 +202,16 @@ export function clearAllPersonQueues(): Promise<void> {
 }
 
 async function clearAll(): Promise<void> {
-  for (const [name, queue] of Array.from(queues.entries())) {
-    if (name === DEVICE_QUEUE) continue // A tablet's queue belongs to the device, not a person.
-    await queue.clear().catch(() => {})
-    queue.dispose()
+  const personQueues = Array.from(queues.entries()).filter(([name]) => name !== DEVICE_QUEUE)
+  // Retire every queue before any storage await: the one-second sign-out
+  // deadline must not leave a stuck person's queue able to replay or enqueue.
+  for (const [name, queue] of personQueues) {
+    queue.abandon()
     queues.delete(name)
   }
   const storage = safeLocalStorage()
-  await clearPersonQueues({ storages: storage ? [storage] : [], deleteIndexedDb })
+  await Promise.all([
+    ...personQueues.map(([, queue]) => queue.clear().catch(() => {})),
+    clearPersonQueues({ storages: storage ? [storage] : [], deleteIndexedDb }),
+  ])
 }

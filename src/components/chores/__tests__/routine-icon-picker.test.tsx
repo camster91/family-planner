@@ -40,6 +40,16 @@ describe('RoutineIcon drawings', () => {
   })
 })
 
+it.each(['__proto__', 'constructor', 'toString'])('draws the neutral fallback for inherited object key %s', (icon) => {
+  const { container } = render(<RoutineIcon icon={icon} title="Routine step" width={48} />)
+  const svg = screen.getByRole('img', { name: 'Routine step' })
+  expect(svg.getAttribute('data-icon')).toBe('none')
+  expect(svg.getAttribute('viewBox')).toBe('0 0 24 24')
+  expect(svg.getAttribute('stroke')).toBe('currentColor')
+  expect(svg.getAttribute('width')).toBe('48')
+  expect(container.querySelectorAll('circle')).toHaveLength(2)
+})
+
 describe('RoutineIconPicker', () => {
   it('lists every picture as a labelled button plus "No picture"', () => {
     render(<Harness />)

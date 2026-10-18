@@ -39,6 +39,7 @@ jest.mock("next/navigation", () => ({
 }));
 
 let online: boolean, now: number;
+let storageReadError = false;
 let raw: string | null;
 let store: QueueStore;
 let send: jest.MockedFunction<SendFn>;
@@ -58,6 +59,7 @@ const buildQueue = () =>
 beforeEach(() => {
   online = false;
   now = Date.now();
+  storageReadError = false;
   raw = null;
   keySeq = 0;
   mockRefresh.mockReset();
@@ -66,7 +68,10 @@ beforeEach(() => {
     get: () => online,
   });
   store = {
-    read: async () => raw,
+    read: async () => {
+      if (storageReadError) throw new Error("storage read unavailable");
+      return raw;
+    },
     write: async (value) => {
       raw = value;
     },
@@ -122,6 +127,34 @@ it("queues a submitted offline add with visible state, then refreshes canonical 
   expect(screen.queryByTestId("queued-grocery-add")).toBeNull();
   expect(screen.getByRole("status").textContent).toContain("confirmed");
   expect(screen.queryByText("Old replay text")).toBeNull();
+});
+it("retains an unsubmitted draft when storage cannot be read, then exposes normal enqueue after explicit recovery", async () => {
+  storageReadError = true;
+  mockQueue.dispose();
+  mockQueue = buildQueue();
+  render(<PersonGroceryAdd {...props} />);
+  await screen.findByRole("button", { name: "Try loading saved changes" });
+
+  await typeAndSubmit("Keep this draft");
+  expect(screen.getByRole("textbox", { name: "Add an item" })).toHaveValue(
+    "Keep this draft",
+  );
+  expect(screen.getByText(/couldn’t load saved changes/i)).toBeInTheDocument();
+  expect(send).not.toHaveBeenCalled();
+  expect(raw).toBeNull();
+
+  storageReadError = false;
+  await userEvent.click(
+    screen.getByRole("button", { name: "Try loading saved changes" }),
+  );
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("button", { name: "Try loading saved changes" }),
+    ).toBeNull(),
+  );
+  expect(screen.getByRole("textbox", { name: "Add an item" })).toHaveValue(
+    "Keep this draft",
+  );
 });
 it("keeps submitted text, original key/body and status through unmount/restart and an uncertain send", async () => {
   const first = render(<PersonGroceryAdd {...props} />);

@@ -106,6 +106,7 @@ export default defineConfig({
         ["list"],
         ["html", { open: "never", outputFolder: reportDir }],
         ["github"],
+        ["json", { outputFile: `${reportDir}/results.json` }],
       ]
     : [["list"], ["html", { open: "never", outputFolder: reportDir }]],
   use: {

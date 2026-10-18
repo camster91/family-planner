@@ -19,12 +19,15 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
   const [durable, setDurable] = React.useState(true)
   const [pendingCount, setPendingCount] = React.useState(0)
   const queueRef = React.useRef<OfflineQueue | null>(null)
+  const [queueState, setQueueState] = React.useState<{ userId: string; queue: OfflineQueue } | null>(null)
+  const [storageBlocked, setStorageBlocked] = React.useState(false)
   const onSyncedRef = React.useRef(onSynced)
   onSyncedRef.current = onSynced
 
   React.useEffect(() => {
     const queue = getPersonQueue(userId)
     queueRef.current = queue
+    setQueueState({ userId, queue })
     let active = true
     const unsubscribe = queue.subscribe((event) => {
       if (!active) return
@@ -34,14 +37,22 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
       setOps(queue.list().filter(isCheckedOperation))
       setPendingCount(queue.list().filter(o => o.state === 'pending' || o.state === 'syncing').length)
       setDurable(queue.isDurable())
+      setStorageBlocked(queue.hasStorageReadError())
+      setNotice(previous => previous === 'signed-out' ? previous
+        : queue.requiresCompatibleClient() ? 'compatible-client'
+        : previous === 'compatible-client' ? null : previous)
     })
     void queue.ready.then(() => {
       if (!active) return
       setOps(queue.list().filter(isCheckedOperation))
       setPendingCount(queue.list().filter(o => o.state === 'pending' || o.state === 'syncing').length)
       setDurable(queue.isDurable())
-      if (queue.requiresCompatibleClient()) setNotice('compatible-client')
-      else if (queue.loadReport().dropped > 0) setNotice('dropped')
+      setStorageBlocked(queue.hasStorageReadError())
+      setNotice(previous => previous === 'signed-out' ? previous
+        : queue.requiresCompatibleClient() ? 'compatible-client'
+        : previous === 'compatible-client' ? null : previous)
+      if (!queue.hasStorageReadError() && !queue.requiresCompatibleClient() && queue.loadReport().dropped > 0)
+        setNotice(previous => previous === 'signed-out' ? previous : 'dropped')
     })
 
     const update = () => setOnline(navigator.onLine !== false)
@@ -69,12 +80,15 @@ export function useListItemSync(userId: string, onSynced: (itemId: string, check
       await queue.enqueue('list-item.set-checked', { itemId, checked })
     } catch (error) {
       if (error instanceof QueueError && error.code === 'QUEUE_FULL') setNotice('queue-full')
+      else if (error instanceof QueueError && error.code === 'STORAGE_UNAVAILABLE') return // Persistent recovery owns this blocking state.
       else if (error instanceof QueueError && error.code === 'COMPATIBLE_CLIENT_REQUIRED') setNotice('compatible-client')
       else throw error
     }
   }, [])
 
   return {
+    queue: queueState?.userId === userId ? queueState.queue : null,
+    storageBlocked: queueState?.userId === userId && storageBlocked,
     operations: ops,
     online,
     durable,

@@ -11,6 +11,7 @@ import {
   type OfflineQueue,
   type PersonGroceryAddOperation,
 } from "@/lib/offline-queue";
+import { QueueStorageRecovery } from "@/components/ui/queue-storage-recovery";
 
 /** Only submitted grocery text is persisted, never an unsent draft or arbitrary list fields. */
 export function PersonGroceryAdd({
@@ -29,6 +30,7 @@ export function PersonGroceryAdd({
   const refresh = React.useRef(router.refresh);
   refresh.current = router.refresh;
   const queueRef = React.useRef<OfflineQueue | null>(null);
+  const [queue, setQueue] = React.useState<OfflineQueue | null>(null);
   const submitting = React.useRef(false);
   const [text, setText] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -37,6 +39,7 @@ export function PersonGroceryAdd({
   const [error, setError] = React.useState<GroceryMessage | null>(null);
   const [online, setOnline] = React.useState(true);
   const [signedOut, setSignedOut] = React.useState(false);
+  const [storageReadError, setStorageReadError] = React.useState(false);
   const mounted = React.useRef(false);
   const generation = React.useRef(0);
 
@@ -50,10 +53,13 @@ export function PersonGroceryAdd({
     setError(null);
     setNotice(null);
     setSignedOut(false);
+    setStorageReadError(false);
     const queue = getPersonQueue(userId);
     queueRef.current = queue;
+    setQueue(queue);
     let active = true;
     const update = () => {
+      if (active) setStorageReadError(queue.hasStorageReadError());
       if (active && showCompatibilityNotice && queue.requiresCompatibleClient())
         setNotice("compatibleClient");
       if (active)
@@ -101,6 +107,9 @@ export function PersonGroceryAdd({
       mounted.current = false;
       effectGeneration.current++;
       unsubscribe();
+      queueRef.current = null;
+      setQueue(null);
+      setStorageReadError(false);
       window.removeEventListener("online", connection);
       window.removeEventListener("offline", connection);
     };
@@ -135,15 +144,25 @@ export function PersonGroceryAdd({
       if (queue.list().some((o) => o.id === op.id))
         setNotice(op.durable ? "queued" : "pageOnly");
     } catch (caught) {
-      if (mounted.current && generation.current === submittingGeneration)
-        setError(
-          caught instanceof QueueError && caught.code === "QUEUE_FULL"
-            ? "full"
-            : caught instanceof QueueError &&
-                caught.code === "COMPATIBLE_CLIENT_REQUIRED"
-              ? "compatibleClient"
-              : "queueFailed",
-        );
+      if (mounted.current && generation.current === submittingGeneration) {
+        if (
+          caught instanceof QueueError &&
+          caught.code === "STORAGE_UNAVAILABLE"
+        ) {
+          // QueueStorageRecovery owns this persistent state outside the input
+          // card; keep the draft without duplicating its notice.
+          setError(null);
+        } else {
+          setError(
+            caught instanceof QueueError && caught.code === "QUEUE_FULL"
+              ? "full"
+              : caught instanceof QueueError &&
+                  caught.code === "COMPATIBLE_CLIENT_REQUIRED"
+                ? "compatibleClient"
+                : "queueFailed",
+          );
+        }
+      }
     } finally {
       if (generation.current === submittingGeneration) {
         submitting.current = false;
@@ -159,9 +178,17 @@ export function PersonGroceryAdd({
       setNotice("removed");
   };
 
-  if (!allowNew && ops.length === 0 && !notice && !signedOut) return null;
+  if (
+    !allowNew &&
+    ops.length === 0 &&
+    !notice &&
+    !signedOut &&
+    !(showCompatibilityNotice && storageReadError)
+  )
+    return null;
   return (
     <section aria-label={t("groceries.personSection")} className="space-y-3">
+      {showCompatibilityNotice && <QueueStorageRecovery queue={queue} />}
       {allowNew && !signedOut && (
         <div className="card-apple px-4 py-3">
           <div className="flex items-center gap-3">

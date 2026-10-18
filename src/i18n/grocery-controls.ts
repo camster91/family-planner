@@ -2,6 +2,10 @@
  * Item content is user-entered and must only be interpolated, never translated.
  * These keys describe display state, not persisted operation or API codes. */
 export const groceryEnglish = {
+  storageUnavailable:
+    "We couldn’t load saved changes. New changes are paused to protect them.",
+  storageRetry: "Try loading saved changes",
+  storageRetrying: "Loading saved changes…",
   compatibleClient:
     "Pending changes need a compatible app version. Refresh or update this app. They are kept on this device and won’t be sent. Don’t add them again.",
   confirmed: "Grocery add confirmed. Refreshing the list.",
@@ -140,6 +144,10 @@ export const groceryEnglish = {
 
 export type GroceryMessage = keyof typeof groceryEnglish;
 export const grocerySpanish: Record<GroceryMessage, string> = {
+  storageUnavailable:
+    "No pudimos cargar los cambios guardados. Pausamos los cambios nuevos para protegerlos.",
+  storageRetry: "Intentar cargar los cambios guardados",
+  storageRetrying: "Cargando los cambios guardados…",
   compatibleClient:
     "Los cambios pendientes necesitan una versión compatible. Actualiza esta app. Se conservan en este dispositivo y no se enviarán. No los añadas de nuevo.",
   confirmed: "Añadido confirmado. Actualizando la lista.",

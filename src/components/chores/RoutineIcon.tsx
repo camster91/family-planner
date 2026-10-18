@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
-import { isRoutineIconKey, routineIconLabel, type RoutineIconKey } from '@/lib/routine-icons'
+import type { RoutineIconKey } from '@/lib/routine-icons'
 
 /**
  * Chore picture icons (#272). Original line art drawn for Family Planner, not
@@ -15,8 +15,6 @@ import { isRoutineIconKey, routineIconLabel, type RoutineIconKey } from '@/lib/r
  * The keys and labels live in `src/lib/routine-icons.ts` (the API validates
  * against them). Every key there must have a drawing here (tested).
  */
-
-const dot = (x: number, y: number) => `M${x} ${y}h.01`
 
 const DRAWINGS: Record<RoutineIconKey, React.ReactNode> = {
   'wake-up': (
@@ -47,7 +45,7 @@ const DRAWINGS: Record<RoutineIconKey, React.ReactNode> = {
   'wash-face': (
     <>
       <circle cx="12" cy="14.5" r="6.5" />
-      <path d={`${dot(9.6, 13.4)}${dot(14.4, 13.4)}`} />
+      <path d="M9.6 13.4h.01M14.4 13.4h.01" />
       <path d="M9.8 16.4a2.8 2.8 0 0 0 4.4 0" />
       <path d="M12 2.2c-1.1 1.5-1.7 2.5-1.7 3.2a1.7 1.7 0 0 0 3.4 0c0-.7-.6-1.7-1.7-3.2z" />
       <path d="M17.5 4.5c-.6.8-.9 1.3-.9 1.7a.9.9 0 0 0 1.8 0c0-.4-.3-.9-.9-1.7z" />
@@ -136,7 +134,7 @@ const DRAWINGS: Record<RoutineIconKey, React.ReactNode> = {
     <>
       <path d="M2.5 11h19a9.5 8.5 0 0 1-19 0z" />
       <path d="M15 11l4.5-7.5" />
-      <path d={`${dot(7, 8)}${dot(10, 7)}${dot(12.5, 8.5)}`} />
+      <path d="M7 8h.01M10 7h.01M12.5 8.5h.01" />
     </>
   ),
   lunchbox: (
@@ -250,7 +248,7 @@ const DRAWINGS: Record<RoutineIconKey, React.ReactNode> = {
       <path d="M14.5 4.5h2.5" />
       <path d="M10 7v2.2M13 7v2.2" />
       <path d="M8 11.2a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v9.3a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1z" />
-      <path d={`${dot(19.5, 2.5)}${dot(21.5, 4.5)}${dot(19.5, 6.5)}`} />
+      <path d="M19.5 2.5h.01M21.5 4.5h.01M19.5 6.5h.01" />
     </>
   ),
   'water-plants': (
@@ -272,7 +270,7 @@ const DRAWINGS: Record<RoutineIconKey, React.ReactNode> = {
     <>
       <path d="M2.5 15h19l-2 5.5H4.5z" />
       <path d="M6 15a6 3.2 0 0 1 12 0" />
-      <path d={`${dot(9, 9.5)}${dot(12, 8.5)}${dot(15, 9.5)}`} />
+      <path d="M9 9.5h.01M12 8.5h.01M15 9.5h.01" />
     </>
   ),
   'walk-dog': (
@@ -327,7 +325,9 @@ export interface RoutineIconProps extends Omit<React.SVGProps<SVGSVGElement>, 'c
 
 /** One chore picture. Size it with `className` (e.g. `w-24 h-24`); colour follows `currentColor`. */
 export function RoutineIcon({ icon, title, className, ...rest }: RoutineIconProps) {
-  const drawing = isRoutineIconKey(icon) ? DRAWINGS[icon] : FALLBACK
+  // The renderer needs its drawings, not the picker's searchable metadata.
+  const known = typeof icon === 'string' && Object.prototype.hasOwnProperty.call(DRAWINGS, icon)
+  const drawing = known ? DRAWINGS[icon as RoutineIconKey] : FALLBACK
   return (
     <svg
       viewBox="0 0 24 24"
@@ -337,7 +337,7 @@ export function RoutineIcon({ icon, title, className, ...rest }: RoutineIconProp
       strokeLinecap="round"
       strokeLinejoin="round"
       className={cn('shrink-0', className)}
-      data-icon={isRoutineIconKey(icon) ? icon : 'none'}
+      data-icon={known ? icon : 'none'}
       {...(title ? { role: 'img', 'aria-label': title } : { 'aria-hidden': true, focusable: false })}
       {...rest}
     >
@@ -348,5 +348,3 @@ export function RoutineIcon({ icon, title, className, ...rest }: RoutineIconProp
 
 /** Keys with a drawing (the tests check this matches the catalogue exactly). */
 export const DRAWN_ICON_KEYS = Object.keys(DRAWINGS)
-
-export { routineIconLabel }

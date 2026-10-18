@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTranslation } from "@/i18n";
 import type { GroceryMessage } from "@/i18n/grocery-controls";
 import { Dialog } from "@/components/ui/dialog";
+import { QueueStorageRecovery } from "@/components/ui/queue-storage-recovery";
 import { getPersonQueue } from "@/lib/offline-queue-browser";
 import {
   isCheckedOperation,
@@ -17,6 +18,7 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
   const [open, setOpen] = React.useState(false);
   const [ops, setOps] = React.useState<CheckedQueuedOperation[]>([]);
   const [loaded, setLoaded] = React.useState(false);
+  const [storageBlocked, setStorageBlocked] = React.useState(false);
   const [confirm, setConfirm] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<GroceryMessage | null>(null);
@@ -36,6 +38,7 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
     const current = ++generation.current;
     const update = () => {
       if (!active) return;
+      setStorageBlocked(queue.hasStorageReadError());
       if (queue.requiresCompatibleClient()) setMessage("compatibleClient");
       setOps(
         queue
@@ -141,9 +144,10 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
         title={t("groceries.tickTitle")}
         description={t("groceries.tickDescription")}
       >
+        <QueueStorageRecovery queue={queueRef.current} />
         {!loaded ? (
           <p role="status">{t("groceries.ticksLoading")}</p>
-        ) : ops.length === 0 ? (
+        ) : storageBlocked ? null : ops.length === 0 ? (
           <p role="status">
             {t(
               message === "compatibleClient"

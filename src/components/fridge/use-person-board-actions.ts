@@ -64,6 +64,7 @@ export function usePersonBoardActions(
           return { ok: true }
         } catch (error) {
           if (error instanceof QueueError && error.code === 'COMPATIBLE_CLIENT_REQUIRED') return { ok: false, message: t('groceries.compatibleClient') }
+          if (error instanceof QueueError && error.code === 'STORAGE_UNAVAILABLE') return { ok: false, message: t('groceries.storageUnavailable') }
           if (error instanceof QueueError && error.code === 'QUEUE_FULL') {
             return { ok: false, message: 'Too many changes are waiting to sync. Reconnect and try again.' }
           }
