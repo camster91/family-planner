@@ -35,6 +35,7 @@ const digest = (value: string) =>
 const accountSelect = {
   id: true,
   name: true,
+  email: true,
   role: true,
   family_id: true,
   token_version: true,
@@ -94,7 +95,12 @@ function receipt(
     profileRole: profile.role,
     account:
       account && knownRole(account.role)
-        ? { id: account.id, name: account.name, role: account.role }
+        ? {
+            id: account.id,
+            name: account.name,
+            email: account.email,
+            role: account.role,
+          }
         : null,
     state,
     revision: challenge.revision,
@@ -193,7 +199,7 @@ export async function manageProfileAccountLink(
   db: Pick<PrismaClient, "$transaction" | "user">,
   actor: Actor,
   input: unknown,
-  now = new Date(),
+  clock: () => Date = () => new Date(),
 ): Promise<{ links: ProfileLinkReceipt[] }> {
   const parsed = profileLinkCommand.safeParse(input);
   if (!parsed.success) throw new ProfileLinkError("INVALID");
@@ -243,6 +249,9 @@ export async function manageProfileAccountLink(
     ].sort();
     for (const id of ids) await lockUser(tx, id);
     await lockHousehold(tx, actor.familyId);
+    // Expiry is evaluated after lock waits/password work, never against the
+    // potentially much earlier request-start timestamp.
+    const now = clock();
     const viewer = await tx.user.findUnique({
       where: { id: actor.userId },
       select: accountSelect,
@@ -457,6 +466,8 @@ export async function manageProfileAccountLink(
         })
       : null;
     if (row.state === "linked") {
+      if (command.action === "approve" && command.revision !== row.revision - 1)
+        throw new ProfileLinkError("CONFLICT");
       // Lost-response receipt only; never recreate a link after removal/erasure.
       if (
         command.action !== "approve" ||

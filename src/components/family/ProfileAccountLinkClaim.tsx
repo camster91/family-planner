@@ -121,6 +121,9 @@ export default function ProfileAccountLinkClaim() {
                   <dd>
                     {preview.account?.name} ·{" "}
                     {preview.account && text(preview.account.role)}
+                    <span className="block text-muted-foreground">
+                      {preview.account?.email}
+                    </span>
                   </dd>
                 </div>
               </dl>

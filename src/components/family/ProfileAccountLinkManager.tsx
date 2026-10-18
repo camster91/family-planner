@@ -314,7 +314,9 @@ export default function ProfileAccountLinkManager({
                       </p>
                       <p>
                         {text(row.state)}
-                        {row.account ? ` · ${row.account.name}` : ""}
+                        {row.account
+                          ? ` · ${row.account.name} (${row.account.email})`
+                          : ""}
                       </p>
                       <p className="text-muted-foreground">
                         {text("expires")}{" "}
@@ -396,6 +398,9 @@ export default function ProfileAccountLinkManager({
               <dd>
                 {review.account?.name} ·{" "}
                 {review.account && text(review.account.role)}
+                <span className="block text-muted-foreground">
+                  {review.account?.email}
+                </span>
               </dd>
             </div>
           </dl>

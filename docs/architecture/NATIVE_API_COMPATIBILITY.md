@@ -14,6 +14,43 @@ The native helper `readNativeBuildIdentity` reads the existing App plugin's actu
 
 ## Activation and recovery rules
 
+### Bounded storage candidate recovery (#565)
+
+Source reconciliation on 2026-10-18 found the requested earlier-candidate retry
+already present in `src/lib/offline-queue.ts` (`391844c9`). No replacement
+algorithm is needed. Before each write, `fallbackQueueStore` probes candidate
+contents. The current readable authority is tried first, followed by every
+other candidate in preference order, including candidates earlier than a
+previously selected fallback. Each candidate is attempted once per requested
+write; there is no background retry loop. This can move a failed localStorage
+write back to a recovered IndexedDB store without changing the serialized
+request keys, operation bodies or public queue format.
+
+Different readable nonempty snapshots pause the adapter without merging,
+overwriting or selecting a preferred winner. An empty readable fallback does
+not establish that an unreadable primary is empty. After a successful write,
+every other candidate must be removed before durability is reported; uncertain
+cleanup blocks the adapter. The exact saved operations remain available for
+explicit recovery, not automatic guessed replay. Existing paused/recovery EN/ES
+UI and the operation/container compatibility gate remain the presentation and
+protocol authority.
+
+Browser adapters obtain a stable `persistenceLane` per database/key. Custom
+wrappers around the same persisted namespace must pass the **same lane object**
+to `fallbackQueueStore(candidates, lane)` and route mutations through the queue's
+serialized persistence lane. One active queue owns a namespace; retire the old
+instance before replacement. A fresh wrapper object without the shared lane
+does not serialize against its predecessor. The lane orders in-page writes and
+cleanup; it is not a durable retirement record or a cross-tab/process lease.
+
+Existing test source includes fallback-to-primary write recovery, divergent and
+identical copies, recovered stale primaries, exhausted/read-failing stores and
+uncertain cleanup. No tests were rerun during this implementation-first pass.
+#565 remains open for the later consolidated recovery/concurrency acceptance.
+#564 is separate: a fresh runtime cannot infer an earlier failed purge from a
+sole surviving stale version-one snapshot. An in-memory lane/blocked flag alone
+cannot establish durable authority after process death.
+
 Before advertising protocol 2, migrate every member-subject reader/writer and affected domain, finish route/setup/assignment/rotation/points and safe shared attribution, and verify the current/previous client and forward/rollback candidates. Separate account authority from profile eligibility and preserve original #480 acceptance. The currently unused negotiation helpers must be integrated with the actual new consumers; a metadata check alone cannot enforce write support or prevent data loss.
 
 On unsupported capability, retain pending work, its original key and body; refresh server capabilities and canonical data, then offer a compatible update or browser fallback. Do not silently drop, reinterpret, renew, or replay a profile operation as an account operation. For an unavailable server, retain the pending intent rather than treating the missing manifest as a new feature grant. A previous server without this endpoint is an explicit unknown state.

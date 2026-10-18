@@ -37,6 +37,7 @@ export const profileLinkReceipt = z
       .object({
         id,
         name: z.string(),
+        email: z.string().email(),
         role: z.enum(["parent", "teen", "child"]),
       })
       .strict()
