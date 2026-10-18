@@ -60,7 +60,7 @@ function utcDay(offset: number) {
       E2E_ANCHOR.getUTCMonth(),
       E2E_ANCHOR.getUTCDate() + offset,
     ),
-  );
+  ).toISOString();
 }
 
 function copy(
@@ -121,7 +121,7 @@ async function seedRows() {
         routine: routineName,
         order: 2,
         notes: null,
-        completedAt: E2E_ANCHOR,
+        completedAt: E2E_ANCHOR.toISOString(),
         verifiedAt: null,
       },
       {
@@ -133,8 +133,8 @@ async function seedRows() {
         routine: routineName,
         order: 3,
         notes: null,
-        completedAt: E2E_ANCHOR,
-        verifiedAt: E2E_ANCHOR,
+        completedAt: E2E_ANCHOR.toISOString(),
+        verifiedAt: E2E_ANCHOR.toISOString(),
       },
       {
         id: IDS.catchup,
@@ -189,7 +189,7 @@ async function seedRows() {
           row.due,
           row.status,
           A.parent,
-          E2E_ANCHOR,
+          E2E_ANCHOR.toISOString(),
           row.icon,
           row.routine,
           row.order,
