@@ -1,23 +1,44 @@
-## Dates UI continuation — 2026-10-18
-
-The isolated `codex/dates-overview-499` slice starts from Family/Notes candidate
-`fb364200`. It adds explicit paired-device refusal before person auth on all four
-Anniversaries handlers and additive server-computed edit/delete permissions under
-the existing role policy. Its overview uses mixed chronological annual dates,
-a quieter later-date disclosure, localized calendar labels, one Add action,
-short accessible forms and read-only details. Initial affected API/page/date/
-dialog checks and independent source review pass. Rendered role testing exposed
-a stale route allowlist that redirected teens/children despite canonical D9
-authority; the bounded repair adds only the Dates person route and retains all
-Settings/device/finance refusals. Enabled Dates also appears in the existing
-localized teen/child feature menu, while feature-off and parent-menu rules stay
-unchanged. Fresh optimized build,
-real-role/synthetic-state six-size browser proof and hosted/release gates remain
-pending. The existing ambiguous-write and stale-refresh recovery audit is still
-open; reminder scheduling, profile/provider/native activation is not introduced.
-Full #499/#128 acceptance remains open.
-
 # Current State
+
+## Family and Notes merged release — 2026-10-18
+
+PR #576 is normally merged at `768e417042f0c1f924ebd3a05e8650b24f778e10`,
+with a whole tree identical to accepted candidate `fb364200`. Every original
+candidate build/image, Android and browser workflow passed. A fresh protected
+backup restored all 71 public tables before merge and its temporary database
+was removed. Incorporated Family #575 is merged with original head/history
+retained. Fresh exact-main build/image 39106390604 and browser 39106390559 are
+running; Android 39106390593 passed. Production promotion/runtime verification
+is pending. The inspected existing Coolify queue has no deployment for this SHA;
+a guarded exact-main dispatch is prepared, not executed. Existing auto-deploy
+settings and default-off profile/assistant capabilities are unchanged. Latest
+serving-runtime proof is still #574 main `f1d103a8`, retained as rollback. No
+production household, native/store/provider/voice or customer acceptance is inferred.
+
+## Dates overview candidate — 2026-10-18
+
+The isolated `codex/dates-overview-499` slice now includes merged main `768e4170`.
+Application `7f2e6417` and test head `7704da0f` add canonical permission-aware
+annual dates, mixed chronology, short forms, localized calendar labels and
+teen/child discovery. Explicit paired-device refusal precedes person auth on
+all four handlers. The shared route allowlist now agrees with documented D9
+rules, preserving Settings/device/finance denials; a tiny scoped dictionary
+keeps menu labels localized without loading the full catalog.
+
+128 affected tests, optimized build/types/lint/required formatting and independent
+source review pass. The final actual compiled browser matrix passes 77 cases,
+with 10 explicitly desktop-only boundary scopes skipped on other sizes, zero
+failures/retries. Six repository sizes include EN/light and ES/dark, canonical
+parent/teen/child and two-household cases, confirmed live-device redirect/all-four
+API refusals, Axe/reflow/44px controls, loading/malformed/empty/retry, raw names,
+optional fields and modal/focus recovery. 48 PNGs are retained for visual review.
+A real routing omission and test-only Spanish/credential-clock mistakes are
+fixed; unsuccessful runs remain retained. This is not full Dates acceptance:
+visual/hosted/release gates and the existing ambiguous-write/stale-refresh
+recovery audit remain open. A separate unaccepted recovery continuation uses
+canonical receipts and requires fresh integration/browser verification. No new
+schema, scheduler, provider/profile activation or native/store change is included.
+Full #499/#128 acceptance remains open.
 
 ## Integrated UI web release — 2026-10-18
 
@@ -36,18 +57,6 @@ version was reread at that revision. This serving-runtime and exact-main evidenc
 is separate from authenticated household/native/customer acceptance. Incorporated PRs #569–#573 are merged with their
 original heads/history retained. Retained rollback release is main `9d9e6de6`.
 
-Family PR #575 is retained for incorporation into the Notes continuation rather
-than redundant merging. Local Notes application source `4b159067` follows the
-approved shared-board direction: full width, one Add action, honest household
-visibility, all five canonical colors, full read-only detail and explicit confirmed
-mutation/failed-refresh recovery. 42 affected tests, optimized build and source
-review pass. Application `fa4948d7` adds accessible loading, bounded previews, save/delete focus and expanded rendered
-confirmed-write/failed-refresh, offline draft, malformed/empty and early-household
-recovery. Original role/isolation/feature/shared-device journeys plus unchanged
-startup budgets pass: 78 cases, 15 inherited desktop-only scope skips.
-All six sizes include EN/light, ES/dark, Axe, reflow, 44px controls and read-only
-focus recovery. No schema/API, permissions, profile/provider/scheduler or native
-change is included. Full programme and hosted/release acceptance stay open.
 
 ## Earlier approved UI candidate checkpoint — 2026-10-18
 

@@ -357,6 +357,45 @@ for (const locale of ["en", "es"] as const) {
         await expect(edit).toHaveCount(0);
         await expect(ownTrigger).toBeFocused();
 
+        if (info.project.use.viewport!.width < 768) {
+          await page.evaluate(() =>
+            window.scrollTo(0, document.documentElement.scrollHeight),
+          );
+          const lastDate = page.getByRole("button", {
+            name: /Another later date/,
+          });
+          await lastDate.focus();
+          const bar = await page.locator("nav.tab-bar").boundingBox();
+          const box = await lastDate.boundingBox();
+          expect(bar).not.toBeNull();
+          expect(box).not.toBeNull();
+          expect(box!.y).toBeGreaterThanOrEqual(64);
+          expect(box!.y + box!.height).toBeLessThanOrEqual(bar!.y - 8);
+          await expect(lastDate).toBeFocused();
+          expect(
+            await lastDate.evaluate((button) => {
+              const rect = button.getBoundingClientRect();
+              return button.contains(
+                document.elementFromPoint(
+                  rect.x + rect.width / 2,
+                  rect.y + rect.height / 2,
+                ),
+              );
+            }),
+          ).toBe(true);
+          await info.attach(
+            `anniversaries-footer-${locale}-${info.project.name}`,
+            {
+              contentType: "image/png",
+              body: await page.screenshot({
+                fullPage: false,
+                animations: "disabled",
+              }),
+            },
+          );
+          await page.evaluate(() => window.scrollTo(0, 0));
+        }
+
         expect(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth,
