@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Users, Plus, Settings, Heart, LayoutGrid, UserMinus } from 'lucide-react'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
@@ -12,6 +12,10 @@ import { useFeatures } from '@/components/providers/features-provider'
 import { isFeatureEnabled } from '@/lib/feature-flags'
 import { MORE_HREF, moreItemsFor } from '@/lib/nav-items'
 import { useMoreText } from '@/i18n/more'
+import { useTranslation } from '@/i18n'
+import { profileSetupMessages } from '@/i18n/profile-setup'
+import { useFamilyOverviewText, type FamilyFeedback } from '@/i18n/family-overview'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 
 /**
  * Family tab (#269): members, then the household's other places — Emergency
@@ -21,17 +25,38 @@ import { useMoreText } from '@/i18n/more'
  * confirm step (DELETE /api/family/members/[id]); never shown on their own row.
  */
 
-type Member = { id: string; name: string; role?: string; avatar_url?: string | null; email?: string }
+type Member = { id: string; name: string; role?: string | null; avatar_url?: string | null; email?: string | null }
+
+function isMember(value: unknown): value is Member {
+  if (value === null || typeof value !== 'object') return false
+  const member = value as Record<string, unknown>
+  return typeof member.id === 'string' && member.id.length > 0 && typeof member.name === 'string' &&
+    ['role', 'avatar_url', 'email'].every((key) => member[key] == null || typeof member[key] === 'string')
+}
+
+function isMemberList(value: unknown): value is Member[] {
+  return Array.isArray(value) && value.every(isMember) && new Set(value.map((member) => member.id)).size === value.length
+}
 
 export default function FamilyPage() {
   const more = useMoreText()
+  const copy = useFamilyOverviewText()
+  const { t } = useTranslation()
+  const locale = useDisplayLocale()
+  const rosterHeadingRef = useRef<HTMLHeadingElement>(null)
+  const feedbackText = (value: FamilyFeedback) => 'raw' in value ? value.raw : copy(value.key, value.params)
+  const roleText = (role: string) => {
+    const key = role === 'parent' ? 'roleParent' : role === 'teen' ? 'roleTeen' : role === 'child' ? 'roleChild' : null
+    return key ? t(key, undefined, profileSetupMessages) : role
+  }
   const [familyMembers, setFamilyMembers] = useState<Member[]>([])
   const [myId, setMyId] = useState('')
   const [removing, setRemoving] = useState<Member | null>(null)
   const [removeBusy, setRemoveBusy] = useState(false)
-  const [removeError, setRemoveError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [removeError, setRemoveError] = useState<FamilyFeedback | null>(null)
+  const [notice, setNotice] = useState<FamilyFeedback | null>(null)
   const [familyName, setFamilyName] = useState('')
+  const [hasHousehold, setHasHousehold] = useState<boolean | null>(null)
   const [userRole, setUserRole] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -44,13 +69,25 @@ export default function FamilyPage() {
     loadFamilyData()
   }, [])
 
+  useEffect(() => {
+    if (!removing && notice) rosterHeadingRef.current?.focus()
+  }, [removing, notice])
+
   const loadFamilyData = async () => {
     setLoading(true)
     setLoadError(false)
+    setFamilyMembers([])
+    setFamilyName('')
+    setHasHousehold(null)
+    setMyId('')
+    setUserRole('')
+    setNotice(null)
+    setRemoving(null)
+    setRemoveError(null)
     try {
       const meRes = await fetch('/api/auth/me')
       const meData = await meRes.json()
-      if (!meRes.ok || !meData.user) {
+      if (!meRes.ok || !meData.user || typeof meData.user.id !== 'string' || !meData.user.id || (meData.user.role != null && typeof meData.user.role !== 'string')) {
         setLoadError(true)
         return
       }
@@ -58,13 +95,20 @@ export default function FamilyPage() {
       const user = meData.user
       setUserRole(user.role || '')
       setMyId(user.id || '')
-      if (user.family) setFamilyName(user.family.name || '')
-
-      if (!user.family_id) return
+      if (user.family_id == null || user.family_id === '') {
+        setHasHousehold(false)
+        return
+      }
+      if (typeof user.family_id !== 'string') {
+        setLoadError(true)
+        return
+      }
+      setHasHousehold(true)
+      if (typeof user.family?.name === 'string') setFamilyName(user.family.name)
 
       const membersRes = await fetch('/api/family/members')
       const membersData = await membersRes.json()
-      if (membersRes.ok && membersData.members) {
+      if (membersRes.ok && isMemberList(membersData.members)) {
         setFamilyMembers(membersData.members)
       } else {
         setLoadError(true)
@@ -89,132 +133,133 @@ export default function FamilyPage() {
       const res = await fetch(`/api/family/members/${encodeURIComponent(removing.id)}`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setRemoveError(typeof data.error === 'string' ? data.error : 'Could not remove them. Please try again.')
+        setRemoveError(typeof data.error === 'string' ? { raw: data.error } : { key: 'removeFailed' })
         return
       }
       setFamilyMembers((current) => current.filter((m) => m.id !== removing.id))
-      setNotice(
-        `${removing.name} was removed from the household.` +
-          (data.tabletsRevoked > 0 ? ' Tablets they set up were signed out; a parent can pair them again.' : '')
-      )
+      setNotice({ key: data.tabletsRevoked > 0 ? 'removedWithTablets' : 'removed', params: { name: removing.name } })
       setRemoving(null)
     } catch {
-      setRemoveError('Could not remove them. Check your connection and try again.')
+      setRemoveError({ key: 'removeNetwork' })
     } finally {
       setRemoveBusy(false)
     }
   }
 
   return (
-    <div className="pb-20">
+    <div className="min-w-0 space-y-6">
       <LargeHeader
-        title={familyName || 'Your Family'}
+        title={familyName || copy('title')}
         subtitle={
-          loading || loadError
+          loading || loadError || !hasHousehold
             ? undefined
-            : `${familyMembers.length} member${familyMembers.length !== 1 ? 's' : ''}`
+            : copy(familyMembers.length === 1 ? 'memberOne' : 'memberMany', { count: familyMembers.length.toLocaleString(locale) })
         }
-        className="px-4"
       />
 
       {/* Action buttons */}
-      <div className="flex gap-3 px-4 mb-6">
-        <Link href="/dashboard/family/invite" className="btn-tinted flex-1 justify-center">
-          <Plus className="w-4 h-4" />
-          <span>Add Member</span>
+      {hasHousehold && !loadError && <div className="flex flex-wrap gap-3">
+        <Link href="/dashboard/family/invite" className="btn-tinted min-h-[44px]">
+          <Plus className="w-4 h-4" aria-hidden="true" />
+          <span>{copy('addMember')}</span>
         </Link>
         <Link href="/dashboard/family/settings" className="btn-secondary flex items-center gap-2">
-          <Settings className="w-4 h-4" />
-          <span>Settings</span>
+          <Settings className="w-4 h-4" aria-hidden="true" />
+          <span>{copy('settings')}</span>
         </Link>
-      </div>
+      </div>}
 
       {/* Members list */}
-      <div className="px-4">
+      <section aria-labelledby="family-members-heading" className="min-w-0">
+        <h2 ref={rosterHeadingRef} id="family-members-heading" tabIndex={-1} className="mb-3 text-title-3 font-display outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] rounded-[var(--radius-sm)]">{copy('people')}</h2>
         {notice && (
           <p role="status" className="mb-3 rounded-[var(--radius-md)] bg-[var(--surface-secondary)] px-4 py-3 text-[15px] text-label-primary">
-            {notice}
+            {feedbackText(notice)}
           </p>
         )}
         {loading ? (
-          <div className="text-center py-12">
-            <div className="text-subhead text-label-secondary">Loading…</div>
+          <div role="status" className="text-center py-12">
+            <div className="text-subhead text-label-secondary">{copy('loading')}</div>
           </div>
         ) : loadError ? (
           <div role="alert" className="card-apple p-5 flex flex-col items-start gap-3">
-            <p className="text-headline text-label-primary">Couldn&apos;t load your family</p>
-            <p className="text-subhead text-label-secondary">Check your connection and try again.</p>
+            <p className="text-headline text-label-primary">{copy('loadFailed')}</p>
+            <p className="text-subhead text-label-secondary">{copy('retryDescription')}</p>
             <button type="button" onClick={() => void loadFamilyData()} className="btn-tinted min-h-[44px]">
-              Try again
+              {copy('tryAgain')}
             </button>
           </div>
+        ) : hasHousehold === false ? (
+          <EmptyState
+            icon={Users}
+            glyphColor="family"
+            title={copy('chooseHousehold')}
+            description={copy('chooseHouseholdDescription')}
+            action={
+              <div className="flex flex-wrap justify-center gap-3">
+                <Link href="/dashboard/family/create" className="btn-tinted min-h-[44px]">{copy('createHousehold')}</Link>
+                <Link href="/join" className="btn-secondary min-h-[44px]">{copy('joinHousehold')}</Link>
+              </div>
+            }
+          />
         ) : familyMembers.length === 0 ? (
           <EmptyState
             icon={Users}
             glyphColor="family"
-            title="No family members yet"
-            description="Invite family members to join your family and start organizing together."
+            title={copy('emptyTitle')}
+            description={copy('emptyDescription')}
             action={
               <Link href="/dashboard/family/invite" className="btn-tinted">
-                <Plus className="w-4 h-4" />
-                <span>Invite Members</span>
+                <Plus className="w-4 h-4" aria-hidden="true" />
+                <span>{copy('inviteMembers')}</span>
               </Link>
             }
           />
         ) : (
-          <InsetList>
+          <ul className="grid min-w-0 grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3" data-testid="family-members">
             {familyMembers.map((member) => (
-              <div
-                key={member.id}
-                className="flex items-center gap-3 px-4 py-3"
-              >
-                <Avatar name={member.name} src={member.avatar_url} size="md" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-body text-label-primary font-medium min-w-0 [overflow-wrap:anywhere]">
-                      {member.name}
-                    </span>
-                    {member.role && (
-                      <span className="shrink-0 px-2 py-0.5 rounded-full text-caption-1 font-medium bg-[var(--surface-secondary)] text-label-secondary">
-                        {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                      </span>
-                    )}
+              <li key={member.id} className="card-apple min-w-0 p-4" data-testid="family-member" data-member-id={member.id}>
+                <div className="flex min-w-0 items-start gap-3">
+                  <Avatar name={member.name} src={member.avatar_url} size="md" />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-body text-label-primary font-semibold [overflow-wrap:anywhere]">{member.name}</h3>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-footnote text-label-secondary">
+                      {member.role && <span>{roleText(member.role)}</span>}
+                      {member.id === myId && <span className="rounded-full bg-[var(--surface-fill)] px-2 py-0.5">{copy('you')}</span>}
+                    </div>
+                    <p className="mt-3 text-footnote text-label-secondary">{copy('account')}</p>
+                    {member.email && <p className="mt-0.5 text-subhead text-label-primary [overflow-wrap:anywhere]">{member.email}</p>}
                   </div>
-                  <div className="text-footnote text-label-secondary truncate">{member.email}</div>
                 </div>
                 {canRemove(member) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRemoveError(null)
-                      setNotice(null)
-                      setRemoving(member)
-                    }}
-                    className="btn-plain min-h-[44px] min-w-[44px] shrink-0 text-[var(--danger-text)]"
-                    aria-label={`Remove ${member.name} from household`}
-                  >
-                    <UserMinus className="w-5 h-5" aria-hidden="true" />
-                    <span className="sr-only sm:not-sr-only text-[15px]">Remove</span>
+                  <button type="button" onClick={() => {
+                    setRemoveError(null)
+                    setNotice(null)
+                    setRemoving(member)
+                  }} className="btn-plain mt-3 min-h-[44px] min-w-[44px] text-[var(--danger-text)]" aria-label={copy('removeAria', { name: member.name })}>
+                    <UserMinus className="w-4 h-4" aria-hidden="true" />
+                    <span>{copy('remove')}</span>
                   </button>
                 )}
-              </div>
+              </li>
             ))}
-          </InsetList>
+          </ul>
         )}
-      </div>
+      </section>
 
       <Dialog
         open={removing !== null}
         onClose={removeBusy ? undefined : () => setRemoving(null)}
-        title={removing ? `Remove ${removing.name}?` : 'Remove member?'}
-        description="They will be signed out everywhere and can no longer see this household. Their account is not deleted. Chores they had not finished go to you to hand on; everything else stays with the household."
+        title={removing ? copy('removeTitle', { name: removing.name }) : copy('removeTitleFallback')}
+        closeLabel={copy('close')}
+        description={copy('removeDescription')}
       >
         {removeError && (
           <p
             role="alert"
             className="mb-4 rounded-[var(--radius-md)] bg-[var(--danger-tint)] px-4 py-3 text-[15px] text-[var(--danger-text)]"
           >
-            {removeError}
+            {feedbackText(removeError)}
           </p>
         )}
         <div className="flex flex-col-reverse gap-3 sm:flex-row">
@@ -224,7 +269,7 @@ export default function FamilyPage() {
             disabled={removeBusy}
             className="btn-ghost min-h-[44px] flex-1"
           >
-            Cancel
+            {copy('cancel')}
           </button>
           <button
             type="button"
@@ -232,22 +277,22 @@ export default function FamilyPage() {
             disabled={removeBusy}
             className="btn-destructive min-h-[44px] flex-1 disabled:opacity-40"
           >
-            {removeBusy ? 'Removing…' : 'Remove from household'}
+            {copy(removeBusy ? 'removing' : 'removeConfirm')}
           </button>
         </div>
       </Dialog>
 
-      <section className="px-4 mt-6" aria-labelledby="family-household">
+      {hasHousehold && !loadError && <section className="min-w-0" aria-labelledby="family-household">
         <SectionHeader>
-          <span id="family-household">Household</span>
+          <span id="family-household">{copy('household')}</span>
         </SectionHeader>
         <InsetList>
           {emergencyOn && (
             <ListRow
               icon={Heart}
               glyphColor="plain"
-              title="Emergency"
-              subtitle="Contacts and medical info for everyone"
+              title={copy('emergency')}
+              subtitle={copy('emergencyDescription')}
               href="/dashboard/emergency"
             />
           )}
@@ -257,14 +302,14 @@ export default function FamilyPage() {
             title={more('title')}
             subtitle={
               moreCount === 0
-                ? 'Chores and features you turn on'
-                : `Chores and ${moreCount} more feature${moreCount === 1 ? '' : 's'}`
+                ? copy('moreEmpty')
+                : copy(moreCount === 1 ? 'moreOne' : 'moreMany', { count: moreCount.toLocaleString(locale) })
             }
             href={MORE_HREF}
             last
           />
         </InsetList>
-      </section>
+      </section>}
     </div>
   )
 }
