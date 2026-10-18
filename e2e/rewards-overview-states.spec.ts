@@ -239,6 +239,30 @@ async function assertHitTarget(locator: Locator): Promise<void> {
   expect(metrics.hit).toBe(true);
 }
 
+async function assertClaimedRewardRowReadable(
+  page: Page,
+  locale: Locale,
+): Promise<void> {
+  const viewport = page.viewportSize();
+  if (!viewport || viewport.width > 430) return;
+  const row = page
+    .locator('[data-testid="family-reward"]')
+    .filter({
+      has: page.getByRole("button", {
+        name: locale === "es" ? "Marcar como entregada" : "Mark as given",
+        exact: true,
+      }),
+    })
+    .first();
+  if ((await row.count()) === 0) return;
+  const title = row.locator("p").first();
+  await expect(title).toBeVisible();
+  const width = await title.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  expect(width).toBeGreaterThanOrEqual(120);
+}
+
 async function captureState(
   page: Page,
   info: TestInfo,
@@ -589,6 +613,7 @@ for (const locale of ["en", "es"] as const) {
             exact: true,
           }),
         );
+        await assertClaimedRewardRowReadable(page, locale);
         await assertLayout(page, info);
 
         const child = await openRole(
