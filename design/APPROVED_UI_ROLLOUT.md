@@ -52,7 +52,7 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Lists | Direct groceries, custom lists, simple create/edit | PR #570 compact overview, short create form and validated Back/create/delete context passed bounded review; full hosted acceptance and remaining detail-copy migration pending |
 | Family | Add everyone, email-free profiles, clear account-link distinction | Existing behavior retained; approved layout review pending |
 | Meals | Week plan, recipes, several-dish prep, eaten/remaining/next prep | Local shared Plan/Explore/Prep navigation candidate; existing canonical meal/prep behavior retained, rendered/final hosted acceptance pending |
-| Inventory | Use soon, honest capture review, quantities and locations | Existing behavior retained; approved layout review pending |
+| Inventory | Use soon, honest capture review, quantities and locations | Local full-width overview and shared location shortcuts; 121 affected units, exact build and six-size browser 95 passes/10 inherited scope skips; hosted and wider acceptance pending |
 | Notes | Short shared notes and clear visibility | Existing behavior retained; approved layout review pending |
 | Anniversaries | Upcoming dates without duplicate noise | Existing behavior retained; approved layout review pending |
 | Gamification | Optional quiet progress, meaningful dependencies | Existing behavior retained; approved layout review pending |
@@ -279,3 +279,41 @@ Its exact-source build and all 27 six-size EN/ES verification checks pass
 Original hosted gates and production acceptance remain pending. This local
 follow-up does not establish #571/#572 release acceptance or completion of
 Chores/the all-feature programme.
+
+
+## Inventory overview candidate — 2026-10-18
+
+The bounded overview reuses canonical items, use-soon data, location filters,
+Cook, History, Scan/Add and existing item/scan forms. Safety warnings stay first.
+Locations precede Use soon in DOM and visual order, so phone shortcuts appear
+before the food list without reordering keyboard navigation. Phones use a 2x2
+shortcut grid; portrait tablets and larger screens use a narrow Locations column
+beside Use soon. The desktop wrapper uses the available workspace. Main stock
+uses three columns at wide sizes; Cook/history are secondary and a single panel
+fills its row. No persisted capture-review records or new UPC/provider capability
+are fabricated from the gallery's illustrative examples.
+
+Counts use the active display locale. Capped positive values say At least N;
+capped zero locations say Count incomplete. Shortcuts share the existing Where
+filter, preserve search/category, and make no requests/writes. A selected location
+adds an explicit all-locations note to Use soon, which remains a global summary.
+
+Rendered review found selected dark-mode location text at 4.4:1. The owned
+label/count now use the approved on-accent token directly; original Axe rules
+and thresholds are unchanged. App source `32c72e0b` passes its build, 121 affected
+Inventory/scan/localization tests, typecheck and lint. Its final six-size browser
+run passes 95 checks with 10 inherited phone-only user-menu skips and no failures
+or retries. The formerly excluded large tablet now runs the full Inventory
+journey. Coverage includes EN/ES, primary shortcuts above the phone tab bar,
+44px/focus/reflow/Axe, real add/edit/remove, consume/discard/Undo readback, offline
+refusal, child read-only/API refusal and second-household isolation. Superseded
+successful layouts, failed contrast report and final 24 captures/hashes are
+retained under work/ui-plan-approved-2026-10-17/inventory-overview-local-qa.
+
+The combined candidate incorporates test-only login-client isolation `492206b0`:
+real notification/routine sign-ins retain their assertions and production quota,
+with unused test-client addresses after retained traces confirmed shared-bucket
+429 responses. App source/API/schema/profile flags/providers/schedulers/native
+contracts remain unchanged. Original hosted gates, integration acceptance,
+exact-main checks, protected recovery and production verification remain open.
+This slice does not complete all Inventory or the all-22-feature programme.
