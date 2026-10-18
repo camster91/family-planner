@@ -5,7 +5,7 @@
 // placeholder when no card was open. With nothing previewed it now prints every
 // card; with a card previewed it prints just that one.
 import * as React from 'react'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const mockT = (key: string) => key
@@ -67,8 +67,8 @@ it('prints every card when none is previewed', async () => {
   expect(cards[0].textContent).toContain('Sam allergy')
   expect(cards[0].textContent).toContain('Alex allergy')
   // The on-screen placeholder is never part of the printout.
-  expect(cards[0].textContent).not.toContain('Select a card to preview')
-  expect(screen.getByText('Select a card to preview').closest('.no-print')).not.toBeNull()
+  expect(cards[0].textContent).not.toContain('emergency.selectPreview')
+  expect(screen.getByText('emergency.selectPreview').closest('.no-print')).not.toBeNull()
 
   const headerPrint = screen.getByRole('button', { name: 'emergency.print' })
   expect(headerPrint.className).toMatch(/min-h-\[44px\]/)
@@ -98,6 +98,10 @@ it('keeps the emergency draft open and non-dismissible while saving', async () =
 
   render(<EmergencyPage />)
   await user.click(await screen.findByRole('button', { name: 'emergency.addCard' }))
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('emergency.personName')))
+  await user.click(screen.getByRole('button', { name: 'common.save' }))
+  expect(screen.getByText('emergency.nameRequired')).toBeTruthy()
+  expect((global.fetch as jest.Mock).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
   await user.type(screen.getByLabelText('emergency.personName'), 'Jordan')
   await user.click(screen.getByRole('button', { name: 'common.save' }))
 
@@ -263,4 +267,58 @@ it('lets a manual retry supersede an older background read', async () => {
   finishOldRead(reply({ contacts: [contact('c1', 'Sam'), contact('c2', 'Jordan')] }))
   await waitFor(() => expect(screen.getAllByText('Taylor').length).toBeGreaterThan(0))
   expect(screen.queryByRole('alert')).toBeNull()
+})
+
+it('keeps a failed deletion retryable, prevents duplicate deletes and restores focus after confirmation', async () => {
+  const user = userEvent.setup()
+  let deleted = false
+  let finishDelete!: (response: Response) => void
+  const deleteRequests: string[] = []
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url === '/api/auth/me') return reply({ user: { id: 'p1', role: 'parent' } })
+    if (init?.method === 'DELETE') {
+      deleteRequests.push(url)
+      return new Promise<Response>((resolve) => { finishDelete = resolve })
+    }
+    return reply({ contacts: deleted ? [contact('c2', 'Alex')] : [contact('c1', 'Sam'), contact('c2', 'Alex')] })
+  }) as unknown as typeof fetch
+  render(<EmergencyPage />)
+  await user.click((await screen.findAllByText('Sam'))[0])
+  await user.click(screen.getByRole('button', { name: 'emergency.editCard' }))
+  await user.click(screen.getByRole('button', { name: 'emergency.delete' }))
+  const confirmation = screen.getByRole('alertdialog')
+  await user.dblClick(within(confirmation).getByRole('button', { name: 'emergency.delete' }))
+  expect(deleteRequests).toEqual(['/api/emergency-contacts/c1'])
+  await user.keyboard('{Escape}')
+  expect(screen.getByRole('alertdialog')).toBeTruthy()
+  finishDelete(reply({ error: 'not deleted' }, false))
+  await waitFor(() => expect(within(confirmation).getByRole('button', { name: 'emergency.delete' }).hasAttribute('disabled')).toBe(false))
+  expect(screen.getByLabelText('emergency.personName')).toHaveProperty('value', 'Sam')
+  await user.click(within(confirmation).getByRole('button', { name: 'emergency.delete' }))
+  deleted = true
+  finishDelete(reply({ ok: true }))
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'emergency.addCard' })))
+  expect(screen.queryByText('Sam')).toBeNull()
+  expect(deleteRequests).toHaveLength(2)
+})
+
+
+it('keeps optional-section summaries in the dialog keyboard path', async () => {
+  const user = userEvent.setup()
+  const visibility = jest.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) { return this.parentElement })
+  try {
+    render(<EmergencyPage />)
+    await user.click(await screen.findByRole('button', { name: 'emergency.addCard' }))
+    const summary = screen.getByText('emergency.groups.medical', { selector: 'summary' })
+    await user.click(summary)
+    summary.focus()
+    expect(fireEvent.keyDown(summary, { key: 'Tab' })).toBe(true)
+    expect(document.activeElement).toBe(summary)
+    await user.tab()
+    expect(document.activeElement).toBe(screen.getByLabelText('emergency.bloodType'))
+  } finally {
+    visibility.mockRestore()
+  }
 })
