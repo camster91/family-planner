@@ -344,6 +344,9 @@ for (const locale of ["en", "es"] as const) {
       await expect(page.getByText(retryNote, { exact: true })).toBeVisible();
 
       const first = routine.getByTestId("routine-step").nth(0);
+      // Keep the focus and capture target on the actionable card itself. The
+      // test id is intentionally on the button, not its layout wrapper.
+      await expect(first).toHaveRole("button");
       await expect(first).toHaveAttribute(
         "aria-label",
         [
@@ -381,22 +384,29 @@ for (const locale of ["en", "es"] as const) {
           exact: false,
         }),
       ).toBeVisible();
-      await expect(
-        page.getByText(text("today"), { exact: true }),
-      ).toBeVisible();
-      await expect(
-        page.getByText(text("tomorrow"), { exact: true }),
-      ).toBeVisible();
       await expect(page.getByText(todayMission, { exact: true })).toBeVisible();
+      const tomorrowSection = page
+        .locator("section")
+        .filter({ hasText: tomorrowMission });
+      await expect(tomorrowSection).toHaveCount(1);
       await expect(
-        page.getByText(tomorrowMission, { exact: true }),
-      ).toBeVisible();
+        tomorrowSection.getByText(text("tomorrow"), { exact: true }),
+      ).toHaveCount(1);
       await expect(
-        page.getByText(text("comingUp"), { exact: true }),
-      ).toBeVisible();
+        tomorrowSection.getByText(tomorrowMission, { exact: true }),
+      ).toHaveCount(1);
+
+      const comingUpSection = page
+        .locator("section")
+        .filter({ hasText: text("comingUp") });
+      await expect(comingUpSection).toHaveCount(1);
+      const dentistRow = comingUpSection
+        .getByText("Dentist (Casey)", { exact: true })
+        .locator("..");
+      await expect(dentistRow).toHaveCount(1);
       await expect(
-        page.getByText("Dentist (Casey)", { exact: true }),
-      ).toBeVisible();
+        dentistRow.getByText(text("today"), { exact: true }),
+      ).toHaveCount(1);
       await expect(
         page.getByText(text("level", { level: 2 }), { exact: true }),
       ).toBeVisible();
