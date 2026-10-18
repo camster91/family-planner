@@ -46,6 +46,7 @@ type RewardRow = {
   id?: unknown;
   family_id?: unknown;
   created_by?: unknown;
+  is_active?: unknown;
   name?: unknown;
   description?: unknown;
   cost?: unknown;
@@ -433,6 +434,7 @@ for (const locale of ["en", "es"] as const) {
       let childContext: BrowserContext | undefined;
       let teenContext: BrowserContext | undefined;
       let familyBContext: BrowserContext | undefined;
+      let inactiveRewardName: string | undefined;
       await installLoopbackGuard(context);
       try {
         await configureLocale(page, locale);
@@ -445,6 +447,21 @@ for (const locale of ["en", "es"] as const) {
           role: "parent",
         });
         featureSetup = await prepareFeatures(page);
+
+        const canonicalRewards = await browserFetch(page, "/api/rewards");
+        expect(canonicalRewards.status, canonicalRewards.body).toBe(200);
+        const inactiveReward = (
+          JSON.parse(canonicalRewards.body).rewards as RewardRow[]
+        ).find((row) => row.id === "fx_reward_a_inactive");
+        expect(inactiveReward).toMatchObject({
+          id: "fx_reward_a_inactive",
+          family_id: A.family,
+          is_active: false,
+        });
+        if (typeof inactiveReward?.name !== "string") {
+          throw new Error("Inactive fixture reward omitted its canonical name");
+        }
+        inactiveRewardName = inactiveReward.name;
 
         const createCopy = rewardCreateMessages[locale];
         await page.goto("/dashboard/rewards");
@@ -548,6 +565,18 @@ for (const locale of ["en", "es"] as const) {
         await expect(page.locator("main h1").first()).toBeVisible();
         await expect(page.getByText(names[1], { exact: true })).toBeVisible();
         await expect(
+          page
+            .locator('[data-testid="claimable-reward"]')
+            .filter({ hasText: inactiveRewardName }),
+        ).toHaveCount(0);
+        if (locale === "es") {
+          const onePointReward = page
+            .locator('[data-testid="claimable-reward"]')
+            .filter({ hasText: names[1] });
+          await expect(onePointReward).toContainText(/\b1 punto\b/);
+          await expect(onePointReward).not.toContainText(/\b1 puntos\b/);
+        }
+        await expect(
           page.locator("a[href='/dashboard/analytics']"),
         ).toHaveCount(1);
         await captureState(page, info, locale, "rewards-parent-overview");
@@ -578,6 +607,9 @@ for (const locale of ["en", "es"] as const) {
         await expect(
           child.page.getByText(names[1], { exact: true }),
         ).toBeVisible();
+        await expect(
+          child.page.locator("article").filter({ hasText: inactiveRewardName }),
+        ).toHaveCount(0);
         await captureState(child.page, info, locale, "rewards-child-choice");
         const selected = child.page
           .locator("article")
