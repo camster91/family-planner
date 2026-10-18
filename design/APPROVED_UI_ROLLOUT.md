@@ -50,7 +50,7 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Chores | Grouped series, selected weekdays, clear owner, contextual actions | Local Today/Week/Series overview with inline routine stacks; 101 focused units and independent review pass; local six-size overview/completion/Undo/budget checks pass; hosted acceptance pending |
 | Calendar | Readable week/agenda, duration, clear connections and overlap review | Local timing-overlap advisory and one native source selector passed bounded review; mobile Week/workspace and full hosted acceptance pending |
 | Lists | Direct groceries, custom lists, simple create/edit | PR #570 compact overview, short create form and validated Back/create/delete context passed bounded review; full hosted acceptance and remaining detail-copy migration pending |
-| Family | Add everyone, email-free profiles, clear account-link distinction | Existing behavior retained; approved layout review pending |
+| Family | Add everyone, email-free profiles, clear account-link distinction | Local responsive account roster and EN/ES removal/recovery presentation: 44 affected tests, 78 browser checks and independent review pass; Add Everyone/profile-link and hosted/full acceptance pending |
 | Meals | Week plan, recipes, several-dish prep, eaten/remaining/next prep | Local shared Plan/Explore/Prep navigation candidate; existing canonical meal/prep behavior retained, rendered/final hosted acceptance pending |
 | Inventory | Use soon, honest capture review, quantities and locations | Local full-width overview and shared location shortcuts; 121 affected units, exact build and six-size browser 95 passes/10 inherited scope skips; hosted and wider acceptance pending |
 | Notes | Short shared notes and clear visibility | Existing behavior retained; approved layout review pending |
@@ -317,3 +317,33 @@ with unused test-client addresses after retained traces confirmed shared-bucket
 contracts remain unchanged. Original hosted gates, integration acceptance,
 exact-main checks, protected recovery and production verification remain open.
 This slice does not complete all Inventory or the all-22-feature programme.
+
+
+## Bounded Family overview checkpoint — 2026-10-18
+
+Application source `695b6747` improves the existing parent-only account roster:
+responsive one/two/three-column cards, wrapping raw names/emails, localized roles
+and owned copy, explicit account-member labels and existing invite/settings/
+Emergency/Explore destinations. Removal retains encoded canonical IDs, self/last-
+parent guards, pending protection, raw server refusals and retry. Successful local
+removal returns focus to the roster. Duplicate IDs are rejected; retry clears old
+state and missing membership offers the existing create/join routes.
+
+44 affected mounted/API/copy tests, typecheck, full lint, required formatting and
+optimized build passed. 63 browser checks cover real roster/privacy reads,
+child DELETE 403, cross-household DELETE 404, 44px targets, Axe, reflow, keyboard,
+synthetic removal/retry/pending/focus and 36 unchanged startup-budget checks. A
+further 15 checks cover EN/ES loading, failure/retry, empty, missing-household and
+real browser offline removal/recovery across all six sizes (both totals include
+three setup checks). Positive removal uses intercepted responses; canonical
+fixture roster readback stays unchanged. 24 captures/hashes, logs and the retained
+first state-selector failure are in the task's `family-overview-local-qa` evidence
+folder. Independent source and visual reviews pass. A scroll-reachable fixed-tab
+viewport overlap on the smallest phone is recorded as nonblocking shared-shell
+polish.
+
+This is bounded account-roster alignment, not full Family adoption: Add Everyone,
+email-free profile presentation/account linking and their existing capability
+contracts remain separate open acceptance. No profile flag, provider, scheduler,
+API/schema or permissions change is introduced. Hosted candidate QA, normal
+merge, exact-main/recovery and production evidence remain pending.

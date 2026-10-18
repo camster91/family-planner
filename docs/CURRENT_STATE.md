@@ -27,6 +27,18 @@ capability, provider, scheduler, infrastructure or native/store activation is
 introduced. Historical checkpoints below retain their original dated scope.
 
 
+## Family overview candidate — 2026-10-18
+
+The local Family continuation builds on integrated Inventory candidate `641f0714`
+(PR #574). Application `695b6747` preserves the parent-only canonical account
+roster, adds responsive localized cards and recovery, rejects duplicate IDs, and
+shows create/join guidance when household membership is absent. 44 affected tests,
+78 rendered checks including existing startup budgets, types/full lint/build and
+independent source/visual review pass locally. Positive removal is synthetic;
+real child/cross-household refusals and unchanged roster readback are verified.
+No profile flags or API/schema change is included. Whole Family/profile-link,
+hosted acceptance and release remain pending under #499/#128.
+
 ## Recurring email-free profile candidate — 2026-10-14
 
 Merged source parent is `dadcb015a9fd757727d09820e5ef6cfbcdf62f3d`
