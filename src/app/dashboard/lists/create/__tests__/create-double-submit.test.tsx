@@ -71,9 +71,7 @@ it("keeps the direct Back control noninteractive during the success pause", asyn
   expect(screen.getByTestId("list-create-back-busy")).toHaveTextContent(
     "Lists",
   );
-  expect(
-    screen.queryByRole("link", { name: "Lists" }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Lists" })).not.toBeInTheDocument();
 });
 
 it("a double tap on Create sends one request", async () => {
@@ -114,7 +112,16 @@ it("creates a named Custom checklist using the canonical API", async () => {
     screen.getByRole("button", { name: /Custom/ }).getAttribute("aria-pressed"),
   ).toBe("true");
   await user.type(screen.getByLabelText("Name"), "Camping packing");
+  await user.click(
+    screen.getByTestId("list-description-section").querySelector("summary")!,
+  );
   await user.type(screen.getByLabelText(/Description/), "Things for the trip");
+  const descriptionSection = screen.getByTestId("list-description-section");
+  await user.click(descriptionSection.querySelector("summary")!);
+  expect(descriptionSection).not.toHaveAttribute("open");
+  expect(descriptionSection.querySelector("summary")).toHaveTextContent(
+    "Added",
+  );
   await user.click(screen.getByRole("button", { name: /Create List/ }));
   await screen.findByRole("status");
   expect(fetch).toHaveBeenCalledWith(
@@ -148,7 +155,9 @@ it("waits for image upload and includes the private image on creation", async ()
   ) as unknown as typeof fetch;
   const { container } = render(<CreateListForm />);
   await user.type(screen.getByLabelText("Name"), "Camping");
-  await user.click(container.querySelector("summary")!);
+  await user.click(
+    container.querySelector("[data-testid=list-image-section] summary")!,
+  );
   await user.upload(
     screen.getByLabelText("Choose list image"),
     new File(["fixture"], "cover.jpg", { type: "image/jpeg" }),

@@ -158,9 +158,7 @@ export default function CreateListForm({
   // the request or the success pause must not create a second list.
   const submittingRef = React.useRef(false);
   const busy = loading || !!success || imageUploading;
-  const directNavigation = usePendingFormNavigationController(
-    busy && !inSheet,
-  );
+  const directNavigation = usePendingFormNavigationController(busy && !inSheet);
   const sheetNavigation = usePendingFormNavigation();
   const navigation = inSheet ? sheetNavigation : directNavigation;
   React.useEffect(() => {
@@ -322,25 +320,6 @@ export default function CreateListForm({
             />
           </div>
 
-          {/* Description */}
-          <div>
-            <label
-              htmlFor="description"
-              className="text-subhead text-label-secondary mb-2 block"
-            >
-              {copy.description}{" "}
-              <span className="text-label-tertiary">{copy.optional}</span>
-            </label>
-            <textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={copy.descriptionPlaceholder}
-              rows={2}
-              className="input-apple resize-none"
-            />
-          </div>
-
           {/* Type selector */}
           <div>
             <label className="text-subhead text-label-secondary mb-3 block">
@@ -390,6 +369,34 @@ export default function CreateListForm({
               {copy.customGuidance}
             </p>
           )}
+
+          <details
+            data-testid="list-description-section"
+            className="rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)]"
+            onInvalidCapture={(event) => {
+              event.currentTarget.open = true;
+            }}
+          >
+            <summary className="min-h-[44px] cursor-pointer px-4 py-3 text-body text-label-primary [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]">
+              <span className="font-semibold">{copy.description}</span>{" "}
+              <span className="text-footnote text-label-secondary">
+                · {description.trim() ? copy.descriptionAdded : copy.optional}
+              </span>
+            </summary>
+            <div className="px-4 pb-4">
+              <label htmlFor="description" className="sr-only">
+                {copy.description}
+              </label>
+              <textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={copy.descriptionPlaceholder}
+                rows={2}
+                className="input-apple resize-none"
+              />
+            </div>
+          </details>
 
           <ListImagePicker
             value={imageUrl}

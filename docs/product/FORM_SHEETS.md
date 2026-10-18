@@ -9,7 +9,9 @@ use a bottom sheet with rounded top corners and safe-area padding; larger
 screens use a centred rounded panel. The form scrolls within the viewport while
 its close control remains visible. Submit controls stick to the bottom of the
 scrolling form, and the sheet's list-type picker uses three compact columns.
-Existing optional chore sections stay folded.
+Existing optional chore sections stay folded. New List keeps name/type visible,
+with optional description and image sections folded. Collapsing preserves
+the draft and selected image; a failed upload reopens its section for retry.
 
 Close or Escape returns through router history and discards the unsaved draft.
 Browser Back also restores the prior screen; reopening starts a fresh draft.
