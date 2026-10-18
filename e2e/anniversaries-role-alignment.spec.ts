@@ -163,6 +163,8 @@ async function cleanupDevice(db: pg.Client) {
 
 async function seedDevice(db: pg.Client) {
   await cleanupDevice(db);
+  // Credentials must be live for both the fixed calendar clock and the auth clock.
+  const credentialNow = Math.max(E2E_ANCHOR.getTime(), Date.now());
   await db.query(
     `INSERT INTO "HouseholdDevice"
       (id, family_id, label, platform, created_by, confirmed_by, paired_at, created_at, updated_at)
@@ -180,8 +182,8 @@ async function seedDevice(db: pg.Client) {
       A.family,
       hashDeviceToken(DEVICE_ACCESS),
       hashDeviceToken(DEVICE_REFRESH),
-      new Date(E2E_ANCHOR.getTime() + 60 * 60 * 1000),
-      new Date(E2E_ANCHOR.getTime() + 30 * 24 * 60 * 60 * 1000),
+      new Date(credentialNow + 60 * 60 * 1000),
+      new Date(credentialNow + 30 * 24 * 60 * 60 * 1000),
       E2E_ANCHOR,
     ],
   );
@@ -644,6 +646,11 @@ test("paired-device cookies refuse all Anniversaries handlers before person auth
       (cookie) => cookie.name === "csrf_token",
     )?.value;
     expect(csrf).toBeTruthy();
+    const deviceIdentity = await context.request.get(
+      `${baseURL}/api/device/me`,
+    );
+    expect(deviceIdentity.status()).toBe(200);
+    expect((await deviceIdentity.json()).device.id).toBe(DEVICE_ID);
     const replies: Array<{ status: number; body: string }> = [];
     for (const [method, path, data] of [
       ["GET", "/api/anniversaries", undefined],
