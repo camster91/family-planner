@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import { existsSync } from 'fs'
-import { mkdir, rename, unlink } from 'fs/promises'
+import { link, mkdir, rename, unlink } from 'fs/promises'
 import path from 'path'
 import { lockHousehold, lockHouseholdForJoin } from '@/lib/household-lock'
 import { resolveUploadDir } from '@/lib/upload-dir'
@@ -67,6 +67,75 @@ export function messageAttachmentFilePath(
   if (!resolved.startsWith(`${root}${path.sep}`))
     throw new Error('Invalid message attachment path')
   return resolved
+}
+
+type QuarantinedMessageAttachmentFile = {
+  originalPath: string
+  quarantinePath: string
+  removed: boolean
+  restored: boolean
+}
+
+/** Move a final file to a private, unique path while the household is locked. */
+async function quarantineMessageAttachmentFile(
+  filepath: string,
+): Promise<string | undefined> {
+  const quarantinePath = `${filepath}.${crypto.randomUUID()}.quarantine`
+  try {
+    await rename(filepath, quarantinePath)
+    return quarantinePath
+  } catch {
+    // The database row may outlive a missing file from an earlier failure;
+    // keep the row cleanup independent of that filesystem condition.
+    return undefined
+  }
+}
+
+/** Restore without overwriting a file recreated after the failed transaction. */
+async function restoreQuarantinedMessageAttachmentFile(
+  file: QuarantinedMessageAttachmentFile,
+): Promise<boolean> {
+  try {
+    // Both paths are in the same upload directory. link() creates the target
+    // atomically and fails with EEXIST if a replacement already won the race.
+    await link(file.quarantinePath, file.originalPath)
+  } catch {
+    return false
+  }
+  return true
+}
+
+/** Remove committed quarantines; failed removal leaves a safe private orphan. */
+async function discardQuarantinedMessageAttachmentFiles(
+  files: QuarantinedMessageAttachmentFile[],
+): Promise<void> {
+  for (const file of files) {
+    await unlink(file.quarantinePath).catch(() => {})
+  }
+}
+
+/** Restore quarantines after a transaction rollback, under the same lock. */
+async function restoreAfterMessageAttachmentRollback(
+  db: any,
+  familyId: string,
+  files: QuarantinedMessageAttachmentFile[],
+): Promise<void> {
+  if (files.length === 0) return
+  try {
+    await db.$transaction(async (tx: any) => {
+      await lockHousehold(tx, familyId)
+      for (const file of files) {
+        if (!file.restored)
+          file.restored = await restoreQuarantinedMessageAttachmentFile(file)
+      }
+    })
+  } catch {
+    // Retain any quarantine that could not be restored. In particular, never
+    // overwrite a replacement file that appeared before this compensation.
+  }
+  await discardQuarantinedMessageAttachmentFiles(
+    files.filter((file) => file.restored),
+  )
 }
 
 export type StoredMessageAttachment = {
@@ -185,14 +254,28 @@ export async function storeMessageAttachment(
   } catch (error) {
     const attachment = createdAttachment
     if (attachment) {
+      const quarantined: QuarantinedMessageAttachmentFile[] = []
       try {
         await db.$transaction(async (tx: any) => {
           // Message sends take this same lock before reading and claiming a
           // draft. Wait for an in-flight claim before deciding whether this
-          // exact row is still safe to remove. Keep unlink under the lock as
-          // well: a new upload may recreate this deterministic filename as
-          // soon as the delete transaction commits.
+          // exact row is still safe to remove. Move the file to a unique
+          // quarantine while the lock is held so a new upload can never be
+          // mistaken for this cleanup's file.
           await lockHousehold(tx, familyId)
+          let file: QuarantinedMessageAttachmentFile | undefined
+          if (placed && filepath) {
+            const quarantinePath = await quarantineMessageAttachmentFile(filepath)
+            if (quarantinePath) {
+              file = {
+                originalPath: filepath,
+                quarantinePath,
+                removed: false,
+                restored: false,
+              }
+              quarantined.push(file)
+            }
+          }
           const removed = await tx.messageAttachment.deleteMany({
             where: {
               id: attachment.id,
@@ -201,13 +284,26 @@ export async function storeMessageAttachment(
               message_id: null,
             },
           })
-          if (removed.count > 0 && placed && filepath) {
-            await unlink(filepath).catch(() => {})
+          if (removed.count > 0) {
+            if (file) file.removed = true
+          } else if (file) {
+            // The row was claimed before this transaction acquired the lock.
+            // Put its file back before allowing that sender to proceed.
+            file.restored = await restoreQuarantinedMessageAttachmentFile(file)
           }
         })
+        await discardQuarantinedMessageAttachmentFiles(
+          quarantined.filter((file) => file.removed || file.restored),
+        )
       } catch {
-        // Cleanup is fail-safe: retain the row and final file if the guarded
-        // delete cannot be completed or verified.
+        // A rollback restores the row but not an already-renamed file. Take
+        // the lock again and restore only when the original path is still
+        // vacant; a replacement upload wins without being overwritten.
+        await restoreAfterMessageAttachmentRollback(
+          db,
+          familyId,
+          quarantined,
+        )
       }
     }
     throw error
@@ -225,6 +321,7 @@ export async function pruneUnboundMessageAttachments(
   const cutoff = new Date(
     (options.now ?? Date.now()) - MESSAGE_ATTACHMENT_STALE_AGE_MS,
   )
+  const quarantined: QuarantinedMessageAttachmentFile[] = []
   try {
     const removed = await db.$transaction(async (tx: any) => {
       await lockHousehold(tx, familyId)
@@ -243,6 +340,20 @@ export async function pruneUnboundMessageAttachments(
       })
       const removed: Array<{ id: string; filename: string }> = []
       for (const candidate of candidates) {
+        const originalPath = messageAttachmentFilePath(
+          candidate.filename,
+          options.uploadDir,
+        )
+        const quarantinePath = await quarantineMessageAttachmentFile(originalPath)
+        const file = quarantinePath
+          ? {
+              originalPath,
+              quarantinePath,
+              removed: false,
+              restored: false,
+            }
+          : undefined
+        if (file) quarantined.push(file)
         const deleted = await tx.messageAttachment.deleteMany({
           where: {
             id: candidate.id,
@@ -252,20 +363,21 @@ export async function pruneUnboundMessageAttachments(
           },
         })
         if (deleted.count > 0) {
-          // A new upload cannot recreate this filename until the transaction
-          // releases the household lock. Unlink while it is still held so a
-          // replacement file cannot be removed by cleanup after commit.
-          await unlink(
-            messageAttachmentFilePath(candidate.filename, options.uploadDir),
-          ).catch(() => {})
+          if (file) file.removed = true
           removed.push(candidate)
+        } else if (file) {
+          file.restored = await restoreQuarantinedMessageAttachmentFile(file)
         }
       }
       return removed
     })
+    await discardQuarantinedMessageAttachmentFiles(
+      quarantined.filter((file) => file.removed || file.restored),
+    )
     return removed.length
   } catch {
     // Housekeeping never makes the user's upload fail.
+    await restoreAfterMessageAttachmentRollback(db, familyId, quarantined)
     return 0
   }
 }

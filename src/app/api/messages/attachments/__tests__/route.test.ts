@@ -10,6 +10,14 @@ jest.mock("fs/promises", () => ({
     await afterWriteFile?.();
   },
   rename: (...args: [string, string]) => mockRename(...args),
+  link: async (from: string, to: string) => {
+    const source = require("node:path").resolve(from);
+    const target = require("node:path").resolve(to);
+    const bytes = mockFiles.get(source);
+    if (!bytes) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    if (mockFiles.has(target)) throw Object.assign(new Error("EEXIST"), { code: "EEXIST" });
+    mockFiles.set(target, bytes);
+  },
   unlink: async (filePath: string) => {
     mockFiles.delete(require("node:path").resolve(filePath));
   },
