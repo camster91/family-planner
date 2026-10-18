@@ -17,6 +17,7 @@ import CreateListForm from "../CreateListForm";
 let creates: number;
 
 beforeEach(() => {
+  window.history.replaceState({}, "", "/dashboard/lists/create");
   creates = 0;
   push.mockClear();
   global.fetch = jest.fn(async () => {
@@ -71,9 +72,7 @@ it("keeps the direct Back control noninteractive during the success pause", asyn
   expect(screen.getByTestId("list-create-back-busy")).toHaveTextContent(
     "Lists",
   );
-  expect(
-    screen.queryByRole("link", { name: "Lists" }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Lists" })).not.toBeInTheDocument();
 });
 
 it("a double tap on Create sends one request", async () => {
@@ -109,12 +108,19 @@ it("a failed create lets the parent try again", async () => {
 it("creates a named Custom checklist using the canonical API", async () => {
   const user = userEvent.setup();
   render(<CreateListForm />);
-  await user.click(screen.getByRole("button", { name: "Custom" }));
-  expect(
-    screen.getByRole("button", { name: /Custom/ }).getAttribute("aria-pressed"),
-  ).toBe("true");
+  await user.selectOptions(screen.getByLabelText("Type"), "custom");
+  expect(screen.getByLabelText("Type")).toHaveValue("custom");
   await user.type(screen.getByLabelText("Name"), "Camping packing");
+  await user.click(
+    screen.getByTestId("list-description-section").querySelector("summary")!,
+  );
   await user.type(screen.getByLabelText(/Description/), "Things for the trip");
+  const descriptionSection = screen.getByTestId("list-description-section");
+  await user.click(descriptionSection.querySelector("summary")!);
+  expect(descriptionSection).not.toHaveAttribute("open");
+  expect(descriptionSection.querySelector("summary")).toHaveTextContent(
+    "Added",
+  );
   await user.click(screen.getByRole("button", { name: /Create List/ }));
   await screen.findByRole("status");
   expect(fetch).toHaveBeenCalledWith(
@@ -148,7 +154,9 @@ it("waits for image upload and includes the private image on creation", async ()
   ) as unknown as typeof fetch;
   const { container } = render(<CreateListForm />);
   await user.type(screen.getByLabelText("Name"), "Camping");
-  await user.click(container.querySelector("summary")!);
+  await user.click(
+    container.querySelector("[data-testid=list-image-section] summary")!,
+  );
   await user.upload(
     screen.getByLabelText("Choose list image"),
     new File(["fixture"], "cover.jpg", { type: "image/jpeg" }),
@@ -164,6 +172,10 @@ it("waits for image upload and includes the private image on creation", async ()
     finish({ ok: true, json: async () => ({ url: image }) } as Response),
   );
   expect(screen.getByRole("img", { name: "Selected list image" })).toBeTruthy();
+  await user.click(
+    screen.getByTestId("list-image-section").querySelector("summary")!,
+  );
+  expect(screen.getByTestId("list-image-section")).not.toHaveAttribute("open");
   await user.click(screen.getByRole("button", { name: /Create List/ }));
   expect(fetch).toHaveBeenCalledWith(
     "/api/lists/create",
@@ -196,7 +208,7 @@ it("localizes the create form and keeps unexpected API errors out of the UI", as
   ).toBeInTheDocument();
   expect(screen.getByLabelText("Nombre")).toBeInTheDocument();
   expect(
-    screen.getByRole("button", { name: "Personalizada" }),
+    screen.getByRole("option", { name: "Personalizada" }),
   ).toBeInTheDocument();
   await user.type(screen.getByLabelText("Nombre"), "Plan de viaje");
   await user.click(screen.getByRole("button", { name: "Crear lista" }));
@@ -220,4 +232,57 @@ it("renders the localized refusal state without offering the form", async () => 
     "Pide a un padre o madre que cree una lista para tu familia.",
   );
   expect(screen.queryByLabelText("Nombre")).not.toBeInTheDocument();
+});
+
+it.each([
+  ["todo", "todo", "/dashboard/lists?type=todo", "/dashboard/lists?type=todo"],
+  [
+    "todo",
+    "custom",
+    "/dashboard/lists?type=todo",
+    "/dashboard/lists?type=custom",
+  ],
+  [
+    "https://example.test/leave",
+    "grocery",
+    "/dashboard/lists",
+    "/dashboard/lists",
+  ],
+])(
+  "keeps safe creation context from %s when creating %s",
+  async (requested, selected, backHref, successHref) => {
+    window.history.replaceState(
+      {},
+      "",
+      `/dashboard/lists/create?type=${encodeURIComponent(requested)}`,
+    );
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    render(<CreateListForm />);
+    expect(screen.getByRole("link", { name: "Lists" })).toHaveAttribute(
+      "href",
+      backHref,
+    );
+    await user.selectOptions(screen.getByLabelText("Type"), selected);
+    await user.type(screen.getByLabelText("Name"), "QA creation context");
+    await user.click(screen.getByRole("button", { name: "Create List" }));
+    await screen.findByRole("status");
+    await act(async () => {
+      jest.advanceTimersByTime(1500);
+    });
+    expect(push).toHaveBeenCalledWith(successHref);
+    expect(creates).toBe(1);
+    expect(
+      JSON.parse((fetch as jest.Mock).mock.calls[0][1].body),
+    ).toMatchObject({ name: "QA creation context", type: selected });
+  },
+);
+
+it("uses validated server context on first render even when the browser URL differs", () => {
+  render(<CreateListForm initialType="custom" />);
+  expect(screen.getByLabelText("Type")).toHaveValue("custom");
+  expect(screen.getByRole("link", { name: "Lists" })).toHaveAttribute(
+    "href",
+    "/dashboard/lists?type=custom",
+  );
 });

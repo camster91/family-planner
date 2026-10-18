@@ -128,6 +128,14 @@ describe('chore due-date helpers west of UTC', () => {
     // Late evening locally is already the next UTC day; the label must not move.
     expect(formatRelativeDueDate(due, new Date(2026, 0, 5, 22, 30))).toBe('Today')
   })
+  it('accepts explicit presentation labels without changing date-only boundaries or English defaults', () => {
+    const labels = { today: 'Hoy', tomorrow: 'Mañana' }
+    expect(formatRelativeDueDate(due, now, 'es-ES', labels)).toBe('Hoy')
+    expect(formatRelativeDueDate('2026-01-06T00:00:00.000Z', now, 'es-ES', labels)).toBe('Mañana')
+    expect(formatRelativeDueDate('2026-01-07T00:00:00.000Z', now, 'es-ES', labels)).toBe(formatDateOnly('2026-01-07', undefined, 'es-ES'))
+    expect(formatRelativeDueDate(due, new Date(2026, 0, 5, 22, 30), 'es-ES', labels)).toBe('Hoy')
+    expect(formatRelativeDueDate(due, now)).toBe('Today')
+  })
   it('keeps today inside a 7-day window', () => {
     expect(isDueWithinDays(due, 7, now)).toBe(true)
     expect(isDueWithinDays('2026-01-12T00:00:00.000Z', 7, now)).toBe(true)

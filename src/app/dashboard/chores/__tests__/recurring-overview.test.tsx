@@ -64,7 +64,7 @@ it("collapses Week/All, preserves Today, and completes only an expanded occurren
   const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
   const { container } = mount();
   expect(container.querySelector("details")).toBeNull();
-  await user.click(screen.getByRole("button", { name: "All" }));
+  await user.selectOptions(screen.getByRole("combobox", { name: "More chore views" }), "all");
   const details = container.querySelector("details")!;
   expect(details.open).toBe(false);
   expect(details.querySelector("summary")?.textContent).toContain(
@@ -145,7 +145,7 @@ it("keeps distinct recurring series on the same weekday independent", async () =
   expect(
     screen.getAllByRole("checkbox", { name: "Take out trash" }),
   ).toHaveLength(2);
-  await user.click(screen.getByRole("button", { name: "All" }));
+  await user.selectOptions(screen.getByRole("combobox", { name: "More chore views" }), "all");
   const series = [...container.querySelectorAll("details")];
   expect(series).toHaveLength(2);
   expect(

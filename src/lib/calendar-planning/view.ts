@@ -1,4 +1,52 @@
 export type PlanningView = "day" | "week" | "agenda";
+
+/** Timing overlap is advisory: this model does not describe who must attend. */
+export function overlappingEvents<
+  T extends { id: string; start_time: string; end_time: string },
+>(events: readonly T[], range: { start: string; end: string }) {
+  const from = Date.parse(range.start),
+    until = Date.parse(range.end);
+  const pairs: { first: T; second: T; start: string; end: string }[] = [];
+  if (!Number.isFinite(from) || !Number.isFinite(until) || until <= from)
+    return { total: 0, pairs };
+  const intervals = [
+    ...new Map(events.map((event) => [event.id, event])).values(),
+  ]
+    .map((event) => ({
+      event,
+      start: Math.max(from, Date.parse(event.start_time)),
+      end: Math.min(until, Date.parse(event.end_time)),
+    }))
+    .filter(
+      ({ start, end }) =>
+        Number.isFinite(start) && Number.isFinite(end) && end > start,
+    )
+    .sort(
+      (a, b) =>
+        a.start - b.start ||
+        a.end - b.end ||
+        a.event.id.localeCompare(b.event.id),
+    );
+  let active: typeof intervals = [];
+  let total = 0;
+  for (const current of intervals) {
+    active = active.filter((previous) => previous.end > current.start);
+    total += active.length;
+    // Count all pairs, but retain only a small preview even for a dense range.
+    for (const previous of active) {
+      if (pairs.length === 3) break;
+      pairs.push({
+        first: previous.event,
+        second: current.event,
+        start: new Date(current.start).toISOString(),
+        end: new Date(Math.min(previous.end, current.end)).toISOString(),
+      });
+    }
+    active.push(current);
+  }
+  return { total, pairs };
+}
+
 /** A fixed 24-hour axis cannot truthfully represent skipped or repeated hours. */
 export function hasClockChange(day: Date, local: boolean): boolean {
   return local && +addDays(day, 1, local) - +day !== 24 * 60 * 60 * 1000;

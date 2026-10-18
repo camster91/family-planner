@@ -19,6 +19,62 @@ test.beforeEach(async ({ context }) => {
   });
 });
 
+for (const role of ["parent", "teen"] as const) {
+  test(`${role} reviews overlapping times without changing events`, async ({
+    page,
+  }) => {
+    await loginViaUi(page, FIXTURE_EMAILS.familyA[role]);
+    await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
+    const writes: string[] = [];
+    page.on("request", (request) => {
+      if (!["GET", "HEAD", "OPTIONS"].includes(request.method()))
+        writes.push(new URL(request.url()).pathname);
+    });
+    const view = (page.viewportSize()?.width ?? 0) < 640 ? "agenda" : "week";
+    await page.goto(`/dashboard/calendar?date=2026-01-05&view=${view}`);
+    const panel = page.getByTestId("calendar-overlaps");
+    await expect(panel).toContainText("1 overlap");
+    await expect(panel).toHaveJSProperty("open", false);
+    await panel.locator("summary").press("Enter");
+    const review = panel.getByRole("button", {
+      name: "Review Soccer practice",
+      exact: true,
+    });
+    await expect(review).toBeVisible();
+    await expect(panel.getByRole("button")).toHaveCount(2);
+    const box = await review.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    const axe = await new AxeBuilder({ page })
+      .include('[data-testid="calendar-overlaps"]')
+      .withTags(["wcag2a", "wcag2aa"])
+      .analyze();
+    expect(axe.violations).toEqual([]);
+    await review.click();
+    const detail = page.getByRole("dialog");
+    await expect(detail.getByRole("heading")).toHaveText("Soccer practice");
+    await expect(
+      detail.getByRole("link", { name: "Edit event", exact: true }),
+    ).toHaveCount(role === "parent" ? 1 : 0);
+    await page.keyboard.press("Escape");
+    await expect(review).toBeFocused();
+    await page.screenshot({
+      path: test.info().outputPath("calendar-overlap-review.png"),
+      fullPage: true,
+    });
+    await page
+      .getByRole("combobox", { name: "Calendar source", exact: true })
+      .selectOption("connected");
+    await expect(panel).toHaveCount(0);
+    expect(writes).toEqual([]);
+  });
+}
+
 // Uses the canonical synthetic January fixture, not the current day.
 test("parent planning: real range, fixed clock geometry, source empty, detail and editor", async ({
   page,
@@ -65,8 +121,8 @@ test("parent planning: real range, fixed clock geometry, source empty, detail an
   await page.keyboard.press("Escape");
   await expect(longEvent).toBeFocused();
   await page
-    .getByRole("button", { name: "Connected calendar", exact: true })
-    .click();
+    .getByRole("combobox", { name: "Calendar source", exact: true })
+    .selectOption("connected");
   await expect(
     page.getByRole("heading", { name: "No events from this calendar" }),
   ).toBeVisible();

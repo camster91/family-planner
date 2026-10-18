@@ -74,9 +74,22 @@ export const calendarPlannerEnglish = {
     "Repeating rule stored on this event. Only the stored occurrence is shown; series editing is not available.",
   close: "Close details",
   edit: "Edit event",
+  overlaps: "At the same time",
+  overlapCountOne: "1 overlap",
+  overlapsCount: "{count} overlaps",
+  overlapsHelp: "Events with overlapping times in this calendar range.",
+  overlapsMore: "{count} more. Choose Day to review a smaller range.",
+  reviewEvent: "Review {title}",
 } as const;
 export type CalendarPlannerMessage = keyof typeof calendarPlannerEnglish;
 export const calendarPlannerSpanish: Record<CalendarPlannerMessage, string> = {
+  overlaps: "A la misma hora",
+  overlapCountOne: "1 coincidencia",
+  overlapsCount: "{count} coincidencias",
+  overlapsHelp:
+    "Eventos cuyos horarios coinciden en este intervalo del calendario.",
+  overlapsMore: "{count} más. Elige Día para revisar un intervalo más pequeño.",
+  reviewEvent: "Revisar {title}",
   allSources: "Todos los orígenes",
   inApp: "En la app",
   connected: "Calendario conectado",

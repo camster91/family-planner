@@ -3,15 +3,18 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
+import { listsFilterHref, type ListTypeKey } from "@/lib/list-type-filter";
 import { Dialog } from "@/components/ui/dialog";
 import { useTranslation } from "@/i18n";
 
 export default function DeleteListButton({
   listId,
   listName,
+  returnFilter = null,
 }: {
   listId: string;
   listName: string;
+  returnFilter?: ListTypeKey | null;
 }) {
   const [deleting, setDeleting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -55,7 +58,7 @@ export default function DeleteListButton({
         return;
       }
       setConfirmOpen(false);
-      router.push("/dashboard/lists");
+      router.push(listsFilterHref(returnFilter));
       router.refresh();
     } catch {
       setError("network");

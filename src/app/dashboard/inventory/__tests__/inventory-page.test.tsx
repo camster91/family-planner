@@ -2,6 +2,7 @@
  * @jest-environment jsdom
  */
 import * as React from "react";
+import "@testing-library/jest-dom";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toDateOnlyLocal } from "@/lib/dates";
@@ -393,18 +394,26 @@ describe("/dashboard/inventory", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
     expect(
-      (within(dialog).getByRole("button", { name: "Saving…" }) as HTMLButtonElement)
-        .disabled,
+      (
+        within(dialog).getByRole("button", {
+          name: "Saving…",
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
     await user.keyboard("{Escape}");
     expect(screen.getByTestId("inventory-modal")).toBeTruthy();
-    const close = within(screen.getByTestId("inventory-modal")).getByRole("button", { name: "Close" });
+    const close = within(screen.getByTestId("inventory-modal")).getByRole(
+      "button",
+      { name: "Close" },
+    );
     expect(close).toBeTruthy();
     await user.click(close);
     expect(screen.getByTestId("inventory-modal")).toBeTruthy();
 
     release();
-    await waitFor(() => expect(screen.queryByTestId("inventory-modal")).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByTestId("inventory-modal")).toBeNull(),
+    );
   });
 
   it("groups items by location with written expiry labels, and sends the viewer day", async () => {
@@ -911,7 +920,13 @@ describe("/dashboard/inventory", () => {
   it("stops after 20 pages and says the list is cut short", async () => {
     const { calls } = setup({
       page: (offset) => ({
-        items: [{ ...ITEMS[2], id: `i-${offset}` }],
+        items: [
+          {
+            ...ITEMS[2],
+            id: `i-${offset}`,
+            location: offset === 0 ? "pantry" : "freezer",
+          },
+        ],
         nextOffset: offset + 500,
       }),
     });
@@ -922,6 +937,26 @@ describe("/dashboard/inventory", () => {
       calls.filter((c) => c.url.startsWith("/api/inventory?")),
     ).toHaveLength(20);
     expect(screen.getAllByTestId("inventory-item")).toHaveLength(20);
+    const shortcuts = screen.getByTestId("inventory-shortcuts");
+    expect(
+      within(shortcuts).getByRole("button", {
+        name: "Everywhere At least 20 items",
+      }),
+    ).toBeVisible();
+    expect(
+      within(shortcuts).getByRole("button", {
+        name: "Freezer At least 19 items",
+      }),
+    ).toBeVisible();
+    expect(
+      within(shortcuts).getByRole("button", {
+        name: "Fridge Count incomplete",
+      }),
+    ).toBeVisible();
+    expect(
+      within(shortcuts).getByRole("button", { name: "Pantry At least 1 item" }),
+    ).toBeVisible();
+    expect(within(shortcuts).queryByText("0 items")).not.toBeInTheDocument();
   });
 
   it("says cook suggestions may be incomplete when the server capped its inputs", async () => {
@@ -952,4 +987,60 @@ describe("/dashboard/inventory", () => {
       false,
     );
   });
+});
+
+test("location overview shares filters without fetching or writing and preserves search/category", async () => {
+  const { calls } = setup();
+  const user = userEvent.setup();
+  const shortcuts = await screen.findByTestId("inventory-shortcuts");
+  expect(
+    within(shortcuts).getByRole("button", { name: "Everywhere 3 items" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(
+    within(shortcuts).getByRole("button", { name: "Fridge 2 items" }),
+  ).toHaveAttribute("aria-pressed", "false");
+  const initialCalls = calls.length;
+  await user.type(screen.getByRole("searchbox"), "Peas");
+  await user.click(
+    within(shortcuts).getByRole("button", { name: "Freezer 1 item" }),
+  );
+  expect(screen.getByLabelText("Where")).toHaveValue("freezer");
+  expect(screen.getAllByTestId("inventory-location")).toHaveLength(1);
+  expect(
+    within(screen.getByTestId("inventory-location")).getByText("Peas"),
+  ).toBeVisible();
+  expect(screen.getByRole("searchbox")).toHaveValue("Peas");
+  await user.selectOptions(screen.getByLabelText("Category"), "produce");
+  await user.selectOptions(screen.getByLabelText("Where"), "fridge");
+  expect(screen.getByLabelText("Category")).toHaveValue("produce");
+  expect(
+    within(shortcuts).getByRole("button", { name: "Fridge 2 items" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByTestId("no-matches")).toBeVisible();
+  await user.click(screen.getAllByRole("button", { name: "Clear search" })[0]);
+  expect(screen.getByRole("searchbox")).toHaveValue("");
+  expect(
+    within(shortcuts).getByRole("button", { name: "Everywhere 3 items" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(calls).toHaveLength(initialCalls);
+});
+
+test("child location shortcuts retain read-only inventory and no write controls", async () => {
+  const { calls } = setup({ canWrite: false, history: HISTORY });
+  const user = userEvent.setup();
+  const shortcuts = await screen.findByTestId("inventory-shortcuts");
+  await user.click(
+    within(shortcuts).getByRole("button", { name: "Freezer 1 item" }),
+  );
+  expect(screen.getAllByTestId("inventory-location")).toHaveLength(1);
+  expect(
+    screen.queryByRole("button", { name: "Add item" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Scan fridge" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: /^Edit |^Used |^Throw away |^Undo/ }),
+  ).not.toBeInTheDocument();
+  expect(calls.every((call) => call.method === "GET")).toBe(true);
 });

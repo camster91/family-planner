@@ -415,7 +415,7 @@ export default function InventoryClient({
   }
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="min-w-0 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-large-title font-display">{copy('title')}</h1>
@@ -501,13 +501,21 @@ export default function InventoryClient({
           {pastUseBy.length > 0 && (
             <PastUseBySection items={pastUseBy} canWrite={canWrite} busy={busy} onDiscard={(t) => quickAdjust(t, 'discard')} />
           )}
-          <UseSoonSection
-            items={data.data.useSoon}
-            canWrite={canWrite}
-            busy={busy}
-            onAdjust={(t, kind) => quickAdjust(t, kind)}
-          />
-          {mealsOn && <CookSection load={data.data.cook} onRetry={load} canOpenRecipes={canOpenRecipes} />}
+          <div className="grid min-w-0 grid-cols-1 items-start gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]" data-testid="inventory-overview">
+            <InventoryLocations
+              items={data.data.items}
+              where={whereFilter}
+              onWhere={setWhereFilter}
+              capped={data.data.capped}
+            />
+            <UseSoonSection
+              acrossLocations={whereFilter !== 'all'}
+              items={data.data.useSoon}
+              canWrite={canWrite}
+              busy={busy}
+              onAdjust={(t, kind) => quickAdjust(t, kind)}
+            />
+          </div>
           {data.data.items.length === 0 ? (
             <EmptyState
               icon={Refrigerator}
@@ -554,21 +562,28 @@ export default function InventoryClient({
                   </button>
                 </div>
               ) : (
-                INVENTORY_LOCATIONS.filter((loc) => whereFilter === 'all' || whereFilter === loc).map((loc) => (
-                  <LocationSection
-                    key={loc}
-                    location={loc}
-                    items={grouped[loc]}
-                    canWrite={canWrite}
-                    filtered={filtersOn}
-                    onEdit={(item) => setEditing({ mode: 'edit', item })}
-                  />
-                ))
+                <div className={cn('grid min-w-0 grid-cols-1 items-start gap-6', whereFilter === 'all' && 'xl:grid-cols-3')}>
+                  {INVENTORY_LOCATIONS.filter((loc) => whereFilter === 'all' || whereFilter === loc).map((loc) => (
+                    <LocationSection
+                      key={loc}
+                      location={loc}
+                      items={grouped[loc]}
+                      canWrite={canWrite}
+                      filtered={filtersOn}
+                      onEdit={(item) => setEditing({ mode: 'edit', item })}
+                    />
+                  ))}
+                </div>
               )}
             </>
           )}
-          {data.data.history.length > 0 && (
-            <HistorySection entries={data.data.history} canWrite={canWrite} onUndo={(e) => undo(e.id, e.item_name)} />
+          {(mealsOn || data.data.history.length > 0) && (
+            <div className={cn('grid min-w-0 grid-cols-1 items-start gap-6', mealsOn && data.data.history.length > 0 && 'xl:grid-cols-2')} data-testid="inventory-secondary">
+              {mealsOn && <CookSection load={data.data.cook} onRetry={load} canOpenRecipes={canOpenRecipes} />}
+              {data.data.history.length > 0 && (
+                <HistorySection entries={data.data.history} canWrite={canWrite} onUndo={(e) => undo(e.id, e.item_name)} />
+              )}
+            </div>
           )}
         </>
       )}
@@ -585,6 +600,47 @@ export default function InventoryClient({
         />
       )}
     </div>
+  )
+}
+
+
+/** Shortcuts share the existing location filter; counts describe loaded stock,
+ * not a new persisted view or an estimate of unreturned inventory. */
+function InventoryLocations({ items, where, onWhere, capped }: {
+  items: InventoryItemDto[]
+  where: InventoryLocation | 'all'
+  onWhere: (location: InventoryLocation | 'all') => void
+  capped: boolean
+}) {
+  const copy = useInventoryCopy()
+  const locale = useDisplayLocale()
+  const counts = { all: items.length, fridge: 0, freezer: 0, pantry: 0 }
+  for (const item of items) counts[item.location] += 1
+  const locations = ['all', ...INVENTORY_LOCATIONS] as const
+  const countLabel = (count: number) => {
+    const key = capped
+      ? count === 0 ? 'locationCountIncomplete' : count === 1 ? 'locationCountCappedOne' : 'locationCountCapped'
+      : count === 1 ? 'locationCountOne' : 'locationCountMany'
+    return copy(key, { count: count.toLocaleString(locale) })
+  }
+  return (
+    <section aria-labelledby="inventory-locations" className="min-w-0" data-testid="inventory-shortcuts">
+      <h2 id="inventory-locations" className="section-header">{copy('locations')}</h2>
+      <div className="card-apple grid grid-cols-2 gap-2 p-3 md:grid-cols-1">
+        {locations.map((location) => (
+          <button
+            key={location}
+            type="button"
+            aria-pressed={where === location}
+            onClick={() => onWhere(location)}
+            className={cn('flex min-h-[44px] w-full min-w-0 flex-col items-start justify-between gap-1 rounded-[var(--radius-md)] md:flex-row md:items-center md:gap-3 px-3 py-2 text-left text-subhead focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]', where === location ? 'bg-accent-fill text-on-accent' : 'bg-[var(--surface-fill)] text-label-primary')}
+          >
+            <span className={cn('min-w-0 [overflow-wrap:anywhere]', where === location ? 'text-on-accent' : 'text-label-primary')}>{copy(location === 'all' ? 'everywhere' : location)}</span>
+            <span className={cn('min-w-0 max-w-full text-footnote [overflow-wrap:anywhere] md:max-w-[60%] md:text-right', where === location ? 'text-on-accent' : 'text-label-primary')}>{countLabel(counts[location])}</span>
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -671,11 +727,13 @@ function PastUseBySection({
 }
 
 function UseSoonSection({
+  acrossLocations = false,
   items,
   canWrite,
   busy,
   onAdjust,
 }: {
+  acrossLocations?: boolean
   items: UseSoonItem[]
   canWrite: boolean
   busy: string | null
@@ -688,6 +746,7 @@ function UseSoonSection({
       <h2 id="inventory-use-soon" className="section-header">
         {copy('useSoon')}
       </h2>
+      {acrossLocations && <p className="mb-2 text-footnote text-label-secondary">{copy('useSoonAllLocations')}</p>}
       <div className="card-apple overflow-hidden">
         {items.length === 0 ? (
           <p className="p-4 text-subhead text-label-secondary">{copy('nothingSoon')}</p>

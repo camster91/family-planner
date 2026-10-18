@@ -166,3 +166,28 @@ describe("DeleteListButton", () => {
     );
   });
 });
+
+it("returns a successful deletion to the selected type without changing the delete request", async () => {
+  const user = userEvent.setup();
+  (global.fetch as jest.Mock).mockResolvedValue({ ok: true, status: 200 });
+  render(
+    <I18nProvider locale="en">
+      <DeleteListButton
+        listId="list-1"
+        listName="Family groceries"
+        returnFilter="grocery"
+      />
+    </I18nProvider>,
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Delete list “Family groceries”" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Delete" }));
+  await waitFor(() =>
+    expect(mockPush).toHaveBeenCalledWith("/dashboard/lists?type=grocery"),
+  );
+  expect(JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)).toEqual(
+    { listId: "list-1" },
+  );
+  expect(mockRefresh).toHaveBeenCalledTimes(1);
+});

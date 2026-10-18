@@ -1,5 +1,32 @@
 # Current State
 
+## Approved UI rollout candidates — 2026-10-18
+
+GitHub main is verified at `9d9e6de6bce7f7bf7fe3b26e51f2118ce629d1de`
+([PR #568](https://github.com/camster91/family-planner/pull/568)). The earlier
+production evidence remains attached to that release; no new merge or deployment
+is claimed by this entry. #499 and parent #128 track the remaining all-feature
+acceptance, with bounded source/rendered evidence in `design/APPROVED_UI_ROLLOUT.md`.
+
+PR #571 has a fresh test-only repair after retained phone traces confirmed
+shared-client login 429s: `492206b0` isolates two real sign-in journeys without
+changing auth, rate limits or assertions. PR #572's `b986c40d` repairs two localized
+verification fallback-focus selectors. PR #573 contains readable localized Chores
+actions and long-name reassignment, with local six-size evidence. Their original
+hosted runs/protections remain authoritative; constituent heads/history are held
+until combined acceptance rather than redundantly merged.
+
+The next Inventory overview candidate on `codex/inventory-overview-499` adds
+full-width responsive composition and existing-location shortcuts. Source
+`32c72e0b` has 121 affected units, types/lint/build and 95 browser checks passing
+across six sizes, with ten inherited phone-only menu skips. It preserves safety,
+offline, canonical adjustment/Undo, scan forms and role/household controls. The
+combined branch incorporates the test-only login repair. Hosted, exact-main,
+recovery and production verification remain pending. No API/schema, profile
+capability, provider, scheduler, infrastructure or native/store activation is
+introduced. Historical checkpoints below retain their original dated scope.
+
+
 ## Recurring email-free profile candidate — 2026-10-14
 
 Merged source parent is `dadcb015a9fd757727d09820e5ef6cfbcdf62f3d`

@@ -19,13 +19,18 @@ export function ListImagePicker({
   const copy = listCreateMessages[locale];
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
+  const section = useRef<HTMLDetailsElement>(null);
   const pending = useRef(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <details open className="card-apple p-4">
-      <summary className="min-h-[44px] cursor-pointer text-body text-label-primary">
+    <details
+      ref={section}
+      data-testid="list-image-section"
+      className="card-apple p-4"
+    >
+      <summary className="min-h-[44px] cursor-pointer text-body text-label-primary [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]">
         {copy.imageTitle}{" "}
         <span className="text-footnote text-label-secondary">
           · {value ? copy.imageSelected : copy.imageOptional}
@@ -48,6 +53,7 @@ export function ListImagePicker({
             if (!file || disabled || pending.current) return;
             setError(null);
             if (file.size > 5 * 1024 * 1024) {
+              if (section.current) section.current.open = true;
               setError(copy.imageTooLarge);
               return;
             }
@@ -72,6 +78,7 @@ export function ListImagePicker({
                 throw new Error(copy.imageUploadError);
               onChange(data.url);
             } catch {
+              if (section.current) section.current.open = true;
               setError(copy.imageUploadError);
             } finally {
               pending.current = false;
@@ -105,7 +112,7 @@ export function ListImagePicker({
         )}
         <button
           type="button"
-          className="btn-filled min-h-[44px]"
+          className="btn-plain min-h-[44px]"
           disabled={disabled || uploading}
           onClick={() => input.current?.click()}
         >

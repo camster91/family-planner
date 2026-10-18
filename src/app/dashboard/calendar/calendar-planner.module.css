@@ -17,6 +17,83 @@
 .planner h2 {
   font-size: 24px;
 }
+.overlaps {
+  margin: 12px 0;
+  padding: 0 16px;
+  border: 1px solid var(--surface-separator-opaque);
+  border-radius: 16px;
+  background: var(--surface-elevated);
+}
+.calendarBody,
+.schedule {
+  min-width: 0;
+}
+@media (min-width: 1536px) {
+  .calendarBody.withOverlaps {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    align-items: start;
+    gap: 16px;
+  }
+  .withOverlaps > .overlaps {
+    grid-column: 2;
+    grid-row: 1;
+    margin-top: 0;
+  }
+  .withOverlaps > .schedule {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+.overlaps summary {
+  min-height: 48px;
+  padding: 12px 0;
+  cursor: pointer;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.overlaps summary:focus-visible {
+  outline: 3px solid var(--accent-text);
+  outline-offset: 3px;
+}
+.overlaps summary span {
+  margin-inline-start: 12px;
+  font-size: 13px;
+  color: var(--label-secondary);
+}
+.overlaps > p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--label-secondary);
+}
+.overlapPairs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 16px;
+  margin: 12px 0;
+  list-style: none;
+}
+.overlapPairs li,
+.overlapPairs button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.overlapPairs li > p {
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.overlapPairs button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  margin-top: 4px;
+  text-align: start;
+}
+.overlapPairs small {
+  font-weight: 400;
+  color: var(--label-secondary);
+}
 .header {
   display: flex;
   align-items: center;
@@ -100,22 +177,6 @@
 .sources select {
   width: 100%;
   margin-bottom: 12px;
-}
-.sourceButtons {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 16px;
-}
-.sourceButtons button {
-  text-align: left;
-  border-color: transparent;
-  background: transparent;
-  color: var(--label-secondary);
-}
-.sourceButtons button[aria-pressed="true"] {
-  background: var(--surface-fill);
-  color: var(--label-primary);
 }
 .sources p {
   margin: 12px 0;
@@ -397,9 +458,6 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-  }
-  .sourceButtons {
-    display: none;
   }
   .sources p {
     margin: 4px 0;

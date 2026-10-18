@@ -160,101 +160,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Add chore",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "All clear!",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Assign to",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Cancel",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Chore list",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Chore view",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Chores",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Confirm",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Couldn&apos;t load more chores.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "day streak",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Done",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Load more",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Loading…",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "No chores due today.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "No chores in this range.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Reassign chore",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Routines",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "To check",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Try again",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/emergency/page.tsx",
     "text": "@media print { @page { margin: 0.5in; size: letter; } body * { visibility: hidden; } .print-card, .print-card * { visibility: visible; } .print-card { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }",
     "count": 1
@@ -1186,22 +1091,12 @@
   },
   {
     "file": "src/app/dashboard/lists/[listId]/page.tsx",
-    "text": "Back",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/page.tsx",
     "text": "list image",
     "count": 1
   },
   {
     "file": "src/app/dashboard/lists/[listId]/page.tsx",
     "text": "List not found",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/page.tsx",
-    "text": "Lists",
     "count": 1
   },
   {
@@ -1242,11 +1137,6 @@
   {
     "file": "src/app/dashboard/meals/page.tsx",
     "text": "Current week",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Explore recipes",
     "count": 1
   },
   {
@@ -2835,123 +2725,8 @@
     "count": 1
   },
   {
-    "file": "src/components/chores/RecurringChoreRows.tsx",
-    "text": "Next:",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RecurringChoreRows.tsx",
-    "text": "open dates · Expand to see dates",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RecurringChoreRows.tsx",
-    "text": "Takes turns",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RecurringChoreRows.tsx",
-    "text": "Unassigned",
-    "count": 1
-  },
-  {
     "file": "src/components/chores/RoutineIconPicker.tsx",
     "text": "1",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "· some awaiting check",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Add step",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "All steps done",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "and checked",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "checked",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Checked",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Complete",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Done",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "done ·",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Done · awaiting check",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Edit",
-    "count": 2
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Focus on the next step",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "No routines in this range. Give related chores the same routine name and step numbers to stack them.",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "of",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Other chores",
-    "count": 2
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Routine stacks",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "To do",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Unassigned",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Up next",
     "count": 1
   },
   {
@@ -4337,11 +4112,6 @@
   {
     "file": "src/components/ui/error-boundary.tsx",
     "text": "Try Again",
-    "count": 1
-  },
-  {
-    "file": "src/components/ui/long-press-row.tsx",
-    "text": "Cancel",
     "count": 1
   },
   {

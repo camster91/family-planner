@@ -74,10 +74,10 @@ export function isDueWithinDays(value: Date | string, days: number, now: Date = 
 }
 
 /** "Today", "Tomorrow" or a short date (in `locale`) for a date-only value such as a chore due date. */
-export function formatRelativeDueDate(value: Date | string, now: Date = new Date(), locale: string = 'en-US'): string {
+export function formatRelativeDueDate(value: Date | string, now: Date = new Date(), locale: string = 'en-US', labels: Readonly<{ today: string; tomorrow: string }> = { today: 'Today', tomorrow: 'Tomorrow' }): string {
   const day = toDateOnlyUTC(value)
-  if (day === toDateOnlyLocal(now)) return 'Today'
-  if (day === localDateOnlyPlusDays(now, 1)) return 'Tomorrow'
+  if (day === toDateOnlyLocal(now)) return labels.today
+  if (day === localDateOnlyPlusDays(now, 1)) return labels.tomorrow
   return formatDateOnly(value, undefined, locale)
 }
 

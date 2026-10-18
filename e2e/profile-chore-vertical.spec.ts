@@ -1114,7 +1114,9 @@ test.describe.serial("email-free profile chore vertical", () => {
         exact: true,
       });
       await expect(dismissToast).toHaveCount(0);
-      await page.getByRole("button", { name: "All", exact: true }).click();
+      await page
+        .getByRole("combobox", { name: "More chore views", exact: true })
+        .selectOption("all");
       const doneButton = page.getByRole("button", {
         name: /^Done \d+\+?$/,
       });
@@ -1282,7 +1284,9 @@ test.describe.serial("email-free profile chore vertical", () => {
         "X-Member-Protocol": "2",
       });
       await page.goto("/dashboard/chores");
-      await page.getByRole("button", { name: "Routines", exact: true }).click();
+      await page
+        .getByRole("combobox", { name: "More chore views", exact: true })
+        .selectOption("routines");
       await page
         .getByRole("link", { name: "Build a routine", exact: true })
         .click();
@@ -1417,7 +1421,9 @@ test.describe.serial("email-free profile chore vertical", () => {
       // verify each row through the existing parent action before asserting
       // the durable history surface.
       await page.goto("/dashboard/chores");
-      await page.getByRole("button", { name: "All", exact: true }).click();
+      await page
+        .getByRole("combobox", { name: "More chore views", exact: true })
+        .selectOption("all");
       const doneButton = page.getByRole("button", {
         name: /^Done \d+\+?$/,
       });

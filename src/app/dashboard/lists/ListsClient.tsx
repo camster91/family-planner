@@ -15,7 +15,6 @@ import {
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Glyph } from "@/components/ui/glyph";
 import { InsetList, ListRow, SectionHeader } from "@/components/ui/list-row";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ILLUSTRATIONS } from "@/lib/brand-illustrations";
@@ -120,6 +119,7 @@ interface ListsClientProps {
   canCreate?: boolean;
   /** `?type=` from the URL (route inventory F-6): show only lists of this type. */
   initialType?: string | null;
+  loadFailed?: boolean;
 }
 
 // -----------------------------------------------------------------------
@@ -131,19 +131,24 @@ export default function ListsClient({
   familyName,
   canCreate = true,
   initialType = null,
+  loadFailed = false,
 }: ListsClientProps) {
   const router = useRouter();
+  const [retrying, startRetry] = React.useTransition();
   const { t, locale } = useTranslation();
   const text = (
     key: ListOverviewMessage,
     params?: Record<string, string | number>,
   ) => t(`listOverview.${key}`, params);
   const pluralRules = new Intl.PluralRules(locale);
-  // The type cards filter this page (route inventory F-6); the old
+  // The compact controls filter this page (route inventory F-6); the old
   // /dashboard/lists/type/[type] pages redirect here with `?type=`.
   const [typeFilter, setTypeFilter] = React.useState<ListTypeKey | null>(() =>
     listTypeFilter(initialType),
   );
+  React.useEffect(() => {
+    setTypeFilter(listTypeFilter(initialType));
+  }, [initialType]);
   const applyFilter = (next: ListTypeKey | null) => {
     setTypeFilter(next);
     router.replace(listsFilterHref(next), { scroll: false });
@@ -157,13 +162,20 @@ export default function ListsClient({
       : "/dashboard/lists/create";
   const canCreateHere = canCreate && typeFilter !== "meal_plan";
 
-  // Main type cards at the top. 'meal_plan' is no longer a list type people
-  // create (ADR-0007 O-8; meals live in /dashboard/meals), so its card shows
+  // Main type filters. 'meal_plan' is no longer a list type people
+  // create (ADR-0007 O-8; meals live in /dashboard/meals), so its filter shows
   // only while the household still has such lists, which keep opening as before.
   const hasMealPlanLists = lists.some((l) => l.type === "meal_plan");
   const mainTypes: ListTypeKey[] = hasMealPlanLists
     ? ["grocery", "todo", "meal_plan", "wishlist", "custom"]
     : ["grocery", "todo", "wishlist", "custom"];
+  // Non-food shopping remains available when used, or when directly filtered.
+  if (
+    typeFilter === "shopping" ||
+    lists.some((list) => list.type === "shopping")
+  ) {
+    mainTypes.push("shopping");
+  }
 
   return (
     <div className="pb-20">
@@ -171,7 +183,9 @@ export default function ListsClient({
         greeting={familyName}
         title={text(typeFilter === "grocery" ? "groceryName" : "title")}
         trailing={
-          canCreate ? (
+          canCreate &&
+          !loadFailed &&
+          (shown.length > 0 || typeFilter === "meal_plan") ? (
             // Same filled primary "+" as Chores and Calendar.
             <Link
               href={createHref}
@@ -186,128 +200,158 @@ export default function ListsClient({
       />
 
       <div className="space-y-6 px-4">
-        {/* Type cards: each one filters the lists below (pressed again, shows all). */}
-        <section aria-label={text("filter")}>
-          <div className="grid grid-cols-2 gap-3">
-            {mainTypes.map((type) => {
-              const cfg = TYPE_CONFIG[type];
-              const Icon = ICONS[type];
-              const count = lists.filter((l) => l.type === type).length;
-              const pressed = typeFilter === type;
-              return (
-                <button
-                  key={type}
-                  type="button"
-                  aria-pressed={pressed}
-                  onClick={() => applyFilter(pressed ? null : type)}
-                  className={
-                    "card-apple p-4 min-h-[44px] flex flex-col items-center gap-2 text-center active:scale-95 motion-reduce:active:scale-100 transition-transform focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]" +
-                    (pressed ? " ring-2 ring-[var(--accent)]" : "")
-                  }
-                >
-                  <Glyph color={cfg.color} size="lg">
-                    <Icon className="w-6 h-6 text-white" />
-                  </Glyph>
-                  <span className="text-subhead text-label-primary font-medium">
-                    {text(cfg.nameKey)}
-                  </span>
-                  {count > 0 && (
-                    <span className="text-caption-1 text-label-tertiary">
-                      {text(
-                        pluralRules.select(count) === "one"
-                          ? "countOne"
-                          : "countOther",
-                        { count },
-                      )}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* All lists, or the lists of the chosen type */}
-        {filterCfg && (
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-subhead text-label-secondary" role="status">
-              {text(filterCfg.showingKey)}
+        {loadFailed ? (
+          <section role="alert" className="card-apple p-5 space-y-3">
+            <h2 className="text-title-3 font-display text-label-primary">
+              {text("loadFailed")}
+            </h2>
+            <p className="text-body text-label-secondary">
+              {text("loadFailedHint")}
             </p>
             <button
               type="button"
-              onClick={() => applyFilter(null)}
-              className="inline-flex min-h-[44px] items-center rounded-full bg-[var(--surface-fill)] px-4 text-[15px] font-medium text-label-primary focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
+              className="btn-filled min-h-[44px]"
+              disabled={retrying}
+              aria-busy={retrying}
+              onClick={() => startRetry(() => router.refresh())}
             >
-              {text("showAll")}
+              {text(retrying ? "retrying" : "retry")}
             </button>
-          </div>
-        )}
-        {shown.length > 0 ? (
-          <section>
-            <SectionHeader>
-              {text(filterCfg ? filterCfg.headingKey : "all")}
-            </SectionHeader>
-            <InsetList>
-              {shown.map((list, i) => {
-                const cfg = TYPE_CONFIG[listTypeFilter(list.type) ?? "grocery"];
-                const Icon = ICONS[list.type] || ShoppingCart;
-                return (
-                  <ListRow
-                    key={list.id}
-                    href={`/dashboard/lists/${list.id}`}
-                    icon={Icon}
-                    glyphColor={cfg.color}
-                    title={list.name}
-                    subtitle={list.creator.name}
-                    trailing={
-                      <span className="flex items-center gap-2">
-                        {list.image_url && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={list.image_url} alt="" width={48} height={48} loading="lazy" className="h-12 w-12 rounded-lg object-cover" />
-                        )}
-                      {list.total_count > 0 ? (
-                        <span className="text-footnote text-label-tertiary">
-                          {list.checked_count}/{list.total_count}
-                        </span>
-                      ) : null}
-                      </span>
-                    }
-                    last={i === shown.length - 1}
-                  />
-                );
-              })}
-            </InsetList>
           </section>
         ) : (
-          <EmptyState
-            icon={typeFilter ? ICONS[typeFilter] : List}
-            glyphColor={filterCfg ? filterCfg.color : "lists"}
-            illustration={
-              typeFilter === "grocery"
-                ? ILLUSTRATIONS.groceriesClear
-                : typeFilter === "meal_plan"
-                  ? ILLUSTRATIONS.mealsEmpty
-                  : ILLUSTRATIONS.listsEmpty
-            }
-            title={text(filterCfg ? filterCfg.emptyKey : "empty")}
-            description={
-              typeFilter === "meal_plan"
-                ? text("mealsNow")
-                : canCreate
-                  ? filterCfg
-                    ? text(filterCfg.createFirstKey)
-                    : text("createFirst")
-                  : text("askParent")
-            }
-            action={
-              canCreateHere ? (
-                <Link href={createHref} className="btn-filled">
-                  <Plus className="w-4 h-4" />
-                  <span>{text("create")}</span>
-                </Link>
-              ) : undefined
-            }
-          />
+          <>
+            <section aria-label={text("filter")}>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  aria-label={text("showAll")}
+                  aria-pressed={typeFilter === null}
+                  onClick={() => applyFilter(null)}
+                  className={
+                    "min-h-[44px] max-w-full [overflow-wrap:anywhere] rounded-full px-4 py-2 text-subhead font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] " +
+                    (typeFilter === null
+                      ? "bg-[var(--accent-tint)] text-label-primary ring-1 ring-[var(--accent)]"
+                      : "bg-[var(--surface-fill)] text-label-secondary")
+                  }
+                >
+                  {text("all")}
+                </button>
+                {mainTypes.map((type) => {
+                  const cfg = TYPE_CONFIG[type];
+                  const count = lists.filter(
+                    (list) => list.type === type,
+                  ).length;
+                  const pressed = typeFilter === type;
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      aria-pressed={pressed}
+                      onClick={() => applyFilter(pressed ? null : type)}
+                      className={
+                        "min-h-[44px] max-w-full [overflow-wrap:anywhere] rounded-full px-4 py-2 text-subhead font-medium flex flex-wrap items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] " +
+                        (pressed
+                          ? "bg-[var(--accent-tint)] text-label-primary ring-1 ring-[var(--accent)]"
+                          : "bg-[var(--surface-fill)] text-label-secondary")
+                      }
+                    >
+                      <span>{text(cfg.nameKey)}</span>
+                      {count > 0 && (
+                        <span className="text-caption-1">
+                          {text(
+                            pluralRules.select(count) === "one"
+                              ? "countOne"
+                              : "countOther",
+                            { count },
+                          )}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+            {filterCfg && (
+              <p className="text-subhead text-label-secondary" role="status">
+                {text(filterCfg.showingKey)}
+              </p>
+            )}
+            {shown.length > 0 ? (
+              <section>
+                <SectionHeader>
+                  {text(filterCfg ? filterCfg.headingKey : "all")}
+                </SectionHeader>
+                <InsetList>
+                  {shown.map((list, i) => {
+                    const cfg =
+                      TYPE_CONFIG[listTypeFilter(list.type) ?? "grocery"];
+                    const Icon = ICONS[list.type] || ShoppingCart;
+                    return (
+                      <ListRow
+                        key={list.id}
+                        href={`/dashboard/lists/${encodeURIComponent(list.id)}${typeFilter ? `?type=${typeFilter}` : ""}`}
+                        icon={Icon}
+                        glyphColor={cfg.color}
+                        title={list.name}
+                        subtitle={list.creator.name}
+                        trailing={
+                          <span className="flex items-center gap-2">
+                            {list.image_url && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={list.image_url}
+                                alt=""
+                                width={48}
+                                height={48}
+                                loading="lazy"
+                                className="h-12 w-12 rounded-lg object-cover"
+                              />
+                            )}
+                            {list.total_count > 0 ? (
+                              <span className="text-footnote text-label-tertiary">
+                                {list.checked_count}/{list.total_count}
+                              </span>
+                            ) : null}
+                          </span>
+                        }
+                        last={i === shown.length - 1}
+                      />
+                    );
+                  })}
+                </InsetList>
+              </section>
+            ) : (
+              <EmptyState
+                icon={typeFilter ? ICONS[typeFilter] : List}
+                glyphColor={filterCfg ? filterCfg.color : "lists"}
+                illustration={
+                  typeFilter === "grocery"
+                    ? ILLUSTRATIONS.groceriesClear
+                    : typeFilter === "meal_plan"
+                      ? ILLUSTRATIONS.mealsEmpty
+                      : ILLUSTRATIONS.listsEmpty
+                }
+                title={text(filterCfg ? filterCfg.emptyKey : "empty")}
+                description={
+                  typeFilter === "meal_plan"
+                    ? text("mealsNow")
+                    : canCreate
+                      ? filterCfg
+                        ? text(filterCfg.createFirstKey)
+                        : text("createFirst")
+                      : text("askParent")
+                }
+                action={
+                  canCreateHere ? (
+                    <Link href={createHref} className="btn-filled">
+                      <Plus className="w-4 h-4" />
+                      <span>{text("create")}</span>
+                    </Link>
+                  ) : undefined
+                }
+              />
+            )}
+          </>
         )}
       </div>
     </div>

@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { notifyCalendarChanged } from '@/lib/calendar-planning/changes'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Calendar as CalendarIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslation } from '@/i18n'
 import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError } from '@/i18n/calendar-forms'
+import { EventFormDetails } from '@/components/calendar/EventFormDetails'
 import { EventDuration } from '@/components/calendar/EventDuration'
 import { eventFormRange, toDateOnlyLocal } from '@/lib/dates'
 import { usePendingFormNavigation, usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
@@ -16,6 +17,7 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
   const message = (key: CalendarFormMessage, params?: Record<string, string | number>) => t(key, params, calendarFormMessages)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const optionalDetailsRef = useRef<HTMLDetailsElement>(null)
   const [startDate, setStartDate] = useState('')
   const [startTime, setStartTime] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -44,12 +46,14 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
       const endDateTime = range?.end
 
       if (!startDateTime || !endDateTime) {
+        if (optionalDetailsRef.current) optionalDetailsRef.current.open = true
         setError({ key: 'invalidTime' })
         setLoading(false)
         return
       }
 
       if (new Date(endDateTime) < new Date(startDateTime)) {
+        if (optionalDetailsRef.current) optionalDetailsRef.current.open = true
         setError({ key: 'endBeforeStart' })
         setLoading(false)
         return
@@ -132,19 +136,6 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
           />
         </div>
 
-        {/* Description */}
-        <div>
-          <label className="label-apple" htmlFor="description">{message('description')}</label>
-          <textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="input-apple min-h-[80px] resize-none"
-            placeholder={message('descriptionPlaceholder')}
-            rows={3}
-          />
-        </div>
-
         {/* Start */}
         <div>
           <label className="label-apple" htmlFor="startDate">{message('start')}</label>
@@ -170,6 +161,7 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
         </div>
 
         <EventDuration value={duration} onChange={next => {
+          if (next === '' && optionalDetailsRef.current) optionalDetailsRef.current.open = true
           if (next === '' && duration !== '') {
             const range = eventFormRange({ startDate, startTime, endDate, endTime }, undefined, Number(duration))
             if (range) {
@@ -182,42 +174,63 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
         }} end={duration === '' ? undefined : eventFormRange({ startDate, startTime, endDate, endTime }, undefined, Number(duration))?.end} />
 
         {/* End */}
-        <div hidden={duration !== ''}>
-          <label className="label-apple" htmlFor="endDate">{message('end')}</label>
-          <div className="grid grid-cols-2 gap-3">
+        <EventFormDetails
+          sectionRef={optionalDetailsRef}
+          description={description}
+          location={location}
+          end={duration === '' ? eventFormRange({ startDate, startTime, endDate, endTime }, undefined)?.end : undefined}
+        >
+          <div hidden={duration !== ''}>
+            <label className="label-apple" htmlFor="endDate">{message('end')}</label>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                id="endDate"
+                disabled={duration !== ''}
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="input-apple"
+                min={startDate || toDateOnlyLocal(new Date())}
+              />
+              <input
+                id="endTime"
+                disabled={duration !== ''}
+                aria-label={message('endTime')}
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="input-apple"
+              />
+            </div>
+          </div>
+
+          {/* Location */}
+          <div>
+            <label className="label-apple" htmlFor="location">{message('location')}</label>
             <input
-              id="endDate"
-              disabled={duration !== ''}
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              id="location"
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
               className="input-apple"
-              min={startDate || toDateOnlyLocal(new Date())}
-            />
-            <input
-              id="endTime"
-              disabled={duration !== ''}
-              aria-label={message('endTime')}
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="input-apple"
+              placeholder={message('createLocationPlaceholder')}
             />
           </div>
-        </div>
 
-        {/* Location */}
-        <div>
-          <label className="label-apple" htmlFor="location">{message('location')}</label>
-          <input
-            id="location"
-            type="text"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            className="input-apple"
-            placeholder={message('createLocationPlaceholder')}
-          />
-        </div>
+          {/* Description */}
+          <div>
+            <label className="label-apple" htmlFor="description">{message('description')}</label>
+            <textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="input-apple min-h-[80px] resize-none"
+              placeholder={message('descriptionPlaceholder')}
+              rows={3}
+            />
+          </div>
+
+        </EventFormDetails>
 
         {/* Submit */}
         <div className={inSheet ? "sticky bottom-0 bg-[var(--surface-elevated)] pt-3 pb-1" : "pt-2"}>

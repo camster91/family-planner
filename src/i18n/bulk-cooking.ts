@@ -3,6 +3,9 @@ import { useTranslation } from "@/i18n";
 
 export const bulkCookingEnglish = {
   views: "Meal planning views",
+  navPlan: "Plan",
+  navExplore: "Explore",
+  navPrep: "Prep",
   week: "Week plan",
   loading: "Loading prep sessions…",
   title: "Bulk cooking",
@@ -99,6 +102,9 @@ export const bulkCookingEnglish = {
 type Messages = Record<keyof typeof bulkCookingEnglish, string>;
 export const bulkCookingSpanish: Messages = {
   views: "Vistas de planificación",
+  navPlan: "Plan",
+  navExplore: "Explorar",
+  navPrep: "Preparar",
   week: "Plan semanal",
   loading: "Cargando preparaciones…",
   title: "Cocina por lotes",

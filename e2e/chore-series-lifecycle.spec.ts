@@ -476,7 +476,7 @@ for (const locale of LOCALES) {
         expect(JSON.parse(activeRead.body).chore.id).toBe(anchorId);
 
         const copy = choreFormMessages[locale];
-        const menuName = `More actions for “${title}”`;
+        const menuName = `${locale === "es" ? "Más acciones para" : "More actions for"} “${title}”`;
         const menuOpener = page.getByRole("button", {
           name: menuName,
           exact: true,
@@ -493,7 +493,13 @@ for (const locale of LOCALES) {
           page,
           info,
           `${locale}-${info.project.name}-stop-menu`,
-          [stop, sheet.getByRole("button", { name: "Cancel", exact: true })],
+          [
+            stop,
+            sheet.getByRole("button", {
+              name: locale === "es" ? "Cancelar" : "Cancel",
+              exact: true,
+            }),
+          ],
         );
         const patchesBeforeStop = writes.filter(
           (write) => write.method === "PATCH",
@@ -587,7 +593,7 @@ for (const locale of LOCALES) {
         await page.reload();
         await expect(
           page.getByRole("button", {
-            name: `More actions for “${ordinaryTitle}”`,
+            name: `${locale === "es" ? "Más acciones para" : "More actions for"} “${ordinaryTitle}”`,
             exact: true,
           }),
         ).toBeVisible();
@@ -659,12 +665,12 @@ for (const locale of LOCALES) {
         });
 
         const ordinaryOpener = page.getByRole("button", {
-          name: `More actions for “${ordinaryTitle}”`,
+          name: `${locale === "es" ? "Más acciones para" : "More actions for"} “${ordinaryTitle}”`,
           exact: true,
         });
         await ordinaryOpener.click();
         const ordinarySheet = page.getByRole("dialog", {
-          name: `More actions for “${ordinaryTitle}”`,
+          name: `${locale === "es" ? "Más acciones para" : "More actions for"} “${ordinaryTitle}”`,
           exact: true,
         });
         await ordinarySheet
@@ -733,12 +739,12 @@ for (const locale of LOCALES) {
         // Explicitly labelled synthetic 404/readback recovery. The row is
         // deliberately retained in the disposable DB for guarded cleanup.
         const fallbackOpener = page.getByRole("button", {
-          name: `More actions for “${fallbackTitle}”`,
+          name: `${locale === "es" ? "Más acciones para" : "More actions for"} “${fallbackTitle}”`,
           exact: true,
         });
         await fallbackOpener.click();
         const fallbackSheet = page.getByRole("dialog", {
-          name: `More actions for “${fallbackTitle}”`,
+          name: `${locale === "es" ? "Más acciones para" : "More actions for"} “${fallbackTitle}”`,
           exact: true,
         });
         await fallbackSheet

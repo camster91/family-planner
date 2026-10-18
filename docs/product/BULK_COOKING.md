@@ -2,7 +2,9 @@
 
 ## Journey
 
-Meals has separate Week plan and Bulk cooking views. A prep session contains
+Meals shares Plan, Explore and Prep navigation across the weekly planner,
+recipe exploration and bulk-cooking routes. Switching views retains the chosen
+week; Prep opens the existing Bulk cooking workspace. A prep session contains
 one to eight dishes cooked together, a prep day, and an optional next-prep day.
 The rounded editor has three steps: Prep day, Dishes, and Meals/review. Edit one
 dish at a time. Each dish has a name or saved recipe, cook, 1–50 portions, fridge

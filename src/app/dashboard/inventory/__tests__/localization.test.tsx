@@ -147,6 +147,13 @@ it("updates labels without another load, preserving filter values, selected cano
   expect(where).toHaveValue("fridge");
   expect(screen.getByRole("combobox", { name: "Dónde" })).toBe(where);
   expect(screen.getAllByText(name).length).toBeGreaterThan(0);
+  const shortcuts = screen.getByTestId("inventory-shortcuts");
+  expect(
+    within(shortcuts).getByRole("button", { name: "Refrigerador 1 alimento" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(
+    within(shortcuts).getByRole("heading", { name: "Ubicaciones" }),
+  ).toBeInTheDocument();
   expect(calls).toHaveLength(count);
 });
 it("preserves modal drafts/private values/date keys while translating visible validation without a write", async () => {

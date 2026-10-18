@@ -294,11 +294,20 @@ for (const locale of ["en", "es"] as const) {
           page.getByRole("heading", { name: copy.title }),
         ).toBeVisible();
         await expect(page.getByLabel(copy.name)).toBeVisible();
+        const descriptionSection = page.getByTestId("list-description-section");
+        await expect(descriptionSection).not.toHaveAttribute("open", "");
+        await expect(
+          page.getByLabel(copy.description, { exact: false }),
+        ).toBeHidden();
+        await assertActionGeometry(page, descriptionSection.locator("summary"));
+        await descriptionSection.locator("summary").click();
         await expect(
           page.getByLabel(copy.description, { exact: false }),
         ).toBeVisible();
 
-        await page.getByRole("button", { name: copy.typeCustom }).click();
+        await page
+          .getByLabel(copy.type, { exact: true })
+          .selectOption("custom");
         await expect(
           page.getByText(copy.customGuidance, { exact: true }),
         ).toBeVisible();
@@ -315,7 +324,9 @@ for (const locale of ["en", "es"] as const) {
           controls,
         );
         const imageInput = page.getByLabel(copy.chooseImage);
-        const imagePicker = page.locator("details");
+        const imagePicker = page.getByTestId("list-image-section");
+        await expect(imagePicker).not.toHaveAttribute("open", "");
+        await imagePicker.locator("summary").click();
         const form = page.locator("form");
         await imageInput.setInputFiles(fileFixture());
         await expect(imagePicker.getByRole("alert")).toHaveText(
@@ -457,11 +468,17 @@ for (const locale of ["en", "es"] as const) {
           createBodies,
           controls,
         );
-        await dialog.getByRole("button", { name: copy.typeCustom }).click();
+        await dialog
+          .getByLabel(copy.type, { exact: true })
+          .selectOption("custom");
         await expect(
           dialog.getByText(copy.customGuidance, { exact: true }),
         ).toBeVisible();
         await dialog.getByLabel(copy.name).fill("Teen family planning");
+        await dialog
+          .getByTestId("list-description-section")
+          .locator("summary")
+          .click();
         await dialog
           .getByLabel(copy.description, { exact: false })
           .fill("School and weekend checklist");
