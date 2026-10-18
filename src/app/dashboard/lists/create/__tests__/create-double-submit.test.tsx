@@ -107,10 +107,8 @@ it("a failed create lets the parent try again", async () => {
 it("creates a named Custom checklist using the canonical API", async () => {
   const user = userEvent.setup();
   render(<CreateListForm />);
-  await user.click(screen.getByRole("button", { name: "Custom" }));
-  expect(
-    screen.getByRole("button", { name: /Custom/ }).getAttribute("aria-pressed"),
-  ).toBe("true");
+  await user.selectOptions(screen.getByLabelText("Type"), "custom");
+  expect(screen.getByLabelText("Type")).toHaveValue("custom");
   await user.type(screen.getByLabelText("Name"), "Camping packing");
   await user.click(
     screen.getByTestId("list-description-section").querySelector("summary")!,
@@ -173,6 +171,10 @@ it("waits for image upload and includes the private image on creation", async ()
     finish({ ok: true, json: async () => ({ url: image }) } as Response),
   );
   expect(screen.getByRole("img", { name: "Selected list image" })).toBeTruthy();
+  await user.click(
+    screen.getByTestId("list-image-section").querySelector("summary")!,
+  );
+  expect(screen.getByTestId("list-image-section")).not.toHaveAttribute("open");
   await user.click(screen.getByRole("button", { name: /Create List/ }));
   expect(fetch).toHaveBeenCalledWith(
     "/api/lists/create",
@@ -205,7 +207,7 @@ it("localizes the create form and keeps unexpected API errors out of the UI", as
   ).toBeInTheDocument();
   expect(screen.getByLabelText("Nombre")).toBeInTheDocument();
   expect(
-    screen.getByRole("button", { name: "Personalizada" }),
+    screen.getByRole("option", { name: "Personalizada" }),
   ).toBeInTheDocument();
   await user.type(screen.getByLabelText("Nombre"), "Plan de viaje");
   await user.click(screen.getByRole("button", { name: "Crear lista" }));

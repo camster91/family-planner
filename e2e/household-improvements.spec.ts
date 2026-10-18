@@ -29,7 +29,7 @@ test("custom lists explain their purpose and offer image selection", async ({
   page,
 }, info) => {
   await page.goto("/dashboard/lists/create");
-  await page.getByRole("button", { name: /Custom/ }).click();
+  await page.getByLabel("Type", { exact: true }).selectOption("custom");
   await expect(
     page.getByText(
       "A checklist for anything your family needs—packing, school supplies, or weekend plans.",

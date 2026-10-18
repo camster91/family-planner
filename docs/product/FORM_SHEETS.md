@@ -8,7 +8,7 @@ The originating screen stays mounted behind a dimmed, inert background. Phones
 use a bottom sheet with rounded top corners and safe-area padding; larger
 screens use a centred rounded panel. The form scrolls within the viewport while
 its close control remains visible. Submit controls stick to the bottom of the
-scrolling form, and the sheet's list-type picker uses three compact columns.
+scrolling form, and New List uses a labeled native type picker instead of a large card grid.
 Existing optional chore sections stay folded. New List keeps name/type visible,
 with optional description and image sections folded. Collapsing preserves
 the draft and selected image; a failed upload reopens its section for retry.

@@ -3,10 +3,9 @@
 import { ListImagePicker } from "@/components/lists/ListImagePicker";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, ChevronLeft, ListChecks } from "lucide-react";
+import { Plus, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Glyph } from "@/components/ui/glyph";
 import { listTypeFilter } from "@/lib/list-type-filter";
 import { useTranslation } from "@/i18n";
 import { listCreateMessages, type ListCreateMessage } from "@/i18n/list-create";
@@ -22,113 +21,19 @@ import {
 // 'meal_plan' is no longer offered for new lists (ADR-0007 O-8); meals live in /dashboard/meals.
 type ListTypeKey = "grocery" | "todo" | "wishlist" | "shopping" | "custom";
 
-interface TypeConfig {
-  nameKey: ListCreateMessage;
-  color: "lists" | "rewards" | "meals" | "family";
-  icon: React.ComponentType<{ className?: string }>;
-}
-
 class CreateListFailure extends Error {
   constructor(readonly messageKey: "permissionError" | "createError") {
     super(messageKey);
   }
 }
 
-const TYPE_CONFIG: Record<ListTypeKey, TypeConfig> = {
-  grocery: { nameKey: "typeGrocery", color: "lists", icon: ShoppingCartIcon },
-  todo: { nameKey: "typeTodo", color: "rewards", icon: CheckSquareIcon },
-  wishlist: { nameKey: "typeWishlist", color: "family", icon: HeartIcon },
-  shopping: { nameKey: "typeShopping", color: "lists", icon: ShoppingBagIcon },
-  custom: { nameKey: "typeCustom", color: "lists", icon: ListChecks },
+const TYPE_LABELS: Record<ListTypeKey, ListCreateMessage> = {
+  grocery: "typeGrocery",
+  todo: "typeTodo",
+  wishlist: "typeWishlist",
+  shopping: "typeShopping",
+  custom: "typeCustom",
 };
-
-const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  grocery: ShoppingCartIcon,
-  todo: CheckSquareIcon,
-  wishlist: HeartIcon,
-  shopping: ShoppingBagIcon,
-};
-
-// -----------------------------------------------------------------------
-// Inline SVG icons
-// -----------------------------------------------------------------------
-
-function ShoppingCartIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="9" cy="21" r="1" />
-      <circle cx="20" cy="21" r="1" />
-      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-    </svg>
-  );
-}
-
-function CheckSquareIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="9 11 12 14 22 4" />
-      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-    </svg>
-  );
-}
-
-function HeartIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06z" />
-    </svg>
-  );
-}
-
-function ShoppingBagIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <path d="M16 10a4 4 0 0 1-8 0" />
-    </svg>
-  );
-}
 
 // -----------------------------------------------------------------------
 // Component
@@ -320,48 +225,26 @@ export default function CreateListForm({
             />
           </div>
 
-          {/* Type selector */}
           <div>
-            <label className="text-subhead text-label-secondary mb-3 block">
+            <label
+              htmlFor="list-type"
+              className="text-subhead text-label-secondary mb-2 block"
+            >
               {copy.type}
             </label>
-            <div
-              className={
-                inSheet ? "grid grid-cols-3 gap-3" : "grid grid-cols-2 gap-3"
-              }
+            <select
+              id="list-type"
+              value={type}
+              onChange={(event) => setType(event.target.value as ListTypeKey)}
+              disabled={busy}
+              className="input-apple min-h-[44px]"
             >
-              {(Object.keys(TYPE_CONFIG) as ListTypeKey[]).map((t) => {
-                const cfg = TYPE_CONFIG[t];
-                const Icon = cfg.icon;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setType(t)}
-                    aria-pressed={type === t}
-                    disabled={busy}
-                    className={cn(
-                      "card-apple p-3 flex flex-col items-center gap-2 text-center transition-all",
-                      type === t
-                        ? "ring-2 ring-[var(--accent)]"
-                        : "active:scale-95",
-                    )}
-                  >
-                    <Glyph color={cfg.color} size="md">
-                      <Icon className="w-5 h-5 text-white" />
-                    </Glyph>
-                    <span className="text-caption-1 text-label-primary font-medium">
-                      {copy[cfg.nameKey]}
-                    </span>
-                    {type === t && (
-                      <span className="text-caption-2 text-[var(--accent)] font-medium">
-                        {copy.selected}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+              {(Object.keys(TYPE_LABELS) as ListTypeKey[]).map((key) => (
+                <option key={key} value={key}>
+                  {copy[TYPE_LABELS[key]]}
+                </option>
+              ))}
+            </select>
           </div>
 
           {type === "custom" && (

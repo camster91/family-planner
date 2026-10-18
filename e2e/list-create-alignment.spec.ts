@@ -305,7 +305,9 @@ for (const locale of ["en", "es"] as const) {
           page.getByLabel(copy.description, { exact: false }),
         ).toBeVisible();
 
-        await page.getByRole("button", { name: copy.typeCustom }).click();
+        await page
+          .getByLabel(copy.type, { exact: true })
+          .selectOption("custom");
         await expect(
           page.getByText(copy.customGuidance, { exact: true }),
         ).toBeVisible();
@@ -466,7 +468,9 @@ for (const locale of ["en", "es"] as const) {
           createBodies,
           controls,
         );
-        await dialog.getByRole("button", { name: copy.typeCustom }).click();
+        await dialog
+          .getByLabel(copy.type, { exact: true })
+          .selectOption("custom");
         await expect(
           dialog.getByText(copy.customGuidance, { exact: true }),
         ).toBeVisible();
