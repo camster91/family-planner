@@ -26,6 +26,34 @@ const ICON_OPTIONS = [
 
 type RewardCreateError = "permissionError" | "createError";
 
+type CreatePayload = {
+  name: string;
+  description?: string;
+  cost: number;
+  icon: string;
+};
+
+function createRequestKey(payload: CreatePayload): string {
+  const canonical = JSON.stringify({
+    name: payload.name.trim(),
+    description: payload.description?.trim() || undefined,
+    cost: payload.cost,
+    icon: payload.icon,
+  });
+  return `rewards:create:${canonical}`;
+}
+
+function isCreatedReward(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const reward = (value as { reward?: unknown }).reward;
+  if (!reward || typeof reward !== "object" || Array.isArray(reward)) return false;
+  const row = reward as { id?: unknown; name?: unknown; cost?: unknown; status?: unknown };
+  return typeof row.id === "string" && row.id.length > 0 &&
+    typeof row.name === "string" && row.name.length > 0 &&
+    typeof row.cost === "number" && Number.isFinite(row.cost) && row.cost >= 0 &&
+    typeof row.status === "string" && row.status.length > 0;
+}
+
 class CreateRewardFailure extends Error {
   constructor(readonly messageKey: RewardCreateError) {
     super(messageKey);
@@ -50,7 +78,9 @@ export default function CreateRewardForm({
   const [icon, setIcon] = useState<(typeof ICON_OPTIONS)[number]>("🎁");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uncertain, setUncertain] = useState(false);
   const submittingRef = useRef(false);
+  const requestKeys = useRef(new Map<string, string>());
   const directNavigation = usePendingFormNavigationController(
     loading && !inSheet,
   );
@@ -61,50 +91,73 @@ export default function CreateRewardForm({
     onBusyChange?.(loading);
   }, [loading, onBusyChange]);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const submit = async () => {
     if (!name.trim() || submittingRef.current) return;
+
+    const payload: CreatePayload = {
+      name: name.trim(),
+      description: description.trim() || undefined,
+      cost,
+      icon,
+    };
+    const signature = createRequestKey(payload);
+    const key = requestKeys.current.get(signature) ?? signature;
+    requestKeys.current.set(signature, key);
 
     submittingRef.current = true;
     setLoading(true);
     setError(null);
+    setUncertain(false);
 
     try {
       const response = await fetch("/api/rewards", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          description: description || undefined,
-          cost,
-          icon,
-        }),
+        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify(payload),
       });
 
-      // Consume the response safely without displaying arbitrary server text.
-      // The API remains the authority; the UI gives a stable localized reason.
-      await response.json().catch(() => null);
+      const data = await response.json().catch(() => null);
       if (!response.ok) {
+        requestKeys.current.delete(signature);
         throw new CreateRewardFailure(
           response.status === 403 ? "permissionError" : "createError",
         );
       }
+      if (!isCreatedReward(data)) {
+        submittingRef.current = false;
+        setUncertain(true);
+        setError(copy.recoveryTitle);
+        return;
+      }
+      requestKeys.current.delete(signature);
 
-      if ((await navigation?.releaseBeforeNavigation()) === false) return;
+      if ((await navigation?.releaseBeforeNavigation()) === false) {
+        // A pending-navigation guard can keep the user on this form. Allow a
+        // deliberate retry after that guard has resolved.
+        submittingRef.current = false;
+        return;
+      }
       router.push("/dashboard/rewards");
       router.refresh();
     } catch (cause) {
       submittingRef.current = false;
+      const isNetwork = cause instanceof TypeError;
+      if (isNetwork) setUncertain(true);
       setError(
         cause instanceof CreateRewardFailure
           ? copy[cause.messageKey]
-          : cause instanceof TypeError
+          : isNetwork
             ? copy.networkError
             : copy.createError,
       );
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await submit();
   };
 
   if (!canCreate) {
@@ -173,7 +226,20 @@ export default function CreateRewardForm({
             role="alert"
             className="rounded-xl bg-[var(--danger-tint)] border border-[var(--danger-tint)] p-4 text-danger-text text-sm"
           >
-            {error}
+            <p>{error}</p>
+            {uncertain && (
+              <>
+                <p className="mt-1">{copy.recoveryDescription}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" className="btn-plain min-h-[44px]" onClick={() => void submit()} disabled={loading}>
+                    {copy.tryAgain}
+                  </button>
+                  <button type="button" className="btn-plain min-h-[44px]" onClick={() => { router.push("/dashboard/rewards"); router.refresh(); }} disabled={loading}>
+                    {copy.checkRewards}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 

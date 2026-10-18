@@ -1516,148 +1516,13 @@
   },
   {
     "file": "src/app/dashboard/rewards/page.tsx",
-    "text": "Leaderboard →",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/page.tsx",
     "text": "No family set up",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/page.tsx",
-    "text": "points",
     "count": 1
   },
   {
     "file": "src/app/dashboard/rewards/page.tsx",
     "text": "Rewards",
     "count": 2
-  },
-  {
-    "file": "src/app/dashboard/rewards/page.tsx",
-    "text": "Your points",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "· Claimed by",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "· Waiting for a parent",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Add reward",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "All Family Rewards",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "as given",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Ask a parent to create rewards.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Cancel",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Claim",
-    "count": 3
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Claim reward",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Claim Reward",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Claimable Rewards",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Claiming…",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Create Reward",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Create your first reward for the family.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Mark",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Mark as given",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "more points",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Need",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "No rewards yet",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "points",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "points.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "points. You have",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "Saving…",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/RewardsBoard.tsx",
-    "text": "This uses",
-    "count": 1
   },
   {
     "file": "src/app/dashboard/search/SearchClient.tsx",
@@ -2686,11 +2551,6 @@
   },
   {
     "file": "src/components/dashboard/KidHome.tsx",
-    "text": "Claim",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/KidHome.tsx",
     "text": "Close",
     "count": 1
   },
@@ -2736,32 +2596,17 @@
   },
   {
     "file": "src/components/dashboard/KidHome.tsx",
-    "text": "more points",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/KidHome.tsx",
-    "text": "Need",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/KidHome.tsx",
     "text": "Nothing new today!",
     "count": 1
   },
   {
     "file": "src/components/dashboard/KidHome.tsx",
     "text": "points",
-    "count": 2
-  },
-  {
-    "file": "src/components/dashboard/KidHome.tsx",
-    "text": "points to go!",
     "count": 1
   },
   {
     "file": "src/components/dashboard/KidHome.tsx",
-    "text": "Rewards",
+    "text": "points to go!",
     "count": 1
   },
   {

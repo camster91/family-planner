@@ -36,6 +36,17 @@ function response(status: number, body: unknown): Response {
   } as Response;
 }
 
+const CREATED_REWARD = {
+  reward: {
+    id: "reward-1",
+    name: "Extra game time",
+    description: "Thirty minutes",
+    cost: 75,
+    icon: "🎮",
+    status: "available",
+  },
+};
+
 beforeEach(() => {
   push.mockReset();
   refresh.mockReset();
@@ -47,7 +58,7 @@ it("preserves the rewards payload, selected icon semantics, and destination", as
   const user = userEvent.setup();
   global.fetch = jest
     .fn()
-    .mockResolvedValue(response(201, { reward: { id: "reward-1" } }));
+    .mockResolvedValue(response(201, CREATED_REWARD));
 
   render(<CreateRewardForm />);
 
@@ -80,6 +91,28 @@ it("preserves the rewards payload, selected icon semantics, and destination", as
   );
 });
 
+it("retries an uncertain create with the same idempotency key and keeps the draft", async () => {
+  const user = userEvent.setup();
+  const requests: RequestInit[] = [];
+  global.fetch = jest.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    requests.push(init ?? {});
+    if (requests.length === 1) throw new TypeError("offline");
+    return response(201, CREATED_REWARD);
+  }) as unknown as typeof fetch;
+
+  render(<CreateRewardForm />);
+  const name = screen.getByLabelText("Name");
+  await user.type(name, "Extra game time");
+  await user.click(screen.getByRole("button", { name: "Create Reward" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Check your connection");
+  expect(name).toHaveValue("Extra game time");
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/rewards"));
+  expect((requests[0].headers as Record<string, string>)["Idempotency-Key"]).toBe(
+    (requests[1].headers as Record<string, string>)["Idempotency-Key"],
+  );
+});
+
 it("keeps the direct Back control noninteractive while saving", async () => {
   const user = userEvent.setup();
   let finish!: (result: Response) => void;
@@ -101,7 +134,7 @@ it("keeps the direct Back control noninteractive while saving", async () => {
     screen.queryByRole("link", { name: "Back to Rewards" }),
   ).not.toBeInTheDocument();
 
-  await act(async () => finish(response(201, { reward: { id: "reward-3" } })));
+  await act(async () => finish(response(201, CREATED_REWARD)));
   await waitFor(() =>
     expect(push).toHaveBeenCalledWith("/dashboard/rewards"),
   );
@@ -207,9 +240,7 @@ it.each([
     await user.keyboard("{Escape}");
     expect(back).not.toHaveBeenCalled();
 
-    await act(async () =>
-      finish(response(201, { reward: { id: "reward-2" } })),
-    );
+    await act(async () => finish(response(201, CREATED_REWARD)));
     await waitFor(() =>
       expect(push).toHaveBeenCalledWith("/dashboard/rewards"),
     );

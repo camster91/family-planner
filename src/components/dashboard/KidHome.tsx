@@ -30,6 +30,8 @@ import { groupByRoutine, normalizeRoutineName } from "@/lib/routine-icons";
 import KidRoutines from "./KidRoutines";
 import { useLocalNow } from "@/components/ui/use-hydrated";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
+import { useRewardsText } from "@/i18n/rewards";
+import Link from "next/link";
 
 interface Chore {
   id: string;
@@ -147,10 +149,12 @@ export default function KidHome({
   workPreviewLimited = false,
 }: KidHomeProps) {
   const displayLocale = useDisplayLocale();
+  const rewardsText = useRewardsText();
   const [celebratingReward, setCelebratingReward] = useState<string | null>(
     null,
   );
   const [claimingReward, setClaimingReward] = useState(false);
+  const rewardClaimKeys = useRef(new Map<string, string>());
   const rewardsEnabled = useFeatureEnabled("rewards");
   // Points & streaks (#248). When off the server also omits xp/level and the
   // chores' points, so this only decides what to draw.
@@ -370,38 +374,58 @@ export default function KidHome({
         .slice(0, 2)
     : [];
 
-  // The reward to offer: the one being celebrated (its cost is already spent,
-  // so it may no longer look affordable), else the first one the child can
-  // afford, else the first available one with "Need N more XP" (as on the
-  // Rewards board; the claim endpoint refuses a reward the XP cannot cover).
+  // Keep several rewards visible so children can choose what to work toward.
+  // A claimed row stays visible through its short celebration, then disappears
+  // from this bounded preview after the server refresh.
   const availableRewards = (rewards ?? []).filter(
     (r) => r.status === "available" && !claimedRewards.has(r.id),
   );
-  const claimableReward =
-    availableRewards.find((r) => r.id === celebratingReward) ??
-    availableRewards.find((r) => r.cost <= userXp) ??
-    availableRewards[0];
-  const celebratingThis =
-    !!claimableReward && celebratingReward === claimableReward.id;
-  const canClaimReward =
-    !!claimableReward && (celebratingThis || claimableReward.cost <= userXp);
+
+  const rewardClaimKey = (rewardId: string) => {
+    const existing = rewardClaimKeys.current.get(rewardId);
+    if (existing) return existing;
+    const random = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const key = `rewards:claim:${rewardId}:${random}`;
+    rewardClaimKeys.current.set(rewardId, key);
+    return key;
+  };
+
+  const parseClaimResult = (value: unknown): { rewardId: string; xp: number } | null => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const data = value as { reward?: unknown; xp?: unknown };
+    if (!data.reward || typeof data.reward !== "object" || Array.isArray(data.reward)) return null;
+    const reward = data.reward as { id?: unknown; status?: unknown };
+    if (typeof reward.id !== "string" || reward.status !== "claimed" || typeof data.xp !== "number" || !Number.isFinite(data.xp) || data.xp < 0) return null;
+    return { rewardId: reward.id, xp: data.xp };
+  };
 
   async function handleClaimReward(rewardId: string) {
     if (claimingReward) return;
     setClaimingReward(true);
+    const key = rewardClaimKey(rewardId);
     try {
       const res = await fetch("/api/rewards/claim", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
         body: JSON.stringify({ rewardId }),
       });
       if (res.ok) {
         // The claim spent XP: show the new balance now (the response carries
         // it), then drop the claimed reward and reload server data once the
         // celebration ends, so it is never offered again.
-        const data = await res.json().catch(() => ({}));
-        if (typeof data?.xp === "number")
-          setXpAfterClaim({ from: user.xp, xp: data.xp });
+        const data = parseClaimResult(await res.json().catch(() => null));
+        if (!data || data.rewardId !== rewardId) {
+          addToast({
+            type: "error",
+            title: rewardsText("recoveryTitle"),
+            message: rewardsText("recoveryDescription"),
+          });
+          return;
+        }
+        rewardClaimKeys.current.delete(rewardId);
+        setXpAfterClaim({ from: user.xp, xp: data.xp });
         setCelebratingReward(rewardId);
         setTimeout(() => {
           setCelebratingReward(null);
@@ -901,70 +925,38 @@ export default function KidHome({
           </section>
         )}
 
-        {/* Rewards card — claim most recent available reward (hidden when the
-            rewards feature is off; the claim endpoint 403s in that case) */}
-        {rewardsEnabled && claimableReward && (
-          <section>
-            <p className="section-header">Rewards</p>
-            <div className="card-apple p-4">
-              <div className="flex items-center gap-3">
-                <div
-                  className={cn(
-                    "w-12 h-12 rounded-full bg-tint-rewards flex items-center justify-center shrink-0 transition-transform duration-300",
-                    celebratingReward === claimableReward.id && "scale-125",
-                  )}
-                >
-                  <Gift className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-body text-label-primary font-medium truncate">
-                    {claimableReward.name}
-                  </p>
-                  {claimableReward.description && (
-                    <p className="text-footnote text-label-secondary truncate mt-0.5">
-                      {claimableReward.description}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-1 mt-1">
-                    <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
-                    <span className="text-footnote text-label-secondary">
-                      {claimableReward.cost} points
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleClaimReward(claimableReward.id)}
-                  disabled={
-                    claimingReward || celebratingThis || !canClaimReward
-                  }
-                  className={cn(
-                    "btn-primary min-h-[44px] px-4 py-2 text-body shrink-0 transition-all duration-200",
-                    celebratingThis
-                      ? "bg-success animate-check-pop"
-                      : !canClaimReward
-                        ? "bg-muted text-label-tertiary cursor-not-allowed"
-                        : claimingReward
-                          ? "opacity-50"
-                          : "",
-                  )}
-                >
-                  {celebratingThis
-                    ? "🎉 Claimed!"
-                    : canClaimReward
-                      ? "Claim"
-                      : `Need ${claimableReward.cost - userXp} more points`}
-                </button>
+        {/* Rewards shelf — several choices stay visible so a child can choose
+            a reachable reward or see what they are working toward. */}
+        {rewardsEnabled && availableRewards.length > 0 && (
+          <section aria-labelledby="kid-rewards-heading">
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <p id="kid-rewards-heading" className="section-header">{rewardsText("claimable")}</p>
+                <p className="text-footnote text-label-secondary">{rewardsText("claimableHint")}</p>
               </div>
-              {celebratingReward === claimableReward.id && (
-                <div className="mt-3 flex items-center justify-center gap-1 animate-spring-up">
-                  <span className="text-xl">🎉</span>
-                  <span className="text-title-3 text-success-text font-semibold">
-                    You got it!
-                  </span>
-                  <span className="text-xl">🎉</span>
-                </div>
-              )}
+              <Link href="/dashboard/rewards" className="min-h-[44px] inline-flex items-center text-footnote text-rewards">{rewardsText("allFamily")}</Link>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {availableRewards.map((reward) => {
+                const celebratingThis = celebratingReward === reward.id;
+                const canClaim = celebratingThis || reward.cost <= userXp;
+                return <article key={reward.id} className="card-apple p-4 min-w-0">
+                  <div className="flex items-center gap-3">
+                    <div className={cn("w-12 h-12 rounded-full bg-tint-rewards flex items-center justify-center shrink-0 transition-transform duration-300", celebratingThis && "scale-125")}>
+                      <Gift className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-body text-label-primary font-medium [overflow-wrap:anywhere]">{reward.name}</p>
+                      {reward.description && <p className="text-footnote text-label-secondary [overflow-wrap:anywhere] mt-0.5">{reward.description}</p>}
+                      <div className="flex items-center gap-1 mt-1"><Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" /><span className="text-footnote text-label-secondary">{reward.cost} {rewardsText("points")}</span></div>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => handleClaimReward(reward.id)} disabled={claimingReward || celebratingThis || !canClaim} className={cn("btn-primary mt-3 w-full min-h-[44px] px-4 py-2 text-body transition-all duration-200", celebratingThis ? "bg-success animate-check-pop" : !canClaim ? "bg-muted text-label-tertiary cursor-not-allowed" : claimingReward ? "opacity-50" : "")}>
+                    {celebratingThis ? "🎉 Claimed!" : canClaim ? rewardsText("claim") : rewardsText("needMore", { points: reward.cost - userXp })}
+                  </button>
+                  {celebratingThis && <div className="mt-3 flex items-center justify-center gap-1 animate-spring-up"><span className="text-xl">🎉</span><span className="text-title-3 text-success-text font-semibold">You got it!</span><span className="text-xl">🎉</span></div>}
+                </article>
+              })}
             </div>
           </section>
         )}

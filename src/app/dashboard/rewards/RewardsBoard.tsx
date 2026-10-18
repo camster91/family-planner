@@ -11,6 +11,7 @@ import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { Dialog } from '@/components/ui/dialog'
 import { useMaybeToast } from '@/components/ui/toast'
 import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
+import { useRewardsText } from '@/i18n/rewards'
 
 export interface RewardCard {
   id: string
@@ -23,18 +24,70 @@ export interface RewardCard {
   claimedByName: string | null
 }
 
-const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  available: { label: 'Available', className: 'bg-[var(--success-tint)] text-success-text' },
-  claimed: { label: 'Claimed', className: 'bg-[var(--warning-tint)] text-warning-text' },
-  approved: { label: 'Given', className: 'bg-[var(--accent-tint)] text-primary' },
-  redeemed: { label: 'Given', className: 'bg-[var(--accent-tint)] text-primary' },
+const STATUS_BADGE: Record<string, { key: 'available' | 'claimed' | 'given'; className: string }> = {
+  available: { key: 'available', className: 'bg-[var(--success-tint)] text-success-text' },
+  claimed: { key: 'claimed', className: 'bg-[var(--warning-tint)] text-warning-text' },
+  approved: { key: 'given', className: 'bg-[var(--accent-tint)] text-primary' },
+  redeemed: { key: 'given', className: 'bg-[var(--accent-tint)] text-primary' },
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' ? value : null
+}
+
+/** Validate the server DTO before treating a 2xx response as confirmed. */
+export function parseRewardCard(value: unknown): RewardCard | null {
+  if (!isRecord(value)) return null
+  const id = typeof value.id === 'string' ? value.id.trim() : ''
+  const name = typeof value.name === 'string' ? value.name.trim() : ''
+  const cost = typeof value.cost === 'number' ? value.cost : Number.NaN
+  const status = typeof value.status === 'string' ? value.status : ''
+  if (!id || !name || !Number.isFinite(cost) || cost < 0 || !status) return null
+  return {
+    id,
+    name,
+    description: stringOrNull(value.description),
+    icon: stringOrNull(value.icon),
+    cost,
+    status,
+    claimedById: stringOrNull(value.claimedById ?? value.claimed_by),
+    claimedByName: stringOrNull(value.claimedByName ?? value.claimed_by_name ?? (isRecord(value.claimer) ? value.claimer.name : null)),
+  }
+}
+
+function parseRewardResponse(value: unknown): RewardCard | null {
+  return isRecord(value) ? parseRewardCard(value.reward) : null
+}
+
+function parseRewardList(value: unknown): RewardCard[] | null {
+  if (!isRecord(value) || !Array.isArray(value.rewards)) return null
+  const parsed = value.rewards.map(parseRewardCard)
+  return parsed.every(Boolean) ? parsed as RewardCard[] : null
+}
+
+function newRequestKey(prefix: string, rewardId: string): string {
+  const random = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `rewards:${prefix}:${rewardId}:${random}`
+}
+
+type Recovery = {
+  kind: 'claim' | 'approve'
+  reward: RewardCard
+  key: string
+  message: string
 }
 
 /**
- * Rewards list and its two actions. Anyone in the household can claim an
- * available reward with their points (POST /api/rewards/claim); a parent then
- * marks a claimed reward as given (POST /api/rewards/approve, parents only),
- * which moves it to "Given". Both refresh the server-rendered page after.
+ * The parent shelf and the family review list share one canonical reward
+ * collection. Confirmed mutations update the local row before refreshing;
+ * uncertain mutations keep their idempotency key and offer an explicit retry
+ * or read-only status check.
  */
 export default function RewardsBoard({
   rewards,
@@ -49,219 +102,190 @@ export default function RewardsBoard({
 }) {
   const router = useRouter()
   const { addToast } = useMaybeToast()
+  const rewardsText = useRewardsText()
+  const [localRewards, setLocalRewards] = React.useState(rewards)
   const [confirming, setConfirming] = React.useState<RewardCard | null>(null)
   const [claiming, setClaiming] = React.useState(false)
   const [claimError, setClaimError] = React.useState<string | null>(null)
   const [approving, setApproving] = React.useState<string | null>(null)
+  const [recovery, setRecovery] = React.useState<Recovery | null>(null)
+  const claimKeys = React.useRef(new Map<string, string>())
+  const approveKeys = React.useRef(new Map<string, string>())
 
-  const claimable = rewards.filter((r) => r.status === 'available')
+  React.useEffect(() => setLocalRewards(rewards), [rewards])
 
-  const closeClaim = () => {
-    if (claiming) return
-    setConfirming(null)
-    setClaimError(null)
+  const claimable = localRewards.filter((reward) => reward.status === 'available')
+  const pendingReview = localRewards.filter((reward) => reward.status === 'claimed')
+  const familyRewards = localRewards.filter((reward) => reward.status !== 'claimed')
+
+  const getKey = (map: React.MutableRefObject<Map<string, string>>, prefix: string, id: string) => {
+    const existing = map.current.get(id)
+    if (existing) return existing
+    const created = newRequestKey(prefix, id)
+    map.current.set(id, created)
+    return created
   }
 
-  const claim = async () => {
-    if (!confirming) return
+  const applyReward = (next: RewardCard) => {
+    setLocalRewards((current) => current.map((reward) => reward.id === next.id ? next : reward))
+  }
+
+  const checkStatus = async (target: Recovery) => {
+    try {
+      const response = await fetch('/api/rewards', { headers: { Accept: 'application/json' } })
+      if (!response.ok) throw new Error('status')
+      const parsed = parseRewardList(await response.json().catch(() => null))
+      const current = parsed?.find((reward) => reward.id === target.reward.id)
+      if (!current) throw new Error('status')
+      applyReward(current)
+      setRecovery(null)
+      if (target.kind === 'claim' && current.status !== 'available') setConfirming(null)
+      addToast({ type: 'success', title: current.status === 'available' ? rewardsText('available') : rewardsText('claimed') })
+    } catch {
+      setRecovery((current) => current ? { ...current, message: rewardsText('statusError') } : current)
+    }
+  }
+
+  const claim = async (candidate?: RewardCard) => {
+    const reward = candidate ?? confirming
+    if (!reward || claiming) return
+    const key = getKey(claimKeys, 'claim', reward.id)
     setClaiming(true)
     setClaimError(null)
     try {
-      const res = await fetch('/api/rewards/claim', {
+      const response = await fetch('/api/rewards/claim', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rewardId: confirming.id }),
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+        body: JSON.stringify({ rewardId: reward.id }),
       })
-      if (!res.ok) {
-        setClaimError(await responseErrorMessage(res))
+      if (!response.ok) {
+        claimKeys.current.delete(reward.id)
+        setClaimError(await responseErrorMessage(response))
         return
       }
-      addToast({
-        type: 'success',
-        title: `Claimed ${confirming.name}`,
-        message: isParent ? undefined : 'A parent will mark it as given.',
-      })
+      const parsed = parseRewardResponse(await response.json().catch(() => null))
+      if (!parsed || parsed.status !== 'claimed') {
+        const message = rewardsText('recoveryTitle')
+        setClaimError(message)
+        setRecovery({ kind: 'claim', reward, key, message })
+        return
+      }
+      claimKeys.current.delete(reward.id)
+      applyReward(parsed)
+      addToast({ type: 'success', title: rewardsText('claimedToast', { name: reward.name }), message: isParent ? undefined : rewardsText('claimedToastMessage') })
       setConfirming(null)
+      setRecovery(null)
       router.refresh()
     } catch {
-      setClaimError(OFFLINE_MESSAGE)
+      const message = OFFLINE_MESSAGE
+      setClaimError(message)
+      setRecovery({ kind: 'claim', reward, key, message })
     } finally {
       setClaiming(false)
     }
   }
 
   const approve = async (reward: RewardCard) => {
+    if (approving) return
+    const key = getKey(approveKeys, 'approve', reward.id)
     setApproving(reward.id)
     try {
-      const res = await fetch('/api/rewards/approve', {
+      const response = await fetch('/api/rewards/approve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
         body: JSON.stringify({ rewardId: reward.id }),
       })
-      if (!res.ok) {
-        addToast({ type: 'error', title: `Couldn't mark ${reward.name} as given`, message: await responseErrorMessage(res) })
+      if (!response.ok) {
+        approveKeys.current.delete(reward.id)
+        addToast({ type: 'error', title: rewardsText('givenErrorTitle', { name: reward.name }), message: await responseErrorMessage(response) })
         return
       }
-      addToast({ type: 'success', title: `${reward.name} marked as given` })
+      const parsed = parseRewardResponse(await response.json().catch(() => null))
+      if (!parsed || !['approved', 'redeemed'].includes(parsed.status)) {
+        setRecovery({ kind: 'approve', reward, key, message: rewardsText('recoveryTitle') })
+        return
+      }
+      approveKeys.current.delete(reward.id)
+      applyReward(parsed)
+      addToast({ type: 'success', title: rewardsText('givenToast', { name: reward.name }) })
       router.refresh()
     } catch {
-      addToast({ type: 'error', title: `Couldn't mark ${reward.name} as given`, message: OFFLINE_MESSAGE })
+      setRecovery({ kind: 'approve', reward, key, message: OFFLINE_MESSAGE })
     } finally {
       setApproving(null)
     }
   }
 
+  const retryRecovery = async () => {
+    if (!recovery) return
+    if (recovery.kind === 'claim') {
+      setConfirming(recovery.reward)
+      await claim(recovery.reward)
+    } else {
+      await approve(recovery.reward)
+    }
+  }
+
+  const closeClaim = () => {
+    if (claiming) return
+    setConfirming(null)
+    setClaimError(null)
+    if (recovery?.kind === 'claim') setRecovery(null)
+  }
+
   return (
-    <>
-      {/* Claimable rewards */}
+    <div className="space-y-8">
+      <section aria-labelledby="rewards-balance-heading" className="card-apple p-5 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <Glyph color="rewards" size="lg"><span className="text-2xl" aria-hidden="true">⭐</span></Glyph>
+          <div className="min-w-0">
+            <p id="rewards-balance-heading" className="text-subhead text-label-secondary">{rewardsText('yourPoints')}</p>
+            <p className="text-title-2 text-label-primary font-bold tabular-nums">{userXp} {rewardsText('points')}</p>
+          </div>
+        </div>
+        <Link href="/dashboard/analytics" className="inline-flex min-h-[44px] items-center text-subhead text-rewards hover:text-rewards/80 font-medium">{rewardsText('leaderboard')}</Link>
+      </section>
+
       {claimable.length > 0 && (
         <section aria-labelledby="claimable-rewards-heading">
-          <h2 id="claimable-rewards-heading" className="section-header">
-            Claimable Rewards
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="mb-3"><h2 id="claimable-rewards-heading" className="section-header">{rewardsText('claimable')}</h2><p className="text-footnote text-label-secondary">{rewardsText('claimableHint')}</p></div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {claimable.map((reward) => {
               const canClaim = userXp >= reward.cost
-              return (
-                <div key={reward.id} className="card-apple p-5 flex flex-col gap-4" data-testid="claimable-reward">
-                  <Glyph color="rewards" size="lg">
-                    <span className="text-2xl" aria-hidden="true">
-                      {rewardIcon(reward.icon)}
-                    </span>
-                  </Glyph>
-                  <div>
-                    <h3 className="text-title-3 text-label-primary font-semibold">{reward.name}</h3>
-                    {reward.description && (
-                      <p className="text-footnote text-label-secondary mt-1 line-clamp-2">{reward.description}</p>
-                    )}
-                    <p className="text-subhead text-rewards font-medium mt-2">{reward.cost} points</p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={!canClaim}
-                    onClick={() => setConfirming(reward)}
-                    aria-label={canClaim ? `Claim ${reward.name}` : undefined}
-                    className={cn(
-                      'btn-tinted w-full min-h-[44px] py-2.5 text-base font-semibold',
-                      canClaim ? 'bg-tint-rewards text-white' : 'bg-muted text-label-tertiary cursor-not-allowed'
-                    )}
-                  >
-                    {canClaim ? 'Claim Reward' : `Need ${reward.cost - userXp} more points`}
-                  </button>
-                </div>
-              )
+              return <article key={reward.id} className="card-apple p-5 flex flex-col gap-4 min-w-0" data-testid="claimable-reward">
+                <Glyph color="rewards" size="lg"><span className="text-2xl" aria-hidden="true">{rewardIcon(reward.icon)}</span></Glyph>
+                <div className="min-w-0"><h3 className="text-title-3 text-label-primary font-semibold [overflow-wrap:anywhere]">{reward.name}</h3>{reward.description && <p className="text-footnote text-label-secondary mt-1 [overflow-wrap:anywhere]">{reward.description}</p>}<p className="text-subhead text-rewards font-medium mt-2">{reward.cost} {rewardsText('points')}</p></div>
+                <button type="button" disabled={!canClaim} onClick={() => { setConfirming(reward); setClaimError(null); setRecovery(null) }} aria-label={canClaim ? `${rewardsText('claim')} ${reward.name}` : undefined} className={cn('btn-tinted w-full min-h-[44px] py-2.5 text-base font-semibold', canClaim ? 'bg-tint-rewards text-white' : 'bg-muted text-label-tertiary cursor-not-allowed')}>{canClaim ? rewardsText('claimReward') : rewardsText('needMore', { points: reward.cost - userXp })}</button>
+              </article>
             })}
           </div>
         </section>
       )}
 
-      {/* All family rewards */}
-      <section aria-labelledby="family-rewards-heading">
-        <div className="flex items-center justify-between gap-3">
-          <h2 id="family-rewards-heading" className="section-header">
-            All Family Rewards
-          </h2>
-          {/* The empty state has its own create button. */}
-          {isParent && rewards.length > 0 && (
-            <Link href="/dashboard/rewards/create" className="btn-tinted min-h-[44px] shrink-0">
-              Add reward
-            </Link>
-          )}
-        </div>
-        {rewards.length === 0 ? (
-          <EmptyState
-            icon={Gift}
-            glyphColor="rewards"
-            illustration={ILLUSTRATIONS.rewards}
-            headingLevel="h3"
-            title="No rewards yet"
-            description={isParent ? 'Create your first reward for the family.' : 'Ask a parent to create rewards.'}
-            action={
-              isParent ? (
-                <Link
-                  href="/dashboard/rewards/create"
-                  className="btn-tinted bg-tint-rewards text-white min-h-[44px] px-5 py-2 text-base font-medium"
-                >
-                  Create Reward
-                </Link>
-              ) : undefined
-            }
-          />
-        ) : (
-          <ul className="space-y-3">
-            {rewards.map((reward) => {
-              const badge = STATUS_BADGE[reward.status] ?? {
-                label: reward.status,
-                className: 'bg-muted text-muted-foreground',
-              }
-              const claimedByMe = reward.claimedById === currentUserId
-              const claimer = claimedByMe ? 'you' : reward.claimedByName
-              return (
-                <li key={reward.id} className="card-apple p-4 flex flex-wrap items-center gap-4" data-testid="family-reward">
-                  <Glyph color="rewards" size="md">
-                    <span className="text-lg" aria-hidden="true">
-                      {rewardIcon(reward.icon)}
-                    </span>
-                  </Glyph>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-body text-label-primary font-medium truncate">{reward.name}</p>
-                    <p className="text-footnote text-label-secondary">
-                      {reward.cost} points
-                      {reward.status === 'claimed' && claimer ? ` · Claimed by ${claimer}` : ''}
-                      {reward.status === 'claimed' && claimedByMe && !isParent ? ' · Waiting for a parent' : ''}
-                    </p>
-                  </div>
-                  <span className={cn('text-caption-1 px-2.5 py-1 rounded-full font-medium', badge.className)}>
-                    {badge.label}
-                  </span>
-                  {isParent && reward.status === 'claimed' && (
-                    <button
-                      type="button"
-                      onClick={() => approve(reward)}
-                      disabled={approving === reward.id}
-                      className="btn-filled min-h-[44px]"
-                      aria-label={`Mark ${reward.name} as given`}
-                    >
-                      {approving === reward.id ? 'Saving…' : 'Mark as given'}
-                    </button>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
+      {pendingReview.length > 0 && <section aria-labelledby="pending-rewards-heading" className="space-y-3"><div><h2 id="pending-rewards-heading" className="section-header">{rewardsText('claimed')}</h2><p className="text-footnote text-label-secondary">{isParent ? rewardsText('reviewHint') : rewardsText('waiting')}</p></div><ul className="space-y-3">{pendingReview.map((reward) => <RewardRow key={reward.id} reward={reward} currentUserId={currentUserId} isParent={isParent} approving={approving === reward.id} onApprove={() => approve(reward)} rewardsText={rewardsText} recovery={recovery?.reward.id === reward.id && recovery.kind === 'approve' ? recovery : null} onRetry={retryRecovery} onCheckStatus={() => recovery && checkStatus(recovery)} />)}</ul></section>}
 
-      <Dialog
-        open={confirming !== null}
-        onClose={closeClaim}
-        title={confirming ? `Claim ${confirming.name}?` : 'Claim reward'}
-        description={
-          confirming
-            ? `This uses ${confirming.cost} points. You have ${userXp} points.${isParent ? '' : ' A parent will mark it as given.'}`
-            : undefined
-        }
-        testId="claim-reward-dialog"
-      >
-        {claimError && (
-          <p role="alert" className="mb-3 rounded-xl border border-[var(--danger-tint)] bg-[var(--danger-tint)] px-4 py-3 text-subhead text-[var(--danger-text)]">
-            {claimError}
-          </p>
-        )}
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={closeClaim} disabled={claiming} className="btn-plain min-h-[44px]">
-            Cancel
-          </button>
-          <button type="button" onClick={claim} disabled={claiming} className="btn-filled">
-            {claiming ? 'Claiming…' : 'Claim'}
-          </button>
-        </div>
+      <section aria-labelledby="family-rewards-heading"><div className="flex items-center justify-between gap-3 mb-3"><h2 id="family-rewards-heading" className="section-header">{rewardsText('allFamily')}</h2>{isParent && localRewards.length > 0 && <Link href="/dashboard/rewards/create" className="btn-tinted min-h-[44px] shrink-0">{rewardsText('addReward')}</Link>}</div>{localRewards.length === 0 ? <EmptyState icon={Gift} glyphColor="rewards" illustration={ILLUSTRATIONS.rewards} headingLevel="h3" title={rewardsText('noRewards')} description={isParent ? rewardsText('createFirst') : rewardsText('askParent')} action={isParent ? <Link href="/dashboard/rewards/create" className="btn-tinted bg-tint-rewards text-white min-h-[44px] px-5 py-2 text-base font-medium">{rewardsText('createReward')}</Link> : undefined} /> : familyRewards.length > 0 ? <ul className="space-y-3">{familyRewards.map((reward) => <RewardRow key={reward.id} reward={reward} currentUserId={currentUserId} isParent={isParent} approving={approving === reward.id} onApprove={() => approve(reward)} rewardsText={rewardsText} recovery={recovery?.reward.id === reward.id && recovery.kind === 'approve' ? recovery : null} onRetry={retryRecovery} onCheckStatus={() => recovery && checkStatus(recovery)} />)}</ul> : null}</section>
+
+      <Dialog open={confirming !== null} onClose={closeClaim} title={confirming ? rewardsText('claimTitle', { name: confirming.name }) : rewardsText('claimReward')} description={confirming ? rewardsText('claimDescription', { cost: confirming.cost, balance: userXp, suffix: isParent ? '' : rewardsText('parentWillGive') }) : undefined} testId="claim-reward-dialog">
+        {claimError && <p role="alert" className="mb-3 rounded-xl border border-[var(--danger-tint)] bg-[var(--danger-tint)] px-4 py-3 text-subhead text-[var(--danger-text)]">{claimError}</p>}
+        {recovery?.kind === 'claim' && <RecoveryNotice recovery={recovery} rewardsText={rewardsText} onRetry={retryRecovery} onCheckStatus={() => checkStatus(recovery)} />}
+        <div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={closeClaim} disabled={claiming} className="btn-plain min-h-[44px]">{rewardsText('cancel')}</button><button type="button" onClick={() => void claim()} disabled={claiming} className="btn-filled min-h-[44px]">{claiming ? rewardsText('claiming') : rewardsText('claim')}</button></div>
       </Dialog>
-    </>
+    </div>
   )
 }
 
-/** Shows the stored icon only when it is an emoji; older rows hold words like "tv". */
+function RewardRow({ reward, currentUserId, isParent, approving, onApprove, rewardsText, recovery, onRetry, onCheckStatus }: { reward: RewardCard; currentUserId: string; isParent: boolean; approving: boolean; onApprove: () => void; rewardsText: (key: string, params?: Record<string, string | number>) => string; recovery: Recovery | null; onRetry: () => void; onCheckStatus: () => void }) {
+  const badge = STATUS_BADGE[reward.status] ?? { key: 'available' as const, className: 'bg-muted text-muted-foreground' }
+  const claimedByMe = reward.claimedById === currentUserId
+  const claimer = claimedByMe ? 'you' : reward.claimedByName
+  return <li className="card-apple p-4 flex flex-wrap items-center gap-4" data-testid="family-reward"><Glyph color="rewards" size="md"><span className="text-lg" aria-hidden="true">{rewardIcon(reward.icon)}</span></Glyph><div className="flex-1 min-w-0"><p className="text-body text-label-primary font-medium [overflow-wrap:anywhere]">{reward.name}</p><p className="text-footnote text-label-secondary [overflow-wrap:anywhere]">{reward.cost} {rewardsText('points')}{reward.status === 'claimed' && claimer ? ` · ${rewardsText('claimedBy', { name: claimer })}` : ''}{reward.status === 'claimed' && claimedByMe && !isParent ? ` · ${rewardsText('waiting')}` : ''}</p></div><span className={cn('text-caption-1 px-2.5 py-1 rounded-full font-medium', badge.className)}>{rewardsText(badge.key)}</span>{isParent && reward.status === 'claimed' && <button type="button" onClick={onApprove} disabled={approving} className="btn-filled min-h-[44px]" aria-label={rewardsText('markGivenAria', { name: reward.name })}>{approving ? rewardsText('saving') : rewardsText('markGiven')}</button>}{recovery && <RecoveryNotice recovery={recovery} rewardsText={rewardsText} onRetry={onRetry} onCheckStatus={onCheckStatus} />}</li>
+}
+
+function RecoveryNotice({ recovery, rewardsText, onRetry, onCheckStatus }: { recovery: Recovery; rewardsText: (key: string, params?: Record<string, string | number>) => string; onRetry: () => void; onCheckStatus: () => void }) {
+  return <div role="status" aria-live="polite" className="w-full rounded-xl border border-[var(--warning-tint)] bg-[var(--warning-tint)]/40 p-3 text-footnote text-label-primary"><p className="font-semibold">{recovery.message}</p><p className="mt-1 text-label-secondary">{rewardsText('recoveryDescription')}</p><div className="mt-2 flex flex-wrap gap-2"><button type="button" className="btn-plain min-h-[44px]" onClick={onRetry}>{rewardsText('tryAgain')}</button><button type="button" className="btn-plain min-h-[44px]" onClick={onCheckStatus}>{rewardsText('checkStatus')}</button></div></div>
+}
+
 function rewardIcon(icon: string | null | undefined): string {
   return icon && /\p{Extended_Pictographic}/u.test(icon) ? icon : '🎁'
 }

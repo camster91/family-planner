@@ -268,7 +268,7 @@ describe("KidHome reward claim", () => {
 
   it("updates the XP ring from the response, then drops the reward and refreshes", async () => {
     replies["/api/rewards/claim"] = [
-      { status: 200, body: { reward: { id: "r1" }, xp: 30 } },
+      { status: 200, body: { reward: { id: "r1", status: "claimed" }, xp: 30 } },
     ];
     renderHome([], {
       user: { name: "Casey", role: "child", xp: 80, level: 1 },
@@ -279,7 +279,7 @@ describe("KidHome reward claim", () => {
     });
     expect(screen.getByText("80")).toBeTruthy();
 
-    await userEvent.click(screen.getByRole("button", { name: "Claim" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "Claim" })[0]);
     expect(await screen.findByText("You got it!")).toBeTruthy();
     expect(screen.getByText("30")).toBeTruthy();
     expect(screen.getByText("70 points to go!")).toBeTruthy();
@@ -314,9 +314,23 @@ describe("KidHome reward claim", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it("keeps a reward visible when a successful claim has an invalid envelope", async () => {
+    replies["/api/rewards/claim"] = [
+      { status: 200, body: { reward: { id: "r1" }, xp: 30 } },
+    ];
+    renderHome([], {
+      user: { name: "Casey", role: "child", xp: 80, level: 1 },
+      rewards: [{ id: "r1", name: "Movie night", cost: 50, status: "available" }],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Claim" }));
+    expect(await screen.findByText("The connection dropped before we could confirm.")).toBeTruthy();
+    expect(screen.getByText("Movie night")).toBeTruthy();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it("offers an affordable reward before one the XP cannot cover", async () => {
     replies["/api/rewards/claim"] = [
-      { status: 200, body: { reward: { id: "r2" }, xp: 10 } },
+      { status: 200, body: { reward: { id: "r2", status: "claimed" }, xp: 10 } },
     ];
     renderHome([], {
       user: { name: "Casey", role: "child", xp: 30, level: 1 },
@@ -325,7 +339,7 @@ describe("KidHome reward claim", () => {
         { id: "r2", name: "Sticker", cost: 20, status: "available" },
       ],
     });
-    expect(screen.queryByText("Movie night")).toBeNull();
+    expect(screen.getByText("Movie night")).toBeTruthy();
     expect(screen.getByText("Sticker")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Claim" }));
     expect(await screen.findByText("You got it!")).toBeTruthy();

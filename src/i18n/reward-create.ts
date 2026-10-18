@@ -25,6 +25,10 @@ export const rewardCreateEnglish = {
   permissionError: "Only a parent can create rewards.",
   draftDescription: "Close to return. Unsaved changes will be cleared.",
   pendingDescription: "Please wait for saving to finish.",
+  recoveryTitle: "The reward may have been saved, but we couldn't confirm it.",
+  recoveryDescription: "Your draft is still here. Retry safely or check the rewards list.",
+  tryAgain: "Try again",
+  checkRewards: "Check rewards",
 } as const;
 
 export type RewardCreateMessage = keyof typeof rewardCreateEnglish;
@@ -56,6 +60,10 @@ export const rewardCreateSpanish: Record<RewardCreateMessage, string> = {
   permissionError: "Solo un padre o madre puede crear recompensas.",
   draftDescription: "Cierra para volver. Los cambios sin guardar se borrarán.",
   pendingDescription: "Espera a que termine de guardarse.",
+  recoveryTitle: "Es posible que la recompensa se haya guardado, pero no pudimos confirmarlo.",
+  recoveryDescription: "Tu borrador sigue aquí. Reintenta de forma segura o revisa la lista.",
+  tryAgain: "Intentar de nuevo",
+  checkRewards: "Revisar recompensas",
 };
 
 export const rewardCreateMessages: Record<

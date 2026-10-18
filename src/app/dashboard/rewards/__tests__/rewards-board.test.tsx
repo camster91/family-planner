@@ -43,6 +43,9 @@ const ICE_CREAM: RewardCard = {
   claimedByName: 'Sam',
 }
 
+const CLAIMED_MOVIE = { reward: { ...MOVIE, status: 'claimed', claimedById: 'kid_1', claimedByName: 'Sam' }, xp: 30 }
+const GIVEN_ICE_CREAM = { reward: { ...ICE_CREAM, status: 'approved' } }
+
 type Call = { url: string; method: string; body: any }
 
 function mockFetch(answer: (url: string) => { status: number; body: unknown } | 'throw') {
@@ -68,6 +71,29 @@ function renderBoard(props: Partial<React.ComponentProps<typeof RewardsBoard>> =
 beforeEach(() => refresh.mockReset())
 
 describe('RewardsBoard', () => {
+  it('keeps several rewards visible as separate choices', () => {
+    renderBoard({ rewards: [MOVIE, { ...MOVIE, id: 'r_game', name: 'Game time', cost: 30 }] })
+    expect(screen.getAllByTestId('claimable-reward')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Claim Game time' })).toBeTruthy()
+  })
+
+  it('retries an uncertain claim with the same idempotency key', async () => {
+    const user = userEvent.setup()
+    const requests: RequestInit[] = []
+    global.fetch = jest.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(init ?? {})
+      if (requests.length === 1) throw new TypeError('offline')
+      return { ok: true, status: 200, json: async () => CLAIMED_MOVIE } as Response
+    }) as unknown as typeof fetch
+    renderBoard({ rewards: [MOVIE] })
+    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
+    await user.click(await screen.findByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    expect(requests[0].headers).toEqual(requests[1].headers)
+    expect((requests[0].headers as Record<string, string>)['Idempotency-Key']).toContain('rewards:claim:r_movie:')
+  })
+
   it('lets a parent add another reward once some exist; a child sees no add button', () => {
     const { unmount } = renderBoard({ isParent: true })
     expect(screen.getByRole('link', { name: 'Add reward' }).getAttribute('href')).toBe('/dashboard/rewards/create')
@@ -84,7 +110,7 @@ describe('RewardsBoard', () => {
 
   it('claims a reward after confirming, then refreshes the page', async () => {
     const user = userEvent.setup()
-    const calls = mockFetch(() => ({ status: 200, body: { reward: {}, xp: 30 } }))
+    const calls = mockFetch(() => ({ status: 200, body: CLAIMED_MOVIE }))
     renderBoard()
     await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
     const dialog = screen.getByRole('dialog', { name: 'Claim Movie night?' })
@@ -135,7 +161,7 @@ describe('RewardsBoard', () => {
 
   it('lets a parent mark a claimed reward as given', async () => {
     const user = userEvent.setup()
-    const calls = mockFetch(() => ({ status: 200, body: { reward: {} } }))
+    const calls = mockFetch(() => ({ status: 200, body: GIVEN_ICE_CREAM }))
     renderBoard({ isParent: true, currentUserId: 'parent_1' })
     const row = screen.getAllByTestId('family-reward').find((r) => r.textContent?.includes('Ice cream'))!
     expect(row.textContent).toContain('Claimed by Sam')
