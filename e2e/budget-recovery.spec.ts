@@ -611,8 +611,34 @@ for (const locale of ["en", "es"] as const) {
         const recoverySubmit = recoveryDialog.getByRole("button", {
           name: copy.addTransaction,
         });
+        // Pending disabled the submit, so the browser may have blurred it.
+        // Verify visibility before any focus/scroll assistance, then keyboard access.
+        await expect(recoverySubmit).toBeInViewport({ ratio: 1 });
+        await expect(
+          recoveryDialog.getByRole("button", { name: copy.transactionCancel }),
+        ).toBeInViewport({ ratio: 1 });
+        expect(
+          await recoverySubmit.evaluate((button) => {
+            const rect = button.getBoundingClientRect();
+            return button.contains(
+              document.elementFromPoint(
+                rect.x + rect.width / 2,
+                rect.y + rect.height / 2,
+              ),
+            );
+          }),
+        ).toBe(true);
+        await recoveryDialog
+          .getByRole("button", { name: copy.transactionCancel })
+          .focus();
+        await page.keyboard.press("Tab");
         await expect(recoverySubmit).toBeFocused();
         await assertTouchTarget(page, recoverySubmit);
+        await assertAccessibleAndContained(
+          page,
+          info,
+          `${locale}-${info.project.name}-recovery-footer`,
+        );
 
         // The next synthetic request stays pending. Escape and Cancel must not
         // dismiss the sheet or lose its draft while the mutation is unresolved.
