@@ -501,18 +501,18 @@ export default function InventoryClient({
           {pastUseBy.length > 0 && (
             <PastUseBySection items={pastUseBy} canWrite={canWrite} busy={busy} onDiscard={(t) => quickAdjust(t, 'discard')} />
           )}
-          <div className="grid min-w-0 grid-cols-1 items-start gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" data-testid="inventory-overview">
-            <UseSoonSection
-              items={data.data.useSoon}
-              canWrite={canWrite}
-              busy={busy}
-              onAdjust={(t, kind) => quickAdjust(t, kind)}
-            />
+          <div className="grid min-w-0 grid-cols-1 items-start gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]" data-testid="inventory-overview">
             <InventoryLocations
               items={data.data.items}
               where={whereFilter}
               onWhere={setWhereFilter}
               capped={data.data.capped}
+            />
+            <UseSoonSection
+              items={data.data.useSoon}
+              canWrite={canWrite}
+              busy={busy}
+              onAdjust={(t, kind) => quickAdjust(t, kind)}
             />
           </div>
           {data.data.items.length === 0 ? (

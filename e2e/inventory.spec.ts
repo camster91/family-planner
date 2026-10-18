@@ -413,8 +413,8 @@ test.describe("inventory (Family A parent)", () => {
       const soonBox = await page.getByTestId("use-soon").boundingBox();
       const locationsBox = await shortcuts.boundingBox();
       if (page.viewportSize()!.width >= 768) {
-        expect(locationsBox!.x).toBeGreaterThanOrEqual(
-          soonBox!.x + soonBox!.width,
+        expect(soonBox!.x).toBeGreaterThanOrEqual(
+          locationsBox!.x + locationsBox!.width,
         );
         expect(Math.abs(locationsBox!.y - soonBox!.y)).toBeLessThanOrEqual(1);
       } else {
