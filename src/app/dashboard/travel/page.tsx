@@ -491,14 +491,14 @@ function TravelPageInner() {
                 <span className="text-headline text-[var(--accent)]">{pendingInWindow.length}</span>
               </div>
               {pendingInWindow.slice(0, 5).map(chore => (
-                <div key={chore.id} className="px-4 py-3 flex items-center gap-3">
+                <div key={chore.id} className="px-4 py-3 flex items-start gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-body text-label-primary truncate">{chore.title}</p>
-                    <p className="text-footnote text-label-secondary">
+                    <p className="text-body text-label-primary break-words">{chore.title}</p>
+                    <p className="text-footnote text-label-secondary break-words">
                       {chore.assignee?.name ?? text('unassigned')}
                     </p>
                   </div>
-                  <span className="text-footnote text-label-tertiary">
+                  <span className="shrink-0 text-footnote text-label-tertiary">
                     {formatDateOnly(chore.due_date, undefined, displayLocale)}
                   </span>
                 </div>
