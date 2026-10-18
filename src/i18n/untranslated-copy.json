@@ -1236,11 +1236,6 @@
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Explore recipes",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/page.tsx",
     "text": "Leave blank if not set. Otherwise, enter 1–100.",
     "count": 1
   },
