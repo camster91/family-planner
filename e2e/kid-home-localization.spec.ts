@@ -35,6 +35,11 @@ const catchupName = `After school ${suffix}`;
 const retryNote = `Use the blue towel — café ${suffix}`;
 const todayMission = `Feed the cat — café ${suffix}`;
 const tomorrowMission = `Pack the lunchbox — café ${suffix}`;
+const routineStepTitles = [
+  `Brush teeth — café ${suffix}`,
+  `Get dressed — café ${suffix}`,
+  `Shoes on — café ${suffix}`,
+] as const;
 const IDS = {
   next: `fx_e2e_kid_localization_${suffix}_next`,
   waiting: `fx_e2e_kid_localization_${suffix}_waiting`,
@@ -437,6 +442,38 @@ for (const locale of ["en", "es"] as const) {
       await expect(
         page.getByText(textForParent(locale, "routinePanel"), { exact: true }),
       ).toBeVisible();
+      // The parent surface keeps the routine workspace in its existing
+      // expandable panel. Explicitly verify the panel is open before checking
+      // every seeded row, including completed and verified steps; this avoids
+      // passing solely because the routine label exists above a collapsed list.
+      const routineSummary = page
+        .locator("summary")
+        .filter({ hasText: textForParent(locale, "routinePanel") });
+      await expect(routineSummary).toHaveCount(1);
+      const routinePanel = routineSummary.locator("..");
+      if (
+        !(await routinePanel.evaluate((element) =>
+          element.hasAttribute("open"),
+        ))
+      ) {
+        await routineSummary.click();
+      }
+      await expect(routinePanel).toHaveAttribute("open", "");
+      const routineStacks = routinePanel.getByRole("region", {
+        name: textForParent(locale, "routinePanel"),
+        exact: true,
+      });
+      await expect(routineStacks).toHaveCount(1);
+      const seededStack = routineStacks.getByRole("region", {
+        name: new RegExp(routineName),
+      });
+      await expect(seededStack).toHaveCount(1);
+      await expect(seededStack.locator("ol > li")).toHaveCount(3);
+      for (const title of routineStepTitles) {
+        await expect(
+          seededStack.getByText(title, { exact: true }),
+        ).toBeVisible();
+      }
       await expect(
         page.getByText(copy(locale, "greeting", { name: "Casey" }), {
           exact: true,
