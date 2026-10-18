@@ -381,9 +381,10 @@ test.describe("new household sign-up journey", () => {
 
       // A parent's home is the Today board (#269).
       await page.waitForURL(/\/dashboard\/today/);
-      await expect(page.getByTestId("region-chores")).toContainText(
-        "No chores due today.",
+      await expect(page.getByTestId("region-today")).toContainText(
+        "No more events or household chores to show here.",
       );
+      await expect(page.getByTestId("region-chores")).toHaveCount(0);
       // A parent of a new household gets three first steps, none done yet.
       const getStarted = page.getByRole("region", { name: "Get started" });
       await expect(getStarted).toBeVisible();
