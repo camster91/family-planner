@@ -7,6 +7,8 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { recordBetaMetric } from '@/lib/beta-metrics'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import { authorizeRewardReplay, claimReward, InsufficientRewardXpError, type RewardActor } from '@/lib/reward-mutations'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +37,7 @@ export async function POST(request: NextRequest) {
     const gate = await featureGate(auth.user.family_id, 'rewards')
     if (gate) return gate
 
-    let body: any
+    let body: unknown
     try {
       body = await request.json()
     } catch {
@@ -47,6 +49,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { rewardId } = parsed.data
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return keyError
 
     const reward = await prisma!.reward.findUnique({
       where: { id: rewardId },
@@ -60,7 +64,9 @@ export async function POST(request: NextRequest) {
     const familyError = requireFamilyMatch(reward.family_id, auth.user.family_id)
     if (familyError) return familyError
 
-    if (reward.status !== 'available') {
+    // Let keyed retries reach the stored receipt after the first claim changes
+    // the status; a fresh keyed attempt is still refused inside the helper.
+    if (reward.status !== 'available' && !key) {
       return NextResponse.json({ error: 'Reward is not available' }, { status: 400 })
     }
 
@@ -69,95 +75,54 @@ export async function POST(request: NextRequest) {
       select: { name: true },
     })
 
-    // Everything that decides the outcome runs in one transaction. Each write is
-    // conditional, so correctness does not depend on the reads above still being
-    // true by the time the writes land.
-    const result = await prisma!.$transaction(async (tx) => {
-      // Claim the reward only if it is still available. A concurrent claim that
-      // got here first makes this match zero rows, and this attempt aborts.
-      const claimedReward = await tx.reward.updateMany({
-        where: { id: rewardId, status: 'available', family_id: auth.user.family_id },
-        data: {
-          status: 'claimed',
-          claimed_by: auth.user.id,
-          claimed_at: new Date(),
-        },
-      })
-
-      if (claimedReward.count === 0) {
-        return { ok: false as const, reason: 'Reward is no longer available' }
-      }
-
-      // The cost is read here, after the claim above locked the reward row, not
-      // from the read before the transaction: a parent who changed the price
-      // in between is charged at the price that is stored now.
-      const claimed = await tx.reward.findUnique({ where: { id: rewardId }, select: { cost: true } })
-      const cost = claimed?.cost ?? reward.cost
-
-      // Deduct XP only if the balance still covers it. `gte` makes the check and
-      // the deduction one atomic operation; `increment` makes concurrent
-      // deductions compose rather than overwrite.
-      const deducted = await tx.user.updateMany({
-        where: { id: auth.user.id, xp: { gte: cost } },
-        data: { xp: { decrement: cost } },
-      })
-
-      if (deducted.count === 0) {
-        // Not enough XP. Throwing rolls back the claim above, so the reward is
-        // not left in a claimed state with no deduction.
-        throw new InsufficientXpError()
-      }
-
-      const fresh = await tx.user.findUnique({
-        where: { id: auth.user.id },
-        select: { xp: true },
-      })
-
-      return { ok: true as const, xp: fresh?.xp ?? 0, cost }
-    })
-
-    if (!result.ok) {
-      return NextResponse.json({ error: result.reason }, { status: 409 })
-    }
-
-    // Beta usage counts (#287): after the commit; never fails the request.
-    await recordBetaMetric(prisma!, auth.user.family_id, 'reward_claimed')
-
-    const updated = await prisma!.reward.findUnique({
-      where: { id: rewardId },
-      include: {
-        creator: { select: { id: true, name: true } },
-        claimer: { select: { id: true, name: true } },
+    const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role }
+    let applied = false
+    let chargedCost = reward.cost
+    const response = await withIdempotency(
+      prisma!,
+      key,
+      { scope: `user:${actor.userId}`, familyId: actor.familyId, userId: actor.userId, action: 'reward.claim' },
+      parsed.data,
+      async ({ recordId }) => {
+        const mutation = await claimReward(prisma!, parsed.data, actor, recordId)
+        applied = mutation.applied
+        chargedCost = mutation.cost ?? chargedCost
+        return mutation.result
       },
-    })
+      { beforeReplay: () => authorizeRewardReplay(prisma!, actor, false) },
+    )
 
-    // Notify parents (best effort, never blocks the claim)
-    try {
-      const parents = await prisma!.user.findMany({
-        where: { family_id: auth.user.family_id, role: 'parent' },
-        select: { id: true },
-      })
-      for (const parent of parents) {
-        await notificationServiceServer.sendNotification({
-          familyId: auth.user.family_id,
-          userId: parent.id,
-          title: `${user?.name ?? 'Someone'} claimed a reward!`,
-          message: `${user?.name ?? 'Someone'} claimed "${reward.name}" for ${result.cost} points.`,
-          type: 'reward',
+    if (applied) {
+      // Beta usage counts (#287): after the commit; never fails the request.
+      await recordBetaMetric(prisma!, auth.user.family_id, 'reward_claimed')
+
+      // Notify parents only for the fresh mutation. A lost-response replay
+      // cannot duplicate the metric or notification fanout.
+      try {
+        const parents = await prisma!.user.findMany({
+          where: { family_id: auth.user.family_id, role: 'parent' },
+          select: { id: true },
         })
+        for (const parent of parents) {
+          await notificationServiceServer.sendNotification({
+            familyId: auth.user.family_id,
+            userId: parent.id,
+            title: `${user?.name ?? 'Someone'} claimed a reward!`,
+            message: `${user?.name ?? 'Someone'} claimed "${reward.name}" for ${chargedCost} points.`,
+            type: 'reward',
+          })
+        }
+      } catch (err) {
+        logRouteError('POST /api/rewards/claim (notification)', err, getRequestId(request))
       }
-    } catch (err) {
-      logRouteError('POST /api/rewards/claim (notification)', err, getRequestId(request))
     }
 
-    return NextResponse.json({ reward: updated, xp: result.xp })
+    return response
   } catch (error) {
-    if (error instanceof InsufficientXpError) {
+    if (error instanceof InsufficientRewardXpError) {
       return NextResponse.json({ error: 'Not enough points for this reward' }, { status: 400 })
     }
     logRouteError('POST /api/rewards/claim', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-
-class InsufficientXpError extends Error {}
