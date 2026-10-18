@@ -45,10 +45,12 @@ function setup({
   roster = () => json(200, { members }),
   remove = async () => json(200, { success: true }),
   me = "me",
+  household = true,
 }: {
   roster?: () => Response;
   remove?: () => Promise<Response>;
   me?: string;
+  household?: boolean | (() => boolean);
 } = {}) {
   const calls: Array<{ url: string; method: string }> = [];
   global.fetch = jest.fn(async (input, init) => {
@@ -60,7 +62,9 @@ function setup({
         user: {
           id: me,
           role: "parent",
-          family_id: "family-a",
+          family_id: (typeof household === "function" ? household() : household)
+            ? "family-a"
+            : null,
           family: { name: "Private {family} 李" },
         },
       });
@@ -136,7 +140,7 @@ it("retains the pending confirmation and raw refusal, retries the exact id and f
     }),
   );
   await user.dblClick(
-    screen.getByRole("button", { name: "Remove from household", exact: true }),
+    screen.getByRole("button", { name: "Remove from household" }),
   );
   const dialog = screen.getByRole("dialog");
   expect(
@@ -160,7 +164,6 @@ it("retains the pending confirmation and raw refusal, retries the exact id and f
   await user.click(
     within(dialog).getByRole("button", {
       name: "Quitar del hogar",
-      exact: true,
     }),
   );
   await waitFor(() =>
@@ -198,7 +201,6 @@ it.each(["fallback", "network"] as const)(
     await user.click(
       screen.getByRole("button", {
         name: "Remove from household",
-        exact: true,
       }),
     );
     await user.click(screen.getByRole("button", { name: "Change language" }));
@@ -217,6 +219,7 @@ it.each(["fallback", "network"] as const)(
 
 it.each([
   { members: {} },
+  { members: [members[0], members[0]] },
   { members: [{ id: "bad", name: "Malformed", role: {} }] },
 ])(
   "malformed roster is an error, and Retry recovers without a fake empty state",
@@ -260,4 +263,48 @@ it("shows a real empty state with the existing invite route", async () => {
   expect(invite).toHaveAttribute("href", "/dashboard/family/invite");
   expect(screen.queryByTestId("family-member")).not.toBeInTheDocument();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("offers create and join when membership is absent without exposing cached family details or fetching members", async () => {
+  const calls = setup({ household: false });
+  await screen.findByText("Choose your household");
+  expect(
+    screen.getByRole("link", { name: "Create household" }),
+  ).toHaveAttribute("href", "/dashboard/family/create");
+  expect(screen.getByRole("link", { name: "Join household" })).toHaveAttribute(
+    "href",
+    "/join",
+  );
+  expect(
+    screen.queryByRole("link", { name: "Invite member" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+    "Your family",
+  );
+  expect(screen.queryByText("Private {family} 李")).not.toBeInTheDocument();
+  expect(calls).toEqual([{ url: "/api/auth/me", method: "GET" }]);
+});
+
+it("clears the earlier household name when Retry discovers membership loss", async () => {
+  const user = userEvent.setup();
+  let attempt = 0;
+  const calls = setup({
+    household: () => attempt++ === 0,
+    roster: () => json(503, {}),
+  });
+  await screen.findByRole("alert");
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+    "Private {family} 李",
+  );
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+  await screen.findByText("Choose your household");
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+    "Your family",
+  );
+  expect(
+    screen.queryByRole("link", { name: "Invite member" }),
+  ).not.toBeInTheDocument();
+  expect(
+    calls.filter((call) => call.url === "/api/family/members"),
+  ).toHaveLength(1);
 });

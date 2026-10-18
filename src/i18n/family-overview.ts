@@ -19,6 +19,11 @@ export const familyOverviewEnglish = {
   emptyDescription:
     "Invite family members to join your family and start organizing together.",
   inviteMembers: "Invite members",
+  chooseHousehold: "Choose your household",
+  chooseHouseholdDescription:
+    "Create a household or join one with an invitation.",
+  createHousehold: "Create household",
+  joinHousehold: "Join household",
   remove: "Remove",
   removeAria: "Remove {name} from household",
   removeTitle: "Remove {name}?",
@@ -58,6 +63,10 @@ export const familyOverviewSpanish: Record<FamilyOverviewMessage, string> = {
   emptyTitle: "Aún no hay miembros",
   emptyDescription: "Invita a tu familia para empezar a organizarse juntos.",
   inviteMembers: "Invitar a miembros",
+  chooseHousehold: "Elige tu hogar",
+  chooseHouseholdDescription: "Crea un hogar o únete a uno con una invitación.",
+  createHousehold: "Crear un hogar",
+  joinHousehold: "Unirse a un hogar",
   remove: "Quitar",
   removeAria: "Quitar a {name} del hogar",
   removeTitle: "¿Quitar a {name}?",

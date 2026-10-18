@@ -34,6 +34,10 @@ function isMember(value: unknown): value is Member {
     ['role', 'avatar_url', 'email'].every((key) => member[key] == null || typeof member[key] === 'string')
 }
 
+function isMemberList(value: unknown): value is Member[] {
+  return Array.isArray(value) && value.every(isMember) && new Set(value.map((member) => member.id)).size === value.length
+}
+
 export default function FamilyPage() {
   const more = useMoreText()
   const copy = useFamilyOverviewText()
@@ -52,6 +56,7 @@ export default function FamilyPage() {
   const [removeError, setRemoveError] = useState<FamilyFeedback | null>(null)
   const [notice, setNotice] = useState<FamilyFeedback | null>(null)
   const [familyName, setFamilyName] = useState('')
+  const [hasHousehold, setHasHousehold] = useState<boolean | null>(null)
   const [userRole, setUserRole] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -71,6 +76,14 @@ export default function FamilyPage() {
   const loadFamilyData = async () => {
     setLoading(true)
     setLoadError(false)
+    setFamilyMembers([])
+    setFamilyName('')
+    setHasHousehold(null)
+    setMyId('')
+    setUserRole('')
+    setNotice(null)
+    setRemoving(null)
+    setRemoveError(null)
     try {
       const meRes = await fetch('/api/auth/me')
       const meData = await meRes.json()
@@ -82,13 +95,20 @@ export default function FamilyPage() {
       const user = meData.user
       setUserRole(user.role || '')
       setMyId(user.id || '')
+      if (user.family_id == null || user.family_id === '') {
+        setHasHousehold(false)
+        return
+      }
+      if (typeof user.family_id !== 'string') {
+        setLoadError(true)
+        return
+      }
+      setHasHousehold(true)
       if (typeof user.family?.name === 'string') setFamilyName(user.family.name)
-
-      if (!user.family_id) return
 
       const membersRes = await fetch('/api/family/members')
       const membersData = await membersRes.json()
-      if (membersRes.ok && Array.isArray(membersData.members) && membersData.members.every(isMember)) {
+      if (membersRes.ok && isMemberList(membersData.members)) {
         setFamilyMembers(membersData.members)
       } else {
         setLoadError(true)
@@ -131,14 +151,14 @@ export default function FamilyPage() {
       <LargeHeader
         title={familyName || copy('title')}
         subtitle={
-          loading || loadError
+          loading || loadError || !hasHousehold
             ? undefined
             : copy(familyMembers.length === 1 ? 'memberOne' : 'memberMany', { count: familyMembers.length.toLocaleString(locale) })
         }
       />
 
       {/* Action buttons */}
-      <div className="flex flex-wrap gap-3">
+      {hasHousehold && !loadError && <div className="flex flex-wrap gap-3">
         <Link href="/dashboard/family/invite" className="btn-tinted min-h-[44px]">
           <Plus className="w-4 h-4" aria-hidden="true" />
           <span>{copy('addMember')}</span>
@@ -147,7 +167,7 @@ export default function FamilyPage() {
           <Settings className="w-4 h-4" aria-hidden="true" />
           <span>{copy('settings')}</span>
         </Link>
-      </div>
+      </div>}
 
       {/* Members list */}
       <section aria-labelledby="family-members-heading" className="min-w-0">
@@ -169,6 +189,19 @@ export default function FamilyPage() {
               {copy('tryAgain')}
             </button>
           </div>
+        ) : hasHousehold === false ? (
+          <EmptyState
+            icon={Users}
+            glyphColor="family"
+            title={copy('chooseHousehold')}
+            description={copy('chooseHouseholdDescription')}
+            action={
+              <div className="flex flex-wrap justify-center gap-3">
+                <Link href="/dashboard/family/create" className="btn-tinted min-h-[44px]">{copy('createHousehold')}</Link>
+                <Link href="/join" className="btn-secondary min-h-[44px]">{copy('joinHousehold')}</Link>
+              </div>
+            }
+          />
         ) : familyMembers.length === 0 ? (
           <EmptyState
             icon={Users}
@@ -249,7 +282,7 @@ export default function FamilyPage() {
         </div>
       </Dialog>
 
-      <section className="min-w-0" aria-labelledby="family-household">
+      {hasHousehold && !loadError && <section className="min-w-0" aria-labelledby="family-household">
         <SectionHeader>
           <span id="family-household">{copy('household')}</span>
         </SectionHeader>
@@ -276,7 +309,7 @@ export default function FamilyPage() {
             last
           />
         </InsetList>
-      </section>
+      </section>}
     </div>
   )
 }

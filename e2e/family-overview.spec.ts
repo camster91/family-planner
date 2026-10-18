@@ -84,6 +84,15 @@ test.describe("Family account overview", () => {
           exact: true,
         }),
       ).toHaveCount(0);
+      for (const control of await page
+        .locator(
+          "main a.btn-tinted, main a.btn-secondary, main button.btn-plain",
+        )
+        .all()) {
+        const target = await control.boundingBox();
+        expect(target?.height).toBeGreaterThanOrEqual(44);
+        expect(target?.width).toBeGreaterThanOrEqual(44);
+      }
       const cards = page.getByTestId("family-members");
       const box = await cards.boundingBox();
       expect(box!.width).toBeGreaterThanOrEqual(
@@ -159,6 +168,11 @@ test.describe("Family account overview", () => {
           exact: true,
         });
         await expect(dialog).toBeVisible();
+        for (const button of await dialog.getByRole("button").all()) {
+          const target = await button.boundingBox();
+          expect(target?.height).toBeGreaterThanOrEqual(44);
+          expect(target?.width).toBeGreaterThanOrEqual(44);
+        }
         await page.keyboard.press("Escape");
         await expect(dialog).toHaveCount(0);
         await expect(opener).toBeFocused();
