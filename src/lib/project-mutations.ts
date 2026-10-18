@@ -177,6 +177,7 @@ async function currentTaskProjectForReplay(
   tx: ProjectTx,
   actor: Actor,
   projectId: string,
+  body: unknown,
 ): Promise<EffectResult | null> {
   const project = await tx.project.findUnique({
     where: { id: projectId },
@@ -184,6 +185,13 @@ async function currentTaskProjectForReplay(
   });
   if (!project) return notFound("Project not found");
   if (project.family_id !== actor.familyId) return forbidden();
+  const taskId = nestedId(body, "task");
+  if (!taskId) return notFound("Task not found");
+  const task = await tx.projectTask.findFirst({
+    where: { id: taskId, project_id: projectId },
+    select: { id: true },
+  });
+  if (!task) return notFound("Task not found");
   return null;
 }
 
@@ -256,6 +264,7 @@ export async function createProjectTaskWithReceipt(
           tx,
           actor,
           projectId,
+          prepared.result.body,
         );
         if (replayRefusal) return replayRefusal;
       }
@@ -354,7 +363,24 @@ export async function authorizeProjectReplay(
       return refusal;
     }
     if (mutation === "task.create" && projectId) {
-      return currentTaskProjectForReplay(tx, actor, projectId);
+      const receipt = replayKey
+        ? await tx.idempotencyRecord.findFirst({
+            where: {
+              scope: `user:${actor.userId}`,
+              key: replayKey,
+              family_id: actor.familyId,
+              user_id: actor.userId,
+              action: projectAction("task.create", projectId),
+            },
+            select: { response_body: true },
+          })
+        : null;
+      return currentTaskProjectForReplay(
+        tx,
+        actor,
+        projectId,
+        receipt?.response_body,
+      );
     }
     return null;
   });
