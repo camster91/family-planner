@@ -34,6 +34,7 @@ const COPY = {
     selectPerson: "Select a person",
     symptoms: "Symptoms",
     save: "Save",
+    saving: "Saving...",
     cancel: "Cancel",
     closeForm: "Close sick-day form",
     medicationsFailed:
@@ -53,6 +54,7 @@ const COPY = {
     selectPerson: "Seleccionar persona",
     symptoms: "Sintomas",
     save: "Guardar",
+    saving: "Guardando...",
     cancel: "Cancelar",
     closeForm: "Cerrar formulario de enfermedad",
     medicationsFailed:
@@ -507,7 +509,9 @@ for (const locale of ["en", "es"] as const) {
         "start-sheet cancel",
       );
       await save.click();
-      await expect(save).toBeDisabled();
+      await expect(
+        dialog.getByRole("button", { name: copy.saving, exact: true }),
+      ).toBeDisabled();
       await expect(person).toBeDisabled();
       await page.keyboard.press("Escape");
       await expect(dialog).toBeVisible();
@@ -552,7 +556,10 @@ for (const locale of ["en", "es"] as const) {
         "add medication",
       );
       await addMedication.click();
-      dialog = page.getByRole("dialog");
+      dialog = page.getByRole("dialog", {
+        name: copy.addMedication,
+        exact: true,
+      });
       await expect(dialog).toBeVisible();
       const draftName = dialog.getByLabel(copy.name, { exact: true });
       await draftName.fill("Synthetic draft only");
@@ -579,7 +586,10 @@ for (const locale of ["en", "es"] as const) {
       await detail
         .getByRole("button", { name: `+ ${copy.addMedication}`, exact: true })
         .click();
-      dialog = page.getByRole("dialog");
+      dialog = page.getByRole("dialog", {
+        name: copy.addMedication,
+        exact: true,
+      });
       await expect(dialog.getByLabel(copy.name, { exact: true })).toHaveValue(
         "Synthetic draft only",
       );

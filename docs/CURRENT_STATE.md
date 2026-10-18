@@ -1,18 +1,30 @@
 # Current State
 
-## Sick days sheets candidate — 2026-10-18
+## Care and coordination UI candidate — 2026-10-18
 
-Production remains PR580 at `5cf9720bd3ca38862bc54c7094ac90f87a3892d8`.
-The actual verified live revision is PR587 at
-`afb15426d9fdb63a7f4f6c437d2c23e20d55dab9`, with deployment 563 verified.
-The current PR588 candidate is `ea1d85d29a6907e56ae9cd21cf337b9e218ab36c`,
-the Dialog scroll/tab-stop fix after the real Inventory Axe failure. This
-branch includes that shared fix over the source-reviewed PR588 parent
-`bf31e91da33dc10bf9f8728976a8d50b4220d59e`; its build, CI, and browser gates
-remain pending.
-The full 22-feature goal remains open. This dated checkpoint is retained
-history; the root agent will normally integrate the latest PR588 candidate
-after review.
+Production is verified PR587 at `afb15426d9fdb63a7f4f6c437d2c23e20d55dab9`,
+Coolify deployment563. All original candidate and exact-main Build, Android and
+E2E follow-ups pass. The previous dated checkpoints below preserve history.
+
+PR588 now targets `7dca47b40ffcc290432be0d50fa9f587f1c88938`. Its Inventory
+scroll and completion-focus repairs have independent source/rendered review,
+exact local build and12 Inventory journey passes (3 auth setup cases separate).
+Original Build39171834320, checked image and Android39171834332 pass; baseline
+5988 cases pass with433 established opt-in skips. Original E2E39171834350 remains
+pending. No merge/deployment of588 is claimed.
+
+This local follow-up combines reviewed Sick days short sheets, truthful
+schema-checked dependency/auth recovery and per-medication guards; Handoff
+short sheets, optional details and public transient/null/expired-link recovery;
+and Travel household-text wrapping. Combined55 affected mounted cases, types
+and copy checks pass. The first rendered run verifies Travel long-text states,
+but caught browser harness matcher issues and a real public Handoff locale
+reset caused by a nested provider. The provider is removed and harness targets
+are corrected; final exact build/browser/hosted/release acceptance is pending.
+No API/schema/role, clinical-value, provider or activation change is included.
+
+The full22-feature/supporting-route goal remains open, including wider
+role/device/offline states, Add Everyone/account linking and quiet mode.
 
 ## Combined web review repairs — 2026-10-18
 

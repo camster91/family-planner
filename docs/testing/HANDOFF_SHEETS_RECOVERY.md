@@ -44,3 +44,5 @@ projects. Collection can be checked without starting a browser with:
 ```sh
 npx playwright test e2e/handoff-recovery.spec.ts --list
 ```
+
+Rendered QA at61045 found that the public page added a default nested I18nProvider over the root persisted-locale provider, resetting Spanish to English. Removing that redundant wrapper preserves print/token/privacy behavior and lets the public viewer keep their locale. The same existing ES browser case is the regression. The first harness's fieldset matcher was replaced with disabled assertions on actual controls; no behavior assertion or case was removed. Final repaired-source execution remains pending.

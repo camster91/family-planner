@@ -1,4 +1,3 @@
-import { I18nProvider } from '@/i18n'
 import { HandoffClient } from './HandoffClient'
 
 const printStyles = `
@@ -19,9 +18,9 @@ export default async function PublicHandoffPage({
   const { token } = await params
 
   return (
-    <I18nProvider>
+    <>
       <style dangerouslySetInnerHTML={{ __html: printStyles }} />
       <HandoffClient token={token} />
-    </I18nProvider>
+    </>
   )
 }

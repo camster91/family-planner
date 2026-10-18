@@ -66,9 +66,9 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Locations | Saved places with private addresses protected | Live source includes short create/edit, pending input protection and removal/focus recovery (latest owned source b8cef86b). Approved all-feature rendered/state adoption still needs evidence reconciliation; retained code alone does not mark complete |
 | Pickups | Explicit responsibility, confirmation and backup | Reviewed member/parent coordination/removal slice merged through PR #587 atafb15426; original gates/capture review pass. Deployment563/exact-live verification pass atafb15426; broader responsibility/backup acceptance remains open |
 | Allowance | Own balance versus parent administration | PR #588 now combines reviewed Allowance/Inventory sourceb34 and chore-photo sourcec73 over mainafb15426. Canonical receipt/cancellation/history checks and source review pass; fresh integrated hosted/rendered/release acceptance pending |
-| Travel | Trip preparation and deliberate recurrence changes | Live source retains unknown-write reconciliation (2a250f1d) and narrow-screen date layout (49f4f054). Approved all-feature layout/state acceptance remains pending; no new recurrence/provider behavior is inferred |
-| Handoff | Scoped brief, expiry and owned responsibility | Live source retains localized load recovery and guarded removal/refresh (537b286b). Approved all-feature layout/state acceptance remains pending; scoped share/expiry/privacy contracts are unchanged |
-| Sick days | Role-scoped care, no private shared-display exposure | Existing canonical care/medication behavior retained. Source audit confirms legacy long forms and dismissible pending mutations; approved short-sheet, recovery and role/private-state review remain open |
+| Travel | Trip preparation and deliberate recurrence changes | Live source retains unknown-write reconciliation and narrow-screen dates. Local long-title/assignee reflow is independently source-reviewed; phone EN/ES long-text and recovery journeys pass at61045. Final combined-source/hosted/release acceptance remains pending |
+| Handoff | Scoped brief, expiry and owned responsibility | Local short sheets, optional details, strict list parsing and public transient/null/404/stale-token recovery are independently reviewed. Rendered QA found a nested-provider locale reset, now repaired; final combined rendered/hosted/release acceptance remains pending. Scoped share/expiry/privacy contracts are unchanged |
+| Sick days | Role-scoped care, no private shared-display exposure | Local short form sheets, schema-checked dependency/auth recovery, canonical nullable logs and immediate dose guards are independently reviewed. Existing16 mounted cases pass; final combined rendered/hosted/release and wider role/private-state acceptance remain open |
 | Supporting routes | Auth, onboarding, search, notifications, help, settings, devices | Existing behavior retained; approved layout review pending |
 | Shared fridge | Sanitized device Today, large targets, privacy boundaries | Existing behavior retained; approved layout review pending |
 
@@ -76,8 +76,8 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 
 Production is verified PR #587 at `afb15426d9fdb63a7f4f6c437d2c23e20d55dab9`.
 Deployment563 finished through the existing Coolify route. Original candidate
-checks and all150 native capture reviews pass; exact-main Build/Test and Android
-follow-ups pass, while exact-main E2E is separately tracked. Public/private-route
+checks and all150 native capture reviews pass; all exact-main Build/Test, Android and
+E2E follow-ups pass. Public/private-route
 and exact image/runtime checks do not imply authenticated production QA.
 
 PR #588 at `ea1d85d29a6907e56ae9cd21cf337b9e218ab36c` remains pending original

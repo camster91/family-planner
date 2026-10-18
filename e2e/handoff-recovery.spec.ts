@@ -444,7 +444,11 @@ for (const locale of ["en", "es"] as const) {
           exact: true,
         }),
       ).toBeDisabled();
-      await expect(createDialog.locator("fieldset")).toBeDisabled();
+      for (const control of await createDialog
+        .locator("input, textarea, select")
+        .all()) {
+        await expect(control).toBeDisabled();
+      }
       await expect(
         createDialog.getByTestId("handoff-form-footer"),
       ).toBeVisible();
@@ -543,12 +547,10 @@ for (const locale of ["en", "es"] as const) {
 
       await page.goto(`/handoff/${SYNTHETIC_EXPIRED_TOKEN}`);
       await expect(
-        page
-          .locator("body")
-          .getByRole("heading", {
-            name: copy.handoff.linkInvalid,
-            exact: true,
-          }),
+        page.locator("body").getByRole("heading", {
+          name: copy.handoff.linkInvalid,
+          exact: true,
+        }),
       ).toBeVisible();
       await expect(
         page
