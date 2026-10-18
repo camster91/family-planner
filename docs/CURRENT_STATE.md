@@ -1,5 +1,26 @@
 # Current State
 
+## Combined Rewards/Budget rebuild checkpoint — 2026-10-18
+
+Source `59c1a92b` incorporates the inactive-reward and Spanish-copy repairs plus
+reviewed phone Budget summary reflow. App `22f482a6` passed its exact optimized
+build, generation/types/lint, secret-history scan and 5887 unit cases; 410
+established opt-in cases skipped and the three retained Mac backup-prune cases
+failed. Fourteen actual PostgreSQL Rewards/Budget cases pass. No gate is waived.
+
+The first combined browser attempt retained three harness failures: an alert
+selector also matched the Next route announcer, and an old synthetic 201 lacked
+the now-required canonical transaction fields. The phone diagnostic then exposed
+a duplicate currency selector and correctly rejected mismatched build/test
+identity. Those fixture/selectors are repaired without weakening assertions.
+Independent capture review also confirmed cramped phone summary copy; the
+reviewed product fix moves the action below metrics on phones and keeps desktop
+layout. Its 25 affected cases/types/lint pass, and browser checks now measure
+actual localized sentence wrapping. A fresh exact-source build/matrix and
+original hosted gates remain required before merge/deploy. All failed reports
+and the earlier runtime identity are retained separately.
+
+
 ## Rewards inactive-claim repair — 2026-10-18
 
 Combined `4271f994` normally incorporates API `295855fc`, UI `f61044da`, and
