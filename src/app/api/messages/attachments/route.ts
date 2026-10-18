@@ -33,6 +33,55 @@ function isMessageAttachmentMime(mime: string): mime is MessageAttachmentMime {
   return MESSAGE_MIMES.has(mime as MessageAttachmentMime)
 }
 
+class MessageUploadTooLargeError extends Error {
+  constructor() {
+    super('MESSAGE_UPLOAD_REQUEST_TOO_LARGE')
+    this.name = 'MessageUploadTooLargeError'
+  }
+}
+
+/**
+ * Read a multipart body with a hard byte bound before formData() parses it.
+ * Browser FormData requests commonly omit Content-Length, so the stream is
+ * the authority when the header is absent. The fake requests used by route
+ * tests have no body stream and provide formData() directly.
+ */
+async function readBoundedFormData(request: NextRequest): Promise<FormData> {
+  if (!request.body) return request.formData()
+
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+      if (value.byteLength > MESSAGE_ATTACHMENT_MAX_REQUEST_BYTES - total) {
+        await reader.cancel().catch(() => {})
+        throw new MessageUploadTooLargeError()
+      }
+      chunks.push(value)
+      total += value.byteLength
+    }
+  } finally {
+    reader.releaseLock()
+  }
+
+  const body = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    body.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  const replayable = new Request(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body,
+  })
+  return replayable.formData()
+}
+
 /** POST /api/messages/attachments — upload one private family-chat image. */
 export async function POST(request: NextRequest) {
   try {
@@ -61,26 +110,35 @@ export async function POST(request: NextRequest) {
         },
       )
     }
-    // formData() buffers the multipart body. Require a valid bounded length
-    // before parsing so chunked/invalid requests cannot allocate unbounded
-    // memory before the per-file limit is checked.
+    // formData() buffers the multipart body. Reject an explicitly invalid or
+    // oversized declaration, then apply the same cap while reading the body.
+    // Native browser FormData commonly omits Content-Length, so absence is
+    // safe only because readBoundedFormData enforces the cap before parsing.
     const rawLength = request.headers.get('content-length')?.trim() ?? ''
-    const declaredLength = /^\d+$/.test(rawLength) ? Number(rawLength) : NaN
-    if (
-      !Number.isSafeInteger(declaredLength) ||
-      declaredLength <= 0 ||
-      declaredLength > MESSAGE_ATTACHMENT_MAX_REQUEST_BYTES
-    ) {
-      return NextResponse.json(
-        { error: 'Message attachment request is too large or has no valid length.' },
-        { status: 413 },
-      )
+    if (rawLength !== '') {
+      const declaredLength = /^\d+$/.test(rawLength) ? Number(rawLength) : NaN
+      if (
+        !Number.isSafeInteger(declaredLength) ||
+        declaredLength <= 0 ||
+        declaredLength > MESSAGE_ATTACHMENT_MAX_REQUEST_BYTES
+      ) {
+        return NextResponse.json(
+          { error: 'Message attachment request is too large or has no valid length.' },
+          { status: 413 },
+        )
+      }
     }
 
     let formData: FormData
     try {
-      formData = await request.formData()
-    } catch {
+      formData = await readBoundedFormData(request)
+    } catch (error) {
+      if (error instanceof MessageUploadTooLargeError) {
+        return NextResponse.json(
+          { error: 'Message attachment request is too large.' },
+          { status: 413 },
+        )
+      }
       return NextResponse.json(
         { error: 'Send an image as multipart/form-data with a "file" field' },
         { status: 400 },

@@ -1,17 +1,13 @@
 const mockFiles = new Map<string, Buffer>();
 const mockRefusePairedDevice = jest.fn();
+const mockRename = jest.fn();
 
 jest.mock("fs/promises", () => ({
   mkdir: async () => undefined,
   writeFile: async (filePath: string, bytes: Uint8Array) => {
     mockFiles.set(require("node:path").resolve(filePath), Buffer.from(bytes));
   },
-  rename: async (from: string, to: string) => {
-    const bytes = mockFiles.get(require("node:path").resolve(from));
-    if (!bytes) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
-    mockFiles.delete(require("node:path").resolve(from));
-    mockFiles.set(require("node:path").resolve(to), bytes);
-  },
+  rename: (...args: [string, string]) => mockRename(...args),
   unlink: async (filePath: string) => {
     mockFiles.delete(require("node:path").resolve(filePath));
   },
@@ -112,11 +108,18 @@ describe("message attachment routes", () => {
     mockFiles.clear();
     mockRefusePairedDevice.mockReset();
     mockRefusePairedDevice.mockResolvedValue(null);
+    mockRename.mockReset();
+    mockRename.mockImplementation(async (from: string, to: string) => {
+      const bytes = mockFiles.get(require("node:path").resolve(from));
+      if (!bytes) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      mockFiles.delete(require("node:path").resolve(from));
+      mockFiles.set(require("node:path").resolve(to), bytes);
+    });
+    db.tables.messageAttachment = [];
   });
 
-  it("requires a valid bounded Content-Length before parsing multipart input", async () => {
+  it("rejects explicit invalid or oversized Content-Length before parsing multipart input", async () => {
     const formData = jest.fn();
-    const missing = { ...req({ as: "parentA", method: "POST" }), formData };
     const invalid = {
       ...req({
         as: "parentA",
@@ -136,10 +139,96 @@ describe("message attachment routes", () => {
       formData,
     };
 
-    expect((await uploadAttachment(missing as never)).status).toBe(413);
     expect((await uploadAttachment(invalid as never)).status).toBe(413);
     expect((await uploadAttachment(oversized as never)).status).toBe(413);
     expect(formData).not.toHaveBeenCalled();
+  });
+
+  it("accepts a browser-style FormData body without Content-Length", async () => {
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new File([PNG], "message.png", { type: "image/png" }),
+    );
+    const native = new Request("http://localhost/api/messages/attachments", {
+      method: "POST",
+      body: formData,
+      headers: { cookie: "session_token=session:parent-a" },
+    });
+    Object.defineProperty(native, "cookies", {
+      value: {
+        get: (name: string) =>
+          name === "session_token" ? { value: "session:parent-a" } : undefined,
+      },
+    });
+
+    expect(native.headers.get("content-length")).toBeNull();
+    const response = await uploadAttachment(native as never);
+
+    expect(response.status).toBe(201);
+    expect(db.rows("messageAttachment")).toHaveLength(1);
+  });
+
+  it("bounds a chunked browser body when the proxy omits Content-Length", async () => {
+    const native = new Request("http://localhost/api/messages/attachments", {
+      method: "POST",
+      headers: {
+        cookie: "session_token=session:parent-a",
+        "content-type": "multipart/form-data; boundary=unused",
+      },
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            new Uint8Array(MESSAGE_UPLOAD_MAX_REQUEST_BYTES + 1),
+          );
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+    Object.defineProperty(native, "cookies", {
+      value: {
+        get: (name: string) =>
+          name === "session_token" ? { value: "session:parent-a" } : undefined,
+      },
+    });
+
+    expect(native.headers.get("content-length")).toBeNull();
+    const response = await uploadAttachment(native as never);
+
+    expect(response.status).toBe(413);
+    expect(db.rows("messageAttachment")).toHaveLength(0);
+  });
+
+  it("returns the stored attachment and leaves only its final file after a valid upload", async () => {
+    const response = await uploadAttachment(uploadReq() as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.attachment).toEqual(
+      expect.objectContaining({
+        url: expect.stringMatching(/^\/api\/messages\/attachments\//),
+        size: PNG.length,
+        type: "image/png",
+      }),
+    );
+    expect(db.rows("messageAttachment")).toHaveLength(1);
+    expect([...mockFiles.keys()]).toEqual([
+      expect.stringMatching(/\/messages\/[a-f0-9]{32}\.png$/),
+    ]);
+    expect([...mockFiles.keys()].some((file) => file.endsWith(".tmp"))).toBe(
+      false,
+    );
+  });
+
+  it("removes the database row and temporary file when final placement fails", async () => {
+    mockRename.mockRejectedValueOnce(new Error("disk full"));
+
+    const response = await uploadAttachment(uploadReq() as never);
+
+    expect(response.status).toBe(500);
+    expect(db.rows("messageAttachment")).toHaveLength(0);
+    expect(mockFiles.size).toBe(0);
   });
 
   it("rejects unauthenticated, paired-device, feature-off, and sniff-invalid uploads", async () => {

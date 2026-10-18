@@ -9,9 +9,9 @@ import { resolveUploadDir } from '@/lib/upload-dir'
 export const MESSAGE_ATTACHMENT_PATH_PREFIX = '/api/messages/attachments/'
 export const MESSAGE_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024
 // A single upload has one file plus bounded multipart field/header overhead.
-// The route rejects missing/invalid Content-Length before formData() buffers
-// the request, while this allowance keeps ordinary multipart clients within
-// the same 5 MiB file contract.
+// The route rejects explicit invalid/oversized Content-Length values and
+// applies this same cap while reading the body when browser FormData omits the
+// header, keeping ordinary multipart clients within the 5 MiB file contract.
 export const MESSAGE_ATTACHMENT_MAX_REQUEST_BYTES = MESSAGE_ATTACHMENT_MAX_BYTES + 1024 * 1024
 export const MESSAGE_ATTACHMENT_STALE_AGE_MS = 24 * 60 * 60 * 1000
 export const MESSAGE_ATTACHMENT_STALE_BATCH = 20
