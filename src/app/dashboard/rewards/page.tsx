@@ -1,9 +1,7 @@
 import { Suspense } from 'react'
-import Link from 'next/link'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { LargeHeader } from '@/components/ui/large-header'
-import { Glyph } from '@/components/ui/glyph'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FeatureOffState } from '@/components/ui/feature-gate'
 import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
@@ -16,7 +14,15 @@ interface RewardsPageProps {
   searchParams: Promise<{ tab?: string }>
 }
 
-async function RewardsContent({ userId, familyId }: { userId: string; familyId: string }) {
+async function RewardsContent({
+  userId,
+  familyId,
+  canViewAnalytics,
+}: {
+  userId: string;
+  familyId: string;
+  canViewAnalytics: boolean;
+}) {
   const sessionUser = await getServerUser()
   if (!sessionUser) return null
 
@@ -51,26 +57,13 @@ async function RewardsContent({ userId, familyId }: { userId: string; familyId: 
 
   return (
     <div className="space-y-8">
-      {/* Your points balance */}
-      <div className="card-apple p-5 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Glyph color="rewards" size="lg">
-            <span className="text-2xl" aria-hidden="true">⭐</span>
-          </Glyph>
-          <div>
-            <p className="text-subhead text-label-secondary">Your points</p>
-            <p className="text-title-2 text-label-primary font-bold">{userXp} points</p>
-          </div>
-        </div>
-        <Link
-          href="/dashboard/analytics"
-          className="inline-flex min-h-[44px] items-center text-subhead text-rewards hover:text-rewards/80 font-medium"
-        >
-          Leaderboard →
-        </Link>
-      </div>
-
-      <RewardsBoard rewards={cards} userXp={userXp} isParent={isParent} currentUserId={userId} />
+      <RewardsBoard
+        rewards={cards}
+        userXp={userXp}
+        isParent={isParent}
+        currentUserId={userId}
+        canViewAnalytics={canViewAnalytics}
+      />
     </div>
   )
 }
@@ -127,16 +120,22 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
     return <FeatureOffState featureKey="rewards" canManage={sessionUser.role !== 'teen' && sessionUser.role !== 'child'} />
   }
 
+  // Analytics is a parent-only surface and is also dependent on Points &
+  // streaks. Compute this once on the server so the client cannot infer a
+  // role or feature grant from a stale family payload.
+  const canViewAnalytics = sessionUser.role === 'parent' &&
+    isFeatureEnabled(normalizeFeatures(user?.family?.features), 'analytics')
+
   return (
     <div className="pb-20">
       <LargeHeader
         title="Rewards"
         subtitle={user?.family?.name ? `${user.family.name} family` : undefined}
-        className="px-4"
+        className="w-full px-4 sm:px-6 lg:px-8"
       />
-      <div className="px-4 mt-6">
+      <div className="mx-auto mt-6 w-full max-w-[1440px] px-4 sm:px-6 lg:px-8">
         <Suspense fallback={<RewardsSkeleton />}>
-          <RewardsContent userId={sessionUser.id} familyId={familyId} />
+          <RewardsContent userId={sessionUser.id} familyId={familyId} canViewAnalytics={canViewAnalytics} />
         </Suspense>
       </div>
     </div>
