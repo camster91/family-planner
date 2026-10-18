@@ -7,16 +7,127 @@ import { FeatureGate } from "@/components/ui/feature-gate";
 import { Dialog } from "@/components/ui/dialog";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
-import { parseDateOnly } from "@/lib/dates";
 import { useTranslation } from "@/i18n";
 import { useAnniversariesText } from "@/i18n/anniversaries";
-import { formatDateOnly, toDateOnlyLocal, toDateOnlyUTC } from "@/lib/dates";
+import {
+  formatDateOnly,
+  nextAnnualOccurrence,
+  parseDateOnly,
+  toDateOnlyLocal,
+  toDateOnlyUTC,
+} from "@/lib/dates";
 import {
   buildDateItems,
   type ApiDateItem,
   type DateItem,
   type FamilyDate,
 } from "@/lib/anniversary-dates";
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+
+type MutationKind = "create" | "update" | "delete";
+
+interface MutationRequest {
+  kind: MutationKind;
+  path: string;
+  payload: string;
+  key: string;
+}
+
+/**
+ * An unresolved write must keep its receipt key until the user either retries
+ * that exact intent successfully or explicitly cancels it. Never evict one of
+ * these entries to make room for a newer draft: doing so can turn a lost
+ * response into a duplicate write.
+ */
+class MutationHistoryFullError extends Error {
+  constructor() {
+    super("Too many unresolved date changes");
+    this.name = "MutationHistoryFullError";
+  }
+}
+
+const MAX_UNCERTAIN_MUTATIONS = 32;
+
+function mutationIdentity(kind: MutationKind, path: string, payload: string) {
+  return `${kind}\u0000${path}\u0000${payload}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isMutationDateResponse(
+  value: unknown,
+  expectedId?: string,
+): value is { date: Record<string, unknown> } {
+  if (!isRecord(value) || !isRecord(value.date)) return false;
+  const date = value.date;
+  return (
+    typeof date.id === "string" &&
+    date.id.length > 0 &&
+    (!expectedId || date.id === expectedId) &&
+    typeof date.name === "string" &&
+    ["birthday", "anniversary", "custom"].includes(String(date.type)) &&
+    typeof date.date === "string" &&
+    Boolean(parseDateOnly(date.date.slice(0, 10))) &&
+    (date.notes == null || typeof date.notes === "string") &&
+    (date.can_edit === undefined || typeof date.can_edit === "boolean") &&
+    (date.can_delete === undefined || typeof date.can_delete === "boolean")
+  );
+}
+
+function isDeleteResponse(value: unknown): value is { success: true } {
+  return isRecord(value) && value.success === true;
+}
+
+function mutationDateFromResponse(
+  value: { date: Record<string, unknown> },
+  previous?: ApiDateItem,
+): ApiDateItem {
+  const date = value.date;
+  const dateString = String(date.date);
+  const next = nextAnnualOccurrence(dateString, toDateOnlyLocal(new Date()));
+  return {
+    id: String(date.id),
+    name: String(date.name),
+    type: date.type as ApiDateItem["type"],
+    date: dateString,
+    notes: date.notes == null ? null : String(date.notes),
+    person_id:
+      typeof date.person_id === "string" ? date.person_id : previous?.person_id,
+    // Mutation responses from the API are authoritative when they include
+    // grants. Older deployments may omit them; preserve a grant already known
+    // for an edited row, but never invent edit authority for a new row.
+    can_edit:
+      typeof date.can_edit === "boolean" ? date.can_edit : previous?.can_edit,
+    can_delete:
+      typeof date.can_delete === "boolean"
+        ? date.can_delete
+        : previous?.can_delete,
+    days_until: next?.daysUntil ?? previous?.days_until ?? 0,
+    next_occurrence: next?.date.toISOString() ?? dateString,
+  };
+}
+
+function bodyErrorMessage(value: unknown, fallback: string): string {
+  const body = value;
+  if (!isRecord(body)) return fallback;
+  if (typeof body.error === "string" && body.error.trim()) {
+    return body.error;
+  }
+  if (isRecord(body.error) && typeof body.error.message === "string") {
+    return body.error.message;
+  }
+  return fallback;
+}
+
+async function readResponseBody(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
 
 // Dates are stored as UTC midnight of the calendar day, so format them in UTC:
 // local getters would show the previous day west of UTC.
@@ -144,106 +255,108 @@ function AddEditModal({
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="space-y-4">
-        {error && (
-          <p role="alert" className="text-footnote text-danger-text">
-            {error}
-          </p>
-        )}
-        <div>
-          <label
-            htmlFor={nameId}
-            className="block text-caption-1 text-label-secondary mb-1"
-          >
-            {t("dates.dateName")}
-          </label>
-          <input
-            id={nameId}
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            placeholder={text("namePlaceholder")}
-            required
-          />
+    <form onSubmit={handleSubmit} aria-busy={saving}>
+      <fieldset disabled={saving} className="m-0 min-w-0 border-0 p-0">
+        <div className="space-y-4">
+          {error && (
+            <p role="alert" className="text-footnote text-danger-text">
+              {error}
+            </p>
+          )}
+          <div>
+            <label
+              htmlFor={nameId}
+              className="block text-caption-1 text-label-secondary mb-1"
+            >
+              {t("dates.dateName")}
+            </label>
+            <input
+              id={nameId}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              placeholder={text("namePlaceholder")}
+              required
+            />
+          </div>
+          <div>
+            <label
+              htmlFor={typeId}
+              className="block text-caption-1 text-label-secondary mb-1"
+            >
+              {t("dates.dateType")}
+            </label>
+            <select
+              id={typeId}
+              value={type}
+              onChange={(e) => setType(e.target.value as typeof type)}
+              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            >
+              <option value="birthday">{t("dates.dateBirthday")}</option>
+              <option value="anniversary">{t("dates.dateAnniversary")}</option>
+              <option value="custom">{t("dates.dateCustom")}</option>
+            </select>
+          </div>
+          <div>
+            <label
+              htmlFor={dateId}
+              className="block text-caption-1 text-label-secondary mb-1"
+            >
+              {t("dates.dateDate")}
+            </label>
+            <input
+              id={dateId}
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              required
+            />
+          </div>
+          <details open={initial?.notes ? true : undefined}>
+            <summary className="min-h-[44px] cursor-pointer py-3 text-subhead text-label-secondary">
+              {text("optionalDetails")}
+            </summary>
+            <label
+              htmlFor={notesId}
+              className="block text-caption-1 text-label-secondary mb-1"
+            >
+              {t("dates.dateNotes")}
+            </label>
+            <input
+              id={notesId}
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            />
+          </details>
         </div>
-        <div>
-          <label
-            htmlFor={typeId}
-            className="block text-caption-1 text-label-secondary mb-1"
-          >
-            {t("dates.dateType")}
-          </label>
-          <select
-            id={typeId}
-            value={type}
-            onChange={(e) => setType(e.target.value as typeof type)}
-            className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-          >
-            <option value="birthday">{t("dates.dateBirthday")}</option>
-            <option value="anniversary">{t("dates.dateAnniversary")}</option>
-            <option value="custom">{t("dates.dateCustom")}</option>
-          </select>
-        </div>
-        <div>
-          <label
-            htmlFor={dateId}
-            className="block text-caption-1 text-label-secondary mb-1"
-          >
-            {t("dates.dateDate")}
-          </label>
-          <input
-            id={dateId}
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            required
-          />
-        </div>
-        <details open={initial?.notes ? true : undefined}>
-          <summary className="min-h-[44px] cursor-pointer py-3 text-subhead text-label-secondary">
-            {text("optionalDetails")}
-          </summary>
-          <label
-            htmlFor={notesId}
-            className="block text-caption-1 text-label-secondary mb-1"
-          >
-            {t("dates.dateNotes")}
-          </label>
-          <input
-            id={notesId}
-            type="text"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-          />
-        </details>
-      </div>
-      <p className="mt-3 text-footnote text-label-secondary">
-        {text("annual")}
-      </p>
-      <div className="mt-6 flex gap-2">
-        {mode === "edit" && onDelete && (
+        <p className="mt-3 text-footnote text-label-secondary">
+          {text("annual")}
+        </p>
+        <div className="mt-6 flex gap-2">
+          {mode === "edit" && onDelete && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={onDelete}
+              className="min-h-[44px] px-3 py-2 rounded-lg text-danger-text text-subhead font-medium flex items-center gap-1.5 hover:bg-[var(--danger-tint)]"
+            >
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
+              {t("common.delete")}
+            </button>
+          )}
           <button
-            type="button"
+            type="submit"
             disabled={saving}
-            onClick={onDelete}
-            className="min-h-[44px] px-3 py-2 rounded-lg text-danger-text text-subhead font-medium flex items-center gap-1.5 hover:bg-[var(--danger-tint)]"
+            className="ml-auto min-h-[44px] px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-on-accent text-subhead font-semibold disabled:opacity-50"
           >
-            <Trash2 className="w-4 h-4" aria-hidden="true" />
-            {t("common.delete")}
+            {saving ? t("common.saving") : t("common.save")}
           </button>
-        )}
-        <button
-          type="submit"
-          disabled={saving}
-          className="ml-auto min-h-[44px] px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-on-accent text-subhead font-semibold disabled:opacity-50"
-        >
-          {saving ? t("common.saving") : t("common.save")}
-        </button>
-      </div>
+        </div>
+      </fieldset>
     </form>
   );
 }
@@ -267,6 +380,11 @@ function AnniversariesPageInner() {
   const [editItem, setEditItem] = React.useState<DateItem | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [modalError, setModalError] = React.useState<string | null>(null);
+  const [refreshError, setRefreshError] = React.useState(false);
+  const [refreshNotice, setRefreshNotice] = React.useState<
+    "saved" | "deleted" | "savedRefreshFailed" | "deletedRefreshFailed" | null
+  >(null);
+  const [refreshing, setRefreshing] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<DateItem | null>(null);
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<
@@ -277,43 +395,113 @@ function AnniversariesPageInner() {
   const retryDatesRef = React.useRef<HTMLButtonElement>(null);
   const cancelDeleteRef = React.useRef<HTMLButtonElement>(null);
   const mutationRef = React.useRef(false);
+  const activeMutationRef = React.useRef<MutationRequest | null>(null);
+  const mutationRequestRef = React.useRef<Map<string, MutationRequest>>(
+    new Map(),
+  );
+  const datesRequestRef = React.useRef(0);
   const anniversariesText = useAnniversariesText();
 
-  const fetchDates = React.useCallback(async () => {
-    try {
-      const res = await fetch("/api/anniversaries");
-      if (!res.ok) throw new Error("Failed to load");
-      const data = await res.json();
-      if (
-        !Array.isArray(data.dates) ||
-        !data.dates.every(
-          (d: ApiDateItem) =>
-            d &&
-            typeof d.id === "string" &&
-            d.id.length > 0 &&
-            typeof d.name === "string" &&
-            ["birthday", "anniversary", "custom"].includes(d.type) &&
-            typeof d.date === "string" &&
-            parseDateOnly(d.date.slice(0, 10)) &&
-            (d.notes == null || typeof d.notes === "string") &&
-            (d.can_edit === undefined || typeof d.can_edit === "boolean") &&
-            (d.can_delete === undefined || typeof d.can_delete === "boolean") &&
-            Number.isFinite(d.days_until) &&
-            typeof d.next_occurrence === "string" &&
-            parseDateOnly(d.next_occurrence.slice(0, 10)),
-        ) ||
-        new Set(data.dates.map((d: ApiDateItem) => d.id)).size !==
-          data.dates.length
-      )
-        throw new Error("Invalid dates response");
-      setDates(data.dates);
-      setError(null);
-    } catch {
-      setError(t("dates.errorLoad"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+  const fetchDates = React.useCallback(
+    async ({ preserveData = false }: { preserveData?: boolean } = {}) => {
+      const requestId = ++datesRequestRef.current;
+      if (preserveData) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+        setError(null);
+      }
+
+      try {
+        const res = await fetch("/api/anniversaries");
+        if (!res.ok) throw new Error("Failed to load");
+        const data = await res.json();
+        if (
+          !Array.isArray(data.dates) ||
+          !data.dates.every(
+            (d: ApiDateItem) =>
+              d &&
+              typeof d.id === "string" &&
+              d.id.length > 0 &&
+              typeof d.name === "string" &&
+              ["birthday", "anniversary", "custom"].includes(d.type) &&
+              typeof d.date === "string" &&
+              parseDateOnly(d.date.slice(0, 10)) &&
+              (d.notes == null || typeof d.notes === "string") &&
+              (d.can_edit === undefined || typeof d.can_edit === "boolean") &&
+              (d.can_delete === undefined ||
+                typeof d.can_delete === "boolean") &&
+              Number.isFinite(d.days_until) &&
+              typeof d.next_occurrence === "string" &&
+              parseDateOnly(d.next_occurrence.slice(0, 10)),
+          ) ||
+          new Set(data.dates.map((d: ApiDateItem) => d.id)).size !==
+            data.dates.length
+        ) {
+          throw new Error("Invalid dates response");
+        }
+        if (requestId !== datesRequestRef.current) return false;
+        setDates(data.dates);
+        setError(null);
+        setRefreshError(false);
+        setRefreshNotice(null);
+        return true;
+      } catch {
+        if (requestId !== datesRequestRef.current) return false;
+        if (preserveData) {
+          setRefreshError(true);
+        } else {
+          setError(t("dates.errorLoad"));
+        }
+        return false;
+      } finally {
+        if (requestId === datesRequestRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    },
+    [t],
+  );
+
+  const mutationRequest = React.useCallback(
+    (kind: MutationKind, path: string, payload: string) => {
+      const identity = mutationIdentity(kind, path, payload);
+      const previous = mutationRequestRef.current.get(identity);
+      if (previous) {
+        return previous.key;
+      }
+      if (mutationRequestRef.current.size >= MAX_UNCERTAIN_MUTATIONS) {
+        // Every entry here represents an unresolved write. Explicitly refuse
+        // rather than silently dropping a receipt key and risking a duplicate.
+        throw new MutationHistoryFullError();
+      }
+      const next = {
+        kind,
+        path,
+        payload,
+        key: newIdempotencyKey(),
+      } satisfies MutationRequest;
+      mutationRequestRef.current.set(identity, next);
+      return next.key;
+    },
+    [],
+  );
+
+  const clearMutationRequest = React.useCallback(
+    (kind: MutationKind, path: string, payload?: string) => {
+      for (const [identity, request] of mutationRequestRef.current) {
+        if (
+          request.kind === kind &&
+          request.path === path &&
+          (payload === undefined || request.payload === payload)
+        ) {
+          mutationRequestRef.current.delete(identity);
+        }
+      }
+    },
+    [],
+  );
 
   React.useEffect(() => {
     fetchDates();
@@ -336,31 +524,76 @@ function AnniversariesPageInner() {
     mutationRef.current = true;
     setSaving(true);
     setModalError(null);
+    const target = editItem;
+    const body = {
+      name: data.name.trim(),
+      type: data.type,
+      date: data.date,
+      notes: data.notes.trim() || null,
+    };
+    const path = target
+      ? `/api/anniversaries/${encodeURIComponent(target.id)}`
+      : "/api/anniversaries";
+    const method = target ? "PATCH" : "POST";
+    const payload = JSON.stringify(body);
+    const kind = target ? "update" : "create";
     try {
-      if (editItem) {
-        const res = await fetch(
-          `/api/anniversaries/${encodeURIComponent(editItem.id)}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data),
-          },
+      const key = mutationRequest(kind, path, payload);
+      activeMutationRef.current = { kind, path, payload, key };
+      const res = await fetch(path, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          [IDEMPOTENCY_HEADER]: key,
+        },
+        body: payload,
+      });
+      const responseBody = await readResponseBody(res);
+      if (!res.ok) {
+        setModalError(
+          bodyErrorMessage(
+            responseBody,
+            res.status >= 500 || res.status === 409
+              ? anniversariesText("saveUnknown")
+              : t("common.error"),
+          ),
         );
-        if (!res.ok) throw new Error("Failed to update");
-      } else {
-        const res = await fetch("/api/anniversaries", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        });
-        if (!res.ok) throw new Error("Failed to create");
+        return;
+      }
+      if (!isMutationDateResponse(responseBody, target?.id)) {
+        setModalError(anniversariesText("saveUnknown"));
+        return;
+      }
+
+      const confirmed = mutationDateFromResponse(
+        responseBody,
+        target ?? undefined,
+      );
+      setDates((current) => {
+        if (!target) return [...current, confirmed];
+        return current.map((item) =>
+          item.id === target.id ? { ...item, ...confirmed } : item,
+        );
+      });
+      clearMutationRequest(kind, path, payload);
+      if (
+        activeMutationRef.current?.kind === kind &&
+        activeMutationRef.current.path === path &&
+        activeMutationRef.current.payload === payload
+      ) {
+        activeMutationRef.current = null;
       }
       setShowAdd(false);
       setEditItem(null);
-      await fetchDates();
-    } catch {
-      // Keep the modal open and say so.
-      setModalError(t("common.error"));
+      const refreshed = await fetchDates({ preserveData: true });
+      setRefreshNotice(refreshed ? "saved" : "savedRefreshFailed");
+    } catch (error) {
+      // Keep the modal and canonical body open; a retry reuses the same key.
+      setModalError(
+        error instanceof MutationHistoryFullError
+          ? anniversariesText("saveUnknown")
+          : anniversariesText("saveNetworkError"),
+      );
     } finally {
       mutationRef.current = false;
       setSaving(false);
@@ -378,6 +611,11 @@ function AnniversariesPageInner() {
     if (mutationRef.current) return;
     setDeleteError(null);
     setDeleteTarget(null);
+    const active = activeMutationRef.current;
+    if (active?.kind === "delete") {
+      clearMutationRequest(active.kind, active.path, active.payload);
+      activeMutationRef.current = null;
+    }
   };
 
   const handleDelete = async () => {
@@ -386,23 +624,47 @@ function AnniversariesPageInner() {
     mutationRef.current = true;
     setDeleting(true);
     setDeleteError(null);
+    const path = `/api/anniversaries/${encodeURIComponent(item.id)}`;
     try {
-      const res = await fetch(
-        `/api/anniversaries/${encodeURIComponent(item.id)}`,
-        { method: "DELETE" },
-      );
+      const key = mutationRequest("delete", path, "");
+      activeMutationRef.current = {
+        kind: "delete",
+        path,
+        payload: "",
+        key,
+      };
+      const res = await fetch(path, {
+        method: "DELETE",
+        headers: { [IDEMPOTENCY_HEADER]: key },
+      });
+      const responseBody = await readResponseBody(res);
       if (!res.ok) {
         setDeleteError("failed");
         return;
       }
+      if (!isDeleteResponse(responseBody)) {
+        setDeleteError("failed");
+        return;
+      }
+      clearMutationRequest("delete", path, "");
+      if (
+        activeMutationRef.current?.kind === "delete" &&
+        activeMutationRef.current.path === path
+      ) {
+        activeMutationRef.current = null;
+      }
+      setDates((current) => current.filter((date) => date.id !== item.id));
       setDeleteTarget(null);
       setEditItem(null);
-      await fetchDates();
+      const refreshed = await fetchDates({ preserveData: true });
+      setRefreshNotice(refreshed ? "deleted" : "deletedRefreshFailed");
       window.requestAnimationFrame(() =>
-        (addDateRef.current ?? retryDatesRef.current)?.focus(),
+        (retryDatesRef.current ?? addDateRef.current)?.focus(),
       );
-    } catch {
-      setDeleteError("network");
+    } catch (error) {
+      setDeleteError(
+        error instanceof MutationHistoryFullError ? "failed" : "network",
+      );
     } finally {
       mutationRef.current = false;
       setDeleting(false);
@@ -419,8 +681,18 @@ function AnniversariesPageInner() {
   const closeModal = () => {
     if (mutationRef.current) return;
     setModalError(null);
+    const target = editItem;
     setShowAdd(false);
     setEditItem(null);
+    const active = activeMutationRef.current;
+    const expectedKind = target ? "update" : "create";
+    const expectedPath = target
+      ? `/api/anniversaries/${encodeURIComponent(target.id)}`
+      : "/api/anniversaries";
+    if (active?.kind === expectedKind && active.path === expectedPath) {
+      clearMutationRequest(active.kind, active.path, active.payload);
+      activeMutationRef.current = null;
+    }
   };
 
   if (loading) {
@@ -454,10 +726,12 @@ function AnniversariesPageInner() {
           <p className="text-subhead text-danger-text">{error}</p>
           <button
             ref={retryDatesRef}
-            onClick={fetchDates}
+            onClick={() => void fetchDates()}
+            disabled={loading}
+            aria-busy={loading}
             className="mt-3 min-h-[44px] min-w-[44px] px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-on-accent text-subhead font-semibold"
           >
-            {t("routeState.tryAgain")}
+            {loading ? t("dates.loading") : t("routeState.tryAgain")}
           </button>
         </div>
       </div>
@@ -482,6 +756,33 @@ function AnniversariesPageInner() {
           {t("dates.addDate")}
         </button>
       </div>
+
+      {refreshNotice && (
+        <p role="status" className="card-apple px-4 py-3 text-subhead">
+          {anniversariesText(refreshNotice)}
+        </p>
+      )}
+
+      {refreshError && (
+        <div
+          role="alert"
+          className="card-apple flex flex-wrap items-center justify-between gap-3 p-4"
+        >
+          <p className="text-subhead text-danger-text">
+            {t("dates.errorLoad")}
+          </p>
+          <button
+            ref={retryDatesRef}
+            type="button"
+            onClick={() => void fetchDates({ preserveData: true })}
+            disabled={refreshing}
+            aria-busy={refreshing}
+            className="min-h-[44px] min-w-[44px] rounded-lg bg-[var(--accent-fill)] px-4 py-2 text-subhead font-semibold text-on-accent"
+          >
+            {refreshing ? t("dates.loading") : t("routeState.tryAgain")}
+          </button>
+        </div>
+      )}
 
       {hasDates && (
         <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)]">

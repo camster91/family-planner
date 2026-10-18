@@ -139,6 +139,7 @@ describe("anniversaries — two households", () => {
   it("creates for the caller's family even if a family_id is smuggled in", async () => {
     const res = await POST(req({ as: "parentA", body: { ...newDate, person_id: "child-a", family_id: "family-B" } }));
     expect(res.status).toBe(201);
+    expect((await res.json()).date).toMatchObject({ can_edit: true, can_delete: true });
     expect(writesTo("anniversary")[0].args.data).toMatchObject({ family_id: "family-A", person_id: "child-a" });
   });
 
@@ -146,6 +147,43 @@ describe("anniversaries — two households", () => {
     const res = await POST(req({ as: "teenA", body: { ...newDate, created_by: "parent-a" } }));
     expect(res.status).toBe(201);
     expect(writesTo("anniversary")[0].args.data).toMatchObject({ family_id: "family-A", created_by: "teen-a" });
+  });
+
+  it("reprojects a keyed create after the actor's role changes", async () => {
+    const key = "anniversary-role-replay-key";
+    const first = await POST(req({ as: "parentA", body: newDate, headers: { "Idempotency-Key": key } }));
+    expect(first.status).toBe(201);
+    expect((await first.json()).date).toMatchObject({ can_edit: true, can_delete: true });
+
+    db.find("user", "parent-a")!.role = "child";
+    try {
+      const replay = await POST(req({ as: "parentA", body: newDate, headers: { "Idempotency-Key": key } }));
+      expect(replay.status).toBe(201);
+      expect(replay.headers.get("Idempotency-Replayed")).toBe("true");
+      expect((await replay.json()).date).toMatchObject({ can_edit: true, can_delete: false });
+      expect(writesTo("anniversary")).toHaveLength(1);
+    } finally {
+      db.find("user", "parent-a")!.role = "parent";
+    }
+  });
+
+  it("denies a missing-row update replay after ownership changes", async () => {
+    const key = "anniversary-missing-update-replay-key";
+    const first = await PATCH(req({ as: "parentA", body: { name: "Updated legacy" }, headers: { "Idempotency-Key": key } }), params({ id: "ann-a" }));
+    expect(first.status).toBe(200);
+    const rows = db.rows("anniversary");
+    const index = rows.findIndex((row: any) => row.id === "ann-a");
+    expect(index).toBeGreaterThanOrEqual(0);
+    rows.splice(index, 1);
+
+    db.find("user", "parent-a")!.role = "child";
+    try {
+      const replay = await PATCH(req({ as: "parentA", body: { name: "Updated legacy" }, headers: { "Idempotency-Key": key } }), params({ id: "ann-a" }));
+      expect(replay.status).toBe(403);
+      expect((await replay.json()).error).toBe("You can only edit dates you added");
+    } finally {
+      db.find("user", "parent-a")!.role = "parent";
+    }
   });
 
   it("lets a same-family member update and delete", async () => {
@@ -175,6 +213,7 @@ describe("anniversaries — two households", () => {
   it.each<[UserKey]>([["teenA"], ["childA"]])("D9: %s can create an anniversary in their own family", async (who) => {
     const res = await POST(req({ as: who, body: { ...newDate, family_id: "family-B" } }));
     expect(res.status).toBe(201);
+    expect((await res.json()).date).toMatchObject({ can_edit: true, can_delete: false });
     expect(writesTo("anniversary")[0].args.data).toMatchObject({ family_id: "family-A" });
   });
 
@@ -194,6 +233,7 @@ describe("anniversaries — two households", () => {
 
     const res = await PATCH(req({ as: who, body: { name: "Gran (Mum's side)", created_by: "parent-a" } }), params({ id }));
     expect(res.status).toBe(200);
+    expect((await res.json()).date).toMatchObject({ can_edit: true, can_delete: false });
     // created_by is not writable through PATCH.
     expect(db.find("anniversary", id)).toMatchObject({ name: "Gran (Mum's side)", created_by: `${who === "teenA" ? "teen" : "child"}-a` });
 

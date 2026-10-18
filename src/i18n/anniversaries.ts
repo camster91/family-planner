@@ -9,6 +9,15 @@ export const anniversariesEnglish = {
     "The date could not be removed. Check your connection and try again.",
   deleteClose: "Close date removal confirmation",
   deleting: "Removing…",
+  saved: "Date saved.",
+  deleted: "Date removed.",
+  savedRefreshFailed:
+    "Date saved. The list could not be refreshed; try again to check it.",
+  deletedRefreshFailed:
+    "Date removed. The list could not be refreshed; try again to check it.",
+  saveUnknown: "We couldn't confirm the date was saved. Try again.",
+  saveNetworkError:
+    "The date could not be saved. Check your connection and try again.",
   nextUp: "Next up",
   moreDates: "More dates ({count})",
   later: "Later in the year",
@@ -35,6 +44,16 @@ export const anniversariesSpanish: Record<AnniversariesMessage, string> = {
     "No se pudo quitar la fecha. Revisa tu conexión e inténtalo de nuevo.",
   deleteClose: "Cerrar confirmación para quitar la fecha",
   deleting: "Quitando…",
+  saved: "Fecha guardada.",
+  deleted: "Fecha quitada.",
+  savedRefreshFailed:
+    "Fecha guardada. No se pudo actualizar la lista; inténtalo de nuevo para comprobarla.",
+  deletedRefreshFailed:
+    "Fecha quitada. No se pudo actualizar la lista; inténtalo de nuevo para comprobarla.",
+  saveUnknown:
+    "No pudimos confirmar que se guardó la fecha. Inténtalo de nuevo.",
+  saveNetworkError:
+    "No se pudo guardar la fecha. Revisa tu conexión e inténtalo de nuevo.",
   nextUp: "Próximas fechas",
   moreDates: "Más fechas ({count})",
   later: "Más adelante en el año",

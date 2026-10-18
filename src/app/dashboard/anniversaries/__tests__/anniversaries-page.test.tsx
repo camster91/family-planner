@@ -75,7 +75,11 @@ describe("/dashboard/anniversaries destructive removal", () => {
         status: 200,
         json: async () => ({ dates: [date] }),
       })
-      .mockResolvedValueOnce({ ok: true, status: 200 })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true }),
+      })
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -94,6 +98,9 @@ describe("/dashboard/anniversaries destructive removal", () => {
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
     expect(global.fetch).toHaveBeenCalledWith("/api/anniversaries/date-1", {
       method: "DELETE",
+      headers: {
+        "Idempotency-Key": expect.stringMatching(/^[A-Za-z0-9_-]{16,128}$/),
+      },
     });
     expect(global.fetch).toHaveBeenCalledTimes(3);
     await new Promise((resolve) => window.requestAnimationFrame(resolve));
@@ -107,8 +114,11 @@ describe("/dashboard/anniversaries destructive removal", () => {
 
   it("blocks edit close and delete while a PATCH is pending, preserving focus inside the draft", async () => {
     const user = userEvent.setup();
-    let resolvePatch: (value: { ok: boolean; status: number }) => void = () =>
-      undefined;
+    let resolvePatch: (value: {
+      ok: boolean;
+      status: number;
+      json?: () => Promise<unknown>;
+    }) => void = () => undefined;
     global.fetch = jest
       .fn()
       .mockResolvedValueOnce({
@@ -137,6 +147,9 @@ describe("/dashboard/anniversaries destructive removal", () => {
 
     const saving = within(edit).getByRole("button", { name: "Saving..." });
     expect(saving).toBeDisabled();
+    for (const label of ["Name", "Type", "Date", "Notes (optional)"]) {
+      expect(within(edit).getByLabelText(label)).toBeDisabled();
+    }
     expect(within(edit).getByRole("button", { name: "Delete" })).toBeDisabled();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
@@ -152,7 +165,19 @@ describe("/dashboard/anniversaries destructive removal", () => {
       expect.objectContaining({ method: "DELETE" }),
     );
 
-    resolvePatch({ ok: true, status: 200 });
+    resolvePatch({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        date: {
+          id: "date-1",
+          name: "Updated Grandma",
+          type: "birthday",
+          date: "2099-04-10",
+          notes: "Private note",
+        },
+      }),
+    });
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
     expect(
       screen.queryByRole("dialog", { name: "Edit" }),
@@ -172,10 +197,19 @@ describe("/dashboard/anniversaries destructive removal", () => {
         status: 200,
         json: async () => ({ dates: [date] }),
       })
-      .mockResolvedValueOnce({ ok: true, status: 200 })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true }),
+      })
       .mockResolvedValueOnce({
         ok: false,
         status: 503,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [] }),
       }) as unknown as typeof fetch;
     renderPage();
 
@@ -196,6 +230,18 @@ describe("/dashboard/anniversaries destructive removal", () => {
       screen.queryByRole("dialog", { name: "Edit" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Date removed. The list could not be refreshed; try again to check it.",
+      ),
+    ).toBeInTheDocument();
+    await user.click(retry);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(4));
+    expect(
+      (global.fetch as jest.Mock).mock.calls.filter(
+        (call) => call[1]?.method === "DELETE",
+      ),
+    ).toHaveLength(1);
   });
 
   it("localizes the page-level load recovery action", async () => {
@@ -222,7 +268,11 @@ describe("/dashboard/anniversaries destructive removal", () => {
         json: async () => ({ dates: [date] }),
       })
       .mockResolvedValueOnce({ ok: false, status: 403 })
-      .mockResolvedValueOnce({ ok: true, status: 200 })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true }),
+      })
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -286,6 +336,526 @@ describe("/dashboard/anniversaries destructive removal", () => {
       "The date could not be removed. Try again.",
     );
   });
+});
+
+describe("/dashboard/anniversaries recovery", () => {
+  it("uses a stable receipt key and canonical body when a create response is lost", async () => {
+    const user = userEvent.setup();
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [] }),
+      })
+      .mockRejectedValueOnce(new TypeError("offline"))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({
+          date: {
+            id: "new-date",
+            name: "New date",
+            type: "birthday",
+            date: "2099-04-10",
+            notes: null,
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          dates: [
+            {
+              ...date,
+              id: "new-date",
+              name: "New date",
+              notes: null,
+            },
+          ],
+        }),
+      }) as unknown as typeof fetch;
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Add Date" }));
+    const add = screen.getByRole("dialog", { name: "Add Date" });
+    await user.type(within(add).getByLabelText("Name"), " New date ");
+    await user.type(within(add).getByLabelText("Date"), "2099-04-10");
+    await user.click(within(add).getByRole("button", { name: "Save" }));
+    expect(await within(add).findByRole("alert")).toHaveTextContent(
+      "The date could not be saved. Check your connection and try again.",
+    );
+    await user.click(within(add).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(4));
+
+    const posts = (global.fetch as jest.Mock).mock.calls.filter(
+      (call) => call[1]?.method === "POST",
+    );
+    expect(posts).toHaveLength(2);
+    expect(posts[0][1].headers["Idempotency-Key"]).toMatch(
+      /^[A-Za-z0-9_-]{16,128}$/,
+    );
+    expect(posts[1][1].headers["Idempotency-Key"]).toBe(
+      posts[0][1].headers["Idempotency-Key"],
+    );
+    expect(posts[1][1].body).toBe(posts[0][1].body);
+    expect(JSON.parse(posts[0][1].body)).toMatchObject({
+      name: "New date",
+      notes: null,
+    });
+  });
+
+  it("reuses a save key after a network failure and starts a new key when the draft changes", async () => {
+    const user = userEvent.setup();
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [date] }),
+      })
+      .mockRejectedValueOnce(new TypeError("offline"))
+      .mockRejectedValueOnce(new TypeError("offline"))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          date: {
+            id: "date-1",
+            name: "Updated Grandma",
+            type: "birthday",
+            date: "2099-04-10",
+            notes: "Private note",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [{ ...date, name: "Updated Grandma" }] }),
+      }) as unknown as typeof fetch;
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /Grandma/ }));
+    const edit = screen.getByRole("dialog", { name: "Edit" });
+    const name = within(edit).getByLabelText("Name");
+    await user.clear(name);
+    await user.type(name, "Grandma");
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    expect(await within(edit).findByRole("alert")).toHaveTextContent(
+      "The date could not be saved. Check your connection and try again.",
+    );
+
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    expect(await within(edit).findByRole("alert")).toHaveTextContent(
+      "The date could not be saved. Check your connection and try again.",
+    );
+
+    await user.clear(name);
+    await user.type(name, "Updated Grandma");
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(5));
+
+    const patches = (global.fetch as jest.Mock).mock.calls.filter(
+      (call) => call[1]?.method === "PATCH",
+    );
+    expect(patches).toHaveLength(3);
+    const firstKey = patches[0][1].headers["Idempotency-Key"];
+    expect(firstKey).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
+    expect(patches[1][1].headers["Idempotency-Key"]).toBe(firstKey);
+    expect(patches[1][1].body).toBe(patches[0][1].body);
+    expect(patches[2][1].headers["Idempotency-Key"]).not.toBe(firstKey);
+    expect(patches[2][1].body).not.toBe(patches[0][1].body);
+    expect(
+      screen.queryByRole("dialog", { name: "Edit" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the original receipt key when a draft returns from A to B to A", async () => {
+    const user = userEvent.setup();
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [date] }),
+      })
+      .mockRejectedValueOnce(new TypeError("offline"))
+      .mockRejectedValueOnce(new TypeError("offline"))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          date: {
+            id: "date-1",
+            name: "Grandma A",
+            type: "birthday",
+            date: "2099-04-10",
+            notes: "Private note",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [{ ...date, name: "Grandma A" }] }),
+      }) as unknown as typeof fetch;
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /Grandma/ }));
+    const edit = screen.getByRole("dialog", { name: "Edit" });
+    const name = within(edit).getByLabelText("Name");
+
+    await user.clear(name);
+    await user.type(name, "Grandma A");
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    expect(await within(edit).findByRole("alert")).toHaveTextContent(
+      "The date could not be saved. Check your connection and try again.",
+    );
+
+    await user.clear(name);
+    await user.type(name, "Grandma B");
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    expect(await within(edit).findByRole("alert")).toHaveTextContent(
+      "The date could not be saved. Check your connection and try again.",
+    );
+
+    await user.clear(name);
+    await user.type(name, "Grandma A");
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(5));
+
+    const patches = (global.fetch as jest.Mock).mock.calls.filter(
+      (call) => call[1]?.method === "PATCH",
+    );
+    expect(patches).toHaveLength(3);
+    expect(patches[0][1].headers["Idempotency-Key"]).toBe(
+      patches[2][1].headers["Idempotency-Key"],
+    );
+    expect(patches[0][1].body).toBe(patches[2][1].body);
+    expect(patches[1][1].headers["Idempotency-Key"]).not.toBe(
+      patches[0][1].headers["Idempotency-Key"],
+    );
+    expect(patches[1][1].body).not.toBe(patches[0][1].body);
+  });
+
+  it("cancels only the active draft and preserves an earlier uncertain receipt", async () => {
+    const user = userEvent.setup();
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [date] }),
+      })
+      .mockRejectedValueOnce(new TypeError("offline"))
+      .mockRejectedValueOnce(new TypeError("offline"))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          date: {
+            id: "date-1",
+            name: "Grandma A",
+            type: "birthday",
+            date: "2099-04-10",
+            notes: "Private note",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [{ ...date, name: "Grandma A" }] }),
+      }) as unknown as typeof fetch;
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /Grandma/ }));
+    let edit = screen.getByRole("dialog", { name: "Edit" });
+    let name = within(edit).getByLabelText("Name");
+    await user.clear(name);
+    await user.type(name, "Grandma A");
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    expect(await within(edit).findByRole("alert")).toHaveTextContent(
+      "The date could not be saved. Check your connection and try again.",
+    );
+
+    await user.clear(name);
+    await user.type(name, "Grandma B");
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    expect(await within(edit).findByRole("alert")).toHaveTextContent(
+      "The date could not be saved. Check your connection and try again.",
+    );
+
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("dialog", { name: "Edit" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(await screen.findByRole("button", { name: /Grandma/ }));
+    edit = screen.getByRole("dialog", { name: "Edit" });
+    name = within(edit).getByLabelText("Name");
+    await user.clear(name);
+    await user.type(name, "Grandma A");
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(5));
+
+    const patches = (global.fetch as jest.Mock).mock.calls.filter(
+      (call) => call[1]?.method === "PATCH",
+    );
+    expect(patches).toHaveLength(3);
+    expect(patches[0][1].headers["Idempotency-Key"]).toBe(
+      patches[2][1].headers["Idempotency-Key"],
+    );
+    expect(patches[1][1].headers["Idempotency-Key"]).not.toBe(
+      patches[0][1].headers["Idempotency-Key"],
+    );
+    expect(patches[0][1].body).toBe(patches[2][1].body);
+  });
+
+  it("retries an in-progress 409 with the same body and receipt key", async () => {
+    const user = userEvent.setup();
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [date] }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          error: {
+            code: "IDEMPOTENCY_IN_PROGRESS",
+            message: "Please retry this date.",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          date: {
+            id: "date-1",
+            name: "Grandma",
+            type: "birthday",
+            date: "2099-04-10",
+            notes: "Private note",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [date] }),
+      }) as unknown as typeof fetch;
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /Grandma/ }));
+    const edit = screen.getByRole("dialog", { name: "Edit" });
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    expect(await within(edit).findByRole("alert")).toHaveTextContent(
+      "Please retry this date.",
+    );
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(4));
+
+    const patches = (global.fetch as jest.Mock).mock.calls.filter(
+      (call) => call[1]?.method === "PATCH",
+    );
+    expect(patches[1][1].headers["Idempotency-Key"]).toBe(
+      patches[0][1].headers["Idempotency-Key"],
+    );
+    expect(patches[1][1].body).toBe(patches[0][1].body);
+  });
+
+  it("keeps the draft and receipt key after a malformed 2xx until a retry is confirmed", async () => {
+    const user = userEvent.setup();
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [date] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ date: { id: "date-1" } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          date: {
+            id: "date-1",
+            name: "Grandma",
+            type: "birthday",
+            date: "2099-04-10",
+            notes: "Private note",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [date] }),
+      }) as unknown as typeof fetch;
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /Grandma/ }));
+    const edit = screen.getByRole("dialog", { name: "Edit" });
+    const name = within(edit).getByLabelText("Name");
+    await user.clear(name);
+    await user.type(name, "Grandma");
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    expect(await within(edit).findByRole("alert")).toHaveTextContent(
+      "We couldn't confirm the date was saved. Try again.",
+    );
+    expect(name).toHaveValue("Grandma");
+
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(4));
+    const patches = (global.fetch as jest.Mock).mock.calls.filter(
+      (call) => call[1]?.method === "PATCH",
+    );
+    expect(patches[1][1].headers["Idempotency-Key"]).toBe(
+      patches[0][1].headers["Idempotency-Key"],
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Edit" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("announces a confirmed save when the GET refresh fails and retries only the read", async () => {
+    const user = userEvent.setup();
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [date] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          date: {
+            id: "date-1",
+            name: "Updated Grandma",
+            type: "birthday",
+            date: "2099-04-10",
+            notes: "Private note",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ dates: [{ ...date, name: "Updated Grandma" }] }),
+      }) as unknown as typeof fetch;
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /Grandma/ }));
+    const edit = screen.getByRole("dialog", { name: "Edit" });
+    const name = within(edit).getByLabelText("Name");
+    await user.clear(name);
+    await user.type(name, "Updated Grandma");
+    await user.click(within(edit).getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByText(
+        "Date saved. The list could not be refreshed; try again to check it.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Edit" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/The list could not be refreshed/),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      (global.fetch as jest.Mock).mock.calls.filter(
+        (call) => call[1]?.method === "PATCH",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it.each([
+    { role: "parent", canEdit: true, canDelete: true },
+    { role: "teen", canEdit: false, canDelete: false },
+  ])(
+    "uses server grants for a $role create even when the refresh fails",
+    async ({ canEdit, canDelete }) => {
+      const user = userEvent.setup();
+      global.fetch = jest
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ dates: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 201,
+          json: async () => ({
+            date: {
+              id: "created-date",
+              name: "Created date",
+              type: "birthday",
+              date: "2099-04-10",
+              notes: null,
+              can_edit: canEdit,
+              can_delete: canDelete,
+            },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+        }) as unknown as typeof fetch;
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: "Add Date" }));
+      const add = screen.getByRole("dialog", { name: "Add Date" });
+      await user.type(within(add).getByLabelText("Name"), "Created date");
+      await user.type(within(add).getByLabelText("Date"), "2099-04-10");
+      await user.click(within(add).getByRole("button", { name: "Save" }));
+      expect(
+        await screen.findByText(
+          "Date saved. The list could not be refreshed; try again to check it.",
+        ),
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByText("More dates (1)"));
+      const row = await screen.findByRole("button", { name: /Created date/ });
+      await user.click(row);
+
+      if (canEdit) {
+        const edit = screen.getByRole("dialog", { name: "Edit" });
+        expect(
+          within(edit).getByRole("button", { name: "Save" }),
+        ).toBeEnabled();
+        expect(
+          within(edit).getByRole("button", { name: "Delete" }),
+        ).toBeInTheDocument();
+      } else {
+        const detail = screen.getByRole("dialog", { name: "Created date" });
+        expect(
+          within(detail).queryByRole("button", { name: "Save" }),
+        ).not.toBeInTheDocument();
+        expect(
+          within(detail).queryByRole("button", { name: "Delete" }),
+        ).not.toBeInTheDocument();
+      }
+    },
+  );
 });
 
 describe("approved Dates overview", () => {

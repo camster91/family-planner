@@ -1,15 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily } from '@/lib/api-auth'
-import { featureGate } from '@/lib/feature-gate-server'
-import { refusePairedDevice } from '@/lib/device-route'
-import { canEditOwnedRecord } from '@/lib/role-capabilities'
-import { logRouteError } from '@/lib/api-error'
-import { getRequestId } from '@/lib/request-id'
-import { nextAnnualOccurrence, toDateOnlyUTC } from '@/lib/dates'
-import { createAnniversarySchema } from '@/lib/validations'
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { authenticateWithFamily } from "@/lib/api-auth";
+import { featureGate } from "@/lib/feature-gate-server";
+import { refusePairedDevice } from "@/lib/device-route";
+import { readIdempotencyKey, withIdempotency } from "@/lib/idempotency";
+import {
+  authorizeAnniversaryReplay,
+  createAnniversaryWithReceipt,
+  projectAnniversaryReplay,
+} from "@/lib/anniversary-write";
+import { canEditOwnedRecord } from "@/lib/role-capabilities";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
+import { nextAnnualOccurrence, toDateOnlyUTC } from "@/lib/dates";
+import { createAnniversarySchema } from "@/lib/validations";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 function anniversaryPermissions(
   role: string | undefined | null,
@@ -18,40 +24,40 @@ function anniversaryPermissions(
 ) {
   return {
     can_edit: canEditOwnedRecord(role, userId, createdBy),
-    can_delete: role === 'parent',
-  }
+    can_delete: role === "parent",
+  };
 }
 
 // GET - List all anniversaries for the user's family, sorted by upcoming date
 export async function GET(request: NextRequest) {
   try {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
+    const deviceRefusal = await refusePairedDevice(request);
+    if (deviceRefusal) return deviceRefusal;
 
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'anniversaries')
-    if (gate) return gate
+    const gate = await featureGate(auth.user.family_id, "anniversaries");
+    if (gate) return gate;
 
     const anniversaries = await prisma!.anniversary.findMany({
       where: { family_id: auth.user.family_id },
-      orderBy: { date: 'asc' },
-    })
+      orderBy: { date: "asc" },
+    });
 
     // Dates are stored as UTC midnight. Count whole calendar days from the
     // server's UTC day (O-31), so a date falling today is 0 days away rather
     // than rolling to next year. The client recounts from its local day.
-    const today = toDateOnlyUTC(new Date())
+    const today = toDateOnlyUTC(new Date());
     const dates = anniversaries.map((a) => {
-      const next = nextAnnualOccurrence(a.date, today)
-      const nextOccurrence = next?.date ?? a.date
-      const daysUntil = next?.daysUntil ?? 0
+      const next = nextAnnualOccurrence(a.date, today);
+      const nextOccurrence = next?.date ?? a.date;
+      const daysUntil = next?.daysUntil ?? 0;
 
       return {
         id: a.id,
         name: a.name,
-        type: a.type as 'birthday' | 'anniversary' | 'custom',
+        type: a.type as "birthday" | "anniversary" | "custom",
         date: a.date.toISOString(),
         notes: a.notes,
         person_id: a.person_id,
@@ -59,67 +65,100 @@ export async function GET(request: NextRequest) {
         ...anniversaryPermissions(auth.user.role, auth.user.id, a.created_by),
         days_until: daysUntil,
         next_occurrence: nextOccurrence.toISOString(),
-      }
-    })
+      };
+    });
 
-    return NextResponse.json({ dates })
+    return NextResponse.json({ dates });
   } catch (err) {
-    logRouteError('GET /api/anniversaries', err, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logRouteError("GET /api/anniversaries", err, getRequestId(request));
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
 // POST - Create an anniversary
 export async function POST(request: NextRequest) {
   try {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
+    const deviceRefusal = await refusePairedDevice(request);
+    if (deviceRefusal) return deviceRefusal;
 
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'anniversaries')
-    if (gate) return gate
+    const gate = await featureGate(auth.user.family_id, "anniversaries");
+    if (gate) return gate;
 
-    let body: any
+    let body: any;
     try {
-      body = await request.json()
+      body = await request.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    const parsed = createAnniversarySchema.safeParse(body)
+    const parsed = createAnniversarySchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return NextResponse.json(
+        { error: parsed.error.issues[0].message },
+        { status: 400 },
+      );
     }
-    const { name, type, date, notes, person_id } = parsed.data
+    const { person_id } = parsed.data;
 
     // A linked person must be a member of the caller's family (#102).
     if (person_id) {
       const person = await prisma!.user.findFirst({
         where: { id: person_id, family_id: auth.user.family_id },
         select: { id: true },
-      })
+      });
       if (!person) {
-        return NextResponse.json({ error: 'Person not in your family' }, { status: 400 })
+        return NextResponse.json(
+          { error: "Person not in your family" },
+          { status: 400 },
+        );
       }
     }
 
-    const created = await prisma!.anniversary.create({
-      data: {
-        family_id: auth.user.family_id,
-        name,
-        type,
-        date: new Date(date),
-        notes: notes?.trim() || null,
-        person_id: person_id || null,
-        // D9 (#102): records who may edit it later (teens/children: own only).
-        created_by: auth.user.id,
-      },
-    })
+    const { key, error: keyError } = readIdempotencyKey(request);
+    if (keyError) return keyError;
 
-    return NextResponse.json({ date: created }, { status: 201 })
+    const response = await withIdempotency(
+      prisma!,
+      key,
+      {
+        scope: `user:${auth.user.id}`,
+        familyId: auth.user.family_id,
+        userId: auth.user.id,
+        action: "anniversary.create",
+      },
+      parsed.data,
+      ({ recordId }) =>
+        createAnniversaryWithReceipt(
+          prisma!,
+          parsed.data,
+          { familyId: auth.user.family_id, userId: auth.user.id },
+          recordId,
+        ),
+      {
+        beforeReplay: () =>
+          authorizeAnniversaryReplay(prisma!, "create", {
+            familyId: auth.user.family_id,
+            userId: auth.user.id,
+          }),
+        transformReplay: (result) =>
+          projectAnniversaryReplay(prisma!, result, {
+            familyId: auth.user.family_id,
+            userId: auth.user.id,
+          }),
+      },
+    );
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
   } catch (err) {
-    logRouteError('POST /api/anniversaries', err, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logRouteError("POST /api/anniversaries", err, getRequestId(request));
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
