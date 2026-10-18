@@ -259,20 +259,40 @@ async function assertReadableText(
   label: string,
 ) {
   await assertBounds(locator, viewportWidth, viewportHeight, label);
-  const metrics = await locator.evaluate((element) => ({
-    clientHeight: element.clientHeight,
-    clientWidth: element.clientWidth,
-    scrollHeight: element.scrollHeight,
-    scrollWidth: element.scrollWidth,
-  }));
+  const metrics = await locator.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const text = range.getBoundingClientRect();
+    let verticallyClipped = text.top < 0 || text.bottom > innerHeight;
+    // Fractional line-height/font descent may extend beyond an element's
+    // rounded clientHeight without clipping. Check actual clipping ancestors.
+    for (
+      let ancestor: Element | null = element;
+      ancestor;
+      ancestor = ancestor.parentElement
+    ) {
+      if (
+        ["auto", "scroll", "hidden", "clip"].includes(
+          getComputedStyle(ancestor).overflowY,
+        )
+      ) {
+        const box = ancestor.getBoundingClientRect();
+        verticallyClipped ||= text.top < box.top || text.bottom > box.bottom;
+      }
+    }
+    return {
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      verticallyClipped,
+    };
+  });
   expect(
     metrics.scrollWidth,
     `${label} should wrap inside its box`,
   ).toBeLessThanOrEqual(metrics.clientWidth);
-  expect(
-    metrics.scrollHeight,
-    `${label} should not clip vertically`,
-  ).toBeLessThanOrEqual(metrics.clientHeight);
+  expect(metrics.verticallyClipped, `${label} should not clip vertically`).toBe(
+    false,
+  );
 }
 
 async function assertSurface(page: Page) {
