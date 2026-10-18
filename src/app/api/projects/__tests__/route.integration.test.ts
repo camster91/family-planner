@@ -201,6 +201,11 @@ describeWithDatabase("Project POST routes against Postgres", () => {
     async (_role, userId) => {
       const key = `prjrcptint-task-${userId}`;
       const body = { title: `Task ${userId}`, assigned_to: USERS.teen };
+      const oldTimestamp = new Date("2026-01-01T00:00:00.000Z");
+      await prisma.project.update({
+        where: { id: PROJECT },
+        data: { updated_at: oldTimestamp },
+      });
       const before = await prisma.project.findUniqueOrThrow({
         where: { id: PROJECT },
         select: { updated_at: true },
@@ -215,7 +220,7 @@ describeWithDatabase("Project POST routes against Postgres", () => {
         where: { id: PROJECT },
         select: { updated_at: true },
       });
-      expect(afterFirst.updated_at.getTime()).toBeGreaterThanOrEqual(
+      expect(afterFirst.updated_at.getTime()).toBeGreaterThan(
         before.updated_at.getTime(),
       );
 
