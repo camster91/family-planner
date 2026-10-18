@@ -185,14 +185,15 @@ export async function storeMessageAttachment(
   } catch (error) {
     const attachment = createdAttachment
     if (attachment) {
-      let removed = { count: 0 }
       try {
-        removed = await db.$transaction(async (tx: any) => {
+        await db.$transaction(async (tx: any) => {
           // Message sends take this same lock before reading and claiming a
           // draft. Wait for an in-flight claim before deciding whether this
-          // exact row is still safe to remove.
+          // exact row is still safe to remove. Keep unlink under the lock as
+          // well: a new upload may recreate this deterministic filename as
+          // soon as the delete transaction commits.
           await lockHousehold(tx, familyId)
-          return tx.messageAttachment.deleteMany({
+          const removed = await tx.messageAttachment.deleteMany({
             where: {
               id: attachment.id,
               family_id: familyId,
@@ -200,18 +201,13 @@ export async function storeMessageAttachment(
               message_id: null,
             },
           })
+          if (removed.count > 0 && placed && filepath) {
+            await unlink(filepath).catch(() => {})
+          }
         })
       } catch {
         // Cleanup is fail-safe: retain the row and final file if the guarded
         // delete cannot be completed or verified.
-        removed = { count: 0 }
-      }
-      // A concurrent sender may have claimed the row while file placement or
-      // the post-rename verification was failing. Only unlink a final file
-      // when this exact unclaimed row was removed; a claimed attachment owns
-      // the file for its message and must remain intact.
-      if (removed.count > 0 && placed && filepath) {
-        await unlink(filepath).catch(() => {})
       }
     }
     throw error
@@ -245,22 +241,28 @@ export async function pruneUnboundMessageAttachments(
         orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
         take: MESSAGE_ATTACHMENT_STALE_BATCH,
       })
-      if (candidates.length === 0) return []
-      await tx.messageAttachment.deleteMany({
-        where: {
-          id: { in: candidates.map((item: { id: string }) => item.id) },
-          family_id: familyId,
-          message_id: null,
-          created_at: { lt: cutoff },
-        },
-      })
-      return candidates
+      const removed: Array<{ id: string; filename: string }> = []
+      for (const candidate of candidates) {
+        const deleted = await tx.messageAttachment.deleteMany({
+          where: {
+            id: candidate.id,
+            family_id: familyId,
+            message_id: null,
+            created_at: { lt: cutoff },
+          },
+        })
+        if (deleted.count > 0) {
+          // A new upload cannot recreate this filename until the transaction
+          // releases the household lock. Unlink while it is still held so a
+          // replacement file cannot be removed by cleanup after commit.
+          await unlink(
+            messageAttachmentFilePath(candidate.filename, options.uploadDir),
+          ).catch(() => {})
+          removed.push(candidate)
+        }
+      }
+      return removed
     })
-    for (const item of removed) {
-      await unlink(
-        messageAttachmentFilePath(item.filename, options.uploadDir),
-      ).catch(() => {})
-    }
     return removed.length
   } catch {
     // Housekeeping never makes the user's upload fail.
