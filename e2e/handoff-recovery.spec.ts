@@ -238,7 +238,9 @@ for (const locale of ["en", "es"] as const) {
           await route.fulfill({
             status: 503,
             contentType: "application/json",
-            body: JSON.stringify({ error: "Synthetic initial handoff refusal" }),
+            body: JSON.stringify({
+              error: "Synthetic initial handoff refusal",
+            }),
           });
           return;
         }
@@ -254,7 +256,9 @@ for (const locale of ["en", "es"] as const) {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ handoffs: createAccepted ? [SYNTHETIC_HANDOFF] : [] }),
+          body: JSON.stringify({
+            handoffs: createAccepted ? [SYNTHETIC_HANDOFF] : [],
+          }),
         });
         return;
       }
@@ -408,7 +412,9 @@ for (const locale of ["en", "es"] as const) {
       );
       const optionalDetailsCopy =
         locale === "es" ? "Detalles opcionales" : "Optional details";
-      await optionalDetails.getByText(optionalDetailsCopy, { exact: true }).click();
+      await optionalDetails
+        .getByText(optionalDetailsCopy, { exact: true })
+        .click();
       await expect(optionalDetails).toHaveAttribute("open", "");
       await createDialog
         .getByLabel(copy.handoff.sitterName, { exact: true })
@@ -539,7 +545,10 @@ for (const locale of ["en", "es"] as const) {
       await expect(
         page
           .locator("body")
-          .getByRole("heading", { name: copy.handoff.linkInvalid, exact: true }),
+          .getByRole("heading", {
+            name: copy.handoff.linkInvalid,
+            exact: true,
+          }),
       ).toBeVisible();
       await expect(
         page
