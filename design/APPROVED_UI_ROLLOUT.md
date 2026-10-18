@@ -54,7 +54,7 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Meals | Week plan, recipes, several-dish prep, eaten/remaining/next prep | Local shared Plan/Explore/Prep navigation candidate; existing canonical meal/prep behavior retained, incorporated #574 hosted candidate checks pass; wider visual/journey acceptance pending |
 | Inventory | Use soon, honest capture review, quantities and locations | Local full-width overview and shared location shortcuts; 121 affected units, exact build and six-size browser 95 passes/10 inherited scope skips; incorporated #574 hosted candidate checks pass; capture-review/wider acceptance pending |
 | Notes | Short shared notes and clear visibility | Local shared board/read-only detail and canonical color/recovery alignment: 42 affected tests, 78 browser passes/15 inherited scope skips; Family/Notes #576 candidate hosted acceptance passed and main `768e4170` is merged; production and wider acceptance pending |
-| Anniversaries | Upcoming dates without duplicate noise | Local chronological annual overview, short sheets and role-aware detail/discovery: 128 affected tests and 77 six-size browser passes/10 desktop-only scope skips; source review pass, visual/hosted/recovery/release acceptance pending |
+| Anniversaries | Upcoming dates without duplicate noise | Local chronological annual overview, short sheets and role-aware detail/discovery: 128 affected tests and 77 six-size browser passes/10 desktop-only scope skips; source/visual review pass, hosted/recovery/release acceptance pending |
 | Gamification | Optional quiet progress, meaningful dependencies | Existing behavior retained; approved layout review pending |
 | Rewards | Clear costs and role-appropriate actions | Existing behavior retained; approved layout review pending |
 | Budget | Private summaries and contextual details | Existing behavior retained; approved layout review pending |
@@ -429,3 +429,10 @@ viewport captures are retained. Visual/hosted/release acceptance remains open;
 receipt recovery is a separate unaccepted continuation. A stale Dates route
 allowlist and missing kid-menu entry were repaired against D9; original APIs
 remain role-scoped and no Settings/device/finance route was widened.
+
+Supplemental source e5d2247e passes 15 additional state checks (12 EN/ES journeys
+plus 3 setup) with retained phone scroll/focus/hit geometry and 4 footer captures.
+Independent review of all 52 captures withdraws the initial apparent 390px clipping:
+the expanded list is scrollable, and its final row is fully reachable above the
+fixed bar. There is no remaining material visual blocker. Source/UI recovery,
+hosted and release acceptance are still separate gates.

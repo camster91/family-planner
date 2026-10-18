@@ -31,10 +31,13 @@ with 10 explicitly desktop-only boundary scopes skipped on other sizes, zero
 failures/retries. Six repository sizes include EN/light and ES/dark, canonical
 parent/teen/child and two-household cases, confirmed live-device redirect/all-four
 API refusals, Axe/reflow/44px controls, loading/malformed/empty/retry, raw names,
-optional fields and modal/focus recovery. 48 PNGs are retained for visual review.
+optional fields and modal/focus recovery. Supplemental exact rebuilt source
+`e5d2247e` passes all 15 state cases, including actual phone scroll/focus/hit
+geometry above fixed navigation. All 52 retained captures pass independent
+visual review; the apparent initial narrow-screen overlap was normal scrolling.
 A real routing omission and test-only Spanish/credential-clock mistakes are
 fixed; unsuccessful runs remain retained. This is not full Dates acceptance:
-visual/hosted/release gates and the existing ambiguous-write/stale-refresh
+hosted/release gates and the existing ambiguous-write/stale-refresh
 recovery audit remain open. A separate unaccepted recovery continuation uses
 canonical receipts and requires fresh integration/browser verification. No new
 schema, scheduler, provider/profile activation or native/store change is included.
