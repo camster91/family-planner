@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import {
-  authenticateWithFamily,
-  requireFamilyMatch,
-  requireParent,
-} from "@/lib/api-auth";
+import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import { refusePairedDevice } from "@/lib/device-route";
 import { createTransactionSchema } from "@/lib/validations";
-import { featureGate } from '@/lib/feature-gate-server';
+import { featureGate } from "@/lib/feature-gate-server";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { readIdempotencyKey, withIdempotency } from "@/lib/idempotency";
+import {
+  authorizeBudgetTransactionReplay,
+  budgetTransactionAction,
+  createBudgetTransactionWithReceipt,
+} from "@/lib/budget-transaction-write";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'budget');
+    const gate = await featureGate(auth.user.family_id, "budget");
     if (gate) return gate;
 
     const parentError = requireParent(auth.user.role);
@@ -125,18 +127,18 @@ export async function POST(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'budget');
+    const gate = await featureGate(auth.user.family_id, "budget");
     if (gate) return gate;
 
     const parentError = requireParent(auth.user.role);
     if (parentError) return parentError;
 
-    let body: any
+    let body: any;
     try {
-      body = await request.json()
+      body = await request.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
-    };
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     const parsed = createTransactionSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -145,69 +147,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const {
-      amount,
-      type,
-      category_id,
-      description,
-      notes,
-      date,
-      is_recurring,
-      recurring_interval,
-    } = parsed.data;
+    const { key, error: keyError } = readIdempotencyKey(request);
+    if (keyError) return keyError;
 
-    // If category_id is provided, verify it belongs to the family
-    if (category_id) {
-      const category = await prisma!.budgetCategory.findUnique({
-        where: { id: category_id },
-        select: { family_id: true, type: true },
-      });
-
-      if (!category) {
-        return NextResponse.json(
-          { error: "Category not found" },
-          { status: 404 },
-        );
-      }
-
-      const familyError = requireFamilyMatch(
-        category.family_id,
-        auth.user.family_id,
-      );
-      if (familyError) return familyError;
-
-      // Warn if category type doesn't match transaction type (but allow it)
-      if (category.type !== type) {
-        console.warn("Transaction type does not match its category type");
-      }
-    }
-
-    const transaction = await prisma!.transaction.create({
-      data: {
-        family_id: auth.user.family_id,
-        user_id: auth.user.id,
-        amount,
-        type,
-        category_id: category_id || null,
-        description: description || null,
-        notes: notes || null,
-        date: date ? new Date(date) : new Date(),
-        is_recurring: is_recurring || false,
-        recurring_interval: is_recurring ? recurring_interval || null : null,
+    const response = await withIdempotency(
+      prisma!,
+      key,
+      {
+        scope: `user:${auth.user.id}`,
+        familyId: auth.user.family_id,
+        userId: auth.user.id,
+        action: budgetTransactionAction("create"),
       },
-      include: {
-        category: {
-          select: { id: true, name: true, icon: true, color: true },
-        },
-        user: {
-          select: { id: true, name: true, avatar_url: true },
-        },
+      parsed.data,
+      ({ recordId }) =>
+        createBudgetTransactionWithReceipt(
+          prisma!,
+          parsed.data,
+          { familyId: auth.user.family_id, userId: auth.user.id },
+          recordId,
+        ),
+      {
+        beforeReplay: () =>
+          authorizeBudgetTransactionReplay(
+            prisma!,
+            "create",
+            { familyId: auth.user.family_id, userId: auth.user.id },
+            undefined,
+            key ?? undefined,
+          ),
       },
-    });
-
-    return NextResponse.json({ transaction }, { status: 201 });
+    );
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
   } catch (error) {
-    logRouteError("POST /api/budget/transactions", error, getRequestId(request));
+    logRouteError(
+      "POST /api/budget/transactions",
+      error,
+      getRequestId(request),
+    );
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
