@@ -144,6 +144,8 @@ for (const locale of ["en", "es"] as const) {
       let postAttempts = 0;
       let patchAttempts = 0;
       let deleteAttempts = 0;
+      let failNextSaveRefresh = false;
+      let failNextDeleteRefresh = false;
       const patchKeys: string[] = [];
       const patchBodies: string[] = [];
       const postKeys: string[] = [];
@@ -155,6 +157,8 @@ for (const locale of ["en", "es"] as const) {
         postAttempts = 0;
         patchAttempts = 0;
         deleteAttempts = 0;
+        failNextSaveRefresh = false;
+        failNextDeleteRefresh = false;
         patchKeys.length = 0;
         patchBodies.length = 0;
         postKeys.length = 0;
@@ -179,15 +183,10 @@ for (const locale of ["en", "es"] as const) {
           const method = request.method();
 
           if (method === "GET" && path === "/api/anniversaries") {
-            const currentGet = getAttempts++;
+            getAttempts += 1;
             if (scenario === "post") {
-              if (currentGet === 0) {
-                await route.fulfill({
-                  status: 200,
-                  contentType: "application/json",
-                  body: JSON.stringify({ dates: [] }),
-                });
-              } else if (currentGet === 1) {
+              if (failNextSaveRefresh) {
+                failNextSaveRefresh = false;
                 await route.fulfill({
                   status: 503,
                   contentType: "application/json",
@@ -197,26 +196,29 @@ for (const locale of ["en", "es"] as const) {
                 await route.fulfill({
                   status: 200,
                   contentType: "application/json",
-                  body: JSON.stringify({ dates: [CREATED] }),
+                  body: JSON.stringify({
+                    dates: postAttempts >= 2 ? [CREATED] : [],
+                  }),
                 });
               }
               return;
             }
             if (scenario === "delete") {
               await route.fulfill({
-                status: currentGet === 1 ? 503 : 200,
+                status: failNextDeleteRefresh ? 503 : 200,
                 contentType: "application/json",
                 body: JSON.stringify(
-                  currentGet === 1
+                  failNextDeleteRefresh
                     ? { error: "synthetic refresh failure" }
                     : {
                         dates:
-                          currentGet === 0
+                          deleteAttempts === 0
                             ? [EDITABLE, READ_ONLY]
                             : [READ_ONLY],
                       },
                 ),
               });
+              failNextDeleteRefresh = false;
               return;
             }
             await route.fulfill({
@@ -238,6 +240,7 @@ for (const locale of ["en", "es"] as const) {
               await route.abort("failed");
               return;
             }
+            failNextSaveRefresh = true;
             await route.fulfill({
               status: 201,
               contentType: "application/json",
@@ -280,6 +283,7 @@ for (const locale of ["en", "es"] as const) {
           if (method === "DELETE" && path === `/api/anniversaries/${DATE_ID}`) {
             expect(scenario).toBe("delete");
             deleteAttempts += 1;
+            failNextDeleteRefresh = true;
             expect(request.postData()).toBeNull();
             await route.fulfill({
               status: 200,
@@ -314,7 +318,9 @@ for (const locale of ["en", "es"] as const) {
           exact: true,
         });
         await addDialog.getByLabel(copy.name).fill(CREATED_NAME);
-        await addDialog.getByLabel(copy.date).fill("2026-01-19");
+        await addDialog
+          .getByLabel(copy.date, { exact: true })
+          .fill("2026-01-19");
         const addClose = addDialog.getByRole("button", {
           name: copy.close,
           exact: true,
@@ -353,6 +359,7 @@ for (const locale of ["en", "es"] as const) {
         ).toBeVisible();
         await page.keyboard.press("Escape");
         await expect(createdRow).toBeFocused();
+        const saveGetCountBeforeRetry = getAttempts;
         const saveRetry = page.getByRole("button", {
           name: copy.retry,
           exact: true,
@@ -362,7 +369,7 @@ for (const locale of ["en", "es"] as const) {
           page.getByText(copy.savedRefresh, { exact: true }),
         ).toHaveCount(0);
         expect(postAttempts).toBe(2);
-        expect(getAttempts).toBe(3);
+        expect(getAttempts).toBe(saveGetCountBeforeRetry + 1);
 
         // A -> B -> A keeps A's receipt, including after cancelling active B.
         setScenario("aba");
@@ -466,6 +473,7 @@ for (const locale of ["en", "es"] as const) {
         await expect(page.getByRole("button", { name: DATE_NAME })).toHaveCount(
           0,
         );
+        const deleteGetCountBeforeRetry = getAttempts;
         const deleteRetry = page.getByRole("button", {
           name: copy.retry,
           exact: true,
@@ -475,7 +483,7 @@ for (const locale of ["en", "es"] as const) {
           page.getByText(copy.removedRefresh, { exact: true }),
         ).toHaveCount(0);
         expect(deleteAttempts).toBe(1);
-        expect(getAttempts).toBe(3);
+        expect(getAttempts).toBe(deleteGetCountBeforeRetry + 1);
 
         expect(
           await page.evaluate(
