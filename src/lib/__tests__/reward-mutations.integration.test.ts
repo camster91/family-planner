@@ -7,16 +7,50 @@
  * tests cover the response and notification wiring; this suite proves the
  * real row, XP, and receipt changes are atomic under PostgreSQL.
  */
+jest.mock(
+  "next/server",
+  () => require("@/__tests__/helpers/two-household").nextServerMock,
+);
+
+jest.mock("@/lib/session", () => ({
+  verifySessionToken: async (token: string) => {
+    if (!token?.startsWith("session:")) return null;
+    const { prisma } = require("@/lib/prisma");
+    const user = await prisma.user.findUnique({
+      where: { id: token.slice("session:".length) },
+    });
+    return user
+      ? {
+          userId: user.id,
+          email: user.email,
+          role: user.role,
+          family_id: user.family_id,
+          tv: user.token_version,
+        }
+      : null;
+  },
+  getTokenVersion: async () => 0,
+}));
+
+jest.mock("@/lib/beta-metrics", () => ({
+  recordBetaMetric: jest.fn(async () => undefined),
+}));
+
+jest.mock("@/lib/notifications-server", () => {
+  const sendNotification = jest.fn(async () => true);
+  return {
+    notificationServiceServer: {
+      sendNotification,
+      notifyChoreAssignment: jest.fn(async () => undefined),
+    },
+  };
+});
+
 import { assertFixtureTargetAllowed } from "@/lib/fixtures/guard";
 import crypto from "node:crypto";
 
-jest.mock("@/lib/notifications-server", () => ({
-  notificationServiceServer: {
-    sendNotification: jest.fn(async () => undefined),
-  },
-}));
-
 import { notificationServiceServer } from "@/lib/notifications-server";
+import { recordBetaMetric } from "@/lib/beta-metrics";
 
 export {};
 
@@ -45,6 +79,26 @@ const FEATURES_ON = {
   rewards: true,
 };
 
+function routeRequest(
+  userId: string,
+  path: string,
+  body: unknown,
+  idempotencyKey: string,
+): any {
+  const url = new URL(`http://localhost${path}`);
+  const headers = new Headers({ "Idempotency-Key": idempotencyKey });
+  return {
+    url: url.toString(),
+    nextUrl: url,
+    headers,
+    cookies: {
+      get: (name: string) =>
+        name === "session_token" ? { value: `session:${userId}` } : undefined,
+    },
+    json: async () => body,
+  };
+}
+
 function actor(userId: string, familyId = FAMILY_A, role = "parent"): RewardActor {
   return { familyId, userId, role };
 }
@@ -72,6 +126,9 @@ describeWithDatabase("Rewards mutations against disposable PostgreSQL", () => {
   let authorizeRewardReplay: typeof import("@/lib/reward-mutations").authorizeRewardReplay;
   let idempotency: typeof import("@/lib/idempotency");
   let InsufficientRewardXpError: typeof import("@/lib/reward-mutations").InsufficientRewardXpError;
+  let createRoute: typeof import("@/app/api/rewards/route").POST;
+  let claimRoute: typeof import("@/app/api/rewards/claim/route").POST;
+  let approveRoute: typeof import("@/app/api/rewards/approve/route").POST;
 
   async function removeFixtures(): Promise<void> {
     if (!db) return;
@@ -201,10 +258,15 @@ describeWithDatabase("Rewards mutations against disposable PostgreSQL", () => {
     authorizeRewardReplay = mutations.authorizeRewardReplay;
     InsufficientRewardXpError = mutations.InsufficientRewardXpError;
     idempotency = await import("@/lib/idempotency");
+    createRoute = (await import("@/app/api/rewards/route")).POST;
+    claimRoute = (await import("@/app/api/rewards/claim/route")).POST;
+    approveRoute = (await import("@/app/api/rewards/approve/route")).POST;
     await seedFixtures();
   });
 
   afterEach(async () => {
+    (notificationServiceServer.sendNotification as jest.Mock).mockClear();
+    (recordBetaMetric as jest.Mock).mockClear();
     if (db) await seedFixtures();
   });
 
@@ -422,5 +484,71 @@ describeWithDatabase("Rewards mutations against disposable PostgreSQL", () => {
     );
     expect(disabled.status).toBe(403);
     expect(await db.reward.count({ where: { family_id: FAMILY_A, name: body.name } })).toBe(1);
+  });
+
+  it("proves the real HTTP create -> claim -> approve flow and one fanout per fresh key", async () => {
+    const send = notificationServiceServer.sendNotification as jest.Mock;
+    const metric = recordBetaMetric as jest.Mock;
+    const rewardBody = {
+      name: "Route integration reward",
+      cost: 100,
+      icon: "gift",
+    };
+    const createKey = freshKey();
+    const created = await createRoute(
+      routeRequest(PARENT_A, "/api/rewards", rewardBody, createKey),
+    );
+    expect(created.status).toBe(200);
+    const createdBody = await created.json();
+    const rewardId = (createdBody as { reward: { id: string } }).reward.id;
+    expect(rewardId).toEqual(expect.any(String));
+    expect(send).toHaveBeenCalledTimes(2);
+
+    const createdReplay = await createRoute(
+      routeRequest(PARENT_A, "/api/rewards", rewardBody, createKey),
+    );
+    expect(createdReplay.status).toBe(200);
+    expect(createdReplay.headers.get("Idempotency-Replayed")).toBe("true");
+    expect(send).toHaveBeenCalledTimes(2);
+
+    const claimBody = { rewardId };
+    const claimKey = freshKey();
+    const claimed = await claimRoute(
+      routeRequest(CHILD_A, "/api/rewards/claim", claimBody, claimKey),
+    );
+    expect(claimed.status).toBe(200);
+    expect((await claimed.json()).xp).toBe(400);
+    expect(metric).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(3);
+
+    const claimedReplay = await claimRoute(
+      routeRequest(CHILD_A, "/api/rewards/claim", claimBody, claimKey),
+    );
+    expect(claimedReplay.status).toBe(200);
+    expect(claimedReplay.headers.get("Idempotency-Replayed")).toBe("true");
+    expect((await claimedReplay.json()).xp).toBe(400);
+    expect(metric).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(3);
+
+    const approveBody = { rewardId };
+    const approveKey = freshKey();
+    const approved = await approveRoute(
+      routeRequest(PARENT_A, "/api/rewards/approve", approveBody, approveKey),
+    );
+    expect(approved.status).toBe(200);
+    expect((await approved.json()).reward.status).toBe("redeemed");
+    expect(send).toHaveBeenCalledTimes(4);
+
+    const approvedReplay = await approveRoute(
+      routeRequest(PARENT_A, "/api/rewards/approve", approveBody, approveKey),
+    );
+    expect(approvedReplay.status).toBe(200);
+    expect(approvedReplay.headers.get("Idempotency-Replayed")).toBe("true");
+    expect(send).toHaveBeenCalledTimes(4);
+
+    expect(await db.reward.count({ where: { family_id: FAMILY_A } })).toBe(1);
+    expect(await db.user.findUnique({ where: { id: CHILD_A }, select: { xp: true } })).toEqual({ xp: 400 });
+    expect(await db.reward.findUnique({ where: { id: rewardId }, select: { status: true, approved: true } })).toEqual({ status: "redeemed", approved: true });
+    expect(await db.idempotencyRecord.count({ where: { family_id: FAMILY_A, response_status: 200 } })).toBe(3);
   });
 });
