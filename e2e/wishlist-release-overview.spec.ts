@@ -7,6 +7,8 @@
  * dropped or made ambiguous to prove the client keeps its idempotency key.
  * No successful mutation payload is fabricated.  The household feature flag
  * and every run-owned row are restored in finally blocks.
+ * The duplicate-name accessibility state is an explicit synthetic display
+ * overlay over real rows; it is reported separately from canonical API data.
  */
 import AxeBuilder from "@axe-core/playwright";
 import { randomUUID } from "node:crypto";
@@ -467,14 +469,35 @@ async function deleteWithKey(page: Page, id: string): Promise<number> {
 
 async function cleanupRunRows(page: Page) {
   const read = await browserFetch(page, "/api/wishlist");
-  if (read.status !== 200) return;
-  const rows = parseItems(read.body).filter((item) =>
-    item.title.startsWith(RUN_PREFIX),
-  );
+  expect(read.status, read.body).toBe(200);
+  const allRows = parseItems(read.body);
+  const rows = allRows.filter((item) => item.title.startsWith(RUN_PREFIX));
+  expect(
+    allRows.filter((item) => !item.title.startsWith(RUN_PREFIX)),
+    "The dedicated Wishlist fixture contains unrelated rows; refusing to delete them",
+  ).toHaveLength(0);
   for (const row of rows) {
     const status = await deleteWithKey(page, row.id);
-    expect([200, 404]).toContain(status);
+    expect(status, `Could not delete owned Wishlist row ${row.id}`).toBe(200);
   }
+
+  const after = await browserFetch(page, "/api/wishlist");
+  expect(after.status, after.body).toBe(200);
+  const leftovers = parseItems(after.body).filter((item) =>
+    item.title.startsWith(RUN_PREFIX),
+  );
+  expect(leftovers, "Owned Wishlist rows remained after cleanup").toHaveLength(
+    0,
+  );
+}
+
+async function assertDedicatedFixtureBaselineEmpty(page: Page) {
+  const read = await browserFetch(page, "/api/wishlist");
+  expect(read.status, read.body).toBe(200);
+  expect(
+    parseItems(read.body),
+    "The dedicated Wishlist fixture must start empty; refusing to delete unrelated rows",
+  ).toHaveLength(0);
 }
 
 async function openRole(
@@ -635,6 +658,7 @@ for (const locale of ["en", "es"] as const) {
           }),
         ).toBeVisible();
         await cleanupRunRows(page);
+        await assertDedicatedFixtureBaselineEmpty(page);
         await page.reload();
         await expect(page.getByText(copy.empty, { exact: true })).toBeVisible();
         await assertTouchTarget(
@@ -718,8 +742,8 @@ for (const locale of ["en", "es"] as const) {
           nodes.map((node) => node.getAttribute("aria-labelledby")),
         );
         expect(new Set(labels).size).toBe(3);
-        await assertPageHealth(page, info, locale, "same-name");
-        await capture(page, info, locale, "same-name");
+        await assertPageHealth(page, info, locale, "same-name-overlay");
+        await capture(page, info, locale, "same-name-overlay");
 
         if (FULL_TRANSPORT_PROJECTS.has(project)) {
           routeState.sameName = false;
