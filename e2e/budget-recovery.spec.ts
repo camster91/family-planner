@@ -608,6 +608,11 @@ for (const locale of ["en", "es"] as const) {
         await expect(
           recoveryDialog.getByLabel(copy.transactionDescription),
         ).toHaveValue("Synthetic draft to preserve");
+        const recoverySubmit = recoveryDialog.getByRole("button", {
+          name: copy.addTransaction,
+        });
+        await expect(recoverySubmit).toBeFocused();
+        await assertTouchTarget(page, recoverySubmit);
 
         // The next synthetic request stays pending. Escape and Cancel must not
         // dismiss the sheet or lose its draft while the mutation is unresolved.

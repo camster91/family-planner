@@ -92,6 +92,26 @@ it('clears the category when the type changes, so it is not saved under the wron
   )
 })
 
+it('associates the external footer submitter with the native form', async () => {
+  const user = userEvent.setup()
+  render(<TransactionForm onClose={noop} onSuccess={noop} />)
+  await screen.findByRole('option', { name: /Food/ })
+
+  const amount = screen.getByLabelText('Amount')
+  const submit = screen.getByRole('button', { name: 'Add transaction' })
+  const form = screen.getByTestId('transaction-form').querySelector('form') as HTMLFormElement
+  expect(submit.closest('form')).toBeNull()
+  expect((submit as HTMLButtonElement).form).toBe(form)
+
+  await user.type(amount, '50')
+  await user.click(submit)
+
+  await waitFor(() => expect(calls.filter((call) => call.method === 'POST')).toHaveLength(1))
+  expect(calls.find((call) => call.method === 'POST')!.body).toEqual(
+    expect.objectContaining({ amount: 50, type: 'expense' }),
+  )
+})
+
 it('normalizes padded description and notes for create and edit responses', async () => {
   const canonical = (value: unknown) => {
     if (value === null || value === undefined) return null
@@ -309,6 +329,39 @@ it('reuses an idempotency key for an ambiguous save retry while keeping the draf
   const secondKey = (calls[2].headers as Record<string, string>)['Idempotency-Key']
   expect(firstKey).toMatch(/^[0-9a-f-]{36}$/)
   expect(secondKey).toBe(firstKey)
+})
+
+it('scrolls a newly inserted save error into the body without moving focus', async () => {
+  const scrollIntoView = jest.fn()
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: scrollIntoView,
+  })
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+    if (url.startsWith('/api/budget/categories')) {
+      return { ok: true, status: 200, json: async () => ({ categories: CATEGORIES.filter((c) => c.type === 'expense') }) } as Response
+    }
+    return {
+      ok: false,
+      status: 422,
+      json: async () => ({ error: { code: 'INVALID_TRANSACTION', message: 'private detail' } }),
+    } as Response
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<TransactionForm onClose={noop} onSuccess={noop} />)
+  await screen.findByRole('option', { name: /Food/ })
+  await user.type(screen.getByLabelText('Amount'), '50')
+  const submit = screen.getByRole('button', { name: 'Add transaction' })
+  await user.click(submit)
+
+  const alert = await screen.findByRole('alert')
+  expect(alert.textContent).toContain('Failed to save transaction')
+  expect(document.activeElement).toBe(submit)
+  expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
 })
 
 it('retains the save intent when a success response is malformed', async () => {
