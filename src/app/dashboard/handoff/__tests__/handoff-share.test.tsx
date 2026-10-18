@@ -232,6 +232,41 @@ describe('handoff share', () => {
     expect(regenerateCalls()).toHaveLength(1)
   })
 
+  it('guards share controls while replacing the current link', async () => {
+    const user = userEvent.setup()
+    let resolveRegeneration!: (response: Response) => void
+    const regeneration = new Promise<Response>((resolve) => {
+      resolveRegeneration = resolve
+    })
+    const originalFetch = global.fetch
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/handoff/h1/regenerate-token' && (init?.method ?? 'GET') === 'POST') {
+        calls.push({ url: String(input), method: 'POST' })
+        return regeneration
+      }
+      return originalFetch(input, init)
+    }) as unknown as typeof fetch
+
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Share with sitter' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Share with sitter' })
+    await user.click(within(dialog).getByRole('button', { name: /Make a new link/ }))
+    await user.click(within(dialog).getByRole('button', { name: 'Make new link' }))
+
+    expect((within(dialog).getByRole('button', { name: /Copy link/ }) as HTMLButtonElement).disabled).toBe(true)
+    expect((within(dialog).getByRole('button', { name: 'Keep current link' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Close handoff sharing' })).toBeNull()
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog', { name: 'Share with sitter' })).toBeTruthy()
+
+    resolveRegeneration(reply({ handoff: { ...handoff, share_token: 'newtoken', share_expires_at: FUTURE } }))
+    await waitFor(() =>
+      expect((within(dialog).getByLabelText('Sitter link') as HTMLInputElement).value).toBe(
+        `${window.location.origin}/handoff/newtoken`
+      )
+    )
+  })
+
   it('an expired link says so and offers a new one', async () => {
     handoff = { ...handoff, share_expires_at: PAST }
     const user = userEvent.setup()

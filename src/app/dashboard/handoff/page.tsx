@@ -478,7 +478,7 @@ function ShareLinkDialog({
   const url = live && token ? shareUrl(token) : null
 
   const copy = () => {
-    if (!url) return
+    if (!url || making) return
     // Called straight from the click, before any await.
     const write = navigator.clipboard?.writeText?.(url)
     if (!write) {
@@ -492,7 +492,7 @@ function ShareLinkDialog({
   }
 
   const nativeShare = () => {
-    if (!url) return
+    if (!url || making) return
     shareAppLink(text('nativeShareTitle', { name: handoff.sitter_name }), url)
       // Dismissing the share sheet rejects; that is not an error.
       .catch(() => undefined)
@@ -501,7 +501,7 @@ function ShareLinkDialog({
   return (
     <Dialog
       open
-      onClose={onClose}
+      onClose={making ? undefined : onClose}
       closeLabel={text('shareClose')}
       title={t('handoff.shareWithSitter')}
       description={text('shareDescription', { name: handoff.sitter_name })}
@@ -527,12 +527,12 @@ function ShareLinkDialog({
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={copy} className="btn-filled flex-1">
+            <button type="button" onClick={copy} disabled={making} className="btn-filled flex-1 disabled:opacity-40">
               <Copy className="w-4 h-4" aria-hidden="true" />
               {t('handoff.copyLink')}
             </button>
             {canNativeShare && (
-              <button type="button" onClick={nativeShare} className="btn-tinted min-h-[44px] flex-1">
+              <button type="button" onClick={nativeShare} disabled={making} className="btn-tinted min-h-[44px] flex-1 disabled:opacity-40">
                 <Share2 className="w-4 h-4" aria-hidden="true" />
                 {text('shareAction')}
               </button>
@@ -550,6 +550,7 @@ function ShareLinkDialog({
           <button
             type="button"
             onClick={() => setConfirmingReset(true)}
+            disabled={making}
             className="btn-ghost min-h-[44px] w-full"
           >
             <RefreshCw className="w-4 h-4" aria-hidden="true" />
@@ -564,6 +565,7 @@ function ShareLinkDialog({
               <button
                 type="button"
                 onClick={() => setConfirmingReset(false)}
+                disabled={making}
                 className="btn-ghost min-h-[44px] flex-1"
               >
                 {text('keepCurrentLink')}
