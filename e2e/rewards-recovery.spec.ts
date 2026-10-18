@@ -60,33 +60,88 @@ async function cleanupReward(
   childXp: number | undefined,
   keys: readonly string[],
 ): Promise<void> {
+  const errors: unknown[] = [];
+  const attempt = async (work: () => Promise<void>): Promise<void> => {
+    try {
+      await work();
+    } catch (error) {
+      errors.push(error);
+    }
+  };
+
   if (id) {
-    await db.query(
-      `DELETE FROM "Reward" WHERE id=$1 AND family_id=$2 AND created_by=$3`,
-      [id, A.family, A.parent],
-    );
+    await attempt(async () => {
+      await db.query(
+        `DELETE FROM "Reward" WHERE id=$1 AND family_id=$2 AND created_by=$3`,
+        [id, A.family, A.parent],
+      );
+    });
   }
   if (name) {
-    await db.query(
-      `DELETE FROM "Notification"
-       WHERE user_id IN (SELECT id FROM "User" WHERE family_id=$1)
-         AND message LIKE $2`,
-      [A.family, `%${name}%`],
-    );
+    await attempt(async () => {
+      await db.query(
+        `DELETE FROM "Notification"
+         WHERE user_id IN (SELECT id FROM "User" WHERE family_id=$1)
+           AND message LIKE $2`,
+        [A.family, `%${name}%`],
+      );
+    });
   }
   if (childXp !== undefined) {
-    await db.query(`UPDATE "User" SET xp=$1 WHERE id=$2 AND family_id=$3`, [
-      childXp,
-      A.child,
-      A.family,
-    ]);
+    await attempt(async () => {
+      await db.query(`UPDATE "User" SET xp=$1 WHERE id=$2 AND family_id=$3`, [
+        childXp,
+        A.child,
+        A.family,
+      ]);
+    });
   }
   if (keys.length) {
-    await db.query(
-      `DELETE FROM "IdempotencyRecord"
-       WHERE family_id=$1 AND user_id = ANY($2::text[]) AND key = ANY($3::text[])`,
-      [A.family, [A.parent, A.child], keys],
-    );
+    await attempt(async () => {
+      await db.query(
+        `DELETE FROM "IdempotencyRecord"
+         WHERE family_id=$1 AND user_id = ANY($2::text[]) AND key = ANY($3::text[])`,
+        [A.family, [A.parent, A.child], keys],
+      );
+    });
+  }
+  if (errors.length === 1) {
+    throw errors[0];
+  }
+  if (errors.length > 1) {
+    throw new AggregateError(errors, "Rewards database cleanup failed");
+  }
+}
+
+async function finishRecoveryCleanup(
+  label: string,
+  routedContext: BrowserContext,
+  setup: FeatureSetup | undefined,
+  cleanup: () => Promise<void>,
+  contexts: readonly BrowserContext[],
+): Promise<void> {
+  const errors: unknown[] = [];
+  const attempt = async (work: () => Promise<void>): Promise<void> => {
+    try {
+      await work();
+    } catch (error) {
+      errors.push(error);
+    }
+  };
+
+  await attempt(() => routedContext.unrouteAll({ behavior: "ignoreErrors" }));
+  await attempt(cleanup);
+  if (setup) {
+    await attempt(() => restoreFeatures(setup));
+  }
+  for (const context of contexts) {
+    await attempt(() => context.close());
+  }
+  if (errors.length === 1) {
+    throw errors[0];
+  }
+  if (errors.length > 1) {
+    throw new AggregateError(errors, `${label} cleanup failed`);
   }
 }
 
@@ -462,6 +517,12 @@ for (const locale of ["en", "es"] as const) {
         await claimButton.click();
         expect((await retryResponse).status()).toBe(200);
         await child.context.unroute("**/api/rewards/claim");
+        await expect(
+          child.page.getByText(
+            locale === "es" ? "🎉 ¡Reclamada!" : "🎉 Claimed!",
+            { exact: true },
+          ),
+        ).toBeVisible();
         expect(claimCalls).toBe(2);
         expect(keys[1]).toBeTruthy();
         expect(keys[2]).toBe(keys[1]);
@@ -498,11 +559,14 @@ for (const locale of ["en", "es"] as const) {
           contentType: "application/json",
         });
       } finally {
-        await child.context.unrouteAll({ behavior: "ignoreErrors" });
-        await withDb((db) => cleanupReward(db, rewardId, name, childXp, keys));
-        if (parentSetup) await restoreFeatures(parentSetup);
-        await child.context.close();
-        await parent.context.close();
+        await finishRecoveryCleanup(
+          "Rewards malformed claim",
+          child.context,
+          parentSetup,
+          () =>
+            withDb((db) => cleanupReward(db, rewardId, name, childXp, keys)),
+          [child.context, parent.context],
+        );
       }
     });
 
@@ -572,6 +636,12 @@ for (const locale of ["en", "es"] as const) {
         const replay = await retryResponse;
         expect(replay.status()).toBe(200);
         expect(replay.headers()["idempotency-replayed"]).toBe("true");
+        await expect(
+          child.page.getByText(
+            locale === "es" ? "🎉 ¡Reclamada!" : "🎉 Claimed!",
+            { exact: true },
+          ),
+        ).toBeVisible();
         expect(calls).toBe(2);
         expect(keys[0]).toBeTruthy();
         expect(keys[1]).toBe(keys[0]);
@@ -600,13 +670,16 @@ for (const locale of ["en", "es"] as const) {
         );
         await assertSurface(child.page, info);
       } finally {
-        await child.context.unrouteAll({ behavior: "ignoreErrors" });
-        if (setup) await restoreFeatures(setup);
-        await withDb((db) =>
-          cleanupReward(db, rewardId, name, childXp, ownedKeys),
+        await finishRecoveryCleanup(
+          "Rewards dropped claim",
+          child.context,
+          setup,
+          () =>
+            withDb((db) =>
+              cleanupReward(db, rewardId, name, childXp, ownedKeys),
+            ),
+          [child.context, parent.context],
         );
-        await child.context.close();
-        await parent.context.close();
       }
     });
 
@@ -715,13 +788,16 @@ for (const locale of ["en", "es"] as const) {
         expect(rowData?.status).toBe("redeemed");
         await assertSurface(parent.page, info);
       } finally {
-        await parent.context.unrouteAll({ behavior: "ignoreErrors" });
-        if (setup) await restoreFeatures(setup);
-        await withDb((db) =>
-          cleanupReward(db, rewardId, name, childXp, ownedKeys),
+        await finishRecoveryCleanup(
+          "Rewards approval",
+          parent.context,
+          setup,
+          () =>
+            withDb((db) =>
+              cleanupReward(db, rewardId, name, childXp, ownedKeys),
+            ),
+          [parent.context, child.context],
         );
-        await child.context.close();
-        await parent.context.close();
       }
     });
   });

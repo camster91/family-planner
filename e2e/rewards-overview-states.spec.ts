@@ -600,7 +600,10 @@ for (const locale of ["en", "es"] as const) {
         if (!claimKey) throw new Error("Claim reward omitted idempotency key");
         ownedKeys.add(claimKey);
         await expect(
-          child.page.getByText(locale === "es" ? "¡Reclamada!" : "🎉 Claimed!"),
+          child.page.getByText(
+            locale === "es" ? "🎉 ¡Reclamada!" : "🎉 Claimed!",
+            { exact: true },
+          ),
         ).toBeVisible();
         await captureState(
           child.page,
