@@ -10,12 +10,13 @@ import { usePendingFormNavigationController } from '@/components/layout/pending-
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 
 interface Note {
   id: string
   title: string
   body: string
-  color: 'yellow' | 'pink' | 'blue'
+  color: 'yellow' | 'pink' | 'blue' | 'green' | 'purple'
   created_at: string
   /** Server-computed D9 permissions; absent only for older compatible clients. */
   can_edit?: boolean
@@ -35,12 +36,24 @@ const noteColors = {
     border: 'border-[var(--tint-messages)]/30',
     header: 'bg-[var(--tint-messages)]',
   },
+  green: { bg: 'bg-[var(--tint-lists)]/20', border: 'border-[var(--tint-lists)]/30', header: 'bg-[var(--tint-lists)]' },
+  purple: { bg: 'bg-[var(--tint-chore)]/20', border: 'border-[var(--tint-chore)]/30', header: 'bg-[var(--tint-chore)]' },
   blue: {
     bg: 'bg-[var(--tint-budget)]/20',
     border: 'border-[var(--tint-budget)]/30',
     header: 'bg-[var(--tint-budget)]',
   },
 }
+
+function isNoteList(value: unknown): value is Note[] {
+  if (!Array.isArray(value)) return false
+  return value.every((note) => note && typeof note === 'object' && typeof note.id === 'string' && note.id.length > 0 &&
+    typeof note.title === 'string' && typeof note.body === 'string' && typeof note.color === 'string' &&
+    typeof note.created_at === 'string' && ['can_edit', 'can_delete'].every((key) => note[key] === undefined || typeof note[key] === 'boolean')) &&
+    new Set(value.map((note) => note.id)).size === value.length
+}
+
+type MutationError = { action: 'save' | 'delete'; raw?: string; fallback: 'common.tryAgain' | 'common.networkError' }
 
 /** The server's `error` text, or null when the body has none. */
 async function serverError(res: Response): Promise<string | null> {
@@ -75,10 +88,13 @@ function NotesFeatureOffState() {
 
 function NotesPageInner() {
   const { t } = useTranslation()
-  const colorOptions: Array<{ key: 'yellow' | 'pink' | 'blue'; label: string }> = [
+  const locale = useDisplayLocale()
+  const colorOptions: Array<{ key: 'yellow' | 'pink' | 'blue' | 'green' | 'purple'; label: string }> = [
     { key: 'yellow', label: t('notes.colorYellow') },
     { key: 'pink', label: t('notes.colorPink') },
     { key: 'blue', label: t('notes.colorBlue') },
+    { key: 'green', label: t('notes.colorGreen') },
+    { key: 'purple', label: t('notes.colorPurple') },
   ]
   const [notes, setNotes] = React.useState<Note[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -89,18 +105,20 @@ function NotesPageInner() {
   // Modal state: 'add' | 'edit' | null
   const [modalState, setModalState] = React.useState<'add' | 'edit' | null>(null)
   const [selectedNote, setSelectedNote] = React.useState<Note | null>(null)
+  const [viewingNote, setViewingNote] = React.useState<Note | null>(null)
+  const [notice, setNotice] = React.useState<'saved' | 'deleted' | 'savedRefreshFailed' | 'deletedRefreshFailed' | null>(null)
 
   // Form state
   const [formTitle, setFormTitle] = React.useState('')
   const [formBody, setFormBody] = React.useState('')
-  const [formColor, setFormColor] = React.useState<'yellow' | 'pink' | 'blue'>('yellow')
+  const [formColor, setFormColor] = React.useState<'yellow' | 'pink' | 'blue' | 'green' | 'purple'>('yellow')
   const [saving, setSaving] = React.useState(false)
   // Keep browser Back on this route while a note save/delete is in flight.
   // Dialog dismissal is disabled separately so Escape/backdrop/close cannot
   // clear a draft before the server answers.
   usePendingFormNavigationController(saving)
   // Why the last save/delete failed; shown in the modal, which stays open.
-  const [modalError, setModalError] = React.useState<string | null>(null)
+  const [modalError, setModalError] = React.useState<MutationError | null>(null)
 
   const fetchNotes = React.useCallback(async (preserveError = false) => {
     try {
@@ -117,11 +135,15 @@ function NotesPageInner() {
       // A successful retry must leave recovery mode. Keep the prior error
       // while the request is pending so the retry remains discoverable, then
       // clear it only after the response body has been accepted.
+      if (!isNoteList(data.notes)) throw new Error('Invalid notes response')
       setError(null)
-      setNotes(data.notes || [])
+      setNotes(data.notes)
+      setNotice(null)
+      return true
     } catch (err) {
       console.error('Error fetching notes:', err)
       setError('load')
+      return false
     } finally {
       setLoading(false)
     }
@@ -190,14 +212,15 @@ function NotesPageInner() {
         return
       }
       if (!res.ok) {
-        setModalError(`${t('notes.errorSave')} ${(await serverError(res)) ?? t('common.tryAgain')}`)
+        setModalError({ action: 'save', raw: (await serverError(res)) ?? undefined, fallback: 'common.tryAgain' })
         return
       }
-      await fetchNotes()
+      const refreshed = await fetchNotes()
+      setNotice(refreshed ? 'saved' : 'savedRefreshFailed')
       resetModal()
     } catch {
       // Network failure: keep the modal and what was typed.
-      setModalError(`${t('notes.errorSave')} ${t('common.networkError')}`)
+      setModalError({ action: 'save', fallback: 'common.networkError' })
     } finally {
       setSaving(false)
     }
@@ -215,25 +238,27 @@ function NotesPageInner() {
         body: JSON.stringify({ id: selectedNote.id }),
       })
       if (!res.ok) {
-        setModalError(`${t('notes.errorDelete')} ${(await serverError(res)) ?? t('common.tryAgain')}`)
+        setModalError({ action: 'delete', raw: (await serverError(res)) ?? undefined, fallback: 'common.tryAgain' })
         return
       }
-      await fetchNotes()
+      const refreshed = await fetchNotes()
+      setNotice(refreshed ? 'deleted' : 'deletedRefreshFailed')
       resetModal()
     } catch {
-      setModalError(`${t('notes.errorDelete')} ${t('common.networkError')}`)
+      setModalError({ action: 'delete', fallback: 'common.networkError' })
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="min-w-0 space-y-6" data-testid="notes-workspace">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-large-title font-display">{t('notes.title')}</h1>
           <p className="text-subhead text-label-secondary mt-0.5">{t('notes.subtitle')}</p>
+          {!loading && !error && <p className="mt-2 text-footnote text-label-secondary">{t(notes.length === 1 ? 'notes.countOne' : 'notes.countMany', { count: notes.length.toLocaleString(locale) })}</p>}
         </div>
         <button
           type="button"
@@ -245,6 +270,8 @@ function NotesPageInner() {
           <span>{t('notes.addNote')}</span>
         </button>
       </div>
+
+      {notice && <p role="status" className="card-apple px-4 py-3 text-subhead text-label-primary">{t(`notes.${notice}`)}</p>}
 
       {/* Content */}
       {error ? (
@@ -277,15 +304,9 @@ function NotesPageInner() {
           icon={NoteIcon}
           glyphColor="gray"
           title={t('notes.empty')}
-          action={
-            <button className="btn-tinted" onClick={openAddModal}>
-              <Plus className="w-4 h-4 mr-2" />
-              {t('notes.addNote')}
-            </button>
-          }
         />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 stagger">
           {notes.map((note) => {
             const colors = noteColors[note.color] ?? noteColors.yellow
             const canEdit = note.can_edit ?? true
@@ -308,7 +329,7 @@ function NotesPageInner() {
                   : {})}
                 className={cn(
                   'card-apple border-[1.5px] overflow-hidden',
-                  'flex flex-col h-[160px]',
+                  'flex min-w-0 flex-col min-h-[160px]',
                   canEdit && 'cursor-pointer',
                   colors.bg,
                   colors.border
@@ -317,44 +338,42 @@ function NotesPageInner() {
                 {/* Colored header strip */}
                 <div className={cn('h-1.5 w-full', colors.header)} />
 
-                {/* Content */}
+                {notice && <p role="status" className="card-apple px-4 py-3 text-subhead text-label-primary">{t(`notes.${notice}`)}</p>}
+
+      {/* Content */}
                 <div className="flex-1 p-4 flex flex-col">
                   <div className="flex items-start gap-2 mb-2">
                     <NoteIcon className="w-4 h-4 text-label-tertiary mt-0.5 shrink-0" />
-                    <h3 className="text-headline text-label-primary line-clamp-1">
+                    <h2 className="min-w-0 text-headline text-label-primary line-clamp-2 [overflow-wrap:anywhere]">
                       {note.title}
-                    </h3>
+                    </h2>
                   </div>
-                  <p className="text-subhead text-label-secondary line-clamp-3 flex-1">
+                  <p className="text-subhead text-label-secondary line-clamp-3 flex-1 whitespace-pre-wrap [overflow-wrap:anywhere]">
                     {note.body}
                   </p>
+                  {!canEdit && <button type="button" onClick={() => setViewingNote(note)} className="btn-plain mt-3 min-h-[44px] min-w-[44px] self-start">{t('notes.readNote')}</button>}
                 </div>
               </div>
             )
           })}
 
-          {/* Add note card */}
-          <button
-            type="button"
-            onClick={openAddModal}
-            className={cn(
-              'card-apple border-2 border-dashed border-[var(--surface-separator)]',
-              'flex flex-col items-center justify-center h-[160px]',
-              'text-label-tertiary hover:border-[var(--accent)] hover:text-[var(--accent)]',
-              'transition-colors duration-[var(--duration-fast)]'
-            )}
-          >
-            <Plus className="w-8 h-8 mb-2" />
-            <span className="text-subhead">{t('notes.newNote')}</span>
-          </button>
+
         </div>
       )}
+
+      <Dialog open={viewingNote !== null} onClose={() => setViewingNote(null)} title={viewingNote?.title ?? t('notes.title')} closeLabel={t('notes.close')} description={t('notes.readOnly')} variant="form">
+        <p className="whitespace-pre-wrap text-body text-label-primary [overflow-wrap:anywhere]">{viewingNote?.body}</p>
+        <button type="button" className="btn-secondary mt-5 min-h-[44px]" onClick={() => setViewingNote(null)}>{t('notes.close')}</button>
+      </Dialog>
 
       {/* Modal */}
       <Dialog
         open={modalState !== null}
         onClose={saving ? undefined : closeModal}
         title={modalState === 'add' ? t('notes.newNote') : formTitle || t('notes.title')}
+        closeLabel={t('notes.close')}
+        variant="form"
+        description={t('notes.subtitle')}
       >
         <div>
             {/* Form */}
@@ -410,7 +429,7 @@ function NotesPageInner() {
                         aria-hidden="true"
                         className="h-2.5 w-2.5 rounded-full"
                         style={{
-                          backgroundColor: opt.key === 'yellow' ? 'var(--tint-meals)' : opt.key === 'pink' ? 'var(--tint-messages)' : 'var(--tint-budget)',
+                          backgroundColor: opt.key === 'yellow' ? 'var(--tint-meals)' : opt.key === 'pink' ? 'var(--tint-messages)' : opt.key === 'blue' ? 'var(--tint-budget)' : opt.key === 'green' ? 'var(--tint-lists)' : 'var(--tint-chore)',
                         }}
                       />
                     </button>
@@ -420,7 +439,7 @@ function NotesPageInner() {
 
               {modalError && (
                 <p role="alert" className="text-footnote text-[var(--danger-text)]">
-                  {modalError}
+                  {t(modalError.action === 'save' ? 'notes.errorSave' : 'notes.errorDelete')} {modalError.raw ?? t(modalError.fallback)}
                 </p>
               )}
             </div>
