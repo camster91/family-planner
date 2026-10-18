@@ -815,7 +815,7 @@ it('reuses the same mutation key when an add is retried with the same draft', as
   expect(keys[0]).toBe(keys[1])
 })
 
-it('keeps an add intent across retryable 409 and 429 responses', async () => {
+it('keeps an add intent across retryable 409, 429, 408, and 425 responses', async () => {
   let attempts = 0
   const keys: string[] = []
   const created = { ...ITEM, id: 'w-retryable', title: 'Skates' }
@@ -834,7 +834,7 @@ it('keeps an add intent across retryable 409 and 429 responses', async () => {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ items: attempts >= 3 ? [ITEM, created] : [ITEM] }),
+          json: async () => ({ items: attempts >= 5 ? [ITEM, created] : [ITEM] }),
         } as Response
       }
       if (url === '/api/wishlist' && method === 'POST') {
@@ -864,6 +864,20 @@ it('keeps an add intent across retryable 409 and 429 responses', async () => {
             json: async () => ({ error: 'Rate limited' }),
           } as Response
         }
+        if (attempts === 3) {
+          return {
+            ok: false,
+            status: 408,
+            json: async () => ({ error: 'Request timed out' }),
+          } as Response
+        }
+        if (attempts === 4) {
+          return {
+            ok: false,
+            status: 425,
+            json: async () => ({ error: 'Too early' }),
+          } as Response
+        }
         return {
           ok: true,
           status: 201,
@@ -890,8 +904,16 @@ it('keeps an add intent across retryable 409 and 429 responses', async () => {
     'wishlist.writeUncertain',
   )
   await user.click(save)
+  expect((await screen.findByRole('alert')).textContent).toContain(
+    'wishlist.writeUncertain',
+  )
+  await user.click(save)
+  expect((await screen.findByRole('alert')).textContent).toContain(
+    'wishlist.writeUncertain',
+  )
+  await user.click(save)
   await waitFor(() => expect(screen.getByText('Skates')).toBeTruthy())
-  expect(keys).toHaveLength(3)
+  expect(keys).toHaveLength(5)
   expect(new Set(keys).size).toBe(1)
 })
 

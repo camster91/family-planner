@@ -215,7 +215,10 @@ function isDefinitiveRefusal(
   details: ServerErrorDetails,
 ): boolean {
   if (!Number.isInteger(status) || status < 400 || status >= 500) return false
-  if (status === 429) return false
+  // These transport failures are ambiguous: the server may have committed
+  // the keyed mutation even though the response did not reach the client.
+  // Keep the key so the next attempt can replay the same effect safely.
+  if (status === 408 || status === 425 || status === 429) return false
   if (status === 409) {
     return details.code !== 'IDEMPOTENCY_IN_PROGRESS' && details.retryable === false
   }
@@ -456,8 +459,8 @@ function WishlistContent() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            // The current API ignores this until receipt support lands. Keep
-            // the stable key so that the UI is ready for that contract.
+            // The API binds this key to the canonical mutation body so a
+            // retry can replay one effect safely.
             'Idempotency-Key': mutationKey,
           },
           body,
