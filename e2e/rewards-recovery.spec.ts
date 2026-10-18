@@ -17,6 +17,7 @@ import {
 } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
+import { rewardsEnglish, rewardsSpanish } from "../src/i18n/rewards";
 import { E2E_ANCHOR, authFile } from "./support/env";
 import { ownFeatureAudit } from "./support/feature-audit";
 import { browserFetch, expect, test } from "./support/test";
@@ -741,7 +742,19 @@ for (const locale of ["en", "es"] as const) {
         const row = parent.page
           .locator('[data-testid="family-reward"]')
           .filter({ hasText: name });
+        if (locale === "es") {
+          await expect(row).toContainText(/\b1 punto\b/);
+          await expect(row).not.toContainText(/\b1 puntos\b/);
+        }
         await row.getByRole("button", { name: new RegExp(name) }).click();
+        await expect(
+          row.getByText(
+            locale === "es"
+              ? rewardsSpanish.connectionErrorDescription
+              : rewardsEnglish.connectionErrorDescription,
+            { exact: true },
+          ),
+        ).toBeVisible();
         await expect(
           row.getByRole("button", {
             name: locale === "es" ? "Intentar de nuevo" : "Try again",
