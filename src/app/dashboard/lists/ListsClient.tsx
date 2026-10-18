@@ -170,7 +170,10 @@ export default function ListsClient({
     ? ["grocery", "todo", "meal_plan", "wishlist", "custom"]
     : ["grocery", "todo", "wishlist", "custom"];
   // Non-food shopping remains available when used, or when directly filtered.
-  if (typeFilter === "shopping" || lists.some((list) => list.type === "shopping")) {
+  if (
+    typeFilter === "shopping" ||
+    lists.some((list) => list.type === "shopping")
+  ) {
     mainTypes.push("shopping");
   }
 
@@ -180,7 +183,9 @@ export default function ListsClient({
         greeting={familyName}
         title={text(typeFilter === "grocery" ? "groceryName" : "title")}
         trailing={
-          canCreate && !loadFailed ? (
+          canCreate &&
+          !loadFailed &&
+          (shown.length > 0 || typeFilter === "meal_plan") ? (
             // Same filled primary "+" as Chores and Calendar.
             <Link
               href={createHref}

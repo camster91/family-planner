@@ -484,3 +484,11 @@ it("keeps mounted filters aligned with incoming URL state", () => {
   );
   expect(mockReplace).not.toHaveBeenCalled();
 });
+
+it("offers one creation action when the selected list type is empty", () => {
+  render(<ListsClient lists={lists} familyName="Home" initialType="custom" />);
+  expect(screen.queryByRole("link", { name: "Add list" })).toBeNull();
+  expect(
+    screen.getByRole("link", { name: "Create List" }).getAttribute("href"),
+  ).toBe("/dashboard/lists/create?type=custom");
+});
