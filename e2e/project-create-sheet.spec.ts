@@ -13,6 +13,7 @@ import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { projectCreateMessages } from "../src/i18n/project-create";
+import { projectOverviewMessages } from "../src/i18n/project-overview";
 import { authFile } from "./support/env";
 import { ownFeatureAudit } from "./support/feature-audit";
 import { browserFetch, browserSend, expect, test } from "./support/test";
@@ -108,7 +109,12 @@ async function openSurface(page: Page, surface: Surface, locale: Locale) {
   const copy = projectCreateMessages[locale];
   if (surface === "sheet") {
     await page.goto("/dashboard/projects");
-    await page.getByRole("link", { name: "New", exact: true }).click();
+    await page
+      .getByRole("link", {
+        name: projectOverviewMessages[locale].newProject,
+        exact: true,
+      })
+      .click();
     const dialog = page.getByRole("dialog", { name: copy.sheetTitle });
     await expect(dialog).toBeVisible();
     await expect(

@@ -41,6 +41,7 @@ import { isFeatureEnabled } from "@/lib/feature-flags";
 import { useTranslation } from "@/i18n";
 import { useFeatureNavTitle } from "@/i18n/feature-nav";
 import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
+import { clearRewardCreateIntents } from "@/lib/reward-create-intent-store";
 import {
   navigationMessages,
   navigationTabKey,
@@ -132,6 +133,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     // to the signed-in session. Clear it before leaving the account, even if
     // the server logout request is unavailable offline.
     clearCaptureRecoveryStorage(undefined);
+    clearRewardCreateIntents();
     try {
       // Offline changes belong to this session; sign-out drops them (#162).
       const { clearAllPersonQueues } =

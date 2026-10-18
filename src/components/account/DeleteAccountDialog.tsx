@@ -16,6 +16,7 @@ import {
 import { downloadMyData } from "@/lib/data-export-client";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
+import { clearRewardCreateIntents } from "@/lib/reward-create-intent-store";
 import {
   ACCOUNT_DELETE_PHRASE,
   confirmationMatches,
@@ -191,6 +192,7 @@ export default function DeleteAccountDialog({
       // The account or household is gone; clear normalized capture titles and
       // grocery/event bodies before the redirect or host callback runs.
       clearCaptureRecoveryStorage(undefined);
+      clearRewardCreateIntents();
       onDeleted(mode);
       return;
     }

@@ -1,19 +1,27 @@
-import { Suspense } from 'react'
-import Link from 'next/link'
-import { getServerUser } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
-import { LargeHeader } from '@/components/ui/large-header'
-import { Glyph } from '@/components/ui/glyph'
-import { EmptyState } from '@/components/ui/empty-state'
-import ProjectCard, { type ProjectCardData } from '@/components/projects/ProjectCard'
-import { FeatureOffState } from '@/components/ui/feature-gate'
-import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
+import { Suspense } from "react";
+import { getServerUser } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
+import type { ProjectCardData } from "@/components/projects/ProjectCard";
+import { FeatureOffState } from "@/components/ui/feature-gate";
+import { isFeatureEnabled, normalizeFeatures } from "@/lib/features";
+import {
+  ProjectNoFamilyState,
+  ProjectsEmptyState,
+  ProjectsHeader,
+  ProjectOverviewSection,
+} from "./ProjectOverviewCopy";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
-async function ProjectsContent({ familyId }: { familyId: string }) {
-  const sessionUser = await getServerUser()
-  if (!sessionUser) return null
+async function ProjectsContent({
+  familyId,
+  isParent,
+}: {
+  familyId: string;
+  isParent: boolean;
+}) {
+  const sessionUser = await getServerUser();
+  if (!sessionUser) return null;
 
   // Fetch projects with task counts and completed counts
   const projects = await prisma!.project.findMany({
@@ -28,80 +36,34 @@ async function ProjectsContent({ familyId }: { familyId: string }) {
         select: { id: true },
       },
     },
-    orderBy: { created_at: 'desc' },
-  })
+    orderBy: { created_at: "desc" },
+  });
 
   // Transform to card-friendly shape
   const projectCards: ProjectCardData[] = projects.map((p) => {
-    const { tasks, _count, ...rest } = p
+    const { tasks, _count, ...rest } = p;
     return {
       ...rest,
-      status: rest.status as 'active' | 'completed' | 'archived',
+      status: rest.status as "active" | "completed" | "archived",
       taskCount: _count.tasks,
       completedTaskCount: tasks.length,
-    }
-  })
+    };
+  });
 
-  const activeProjects = projectCards.filter((p) => p.status === 'active')
-  const completedProjects = projectCards.filter((p) => p.status === 'completed')
-  const archivedProjects = projectCards.filter((p) => p.status === 'archived')
+  const activeProjects = projectCards.filter((p) => p.status === "active");
+  const completedProjects = projectCards.filter(
+    (p) => p.status === "completed",
+  );
+  const archivedProjects = projectCards.filter((p) => p.status === "archived");
 
   return (
     <div className="space-y-8">
-      {/* Active projects */}
-      {activeProjects.length > 0 && (
-        <section>
-          <p className="section-header">Active</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {activeProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Completed projects */}
-      {completedProjects.length > 0 && (
-        <section>
-          <p className="section-header">Completed</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {completedProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Archived projects */}
-      {archivedProjects.length > 0 && (
-        <section>
-          <p className="section-header">Archived</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {archivedProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Empty state */}
-      {projectCards.length === 0 && (
-        <div className="card-apple p-8 text-center">
-          <EmptyState
-            icon={FolderKanban}
-            glyphColor="projects"
-            title="No projects yet"
-            description="Organize family goals, home projects, or any collaborative effort."
-            action={
-              <Link href="/dashboard/projects/create" className="btn-tinted bg-tint-projects text-white px-5 py-2 text-base font-medium">
-                Create Project
-              </Link>
-            }
-          />
-        </div>
-      )}
+      <ProjectOverviewSection status="active" projects={activeProjects} />
+      <ProjectOverviewSection status="completed" projects={completedProjects} />
+      <ProjectOverviewSection status="archived" projects={archivedProjects} />
+      {projectCards.length === 0 && <ProjectsEmptyState isParent={isParent} />}
     </div>
-  )
+  );
 }
 
 function ProjectsSkeleton() {
@@ -114,53 +76,46 @@ function ProjectsSkeleton() {
         ))}
       </div>
     </div>
-  )
+  );
 }
 
-import { FolderKanban } from 'lucide-react'
-
 export default async function ProjectsPage() {
-  const sessionUser = await getServerUser()
-  if (!sessionUser) return null
+  const sessionUser = await getServerUser();
+  if (!sessionUser) return null;
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
     select: { family_id: true, family: { select: { features: true } } },
-  })
+  });
 
   // Server-side gate (route inventory F-2): with Projects off, no project is
   // read, rendered or serialised. The APIs are gated the same way.
-  const familyId = user?.family_id
-  if (familyId && !isFeatureEnabled(normalizeFeatures(user?.family?.features), 'projects')) {
-    return <FeatureOffState featureKey="projects" canManage={sessionUser.role !== 'teen' && sessionUser.role !== 'child'} />
+  const familyId = user?.family_id;
+  const isParent = sessionUser.role === "parent";
+  if (
+    familyId &&
+    !isFeatureEnabled(normalizeFeatures(user?.family?.features), "projects")
+  ) {
+    return (
+      <FeatureOffState
+        featureKey="projects"
+        canManage={sessionUser.role !== "teen" && sessionUser.role !== "child"}
+      />
+    );
   }
 
   return (
     <div className="pb-20">
-      <LargeHeader
-        title="Projects"
-        subtitle="Track family goals and collaborative tasks"
-        className="px-4"
-        trailing={
-          <Link href="/dashboard/projects/create" className="btn-tinted bg-tint-projects text-white px-4 py-2 text-sm font-medium">
-            New
-          </Link>
-        }
-      />
+      <ProjectsHeader isParent={isParent} />
       <div className="px-4 mt-6">
         {familyId ? (
           <Suspense fallback={<ProjectsSkeleton />}>
-            <ProjectsContent familyId={familyId} />
+            <ProjectsContent familyId={familyId} isParent={isParent} />
           </Suspense>
         ) : (
-          <EmptyState
-            icon={FolderKanban}
-            glyphColor="projects"
-            title="No family set up"
-            description="Create or join a family to start managing projects together."
-          />
+          <ProjectNoFamilyState />
         )}
       </div>
     </div>
-  )
+  );
 }

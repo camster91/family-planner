@@ -257,7 +257,7 @@ for (const locale of ["en", "es"] as const) {
       const cleanAudit = await ownFeatureAudit(["gamification", "rewards"]);
       let originalFeatures: Record<string, unknown> | undefined;
       let featureChanged = false;
-      let mode: "failure" | "pending" = "failure";
+      let mode: "failure" | "pending" | "unknown" = "failure";
       let finishPendingRequest:
         ((continueRequest: boolean) => void) | undefined;
 
@@ -282,6 +282,14 @@ for (const locale of ["en", "es"] as const) {
             contentType: "application/json",
             body: JSON.stringify({ error: "Only parents can create rewards" }),
           });
+          return;
+        }
+        if (mode === "unknown") {
+          // Let the real server commit, then drop only the browser response.
+          // The browser must recover the same key after reload.
+          await route.fetch();
+          ownedReceiptKeys.add(idempotencyKey);
+          await route.abort();
           return;
         }
         const continueRequest = await new Promise<boolean>((resolve) => {
@@ -328,13 +336,13 @@ for (const locale of ["en", "es"] as const) {
 
         for (const surface of ["sheet", "direct"] as const) {
           if (surface === "direct") mode = "failure";
-          const form = await openSurface(page, surface, locale);
+          let form = await openSurface(page, surface, locale);
           const copy = rewardCreateMessages[locale];
-          const name = form.getByLabel(new RegExp(copy.name));
-          const description = form.getByLabel(copy.description, {
+          let name = form.getByLabel(new RegExp(copy.name));
+          let description = form.getByLabel(copy.description, {
             exact: false,
           });
-          const submit = form.getByRole("button", { name: copy.create });
+          let submit = form.getByRole("button", { name: copy.create });
           await expect(name).toBeVisible();
           await expect(description).toBeVisible();
           await assertActionGeometry(page, submit);
@@ -353,6 +361,32 @@ for (const locale of ["en", "es"] as const) {
           await expect(description).toHaveValue(
             "Keep this draft while retrying.",
           );
+
+          if (surface === "direct") {
+            mode = "unknown";
+            await submit.click();
+            await expect(form.getByRole("alert")).toContainText(
+              copy.networkError,
+            );
+            await expect(name).toHaveValue(rewardName);
+            await expect(description).toHaveValue(
+              "Keep this draft while retrying.",
+            );
+
+            // Preparation for the process-death/reload proof: the durable
+            // owner envelope must restore both this draft and its key before
+            // the explicit retry below. No automatic dispatch occurs here.
+            await page.reload();
+            form = page.getByTestId("reward-create-form");
+            await expect(form).toBeVisible();
+            name = form.getByLabel(new RegExp(copy.name));
+            description = form.getByLabel(copy.description, { exact: false });
+            submit = form.getByRole("button", { name: copy.create });
+            await expect(name).toHaveValue(rewardName);
+            await expect(description).toHaveValue(
+              "Keep this draft while retrying.",
+            );
+          }
 
           mode = "pending";
           const pendingClick = submit.click();
@@ -436,10 +470,11 @@ for (const locale of ["en", "es"] as const) {
 
           if (surface === "sheet") await page.goto("/dashboard/rewards");
         }
-        expect(postIdempotencyKeys).toHaveLength(4);
-        expect(new Set(postIdempotencyKeys).size).toBe(
-          postIdempotencyKeys.length,
-        );
+        expect(postIdempotencyKeys).toHaveLength(5);
+        // The direct flow deliberately aborts a request after it reaches the
+        // server, reloads, then retries the exact same canonical body/key.
+        expect(postIdempotencyKeys[3]).toBe(postIdempotencyKeys[4]);
+        expect(new Set(postIdempotencyKeys).size).toBe(4);
         for (const key of postIdempotencyKeys) {
           expect(isValidIdempotencyKey(key)).toBe(true);
         }
@@ -450,7 +485,7 @@ for (const locale of ["en", "es"] as const) {
             postCount: postBodies.length,
             idempotencyKeys: postIdempotencyKeys,
             transport:
-              "Each refusal was synthetic; each pending retry continued to the real authenticated POST, read the persisted reward through GET, and cleaned only the exact fixture-owned rows.",
+              "Refusals are synthetic; the direct flow also loses one keyed response, reloads the durable draft, retries the same key, reads the persisted reward through GET, and cleans only exact fixture-owned rows.",
           }),
           contentType: "application/json",
         });
