@@ -17,7 +17,7 @@ jest.mock('../TransactionForm', () => ({
     onDeleted?: (transactionId?: string) => void
   }) => (
     <>
-      <button type="button" data-testid="mock-transaction-success" onClick={() => onSuccess(MOCK_SAVED_TRANSACTION)}>
+      <button type="button" data-testid="mock-transaction-success" onClick={() => onSuccess(mockSavedTransaction)}>
         Mock transaction saved
       </button>
       <button type="button" data-testid="mock-transaction-delete" onClick={() => onDeleted?.('tx-1')}>
@@ -67,9 +67,20 @@ const MOCK_SAVED_TRANSACTION = transaction({
   description: 'Confirmed saved row',
 })
 
+let mockSavedTransaction = MOCK_SAVED_TRANSACTION
+
+const FULL_RECENT_WINDOW = Array.from({ length: 10 }, (_, index) =>
+  transaction({
+    id: `recent-${index}`,
+    description: `Recent ${index}`,
+    date: `2026-10-${String(18 - index).padStart(2, '0')}T00:00:00.000Z`,
+  })
+)
+
 let fetchMock: jest.Mock
 
 beforeEach(() => {
+  mockSavedTransaction = MOCK_SAVED_TRANSACTION
   fetchMock = jest.fn(async () => ({ ok: true, json: async () => pageData() }))
   global.fetch = fetchMock as unknown as typeof fetch
 })
@@ -207,6 +218,59 @@ it('keeps the confirmed saved row and marks stale totals until a GET catches up'
     ok: true,
     status: 200,
     json: async () => pageData({ recent_transactions: [] }),
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={pageData({ recent_transactions: [] })} userId="u1" />)
+  await user.click(screen.getAllByRole('button', { name: 'Add expense' })[0]!)
+  await user.click(screen.getByTestId('mock-transaction-success'))
+
+  expect(await screen.findByText('Confirmed saved row')).toBeTruthy()
+  expect((await screen.findByRole('alert')).textContent).toContain('Transaction saved')
+  expect(screen.getByRole('button', { name: 'Retry budget refresh' })).toBeTruthy()
+})
+
+it('accepts canonical aggregates when a confirmed backdated save falls outside the recent window', async () => {
+  mockSavedTransaction = transaction({
+    id: 'tx-saved',
+    description: 'Confirmed saved row',
+    date: '2026-09-01T00:00:00.000Z',
+  })
+  fetchMock = jest.fn().mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => pageData({
+      total_expenses: 999,
+      recent_transactions: FULL_RECENT_WINDOW,
+    }),
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={pageData({ recent_transactions: [] })} userId="u1" />)
+  await user.click(screen.getAllByRole('button', { name: 'Add expense' })[0]!)
+  await user.click(screen.getByTestId('mock-transaction-success'))
+
+  await waitFor(() => expect(screen.getByText('$999.00')).toBeTruthy())
+  expect(screen.queryByText('Confirmed saved row')).toBeNull()
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.getByText('Recent 0')).toBeTruthy()
+})
+
+it('keeps a confirmed row when a full recent window could still contain it', async () => {
+  mockSavedTransaction = transaction({
+    id: 'tx-saved',
+    description: 'Confirmed saved row',
+    date: '2026-10-17T00:00:00.000Z',
+  })
+  fetchMock = jest.fn().mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => pageData({
+      total_expenses: 999,
+      recent_transactions: FULL_RECENT_WINDOW,
+    }),
   })
   global.fetch = fetchMock as unknown as typeof fetch
 

@@ -11,7 +11,7 @@ import { LargeHeader } from '@/components/ui/large-header'
 import TransactionForm from './TransactionForm'
 import { formatDateOnly, formatRelativePastDate, toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 import { useMaybeToast } from '@/components/ui/toast'
-import { budgetProgress } from '@/lib/budget'
+import { budgetProgress, RECENT_TRANSACTIONS_LIMIT } from '@/lib/budget'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { useBudgetText } from '@/i18n/budget'
 import type { BudgetPageData } from '@/app/dashboard/budget/page'
@@ -228,6 +228,24 @@ function sameTransaction(left: Transaction, right: Transaction): boolean {
   )
 }
 
+/**
+ * The stats endpoint returns the ten newest household rows, while its
+ * aggregates cover the full requested month. An absent confirmed row is
+ * therefore meaningful only when the response is shorter than that bounded
+ * recent window, or when the row would still belong in the returned window.
+ * A row older than every full-window result is validly omitted and must not
+ * be kept as a phantom optimistic row forever.
+ */
+function isOutsideRecentWindow(rows: Transaction[], transaction: Transaction): boolean {
+  if (rows.length < RECENT_TRANSACTIONS_LIMIT) return false
+  const confirmedDay = toDateOnlyUTC(transaction.date)
+  const oldestDay = rows.reduce<string | null>((oldest, row) => {
+    const day = toDateOnlyUTC(row.date)
+    return oldest === null || day < oldest ? day : oldest
+  }, null)
+  return oldestDay !== null && confirmedDay < oldestDay
+}
+
 function pendingMutationKind(mutations: Map<string, ConfirmedMutation>): ConfirmedMutation['kind'] | null {
   for (const mutation of mutations.values()) {
     if (mutation.kind === 'saved') return 'saved'
@@ -245,7 +263,8 @@ function reconcileConfirmedMutations(
   nextData: NormalizedBudgetData,
   mutations: Map<string, ConfirmedMutation>,
 ): { data: NormalizedBudgetData; unresolved: boolean; notice: ConfirmedMutation['kind'] | null } {
-  const rows = [...nextData.recent_transactions] as Transaction[]
+  const serverRows = [...nextData.recent_transactions] as Transaction[]
+  const rows = [...serverRows]
   let unresolved = false
 
   for (const [id, mutation] of mutations) {
@@ -262,8 +281,14 @@ function reconcileConfirmedMutations(
 
     const confirmed = mutation.transaction
     if (index < 0) {
-      rows.unshift(confirmed)
-      unresolved = true
+      if (isOutsideRecentWindow(serverRows, confirmed)) {
+        // This is a valid bounded omission. Accept the canonical aggregates
+        // and recent list instead of retaining an unresolvable phantom row.
+        mutations.delete(id)
+      } else {
+        rows.unshift(confirmed)
+        unresolved = true
+      }
     } else if (!sameTransaction(rows[index]!, confirmed)) {
       rows[index] = confirmed
       unresolved = true
