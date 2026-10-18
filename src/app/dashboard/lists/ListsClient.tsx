@@ -167,8 +167,12 @@ export default function ListsClient({
   // only while the household still has such lists, which keep opening as before.
   const hasMealPlanLists = lists.some((l) => l.type === "meal_plan");
   const mainTypes: ListTypeKey[] = hasMealPlanLists
-    ? ["grocery", "todo", "meal_plan", "wishlist", "custom", "shopping"]
-    : ["grocery", "todo", "wishlist", "custom", "shopping"];
+    ? ["grocery", "todo", "meal_plan", "wishlist", "custom"]
+    : ["grocery", "todo", "wishlist", "custom"];
+  // Non-food shopping remains available when used, or when directly filtered.
+  if (typeFilter === "shopping" || lists.some((list) => list.type === "shopping")) {
+    mainTypes.push("shopping");
+  }
 
   return (
     <div className="pb-20">
