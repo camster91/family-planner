@@ -627,7 +627,7 @@ for (const locale of ["en", "es"] as const) {
           recoveryDialog.getByRole("button", { name: copy.transactionCancel }),
         ).toBeDisabled();
         await expect(
-          recoveryDialog.getByRole("button", { name: copy.addTransaction }),
+          recoveryDialog.getByRole("button", { name: copy.transactionSaving }),
         ).toBeDisabled();
         await expect(recoveryDialog.getByLabel("Close")).toHaveCount(0);
         await page.keyboard.press("Escape");
