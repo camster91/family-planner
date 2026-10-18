@@ -12,20 +12,62 @@ import { ToastProvider } from '@/components/ui/toast'
 
 let mockLocale = 'en'
 let mockLocaleRerender: (() => void) | null = null
-const mockT = (key: string) => {
-  if (mockLocale === 'es' && key === 'handoff.errorLoad') return 'No se pudo cargar'
-  return key
+let mockLocaleRerenders: Array<() => void> = []
+const baseCopy = {
+  en: {
+    'handoff.errorLoad': 'Could not load',
+    'handoff.shareWithSitter': 'Share with sitter',
+    'handoff.copyLink': 'Copy link',
+    'handoff.linkCopied': 'Link copied',
+    'handoff.editHandoff': 'Edit handoff',
+    'handoff.print': 'Print',
+    'handoff.sitterName': 'Sitter name',
+    'handoff.deleteHandoff': 'Delete handoff',
+    'common.save': 'Save',
+    'common.saving': 'Saving…',
+  },
+  es: {
+    'handoff.errorLoad': 'No se pudo cargar',
+    'handoff.shareWithSitter': 'Compartir con la niñera',
+    'handoff.copyLink': 'Copiar enlace',
+    'handoff.linkCopied': 'Enlace copiado',
+    'handoff.editHandoff': 'Editar entrega',
+    'handoff.print': 'Imprimir',
+    'handoff.sitterName': 'Nombre del cuidador',
+    'handoff.deleteHandoff': 'Eliminar entrega',
+    'common.save': 'Guardar',
+    'common.saving': 'Guardando…',
+  },
+} as const
+
+const mockT = (
+  key: string,
+  params?: Record<string, string | number>,
+  scoped?: Record<string, Record<string, string>>,
+) => {
+  const scopedMessage = scoped?.[mockLocale]?.[key]
+  const message = scopedMessage ?? baseCopy[mockLocale as 'en' | 'es'][key as keyof (typeof baseCopy)['en']] ?? key
+  return message.replace(/\{(\w+)\}/g, (_, name) => String(params?.[name] ?? `{${name}}`))
 }
 jest.mock('@/i18n', () => ({
   useTranslation: () => {
     const [, setRender] = React.useState(0)
+    const rerender = React.useCallback(() => setRender((value) => value + 1), [])
     React.useEffect(() => {
-      mockLocaleRerender = () => setRender((value) => value + 1)
+      mockLocaleRerenders.push(rerender)
+      mockLocaleRerender = () => mockLocaleRerenders.forEach((refresh) => refresh())
       return () => {
-        mockLocaleRerender = null
+        mockLocaleRerenders = mockLocaleRerenders.filter((refresh) => refresh !== rerender)
+        mockLocaleRerender = mockLocaleRerenders.length
+          ? () => mockLocaleRerenders.forEach((refresh) => refresh())
+          : null
       }
-    }, [])
-    return { t: (key: string) => mockT(key) }
+    }, [rerender])
+    return {
+      locale: mockLocale,
+      t: (key: string, params?: Record<string, string | number>, scoped?: Record<string, Record<string, string>>) =>
+        mockT(key, params, scoped),
+    }
   },
 }))
 jest.mock('@/components/ui/feature-gate', () => ({
@@ -41,6 +83,7 @@ let handoff: Record<string, unknown>
 let calls: { url: string; method: string }[]
 let role: string
 let failNextHandoffLoad: boolean
+let malformedNextHandoffLoad: boolean
 
 const reply = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body }) as Response
 
@@ -48,8 +91,10 @@ beforeEach(() => {
   calls = []
   role = 'parent'
   failNextHandoffLoad = false
+  malformedNextHandoffLoad = false
   mockLocale = 'en'
   mockLocaleRerender = null
+  mockLocaleRerenders = []
   handoff = {
     id: 'h1',
     sitter_name: 'Sarah',
@@ -67,6 +112,10 @@ beforeEach(() => {
       if (failNextHandoffLoad) {
         failNextHandoffLoad = false
         return reply({ error: 'temporary failure' }, 503)
+      }
+      if (malformedNextHandoffLoad) {
+        malformedNextHandoffLoad = false
+        return reply({ handoffs: { id: 'not-a-list' } })
       }
       return reply({ handoffs: [handoff] })
     }
@@ -92,7 +141,7 @@ describe('handoff share', () => {
     failNextHandoffLoad = true
     renderPage()
 
-    expect((await screen.findByRole('alert')).textContent).toContain('handoff.errorLoad')
+    expect((await screen.findByRole('alert')).textContent).toContain('Could not load')
     expect(calls.filter((call) => call.url === '/api/handoff')).toHaveLength(1)
 
     mockLocale = 'es'
@@ -107,7 +156,7 @@ describe('handoff share', () => {
     const user = userEvent.setup()
     renderPage()
 
-    expect((await screen.findByRole('alert')).textContent).toContain('handoff.errorLoad')
+    expect((await screen.findByRole('alert')).textContent).toContain('Could not load')
     const retry = screen.getByRole('button', { name: 'routeState.tryAgain' })
     expect(retry.className).toMatch(/min-h-\[44px\]/)
 
@@ -118,11 +167,23 @@ describe('handoff share', () => {
     expect(calls.filter((call) => call.url === '/api/handoff')).toHaveLength(2)
   })
 
+  it('treats a malformed successful list as recoverable instead of rendering it', async () => {
+    malformedNextHandoffLoad = true
+    const user = userEvent.setup()
+    renderPage()
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Could not load')
+    expect(screen.queryByText('Sarah')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'routeState.tryAgain' }))
+    expect(await screen.findByText('Sarah')).toBeTruthy()
+    expect(calls.filter((call) => call.url === '/api/handoff')).toHaveLength(2)
+  })
+
   it('shows the existing link without making a new one, and Copy copies it within the tap', async () => {
     const user = userEvent.setup()
     const writeText = jest.spyOn(navigator.clipboard, 'writeText')
     renderPage()
-    await user.click(await screen.findByRole('button', { name: 'handoff.shareWithSitter' }))
+    await user.click(await screen.findByRole('button', { name: 'Share with sitter' }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Share with sitter' })
     const field = within(dialog).getByLabelText('Sitter link') as HTMLInputElement
@@ -138,15 +199,15 @@ describe('handoff share', () => {
     expect(await screen.findByText('Link copied')).toBeTruthy()
 
     // Opening Share again still keeps the sitter's link.
-    await user.click(within(dialog).getByRole('button', { name: 'Close' }))
-    await user.click(screen.getByRole('button', { name: 'handoff.shareWithSitter' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Close handoff sharing' }))
+    await user.click(screen.getByRole('button', { name: 'Share with sitter' }))
     expect(regenerateCalls()).toHaveLength(0)
   })
 
   it('makes a new link only after a warned confirmation', async () => {
     const user = userEvent.setup()
     renderPage()
-    await user.click(await screen.findByRole('button', { name: 'handoff.shareWithSitter' }))
+    await user.click(await screen.findByRole('button', { name: 'Share with sitter' }))
     const dialog = await screen.findByRole('dialog', { name: 'Share with sitter' })
 
     await user.click(within(dialog).getByRole('button', { name: /Make a new link/ }))
@@ -171,7 +232,7 @@ describe('handoff share', () => {
     handoff = { ...handoff, share_expires_at: PAST }
     const user = userEvent.setup()
     renderPage()
-    await user.click(await screen.findByRole('button', { name: 'handoff.shareWithSitter' }))
+    await user.click(await screen.findByRole('button', { name: 'Share with sitter' }))
     const dialog = await screen.findByRole('dialog', { name: 'Share with sitter' })
 
     expect(within(dialog).getByText(/This link has expired/)).toBeTruthy()
@@ -182,16 +243,62 @@ describe('handoff share', () => {
     expect(regenerateCalls()).toHaveLength(1)
   })
 
+  it('localizes the share controls in Spanish', async () => {
+    mockLocale = 'es'
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Compartir con la niñera' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Compartir con la niñera' })
+    expect(within(dialog).getByLabelText('Enlace para la niñera')).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'Copiar enlace' })).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'Crear enlace nuevo' })).toBeTruthy()
+  })
+
   it('card actions are 44px and the edit form is a labelled dialog', async () => {
     const user = userEvent.setup()
     renderPage()
-    for (const name of ['handoff.shareWithSitter', 'handoff.print', 'handoff.editHandoff']) {
+    for (const name of ['Share with sitter', 'Print', 'Edit handoff']) {
       expect((await screen.findByRole('button', { name })).className).toMatch(/h-11 w-11/)
     }
-    await user.click(screen.getByRole('button', { name: 'handoff.editHandoff' }))
-    const dialog = screen.getByRole('dialog', { name: 'handoff.editHandoff' })
-    expect((within(dialog).getByLabelText('handoff.sitterName') as HTMLInputElement).value).toBe('Sarah')
-    await user.click(within(dialog).getByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: 'Edit handoff' }))
+    const dialog = screen.getByRole('dialog', { name: 'Edit handoff' })
+    expect((within(dialog).getByLabelText('Sitter name') as HTMLInputElement).value).toBe('Sarah')
+    expect(within(dialog).getByTestId('handoff-form-footer')).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'Save' }).getAttribute('form')).toBe('handoff-edit-form')
+    await user.click(within(dialog).getByRole('button', { name: 'Close handoff form' }))
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('keeps the edit draft and blocks a second save while the request is pending', async () => {
+    const user = userEvent.setup()
+    let resolveSave!: (response: Response) => void
+    const saveResponse = new Promise<Response>((resolve) => {
+      resolveSave = resolve
+    })
+    const originalFetch = global.fetch
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/handoff/h1' && (init?.method ?? 'GET') === 'PATCH') {
+        calls.push({ url: String(input), method: 'PATCH' })
+        return saveResponse
+      }
+      return originalFetch(input, init)
+    }) as unknown as typeof fetch
+
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Edit handoff' }))
+    const dialog = screen.getByRole('dialog', { name: 'Edit handoff' })
+    const sitter = within(dialog).getByLabelText('Sitter name') as HTMLInputElement
+    await user.clear(sitter)
+    await user.type(sitter, 'Draft sitter')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    const saving = within(dialog).getByRole('button', { name: 'Saving…' }) as HTMLButtonElement
+    expect(saving.disabled).toBe(true)
+    expect(sitter.value).toBe('Draft sitter')
+    expect(calls.filter((call) => call.url === '/api/handoff/h1' && call.method === 'PATCH')).toHaveLength(1)
+
+    resolveSave(reply({ handoff }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit handoff' })).toBeNull())
   })
 })

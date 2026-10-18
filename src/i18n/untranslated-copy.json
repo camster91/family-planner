@@ -221,11 +221,6 @@
   },
   {
     "file": "src/app/dashboard/handoff/page.tsx",
-    "text": ". It opens the handoff without signing in.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
     "text": "(555) 123-4567",
     "count": 1
   },
@@ -242,11 +237,6 @@
   {
     "file": "src/app/dashboard/handoff/page.tsx",
     "text": "Any other notes for the sitter...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Copy link",
     "count": 1
   },
   {
@@ -282,71 +272,6 @@
   {
     "file": "src/app/dashboard/handoff/page.tsx",
     "text": "e.g. Thermostat, TV codes, alarm code...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Keep current link",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Make a new link",
-    "count": 3
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Make a new link to share.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Make new link",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Making\u2026",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Send this link to",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Share with sitter",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Share\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Sitter link",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "The link you already sent will stop working. Make a new one?",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "There is no link yet.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "This link has expired.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Works until",
     "count": 1
   },
   {
