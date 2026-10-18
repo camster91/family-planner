@@ -8,6 +8,7 @@
 import fs from 'fs'
 import path from 'path'
 import { messages } from '@/i18n'
+import { emergencyMessages } from '@/i18n/emergency'
 
 const SRC = path.join(__dirname, '..', '..')
 
@@ -68,15 +69,24 @@ describe('translation keys', () => {
 
   it('every literal t() key used in src exists as an English string', () => {
     const missing = [...usedKeys()]
-      .filter(([key]) => typeof lookup(messages.en, key) !== 'string')
+      .filter(([key, files]) => files.some(file => {
+        // Only this route receives the scoped Emergency translator. Other
+        // files must still resolve against the global dictionary.
+        const routeMessage = file === 'app/dashboard/emergency/page.tsx'
+          ? lookup(emergencyMessages.en, key)
+          : undefined
+        return typeof routeMessage !== 'string' && typeof lookup(messages.en, key) !== 'string'
+      }))
       .map(([key, files]) => `${key} (${[...new Set(files)].join(', ')})`)
     expect(missing).toEqual([])
   })
 
   it('Spanish has the same keys as English', () => {
-    const en = leafKeys(messages.en).sort()
-    const es = leafKeys(messages.es).sort()
-    expect(es.filter((k) => !en.includes(k))).toEqual([])
-    expect(en.filter((k) => !es.includes(k))).toEqual([])
+    for (const catalog of [messages, emergencyMessages]) {
+      const en = leafKeys(catalog.en).sort()
+      const es = leafKeys(catalog.es).sort()
+      expect(es.filter((k) => !en.includes(k))).toEqual([])
+      expect(en.filter((k) => !es.includes(k))).toEqual([])
+    }
   })
 })
