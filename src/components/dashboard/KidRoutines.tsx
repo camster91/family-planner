@@ -5,6 +5,7 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RoutineIcon } from "@/components/chores/RoutineIcon";
 import type { RoutineGroup } from "@/lib/routine-icons";
+import { useKidHomeText } from "@/i18n/kid-home";
 
 export interface RoutineStep {
   id: string;
@@ -44,6 +45,7 @@ export default function KidRoutines({
   tickedIds,
   onComplete,
 }: KidRoutinesProps) {
+  const kidHomeText = useKidHomeText();
   // Routine names are free text, so headings get ids from position, not name:
   // "After school" and "After-school" (or two non-Latin names) stay distinct.
   const idPrefix = React.useId();
@@ -90,11 +92,16 @@ export default function KidRoutines({
                 className="text-subhead text-label-secondary shrink-0"
                 data-testid="routine-progress"
               >
-                {allDone ? "All done" : `${doneCount} of ${total} done`}
+                {allDone
+                  ? kidHomeText("allDone")
+                  : kidHomeText("progressDone", {
+                      done: doneCount,
+                      total,
+                    })}
               </p>
             </div>
             <progress
-              aria-label={`${routine.name} progress`}
+              aria-label={kidHomeText("progressLabel", { name: routine.name })}
               value={doneCount}
               max={total}
               className="mb-5 h-1.5 w-full appearance-none overflow-hidden rounded-full [&::-webkit-progress-bar]:bg-[var(--surface-fill)] [&::-webkit-progress-value]:bg-[var(--accent-fill)] [&::-moz-progress-bar]:bg-[var(--accent-fill)]"
@@ -107,14 +114,16 @@ export default function KidRoutines({
                 const rejection = !done ? step.verified_notes?.trim() : null;
                 const spoken = [
                   step.title,
-                  `step ${i + 1} of ${total}`,
-                  rejection ? `Have another go: ${rejection}` : null,
+                  kidHomeText("stepOf", { step: i + 1, total }),
+                  rejection
+                    ? `${kidHomeText("haveAnotherGo")}: ${rejection}`
+                    : null,
                   state === "next"
-                    ? "next step"
+                    ? kidHomeText("nextStep")
                     : state === "waiting"
-                      ? "done, waiting for a parent to check"
+                      ? kidHomeText("doneWaiting")
                       : state === "checked"
-                        ? "done, checked by a parent"
+                        ? kidHomeText("doneChecked")
                         : null,
                 ]
                   .filter(Boolean)
@@ -153,7 +162,7 @@ export default function KidRoutines({
                           >
                             <path d="M6 11 1 5h3V1h4v4h3z" />
                           </svg>
-                          Next
+                          {kidHomeText("next")}
                         </span>
                       )}
                       <span className="relative" aria-hidden>
@@ -188,7 +197,7 @@ export default function KidRoutines({
                           aria-hidden
                         >
                           <span className="block font-semibold">
-                            Have another go
+                            {kidHomeText("haveAnotherGo")}
                           </span>
                           <span className="block">{rejection}</span>
                         </span>
@@ -198,11 +207,13 @@ export default function KidRoutines({
                           className="text-footnote font-semibold text-label-primary"
                           aria-hidden
                         >
-                          <span className="block">Done</span>
+                          <span className="block">
+                            {kidHomeText("done")}
+                          </span>
                           <span className="block mt-1 text-[12px] font-medium text-label-secondary">
                             {state === "waiting"
-                              ? "Waiting for a parent"
-                              : "Checked by a parent"}
+                              ? kidHomeText("waitingForParent")
+                              : kidHomeText("checkedByParent")}
                           </span>
                         </span>
                       )}

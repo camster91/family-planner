@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/toast";
 import { setChoreDone } from "@/lib/chore-tick-client";
 import {
-  formatRelativePastDate,
+  formatDateOnly,
   isDueToday,
   toDateOnlyLocal,
   toDateOnlyUTC,
@@ -31,6 +31,7 @@ import KidRoutines from "./KidRoutines";
 import { useLocalNow } from "@/components/ui/use-hydrated";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { useRewardsText } from "@/i18n/rewards";
+import { useKidHomeText } from "@/i18n/kid-home";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import Link from "next/link";
 
@@ -80,13 +81,18 @@ interface KidHomeProps {
 
 // Both helpers use the viewer's zone, so they are only called after hydration
 // (useLocalNow is non-null): the server renders in UTC (O-31).
-function formatRelativeDate(dateStr: string, now: Date, locale: string): string {
+function formatRelativeDate(
+  dateStr: string,
+  now: Date,
+  locale: string,
+  labels: Readonly<{ today: string; tomorrow: string }>,
+): string {
   const date = new Date(dateStr);
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  if (date.toDateString() === now.toDateString()) return "Today";
-  if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+  if (date.toDateString() === now.toDateString()) return labels.today;
+  if (date.toDateString() === tomorrow.toDateString()) return labels.tomorrow;
   return date.toLocaleDateString(locale, { month: "short", day: "numeric" });
 }
 
@@ -101,9 +107,26 @@ const OPEN_STATUSES = new Set(["pending", "in_progress", "overdue"]);
 const isOpen = (c: Chore) => OPEN_STATUSES.has(c.status);
 
 /** "Was due yesterday" / "Was due Jan 3": a plain fact, no scolding (BRAND.md). */
-function wasDueLabel(dueDate: string, now: Date): string {
-  const label = formatRelativePastDate(dueDate, now);
-  return `Was due ${label === "Yesterday" ? "yesterday" : label}`;
+function wasDueLabel(
+  dueDate: string,
+  now: Date,
+  locale: string,
+  labels: Readonly<{
+    today: string;
+    yesterday: string;
+    wasDue: (date: string) => string;
+  }>,
+): string {
+  const day = toDateOnlyUTC(dueDate);
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const label =
+    day === toDateOnlyLocal(now)
+      ? labels.today
+      : day === toDateOnlyLocal(yesterday)
+        ? labels.yesterday
+        : formatDateOnly(dueDate, undefined, locale);
+  return labels.wasDue(label);
 }
 
 /** How long the "You did it!" celebration stays before settling into "All done". */
@@ -151,6 +174,7 @@ export default function KidHome({
   workPreviewLimited = false,
 }: KidHomeProps) {
   const displayLocale = useDisplayLocale();
+  const kidHomeText = useKidHomeText();
   const rewardsText = useRewardsText();
   const pointsUnit = (count: number) => rewardsText(count === 1 ? "point" : "points");
   const [celebratingReward, setCelebratingReward] = useState<string | null>(
@@ -494,8 +518,8 @@ export default function KidHome({
         const data = await res.json().catch(() => ({}));
         addToast({
           type: "error",
-          title: "Couldn't mark it done",
-          message: data.error || "Please try again.",
+          title: kidHomeText("markDoneError"),
+          message: data.error || kidHomeText("tryAgain"),
         });
         return;
       }
@@ -503,8 +527,8 @@ export default function KidHome({
       rollback();
       addToast({
         type: "error",
-        title: "Couldn't mark it done",
-        message: "Check your connection and try again.",
+        title: kidHomeText("markDoneError"),
+        message: kidHomeText("connectionError"),
       });
       return;
     } finally {
@@ -522,8 +546,10 @@ export default function KidHome({
     // Undo over confirm (#269): a mis-tap is one tap to reverse.
     const title = (chores ?? []).find((c) => c.id === choreId)?.title;
     showUndo({
-      title: title ? `“${title}” done` : "Done",
-      message: "A parent will check it.",
+      title: title
+        ? kidHomeText("doneToast", { title })
+        : kidHomeText("done"),
+      message: kidHomeText("parentWillCheck"),
       onUndo: async () => {
         const result = await setChoreDone(choreId, false);
         if (result.ok) {
@@ -540,7 +566,7 @@ export default function KidHome({
         } else
           addToast({
             type: "error",
-            title: "Couldn't undo",
+            title: kidHomeText("undoError"),
             message: result.message,
           });
       },
@@ -603,7 +629,9 @@ export default function KidHome({
           )}
           {!isDone && chore.verified_notes?.trim() && (
             <div className="text-footnote text-label-secondary mt-1 [overflow-wrap:anywhere]">
-              <span className="block font-semibold">Have another go</span>
+              <span className="block font-semibold">
+                {kidHomeText("haveAnotherGo")}
+              </span>
               <span className="block">{chore.verified_notes.trim()}</span>
             </div>
           )}
@@ -618,7 +646,7 @@ export default function KidHome({
         </div>
         {isDone && (
           <span className="text-body text-success-text font-medium shrink-0">
-            You did it!
+            {kidHomeText("didIt")}
           </span>
         )}
       </button>
@@ -631,7 +659,9 @@ export default function KidHome({
     <div className="mx-auto max-w-4xl pb-28 md:pb-20">
       <header className="mb-5 flex items-center justify-between gap-4">
         <h1 className="min-w-0 font-display text-[30px] font-semibold leading-tight tracking-tight text-label-primary [overflow-wrap:anywhere] md:text-[40px]">
-          {`Hi, ${firstName(user?.name) ?? "there"}!`}
+          {kidHomeText("greeting", {
+            name: firstName(user?.name) ?? kidHomeText("greetingFallback"),
+          })}
         </h1>
         <Avatar name={user?.name ?? "?"} src={user?.avatar_url} size="lg" />
       </header>
@@ -639,8 +669,7 @@ export default function KidHome({
       <div ref={contentRef} className="space-y-5 md:space-y-6">
         {workPreviewLimited && (
           <p role="status" className="text-footnote text-label-secondary">
-            Showing a limited set of your chores. A parent can help you find any
-            others.
+            {kidHomeText("limitedWork")}
           </p>
         )}
 
@@ -663,7 +692,7 @@ export default function KidHome({
         {/* Today's Chores */}
         {todayChores.length > 0 && (
           <section>
-            <p className="section-header">Today&apos;s Missions</p>
+            <p className="section-header">{kidHomeText("todayMissions")}</p>
             <div className="list-inset" id="today-missions">
               {todayChores.map((chore, i) => (
                 <div
@@ -682,7 +711,9 @@ export default function KidHome({
                 onClick={() => setShowToday((show) => !show)}
                 className="min-h-[44px] px-4 text-body text-label-primary focus-visible:outline"
               >
-                {showToday ? "Show less" : `Show more (${hiddenToday})`}
+                {showToday
+                  ? kidHomeText("showLess")
+                  : kidHomeText("showMore", { count: hiddenToday })}
               </button>
             )}
           </section>
@@ -691,7 +722,7 @@ export default function KidHome({
         {/* Earlier open chores: their own small group, most recent first, tickable */}
         {earlierChores.length > 0 && (
           <section>
-            <p className="section-header">Still to do</p>
+            <p className="section-header">{kidHomeText("stillToDo")}</p>
             <div className="list-inset" id="earlier-missions">
               {earlierChores.map((chore, i) => (
                 <div
@@ -699,7 +730,14 @@ export default function KidHome({
                   className={cn(i === earlierChores.length - 1 && "border-b-0")}
                 >
                   {now &&
-                    renderMission(chore, wasDueLabel(chore.due_date, now))}
+                    renderMission(
+                      chore,
+                      wasDueLabel(chore.due_date, now, displayLocale, {
+                        today: kidHomeText("today"),
+                        yesterday: kidHomeText("yesterday"),
+                        wasDue: (date) => kidHomeText("wasDue", { date }),
+                      }),
+                    )}
                 </div>
               ))}
             </div>
@@ -711,7 +749,9 @@ export default function KidHome({
                 onClick={() => setShowEarlier((show) => !show)}
                 className="min-h-[44px] px-4 text-body text-label-primary focus-visible:outline"
               >
-                {showEarlier ? "Show less" : `Show more (${hiddenEarlier})`}
+                {showEarlier
+                  ? kidHomeText("showLess")
+                  : kidHomeText("showMore", { count: hiddenEarlier })}
               </button>
             )}
           </section>
@@ -721,10 +761,10 @@ export default function KidHome({
         {catchupChores.length > 0 && (
           <section aria-labelledby="routine-catchup-heading">
             <h2 id="routine-catchup-heading" className="section-header">
-              Routine catch-up
+              {kidHomeText("routineCatchup")}
             </h2>
             <p className="text-footnote text-label-secondary mb-2">
-              Earlier steps to finish when you can.
+              {kidHomeText("catchupDescription")}
             </p>
             <div className="list-inset" id="routine-catchup-work">
               {catchupChores.map((chore) => (
@@ -732,7 +772,16 @@ export default function KidHome({
                   {now &&
                     renderMission(
                       chore,
-                      `${chore.routine?.trim()} · ${wasDueLabel(chore.due_date, now)}`,
+                      `${chore.routine?.trim()} · ${wasDueLabel(
+                        chore.due_date,
+                        now,
+                        displayLocale,
+                        {
+                          today: kidHomeText("today"),
+                          yesterday: kidHomeText("yesterday"),
+                          wasDue: (date) => kidHomeText("wasDue", { date }),
+                        },
+                      )}`,
                     )}
                 </div>
               ))}
@@ -746,8 +795,8 @@ export default function KidHome({
                 className="min-h-[44px] px-4 text-body text-label-primary focus-visible:outline"
               >
                 {showCatchup
-                  ? "Show less"
-                  : `Show more (${hiddenCatchup})`}
+                  ? kidHomeText("showLess")
+                  : kidHomeText("showMore", { count: hiddenCatchup })}
               </button>
             )}
           </section>
@@ -756,7 +805,7 @@ export default function KidHome({
         {/* Before hydration the local day is unknown: hold the missions' place. */}
         {!now && (
           <section
-            aria-label="Today's chores"
+            aria-label={kidHomeText("todayChores")}
             aria-busy="true"
             data-testid="kid-home-pending"
           >
@@ -777,7 +826,7 @@ export default function KidHome({
             <button
               type="button"
               onClick={() => setCelebration("settled")}
-              aria-label="Close"
+              aria-label={kidHomeText("close")}
               className="absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-full text-label-tertiary hover:text-label-secondary"
             >
               <X className="h-5 w-5" aria-hidden="true" />
@@ -788,10 +837,10 @@ export default function KidHome({
               className="mx-auto mb-3 h-auto w-[192px] rounded-[var(--radius-lg)] md:w-[224px]"
             />
             <p className="text-title-2 font-semibold text-label-primary">
-              You did it!
+              {kidHomeText("didIt")}
             </p>
             <p className="text-body text-label-secondary mt-1">
-              All done for today.
+              {kidHomeText("allDoneToday")}
             </p>
           </div>
         )}
@@ -806,10 +855,10 @@ export default function KidHome({
               className="mx-auto mb-3 h-auto w-[160px] rounded-[var(--radius-lg)] md:w-[192px]"
             />
             <p className="text-title-3 text-label-primary">
-              All done for today!
+              {kidHomeText("allDoneForToday")}
             </p>
             <p className="text-subhead text-label-secondary mt-1">
-              Enjoy your day, superstar!
+              {kidHomeText("enjoyDay")}
             </p>
           </div>
         )}
@@ -829,19 +878,19 @@ export default function KidHome({
                 // Not "all done" while older chores are still waiting above.
                 <>
                   <p className="text-title-3 text-label-primary">
-                    Nothing new today!
+                    {kidHomeText("nothingNewToday")}
                   </p>
                   <p className="text-subhead text-label-secondary mt-1">
-                    Finish the ones above when you can.
+                    {kidHomeText("finishAbove")}
                   </p>
                 </>
               ) : (
                 <>
                   <p className="text-title-3 text-label-primary">
-                    All done for today!
+                    {kidHomeText("allDoneForToday")}
                   </p>
                   <p className="text-subhead text-label-secondary mt-1">
-                    Enjoy your day, superstar!
+                    {kidHomeText("enjoyDay")}
                   </p>
                 </>
               )}
@@ -866,10 +915,10 @@ export default function KidHome({
             </ProgressRing>
             <div className="flex-1 min-w-0">
               <p className="text-title-3 text-label-primary leading-tight font-semibold">
-                Level {userLevel}
+                {kidHomeText("level", { level: userLevel })}
               </p>
               <p className="text-subhead text-label-secondary mt-1">
-                {xpNextLevel - userXp} points to go!
+                {kidHomeText("pointsToGo", { count: xpNextLevel - userXp })}
               </p>
               <div className="mt-3 flex items-center gap-1.5">
                 {[...Array(Math.min(userLevel, 5))].map((_, i) => (
@@ -880,7 +929,7 @@ export default function KidHome({
                 ))}
                 {userLevel > 5 && (
                   <span className="text-footnote text-label-tertiary">
-                    +{userLevel - 5} more
+                    {kidHomeText("more", { count: userLevel - 5 })}
                   </span>
                 )}
               </div>
@@ -891,7 +940,7 @@ export default function KidHome({
         {/* Tomorrow: a read-only peek, so "All done for today!" can be true */}
         {tomorrowChores.length > 0 && (
           <section>
-            <p className="section-header">Tomorrow</p>
+            <p className="section-header">{kidHomeText("tomorrow")}</p>
             <ul className="list-inset">
               {tomorrowChores.map((chore, i) => (
                 <li
@@ -911,7 +960,7 @@ export default function KidHome({
         {/* Coming up — events */}
         {todayEvents.length > 0 && (
           <section>
-            <p className="section-header">Coming up</p>
+            <p className="section-header">{kidHomeText("comingUp")}</p>
             <div className="list-inset">
               {todayEvents.map((event, i) => (
                 <ListRow
@@ -927,7 +976,11 @@ export default function KidHome({
                   showChevron={false}
                   trailing={
                     <span className="text-footnote text-label-tertiary">
-                      {now && formatRelativeDate(event.start_time, now, displayLocale)}
+                      {now &&
+                        formatRelativeDate(event.start_time, now, displayLocale, {
+                          today: kidHomeText("today"),
+                          tomorrow: kidHomeText("tomorrow"),
+                        })}
                     </span>
                   }
                   className={cn(i === todayEvents.length - 1 && "border-b-0")}
