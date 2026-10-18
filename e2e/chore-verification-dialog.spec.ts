@@ -225,10 +225,14 @@ function state(
   };
 }
 
-function queueFor(page: Page, sendBackLabel: string) {
+function queueFor(page: Page, sendBackLabel: string, locale: Locale) {
   const queue = page
     .locator("section")
-    .filter({ has: page.getByText("To check", { exact: true }) });
+    .filter({
+      has: page.getByText(choreOverviewMessages[locale].toCheck, {
+        exact: true,
+      }),
+    });
   return queue
     .getByRole("button", { name: sendBackLabel, exact: true })
     .locator("..")
@@ -316,6 +320,7 @@ for (const locale of LOCALES) {
         const row = queueFor(
           page,
           copy.sendBackAriaLabel.replace("{title}", fixture.title),
+          locale,
         );
         await expect(row).toBeVisible();
         const trigger = row.getByRole("button", {
@@ -465,6 +470,7 @@ for (const locale of LOCALES) {
         const row = queueFor(
           page,
           copy.sendBackAriaLabel.replace("{title}", fixture.title),
+          locale,
         );
         const trigger = row.getByRole("button", {
           name: copy.sendBackAriaLabel.replace("{title}", fixture.title),
