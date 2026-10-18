@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation";
 import { Plus, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { listTypeFilter } from "@/lib/list-type-filter";
+import {
+  listTypeFilter,
+  listsFilterHref,
+  type ListTypeKey as ListFilterKey,
+} from "@/lib/list-type-filter";
 import { useTranslation } from "@/i18n";
 import { listCreateMessages, type ListCreateMessage } from "@/i18n/list-create";
 import {
@@ -56,6 +60,9 @@ export default function CreateListForm({
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [type, setType] = React.useState<ListTypeKey>("grocery");
+  const [returnFilter, setReturnFilter] = React.useState<ListFilterKey | null>(
+    null,
+  );
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
@@ -73,6 +80,7 @@ export default function CreateListForm({
     const requested = listTypeFilter(
       new URLSearchParams(window.location.search).get("type"),
     );
+    setReturnFilter(requested);
     if (requested && requested !== "meal_plan") setType(requested);
   }, []);
 
@@ -106,7 +114,9 @@ export default function CreateListForm({
       setTimeout(() => {
         void (async () => {
           if ((await navigation?.releaseBeforeNavigation()) === false) return;
-          router.push("/dashboard/lists");
+          // A filtered entry should show the newly created list, even if its
+          // type changed in the form. Unfiltered entry keeps All Lists.
+          router.push(listsFilterHref(returnFilter ? type : null));
           router.refresh();
         })();
       }, 1200);
@@ -137,7 +147,7 @@ export default function CreateListForm({
           {copy.refusalDescription}
         </p>
         <Link
-          href="/dashboard/lists"
+          href={listsFilterHref(returnFilter)}
           className="btn-tinted inline-flex mt-6 min-h-[44px] items-center justify-center px-5"
         >
           {copy.back}
@@ -163,7 +173,7 @@ export default function CreateListForm({
               </span>
             ) : (
               <Link
-                href="/dashboard/lists"
+                href={listsFilterHref(returnFilter)}
                 className="inline-flex min-h-[44px] items-center gap-1 text-subhead text-[var(--accent)]"
               >
                 <ChevronLeft className="w-4 h-4" />

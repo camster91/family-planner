@@ -17,6 +17,7 @@ import CreateListForm from "../CreateListForm";
 let creates: number;
 
 beforeEach(() => {
+  window.history.replaceState({}, "", "/dashboard/lists/create");
   creates = 0;
   push.mockClear();
   global.fetch = jest.fn(async () => {
@@ -232,3 +233,47 @@ it("renders the localized refusal state without offering the form", async () => 
   );
   expect(screen.queryByLabelText("Nombre")).not.toBeInTheDocument();
 });
+
+it.each([
+  ["todo", "todo", "/dashboard/lists?type=todo", "/dashboard/lists?type=todo"],
+  [
+    "todo",
+    "custom",
+    "/dashboard/lists?type=todo",
+    "/dashboard/lists?type=custom",
+  ],
+  [
+    "https://example.test/leave",
+    "grocery",
+    "/dashboard/lists",
+    "/dashboard/lists",
+  ],
+])(
+  "keeps safe creation context from %s when creating %s",
+  async (requested, selected, backHref, successHref) => {
+    window.history.replaceState(
+      {},
+      "",
+      `/dashboard/lists/create?type=${encodeURIComponent(requested)}`,
+    );
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    render(<CreateListForm />);
+    expect(screen.getByRole("link", { name: "Lists" })).toHaveAttribute(
+      "href",
+      backHref,
+    );
+    await user.selectOptions(screen.getByLabelText("Type"), selected);
+    await user.type(screen.getByLabelText("Name"), "QA creation context");
+    await user.click(screen.getByRole("button", { name: "Create List" }));
+    await screen.findByRole("status");
+    await act(async () => {
+      jest.advanceTimersByTime(1500);
+    });
+    expect(push).toHaveBeenCalledWith(successHref);
+    expect(creates).toBe(1);
+    expect(
+      JSON.parse((fetch as jest.Mock).mock.calls[0][1].body),
+    ).toMatchObject({ name: "QA creation context", type: selected });
+  },
+);
