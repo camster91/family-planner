@@ -139,6 +139,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             'task.create',
             { familyId: auth.user.family_id, userId: auth.user.id },
             projectId,
+            key,
           ),
       },
     )

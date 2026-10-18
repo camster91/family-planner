@@ -193,12 +193,16 @@ describe("projects — two households", () => {
   it("replays a keyed task without duplicating the task or project timestamp write", async () => {
     const body = { title: "Receipt-safe task", assigned_to: "teen-a" };
     const headers = { "Idempotency-Key": "project-task-replay-key" };
+    const project = db.find("project", "proj-a")!;
+    const timestampBefore = project.updated_at;
     const first = await tasks.POST(
       req({ as: "childA", body, headers }),
       params({ id: "proj-a" }),
     );
     expect(first.status).toBe(201);
     const taskId = (await first.json()).task.id;
+    const timestampAfterFirst = project.updated_at;
+    expect(timestampAfterFirst).not.toBe(timestampBefore);
     expect(writesTo("projectTask")).toHaveLength(1);
     expect(writesTo("project")).toHaveLength(1);
 
@@ -209,6 +213,72 @@ describe("projects — two households", () => {
     expect(replay.status).toBe(201);
     expect(replay.headers.get("Idempotency-Replayed")).toBe("true");
     expect((await replay.json()).task.id).toBe(taskId);
+    expect(project.updated_at).toBe(timestampAfterFirst);
+    expect(writesTo("projectTask")).toHaveLength(1);
+    expect(writesTo("project")).toHaveLength(1);
+  });
+
+  it("refuses a keyed task replay after the stored task is deleted", async () => {
+    const body = { title: "Receipt-safe deleted task", assigned_to: "teen-a" };
+    const headers = { "Idempotency-Key": "project-task-deleted-replay-key" };
+    const first = await tasks.POST(
+      req({ as: "childA", body, headers }),
+      params({ id: "proj-a" }),
+    );
+    expect(first.status).toBe(201);
+    const taskId = (await first.json()).task.id;
+    expect(db.rows("projectTask").some((row: any) => row.id === taskId)).toBe(true);
+
+    const rowIndex = db.rows("projectTask").findIndex((row: any) => row.id === taskId);
+    expect(rowIndex).toBeGreaterThanOrEqual(0);
+    db.rows("projectTask").splice(rowIndex, 1);
+
+    const missing = await tasks.POST(
+      req({ as: "childA", body, headers }),
+      params({ id: "proj-a" }),
+    );
+    expect(missing.status).toBe(404);
+    expect(await bodyOf(missing)).toEqual({ error: "Task not found" });
+    expect(missing.headers.get("Idempotency-Replayed")).toBeNull();
+    expect(writesTo("projectTask")).toHaveLength(1);
+    expect(writesTo("project")).toHaveLength(1);
+  });
+
+  it("rejects a changed task body without adding a second task", async () => {
+    const headers = { "Idempotency-Key": "project-task-conflict-key" };
+    const first = await tasks.POST(
+      req({ as: "parentA", body: { title: "Original task" }, headers }),
+      params({ id: "proj-a" }),
+    );
+    expect(first.status).toBe(201);
+
+    const conflict = await tasks.POST(
+      req({ as: "parentA", body: { title: "Changed task" }, headers }),
+      params({ id: "proj-a" }),
+    );
+    expect(conflict.status).toBe(422);
+    expect((await bodyOf(conflict)).error.code).toBe("IDEMPOTENCY_KEY_REUSED");
+    expect(writesTo("projectTask")).toHaveLength(1);
+    expect(writesTo("project")).toHaveLength(1);
+  });
+
+  it("releases a task receipt after a terminal refusal so the same key can retry", async () => {
+    const body = { title: "Retry after archived" };
+    const headers = { "Idempotency-Key": "project-task-refusal-retry-key" };
+    db.find("project", "proj-a")!.status = "archived";
+
+    const refused = await tasks.POST(
+      req({ as: "parentA", body, headers }),
+      params({ id: "proj-a" }),
+    );
+    expect(refused.status).toBe(400);
+
+    db.find("project", "proj-a")!.status = "active";
+    const retried = await tasks.POST(
+      req({ as: "parentA", body, headers }),
+      params({ id: "proj-a" }),
+    );
+    expect(retried.status).toBe(201);
     expect(writesTo("projectTask")).toHaveLength(1);
     expect(writesTo("project")).toHaveLength(1);
   });
