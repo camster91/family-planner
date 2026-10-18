@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { Glyph } from '@/components/ui/glyph'
 import { cn } from '@/lib/utils'
-import { RoutineIcon } from '@/components/chores/RoutineIcon'
+import { BoardRoutineIcon } from './BoardRoutineIcon'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { formatMinutes } from '@/lib/meal-slots'
 import type { ShoppingSnapshot, ShoppingSnapshotItem } from '@/lib/shopping-snapshot'
@@ -528,10 +528,7 @@ export function ChoreRow({
     <span className="min-w-0 flex-1">
       {/* Picture routines (#272): the chore's picture, when it has one. */}
       {c.icon && (
-        <RoutineIcon
-          icon={c.icon}
-          className="mr-2 inline-block h-6 w-6 align-[-4px] text-label-secondary"
-        />
+        <BoardRoutineIcon icon={c.icon} />
       )}
       {c.title}
       {showOwner && <span className={cn(metaTextClass, 'block')}>{name}</span>}
