@@ -2536,11 +2536,6 @@
   },
   {
     "file": "src/components/dashboard/KidHome.tsx",
-    "text": "🎉 Claimed!",
-    "count": 1
-  },
-  {
-    "file": "src/components/dashboard/KidHome.tsx",
     "text": "All done for today!",
     "count": 2
   },
@@ -2653,11 +2648,6 @@
     "file": "src/components/dashboard/KidHome.tsx",
     "text": "You did it!",
     "count": 2
-  },
-  {
-    "file": "src/components/dashboard/KidHome.tsx",
-    "text": "You got it!",
-    "count": 1
   },
   {
     "file": "src/components/dashboard/KidRoutines.tsx",

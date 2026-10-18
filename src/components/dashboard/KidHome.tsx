@@ -950,9 +950,9 @@ export default function KidHome({
                     </div>
                   </div>
                   <button type="button" onClick={() => handleClaimReward(reward.id)} disabled={claimingReward || celebratingThis || !canClaim} className={cn("btn-primary mt-3 w-full min-h-[44px] px-4 py-2 text-body transition-all duration-200", celebratingThis ? "bg-success animate-check-pop" : !canClaim ? "bg-muted text-label-tertiary cursor-not-allowed" : claimingReward ? "opacity-50" : "")}>
-                    {celebratingThis ? "🎉 Claimed!" : canClaim ? rewardsText("claim") : rewardsText("needMore", { points: reward.cost - userXp })}
+                    {celebratingThis ? rewardsText("claimedCelebration") : canClaim ? rewardsText("claim") : rewardsText("needMore", { points: reward.cost - userXp })}
                   </button>
-                  {celebratingThis && <div className="mt-3 flex items-center justify-center gap-1 animate-spring-up"><span className="text-xl">🎉</span><span className="text-title-3 text-success-text font-semibold">You got it!</span><span className="text-xl">🎉</span></div>}
+                  {celebratingThis && <div className="mt-3 flex items-center justify-center gap-1 animate-spring-up"><span className="text-xl">🎉</span><span className="text-title-3 text-success-text font-semibold">{rewardsText("gotIt")}</span><span className="text-xl">🎉</span></div>}
                 </article>
               })}
             </div>

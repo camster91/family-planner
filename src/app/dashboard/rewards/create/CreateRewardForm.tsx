@@ -8,6 +8,16 @@ import { useTranslation } from "@/i18n";
 import { rewardCreateMessages } from "@/i18n/reward-create";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import {
+  latestRewardCreateDraft,
+  forgetRewardCreateIntent,
+  rememberRewardCreateDraft,
+  rememberRewardCreateIntent,
+  rewardCreateIntent,
+  rewardCreateSignature,
+  type RewardCreateDraft,
+  type RewardCreateOwner,
+} from "@/lib/reward-create-intent";
+import {
   usePendingFormNavigation,
   usePendingFormNavigationController,
 } from "@/components/layout/pending-form-navigation";
@@ -34,25 +44,14 @@ type CreatePayload = {
   icon: string;
 };
 
-function createRequestKey(payload: CreatePayload): string {
-  const canonical = JSON.stringify({
-    name: payload.name.trim(),
-    description: payload.description?.trim() || undefined,
-    cost: payload.cost,
-    icon: payload.icon,
-  });
-  return `rewards:create:${canonical}`;
-}
-
-function isCreatedReward(value: unknown): boolean {
+function isCreatedReward(value: unknown, payload: CreatePayload): boolean {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const reward = (value as { reward?: unknown }).reward;
   if (!reward || typeof reward !== "object" || Array.isArray(reward)) return false;
-  const row = reward as { id?: unknown; name?: unknown; cost?: unknown; status?: unknown };
+  const row = reward as { id?: unknown; name?: unknown; cost?: unknown; icon?: unknown; status?: unknown };
   return typeof row.id === "string" && row.id.length > 0 &&
-    typeof row.name === "string" && row.name.length > 0 &&
-    typeof row.cost === "number" && Number.isFinite(row.cost) && row.cost >= 0 &&
-    typeof row.status === "string" && row.status.length > 0;
+    row.name === payload.name && row.cost === payload.cost &&
+    row.icon === payload.icon && row.status === "available";
 }
 
 class CreateRewardFailure extends Error {
@@ -65,18 +64,23 @@ export default function CreateRewardForm({
   inSheet = false,
   onBusyChange,
   canCreate = true,
+  owner,
 }: {
   inSheet?: boolean;
   onBusyChange?: (busy: boolean) => void;
   canCreate?: boolean;
+  owner?: RewardCreateOwner;
 } = {}) {
   const router = useRouter();
   const { locale } = useTranslation();
   const copy = rewardCreateMessages[locale];
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [cost, setCost] = useState(50);
-  const [icon, setIcon] = useState<(typeof ICON_OPTIONS)[number]>("🎁");
+  const [initialDraft] = useState<RewardCreateDraft | null>(() => latestRewardCreateDraft(owner));
+  const [name, setName] = useState(initialDraft?.name ?? "");
+  const [description, setDescription] = useState(initialDraft?.description ?? "");
+  const [cost, setCost] = useState(initialDraft?.cost ?? 50);
+  const [icon, setIcon] = useState<(typeof ICON_OPTIONS)[number]>(
+    (initialDraft?.icon as (typeof ICON_OPTIONS)[number] | undefined) ?? "🎁",
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uncertain, setUncertain] = useState(false);
@@ -94,23 +98,33 @@ export default function CreateRewardForm({
     onBusyChange?.(loading);
   }, [loading, onBusyChange]);
 
+  useEffect(() => {
+    rememberRewardCreateDraft(owner, { name, description, cost, icon });
+  }, [owner, name, description, cost, icon]);
+
   const submit = async () => {
     if (!name.trim() || submittingRef.current) return;
 
-    const payload: CreatePayload = {
+    const draft: RewardCreateDraft = {
       name: name.trim(),
-      description: description.trim() || undefined,
+      description: description.trim(),
       cost,
       icon,
     };
-    const signature = createRequestKey(payload);
+    const payload: CreatePayload = {
+      ...draft,
+      description: draft.description || undefined,
+    };
+    const signature = rewardCreateSignature(draft);
     if (confirmedRequests.current.has(signature)) {
       router.push("/dashboard/rewards");
       router.refresh();
       return;
     }
-    const key = requestKeys.current.get(signature) ?? newIdempotencyKey();
+    const storedIntent = rewardCreateIntent(owner, signature);
+    const key = requestKeys.current.get(signature) ?? storedIntent?.key ?? newIdempotencyKey();
     requestKeys.current.set(signature, key);
+    rememberRewardCreateIntent(owner, signature, draft, key);
 
     submittingRef.current = true;
     setLoading(true);
@@ -129,18 +143,23 @@ export default function CreateRewardForm({
       if (!response.ok) {
         const ambiguous = response.status >= 500 || response.status === 409;
         if (ambiguous) setUncertain(true);
-        else requestKeys.current.delete(signature);
+        else {
+          requestKeys.current.delete(signature);
+          forgetRewardCreateIntent(owner, signature);
+        }
         throw new CreateRewardFailure(
           response.status === 403 ? "permissionError" : "createError",
         );
       }
-      if (!isCreatedReward(data)) {
+      if (!isCreatedReward(data, payload)) {
         submittingRef.current = false;
         setUncertain(true);
         setError(copy.recoveryTitle);
         return;
       }
       confirmedRequests.current.add(signature);
+      requestKeys.current.delete(signature);
+      forgetRewardCreateIntent(owner, signature);
 
       if ((await navigation?.releaseBeforeNavigation()) === false) {
         // A pending-navigation guard can keep the user on this form. Allow a
@@ -276,6 +295,7 @@ export default function CreateRewardForm({
           </div>
         )}
 
+        <fieldset disabled={loading} aria-busy={loading} className="space-y-5">
         <div className="space-y-1.5">
           <label
             htmlFor="reward-name"
@@ -374,6 +394,7 @@ export default function CreateRewardForm({
             ))}
           </div>
         </div>
+        </fieldset>
 
         <div
           className={

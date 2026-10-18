@@ -48,6 +48,16 @@ const CREATED_REWARD = {
   },
 };
 
+const createdRewardFor = (name: string, cost = 50, icon = "🎁") => ({
+  reward: {
+    id: `reward-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    name,
+    cost,
+    icon,
+    status: "available",
+  },
+});
+
 beforeEach(() => {
   push.mockReset();
   refresh.mockReset();
@@ -100,7 +110,7 @@ it("retries an uncertain create with the same idempotency key and keeps the draf
   global.fetch = jest.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
     requests.push(init ?? {});
     if (requests.length === 1) throw new TypeError("offline");
-    return response(201, CREATED_REWARD);
+    return response(201, createdRewardFor("Extra game time"));
   }) as unknown as typeof fetch;
 
   render(<CreateRewardForm />);
@@ -117,6 +127,36 @@ it("retries an uncertain create with the same idempotency key and keeps the draf
   expect(isValidIdempotencyKey((requests[0].headers as Record<string, string>)["Idempotency-Key"])).toBe(true);
 });
 
+it("restores an unresolved owner-scoped draft and key after the sheet remounts", async () => {
+  const user = userEvent.setup();
+  const requests: RequestInit[] = [];
+  global.fetch = jest.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    requests.push(init ?? {});
+    if (requests.length === 1) throw new TypeError("offline");
+    return response(201, CREATED_REWARD);
+  }) as unknown as typeof fetch;
+  const owner = { userId: "owner-a", familyId: "family-a" };
+  const first = render(<CreateRewardForm owner={owner} />);
+  await user.type(screen.getByLabelText("Name"), "Extra game time");
+  fireEvent.change(screen.getByLabelText("Cost in points"), { target: { value: "75" } });
+  await user.click(screen.getByRole("button", { name: "Choose reward icon 🎮" }));
+  await user.click(screen.getByRole("button", { name: "Create Reward" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Check your connection");
+  first.unmount();
+
+  const other = render(<CreateRewardForm owner={{ userId: "owner-b", familyId: "family-b" }} />);
+  expect(screen.getByLabelText("Name")).toHaveValue("");
+  other.unmount();
+
+  render(<CreateRewardForm owner={owner} />);
+  expect(screen.getByLabelText("Name")).toHaveValue("Extra game time");
+  await user.click(screen.getByRole("button", { name: "Create Reward" }));
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/rewards"));
+  expect((requests[0].headers as Record<string, string>)["Idempotency-Key"]).toBe(
+    (requests[1].headers as Record<string, string>)["Idempotency-Key"],
+  );
+});
+
 it("keeps the create key for an in-progress response", async () => {
   const user = userEvent.setup();
   const requests: RequestInit[] = [];
@@ -124,7 +164,7 @@ it("keeps the create key for an in-progress response", async () => {
     requests.push(init ?? {});
     return requests.length === 1
       ? response(409, { error: "A create is still in progress" })
-      : response(201, CREATED_REWARD);
+      : response(201, createdRewardFor("Extra game time"));
   }) as unknown as typeof fetch;
 
   render(<CreateRewardForm />);
@@ -161,7 +201,7 @@ it("keeps the direct Back control noninteractive while saving", async () => {
     screen.queryByRole("link", { name: "Back to Rewards" }),
   ).not.toBeInTheDocument();
 
-  await act(async () => finish(response(201, CREATED_REWARD)));
+  await act(async () => finish(response(201, createdRewardFor("Pending reward"))));
   await waitFor(() =>
     expect(push).toHaveBeenCalledWith("/dashboard/rewards"),
   );
@@ -259,6 +299,10 @@ it.each([
     const submit = screen.getByRole("button", { name: submitLabel });
     await user.click(submit);
     expect(submit).toBeDisabled();
+    expect(screen.getByLabelText(nameLabel)).toBeDisabled();
+    expect(screen.getByLabelText(/Description|Descripción/)).toBeDisabled();
+    expect(screen.getByLabelText(locale === "en" ? "Cost in points" : "Costo en puntos")).toBeDisabled();
+    expect(screen.getByRole("button", { name: locale === "en" ? "Choose reward icon 🎁" : "Elegir icono de recompensa 🎁" })).toBeDisabled();
     expect(screen.getByText(pendingDescription)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: closeLabel }),
@@ -267,7 +311,7 @@ it.each([
     await user.keyboard("{Escape}");
     expect(back).not.toHaveBeenCalled();
 
-    await act(async () => finish(response(201, CREATED_REWARD)));
+    await act(async () => finish(response(201, createdRewardFor("Pending reward"))));
     await waitFor(() =>
       expect(push).toHaveBeenCalledWith("/dashboard/rewards"),
     );

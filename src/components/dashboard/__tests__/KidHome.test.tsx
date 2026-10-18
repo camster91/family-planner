@@ -13,6 +13,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import { FeaturesProvider } from "@/components/providers/features-provider";
 import { defaultFeatures } from "@/lib/features";
 import { isValidIdempotencyKey } from "@/lib/idempotency-key";
+import { I18nProvider } from "@/i18n";
 
 const refresh = jest.fn();
 jest.mock("next/navigation", () => ({
@@ -82,21 +83,24 @@ const chore = (c: C) => ({
 function renderHome(
   chores: C[],
   extra: Partial<React.ComponentProps<typeof KidHome>> = {},
+  locale: "en" | "es" = "en",
 ) {
   return render(
-    <FeaturesProvider
-      initial={{ ...defaultFeatures(), gamification: true, rewards: true }}
-    >
-      <ToastProvider>
-        <KidHome
-          user={{ name: "Casey", role: "child" }}
-          chores={chores.map(chore)}
-          events={[]}
-          rewards={[]}
-          {...extra}
-        />
-      </ToastProvider>
-    </FeaturesProvider>,
+    <I18nProvider locale={locale}>
+      <FeaturesProvider
+        initial={{ ...defaultFeatures(), gamification: true, rewards: true }}
+      >
+        <ToastProvider>
+          <KidHome
+            user={{ name: "Casey", role: "child" }}
+            chores={chores.map(chore)}
+            events={[]}
+            rewards={[]}
+            {...extra}
+          />
+        </ToastProvider>
+      </FeaturesProvider>
+    </I18nProvider>,
   );
 }
 
@@ -298,6 +302,19 @@ describe("KidHome reward claim", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(calls.filter((u) => u === "/api/rewards/claim")).toHaveLength(1);
     expect(isValidIdempotencyKey((requestInits.find((init) => init.method === "POST" && String(init.body).includes("r1"))?.headers as Record<string, string>)["Idempotency-Key"])).toBe(true);
+  });
+
+  it("uses localized celebration copy", async () => {
+    replies["/api/rewards/claim"] = [
+      { status: 200, body: { reward: { id: "r1", status: "claimed" }, xp: 30 } },
+    ];
+    renderHome([], {
+      user: { name: "Casey", role: "child", xp: 80, level: 1 },
+      rewards: [{ id: "r1", name: "Noche de cine", cost: 50, status: "available" }],
+    }, "es");
+    await userEvent.click(screen.getByRole("button", { name: "Reclamar" }));
+    expect(await screen.findByText("🎉 ¡Reclamada!")).toBeTruthy();
+    expect(screen.getByText("¡Lo lograste!")).toBeTruthy();
   });
 
   it("keeps the reward and balance when the claim fails", async () => {

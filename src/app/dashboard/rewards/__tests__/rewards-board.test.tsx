@@ -128,6 +128,20 @@ describe('RewardsBoard', () => {
     expect(screen.getByText('30 points')).toBeTruthy()
   })
 
+  it('does not confirm a claim when the response identity or owner is wrong', async () => {
+    const user = userEvent.setup()
+    mockFetch(() => ({
+      status: 200,
+      body: { reward: { ...MOVIE, id: 'other', status: 'claimed', claimedById: 'someone-else' }, xp: 30 },
+    }))
+    renderBoard({ rewards: [MOVIE] })
+    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('The connection dropped before we could confirm.')
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
   it("keeps the dialog open and shows the server's reason when a claim is refused", async () => {
     const user = userEvent.setup()
     mockFetch(() => ({ status: 409, body: { error: 'Reward is no longer available' } }))
@@ -193,6 +207,32 @@ describe('RewardsBoard', () => {
     expect(calls[0]).toEqual(expect.objectContaining({ url: '/api/rewards/approve', method: 'POST', body: { rewardId: 'r_ice' } }))
     expect(isValidIdempotencyKey((calls[0] as any).headers?.['Idempotency-Key'])).toBe(true)
     expect(screen.getByText('Ice cream marked as given')).toBeTruthy()
+  })
+
+  it('does not confirm an approval for a different reward id', async () => {
+    const user = userEvent.setup()
+    mockFetch(() => ({ status: 200, body: { reward: { ...ICE_CREAM, id: 'other', status: 'approved' } } }))
+    renderBoard({ isParent: true, currentUserId: 'parent_1' })
+    const row = screen.getAllByTestId('family-reward').find((item) => item.textContent?.includes('Ice cream'))!
+    await user.click(within(row).getByRole('button', { name: 'Mark Ice cream as given' }))
+    expect(await within(row).findByText('The connection dropped before we could confirm.')).toBeTruthy()
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('keeps separate recovery notices for two uncertain approvals', async () => {
+    const user = userEvent.setup()
+    mockFetch(() => ({ status: 500, body: { error: 'try later' } }))
+    renderBoard({
+      isParent: true,
+      currentUserId: 'parent_1',
+      rewards: [ICE_CREAM, { ...ICE_CREAM, id: 'r_game', name: 'Game time' }],
+    })
+    const rows = screen.getAllByTestId('family-reward')
+    await user.click(within(rows[0]).getByRole('button', { name: 'Mark Ice cream as given' }))
+    await user.click(within(rows[1]).getByRole('button', { name: 'Mark Game time as given' }))
+    expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(2)
+    expect(within(rows[0]).getByText('try later')).toBeTruthy()
+    expect(within(rows[1]).getByText('try later')).toBeTruthy()
   })
 
   it('shows an error toast with the reason when marking as given fails', async () => {
