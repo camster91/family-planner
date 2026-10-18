@@ -384,6 +384,11 @@ test.describe("inventory (Family A parent)", () => {
       await freezer.press("Enter");
       await expect(freezer).toBeFocused();
       await expect(freezer).toHaveAttribute("aria-pressed", "true");
+      await expect(
+        page
+          .getByTestId("use-soon")
+          .getByText(copy.useSoonAllLocations, { exact: true }),
+      ).toBeVisible();
       await expect(page.getByLabel(copy.where, { exact: true })).toHaveValue(
         "freezer",
       );
@@ -397,6 +402,11 @@ test.describe("inventory (Family A parent)", () => {
         shortcuts.getByRole("button", { name: new RegExp(`^${copy.fridge} `) }),
       ).toHaveAttribute("aria-pressed", "true");
       await all.press("Enter");
+      await expect(
+        page
+          .getByTestId("use-soon")
+          .getByText(copy.useSoonAllLocations, { exact: true }),
+      ).toHaveCount(0);
       await expect(page.getByRole("searchbox")).toHaveValue("peas");
       await expect(itemRow(page, IDS.peas)).toBeVisible();
       await page.getByRole("searchbox").fill("");
@@ -423,6 +433,30 @@ test.describe("inventory (Family A parent)", () => {
         expect(second!.x).toBeGreaterThanOrEqual(first!.x + first!.width);
         expect(Math.abs(second!.y - first!.y)).toBeLessThanOrEqual(1);
       }
+      await page.evaluate(() => window.scrollTo(0, 0));
+      if (page.viewportSize()!.width < 768) {
+        const firstScreenLocations = await shortcuts.boundingBox();
+        const visibleBottom = await page
+          .getByRole("navigation")
+          .evaluateAll((nodes) => {
+            const bottomBars = nodes.filter(
+              (node) =>
+                getComputedStyle(node).position === "fixed" &&
+                node.getBoundingClientRect().top > innerHeight / 2,
+            );
+            return Math.min(
+              innerHeight,
+              ...bottomBars.map((node) => node.getBoundingClientRect().top),
+            );
+          });
+        expect(
+          firstScreenLocations!.y + firstScreenLocations!.height,
+        ).toBeLessThanOrEqual(visibleBottom);
+      }
+      await shortcuts.screenshot({
+        path: info.outputPath(`inventory-locations-${locale}.png`),
+        animations: "disabled",
+      });
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({
         path: info.outputPath(`inventory-overview-${locale}.png`),

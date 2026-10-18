@@ -509,6 +509,7 @@ export default function InventoryClient({
               capped={data.data.capped}
             />
             <UseSoonSection
+              acrossLocations={whereFilter !== 'all'}
               items={data.data.useSoon}
               canWrite={canWrite}
               busy={busy}
@@ -632,10 +633,10 @@ function InventoryLocations({ items, where, onWhere, capped }: {
             type="button"
             aria-pressed={where === location}
             onClick={() => onWhere(location)}
-            className={cn('flex min-h-[44px] w-full min-w-0 flex-col items-start justify-between gap-1 rounded-[var(--radius-md)] md:flex-row md:items-center md:gap-3 px-3 py-2 text-left text-subhead focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]', where === location ? 'bg-[var(--accent-fill)] text-[var(--on-accent)]' : 'bg-[var(--surface-fill)] text-label-primary')}
+            className={cn('flex min-h-[44px] w-full min-w-0 flex-col items-start justify-between gap-1 rounded-[var(--radius-md)] md:flex-row md:items-center md:gap-3 px-3 py-2 text-left text-subhead focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]', where === location ? 'bg-accent-fill text-on-accent' : 'bg-[var(--surface-fill)] text-label-primary')}
           >
-            <span className="min-w-0 [overflow-wrap:anywhere]">{copy(location === 'all' ? 'everywhere' : location)}</span>
-            <span className="min-w-0 max-w-full text-footnote [overflow-wrap:anywhere] md:max-w-[60%] md:text-right">{countLabel(counts[location])}</span>
+            <span className={cn('min-w-0 [overflow-wrap:anywhere]', where === location ? 'text-on-accent' : 'text-label-primary')}>{copy(location === 'all' ? 'everywhere' : location)}</span>
+            <span className={cn('min-w-0 max-w-full text-footnote [overflow-wrap:anywhere] md:max-w-[60%] md:text-right', where === location ? 'text-on-accent' : 'text-label-primary')}>{countLabel(counts[location])}</span>
           </button>
         ))}
       </div>
@@ -726,11 +727,13 @@ function PastUseBySection({
 }
 
 function UseSoonSection({
+  acrossLocations = false,
   items,
   canWrite,
   busy,
   onAdjust,
 }: {
+  acrossLocations?: boolean
   items: UseSoonItem[]
   canWrite: boolean
   busy: string | null
@@ -743,6 +746,7 @@ function UseSoonSection({
       <h2 id="inventory-use-soon" className="section-header">
         {copy('useSoon')}
       </h2>
+      {acrossLocations && <p className="mb-2 text-footnote text-label-secondary">{copy('useSoonAllLocations')}</p>}
       <div className="card-apple overflow-hidden">
         {items.length === 0 ? (
           <p className="p-4 text-subhead text-label-secondary">{copy('nothingSoon')}</p>
