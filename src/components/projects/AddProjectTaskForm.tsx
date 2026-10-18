@@ -105,15 +105,28 @@ export function AddProjectTaskForm({
         typeof data.task.id !== "string" ||
         typeof data.task.title !== "string"
       ) {
-        if (res.status >= 500) ambiguousRequests.current.set(signature, key);
-        else {
+        const code =
+          data?.error && typeof data.error === "object"
+            ? data.error.code
+            : undefined;
+        const retryableInProgress =
+          res.status === 409 && code === "IDEMPOTENCY_IN_PROGRESS";
+        if (
+          res.status >= 500 ||
+          (res.status >= 200 && res.status < 300) ||
+          retryableInProgress
+        ) {
+          ambiguousRequests.current.set(signature, key);
+        } else {
           ambiguousRequests.current.delete(signature);
           currentRequest.current = null;
         }
         throw new Error(
           typeof data?.error === "string"
             ? data.error
-            : text("taskUpdateFallback"),
+            : typeof data?.error?.message === "string"
+              ? data.error.message
+              : text("taskUpdateFallback"),
         );
       }
       ambiguousRequests.current.delete(signature);

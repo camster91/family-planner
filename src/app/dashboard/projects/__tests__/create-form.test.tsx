@@ -104,6 +104,45 @@ it("retains the draft after a refused create so the user can retry", async () =>
   expect(push).not.toHaveBeenCalled();
 });
 
+it("retries an in-progress create with the same idempotency key", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest.fn().mockResolvedValue(
+    response(409, {
+      error: {
+        code: "IDEMPOTENCY_IN_PROGRESS",
+        message: "Please retry this project request.",
+      },
+    }),
+  );
+
+  render(<CreateProjectForm />);
+  const name = screen.getByLabelText(/Project Name/);
+  await user.type(name, "Shared garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(1));
+  const firstKey = (
+    (global.fetch as jest.Mock).mock.calls[0][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  (global.fetch as jest.Mock).mockResolvedValue(
+    response(201, { project: { id: "project-retry" } }),
+  );
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() =>
+    expect(push).toHaveBeenCalledWith("/dashboard/projects/project-retry"),
+  );
+  const secondKey = (
+    (global.fetch as jest.Mock).mock.calls[1][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+  expect(secondKey).toBe(firstKey);
+});
+
 it.each([undefined, null, 42, {}, "   "])(
   "keeps the draft and refuses a successful response without a non-empty string id (%s)",
   async (id) => {
@@ -134,6 +173,38 @@ it.each([undefined, null, 42, {}, "   "])(
     expect(refresh).not.toHaveBeenCalled();
   },
 );
+
+it("retries a malformed create success with the same idempotency key", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest.fn().mockResolvedValue(response(201, { project: {} }));
+
+  render(<CreateProjectForm />);
+  const name = screen.getByLabelText(/Project Name/);
+  await user.type(name, "Shared garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(1));
+  const firstKey = (
+    (global.fetch as jest.Mock).mock.calls[0][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  (global.fetch as jest.Mock).mockResolvedValue(
+    response(201, { project: { id: "project-retry" } }),
+  );
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() =>
+    expect(push).toHaveBeenCalledWith("/dashboard/projects/project-retry"),
+  );
+  const secondKey = (
+    (global.fetch as jest.Mock).mock.calls[1][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+  expect(secondKey).toBe(firstKey);
+});
 
 it("localizes project create labels and refusal feedback in Spanish", async () => {
   const user = userEvent.setup();
