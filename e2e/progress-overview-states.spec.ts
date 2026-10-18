@@ -365,7 +365,9 @@ for (const locale of ["en", "es"] as const) {
 
       phase = "malformed";
       await page.reload();
-      await expect(page.getByRole("alert")).toContainText(text.loadError);
+      await expect(page.getByRole("main").getByRole("alert")).toContainText(
+        text.loadError,
+      );
       await expect(
         page.getByText(text.noProgress, { exact: true }),
       ).toHaveCount(0);
@@ -374,7 +376,9 @@ for (const locale of ["en", "es"] as const) {
 
       phase = "error";
       await page.reload();
-      await expect(page.getByRole("alert")).toContainText(text.loadError);
+      await expect(page.getByRole("main").getByRole("alert")).toContainText(
+        text.loadError,
+      );
       const retry = page.getByRole("button", { name: text.retry, exact: true });
       await expect(retry).toBeVisible();
       const retryBox = await retry.boundingBox();
@@ -396,7 +400,7 @@ for (const locale of ["en", "es"] as const) {
       await expect(page.getByTestId("weekly-trend-empty")).toContainText(
         text.noTrend,
       );
-      await expect(page.getByRole("alert")).toHaveCount(0);
+      await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
       await assertNoOverflow("retry-empty");
       await assertA11y("retry-empty");
       await capture("retry-empty");

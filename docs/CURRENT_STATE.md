@@ -1,5 +1,23 @@
 # Current State
 
+## Local Progress continuation — 2026-10-18
+
+Application `20eef6ac` adapts the approved Progress study to the existing parent
+Analytics route, with canonical data, strict malformed-response recovery and
+scoped EN/ES presentation. Full optimized build, typecheck/lint, 7 mounted UI
+cases, 8 i18n guards and 29 API/isolation/gamification checks pass. The six-size
+EN/light and ES/dark browser matrix passes 15 cases with a test-only main-alert
+selector repair; 36 captures are retained. Full local units: 5756 passed, 387
+established opt-in skips, 3 known Mac backup-prune failures. Hosted and release
+acceptance are pending; child/teen home and persisted quiet mode remain open.
+No schema/API, permission, provider/profile/scheduler or native activation occurs.
+
+Current production Family/Notes #576 is separately verified at main `768e4170`;
+exact-main checks, protected 71-table restore and deployment559/runtime/public
+version/health proof are recorded in #499/#128/#576. Historical release text
+below retains its dated scope. Dates #578 is a separate draft continuation.
+
+
 ## Integrated UI web release — 2026-10-18
 
 PR #574 is normally merged at `f1d103a8b68bff4e40b431070c824b239db3bb36`.
