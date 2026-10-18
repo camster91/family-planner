@@ -199,6 +199,9 @@ export function Dialog({
         {variant === "form" ? (
           <>
             <div
+              // Disabled fields cannot make this independently scrolling area
+              // keyboard reachable while a request is pending.
+              tabIndex={0}
               className={cn(
                 "min-h-0 overflow-y-auto overscroll-contain px-5 pt-5",
                 footer

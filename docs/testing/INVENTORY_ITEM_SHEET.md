@@ -11,3 +11,9 @@ Observed local verification:78 affected checks across nine suites pass, includin
 Independent source review is clear. This work joins stacked follow-up #588 behind #587; it does not alter #587's currently running candidate or claim production acceptance. No schema, role, provider, scheduler, native or real household mutation is included.
 
 The existing four Emergency phone/desktop browser cases also now explicitly map English to light and Spanish to dark and assert the actual HTML theme, preserving case count while checking the shared Dialog change in both palettes. Browser execution remains pending.
+
+## Pending scroll access repair — 2026-10-18
+
+Exact bf31 optimized browser QA passed Allowance and weekly chores (12 journeys plus three authentication setup cases). Inventory's existing phone EN/ES canonical mutation journeys then found a serious `scrollable-region-focusable` accessibility failure: the pending removal disables every control inside the independently scrolling form body while actions remain in its fixed footer. The original hosted Inventory job independently reports the same rule on phone/fridge. Those failed results remain evidence, not acceptance.
+
+The shared form body now has a keyboard tab stop, keeping its content reachable even when all fields are disabled. The existing two parametrized Dialog cases were extended: both fail before the change and all five pass after. Combined Dialog/Inventory mounted verification passes27 cases. No accessibility rule, retry, viewport or release gate is disabled; exact repaired-source optimized browser and hosted verification remain required.
