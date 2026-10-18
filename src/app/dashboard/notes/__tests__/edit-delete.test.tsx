@@ -285,7 +285,7 @@ it('opens the complete read-only note without exposing edit or delete and restor
   noteBody = 'First line\n' + 'Long shared information '.repeat(60) + '\nLast line'
   const user = userEvent.setup()
   render(<NotesPage />)
-  const opener = await screen.findByRole('button', { name: 'notes.readNote' })
+  const opener = await screen.findByRole('button', { name: 'notes.readNote: Wifi code' })
   await user.click(opener)
   const dialog = screen.getByRole('dialog')
   expect(dialog.textContent).toContain(noteBody)
@@ -310,7 +310,7 @@ it('uses one Add entrypoint and includes all five canonical colors', async () =>
   }
 })
 
-it.each([{ notes: {} }, { notes: Array(2).fill({ id: 'duplicate', title: 'Valid note', body: 'Body', color: 'yellow', created_at: '2026-09-01T00:00:00Z' }) }])('rejects malformed notes instead of fabricating an empty household', async (body) => {
+it.each([{ notes: {} }, { notes: [{ id: 'unknown-color', title: 'Invalid', body: 'Body', color: 'not-a-canonical-color', created_at: '2026-09-01T00:00:00Z' }] }, { notes: Array(2).fill({ id: 'duplicate', title: 'Valid note', body: 'Body', color: 'yellow', created_at: '2026-09-01T00:00:00Z' }) }])('rejects malformed notes instead of fabricating an empty household', async (body) => {
   const fetchOriginal = global.fetch
   let attempt = 0
   global.fetch = jest.fn(async (input, init) => {
@@ -369,4 +369,24 @@ it.each([['green', 'Green'], ['purple', 'Purple']])('preserves canonical %s when
   await user.click(screen.getByRole('button', { name: 'notes.save' }))
   await waitFor(() => expect(calls.some((call) => call.method === 'PATCH')).toBe(true))
   expect(calls.find((call) => call.method === 'PATCH')?.body).toMatchObject({ color })
+})
+
+
+it('keeps a successful save announcement outside the note cards', async () => {
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await user.click(await screen.findByText('Wifi code'))
+  await user.click(screen.getByRole('button', { name: 'notes.save' }))
+  await screen.findByText('notes.saved')
+  expect(screen.getAllByRole('status')).toHaveLength(1)
+  expect(screen.getByTestId('note-card').querySelector('[role="status"]')).toBeNull()
+})
+
+it('offers household setup instead of a form after the canonical missing-family refusal', async () => {
+  global.fetch = jest.fn(async () => ({ ok: false, status: 400, json: async () => ({ error: 'You must belong to a family' }) } as Response)) as typeof fetch
+  render(<NotesPage />)
+  await screen.findByText('notes.chooseHousehold')
+  expect(screen.queryByRole('button', { name: 'notes.addNote' })).toBeNull()
+  expect(screen.getByRole('link', { name: 'notes.createHousehold' }).getAttribute('href')).toBe('/dashboard/family/create')
+  expect(screen.getByRole('link', { name: 'notes.joinHousehold' }).getAttribute('href')).toBe('/join')
 })

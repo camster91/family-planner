@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import { Plus, StickyNote as NoteIcon } from 'lucide-react'
 import { useFeatureEnabled, useFeatures } from '@/components/providers/features-provider'
 import { FeatureOffState } from '@/components/ui/feature-gate'
@@ -23,7 +24,7 @@ interface Note {
   can_delete?: boolean
 }
 
-type NotesLoadError = 'load' | null
+type NotesLoadError = 'load' | 'household' | null
 
 const noteColors = {
   yellow: {
@@ -48,7 +49,7 @@ const noteColors = {
 function isNoteList(value: unknown): value is Note[] {
   if (!Array.isArray(value)) return false
   return value.every((note) => note && typeof note === 'object' && typeof note.id === 'string' && note.id.length > 0 &&
-    typeof note.title === 'string' && typeof note.body === 'string' && typeof note.color === 'string' &&
+    typeof note.title === 'string' && typeof note.body === 'string' && typeof note.color === 'string' && Object.hasOwn(noteColors, note.color) &&
     typeof note.created_at === 'string' && ['can_edit', 'can_delete'].every((key) => note[key] === undefined || typeof note[key] === 'boolean')) &&
     new Set(value.map((note) => note.id)).size === value.length
 }
@@ -87,6 +88,7 @@ function NotesFeatureOffState() {
 }
 
 function NotesPageInner() {
+  const { canManage } = useFeatures()
   const { t } = useTranslation()
   const locale = useDisplayLocale()
   const colorOptions: Array<{ key: 'yellow' | 'pink' | 'blue' | 'green' | 'purple'; label: string }> = [
@@ -128,6 +130,13 @@ function NotesPageInner() {
       // state instead of replacing it with an unrelated loading screen.
       if (!preserveError) setError(null)
       const res = await fetch('/api/notes')
+      if (res.status === 400) {
+        setNotes([])
+        setViewingNote(null)
+        setNotice(null)
+        setError('household')
+        return false
+      }
       if (!res.ok) {
         throw new Error('Failed to fetch notes')
       }
@@ -260,7 +269,7 @@ function NotesPageInner() {
           <p className="text-subhead text-label-secondary mt-0.5">{t('notes.subtitle')}</p>
           {!loading && !error && <p className="mt-2 text-footnote text-label-secondary">{t(notes.length === 1 ? 'notes.countOne' : 'notes.countMany', { count: notes.length.toLocaleString(locale) })}</p>}
         </div>
-        <button
+        {error !== 'household' && <button
           type="button"
           className="btn-tinted"
           onClick={openAddModal}
@@ -268,13 +277,20 @@ function NotesPageInner() {
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
           <span>{t('notes.addNote')}</span>
-        </button>
+        </button>}
       </div>
 
       {notice && <p role="status" className="card-apple px-4 py-3 text-subhead text-label-primary">{t(`notes.${notice}`)}</p>}
 
       {/* Content */}
-      {error ? (
+      {error === 'household' ? (
+        <EmptyState icon={NoteIcon} title={t('notes.chooseHousehold')} description={t('notes.chooseHouseholdDescription')} action={
+          <div className="flex flex-wrap justify-center gap-3">
+            {canManage && <Link href="/dashboard/family/create" className="btn-tinted min-h-[44px]">{t('notes.createHousehold')}</Link>}
+            <Link href="/join" className="btn-secondary min-h-[44px]">{t('notes.joinHousehold')}</Link>
+          </div>
+        } />
+      ) : error ? (
         <EmptyState
           icon={NoteIcon}
           glyphColor="gray"
@@ -313,6 +329,8 @@ function NotesPageInner() {
             return (
               <div
                 key={note.id}
+                data-testid="note-card"
+                data-note-id={note.id}
                 {...(canEdit
                   ? {
                       role: 'button' as const,
@@ -338,9 +356,7 @@ function NotesPageInner() {
                 {/* Colored header strip */}
                 <div className={cn('h-1.5 w-full', colors.header)} />
 
-                {notice && <p role="status" className="card-apple px-4 py-3 text-subhead text-label-primary">{t(`notes.${notice}`)}</p>}
-
-      {/* Content */}
+                {/* Content */}
                 <div className="flex-1 p-4 flex flex-col">
                   <div className="flex items-start gap-2 mb-2">
                     <NoteIcon className="w-4 h-4 text-label-tertiary mt-0.5 shrink-0" />
@@ -351,7 +367,7 @@ function NotesPageInner() {
                   <p className="text-subhead text-label-secondary line-clamp-3 flex-1 whitespace-pre-wrap [overflow-wrap:anywhere]">
                     {note.body}
                   </p>
-                  {!canEdit && <button type="button" onClick={() => setViewingNote(note)} className="btn-plain mt-3 min-h-[44px] min-w-[44px] self-start">{t('notes.readNote')}</button>}
+                  {!canEdit && <button type="button" aria-label={`${t('notes.readNote')}: ${note.title}`} onClick={() => setViewingNote(note)} className="btn-plain mt-3 min-h-[44px] min-w-[44px] self-start">{t('notes.readNote')}</button>}
                 </div>
               </div>
             )

@@ -5,6 +5,7 @@
  * It owns only the four synthetic notes below and restores Family A's feature
  * blob. The shared device deliberately gets no person-session note route.
  */
+import AxeBuilder from "@axe-core/playwright";
 import type { Browser, BrowserContext, Page, TestInfo } from "@playwright/test";
 import { hashDeviceToken } from "../src/lib/device-session";
 import pg from "pg";
@@ -36,6 +37,8 @@ const NOTE_IDS = {
   foreign: "fx_e2e_notes_foreign",
 } as const;
 const NOTE_TITLE_PREFIX = "E2E Notes D9";
+const LONG_NOTE_BODY =
+  "Shared household information ".repeat(70) + "\nFinal shared line.";
 const NOTES_DEVICE_ID = "fx_e2e_notes_device";
 const NOTES_DEVICE_ACCESS = "fpd1_a_e2e_notes_valid";
 const NOTES_DEVICE_REFRESH = "fpd1_r_e2e_notes_valid";
@@ -73,7 +76,7 @@ const COPY: Record<Locale, NoteCopy> = {
     save: "Save",
     cancel: "Cancel",
     delete: "Delete",
-    colors: ["Yellow", "Pink", "Blue"],
+    colors: ["Yellow", "Pink", "Blue", "Green", "Purple"],
   },
   es: {
     title: "Notas",
@@ -84,7 +87,7 @@ const COPY: Record<Locale, NoteCopy> = {
     save: "Guardar",
     cancel: "Cancelar",
     delete: "Eliminar",
-    colors: ["Amarillo", "Rosa", "Azul"],
+    colors: ["Amarillo", "Rosa", "Azul", "Verde", "Morado"],
   },
 };
 
@@ -185,8 +188,20 @@ async function seedNotes(db: pg.Client) {
   for (const [id, familyId, title, createdBy] of rows) {
     await db.query(
       `INSERT INTO "PinnedNote" (id, family_id, title, body, color, created_by, created_at)
-       VALUES ($1, $2, $3, $4, 'yellow', $5, $6)`,
-      [id, familyId, title, `${title} body`, createdBy, createdAt],
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        id,
+        familyId,
+        title,
+        `${title} body\n${LONG_NOTE_BODY}`,
+        id === NOTE_IDS.parent
+          ? "green"
+          : id === NOTE_IDS.teen
+            ? "purple"
+            : "yellow",
+        createdBy,
+        createdAt,
+      ],
     );
   }
 }
@@ -295,6 +310,7 @@ async function notesBody(page: Page) {
     notes: Array<{
       id: string;
       title: string;
+      body: string;
       can_edit?: boolean;
       can_delete?: boolean;
     }>;
@@ -385,6 +401,35 @@ for (const locale of ["en", "es"] as const) {
         );
         expect(JSON.stringify(body)).not.toContain(NOTE_TITLES.foreign);
 
+        await expect(page.getByTestId("note-card")).toHaveCount(
+          body.notes.length,
+        );
+        await expect(
+          page.getByRole("button", { name: copy.add, exact: true }),
+        ).toHaveCount(1);
+        const width = await page.getByTestId("notes-workspace").boundingBox();
+        expect(width!.width).toBeGreaterThanOrEqual(
+          info.project.use.viewport!.width - 72,
+        );
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth - innerWidth,
+          ),
+        ).toBeLessThanOrEqual(0);
+        expect(
+          (
+            await new AxeBuilder({ page })
+              .include("main")
+              .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+              .analyze()
+          ).violations,
+        ).toEqual([]);
+        await page.screenshot({
+          path: info.outputPath(`notes-${who}-${locale}.png`),
+          fullPage: true,
+          animations: "disabled",
+        });
+
         const own = body.notes.find((note) => note.id === NOTE_IDS[role]);
         const parent = body.notes.find((note) => note.id === NOTE_IDS.parent);
         expect(own).toMatchObject({
@@ -443,6 +488,40 @@ for (const locale of ["en", "es"] as const) {
           .click();
 
         if (role !== "parent") {
+          const readLabel = locale === "es" ? "Leer nota" : "Read note";
+          const readOpener = page.getByRole("button", {
+            name: `${readLabel}: ${NOTE_TITLES.parent}`,
+            exact: true,
+          });
+          const target = await readOpener.boundingBox();
+          expect(target!.height).toBeGreaterThanOrEqual(44);
+          expect(target!.width).toBeGreaterThanOrEqual(44);
+          await readOpener.press("Enter");
+          const readDialog = page.getByRole("dialog", {
+            name: NOTE_TITLES.parent,
+            exact: true,
+          });
+          await expect(
+            readDialog.getByText(parent!.body, { exact: true }),
+          ).toBeVisible();
+          await expect(readDialog.locator("input, textarea")).toHaveCount(0);
+          await expect(
+            readDialog.getByRole("button", { name: copy.save, exact: true }),
+          ).toHaveCount(0);
+          await expect(
+            readDialog.getByRole("button", { name: copy.delete, exact: true }),
+          ).toHaveCount(0);
+          expect(
+            (
+              await new AxeBuilder({ page })
+                .include('[role="dialog"]')
+                .withTags(["wcag2a", "wcag2aa"])
+                .analyze()
+            ).violations,
+          ).toEqual([]);
+          await page.keyboard.press("Escape");
+          await expect(readDialog).toHaveCount(0);
+          await expect(readOpener).toBeFocused();
           const forbiddenEdit = await browserSend(
             page,
             "PATCH",
