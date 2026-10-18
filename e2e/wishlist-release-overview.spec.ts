@@ -780,6 +780,12 @@ for (const locale of ["en", "es"] as const) {
 
         if (FULL_TRANSPORT_PROJECTS.has(project)) {
           routeState.sameName = false;
+          // The same-name state is a synthetic display-only overlay. Reload
+          // canonical requester names before validating real mutation receipts.
+          await page.reload();
+          await expect(
+            page.getByText(parentTitle, { exact: true }),
+          ).toBeVisible();
           const editButton = page.getByRole("button", {
             name: copy.editItem(parentTitle),
             exact: true,
@@ -822,7 +828,7 @@ for (const locale of ["en", "es"] as const) {
           expect(
             parseItems(editedRead.body).find((item) => item.id === parent.id)
               ?.approx_price,
-          ).toBe("0");
+          ).toBe("43");
 
           routeState.failNextGet = true;
           const status = page.getByRole("combobox", {
