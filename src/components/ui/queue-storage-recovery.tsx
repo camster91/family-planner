@@ -5,7 +5,11 @@ import type { OfflineQueue } from "@/lib/offline-queue";
 import { useTranslation } from "@/i18n";
 
 /** A deliberate read retry, never a replacement or discard of unread work. */
-export function QueueStorageRecovery({ queue }: { queue: OfflineQueue | null }) {
+export function QueueStorageRecovery({
+  queue,
+}: {
+  queue: OfflineQueue | null;
+}) {
   const { t } = useTranslation();
   const subscribe = React.useCallback(
     (listener: () => void) => queue?.subscribe(listener) ?? (() => {}),
@@ -15,6 +19,11 @@ export function QueueStorageRecovery({ queue }: { queue: OfflineQueue | null }) 
     subscribe,
     () => queue?.hasStorageReadError() ?? false,
     () => false,
+  );
+  const reason = React.useSyncExternalStore(
+    subscribe,
+    () => queue?.storageFailureReason?.() ?? null,
+    () => null,
   );
   const [busy, setBusy] = React.useState(false);
   const generation = React.useRef(0);
@@ -54,7 +63,13 @@ export function QueueStorageRecovery({ queue }: { queue: OfflineQueue | null }) 
       data-testid="queue-storage-recovery"
     >
       <p role="status" className="text-subhead text-label-primary">
-        {t("groceries.storageUnavailable")}
+        {t(
+          reason === "OWNER_CHANGED"
+            ? "groceries.storageOwnerChanged"
+            : reason === "UPDATE_REQUIRED"
+              ? "groceries.storageVersionRequired"
+              : "groceries.storageUnavailable",
+        )}
       </p>
       <button
         type="button"

@@ -903,6 +903,11 @@ export function syncStatusText(
       if (op.lastError === "FORBIDDEN") return text("forbidden");
       return text("syncFailed");
     case "conflict":
+      if (op.lastError === "QUEUE_REVIEW_REQUIRED")
+        return text("recoveredReview");
+      if (op.lastError === "QUEUE_OWNER_CHANGED") return text("ownerChanged");
+      if (op.lastError === "QUEUE_STORAGE_UNCERTAIN")
+        return text("storageUncertain");
       return op.lastError === "NOT_FOUND" ? text("missing") : text("conflict");
     default:
       return undefined;

@@ -28,6 +28,7 @@ export const deviceClock = {
 export const NO_STORE = 'private, no-store'
 
 export type DeviceErrorCode =
+  | 'QUEUE_OWNER_CHANGED'
   | 'NOT_FOUND'
   | 'UNAUTHORIZED'
   | 'PARENT_REQUIRED'
@@ -64,6 +65,7 @@ export type DeviceErrorCode =
   | 'DUPLICATE_OPEN_ITEM'
 
 const DEFAULT_MESSAGES: Record<DeviceErrorCode, string> = {
+  QUEUE_OWNER_CHANGED: 'Saved changes need a compatible session. Keep them and review recovery before retrying.',
   NOT_FOUND: 'Not found.',
   UNAUTHORIZED: 'Sign in to continue.',
   PARENT_REQUIRED: 'Only a parent can do this.',

@@ -42,6 +42,11 @@ const en = {
   syncFailed: "Couldn’t sync this change",
   missing: "Not synced: this item was removed",
   conflict: "Not synced: changed elsewhere",
+  recoveredReview:
+    "Review this saved change before retrying. It may have been cleared in an earlier session.",
+  ownerChanged:
+    "Saved change paused: the account, household or session changed.",
+  storageUncertain: "Saved change paused: storage could not be confirmed.",
   offlineDurable:
     "You can still tick items. Ticks are saved on this device and sync when you reconnect.",
   offlineVisit: "You can still tick items. Ticks sync when you reconnect.",
@@ -96,6 +101,12 @@ const es: Record<keyof typeof en, string> = {
   syncFailed: "No se pudo sincronizar el cambio",
   missing: "Sin sincronizar: se eliminó este artículo",
   conflict: "Sin sincronizar: cambió en otro lugar",
+  recoveredReview:
+    "Revisa este cambio guardado antes de reintentarlo. Es posible que se borrara en una sesión anterior.",
+  ownerChanged:
+    "Cambio guardado en pausa: cambió la cuenta, el hogar o la sesión.",
+  storageUncertain:
+    "Cambio guardado en pausa: no se pudo confirmar el almacenamiento.",
   offlineDurable:
     "Puedes seguir marcando artículos. Los cambios se guardan en este dispositivo y se sincronizan al recuperar la conexión.",
   offlineVisit:

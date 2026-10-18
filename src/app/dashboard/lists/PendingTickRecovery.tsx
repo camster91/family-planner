@@ -184,20 +184,24 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
                             : t("groceries.waitingSync"),
                   })}
                 </p>
+                {op.lastError === "QUEUE_REVIEW_REQUIRED" && (
+                  <p>{t("groceries.tickReviewOnList")}</p>
+                )}
                 <div className="flex flex-wrap gap-2">
-                  {(op.state === "failed" || op.state === "conflict") && (
-                    <button
-                      type="button"
-                      className="btn-secondary min-h-11"
-                      disabled={busy}
-                      onClick={() => void run(op.id, false)}
-                      aria-label={t("groceries.retryChange", {
-                        index: index + 1,
-                      })}
-                    >
-                      {t("groceries.retry")}
-                    </button>
-                  )}
+                  {(op.state === "failed" || op.state === "conflict") &&
+                    op.lastError !== "QUEUE_REVIEW_REQUIRED" && (
+                      <button
+                        type="button"
+                        className="btn-secondary min-h-11"
+                        disabled={busy}
+                        onClick={() => void run(op.id, false)}
+                        aria-label={t("groceries.retryChange", {
+                          index: index + 1,
+                        })}
+                      >
+                        {t("groceries.retry")}
+                      </button>
+                    )}
                   <button
                     type="button"
                     className="btn-secondary min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:bg-[var(--accent-tint)] aria-disabled:active:transform-none"

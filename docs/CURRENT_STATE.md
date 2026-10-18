@@ -1,5 +1,22 @@
 # Current State
 
+## Queue owner/retirement core source in progress — 2026-10-18
+
+Local #564 adds private owner negotiation, per-issuance person-session nonce,
+stable device-pairing continuity, v2 retirement-envelope source, exact-operation
+storage recovery, fresh pre-send proof and owner checks on all four queued
+grocery-write routes before replay/mutation. Recovered active work from another
+runtime requires per-item review and retains original keys/bodies. EN/ES source
+distinguishes review, changed-owner and uncertain-storage states.
+
+This is **not source-complete or ready to activate**: principal-qualified
+physical cleanup, cross-runtime exclusion, deliberate v1/rollback recovery and
+named tablet tick controls remain coding work. The exact next steps and later
+acceptance matrix are in `docs/architecture/QUEUE_OWNER_RECOVERY.md`. Both
+`QUEUE_OWNER_RECOVERY_ENABLED` and `QUEUE_OWNER_RECOVERY_ROLLBACK_READY` remain
+off. No tests, type/lint/build/browser or hosted QA were run. No push, merge,
+deploy or real session/device mutation was performed. The goal stays active.
+
 ## Verified profile-to-account linking source candidate — 2026-10-18
 
 Local #557 now includes additive challenge schema/migration, expiring one-use

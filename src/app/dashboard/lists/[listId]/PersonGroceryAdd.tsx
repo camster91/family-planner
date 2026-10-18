@@ -277,7 +277,13 @@ export function PersonGroceryAdd({
                 ? t("groceries.unsafe")
                 : op.lastError === "NOT_FOUND"
                   ? t("groceries.notFound")
-                  : t("groceries.unconfirmed")
+                  : op.lastError === "QUEUE_REVIEW_REQUIRED"
+                    ? t("groceries.recoveredReview")
+                    : op.lastError === "QUEUE_OWNER_CHANGED"
+                      ? t("groceries.storageOwnerChanged")
+                      : op.lastError === "QUEUE_STORAGE_UNCERTAIN"
+                        ? t("groceries.storageUnavailable")
+                        : t("groceries.unconfirmed")
               : t("groceries.waiting");
         return (
           <div

@@ -252,11 +252,17 @@ export function DeviceGroceryAdd({
                 ? t("groceries.adding")
                 : op.state === "pending"
                   ? t("groceries.deviceWaiting")
-                  : op.state === "conflict"
-                    ? t("groceries.deviceConflict")
-                    : cannotRetry
-                      ? t("groceries.deviceUnsafe")
-                      : t("groceries.deviceFailed");
+                  : op.lastError === "QUEUE_REVIEW_REQUIRED"
+                    ? t("groceries.recoveredReview")
+                    : op.lastError === "QUEUE_OWNER_CHANGED"
+                      ? t("groceries.storageOwnerChanged")
+                      : op.lastError === "QUEUE_STORAGE_UNCERTAIN"
+                        ? t("groceries.storageUnavailable")
+                        : op.state === "conflict"
+                          ? t("groceries.deviceConflict")
+                          : cannotRetry
+                            ? t("groceries.deviceUnsafe")
+                            : t("groceries.deviceFailed");
             return (
               <div
                 key={op.id}

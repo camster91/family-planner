@@ -16,6 +16,10 @@ The native helper `readNativeBuildIdentity` reads the existing App plugin's actu
 
 ### Bounded storage candidate recovery (#565)
 
+The follow-on #564 owner/retirement implementation is in progress; see
+[its source contract and remaining integration work](QUEUE_OWNER_RECOVERY.md).
+It is off by default and does not establish durable purge acceptance.
+
 Source reconciliation on 2026-10-18 found the requested earlier-candidate retry
 already present in `src/lib/offline-queue.ts` (`391844c9`). No replacement
 algorithm is needed. Before each write, `fallbackQueueStore` probes candidate

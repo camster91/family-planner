@@ -5,6 +5,7 @@ import { deviceClock, deviceError, deviceErrorBody, deviceInternalError, killSwi
 import { isRouteId, openDeviceWrite, runDeviceWrite } from '@/lib/device-writes'
 import { createListItem } from '@/lib/list-item-create'
 import { getRequestId } from '@/lib/request-id'
+import { deviceQueueOwner, queueOwnerMatches } from '@/lib/queue-owner-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const opened = await openDeviceWrite(request, 'lists')
     if (!opened.ok) return opened.response
     const { ctx } = opened
+    if (!queueOwnerMatches(request, deviceQueueOwner(ctx.actor))) return deviceError(409, 'QUEUE_OWNER_CHANGED')
     const { id: listId } = await params
     if (!isRouteId(listId)) return deviceError(404, 'NOT_FOUND')
     const raw = ctx.body.content

@@ -224,6 +224,8 @@ export interface QueueStore {
   remove(): Promise<void>
   /** Stable lane token for wrappers around the same persisted namespace. */
   persistenceLane?: object
+  /** Content-free recovery reason; optional for custom/legacy stores. */
+  failureReason?: () => 'UNAVAILABLE' | 'OWNER_CHANGED' | 'UPDATE_REQUIRED' | 'DIVERGENT' | null
 }
 
 export interface SendRequest {
@@ -231,6 +233,8 @@ export interface SendRequest {
   path: string
   body: Record<string, unknown>
   idempotencyKey: string
+  /** Private continuity proof supplied by the storage adapter, never persisted in an operation. */
+  ownerScope?: string
 }
 
 /** Resolve with the HTTP outcome; reject only when the network failed. */
@@ -540,6 +544,10 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     let dropped = 0
     const kept: QueuedOperation[] = []
     for (const op of ops) {
+      // A recovered active journal cannot prove whether its former runtime
+      // retired it unsuccessfully. Retain it for deliberate per-item review;
+      // do not age/drop it before the person has seen the recovery state.
+      if (op.lastError === 'QUEUE_REVIEW_REQUIRED') { kept.push(op); continue }
       const age = now - op.createdAt
       if ((op.state === 'failed' || op.state === 'conflict') && age > QUEUE_RETENTION_MS) {
         dropped++
@@ -910,6 +918,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     requiresCompatibleClient: () => compatibleClientRequired,
     /** True when the initial or explicit storage read failed; all queue mutations are paused. */
     hasStorageReadError: () => storageReadError,
+    storageFailureReason: () => deps.store.failureReason?.() ?? null,
     retryStorageRead,
     /** False while queued changes exist only in memory because storage refused the last write. */
     isDurable: () => durable && !storageReadError,
@@ -1079,6 +1088,15 @@ export function preferredQueueStore(
   location: { dbName: string; key: string },
   env: { indexedDB?: IDBFactory | null; localStorage?: StorageLike | null }
 ): QueueStore {
+  const { candidates, persistenceLane } = queueStoreCandidates(location, env)
+  return fallbackQueueStore(candidates, persistenceLane)
+}
+
+/** Shared physical stores/lane for legacy and ownership-aware adapters. */
+export function queueStoreCandidates(
+  location: { dbName: string; key: string },
+  env: { indexedDB?: IDBFactory | null; localStorage?: StorageLike | null }
+): { candidates: QueueStore[]; persistenceLane: object } {
   const candidates: QueueStore[] = []
   if (env.indexedDB) candidates.push(indexedDbQueueStore(env.indexedDB, location.dbName, location.key))
   if (env.localStorage) candidates.push(localStorageQueueStore(env.localStorage, location.key))
@@ -1088,7 +1106,7 @@ export function preferredQueueStore(
     persistenceLane = {}
     preferredPersistenceLanes.set(laneKey, persistenceLane)
   }
-  return fallbackQueueStore(candidates, persistenceLane)
+  return { candidates, persistenceLane }
 }
 
 /** The fallback chain behind `preferredQueueStore`, in preference order. */
