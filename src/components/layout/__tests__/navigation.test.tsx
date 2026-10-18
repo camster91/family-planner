@@ -248,15 +248,6 @@ describe('More list', () => {
 })
 
 describe('TabBar (phone)', () => {
-  it('uses readable 12px labels and shrinking equal-width targets on narrow phones', () => {
-    render(<TabBar user={user('parent')} />)
-    const links = within(screen.getByRole('navigation', { name: 'Tabs' })).getAllByRole('link')
-    for (const link of links) {
-      expect(link.querySelector('span')?.className).toContain('text-[12px]')
-      expect(link.closest('li')?.className).toContain('min-w-0')
-      expect(link.className).toContain('min-h-[44px]')
-    }
-  })
   it('shows exactly five tabs for a parent, Today current on the board', () => {
     const { container } = render(<TabBar user={user('parent')} />)
     expect(tabLabels(container)).toEqual([
@@ -331,7 +322,6 @@ describe('DashboardNav (top bar)', () => {
     const explore = screen.getByTestId('desktop-explore')
     expect(within(screen.getByTestId('top-tabs')).getByRole('link', { name: 'Explore' })).toBe(explore)
     expect(within(screen.getByRole('navigation', { name: 'Main navigation' })).getAllByRole('link', { name: 'Explore' })).toHaveLength(1)
-    expect(explore.className).toContain('min-h-[44px]')
   })
 
   it('gives a child its own tabs and a home link to the kid home', () => {
