@@ -29,6 +29,8 @@ const metric = recordBetaMetric as jest.Mock
 describe('Rewards idempotency', () => {
   beforeEach(() => {
     db.reset()
+    db.find('family', 'family-A')!.features = { gamification: true, rewards: true }
+    db.find('family', 'family-B')!.features = { gamification: true, rewards: true }
     send.mockClear()
     metric.mockClear()
   })
@@ -47,6 +49,14 @@ describe('Rewards idempotency', () => {
   it('rechecks the effective Rewards dependency before a mutation', async () => {
     db.find('family', 'family-A')!.features = { gamification: false, rewards: true }
     const response = await rewards.POST(req({ as: 'parentA', body: { name: 'Hidden', cost: 5 } }))
+    expect(response.status).toBe(403)
+    expect(await bodyOf(response)).toEqual({ error: 'This feature is turned off for your family' })
+    expect(writesTo('reward')).toHaveLength(0)
+  })
+
+  it('treats a null legacy feature blob as the real default policy', async () => {
+    db.find('family', 'family-A')!.features = null
+    const response = await rewards.POST(req({ as: 'parentA', body: { name: 'Legacy default', cost: 5 } }))
     expect(response.status).toBe(403)
     expect(await bodyOf(response)).toEqual({ error: 'This feature is turned off for your family' })
     expect(writesTo('reward')).toHaveLength(0)

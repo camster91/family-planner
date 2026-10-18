@@ -8,6 +8,7 @@
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { isFeatureEnabled, normalizeFeatures } from "@/lib/features";
+import { lockHousehold, lockUser } from "@/lib/household-lock";
 import type { EffectResult } from "@/lib/idempotency";
 import type {
   claimRewardSchema,
@@ -61,6 +62,15 @@ export async function authorizeRewardActorInTx(
   actor: RewardActor,
   parentOnly: boolean,
 ): Promise<EffectResult | null> {
+  await lockRewardMembership(tx, actor);
+  return authorizeRewardActorLocked(tx, actor, parentOnly);
+}
+
+async function authorizeRewardActorLocked(
+  tx: RewardTx,
+  actor: RewardActor,
+  parentOnly: boolean,
+): Promise<EffectResult | null> {
   const [currentActor, family] = await Promise.all([
     tx.user.findUnique({
       where: { id: actor.userId },
@@ -75,13 +85,7 @@ export async function authorizeRewardActorInTx(
   if (!family || !currentActor || currentActor.family_id !== actor.familyId) {
     return { status: 400, body: { error: "No family" } };
   }
-  // The route's featureGate is the first check. A null legacy blob is kept
-  // compatible with route tests that replace that gate; real routes reject a
-  // null blob according to featureGate/normalizeFeatures before this helper.
-  if (
-    family.features != null &&
-    !isFeatureEnabled(normalizeFeatures(family.features), "rewards")
-  )
+  if (!isFeatureEnabled(normalizeFeatures(family.features), "rewards"))
     return featureOff();
   if (parentOnly && currentActor.role !== "parent") {
     return {
@@ -90,6 +94,11 @@ export async function authorizeRewardActorInTx(
     };
   }
   return null;
+}
+
+async function lockRewardMembership(tx: RewardTx, actor: RewardActor): Promise<void> {
+  await lockUser(tx, actor.userId);
+  await lockHousehold(tx, actor.familyId);
 }
 
 async function receiptResult(
@@ -139,9 +148,10 @@ export async function createReward(
   recordId: string | null,
 ): Promise<RewardMutation> {
   return db.$transaction(async (tx) => {
+    await lockRewardMembership(tx, actor);
     const replay = await receiptResult(tx, actor, recordId);
     if (replay) return { result: replay, applied: false };
-    const denied = await authorizeRewardActorInTx(tx, actor, true);
+    const denied = await authorizeRewardActorLocked(tx, actor, true);
     if (denied) return { result: denied, applied: false };
 
     const reward = await tx.reward.create({
@@ -169,9 +179,10 @@ export async function updateReward(
   recordId: string | null,
 ): Promise<RewardMutation> {
   return db.$transaction(async (tx) => {
+    await lockRewardMembership(tx, actor);
     const replay = await receiptResult(tx, actor, recordId);
     if (replay) return { result: replay, applied: false };
-    const denied = await authorizeRewardActorInTx(tx, actor, true);
+    const denied = await authorizeRewardActorLocked(tx, actor, true);
     if (denied) return { result: denied, applied: false };
 
     const current = await tx.reward.findUnique({
@@ -218,9 +229,10 @@ export async function claimReward(
   recordId: string | null,
 ): Promise<RewardMutation> {
   return db.$transaction(async (tx) => {
+    await lockRewardMembership(tx, actor);
     const replay = await receiptResult(tx, actor, recordId);
     if (replay) return { result: replay, applied: false };
-    const denied = await authorizeRewardActorInTx(tx, actor, false);
+    const denied = await authorizeRewardActorLocked(tx, actor, false);
     if (denied) return { result: denied, applied: false };
 
     const current = await tx.reward.findUnique({
@@ -303,9 +315,10 @@ export async function approveReward(
   recordId: string | null,
 ): Promise<RewardMutation & { claimerId?: string | null }> {
   return db.$transaction(async (tx) => {
+    await lockRewardMembership(tx, actor);
     const replay = await receiptResult(tx, actor, recordId);
     if (replay) return { result: replay, applied: false };
-    const denied = await authorizeRewardActorInTx(tx, actor, true);
+    const denied = await authorizeRewardActorLocked(tx, actor, true);
     if (denied) return { result: denied, applied: false };
 
     const current = await tx.reward.findUnique({
