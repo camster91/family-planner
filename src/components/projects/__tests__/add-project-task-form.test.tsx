@@ -149,7 +149,7 @@ it("an empty title is not sent and says why", async () => {
   expect(calls).toHaveLength(0);
 });
 
-it("a refused save keeps what was typed and shows the server's reason", async () => {
+it("a refused save keeps what was typed and shows safe recovery copy", async () => {
   reply = {
     status: 400,
     body: { error: "Cannot add tasks to a completed or archived project" },
@@ -161,8 +161,9 @@ it("a refused save keeps what was typed and shows the server's reason", async ()
   await user.click(screen.getByRole("button", { name: "Add task" }));
 
   const alert = await screen.findByRole("alert");
-  expect(alert.textContent).toBe(
-    "Couldn't add the task. Cannot add tasks to a completed or archived project",
+  expect(alert.textContent).toBe("Couldn't add the task. Please try again.");
+  expect(alert.textContent).not.toContain(
+    "Cannot add tasks to a completed or archived project",
   );
   expect((screen.getByLabelText("Task") as HTMLInputElement).value).toBe(
     "Paint fence",
@@ -237,8 +238,9 @@ it("a network failure keeps the text and asks to try again", async () => {
   await user.type(screen.getByLabelText("Task"), "Paint fence");
   await user.click(screen.getByRole("button", { name: "Add task" }));
   expect((await screen.findByRole("alert")).textContent).toContain(
-    "Couldn't add the task.",
+    "Check your connection and try again.",
   );
+  expect(screen.getByRole("alert").textContent).not.toContain("Failed to fetch");
   expect((screen.getByLabelText("Task") as HTMLInputElement).value).toBe(
     "Paint fence",
   );

@@ -152,6 +152,11 @@ it("reuses the network-failed key when the user returns to the original draft", 
   await user.type(name, "Original garden");
   await user.click(screen.getByRole("button", { name: "Create Project" }));
   await waitFor(() => expect(addToast).toHaveBeenCalledTimes(1));
+  expect(addToast).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message: "Couldn't create the project. Check your connection and try again.",
+    }),
+  );
   const firstKey = (
     (global.fetch as jest.Mock).mock.calls[0][1].headers as Record<
       string,
@@ -347,6 +352,7 @@ it("localizes project create labels and refusal feedback in Spanish", async () =
       expect.objectContaining({
         type: "error",
         title: "No se pudo crear el proyecto",
+        message: "Inténtalo de nuevo.",
       }),
     ),
   );

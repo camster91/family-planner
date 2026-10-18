@@ -95,14 +95,10 @@ export default function CreateProjectForm({
           ambiguousRequests.current.delete(signature);
           currentRequest.current = null;
         }
-        const serverMessage =
-          typeof data?.error === "string" && data.error.trim()
-            ? data.error
-            : typeof data?.error?.message === "string" &&
-                data.error.message.trim()
-              ? data.error.message
-              : copy.createFallback;
-        throw new Error(serverMessage);
+        // Server text can be English, internal, or household-sensitive. Keep
+        // it out of the user-facing toast while preserving the status/key
+        // classification above.
+        throw new Error("PROJECT_CREATE_FAILED");
       }
       const projectId = data?.project?.id;
       if (typeof projectId !== "string" || projectId.trim().length === 0) {
@@ -132,7 +128,7 @@ export default function CreateProjectForm({
       addToast({
         type: "error",
         title: copy.createError,
-        message: error instanceof Error ? error.message : copy.createFallback,
+        message: error instanceof TypeError ? copy.createNetworkError : copy.createFallback,
       });
     } finally {
       setLoading(false);
