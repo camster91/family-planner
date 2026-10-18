@@ -221,7 +221,15 @@ async function assertNoHorizontalOverflow(page: Page) {
 }
 
 async function assertHitTarget(page: Page, target: Locator) {
-  await target.scrollIntoViewIfNeeded();
+  // Native nearest-edge scrolling can leave a control under fixed app chrome.
+  // Center it as a user can by scrolling, then still prove physical hit access.
+  await target.evaluate((element) =>
+    element.scrollIntoView({
+      block: "center",
+      inline: "nearest",
+      behavior: "instant",
+    }),
+  );
   const metrics = await target.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     const hit = document.elementFromPoint(
