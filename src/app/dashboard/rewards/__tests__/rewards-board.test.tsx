@@ -9,7 +9,8 @@ import * as React from 'react'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '@/components/ui/toast'
-import RewardsBoard, { type RewardCard } from '../RewardsBoard'
+import { I18nProvider } from '@/i18n'
+import RewardsBoard, { parseRewardCard, type RewardCard } from '../RewardsBoard'
 import { isValidIdempotencyKey } from '@/lib/idempotency-key'
 
 const refresh = jest.fn()
@@ -61,11 +62,13 @@ function mockFetch(answer: (url: string) => { status: number; body: unknown } | 
   return calls
 }
 
-function renderBoard(props: Partial<React.ComponentProps<typeof RewardsBoard>> = {}) {
+function renderBoard(props: Partial<React.ComponentProps<typeof RewardsBoard>> = {}, locale: 'en' | 'es' = 'en') {
   return render(
-    <ToastProvider>
-      <RewardsBoard rewards={[MOVIE, ICE_CREAM]} userXp={80} isParent={false} currentUserId="kid_1" canViewAnalytics={false} {...props} />
-    </ToastProvider>
+    <I18nProvider locale={locale}>
+      <ToastProvider>
+        <RewardsBoard rewards={[MOVIE, ICE_CREAM]} userXp={80} isParent={false} currentUserId="kid_1" canViewAnalytics={false} {...props} />
+      </ToastProvider>
+    </I18nProvider>
   )
 }
 
@@ -77,6 +80,15 @@ describe('RewardsBoard', () => {
     expect(screen.getAllByTestId('claimable-reward')).toHaveLength(2)
     expect(screen.queryAllByTestId('family-reward')).toHaveLength(0)
     expect(screen.getByRole('button', { name: 'Claim Game time' })).toBeTruthy()
+  })
+
+  it('parses the canonical inactive flag and keeps retired rewards out of the claim shelf', () => {
+    expect(parseRewardCard({ ...MOVIE, is_active: false })?.active).toBe(false)
+    renderBoard({ rewards: [{ ...MOVIE, active: false }] })
+    expect(screen.queryAllByTestId('claimable-reward')).toHaveLength(0)
+    const retired = screen.getByTestId('family-reward')
+    expect(retired.textContent).toContain('Inactive')
+    expect(within(retired).queryByRole('button', { name: /Claim/ })).toBeNull()
   })
 
   it('retries an uncertain claim with the same idempotency key', async () => {
@@ -218,6 +230,23 @@ describe('RewardsBoard', () => {
     renderBoard({ userXp: 10 })
     const button = screen.getByRole('button', { name: 'Need 40 more points' }) as HTMLButtonElement
     expect(button.disabled).toBe(true)
+  })
+
+  it('uses singular Spanish point copy when one point is missing', () => {
+    renderBoard({ rewards: [{ ...MOVIE, cost: 50 }], userXp: 49 }, 'es')
+    const button = screen.getByRole('button', { name: 'Necesitas 1 punto más' }) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+    expect(screen.getByText('50 puntos')).toBeTruthy()
+  })
+
+  it('localizes an approval transport recovery notice', async () => {
+    const user = userEvent.setup()
+    mockFetch(() => 'throw')
+    renderBoard({ isParent: true, currentUserId: 'parent_1' }, 'es')
+    await user.click(screen.getByRole('button', { name: 'Marcar Ice cream como entregada' }))
+    const row = screen.getAllByTestId('family-reward').find((item) => item.textContent?.includes('Ice cream'))!
+    expect(await within(row).findByText('Revisa tu conexión e inténtalo de nuevo.')).toBeTruthy()
+    expect(within(row).queryByText('Check your connection and try again.')).toBeNull()
   })
 
   it('shows a child their claim is waiting for a parent, with no approve button', () => {
