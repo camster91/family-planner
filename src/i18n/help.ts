@@ -55,7 +55,8 @@ const en = {
   privacyIncident:
     "If you see another family’s information, stop and tell us. Do not share screenshots of it.",
 } as const;
-const es: Record<keyof typeof en, string> = {
+export type HelpMessage = keyof typeof en;
+const es: Record<HelpMessage, string> = {
   title: "Ayuda",
   intro: "Respuestas rápidas y un próximo paso claro.",
   start: "Primeros pasos",

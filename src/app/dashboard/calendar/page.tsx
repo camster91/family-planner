@@ -65,7 +65,10 @@ export default async function CalendarPage({
       ? `${year}-${String(month).padStart(2, "0")}-01`
       : dayKey(now, false));
   const initialView =
-    params.view === "day" || params.view === "week" || params.view === "agenda"
+    params.view === "day" ||
+    params.view === "week" ||
+    params.view === "agenda" ||
+    params.view === "month"
       ? params.view
       : undefined;
 
@@ -82,7 +85,9 @@ export default async function CalendarPage({
       importEnabled={isEventImportConfigured() && canImportEvents(user?.role)}
       // Edit and delete are parent-only in the API; a teen (O-37) only views and adds.
       canEditEvents={isParentRole(user?.role)}
-      calendarSyncAvailable={isParentRole(user?.role) && isCalendarSyncEnabled()}
+      calendarSyncAvailable={
+        isParentRole(user?.role) && isCalendarSyncEnabled()
+      }
     />
   );
 }

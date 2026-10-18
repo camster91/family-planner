@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import {
   addDays,
+  adjacentPlanningDate,
   dateAt,
   dayKey,
   matchesSource,
@@ -97,15 +98,10 @@ export function CalendarPlanner({
     start = range?.start || "",
     end = range?.end || "";
   const displayState = range ? state : "unsupported";
-  const previousDate = dayKey(
-    addDays(dateAt(date, local), view === "day" ? -1 : -7, local),
-    local,
-  );
-  const nextDate = dayKey(
-    addDays(dateAt(date, local), view === "day" ? 1 : 7, local),
-    local,
-  );
-  const clockChange = days.some((day) => hasClockChange(day, local));
+  const previousDate = adjacentPlanningDate(date, view, -1, local);
+  const nextDate = adjacentPlanningDate(date, view, 1, local);
+  const clockChange =
+    view !== "month" && days.some((day) => hasClockChange(day, local));
   React.useEffect(() => {
     if (state === "ready" && gridViewport.current)
       gridViewport.current.scrollTop = 8 * 64;
@@ -294,19 +290,19 @@ export function CalendarPlanner({
         <div>
           <p className={styles.eyebrow}>{msg("eyebrow")}</p>
           <h1>
-            {format(days[0], {
+            {format(view === "month" ? dateAt(date, local) : days[0], {
               weekday: view === "day" ? "long" : undefined,
               month: "long",
-              day: "numeric",
+              day: view === "month" ? undefined : "numeric",
               year: "numeric",
             })}
-            {days.length > 1
+            {view !== "month" && days.length > 1
               ? ` – ${format(days[days.length - 1], { month: "short", day: "numeric", year: "numeric" })}`
               : ""}
           </h1>
         </div>
         <nav aria-label={msg("view")} className={styles.views}>
-          {(["day", "week", "agenda"] as const).map((v) => (
+          {(["day", "week", "month", "agenda"] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -520,7 +516,15 @@ export function CalendarPlanner({
               )}
               {displayState === "loading" && (
                 <section className={styles.state} role="status">
-                  <h2>{msg(view === "day" ? "loadingDay" : "loadingWeek")}</h2>
+                  <h2>
+                    {msg(
+                      view === "day"
+                        ? "loadingDay"
+                        : view === "month"
+                          ? "loadingMonth"
+                          : "loadingWeek",
+                    )}
+                  </h2>
                   <p>{msg("keeping")}</p>
                 </section>
               )}
@@ -568,7 +572,76 @@ export function CalendarPlanner({
                 </section>
               )}
               {displayState === "ready" &&
-                (view === "agenda" || clockChange ? (
+                (view === "month" ? (
+                  <>
+                    <p className={styles.mobileWeekHint}>
+                      {msg("monthScroll")}
+                    </p>
+                    <div
+                      className={styles.monthScroll}
+                      tabIndex={0}
+                      aria-label={msg("month")}
+                    >
+                      <div className={styles.monthGrid}>
+                        {days.slice(0, 7).map((day) => (
+                          <div
+                            key={dayKey(day, local)}
+                            className={styles.monthWeekday}
+                          >
+                            {format(day, { weekday: "short" })}
+                          </div>
+                        ))}
+                        {days.map((day) => {
+                          const rows = filtered.filter((event) =>
+                            segmentEvent(event, day, local),
+                          );
+                          const key = dayKey(day, local);
+                          const outside = key.slice(0, 7) !== date.slice(0, 7);
+                          return (
+                            <section
+                              key={key}
+                              className={styles.monthDay}
+                              data-outside-month={outside || undefined}
+                              aria-label={format(day, {
+                                weekday: "long",
+                                month: "long",
+                                day: "numeric",
+                              })}
+                            >
+                              <h2>
+                                <button
+                                  type="button"
+                                  aria-current={
+                                    now && key === dayKey(new Date(now), local)
+                                      ? "date"
+                                      : undefined
+                                  }
+                                  onClick={() => move(key, "day")}
+                                >
+                                  {format(day, { day: "numeric" })}
+                                </button>
+                              </h2>
+                              {rows.slice(0, 2).map((event) => (
+                                <React.Fragment key={event.id}>
+                                  {eventButton(event, day)}
+                                </React.Fragment>
+                              ))}
+                              {rows.length > 2 && (
+                                <button
+                                  type="button"
+                                  className={styles.monthMore}
+                                  onClick={() => move(key, "day")}
+                                >
+                                  {msg("monthMore", { count: rows.length - 2 })}
+                                </button>
+                              )}
+                            </section>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                ) : view === "agenda" || clockChange ? (
                   <div className={styles.agenda}>
                     {days.map((day) => (
                       <section key={dayKey(day, local)}>

@@ -1,0 +1,29 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+.layout > div {
+  min-width: 0;
+}
+/* Tiles are ordinary flow inside their wrappers; fridge named areas stay intact. */
+.layout > div > * {
+  grid-area: auto;
+}
+.compact {
+  gap: 12px;
+}
+.compact > div > section {
+  padding: 12px;
+}
+@media (min-width: 768px) {
+  .layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1280px) {
+  .layout {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

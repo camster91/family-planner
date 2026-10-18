@@ -1,15 +1,19 @@
-'use client'
+"use client";
 
-import * as React from 'react'
-import { useOnline } from '@/components/ui/use-online'
-import { useDisplayLocale } from '@/components/ui/use-display-locale'
-import { useTodayBoardText } from '@/i18n/today-board'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { Maximize2, Minimize2 } from 'lucide-react'
-import type { BoardDisplayData, BoardPhoto, TodayBoardData } from '@/app/dashboard/today/today-board-data'
-import { COMING_UP_DAYS } from '@/lib/board-constants'
-import { DEFAULT_BOARD_DISPLAY, type AmbientState } from '@/lib/ambient'
+import * as React from "react";
+import { useOnline } from "@/components/ui/use-online";
+import { useDisplayLocale } from "@/components/ui/use-display-locale";
+import { useTodayBoardText } from "@/i18n/today-board";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Maximize2, Minimize2 } from "lucide-react";
+import type {
+  BoardDisplayData,
+  BoardPhoto,
+  TodayBoardData,
+} from "@/app/dashboard/today/today-board-data";
+import { COMING_UP_DAYS } from "@/lib/board-constants";
+import { DEFAULT_BOARD_DISPLAY, type AmbientState } from "@/lib/ambient";
 import {
   choresDueTodayByPerson,
   comingUp,
@@ -27,10 +31,10 @@ import {
   type NextEventView,
   type UseSoonEntry,
   type WeatherView,
-} from './board-model'
-import { useIdleCover } from './use-idle-cover'
-import { SyncAnnouncer, SyncNotice, UpdatedLine } from './sync-status'
-import { useBoardSync } from './use-board-sync'
+} from "./board-model";
+import { useIdleCover } from "./use-idle-cover";
+import { SyncAnnouncer, SyncNotice, UpdatedLine } from "./sync-status";
+import { useBoardSync } from "./use-board-sync";
 import {
   ChoresRegion,
   ComingUpRegion,
@@ -39,27 +43,31 @@ import {
   ScheduleRegion,
   areaClass,
   type BoardPerson,
-} from './regions'
-import { actionLinkClass, regionClass } from './styles'
-import TodayControls from './TodayControls'
-import { PersonQueueStorageRecovery } from './PersonQueueStorageRecovery'
-import { NextUpRegion } from './NextUpRegion'
-import { useBoardTiles, type BoardActions } from './board-actions'
-import { usePersonBoardActions } from './use-person-board-actions'
+} from "./regions";
+import { actionLinkClass, regionClass } from "./styles";
+import TodayControls from "./TodayControls";
+import TodayLayoutEditor from "./TodayLayoutEditor";
+import { useDisplayPreferences } from "@/components/providers/display-preferences-provider";
+import type { TodaySection } from "@/lib/personal-layout";
+import personalStyles from "./personal-today.module.css";
+import { PersonQueueStorageRecovery } from "./PersonQueueStorageRecovery";
+import { NextUpRegion } from "./NextUpRegion";
+import { useBoardTiles, type BoardActions } from "./board-actions";
+import { usePersonBoardActions } from "./use-person-board-actions";
 
 /** Keep optional inventory presentation out of the initial Today bundle. */
 function createUseSoonRegion() {
   return React.lazy(async () => {
-    const useSoonModule = await import('./use-soon-region')
-    return { default: useSoonModule.UseSoonRegion }
-  })
+    const useSoonModule = await import("./use-soon-region");
+    return { default: useSoonModule.UseSoonRegion };
+  });
 }
 
 /**
  * Clock, relative "Updated" time and idle tick. Change polling and the slow
  * full refresh (#271) live in src/lib/board-sync.ts; there is no server job.
  */
-const CLOCK_TICK_MS = 15 * 1000
+const CLOCK_TICK_MS = 15 * 1000;
 
 /**
  * Board grid (#262). Phones stack; portrait tablets lead with a full-width
@@ -68,45 +76,53 @@ const CLOCK_TICK_MS = 15 * 1000
  * 1920x1200): four columns that fit the screen, each region scrolling inside
  * itself. `usesoon` rows exist only when the #263 slot is filled.
  */
-const GRID_BASE = 'grid gap-3 md:gap-4 2xl:gap-6'
+const GRID_BASE = "grid gap-3 md:gap-4 2xl:gap-6";
 const GRID_APP = [
   'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_groceries"_"chores_chores"_"coming_coming"]',
   'lg:grid-cols-3 lg:[grid-template-areas:"today_dinner_groceries"_"chores_coming_coming"]',
-].join(' ')
+].join(" ");
 const GRID_APP_WITH_SLOT = [
   'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_groceries"_"chores_chores"_"usesoon_usesoon"_"coming_coming"]',
   'lg:grid-cols-3 lg:[grid-template-areas:"today_dinner_groceries"_"chores_coming_coming"_"usesoon_usesoon_usesoon"]',
-].join(' ')
+].join(" ");
 const GRID_APP_WITHOUT_CHORES = [
   'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_groceries"_"coming_coming"]',
   'lg:grid-cols-3 lg:[grid-template-areas:"today_dinner_groceries"_"coming_coming_coming"]',
-].join(' ')
+].join(" ");
 const GRID_APP_WITH_SLOT_WITHOUT_CHORES = [
   'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_groceries"_"usesoon_usesoon"_"coming_coming"]',
   'lg:grid-cols-3 lg:[grid-template-areas:"today_dinner_groceries"_"coming_coming_coming"_"usesoon_usesoon_usesoon"]',
-].join(' ')
+].join(" ");
 const GRID_FRIDGE =
-  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[minmax(0,2fr)_minmax(0,3fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto'
+  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[minmax(0,2fr)_minmax(0,3fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto';
 const GRID_FRIDGE_WITH_SLOT =
-  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[minmax(0,4fr)_minmax(0,2fr)_minmax(0,4fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"_"today_groceries_usesoon_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto'
+  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[minmax(0,4fr)_minmax(0,2fr)_minmax(0,4fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"_"today_groceries_usesoon_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto';
 
 /**
  * In the fridge hub the slot is a grid cell of fixed height; its tile fills it
  * and scrolls inside itself like the other regions, instead of overflowing.
  */
 const USE_SOON_SLOT_FIT =
-  'lg:landscape:min-h-0 lg:landscape:flex lg:landscape:flex-col lg:landscape:overflow-hidden lg:landscape:[&>section]:min-h-0 lg:landscape:[&>section]:flex-1 lg:landscape:[&>section]:overflow-y-auto'
+  "lg:landscape:min-h-0 lg:landscape:flex lg:landscape:flex-col lg:landscape:overflow-hidden lg:landscape:[&>section]:min-h-0 lg:landscape:[&>section]:flex-1 lg:landscape:[&>section]:overflow-y-auto";
 
-export function boardGridClass(fridgeMode: boolean, hasUseSoon: boolean, hasChores = true): string {
+export function boardGridClass(
+  fridgeMode: boolean,
+  hasUseSoon: boolean,
+  hasChores = true,
+): string {
   return [
     GRID_BASE,
     fridgeMode || hasChores
-      ? (hasUseSoon ? GRID_APP_WITH_SLOT : GRID_APP)
-      : (hasUseSoon ? GRID_APP_WITH_SLOT_WITHOUT_CHORES : GRID_APP_WITHOUT_CHORES),
+      ? hasUseSoon
+        ? GRID_APP_WITH_SLOT
+        : GRID_APP
+      : hasUseSoon
+        ? GRID_APP_WITH_SLOT_WITHOUT_CHORES
+        : GRID_APP_WITHOUT_CHORES,
     fridgeMode && (hasUseSoon ? GRID_FRIDGE_WITH_SLOT : GRID_FRIDGE),
   ]
     .filter(Boolean)
-    .join(' ')
+    .join(" ");
 }
 
 /**
@@ -119,89 +135,98 @@ const FRIDGE_CHROME_CSS = `
 [data-offline-banner] { display: none !important; }
 #main-content { padding-top: 0 !important; padding-bottom: 0 !important; }
 #main-content > div { max-width: none !important; padding: 0 !important; }
-`
+`;
 
 /** Person boards ask the signed-in version route (#271). */
-async function fetchPersonBoardVersion(memberProtocol?: TodayBoardData['memberProtocol']): Promise<string> {
-  const res = await fetch('/api/family/board-version', {
-    cache: 'no-store',
-    credentials: 'same-origin',
-    headers: memberProtocol === 2 ? { 'X-Member-Protocol': '2' } : undefined,
-  })
-  if (!res.ok) throw new Error(`board version ${res.status}`)
-  const body = (await res.json()) as { version?: unknown }
-  if (typeof body.version !== 'string') throw new Error('board version missing')
-  return body.version
+async function fetchPersonBoardVersion(
+  memberProtocol?: TodayBoardData["memberProtocol"],
+): Promise<string> {
+  const res = await fetch("/api/family/board-version", {
+    cache: "no-store",
+    credentials: "same-origin",
+    headers: memberProtocol === 2 ? { "X-Member-Protocol": "2" } : undefined,
+  });
+  if (!res.ok) throw new Error(`board version ${res.status}`);
+  const body = (await res.json()) as { version?: unknown };
+  if (typeof body.version !== "string")
+    throw new Error("board version missing");
+  return body.version;
 }
 
 /** Ask the browser to keep the screen on while the board is shown in fridge mode (best effort). */
 function useWakeLock(enabled: boolean) {
   React.useEffect(() => {
-    if (!enabled) return
-    type Sentinel = { release: () => Promise<void> }
+    if (!enabled) return;
+    type Sentinel = { release: () => Promise<void> };
     const nav = navigator as Navigator & {
-      wakeLock?: { request: (type: 'screen') => Promise<Sentinel> }
-    }
-    if (!nav.wakeLock) return
-    let sentinel: Sentinel | null = null
-    let cancelled = false
+      wakeLock?: { request: (type: "screen") => Promise<Sentinel> };
+    };
+    if (!nav.wakeLock) return;
+    let sentinel: Sentinel | null = null;
+    let cancelled = false;
     const acquire = async () => {
       try {
-        if (document.visibilityState !== 'visible') return
-        const s = await nav.wakeLock!.request('screen')
-        if (cancelled) void s.release()
-        else sentinel = s
+        if (document.visibilityState !== "visible") return;
+        const s = await nav.wakeLock!.request("screen");
+        if (cancelled) void s.release();
+        else sentinel = s;
       } catch {
         // Denied or unsupported (battery saver, WebView policy). The board still works.
       }
-    }
-    void acquire()
+    };
+    void acquire();
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void acquire()
-    }
-    document.addEventListener('visibilitychange', onVisible)
+      if (document.visibilityState === "visible") void acquire();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
-      cancelled = true
-      document.removeEventListener('visibilitychange', onVisible)
-      if (sentinel) void sentinel.release().catch(() => {})
-    }
-  }, [enabled])
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      if (sentinel) void sentinel.release().catch(() => {});
+    };
+  }, [enabled]);
 }
 
 function BoardSkeleton() {
-  const text = useTodayBoardText()
+  const text = useTodayBoardText();
   return (
     <div aria-busy="true" className="space-y-5">
       <p className="sr-only" role="status">
-        {text('todayBoardLoading')}
+        {text("todayBoardLoading")}
       </p>
       <div className="h-14 w-72 max-w-full rounded-[var(--radius-md)] bg-[var(--surface-fill)]" />
       <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="h-64 rounded-[var(--radius-xl)] bg-[var(--surface-fill)]" />
+          <div
+            key={i}
+            className="h-64 rounded-[var(--radius-xl)] bg-[var(--surface-fill)]"
+          />
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 type LazyChunkBoundaryProps = {
-  children: React.ReactNode
-  fallback: React.ReactNode
-}
+  children: React.ReactNode;
+  fallback: React.ReactNode;
+};
 
-type LazyChunkBoundaryState = { failed: boolean }
+type LazyChunkBoundaryState = { failed: boolean };
 
 /** Turns a failed optional chunk into a local retry instead of taking down the board. */
-export class LazyChunkBoundary extends React.Component<LazyChunkBoundaryProps, LazyChunkBoundaryState> {
-  state: LazyChunkBoundaryState = { failed: false }
+export class LazyChunkBoundary extends React.Component<
+  LazyChunkBoundaryProps,
+  LazyChunkBoundaryState
+> {
+  state: LazyChunkBoundaryState = { failed: false };
 
   static getDerivedStateFromError(): LazyChunkBoundaryState {
-    return { failed: true }
+    return { failed: true };
   }
 
   render() {
-    return this.state.failed ? this.props.fallback : this.props.children
+    return this.state.failed ? this.props.fallback : this.props.children;
   }
 }
 
@@ -210,40 +235,59 @@ export function UseSoonRegionFallback({
   status,
   onRetry,
 }: {
-  status: 'loading' | 'error'
-  onRetry?: () => void
+  status: "loading" | "error";
+  onRetry?: () => void;
 }) {
-  const text = useTodayBoardText()
+  const text = useTodayBoardText();
   return (
     <section
-      aria-busy={status === 'loading' ? 'true' : undefined}
-      aria-label={status === 'loading' ? text('lazyUseSoonLoading') : text('lazyUseSoonError')}
+      aria-busy={status === "loading" ? "true" : undefined}
+      aria-label={
+        status === "loading"
+          ? text("lazyUseSoonLoading")
+          : text("lazyUseSoonError")
+      }
       data-testid="use-soon-fallback"
       className={regionClass}
     >
-      <p role={status === 'error' ? 'alert' : 'status'} className="text-[16px] leading-relaxed text-label-secondary">
-        {status === 'loading' ? text('lazyUseSoonLoading') : text('lazyUseSoonError')}
+      <p
+        role={status === "error" ? "alert" : "status"}
+        className="text-[16px] leading-relaxed text-label-secondary"
+      >
+        {status === "loading"
+          ? text("lazyUseSoonLoading")
+          : text("lazyUseSoonError")}
       </p>
-      {status === 'error' && onRetry && (
-        <button type="button" className="btn-secondary mt-4 min-h-11 min-w-[44px]" onClick={onRetry}>
-          {text('retry')}
+      {status === "error" && onRetry && (
+        <button
+          type="button"
+          className="btn-secondary mt-4 min-h-11 min-w-[44px]"
+          onClick={onRetry}
+        >
+          {text("retry")}
         </button>
       )}
-      {status === 'loading' && (
+      {status === "loading" && (
         <div aria-hidden="true" className="mt-4 space-y-3">
           <div className="h-7 w-32 rounded-[var(--radius-md)] bg-[var(--surface-fill)]" />
           <div className="h-12 rounded-[var(--radius-md)] bg-[var(--surface-fill)]" />
         </div>
       )}
     </section>
-  )
+  );
 }
 
-function UseSoonRegionLoaded({ onLoaded, children }: { onLoaded: () => void; children: React.ReactNode }) {
+function UseSoonRegionLoaded({
+  onLoaded,
+  children,
+}: {
+  onLoaded: () => void;
+  children: React.ReactNode;
+}) {
   React.useEffect(() => {
-    onLoaded()
-  }, [onLoaded])
-  return children
+    onLoaded();
+  }, [onLoaded]);
+  return children;
 }
 
 function LazyUseSoon({
@@ -251,24 +295,25 @@ function LazyUseSoon({
   inventoryHref,
   onLoaded,
 }: {
-  items: UseSoonEntry[]
-  inventoryHref: string | null
-  onLoaded: () => void
+  items: UseSoonEntry[];
+  inventoryHref: string | null;
+  onLoaded: () => void;
 }) {
-  const [attempt, setAttempt] = React.useState(0)
-  const [UseSoonRegion, setUseSoonRegion] = React.useState(createUseSoonRegion)
-  const restoreFocus = React.useRef(false)
+  const [attempt, setAttempt] = React.useState(0);
+  const [UseSoonRegion, setUseSoonRegion] = React.useState(createUseSoonRegion);
+  const restoreFocus = React.useRef(false);
   const loaded = React.useCallback(() => {
-    if (!restoreFocus.current) return
-    restoreFocus.current = false
-    onLoaded()
-  }, [onLoaded])
+    if (!restoreFocus.current) return;
+    restoreFocus.current = false;
+    onLoaded();
+  }, [onLoaded]);
   const retry = React.useCallback(() => {
-    restoreFocus.current = document.activeElement instanceof HTMLElement
-      && document.activeElement.tagName.toLowerCase() === 'button'
-    setUseSoonRegion(createUseSoonRegion())
-    setAttempt((value) => value + 1)
-  }, [])
+    restoreFocus.current =
+      document.activeElement instanceof HTMLElement &&
+      document.activeElement.tagName.toLowerCase() === "button";
+    setUseSoonRegion(createUseSoonRegion());
+    setAttempt((value) => value + 1);
+  }, []);
 
   return (
     <LazyChunkBoundary
@@ -281,40 +326,46 @@ function LazyUseSoon({
         </UseSoonRegionLoaded>
       </React.Suspense>
     </LazyChunkBoundary>
-  )
+  );
 }
 
 type AmbientCoverFallbackProps = {
-  state: AmbientState
-  status: 'loading' | 'error'
-  onWake: () => void
-  onRetry?: () => void
-}
+  state: AmbientState;
+  status: "loading" | "error";
+  onWake: () => void;
+  onRetry?: () => void;
+};
 
 /** The cover remains an accessible, inert-board surface while its optional chunk loads. */
-export function AmbientCoverFallback({ state, status, onWake, onRetry }: AmbientCoverFallbackProps) {
-  const buttonRef = React.useRef<HTMLButtonElement>(null)
-  const retryButtonRef = React.useRef<HTMLButtonElement>(null)
-  const text = useTodayBoardText()
+export function AmbientCoverFallback({
+  state,
+  status,
+  onWake,
+  onRetry,
+}: AmbientCoverFallbackProps) {
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  const retryButtonRef = React.useRef<HTMLButtonElement>(null);
+  const text = useTodayBoardText();
 
   React.useEffect(() => {
-    const focusTarget = status === 'error' ? retryButtonRef.current : buttonRef.current
-    focusTarget?.focus({ preventScroll: true })
-  }, [status])
+    const focusTarget =
+      status === "error" ? retryButtonRef.current : buttonRef.current;
+    focusTarget?.focus({ preventScroll: true });
+  }, [status]);
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={state.ambient ? text('calmDisplay') : text('nightDimming')}
-      aria-busy={status === 'loading' ? 'true' : undefined}
+      aria-label={state.ambient ? text("calmDisplay") : text("nightDimming")}
+      aria-busy={status === "loading" ? "true" : undefined}
       data-testid="ambient-cover"
-      data-ambient={state.ambient ? 'true' : 'false'}
-      data-dim={state.dim ? 'true' : 'false'}
+      data-ambient={state.ambient ? "true" : "false"}
+      data-dim={state.dim ? "true" : "false"}
       onClick={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        onWake()
+        event.preventDefault();
+        event.stopPropagation();
+        onWake();
       }}
       className="fixed inset-0 z-[80] flex cursor-pointer select-none items-end justify-end bg-[#0d1117]/95 p-8 text-white"
     >
@@ -322,81 +373,106 @@ export function AmbientCoverFallback({ state, status, onWake, onRetry }: Ambient
         data-ambient-cover-controls="true"
         className="relative z-10 flex flex-col items-end gap-3 text-right"
       >
-        <p role={status === 'error' ? 'alert' : 'status'}>
-          {status === 'loading' ? text('lazyAmbientLoading') : text('lazyAmbientError')}
+        <p role={status === "error" ? "alert" : "status"}>
+          {status === "loading"
+            ? text("lazyAmbientLoading")
+            : text("lazyAmbientError")}
         </p>
-        {status === 'error' && onRetry && (
+        {status === "error" && onRetry && (
           <button
             ref={retryButtonRef}
             type="button"
             className="btn-secondary min-h-11 min-w-[44px] bg-white/15 text-white border-white/50 hover:bg-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              onRetry()
+              event.preventDefault();
+              event.stopPropagation();
+              onRetry();
             }}
           >
-            {text('retry')}
+            {text("retry")}
           </button>
         )}
-        <button ref={buttonRef} type="button" className="btn-primary min-h-11 min-w-[44px]">
-          {text('showBoard')}
+        <button
+          ref={buttonRef}
+          type="button"
+          className="btn-primary min-h-11 min-w-[44px]"
+        >
+          {text("showBoard")}
         </button>
       </div>
     </div>
-  )
+  );
 }
 
-function WeatherTileFallback({ status, onRetry }: { status: 'loading' | 'error'; onRetry?: () => void }) {
-  const text = useTodayBoardText()
+function WeatherTileFallback({
+  status,
+  onRetry,
+}: {
+  status: "loading" | "error";
+  onRetry?: () => void;
+}) {
+  const text = useTodayBoardText();
   return (
     <section
-      aria-busy={status === 'loading' ? 'true' : undefined}
-      aria-label={text('weather')}
+      aria-busy={status === "loading" ? "true" : undefined}
+      aria-label={text("weather")}
       className="flex min-h-11 min-w-0 items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-3 py-2"
     >
-      <p role={status === 'error' ? 'alert' : 'status'}>
-        {status === 'loading' ? text('lazyWeatherLoading') : text('lazyWeatherError')}
+      <p role={status === "error" ? "alert" : "status"}>
+        {status === "loading"
+          ? text("lazyWeatherLoading")
+          : text("lazyWeatherError")}
       </p>
-      {status === 'error' && onRetry && (
-        <button type="button" className="btn-secondary min-h-11 min-w-[44px]" onClick={onRetry}>
-          {text('retry')}
+      {status === "error" && onRetry && (
+        <button
+          type="button"
+          className="btn-secondary min-h-11 min-w-[44px]"
+          onClick={onRetry}
+        >
+          {text("retry")}
         </button>
       )}
     </section>
-  )
+  );
 }
 
-function WeatherTileLoaded({ onLoaded, children }: { onLoaded: () => void; children: React.ReactNode }) {
+function WeatherTileLoaded({
+  onLoaded,
+  children,
+}: {
+  onLoaded: () => void;
+  children: React.ReactNode;
+}) {
   React.useEffect(() => {
-    onLoaded()
-  }, [onLoaded])
-  return children
+    onLoaded();
+  }, [onLoaded]);
+  return children;
 }
 
 function createWeatherTile() {
   return React.lazy(async () => {
-    const weatherTileModule = await import('./weather-tile')
-    return { default: weatherTileModule.WeatherTile }
-  })
+    const weatherTileModule = await import("./weather-tile");
+    return { default: weatherTileModule.WeatherTile };
+  });
 }
 
 function LazyWeatherTile({ view }: { view: WeatherView }) {
-  const [attempt, setAttempt] = React.useState(0)
-  const [WeatherTile, setWeatherTile] = React.useState(createWeatherTile)
-  const restoreFocus = React.useRef(false)
-  const weatherRegionRef = React.useRef<HTMLDivElement>(null)
+  const [attempt, setAttempt] = React.useState(0);
+  const [WeatherTile, setWeatherTile] = React.useState(createWeatherTile);
+  const restoreFocus = React.useRef(false);
+  const weatherRegionRef = React.useRef<HTMLDivElement>(null);
   const onLoaded = React.useCallback(() => {
-    if (!restoreFocus.current) return
-    restoreFocus.current = false
-    weatherRegionRef.current?.focus({ preventScroll: true })
-  }, [])
+    if (!restoreFocus.current) return;
+    restoreFocus.current = false;
+    weatherRegionRef.current?.focus({ preventScroll: true });
+  }, []);
   const retry = React.useCallback(() => {
-    restoreFocus.current = document.activeElement instanceof HTMLElement
-      && document.activeElement.tagName.toLowerCase() === 'button'
-    setWeatherTile(createWeatherTile())
-    setAttempt((value) => value + 1)
-  }, [])
+    restoreFocus.current =
+      document.activeElement instanceof HTMLElement &&
+      document.activeElement.tagName.toLowerCase() === "button";
+    setWeatherTile(createWeatherTile());
+    setAttempt((value) => value + 1);
+  }, []);
 
   return (
     <div ref={weatherRegionRef} tabIndex={-1} className="min-w-0">
@@ -411,41 +487,54 @@ function LazyWeatherTile({ view }: { view: WeatherView }) {
         </React.Suspense>
       </LazyChunkBoundary>
     </div>
-  )
+  );
 }
 
 function createAmbientCover() {
-  return React.lazy(() => import('./ambient-cover'))
+  return React.lazy(() => import("./ambient-cover"));
 }
 
 function LazyAmbientCover(props: {
-  state: AmbientState
-  now: Date
-  weather: WeatherView | null
-  next: NextEventView | null
-  dinner: string | null
-  photos: BoardPhoto[]
-  onWake: () => void
+  state: AmbientState;
+  now: Date;
+  weather: WeatherView | null;
+  next: NextEventView | null;
+  dinner: string | null;
+  photos: BoardPhoto[];
+  onWake: () => void;
 }) {
-  const [attempt, setAttempt] = React.useState(0)
-  const [AmbientCover, setAmbientCover] = React.useState(createAmbientCover)
+  const [attempt, setAttempt] = React.useState(0);
+  const [AmbientCover, setAmbientCover] = React.useState(createAmbientCover);
   const retry = React.useCallback(() => {
-    setAmbientCover(createAmbientCover())
-    setAttempt((value) => value + 1)
-  }, [])
+    setAmbientCover(createAmbientCover());
+    setAttempt((value) => value + 1);
+  }, []);
 
   return (
     <LazyChunkBoundary
       key={attempt}
-      fallback={<AmbientCoverFallback state={props.state} status="error" onWake={props.onWake} onRetry={retry} />}
+      fallback={
+        <AmbientCoverFallback
+          state={props.state}
+          status="error"
+          onWake={props.onWake}
+          onRetry={retry}
+        />
+      }
     >
       <React.Suspense
-        fallback={<AmbientCoverFallback state={props.state} status="loading" onWake={props.onWake} />}
+        fallback={
+          <AmbientCoverFallback
+            state={props.state}
+            status="loading"
+            onWake={props.onWake}
+          />
+        }
       >
         <AmbientCover {...props} />
       </React.Suspense>
     </LazyChunkBoundary>
-  )
+  );
 }
 
 export default function TodayBoard({
@@ -462,69 +551,85 @@ export default function TodayBoard({
   groceryAction,
   choresShownElsewhere,
 }: {
-  data: TodayBoardData
+  data: TodayBoardData;
   /** Exact chore IDs rendered by the personal home summary. Ignored in fridge mode. */
-  choresShownElsewhere?: readonly string[]
+  choresShownElsewhere?: readonly string[];
   /** Persisted device snapshot: display its server generation age, not mount time. */
-  cachedSnapshot?: boolean
-  fridgeMode: boolean
+  cachedSnapshot?: boolean;
+  fridgeMode: boolean;
   /**
    * The signed-in person (#274): their chores (any chore for a parent) and
    * the groceries become tappable, with Undo. Omitted: the board is read-only.
    */
-  viewer?: { id: string; role: string } | null
+  viewer?: { id: string; role: string } | null;
   /** Replaces the person actions (the paired tablet's §9.2 writes, #274). */
-  tileActions?: BoardActions
+  tileActions?: BoardActions;
   /** Device grocery capture control; omitted on person and read-only boards. */
-  groceryAction?: React.ReactNode
+  groceryAction?: React.ReactNode;
   /**
    * Shared tablet (/device/today, #241): re-fetch the device DTO instead of
    * re-requesting a person server component.
    */
-  onRefresh?: () => void
+  onRefresh?: () => void;
   /**
    * Resolves the server's current board version (#271). Defaults to the
    * signed-in route; the shared tablet passes GET /api/device/today/version.
    */
-  checkVersion?: () => Promise<string>
+  checkVersion?: () => Promise<string>;
   /** Replaces the fridge-mode toggle in the header (the tablet has no person pages to return to). */
-  actions?: React.ReactNode
+  actions?: React.ReactNode;
   /** Shown above the header, inside the board (the tablet's parent-mode banner). */
-  banner?: React.ReactNode
+  banner?: React.ReactNode;
   /**
    * Overrides the "Use soon" slot (`usesoon` grid area: under Groceries in the
    * fridge landscape hub, a full-width row elsewhere). By default the board
    * fills it from `data.useSoon` (#263) with UseSoonRegion, and leaves it out
    * entirely when there is nothing to use soon or inventory is off.
    */
-  useSoon?: React.ReactNode
+  useSoon?: React.ReactNode;
 }) {
   // "Today" is the viewer's local day, which the server cannot know, so the
   // board renders after mount (a brief skeleton) instead of risking a
   // hydration mismatch or a wrong-day render on a server in another zone.
-  const [now, setNow] = React.useState<Date | null>(null)
+  const { today: personalLayout } = useDisplayPreferences();
+  const [now, setNow] = React.useState<Date | null>(null);
   // Date and time labels follow the viewer's locale (display only).
-  const displayLocale = useDisplayLocale()
-  const text = useTodayBoardText()
-  const router = useRouter()
+  const displayLocale = useDisplayLocale();
+  const text = useTodayBoardText();
+  const router = useRouter();
   // Visible sync (#271): version polling, re-fetch on change, words for
   // "Updated …", offline and stale. Times are on the viewer's own clock.
-  const refresh = React.useCallback(() => (onRefresh ? onRefresh() : router.refresh()), [onRefresh, router])
+  const refresh = React.useCallback(
+    () => (onRefresh ? onRefresh() : router.refresh()),
+    [onRefresh, router],
+  );
   const { lastSyncAt, online, failing, announcement } = useBoardSync({
     version: data.version,
     generatedAt: data.generatedAt,
-    checkVersion: checkVersion ?? (() => fetchPersonBoardVersion(data.memberProtocol)),
+    checkVersion:
+      checkVersion ?? (() => fetchPersonBoardVersion(data.memberProtocol)),
     refresh,
-  })
-  const snapshotTime = Date.parse(data.generatedAt)
-  const shownSyncAt = cachedSnapshot ? (Number.isFinite(snapshotTime) ? snapshotTime : null) : lastSyncAt
+  });
+  const snapshotTime = Date.parse(data.generatedAt);
+  const shownSyncAt = cachedSnapshot
+    ? Number.isFinite(snapshotTime)
+      ? snapshotTime
+      : null
+    : lastSyncAt;
   // Tiles act directly (#274): optimistic chore/grocery state, Undo toasts, rollback.
-  const personActions = usePersonBoardActions(tileActions ? null : viewer, refresh)
-  const tiles = useBoardTiles(data.chores, data.shopping, tileActions ?? personActions)
-  useWakeLock(fridgeMode)
+  const personActions = usePersonBoardActions(
+    tileActions ? null : viewer,
+    refresh,
+  );
+  const tiles = useBoardTiles(
+    data.chores,
+    data.shopping,
+    tileActions ?? personActions,
+  );
+  useWakeLock(fridgeMode);
 
   // Calm display and night hours (#271): fridge mode only.
-  const display: BoardDisplayData = data.display ?? DEFAULT_BOARD_DISPLAY
+  const display: BoardDisplayData = data.display ?? DEFAULT_BOARD_DISPLAY;
   const {
     state: ambient,
     covered,
@@ -533,58 +638,77 @@ export default function TodayBoard({
     enabled: fridgeMode,
     now: now ? now.getTime() : null,
     display,
-  })
-  const boardRef = React.useRef<HTMLDivElement>(null)
+  });
+  const boardRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     // Covered: the board leaves the focus order and the accessibility tree
     // (React 18 has no `inert` prop).
-    boardRef.current?.toggleAttribute('inert', covered)
-  }, [covered])
+    boardRef.current?.toggleAttribute("inert", covered);
+  }, [covered]);
 
   React.useEffect(() => {
-    setNow(new Date())
-    const timer = window.setInterval(() => setNow(new Date()), CLOCK_TICK_MS)
-    return () => window.clearInterval(timer)
-  }, [])
+    setNow(new Date());
+    const timer = window.setInterval(() => setNow(new Date()), CLOCK_TICK_MS);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const view = React.useMemo(() => {
-    if (!now) return null
-    const today = localDayKey(now)
+    if (!now) return null;
+    const today = localDayKey(now);
     // Member colours (#262), resolved once so every region agrees.
-    const colors = memberColors(data.members)
-    const names = memberDisplayNames(data.members)
+    const colors = memberColors(data.members);
+    const names = memberDisplayNames(data.members);
     const withColors = data.members.map((m) => ({
       ...m,
       color: colors.get(m.id),
-    }))
+    }));
     const people = new Map<string, BoardPerson>(
-      data.members.map((m) => [m.id, { name: names.get(m.id) ?? m.name, color: colors.get(m.id)! }])
-    )
+      data.members.map((m) => [
+        m.id,
+        { name: names.get(m.id) ?? m.name, color: colors.get(m.id)! },
+      ]),
+    );
     return {
       today: eventsLeftToday(data.events, now),
       dinner: dinnerOn(data.dinners, today),
       chores: choresDueTodayByPerson(
         !fridgeMode && choresShownElsewhere?.length
-          ? tiles.chores.filter((chore) => !choresShownElsewhere.includes(chore.id))
+          ? tiles.chores.filter(
+              (chore) => !choresShownElsewhere.includes(chore.id),
+            )
           : tiles.chores,
         withColors,
-        now
+        now,
       ),
-      comingUp: comingUp(data.events, data.dinners, now, COMING_UP_DAYS, displayLocale),
+      comingUp: comingUp(
+        data.events,
+        data.dinners,
+        now,
+        COMING_UP_DAYS,
+        displayLocale,
+      ),
       people,
       weather: weatherView(data.weather, now),
       useSoon: itemsToUseSoon(data.useSoon, now),
       next: nextEvent(data.events, now, displayLocale),
-    }
-  }, [data, now, tiles.chores, displayLocale, fridgeMode, choresShownElsewhere])
+    };
+  }, [
+    data,
+    now,
+    tiles.chores,
+    displayLocale,
+    fridgeMode,
+    choresShownElsewhere,
+  ]);
 
-  const showChores = fridgeMode || !choresShownElsewhere?.length || Boolean(view?.chores.length)
-  const useSoonSlotRef = React.useRef<HTMLDivElement>(null)
+  const showChores =
+    fridgeMode || !choresShownElsewhere?.length || Boolean(view?.chores.length);
+  const useSoonSlotRef = React.useRef<HTMLDivElement>(null);
   const onUseSoonLoaded = React.useCallback(() => {
     useSoonSlotRef.current
       ?.querySelector<HTMLElement>('[data-testid="region-usesoon"]')
-      ?.focus({ preventScroll: true })
-  }, [])
+      ?.focus({ preventScroll: true });
+  }, []);
 
   // "Use soon" tile (#263): only when there is something to use (null otherwise).
   const useSoonSlot =
@@ -595,7 +719,7 @@ export default function TodayBoard({
         inventoryHref={data.links.inventory ?? null}
         onLoaded={onUseSoonLoaded}
       />
-    ) : null)
+    ) : null);
 
   // A legacy reader must never show an account-only partial board when a
   // profile subject is present. The server marker is deliberately rendered as
@@ -604,7 +728,7 @@ export default function TodayBoard({
     return (
       <main
         data-testid="today-board-compatibility"
-        data-mode={fridgeMode ? 'fridge' : 'app'}
+        data-mode={fridgeMode ? "fridge" : "app"}
         className="flex min-h-screen items-center justify-center bg-[var(--surface-grouped)] px-4 py-10 sm:px-6 lg:px-8"
       >
         <section
@@ -616,36 +740,94 @@ export default function TodayBoard({
             id="today-board-compatibility-title"
             className="font-display text-[30px] font-semibold leading-tight text-label-primary"
           >
-            {text('protocolCompatibilityTitle')}
+            {text("protocolCompatibilityTitle")}
           </h1>
           <p className="mt-3 max-w-xl text-[17px] leading-7 text-label-secondary">
-            {text('protocolCompatibilityBody')}
+            {text("protocolCompatibilityBody")}
           </p>
           <button
             type="button"
             onClick={refresh}
             className="btn-primary mt-6 min-h-11 min-w-[44px]"
           >
-            {text('refreshBoard')}
+            {text("refreshBoard")}
           </button>
         </section>
       </main>
-    )
+    );
   }
+
+  const personal = Boolean(viewer && !tileActions && !fridgeMode);
+  const availableSections: TodaySection[] = ["next", "coming"];
+  if (data.dinners !== null) availableSections.push("dinner");
+  if (data.links.lists && tiles.shopping) availableSections.push("groceries");
+  if (useSoonSlot) availableSections.push("usesoon");
+  const calendarHref = data.links.calendar
+    ? `${data.links.calendar}${data.links.calendar.includes("?") ? "&" : "?"}view=${personalLayout.calendarView}`
+    : null;
+  const renderPersonalSection = (section: TodaySection) => {
+    if (!view) return null;
+    switch (section) {
+      case "next":
+        return (
+          <NextUpRegion
+            events={view.today}
+            people={view.people}
+            chores={view.chores}
+            showChores={showChores && personalLayout.includeChores}
+            calendarHref={calendarHref}
+            choresHref={data.links.chores}
+            onTick={tiles.tickChore}
+            canTick={tiles.canTickChore}
+          />
+        );
+      case "dinner":
+        return (
+          <DinnerRegion
+            dinner={view.dinner}
+            mealsEnabled={data.dinners !== null}
+            mealsHref={data.links.meals}
+            featuresHref={data.links.features}
+          />
+        );
+      case "groceries":
+        return (
+          <GroceriesRegion
+            shopping={tiles.shopping}
+            listsHref={data.links.lists}
+            onTick={tiles.tickGrocery}
+            action={groceryAction}
+          />
+        );
+      case "coming":
+        return (
+          <ComingUpRegion
+            days={view.comingUp}
+            mealsEnabled={data.dinners !== null}
+          />
+        );
+      case "usesoon":
+        return (
+          <div ref={useSoonSlotRef} data-testid="board-slot-use-soon">
+            {useSoonSlot}
+          </div>
+        );
+    }
+  };
 
   return (
     <>
       <div
         ref={boardRef}
         data-testid="today-board"
-        data-mode={fridgeMode ? 'fridge' : 'app'}
+        data-mode={fridgeMode ? "fridge" : "app"}
         className={
           fridgeMode
             ? // On a landscape fridge tablet the board fits the viewport: the grid
               // takes the height left under the header and each region scrolls
               // inside itself instead of pushing content below the fold.
-              'min-h-screen bg-[var(--surface-grouped)] px-4 py-5 sm:px-6 lg:px-8 lg:py-6 2xl:px-10 2xl:py-8 lg:landscape:flex lg:landscape:h-dvh lg:landscape:min-h-0 lg:landscape:flex-col lg:landscape:overflow-hidden'
-            : 'bg-[var(--surface-grouped)] [&_[data-testid=region-dinner]]:bg-accent-tint [&_[data-testid=region-dinner]]:border-transparent'
+              "min-h-screen bg-[var(--surface-grouped)] px-4 py-5 sm:px-6 lg:px-8 lg:py-6 2xl:px-10 2xl:py-8 lg:landscape:flex lg:landscape:h-dvh lg:landscape:min-h-0 lg:landscape:flex-col lg:landscape:overflow-hidden"
+            : "bg-[var(--surface-grouped)] [&_[data-testid=region-dinner]]:bg-accent-tint [&_[data-testid=region-dinner]]:border-transparent"
         }
       >
         {fridgeMode && <style>{FRIDGE_CHROME_CSS}</style>}
@@ -654,21 +836,21 @@ export default function TodayBoard({
         <header className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 md:mb-5 2xl:mb-8">
           <div className="min-w-0">
             <p className="mb-1 text-[13px] font-semibold uppercase tracking-[0.12em] text-label-secondary md:text-[14px] 2xl:text-[20px]">
-              {text('today')}
+              {text("today")}
             </p>
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
               <h1
                 data-testid="board-date"
                 className="font-display text-[30px] font-semibold tracking-tight leading-tight text-label-primary md:text-[40px] lg:text-[44px] 2xl:text-[56px]"
               >
-                {now ? formatLongDate(now, displayLocale) : text('today')}
+                {now ? formatLongDate(now, displayLocale) : text("today")}
               </h1>
               {now && (
                 <p
                   data-testid="board-clock"
                   className="text-[20px] font-medium tabular-nums text-label-secondary md:text-[26px] lg:text-[32px] 2xl:text-[44px]"
                 >
-                  <span className="sr-only">{text('time')}</span>
+                  <span className="sr-only">{text("time")}</span>
                   {formatTime(now, displayLocale)}
                 </p>
               )}
@@ -697,12 +879,15 @@ export default function TodayBoard({
               ) : fridgeMode ? (
                 <Link href="/dashboard/today" className={actionLinkClass}>
                   <Minimize2 className="h-5 w-5" aria-hidden="true" />
-                  {text('exitFridgeMode')}
+                  {text("exitFridgeMode")}
                 </Link>
               ) : (
-                <Link href="/dashboard/today?mode=fridge" className={actionLinkClass}>
+                <Link
+                  href="/dashboard/today?mode=fridge"
+                  className={actionLinkClass}
+                >
                   <Maximize2 className="h-5 w-5" aria-hidden="true" />
-                  {text('fridgeMode')}
+                  {text("fridgeMode")}
                 </Link>
               )}
             </div>
@@ -710,9 +895,19 @@ export default function TodayBoard({
         </header>
 
         {!fridgeMode && viewer && !tileActions && (
-          <TodayControls links={data.links} role={viewer.role} onRefresh={refresh} online={online} />
+          <div className="mb-4 flex flex-wrap items-start gap-2">
+            <TodayControls
+              links={data.links}
+              role={viewer.role}
+              onRefresh={refresh}
+              online={online}
+            />
+            <TodayLayoutEditor available={availableSections} />
+          </div>
         )}
-        {viewer && !tileActions && <PersonQueueStorageRecovery userId={viewer.id} />}
+        {viewer && !tileActions && (
+          <PersonQueueStorageRecovery userId={viewer.id} />
+        )}
 
         {now && (
           <SyncNotice
@@ -727,9 +922,51 @@ export default function TodayBoard({
         )}
         <SyncAnnouncer message={announcement} testId="board-sync-announce" />
 
-        {view ? (
-          <div data-testid="board-grid" className={boardGridClass(fridgeMode, Boolean(useSoonSlot), fridgeMode && showChores)}>
-            {fridgeMode ? <ScheduleRegion events={view.today} calendarHref={data.links.calendar} people={view.people} /> : <NextUpRegion events={view.today} people={view.people} chores={view.chores} showChores={showChores} calendarHref={data.links.calendar} choresHref={data.links.chores} onTick={tiles.tickChore} canTick={tiles.canTickChore} />}
+        {view && personal ? (
+          <div
+            data-testid="board-grid"
+            data-personal-layout
+            className={`${personalStyles.layout} ${personalLayout.density === "compact" ? personalStyles.compact : ""}`}
+          >
+            {personalLayout.order
+              .filter(
+                (section) =>
+                  availableSections.includes(section) &&
+                  !personalLayout.hidden.includes(section),
+              )
+              .map((section) => (
+                <div key={section} data-today-section={section}>
+                  {renderPersonalSection(section)}
+                </div>
+              ))}
+          </div>
+        ) : view ? (
+          <div
+            data-testid="board-grid"
+            className={boardGridClass(
+              fridgeMode,
+              Boolean(useSoonSlot),
+              fridgeMode && showChores,
+            )}
+          >
+            {fridgeMode ? (
+              <ScheduleRegion
+                events={view.today}
+                calendarHref={data.links.calendar}
+                people={view.people}
+              />
+            ) : (
+              <NextUpRegion
+                events={view.today}
+                people={view.people}
+                chores={view.chores}
+                showChores={showChores}
+                calendarHref={data.links.calendar}
+                choresHref={data.links.chores}
+                onTick={tiles.tickChore}
+                canTick={tiles.canTickChore}
+              />
+            )}
             <DinnerRegion
               dinner={view.dinner}
               compactLandscape={fridgeMode}
@@ -746,10 +983,24 @@ export default function TodayBoard({
                 canTick={tiles.canTickChore}
               />
             )}
-            <GroceriesRegion compactLandscape={fridgeMode} shopping={tiles.shopping} listsHref={data.links.lists} onTick={tiles.tickGrocery} action={groceryAction} />
-            <ComingUpRegion days={view.comingUp} mealsEnabled={data.dinners !== null} stackInLandscape={fridgeMode} />
+            <GroceriesRegion
+              compactLandscape={fridgeMode}
+              shopping={tiles.shopping}
+              listsHref={data.links.lists}
+              onTick={tiles.tickGrocery}
+              action={groceryAction}
+            />
+            <ComingUpRegion
+              days={view.comingUp}
+              mealsEnabled={data.dinners !== null}
+              stackInLandscape={fridgeMode}
+            />
             {useSoonSlot && (
-              <div ref={useSoonSlotRef} data-testid="board-slot-use-soon" className={`min-w-0 ${areaClass.usesoon} ${USE_SOON_SLOT_FIT}`}>
+              <div
+                ref={useSoonSlotRef}
+                data-testid="board-slot-use-soon"
+                className={`min-w-0 ${areaClass.usesoon} ${USE_SOON_SLOT_FIT}`}
+              >
                 {useSoonSlot}
               </div>
             )}
@@ -770,5 +1021,5 @@ export default function TodayBoard({
         />
       )}
     </>
-  )
+  );
 }

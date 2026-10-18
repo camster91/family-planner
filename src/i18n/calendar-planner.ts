@@ -15,6 +15,11 @@ export const calendarPlannerEnglish = {
   view: "Calendar view",
   day: "Day",
   week: "Week",
+  month: "Month",
+  loadingMonth: "Loading month…",
+  monthMore: "{count} more · open day",
+  monthScroll:
+    "Swipe sideways to see the full month. Open a day for its complete schedule.",
   agenda: "Agenda",
   add: "Add event",
   calendars: "Calendars",
@@ -109,6 +114,11 @@ export const calendarPlannerSpanish: Record<CalendarPlannerMessage, string> = {
   view: "Vista del calendario",
   day: "Día",
   week: "Semana",
+  month: "Mes",
+  loadingMonth: "Cargando mes…",
+  monthMore: "{count} más · abrir día",
+  monthScroll:
+    "Desliza hacia los lados para ver el mes completo. Abre un día para ver su agenda completa.",
   agenda: "Agenda",
   add: "Añadir evento",
   calendars: "Calendarios",

@@ -29,6 +29,7 @@ import {
   type AssistantMessage,
   type VoiceErrorCode,
 } from "@/i18n/assistant";
+import AppGuide from "./AppGuide";
 import { useVoiceDraft } from "./use-voice-draft";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -198,8 +199,9 @@ export default function AssistantPanel({
     [busy, setBusy] = React.useState(false),
     [error, setError] = React.useState<AssistantError | null>(null),
     [failedChat, setFailedChat] = React.useState<ChatRequest | null>(null),
-    [actionRecovery, setActionRecovery] =
-      React.useState<ActionRecovery | null>(null),
+    [actionRecovery, setActionRecovery] = React.useState<ActionRecovery | null>(
+      null,
+    ),
     [includeToday, setIncludeToday] = React.useState(false),
     [todayFreshness, setTodayFreshness] = React.useState<TodayFreshness | null>(
       null,
@@ -356,12 +358,7 @@ export default function AssistantPanel({
     setDeleteConfirm(false);
     setChoiceLoadFailed(false);
     voice.stop();
-    const {
-      messages: next,
-      includeToday,
-      localNow,
-      timeZone,
-    } = request;
+    const { messages: next, includeToday, localNow, timeZone } = request;
     const leaseStartedAt = includeToday ? monotonicNow() : null;
     let messageFinished = false;
     try {
@@ -376,10 +373,10 @@ export default function AssistantPanel({
       let r: Response;
       try {
         r = await fetch("/api/assistant", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody),
-          });
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        });
       } catch {
         throw new AssistantCopyError("chatOffline");
       }
@@ -392,8 +389,7 @@ export default function AssistantPanel({
         );
       }
       if (!r.ok) {
-        if (r.status === 429)
-          throw new AssistantCopyError("chatRateLimited");
+        if (r.status === 429) throw new AssistantCopyError("chatRateLimited");
         if (r.status === 413) throw new AssistantCopyError("chatTooLong");
         const errorBody = isChatErrorBody(body) ? body : null;
         if (
@@ -750,17 +746,20 @@ export default function AssistantPanel({
                     ? msg(displayedError.key)
                     : displayedError.message}
             </p>
-            {displayedError.kind === "chat" && failedChat &&
-              !["chatRateLimited", "chatTooLong"].includes(displayedError.key) && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void retryFailedChat()}
-                className={`${target} bg-surface-fill`}
-              >
-                {msg("retryChat")}
-              </button>
-            )}
+            {displayedError.kind === "chat" &&
+              failedChat &&
+              !["chatRateLimited", "chatTooLong"].includes(
+                displayedError.key,
+              ) && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void retryFailedChat()}
+                  className={`${target} bg-surface-fill`}
+                >
+                  {msg("retryChat")}
+                </button>
+              )}
             {tab === "chat" && actionRecovery && (
               <Link
                 href={actionRecovery.href}
@@ -788,6 +787,7 @@ export default function AssistantPanel({
         )}
         {tab === "chat" && (
           <div className="space-y-4">
+            <AppGuide role={role} />
             <p className="text-sm text-label-secondary">
               {msg(includeToday ? "chatIntroWithToday" : "chatIntro")}
             </p>

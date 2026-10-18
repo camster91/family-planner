@@ -35,6 +35,7 @@ import { useRewardsText } from "@/i18n/rewards";
 import { useKidHomeText } from "@/i18n/kid-home";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import Link from "next/link";
+import ExplorePanel from "@/components/layout/ExplorePanel";
 import { QuietDisplayControl } from "@/components/account/QuietDisplayControl";
 
 interface Chore {
@@ -698,7 +699,10 @@ export default function KidHome({
         <Avatar name={user?.name ?? "?"} src={user?.avatar_url} size="lg" />
       </header>
 
-      {gamificationEnabled && <QuietDisplayControl compact />}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <ExplorePanel role={user.role ?? "child"} />
+        {gamificationEnabled && <QuietDisplayControl compact />}
+      </div>
 
       <div ref={contentRef} className="space-y-5 md:space-y-6">
         {workPreviewLimited && (

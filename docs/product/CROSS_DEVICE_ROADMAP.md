@@ -4,6 +4,26 @@ Date: 2026-10-10. Owner: Cameron. Execution: Codex. Parent: [#128](https://githu
 Status: planned delivery, with a verified web foundation and specific live QA evidence. Market leadership is a target requiring customer comparison, not a claim.
 Authority: [Fridge Tablet Program](../FRIDGE_TABLET_PROGRAM.md), repository operating rules and original issue acceptance. This document supplies the current execution sequence; it does not replace the charter or waive older criteria.
 
+## Implementation-first goal — 2026-10-18
+
+Cameron set the active goal to finish the approved plans/issues/code, then QA
+one integrated candidate. Continue implementation without launching repeated
+partial QA rounds. The [open-issue completion ledger](../engineering/ISSUE_COMPLETION_LEDGER.md)
+maps all82 currently open issues to source, remaining work and dependencies;
+it does not close issues or replace their original acceptance criteria.
+
+Local source now includes a personal Today layout editor (order/visibility,
+spacing, preview/save/reset/Undo and a calendar-view shortcut), role-filtered
+Explore favorites, provider-free app guidance using canonical Help content and
+a bounded Month calendar view. Device-only personalization is labelled honestly;
+account-backed sync and parent defaults still need their canonical contract.
+Shared fridge data/privacy and original auth/role/feature rules stay intact.
+
+No new QA or release acceptance is claimed for this implementation phase.
+Provider credentials/eligibility, signing, actual hardware, store processing and
+real household/customer evidence remain explicit dependencies. Do not attempt
+to satisfy those issues by closing a code plan or enabling unapproved services.
+
 ## Outcome
 
 A family can add everyone, including a child without an email, and coordinate today using whichever screen is nearby. Parents have controls, teens have useful planning, children have a calm task view, and the shared fridge has only household-safe information. Turning on every feature must not turn Today into a wall of cards. A family helper explains the app, retrieves allowed current information, and proposes reliable actions by text or voice.

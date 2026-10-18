@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { BoardLinks } from "@/app/dashboard/today/today-board-data";
 import { canRoleAccessPath } from "@/lib/kid-access";
+import ExplorePanel from "@/components/layout/ExplorePanel";
 import { useTodayBoardText } from "@/i18n/today-board";
 
 const targetClass =
@@ -89,6 +90,7 @@ export default function TodayControls({
           {text("allLists")}
         </Link>
       )}
+      <ExplorePanel role={role} />
       <details
         ref={details}
         onKeyDown={(event) => {

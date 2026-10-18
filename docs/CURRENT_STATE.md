@@ -1,5 +1,23 @@
 # Current State
 
+## Goal and next implementation batch — 2026-10-18
+
+Cameron explicitly set the goal to finish all approved plans/issues/code before
+one consolidated QA pass. The82 open issue records are indexed in
+`docs/engineering/ISSUE_COMPLETION_LEDGER.md` with truthful dispositions and next
+actions. This is reconciliation groundwork, not82 finished features.
+
+The local follow-up after62f4 adds personal Today section visibility/order,
+spacing, preview/save/reset/Undo and preferred calendar shortcut; a shared
+role/feature-filtered Explore browser with up to8 favorites; local app guidance
+reusing canonical EN/ES Help answers without model/private-record requests;
+and a42-cell Month calendar with bounded existing API reads, month navigation,
+Day details and retained partial/error behavior. Personalization is device-local;
+account sync/parent defaults, full device localization and verified account
+linking remain coding work, not hidden behind a QA-only status. Native/provider,
+physical-device/store and customer dependencies remain distinct. No new tests,
+build, browser QA, push, merge, deployment or production activation is claimed.
+
 ## Implementation-first direction — 2026-10-18
 
 Cameron explicitly requested finishing the remaining UI code before further QA.
