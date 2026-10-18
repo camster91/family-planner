@@ -14,8 +14,12 @@ six-size EN/light, ES/dark matrix: 116 passed, 25 declared desktop-only scope
 skips, no failures/retries, including all 36 unchanged startup budgets. The
 verified runtime matches that application; its final test-only source is
 `e0756c9a`. All 132 required state/locale/viewport captures are retained with
-pixel hashes and dimensions. Source review and 303 affected tests pass; bounded
-independent visual review is pending. Earlier interrupted/failed test-harness
+pixel hashes and dimensions. Source review and 303 affected tests pass.
+Independent rendered review is conditional: canonical inactive rewards can still
+be newly claimed, Spanish approval recovery has an English headline, and singular
+points copy needs correction. API/UI repairs are in isolated author branches;
+this candidate is not accepted for release. Wider child supporting-copy
+localization remains open under the full role-alignment scope. Earlier interrupted/failed test-harness
 reports are retained and are not substituted for the accepted matrix.
 
 Budget constituent has clear scoped source review, 144 affected test passes,
@@ -27,8 +31,11 @@ its own baseline, exact build, both rendered matrices, independent review and
 fresh original hosted/release gates before any new merge or deployment.
 
 The already serving #580 remains `5cf9720b`, with production runtime verified.
-Main Build/Test, checked-image and Android checks pass; main E2E is still live
-at this checkpoint. Consult the live #580 record for its later terminal outcome.
+Original exact-main Build/Test and checked-image (39115308640), Android
+(39115308615), and E2E (39115308741) are terminal success. All nine E2E jobs,
+including every viewport and opt-in feature QA job, passed. The existing
+production runtime verification remains separate from authenticated household
+acceptance; no production household records were changed.
 The full22feature/supporting-route and separate native/provider gates remain open.
 
 ## Verified live web revision and subsequent UI work — 2026-10-18
