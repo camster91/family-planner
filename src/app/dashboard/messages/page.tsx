@@ -1,14 +1,16 @@
 'use client'
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { Send, Plus, MessageSquare } from 'lucide-react'
+import { Send, MessageSquare } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Glyph } from '@/components/ui/glyph'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { FeatureGate } from '@/components/ui/feature-gate'
-import { cn, formatDate } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import { useTranslation } from '@/i18n'
 import { useMessagesText } from '@/i18n/messages'
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import { mergeLatest, prependEarlier } from './thread'
 
 /** GET /api/messages page size (the route's default). */
@@ -29,10 +31,9 @@ interface Member {
   name: string
 }
 
-/** The server's `error` text, or null when the body has none. */
-async function serverError(res: Response): Promise<string | null> {
-  const data = await res.json().catch(() => null)
-  return data && typeof data.error === 'string' && data.error ? data.error : null
+interface SendIntent {
+  payload: string
+  key: string
 }
 
 function sameIds(a: { id: string }[], b: { id: string }[]): boolean {
@@ -78,6 +79,16 @@ function parseMessagesResponse(value: unknown): { messages: ChatMessage[]; membe
     : null
 }
 
+function formatMessageDate(date: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale === 'es' ? 'es-ES' : 'en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(date))
+}
+
 // Gated like the other feature pages (route inventory F-2): with Family chat
 // off nothing below mounts, so it neither polls /api/messages nor shows a 403.
 export default function MessagesPage() {
@@ -89,6 +100,8 @@ export default function MessagesPage() {
 }
 
 function MessagesContent() {
+  const { locale } = useTranslation()
+  const messageText = useMessagesText()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [familyMembers, setFamilyMembers] = useState<Member[]>([])
@@ -97,12 +110,13 @@ function MessagesContent() {
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [showAttach, setShowAttach] = useState(false)
+  const [readPending, setReadPending] = useState(false)
+  const [readError, setReadError] = useState(false)
   // Older history: GET /api/messages?cursor=<oldest created_at> returns the
   // page of messages created before it.
   const [hasEarlier, setHasEarlier] = useState(false)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
-  const [earlierError, setEarlierError] = useState<string | null>(null)
+  const [earlierError, setEarlierError] = useState(false)
   const threadRef = useRef<HTMLDivElement>(null)
   // Start pinned to the bottom; scrolling up to read history unpins.
   const nearBottomRef = useRef(true)
@@ -112,7 +126,37 @@ function MessagesContent() {
   const prependAnchorRef = useRef<number | null>(null)
   const latestLoadRef = useRef(0)
   const latestLoadPendingRef = useRef(false)
-  const messageText = useMessagesText()
+  const markedReadSignatureRef = useRef<string | null>(null)
+  const readRequestRef = useRef(0)
+  // One body/key pair represents one logical send. Ambiguous outcomes stay in
+  // this map so editing away and back to a draft still retries the same write.
+  const sendIntentRef = useRef<SendIntent | null>(null)
+  const ambiguousSendRef = useRef(new Map<string, string>())
+
+  const markMessagesRead = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return
+    const signature = ids.join(',')
+    if (markedReadSignatureRef.current === signature) return
+    markedReadSignatureRef.current = signature
+    const request = ++readRequestRef.current
+    setReadPending(true)
+    setReadError(false)
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageIds: ids }),
+      })
+      if (!res.ok) throw new Error('read status')
+    } catch {
+      if (request === readRequestRef.current) {
+        markedReadSignatureRef.current = null
+        setReadError(true)
+      }
+    } finally {
+      if (request === readRequestRef.current) setReadPending(false)
+    }
+  }, [])
 
   const loadData = useCallback(async () => {
     const request = ++latestLoadRef.current
@@ -135,6 +179,7 @@ function MessagesContent() {
       setFamilyMembers(prev => (sameIds(prev, data.members) ? prev : data.members))
       setCurrentUserId(data.userId)
       setLoadError(false)
+      void markMessagesRead(data.messages.map(message => message.id))
     } catch {
       if (request === latestLoadRef.current) setLoadError(true)
     } finally {
@@ -143,10 +188,10 @@ function MessagesContent() {
         setLoading(false)
       }
     }
-  }, [])
+  }, [markMessagesRead])
 
   useEffect(() => {
-    loadData()
+    void loadData()
     const interval = setInterval(() => {
       if (!latestLoadPendingRef.current) void loadData()
     }, 5000)
@@ -154,6 +199,7 @@ function MessagesContent() {
       clearInterval(interval)
       latestLoadRef.current += 1
       latestLoadPendingRef.current = false
+      readRequestRef.current += 1
     }
   }, [loadData])
 
@@ -192,20 +238,20 @@ function MessagesContent() {
     const oldest = messages[0]
     if (!oldest || loadingEarlier) return
     setLoadingEarlier(true)
-    setEarlierError(null)
+    setEarlierError(false)
     try {
       const res = await fetch(`/api/messages?cursor=${encodeURIComponent(oldest.created_at)}&limit=${PAGE_SIZE}`)
       if (!res.ok) {
-        setEarlierError(`Couldn't load earlier messages. ${(await serverError(res)) ?? 'Please try again.'}`)
+        setEarlierError(true)
         return
       }
-      const data = await res.json()
+      const data = await res.json().catch(() => null)
       const older: ChatMessage[] =
         data && typeof data === 'object' && Array.isArray(data.messages) && data.messages.every(isChatMessage)
           ? data.messages
           : []
       if (!data || typeof data !== 'object' || !Array.isArray(data.messages) || !data.messages.every(isChatMessage)) {
-        setEarlierError('Couldn\'t load earlier messages. Please try again.')
+        setEarlierError(true)
         return
       }
       setHasEarlier(older.length >= PAGE_SIZE)
@@ -214,15 +260,29 @@ function MessagesContent() {
         setMessages(prev => prependEarlier(prev, older))
       }
     } catch {
-      setEarlierError("Couldn't load earlier messages. Check your connection and try again.")
+      setEarlierError(true)
     } finally {
       setLoadingEarlier(false)
     }
   }
 
+  const retryRead = () => {
+    markedReadSignatureRef.current = null
+    void markMessagesRead(messages.map(message => message.id))
+  }
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMessage.trim() || sending) return
+    const content = newMessage.trim()
+    if (!content || sending) return
+
+    const body = { content, type: 'text' }
+    const payload = JSON.stringify(body)
+    const current = sendIntentRef.current
+    const key = current?.payload === payload
+      ? current.key
+      : ambiguousSendRef.current.get(payload) ?? newIdempotencyKey()
+    sendIntentRef.current = { payload, key }
 
     setSending(true)
     setSendError(null)
@@ -231,56 +291,75 @@ function MessagesContent() {
       try {
         res = await fetch('/api/messages', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: newMessage.trim(), type: 'text' }),
+          headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: key },
+          body: payload,
         })
       } catch {
-        // The typed text stays in the field so it can be sent again.
-        setSendError("Couldn't send your message. Check your connection and try again.")
+        // The typed text and key stay in place so the same intent can be sent again.
+        ambiguousSendRef.current.set(payload, key)
+        setSendError(messageText('sendNetworkError'))
         return
       }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data?.message) {
-        const reason = typeof data?.error === 'string' && data.error ? data.error : 'Please try again.'
-        setSendError(`Couldn't send your message. ${reason}`)
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        if (res.status >= 400 && res.status < 500 && res.status !== 409) {
+          ambiguousSendRef.current.delete(payload)
+          if (sendIntentRef.current?.payload === payload) sendIntentRef.current = null
+        } else {
+          ambiguousSendRef.current.set(payload, key)
+        }
+        setSendError(messageText('sendFailed'))
         return
       }
-      const sent = data.message as ChatMessage
+      if (!data || !isChatMessage(data.message)) {
+        ambiguousSendRef.current.set(payload, key)
+        setSendError(messageText('sendUnconfirmed'))
+        return
+      }
       justSentRef.current = true
-      setMessages(prev => (prev.some(m => m.id === sent.id) ? prev : [...prev, sent]))
+      setMessages(prev => (prev.some(m => m.id === data.message.id) ? prev : [...prev, data.message]))
       setNewMessage('')
+      ambiguousSendRef.current.delete(payload)
+      if (sendIntentRef.current?.payload === payload) sendIntentRef.current = null
     } finally {
       setSending(false)
     }
   }
 
-  // Group messages by sender for avatar+name header per message
   return (
     <div className="pb-20">
-      {/* Header */}
       <div className="px-4 pt-2 pb-3">
-        <div className="flex items-end justify-between">
+        <div className="flex items-end justify-between gap-4">
           <div>
-            <h1 className="text-large-title text-label-primary">Messages</h1>
+            <h1 className="text-large-title text-label-primary">{messageText('title')}</h1>
             <p className="text-subhead text-label-secondary mt-0.5">
-              {familyMembers.length} family members
+              {messageText('subtitle', { count: familyMembers.length })}
             </p>
           </div>
           <Glyph color="messages" size="md">
             <MessageSquare className="w-4 h-4" />
           </Glyph>
         </div>
+        <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+          {readPending ? messageText('readUpdating') : ''}
+        </div>
+        {readError && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[var(--surface-fill)] px-3 py-2" role="alert" data-testid="messages-read-recovery">
+            <p className="text-footnote text-label-secondary">{messageText('readError')}</p>
+            <button type="button" onClick={retryRead} className="btn-tinted min-h-[44px] min-w-[44px] px-3">
+              {messageText('retryRead')}
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Chat area */}
       <div className="card-apple mx-4 overflow-hidden">
-        {/* Messages thread */}
         <div
           ref={threadRef}
           onScroll={handleScroll}
           className="h-[calc(100vh-18rem)] overflow-y-auto"
           role="region"
-          aria-label="Messages thread"
+          aria-label={messageText('threadLabel')}
           tabIndex={0}
         >
           {loadError && !loading && (
@@ -309,8 +388,8 @@ function MessagesContent() {
                 icon={MessageSquare}
                 glyphColor="messages"
                 illustration={ILLUSTRATIONS.messagesEmpty}
-                title="No messages yet"
-                description="Start the conversation with your family."
+                title={messageText('emptyTitle')}
+                description={messageText('emptyDescription')}
               />
             </div>
           ) : messages.length > 0 ? (
@@ -324,11 +403,11 @@ function MessagesContent() {
                     aria-busy={loadingEarlier || undefined}
                     className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full px-4 text-subhead font-medium text-[var(--accent-text)] hover:bg-[var(--surface-fill)] disabled:opacity-60 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
                   >
-                    {loadingEarlier ? 'Loading earlier messages…' : 'Load earlier messages'}
+                    {loadingEarlier ? messageText('loadingEarlier') : messageText('loadEarlier')}
                   </button>
                   {earlierError && (
                     <p role="alert" className="text-footnote text-[var(--danger-text)] text-center">
-                      {earlierError}
+                      {messageText('earlierError')}
                     </p>
                   )}
                 </div>
@@ -336,19 +415,18 @@ function MessagesContent() {
               {messages.map((message) => {
                 const isCurrentUser = message.sender_id === currentUserId
                 const sender = message.sender
+                const formattedDate = formatMessageDate(message.created_at, locale)
                 return (
                   <div key={message.id} className="px-4 py-2">
-                    {/* Avatar + name header */}
                     <div className="flex items-center gap-2 mb-1">
                       <Avatar name={sender?.name || '?'} src={sender?.avatar_url} size="xs" />
                       <span className="text-footnote font-semibold text-label-primary">
-                        {isCurrentUser ? 'You' : sender?.name}
+                        {isCurrentUser ? messageText('you') : sender?.name}
                       </span>
-                      <span className="text-caption-1 text-label-tertiary">
-                        {formatDate(message.created_at)}
-                      </span>
+                      <time className="text-caption-1 text-label-tertiary" dateTime={message.created_at} aria-label={messageText('dateLabel', { date: formattedDate })}>
+                        {formattedDate}
+                      </time>
                     </div>
-                    {/* Message bubble */}
                     <div
                       className={cn(
                         'ml-6 rounded-2xl px-3 py-2 max-w-[80%]',
@@ -366,30 +444,16 @@ function MessagesContent() {
           ) : null}
         </div>
 
-        {/* Bottom anchored input */}
         <div className="border-t border-[var(--surface-separator)] px-4 py-3 bg-[var(--surface-base)]">
           <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowAttach(!showAttach)}
-              className={cn(
-                'w-11 h-11 rounded-full flex items-center justify-center transition-colors',
-                showAttach
-                  ? 'bg-tint-messages text-white'
-                  : 'bg-surface-fill text-label-secondary hover:bg-surface-fill-secondary'
-              )}
-              aria-label="Attach"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
             <input
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Message"
-              className="input-apple flex-1"
+              placeholder={messageText('messagePlaceholder')}
+              className="input-apple min-h-[44px] flex-1"
               disabled={sending}
-              aria-label="Message text"
+              aria-label={messageText('messageTextLabel')}
               aria-invalid={sendError ? true : undefined}
               aria-describedby={sendError ? 'message-send-error' : undefined}
             />
@@ -402,7 +466,7 @@ function MessagesContent() {
                   ? 'bg-tint-messages text-white'
                   : 'bg-surface-fill text-label-tertiary'
               )}
-              aria-label="Send"
+              aria-label={messageText('send')}
             >
               <Send className="w-3.5 h-3.5" />
             </button>
@@ -414,9 +478,8 @@ function MessagesContent() {
             </p>
           )}
 
-          {/* Live region for screen readers — announces send events */}
           <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-            {sending ? 'Sending message…' : ''}
+            {sending ? messageText('sending') : ''}
           </div>
         </div>
       </div>

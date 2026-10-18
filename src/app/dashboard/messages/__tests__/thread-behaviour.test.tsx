@@ -33,7 +33,7 @@ const range = (from: number, to: number) => Array.from({ length: to - from + 1 }
 let latest: Msg[] = []
 let older: Msg[] = []
 let postReply: () => Promise<Response>
-let calls: { url: string; method: string }[] = []
+let calls: { url: string; method: string; headers: Headers; body?: string }[] = []
 let poll: (() => void) | null = null
 const scrollTo = jest.fn()
 
@@ -59,7 +59,7 @@ beforeEach(() => {
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
-    calls.push({ url, method })
+    calls.push({ url, method, headers: new Headers(init?.headers), body: typeof init?.body === 'string' ? init.body : undefined })
     if (method === 'POST') return postReply()
     if (url.startsWith('/api/messages?cursor=')) {
       return { ok: true, status: 200, json: async () => ({ messages: older, members: [], userId: 'u1' }) } as Response
@@ -214,6 +214,23 @@ describe('initial loading recovery', () => {
   })
 })
 
+describe('localized presentation', () => {
+  it('localizes message chrome and accessible dates while preserving household content', async () => {
+    render(
+      <I18nProvider locale="es">
+        <MessagesPage />
+      </I18nProvider>
+    )
+    await screen.findByText('Message 3')
+    expect(screen.getByRole('heading', { name: 'Mensajes familiares' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Conversación familiar' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Texto del mensaje' })).toHaveAttribute('placeholder', 'Escribe a tu familia')
+    expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
+    expect(screen.getAllByLabelText(/Enviado/)).toHaveLength(3)
+    expect(screen.getAllByText('Sam')).toHaveLength(3)
+  })
+})
+
 describe('polling', () => {
   it('scrolls to the newest message once on load, and a quiet poll does not scroll again', async () => {
     render(<MessagesPage />)
@@ -272,7 +289,7 @@ describe('sending', () => {
     await user.click(screen.getByRole('button', { name: 'Send' }))
 
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBe("Couldn't send your message. Message is too long")
+    expect(alert.textContent).toBe("Couldn't send your message. Try again.")
     expect(input.value).toBe('Dinner at 6')
     expect(input.getAttribute('aria-describedby')).toBe(alert.id)
   })
@@ -292,6 +309,106 @@ describe('sending', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('Check your connection')
     expect(input.value).toBe('Dinner at 6')
     expect(input.disabled).toBe(false)
+  })
+
+  it('reuses one valid idempotency key after an ambiguous network failure', async () => {
+    let attempt = 0
+    postReply = async () => {
+      attempt += 1
+      if (attempt === 1) throw new TypeError('Failed to fetch')
+      return { ok: true, status: 200, json: async () => ({ message: msg(99, 'u1') }) } as Response
+    }
+    const user = userEvent.setup()
+    render(<MessagesPage />)
+    await screen.findByText('Message 3')
+    const input = screen.getByRole('textbox', { name: 'Message text' }) as HTMLInputElement
+    await user.type(input, 'Dinner at 6')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByText("Couldn't send your message. Check your connection and try again.")
+    const first = calls.find(call => call.method === 'POST')!
+    expect(first.headers.get('Idempotency-Key')).toMatch(/^[A-Za-z0-9_-]{16,128}$/)
+
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByText('Message 99')
+    const posts = calls.filter(call => call.method === 'POST')
+    expect(posts).toHaveLength(2)
+    expect(posts[1].headers.get('Idempotency-Key')).toBe(first.headers.get('Idempotency-Key'))
+  })
+
+  it('keeps separate ambiguous keys when a draft changes and returns', async () => {
+    let attempt = 0
+    postReply = async () => {
+      attempt += 1
+      if (attempt < 3) throw new TypeError('Failed to fetch')
+      return { ok: true, status: 200, json: async () => ({ message: msg(101, 'u1') }) } as Response
+    }
+    const user = userEvent.setup()
+    render(<MessagesPage />)
+    await screen.findByText('Message 3')
+    const input = screen.getByRole('textbox', { name: 'Message text' }) as HTMLInputElement
+
+    await user.type(input, 'First draft')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByText("Couldn't send your message. Check your connection and try again.")
+    const firstKey = calls.find(call => call.method === 'POST')!.headers.get('Idempotency-Key')
+
+    await user.clear(input)
+    await user.type(input, 'Second draft')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(calls.filter(call => call.method === 'POST')).toHaveLength(2))
+    const secondKey = calls.filter(call => call.method === 'POST')[1].headers.get('Idempotency-Key')
+    expect(secondKey).not.toBe(firstKey)
+
+    await user.clear(input)
+    await user.type(input, 'First draft')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByText('Message 101')
+    expect(calls.filter(call => call.method === 'POST')[2].headers.get('Idempotency-Key')).toBe(firstKey)
+  })
+
+  it('keeps the draft and key when a successful response is malformed', async () => {
+    let attempt = 0
+    postReply = async () => {
+      attempt += 1
+      if (attempt === 1) return { ok: true, status: 200, json: async () => ({ message: { id: 'missing-fields' } }) } as Response
+      return { ok: true, status: 200, json: async () => ({ message: msg(99, 'u1') }) } as Response
+    }
+    const user = userEvent.setup()
+    render(<MessagesPage />)
+    await screen.findByText('Message 3')
+    const input = screen.getByRole('textbox', { name: 'Message text' }) as HTMLInputElement
+    await user.type(input, 'Dinner at 6')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    expect(await screen.findByText('Your message was not confirmed. Try again.')).toBeInTheDocument()
+    expect(input).toHaveValue('Dinner at 6')
+    const first = calls.find(call => call.method === 'POST')!
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByText('Message 99')
+    const posts = calls.filter(call => call.method === 'POST')
+    expect(posts[1].headers.get('Idempotency-Key')).toBe(first.headers.get('Idempotency-Key'))
+  })
+})
+
+describe('read recovery', () => {
+  it('offers a retry when marking the loaded thread as read fails', async () => {
+    let readAttempts = 0
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method ?? 'GET').toUpperCase()
+      calls.push({ url, method, headers: new Headers(init?.headers), body: typeof init?.body === 'string' ? init.body : undefined })
+      if (method === 'PATCH') {
+        readAttempts += 1
+        return (readAttempts === 1 ? { ok: false, status: 503 } : { ok: true, status: 200 }) as Response
+      }
+      return { ok: true, status: 200, json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }) } as Response
+    }) as unknown as typeof fetch
+    const user = userEvent.setup()
+    render(<MessagesPage />)
+    await screen.findByText('Message 3')
+    expect(await screen.findByTestId('messages-read-recovery')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Mark as read' }))
+    await waitFor(() => expect(readAttempts).toBe(2))
+    expect(screen.queryByTestId('messages-read-recovery')).not.toBeInTheDocument()
   })
 })
 
@@ -341,7 +458,7 @@ describe('Load earlier messages', () => {
     }))
     await user.click(screen.getByRole('button', { name: 'Load earlier messages' }))
     expect((await screen.findByRole('alert')).textContent).toBe(
-      "Couldn't load earlier messages. cursor must be a valid date-time"
+      "Couldn't load earlier messages. Try again."
     )
     expect(screen.getByRole('button', { name: 'Load earlier messages' })).toBeTruthy()
   })
