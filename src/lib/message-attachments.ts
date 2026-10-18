@@ -183,15 +183,29 @@ export async function storeMessageAttachment(
       size_bytes: row.size_bytes,
     }
   } catch (error) {
-    if (createdAttachment) {
-      const removed = await db.messageAttachment.deleteMany({
-        where: {
-          id: createdAttachment.id,
-          family_id: familyId,
-          uploaded_by: userId,
-          message_id: null,
-        },
-      }).catch(() => ({ count: 0 }))
+    const attachment = createdAttachment
+    if (attachment) {
+      let removed = { count: 0 }
+      try {
+        removed = await db.$transaction(async (tx: any) => {
+          // Message sends take this same lock before reading and claiming a
+          // draft. Wait for an in-flight claim before deciding whether this
+          // exact row is still safe to remove.
+          await lockHousehold(tx, familyId)
+          return tx.messageAttachment.deleteMany({
+            where: {
+              id: attachment.id,
+              family_id: familyId,
+              uploaded_by: userId,
+              message_id: null,
+            },
+          })
+        })
+      } catch {
+        // Cleanup is fail-safe: retain the row and final file if the guarded
+        // delete cannot be completed or verified.
+        removed = { count: 0 }
+      }
       // A concurrent sender may have claimed the row while file placement or
       // the post-rename verification was failing. Only unlink a final file
       // when this exact unclaimed row was removed; a claimed attachment owns

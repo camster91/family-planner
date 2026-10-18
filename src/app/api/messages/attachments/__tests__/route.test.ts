@@ -290,6 +290,44 @@ describe("message attachment routes", () => {
     expect(mockFiles.size).toBe(0);
   });
 
+  it("does not delete or unlink a row claimed after rename when verification fails", async () => {
+    let claimedId: string | undefined;
+    const originalFindUnique = fakePrisma.messageAttachment.findUnique;
+    let calls = 0;
+    const findUnique = jest
+      .spyOn(fakePrisma.messageAttachment, "findUnique")
+      .mockImplementation(async (args: any) => {
+        calls += 1;
+        if (calls === 2) {
+          const row = db.rows("messageAttachment")[0];
+          claimedId = row?.id;
+          if (row) row.message_id = "message-claimed-after-rename";
+          throw new Error("database unavailable");
+        }
+        return originalFindUnique(args);
+      });
+
+    try {
+      const response = await uploadAttachment(uploadReq() as never);
+
+      expect(response.status).toBe(500);
+      expect(calls).toBe(2);
+      expect(db.rows("messageAttachment")).toEqual([
+        expect.objectContaining({
+          id: claimedId,
+          family_id: FAMILY_A,
+          uploaded_by: "parent-a",
+          message_id: "message-claimed-after-rename",
+        }),
+      ]);
+      expect([...mockFiles.keys()]).toEqual([
+        expect.stringMatching(/\/messages\/[a-f0-9]{32}\.png$/),
+      ]);
+    } finally {
+      findUnique.mockRestore();
+    }
+  });
+
   it("removes its unclaimed row and final file when post-rename verification fails", async () => {
     const originalFindUnique = fakePrisma.messageAttachment.findUnique;
     let calls = 0;
