@@ -245,22 +245,19 @@ async function assertClaimedRewardRowReadable(
 ): Promise<void> {
   const viewport = page.viewportSize();
   if (!viewport || viewport.width > 430) return;
-  const row = page
-    .locator('[data-testid="family-reward"]')
-    .filter({
-      has: page.getByRole("button", {
-        name: locale === "es" ? "Marcar como entregada" : "Mark as given",
-        exact: true,
-      }),
-    })
-    .first();
-  if ((await row.count()) === 0) return;
-  const title = row.locator("p").first();
+  const title = page.getByText("Pick Friday dinner", { exact: true });
+  await expect(title).toHaveCount(1);
+  const row = title.locator("xpath=ancestor::li[@data-testid='family-reward']");
+  await expect(row).toHaveCount(1);
+  const approve = row.getByRole("button", {
+    name: locale === "es" ? /Marcar .+ como entregada/ : /Mark .+ as given/,
+  });
+  await expect(approve).toHaveCount(1);
   await expect(title).toBeVisible();
-  const width = await title.evaluate(
+  const titleWidth = await title.evaluate(
     (element) => element.getBoundingClientRect().width,
   );
-  expect(width).toBeGreaterThanOrEqual(120);
+  expect(titleWidth).toBeGreaterThanOrEqual(120);
 }
 
 async function captureState(
