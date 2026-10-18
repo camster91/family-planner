@@ -1,5 +1,22 @@
 # Current State
 
+## Parent Devices localization candidate — 2026-10-18
+
+Local #445 source now uses typed EN/ES management, pairing, audit, status,
+wait/count and missing-household copy. Feedback stores semantic keys and literal
+parameters. Fresh pairing labels use the opening language; existing labels,
+codes, digits, native reason values and private/raw values stay unchanged.
+Locale is absent from canonical fetch/poll/countdown/reset effect dependencies.
+The known inherited audit-reason lookup now checks own properties and retains
+neutral unknown audit wording. The scoped wait helper preserves default-English
+output for existing paired-device callers. Owned copy-debt records were migrated.
+
+No tests, type/lint/build/browser QA, hosted runs or real pairing were performed.
+Source/compatibility and deferred acceptance are recorded in
+`docs/architecture/PARENT_DEVICE_LOCALIZATION.md`. This does not close #445 or
+imply shared/native/hardware acceptance. Account linking and the wider ledger
+remain active coding work.
+
 ## Account-backed personalization candidate — 2026-10-18
 
 The next local slice replaces the device-only preference authority with

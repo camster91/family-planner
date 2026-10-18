@@ -16,7 +16,7 @@
   },
   {
     "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "\u00b7 expires",
+    "text": "· expires",
     "count": 1
   },
   {
@@ -51,7 +51,7 @@
   },
   {
     "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "For another phone in the room. This code does not choose a role \u2014 they join as a child or teen.",
+    "text": "For another phone in the room. This code does not choose a role — they join as a child or teen.",
     "count": 1
   },
   {
@@ -86,12 +86,12 @@
   },
   {
     "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Loading\u2026",
+    "text": "Loading…",
     "count": 2
   },
   {
     "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Making a new code\u2026",
+    "text": "Making a new code…",
     "count": 1
   },
   {
@@ -126,12 +126,12 @@
   },
   {
     "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Sending\u2026",
+    "text": "Sending…",
     "count": 1
   },
   {
     "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Shared the code with the wrong person, or posted it somewhere? Get a new one. The old code stops working right away. People who already joined stay \u2014 remove them on the Family page.",
+    "text": "Shared the code with the wrong person, or posted it somewhere? Get a new one. The old code stops working right away. People who already joined stay — remove them on the Family page.",
     "count": 1
   },
   {
@@ -166,7 +166,7 @@
   },
   {
     "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Delete\u2026",
+    "text": "Delete…",
     "count": 1
   },
   {
@@ -181,7 +181,7 @@
   },
   {
     "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Loading\u2026",
+    "text": "Loading…",
     "count": 1
   },
   {
@@ -201,7 +201,7 @@
   },
   {
     "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Saving\u2026",
+    "text": "Saving…",
     "count": 1
   },
   {
@@ -301,7 +301,7 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "\u2192 Privacy &amp; data \u2192 Data Export. Each family member downloads their own copy.",
+    "text": "→ Privacy &amp; data → Data Export. Each family member downloads their own copy.",
     "count": 1
   },
   {
@@ -391,7 +391,7 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Family \u2192 Invite",
+    "text": "Family → Invite",
     "count": 1
   },
   {
@@ -421,12 +421,12 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "If you ever see another family\u2019s information, stop and tell us straight away. Please do not share screenshots of it.",
+    "text": "If you ever see another family’s information, stop and tell us straight away. Please do not share screenshots of it.",
     "count": 1
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "In Settings \u2192 Privacy &amp; data, choose Delete Account. If you are the only parent, you can delete the whole household. With two parents, each parent deletes their own account first, and the last one can then delete the household. Deleted data stays in our backups for up to about five weeks, then it is gone.",
+    "text": "In Settings → Privacy &amp; data, choose Delete Account. If you are the only parent, you can delete the whole household. With two parents, each parent deletes their own account first, and the last one can then delete the household. Deleted data stays in our backups for up to about five weeks, then it is gone.",
     "count": 1
   },
   {
@@ -461,12 +461,12 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "On the Invite page, open \u201cIn person instead\u201d to see your family code. The other person signs in with their own account, opens",
+    "text": "On the Invite page, open “In person instead” to see your family code. The other person signs in with their own account, opens",
     "count": 1
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Plan the week\u2019s dinners on",
+    "text": "Plan the week’s dinners on",
     "count": 1
   },
   {
@@ -481,7 +481,7 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Read how we handle your family\u2019s information in our",
+    "text": "Read how we handle your family’s information in our",
     "count": 1
   },
   {
@@ -501,7 +501,7 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "to get a reset link by email. The link works for one hour. If you know your password and want a new one, use Settings \u2192 Your account \u2192 Change Password.",
+    "text": "to get a reset link by email. The link works for one hour. If you know your password and want a new one, use Settings → Your account → Change Password.",
     "count": 1
   },
   {
@@ -611,7 +611,7 @@
   },
   {
     "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Add an item\u2026",
+    "text": "Add an item…",
     "count": 1
   },
   {
@@ -621,7 +621,7 @@
   },
   {
     "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Couldn\u2019t save changes on this device. Keep this page open until they sync, or they will be lost.",
+    "text": "Couldn’t save changes on this device. Keep this page open until they sync, or they will be lost.",
     "count": 1
   },
   {
@@ -736,12 +736,12 @@
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Leave blank if not set. Otherwise, enter 1\u2013100.",
+    "text": "Leave blank if not set. Otherwise, enter 1–100.",
     "count": 1
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Loading household cooks\u2026",
+    "text": "Loading household cooks…",
     "count": 1
   },
   {
@@ -826,7 +826,7 @@
   },
   {
     "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Couldn\u2019t load this recipe",
+    "text": "Couldn’t load this recipe",
     "count": 1
   },
   {
@@ -906,7 +906,7 @@
   },
   {
     "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Loading\u2026",
+    "text": "Loading…",
     "count": 1
   },
   {
@@ -946,7 +946,7 @@
   },
   {
     "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Saving\u2026",
+    "text": "Saving…",
     "count": 1
   },
   {
@@ -1056,7 +1056,7 @@
   },
   {
     "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "Searching\u2026",
+    "text": "Searching…",
     "count": 1
   },
   {
@@ -1081,7 +1081,7 @@
   },
   {
     "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "Loading\u2026",
+    "text": "Loading…",
     "count": 1
   },
   {
@@ -1142,16 +1142,6 @@
   {
     "file": "src/app/dashboard/settings/activity/page.tsx",
     "text": "Recent changes",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/devices/page.tsx",
-    "text": "Devices",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/devices/page.tsx",
-    "text": "Join or create a household to pair a family tablet.",
     "count": 1
   },
   {
@@ -1236,12 +1226,12 @@
   },
   {
     "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "\u00b0C",
+    "text": "°C",
     "count": 1
   },
   {
     "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "\u00b0F",
+    "text": "°F",
     "count": 1
   },
   {
@@ -1281,7 +1271,7 @@
   },
   {
     "file": "src/app/join/page.tsx",
-    "text": "Capitals, spaces and dashes don\u2019t matter.",
+    "text": "Capitals, spaces and dashes don’t matter.",
     "count": 1
   },
   {
@@ -1376,12 +1366,12 @@
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": ": Settings \u2192 Data Export (GET",
+    "text": ": Settings → Data Export (GET",
     "count": 1
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": ": Settings \u2192 Delete Account. You confirm with your password. Your account, sign-ins, messages, notifications and your own chores are deleted; things you added for the household (events, lists, meals, notes, photos you uploaded) stay with the household under another parent.",
+    "text": ": Settings → Delete Account. You confirm with your password. Your account, sign-ins, messages, notifications and your own chores are deleted; things you added for the household (events, lists, meals, notes, photos you uploaded) stay with the household under another parent.",
     "count": 1
   },
   {
@@ -1406,7 +1396,7 @@
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": "\u2190 Back to home",
+    "text": "← Back to home",
     "count": 1
   },
   {
@@ -1521,7 +1511,7 @@
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": "If you turn on the optional morning summary (Settings \u2192 Notifications; it is off unless you turn it on), we also send you one short email a day, to a verified address only, with your own chores for the day, today&apos;s family events and tonight&apos;s dinner. Every summary email tells you how to turn it off.",
+    "text": "If you turn on the optional morning summary (Settings → Notifications; it is off unless you turn it on), we also send you one short email a day, to a verified address only, with your own chores for the day, today&apos;s family events and tonight&apos;s dinner. Every summary email tells you how to turn it off.",
     "count": 1
   },
   {
@@ -1626,7 +1616,7 @@
   },
   {
     "file": "src/app/terms/page.tsx",
-    "text": "\u2190 Back to home",
+    "text": "← Back to home",
     "count": 1
   },
   {
@@ -1782,171 +1772,6 @@
   {
     "file": "src/components/dashboard/GetStarted.tsx",
     "text": "To do:",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "\u00b7 Paired",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "\u00b7 Version",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Active",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Android app",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Cancel",
-    "count": 2
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Could not load recent activity.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Could not load your tablets.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Devices",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Expired",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "It has not connected for 30 days. Remove it and pair it again to use it.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "It stops showing your family's information the next time it connects. To use it again, pair it again.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Loading activity",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Loading tablets",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "No activity yet.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "No tablets yet.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Pair a tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Pair a tablet to show today&apos;s plan on the fridge.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Reason (optional)",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Recent activity",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Remove",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Remove tablet",
-    "count": 2
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Remove tablet?",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Removed",
-    "count": 2
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Rename",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Rename tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Replace",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Save name",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Settings",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Shared tablets show your family&apos;s Today board. They never hold anyone&apos;s account, and a parent unlocks parent mode on them with a tablet PIN.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Tablet name",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Tablets",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Try again",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Web browser",
     "count": 1
   },
   {
@@ -2215,121 +2040,6 @@
     "count": 1
   },
   {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "/device/pair",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "A tablet entered your code. It now shows a 4-digit number. Type it here to connect it. If you can&apos;t see that tablet, it isn&apos;t yours.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "and type this code.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Cancel",
-    "count": 2
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Close",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Confirmed. Waiting for the tablet to finish connecting.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Connect tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Done",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Expires in",
-    "count": 2
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Get a code",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Get a new code",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "is connected and showing today&apos;s board.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Number on the tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "On the tablet, open",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Remove",
-    "count": 2
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "still could not be removed. Try again, or remove it from the list.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Tablet name",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "The tablet shows your family&apos;s Today board. It never holds anyone&apos;s account.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "This isn&apos;t my tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Waiting for the tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "was not removed. Remove it now so it stops showing your family's information.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "was removed.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "when the new one is connected",
-    "count": 1
-  },
-  {
     "file": "src/components/device/StatusScreens.tsx",
     "text": "Pair this tablet",
     "count": 1
@@ -2381,7 +2091,7 @@
   },
   {
     "file": "src/components/fridge/ambient-cover.tsx",
-    "text": "Next \u00b7",
+    "text": "Next ·",
     "count": 1
   },
   {
@@ -2416,7 +2126,7 @@
   },
   {
     "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "Celsius (\u00b0C)",
+    "text": "Celsius (°C)",
     "count": 1
   },
   {
@@ -2446,7 +2156,7 @@
   },
   {
     "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "Fahrenheit (\u00b0F)",
+    "text": "Fahrenheit (°F)",
     "count": 1
   },
   {
@@ -2486,7 +2196,7 @@
   },
   {
     "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "Loading board settings\u2026",
+    "text": "Loading board settings…",
     "count": 1
   },
   {
@@ -2596,7 +2306,7 @@
   },
   {
     "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "Uploading\u2026",
+    "text": "Uploading…",
     "count": 1
   },
   {
@@ -2611,7 +2321,7 @@
   },
   {
     "file": "src/components/fridge/weather-tile.tsx",
-    "text": "\u00b7 L",
+    "text": "· L",
     "count": 1
   },
   {
@@ -2626,7 +2336,7 @@
   },
   {
     "file": "src/components/layout/CommandPalette.tsx",
-    "text": "\u2318K",
+    "text": "⌘K",
     "count": 1
   },
   {
@@ -2671,7 +2381,7 @@
   },
   {
     "file": "src/components/layout/CommandPalette.tsx",
-    "text": "Search or type a command\u2026",
+    "text": "Search or type a command…",
     "count": 1
   },
   {
@@ -2746,7 +2456,7 @@
   },
   {
     "file": "src/components/meals/AddToGroceriesButton.tsx",
-    "text": "Loading ingredients\u2026",
+    "text": "Loading ingredients…",
     "count": 1
   },
   {
@@ -2821,7 +2531,7 @@
   },
   {
     "file": "src/components/meals/RecipeDetail.tsx",
-    "text": "Original recipe \u00b7",
+    "text": "Original recipe ·",
     "count": 1
   },
   {
