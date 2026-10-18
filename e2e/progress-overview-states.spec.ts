@@ -126,11 +126,15 @@ function assertLocalTarget(baseURL: string | undefined) {
   expect(LOCAL_HOSTS).toContain(new URL(baseURL!).hostname);
 }
 
-async function guardNetwork(context: BrowserContext, baseURL: string | undefined) {
+async function guardNetwork(
+  context: BrowserContext,
+  baseURL: string | undefined,
+) {
   assertLocalTarget(baseURL);
   await context.route("**/*", (route) => {
     const url = new URL(route.request().url());
-    return LOCAL_HOSTS.has(url.hostname) || ["data:", "blob:"].includes(url.protocol)
+    return LOCAL_HOSTS.has(url.hostname) ||
+      ["data:", "blob:"].includes(url.protocol)
       ? route.continue()
       : route.abort();
   });
@@ -152,7 +156,10 @@ async function enableProgressFeatures(
     await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
     const response = await browserFetch(page, "/api/family/features");
     expect(response.status, response.body).toBe(200);
-    const original = JSON.parse(response.body).features as Record<string, boolean>;
+    const original = JSON.parse(response.body).features as Record<
+      string,
+      boolean
+    >;
     const cleanAudit = await ownFeatureAudit([...FEATURE_KEYS]);
     const enabled = { ...original, analytics: true, gamification: true };
     const update = await browserSend(page, "PATCH", "/api/family/features", {
@@ -201,7 +208,8 @@ test.beforeAll(async ({ browser, baseURL }) => {
 });
 
 test.afterAll(async ({ browser, baseURL }) => {
-  if (featureSetup) await restoreProgressFeatures(browser, baseURL, featureSetup);
+  if (featureSetup)
+    await restoreProgressFeatures(browser, baseURL, featureSetup);
 });
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -210,10 +218,9 @@ test.beforeEach(async ({ context, baseURL }) => {
 });
 
 for (const locale of ["en", "es"] as const) {
-  test(`${locale}: progress loading, populated, malformed, error and retry states`, async (
-    { page },
-    info,
-  ) => {
+  test(`${locale}: progress loading, populated, malformed, error and retry states`, async ({
+    page,
+  }, info) => {
     expect(VIEWPORT_PROJECTS).toContain(info.project.name);
     const text = copy(locale);
     await page.addInitScript(
@@ -264,7 +271,9 @@ for (const locale of ["en", "es"] as const) {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(requestPhase === "retry-empty" ? empty : populated),
+        body: JSON.stringify(
+          requestPhase === "retry-empty" ? empty : populated,
+        ),
       });
     });
 
@@ -273,8 +282,9 @@ for (const locale of ["en", "es"] as const) {
         .include("main")
         .withTags(["wcag2a", "wcag2aa"])
         .analyze();
-      const serious = result.violations.filter((violation) =>
-        violation.impact === "serious" || violation.impact === "critical",
+      const serious = result.violations.filter(
+        (violation) =>
+          violation.impact === "serious" || violation.impact === "critical",
       );
       expect(serious, `${label}: ${JSON.stringify(serious)}`).toEqual([]);
     };
@@ -284,13 +294,15 @@ for (const locale of ["en", "es"] as const) {
         documentWidth: document.documentElement.scrollWidth,
         main: document.querySelector("main")?.getBoundingClientRect().toJSON(),
       }));
-      expect(geometry.documentWidth, `${label}: horizontal overflow`).toBeLessThanOrEqual(
-        geometry.viewport + 1,
-      );
+      expect(
+        geometry.documentWidth,
+        `${label}: horizontal overflow`,
+      ).toBeLessThanOrEqual(geometry.viewport + 1);
       if (geometry.main) {
-        expect(geometry.main.right, `${label}: main overflows right edge`).toBeLessThanOrEqual(
-          geometry.viewport + 1,
-        );
+        expect(
+          geometry.main.right,
+          `${label}: main overflows right edge`,
+        ).toBeLessThanOrEqual(geometry.viewport + 1);
       }
     };
     const capture = async (state: string) => {
@@ -314,8 +326,13 @@ for (const locale of ["en", "es"] as const) {
       // the held analytics request is released.
       const runtimeResponse = await browserFetch(page, "/api/version");
       expect(runtimeResponse.status, runtimeResponse.body).toBe(200);
-      const runtime = JSON.parse(runtimeResponse.body) as { commit: string; builtAt?: string };
-      const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+      const runtime = JSON.parse(runtimeResponse.body) as {
+        commit: string;
+        builtAt?: string;
+      };
+      const head = execFileSync("git", ["rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).trim();
       expect(runtime.commit).toBe(head);
       if (process.env.RELEASE_SHA?.trim()) {
         expect(runtime.commit).toBe(process.env.RELEASE_SHA.trim());
@@ -327,13 +344,21 @@ for (const locale of ["en", "es"] as const) {
 
       phase = "populated";
       releaseLoading();
-      await expect(page.getByRole("heading", { name: text.title, exact: true })).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: text.title, exact: true }),
+      ).toBeVisible();
       await expect(page.getByText(text.member, { exact: true })).toBeVisible();
       await expect(page.getByTestId("weekly-trend")).toBeVisible();
-      await expect(page.getByTestId("weekly-trend").locator('[role="group"]')).toHaveCount(7);
-      await expect(page.locator('[role="group"][aria-label]').first()).toBeVisible();
+      await expect(
+        page.getByTestId("weekly-trend").locator('[role="group"]'),
+      ).toHaveCount(7);
+      await expect(
+        page.locator('[role="group"][aria-label]').first(),
+      ).toBeVisible();
       await expect(page.getByTestId("family-points")).toHaveText("305");
-      await expect(page.getByTestId("best-streak")).toHaveText(locale === "es" ? "9 d" : "9d");
+      await expect(page.getByTestId("best-streak")).toHaveText(
+        locale === "es" ? "9 d" : "9d",
+      );
       await assertNoOverflow("populated");
       await assertA11y("populated");
       await capture("populated");
@@ -341,7 +366,9 @@ for (const locale of ["en", "es"] as const) {
       phase = "malformed";
       await page.reload();
       await expect(page.getByRole("alert")).toContainText(text.loadError);
-      await expect(page.getByText(text.noProgress, { exact: true })).toHaveCount(0);
+      await expect(
+        page.getByText(text.noProgress, { exact: true }),
+      ).toHaveCount(0);
       await assertNoOverflow("malformed");
       await assertA11y("malformed");
 
@@ -351,7 +378,10 @@ for (const locale of ["en", "es"] as const) {
       const retry = page.getByRole("button", { name: text.retry, exact: true });
       await expect(retry).toBeVisible();
       const retryBox = await retry.boundingBox();
-      expect(retryBox, "retry control should have a measurable hit target").not.toBeNull();
+      expect(
+        retryBox,
+        "retry control should have a measurable hit target",
+      ).not.toBeNull();
       expect(retryBox!.width).toBeGreaterThanOrEqual(44);
       expect(retryBox!.height).toBeGreaterThanOrEqual(44);
       await assertNoOverflow("error");
@@ -360,8 +390,12 @@ for (const locale of ["en", "es"] as const) {
 
       phase = "retry-empty";
       await retry.click();
-      await expect(page.getByText(text.noProgress, { exact: true })).toBeVisible();
-      await expect(page.getByTestId("weekly-trend-empty")).toContainText(text.noTrend);
+      await expect(
+        page.getByText(text.noProgress, { exact: true }),
+      ).toBeVisible();
+      await expect(page.getByTestId("weekly-trend-empty")).toContainText(
+        text.noTrend,
+      );
       await expect(page.getByRole("alert")).toHaveCount(0);
       await assertNoOverflow("retry-empty");
       await assertA11y("retry-empty");
@@ -371,4 +405,3 @@ for (const locale of ["en", "es"] as const) {
     }
   });
 }
-
