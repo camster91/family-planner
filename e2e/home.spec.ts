@@ -7,13 +7,13 @@
  *   get Calendar and Meals tabs (O-37).
  * - Tapping a chore on the home completes it (optimistic, server-confirmed)
  *   and Undo reopens it.
- * - Phone tab bar: exactly Today · Calendar · Meals · Lists · Family. The top
+ * - Phone tab bar: exactly Today · Calendar · Meals · Lists · Explore. The top
  *   bar carries the same tabs from 800px up.
- * - Emergency is reached from Family; Family → More lists only enabled features.
+ * - Emergency is reached from Family; Explore lists Family and the enabled features.
  *
  * Spec-owned rows: one chore due today assigned to the Family A parent
  * (`fx_e2e_home_*`), inserted before the file and deleted after it, and the
- * `pickups` flag turned on for Family A for the More check (removed after).
+ * `pickups` flag turned on for Family A for the Explore check (removed after).
  * Runs at 390x844, 800x1280 and 1366x768.
  */
 import AxeBuilder from "@axe-core/playwright";
@@ -238,7 +238,7 @@ test.describe("Family A parent", () => {
       "Calendar",
       "Meals",
       "Lists",
-      "Family",
+      "Explore",
     ]);
     await expect(bar.getByRole("link", { name: "Today" })).toHaveAttribute(
       "aria-current",
@@ -266,7 +266,7 @@ test.describe("Family A parent", () => {
       "Calendar",
       "Meals",
       "Lists",
-      "Family",
+      "Explore",
     ]);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth,
@@ -284,18 +284,19 @@ test.describe("Family A parent", () => {
     await expect(page).toHaveURL(/\/dashboard\/emergency$/);
   });
 
-  test("More lists the enabled features and a way to turn more on", async ({
+  test("Explore lists Family, enabled features and a way to turn more on", async ({
     page,
   }, testInfo) => {
     await page.goto("/dashboard/family");
     await page
       .locator("#main-content")
-      .getByRole("link", { name: /^More/ })
+      .getByRole("link", { name: /^Explore/ })
       .click();
     await expect(page).toHaveURL(/\/dashboard\/family\/more$/);
     const list = page.getByTestId("more-list");
-    // Chores first; on by default or turned on by this spec: listed.
-    await expect(list.getByRole("link").first()).toContainText("Chores");
+    // Family is first in Core; Chores remains discoverable after it.
+    await expect(list.getByRole("link").first()).toContainText("Family");
+    await expect(list.getByRole("link").nth(1)).toContainText("Chores");
     for (const title of [
       "Emergency contacts",
       "Budget",

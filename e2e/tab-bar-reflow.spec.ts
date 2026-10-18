@@ -7,7 +7,7 @@ import { expect, test } from "@playwright/test";
 // Real component, canonical tabsFor/feature provider/Next Link, production CSS.
 // Isolated labelled fixture: no API mocks, auth or household writes.
 const labels = {
-  parent: ["Today", "Calendar", "Meals", "Lists", "Family"],
+  parent: ["Today", "Calendar", "Meals", "Lists", "Explore"],
   teen: ["Today", "Calendar", "Meals", "Lists", "Emergency"],
   child: ["Today", "Lists", "Emergency"],
 };

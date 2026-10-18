@@ -230,7 +230,7 @@ for (const role of ["parent", "teen", "child"] as const)
             : page.getByTestId("top-tabs");
         const keys: NavigationMessage[] =
           role === "parent"
-            ? ["today", "calendar", "meals", "lists", "family"]
+            ? ["today", "calendar", "meals", "lists", "explore"]
             : role === "teen"
               ? ["today", "calendar", "meals", "lists", "emergency"]
               : ["today", "lists", "emergency"];
@@ -241,7 +241,7 @@ for (const role of ["parent", "teen", "child"] as const)
                 "/dashboard/calendar",
                 "/dashboard/meals",
                 "/dashboard/lists",
-                "/dashboard/family",
+                "/dashboard/family/more",
               ]
             : role === "teen"
               ? [
@@ -405,26 +405,23 @@ test.describe("Explore feature shortcut", () => {
     assertFixtureTargetAllowed(process.env);
     await page.goto("/dashboard/today");
     const viewport = page.viewportSize()!;
-    if (viewport.width < 768) {
-      await page
-        .getByRole("button", {
-          name: text(navigationMessages.en.userMenu),
-          exact: true,
-        })
-        .click();
-    }
-    const explore = page
-      .getByRole("link", {
-        name: text(navigationMessages.en.explore),
-        exact: true,
-      })
-      .filter({ visible: true });
+    const primaryNav =
+      viewport.width < 768
+        ? page.getByRole("navigation", {
+            name: text(navigationMessages.en.tabs),
+            exact: true,
+          })
+        : page.getByTestId("top-tabs");
+    const explore = primaryNav.getByRole("link", {
+      name: text(navigationMessages.en.explore),
+      exact: true,
+    });
     await expect(explore).toHaveCount(1);
     await capture(page, info, "explore-shortcut", [explore]);
     await explore.click();
     await expect(page).toHaveURL(/\/dashboard\/family\/more$/);
     await expect(
-      page.getByRole("heading", { name: "More", exact: true }),
+      page.getByRole("heading", { name: "Explore", exact: true }),
     ).toBeVisible();
     const featureLists = page.getByTestId("more-list").getByRole("list");
     expect(await featureLists.count()).toBeGreaterThan(0);
