@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import DisplayPreferencesStatus from "@/components/account/DisplayPreferencesStatus";
 import AppGuide from "@/components/assistant/AppGuide";
 import { Sliders, Star } from "lucide-react";
 import { LargeHeader } from "@/components/ui/large-header";
@@ -35,7 +36,7 @@ export default function ExploreBrowser({
   onNavigate?: () => void;
 }) {
   const { features } = useFeatures();
-  const { layout, remembered, toggleFavorite } = useDisplayPreferences();
+  const { layout, saving, syncState, toggleFavorite } = useDisplayPreferences();
   const featureDisplay = useFeatureDisplayCopy();
   const settingsText = useFeaturesText();
   const more = useMoreText();
@@ -76,6 +77,7 @@ export default function ExploreBrowser({
         </div>
         <button
           type="button"
+          disabled={saving || syncState !== "ready"}
           aria-pressed={favorite}
           aria-label={text(favorite ? "unpin" : "pin", { feature: item.title })}
           className="min-h-[44px] min-w-[44px] shrink-0 rounded-xl text-[var(--accent-text)] focus-visible:outline"
@@ -85,7 +87,7 @@ export default function ExploreBrowser({
               return;
             }
             setAtLimit(false);
-            toggleFavorite(
+            void toggleFavorite(
               item.key,
               items.map((entry) => entry.key),
             );
@@ -123,11 +125,7 @@ export default function ExploreBrowser({
           {text("limit")}
         </p>
       )}
-      {!remembered && (
-        <p role="status" className="text-footnote text-label-secondary">
-          {text("storage")}
-        </p>
-      )}
+      <DisplayPreferencesStatus />
       {pinned.length > 0 && (
         <section aria-labelledby="explore-favorites">
           <h2 id="explore-favorites" className="section-header">

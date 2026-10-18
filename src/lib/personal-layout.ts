@@ -1,4 +1,4 @@
-/** Local presentation preferences, never authority or household feature flags. */
+/** Shared presentation shape for canonical preferences and read caches, never authority. */
 export const TODAY_SECTIONS = [
   "next",
   "dinner",
@@ -12,7 +12,7 @@ export type TodayLayout = {
   hidden: TodaySection[];
   density: "comfortable" | "compact";
   includeChores: boolean;
-  calendarView: "day" | "week" | "agenda";
+  calendarView: "day" | "week" | "agenda" | "month";
 };
 export type PersonalLayout = { today: TodayLayout; favorites: string[] };
 export const MAX_FAVORITES = 8;
@@ -61,7 +61,9 @@ export function normalizePersonalLayout(value: unknown): PersonalLayout {
       includeChores:
         typeof today.includeChores === "boolean" ? today.includeChores : true,
       calendarView:
-        today.calendarView === "day" || today.calendarView === "week"
+        today.calendarView === "day" ||
+        today.calendarView === "week" ||
+        today.calendarView === "month"
           ? today.calendarView
           : "agenda",
     },

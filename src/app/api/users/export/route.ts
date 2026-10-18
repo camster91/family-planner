@@ -94,6 +94,8 @@ export async function GET(request: NextRequest) {
           xp: true, level: true, streak: true, best_streak: true,
           avatar_url: true, last_chore_date: true,
           created_at: true, email_verified: true,
+          // The caller's own display choices; never another member's cache/preferences.
+          display_preferences: true, display_preferences_revision: true,
           // Notification preferences (#286); exported as `notificationPreferences`.
           ...NOTIFICATION_PREFERENCE_SELECT,
           // Quiet hours (#141, O-32); exported as `quietHours`.

@@ -1,5 +1,30 @@
 # Current State
 
+## Account-backed personalization candidate — 2026-10-18
+
+The next local slice replaces the device-only preference authority with
+canonical User display preferences and parent Family defaults. It includes
+strict versioned GET/PATCH APIs, current-session/role/household rechecks under
+membership and User-row locks, personal/default revisions, CAS conflicts and
+role-filtered favorites. Read caches stay owner-scoped and never authorize a
+write. The shared fridge and feature flags keep their existing contracts.
+
+The editor now awaits confirmed account saves, retains drafts on refusal or
+uncertain outcomes, requires an explicit choice after another device changes
+the baseline, and applies revision-bound Undo. Reset removes a personal
+Today override so current parent defaults apply. Parents can edit those defaults
+from Household settings without replacing existing personal overrides. Quiet
+view and favorites also save to the account. Preferred views include Month.
+The caller's data export includes only their own display record.
+
+Schema, additive idempotent migration SQL, startup migration source and API /
+compatibility notes are written in `docs/architecture/DISPLAY_PREFERENCES.md`.
+No database was migrated and no Prisma client regenerated during this phase.
+No tests, type/lint/build checks, browser QA, push, merge or deployment were run.
+This is code prepared for consolidated QA, not issue acceptance. Next remaining
+coding work includes full Devices/pairing localization and verified account
+linking; the82-issue ledger preserves the wider goal.
+
 ## Goal and next implementation batch — 2026-10-18
 
 Cameron explicitly set the goal to finish all approved plans/issues/code before

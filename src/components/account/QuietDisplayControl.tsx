@@ -1,6 +1,7 @@
 "use client";
 
 import { useDisplayPreferences } from "@/components/providers/display-preferences-provider";
+import DisplayPreferencesStatus from "./DisplayPreferencesStatus";
 import { useTranslation } from "@/i18n";
 
 export function QuietDisplayControl({
@@ -8,7 +9,7 @@ export function QuietDisplayControl({
 }: {
   compact?: boolean;
 }) {
-  const { quiet, remembered, setQuiet } = useDisplayPreferences();
+  const { quiet, saving, syncState, setQuiet } = useDisplayPreferences();
   const { locale } = useTranslation();
   const es = locale === "es";
   const title = es ? "Vista tranquila" : "Quiet view";
@@ -22,26 +23,21 @@ export function QuietDisplayControl({
           {!compact && (
             <span className="mt-1 block text-subhead text-label-secondary">
               {es
-                ? "Oculta puntos, rachas y celebraciones en Inicio y Tareas. Las tareas y recompensas siguen funcionando. Se guarda para ti en este dispositivo."
-                : "Hide points, streaks and celebrations on Home and Chores. Chores and rewards still work. Saved for you on this device."}
+                ? "Oculta puntos, rachas y celebraciones en Inicio y Tareas. Las tareas y recompensas siguen funcionando. Se guarda en tu cuenta para todos tus dispositivos."
+                : "Hide points, streaks and celebrations on Home and Chores. Chores and rewards still work. Saved to your account across devices."}
             </span>
           )}
         </span>
         <input
           type="checkbox"
           role="switch"
+          disabled={saving || syncState !== "ready"}
           checked={quiet}
-          onChange={(event) => setQuiet(event.target.checked)}
+          onChange={(event) => void setQuiet(event.target.checked)}
           className="h-6 w-11 shrink-0 accent-[var(--accent-fill)]"
         />
       </label>
-      {!remembered && (
-        <p role="status" className="text-footnote text-label-secondary">
-          {es
-            ? "El almacenamiento está bloqueado. Tu elección dura esta visita."
-            : "Storage is blocked. Your choice lasts for this visit."}
-        </p>
-      )}
+      <DisplayPreferencesStatus />
     </div>
   );
 }

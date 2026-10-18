@@ -5,6 +5,8 @@ import Link from "next/link";
 import { LargeHeader } from "@/components/ui/large-header";
 import BoardSettings from "@/components/fridge/BoardSettings";
 import DeleteAccountDialog from "@/components/account/DeleteAccountDialog";
+import TodayLayoutEditor from "@/components/fridge/TodayLayoutEditor";
+import { TODAY_SECTIONS } from "@/lib/personal-layout";
 import SettingsDisclosure from "@/app/dashboard/settings/SettingsDisclosure";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { useFamilySettingsText } from "@/i18n/family-settings";
@@ -167,6 +169,10 @@ export default function FamilySettingsPage() {
               {text(saving ? "saving" : "save")}
             </button>
           </form>
+          <TodayLayoutEditor
+            scope="household"
+            available={[...TODAY_SECTIONS]}
+          />
           <SettingsDisclosure
             id="household-board"
             title={text("board")}

@@ -741,3 +741,12 @@ authenticated availability plus a verified recovery store before making a
 request. A partial photo batch reports confirmed successes separately from
 remaining rows that were blocked, so storage/access failures never claim that
 nothing was sent after an earlier success.
+
+## Personal display preferences (#560 / #561)
+
+The additive account/default APIs and revision-conflict contract are defined in
+[DISPLAY_PREFERENCES.md](DISPLAY_PREFERENCES.md). Personal preferences are not
+household feature flags or paired-fridge settings. Existing notification
+`/api/users/preferences` bodies and behavior remain unchanged. New direct APIs
+refuse paired devices and derive actor/household scope from the current session.
+Implementation is local; consolidated migration/API/rendered QA is deferred.

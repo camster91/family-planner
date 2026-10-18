@@ -78,6 +78,13 @@ CREATE TABLE IF NOT EXISTS "User" (
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+
+-- Personal display preferences and parent defaults (#560), additive and nullable.
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "display_preferences" JSONB;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "display_preferences_revision" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "display_defaults" JSONB;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "display_defaults_revision" INTEGER NOT NULL DEFAULT 0;
+
 -- Backfill auth token columns if older deployments predate them
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "last_chore_date" TIMESTAMP(3);
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "xp" INTEGER NOT NULL DEFAULT 0;

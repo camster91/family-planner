@@ -36,6 +36,9 @@ model User {
   /// Today board colour (#262): a palette key from src/lib/member-colors.ts,
   /// set by a parent. NULL = deterministic fallback by household order.
   board_color                   String?
+  /// Personal presentation only; never roles, shared-device identity or feature availability.
+  display_preferences           Json?
+  display_preferences_revision  Int                @default(0)
   /// Per-member notification preferences (#286, PR101 D-5), one switch per
   /// category in src/lib/notification-policy.ts. Default true keeps today's
   /// behaviour. Account and safety messages ignore them (always sent).
@@ -154,6 +157,9 @@ model Family {
   invite_code        String    @unique @default(cuid())
   subscription_tier  String    @default("free") // 'free', 'premium', 'family'
   features           Json?     @default("{\"chores\":true,\"calendar\":true,\"lists\":true,\"family\":true,\"meals\":true,\"notes\":false,\"anniversaries\":false,\"rewards\":false,\"budget\":false,\"projects\":false,\"messages\":false,\"analytics\":false,\"wishlist\":false,\"emergency\":true,\"locations\":false,\"pickups\":false,\"allowance\":false,\"travel\":false,\"handoff\":false,\"sick-days\":false,\"gamification\":false,\"inventory\":false}")
+  /// Parent-selected personal Today defaults; does not configure paired displays.
+  display_defaults          Json?
+  display_defaults_revision Int @default(0)
   travel_mode_active Boolean   @default(false)
   travel_start_date  DateTime?
   travel_end_date    DateTime?
