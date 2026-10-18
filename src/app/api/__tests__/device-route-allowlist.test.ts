@@ -247,6 +247,18 @@ const PRIVATE_PERSON_ROUTES = [
     path: "/api/messages",
   },
   {
+    route: "POST /api/messages/attachments",
+    module: "../messages/attachments/route",
+    method: "POST",
+    path: "/api/messages/attachments",
+  },
+  {
+    route: "GET /api/messages/attachments/[id]",
+    module: "../messages/attachments/[id]/route",
+    method: "GET",
+    path: "/api/messages/attachments/unknown-id",
+  },
+  {
     route: "GET /api/analytics",
     module: "../analytics/route",
     method: "GET",
