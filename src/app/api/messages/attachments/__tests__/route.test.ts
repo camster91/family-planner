@@ -59,10 +59,8 @@ jest.mock("@/lib/feature-gate-server", () => ({
 
 import path from "node:path";
 import { GET as serveAttachment } from "@/app/api/messages/attachments/[id]/route";
-import {
-  POST as uploadAttachment,
-  MESSAGE_UPLOAD_MAX_REQUEST_BYTES,
-} from "@/app/api/messages/attachments/route";
+import { POST as uploadAttachment } from "@/app/api/messages/attachments/route";
+import { MESSAGE_ATTACHMENT_MAX_REQUEST_BYTES as MESSAGE_UPLOAD_MAX_REQUEST_BYTES } from "@/lib/message-attachments";
 import {
   db,
   FAMILY_A,

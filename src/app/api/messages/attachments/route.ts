@@ -21,7 +21,6 @@ export const runtime = 'nodejs'
 
 const MESSAGE_UPLOAD_RATE_LIMIT = 20
 const MESSAGE_UPLOAD_RATE_WINDOW_MS = 60 * 60 * 1000
-export const MESSAGE_UPLOAD_MAX_REQUEST_BYTES = MESSAGE_ATTACHMENT_MAX_REQUEST_BYTES
 const MESSAGE_MIMES = new Set<MessageAttachmentMime>([
   'image/jpeg',
   'image/png',
