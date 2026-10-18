@@ -1,11 +1,13 @@
 const mockFiles = new Map<string, Buffer>();
 const mockRefusePairedDevice = jest.fn();
 const mockRename = jest.fn();
+let afterWriteFile: (() => void | Promise<void>) | undefined;
 
 jest.mock("fs/promises", () => ({
   mkdir: async () => undefined,
   writeFile: async (filePath: string, bytes: Uint8Array) => {
     mockFiles.set(require("node:path").resolve(filePath), Buffer.from(bytes));
+    await afterWriteFile?.();
   },
   rename: (...args: [string, string]) => mockRename(...args),
   unlink: async (filePath: string) => {
@@ -63,6 +65,7 @@ import { POST as uploadAttachment } from "@/app/api/messages/attachments/route";
 import { MESSAGE_ATTACHMENT_MAX_REQUEST_BYTES as MESSAGE_UPLOAD_MAX_REQUEST_BYTES } from "@/lib/message-attachments";
 import {
   db,
+  fakePrisma,
   FAMILY_A,
   FAMILY_B,
   req,
@@ -104,6 +107,7 @@ describe("message attachment routes", () => {
     db.find("family", FAMILY_A)!.features = { messages: true };
     db.find("family", FAMILY_B)!.features = { messages: true };
     mockFiles.clear();
+    afterWriteFile = undefined;
     mockRefusePairedDevice.mockReset();
     mockRefusePairedDevice.mockResolvedValue(null);
     mockRename.mockReset();
@@ -260,6 +264,53 @@ describe("message attachment routes", () => {
     expect(response.status).toBe(500);
     expect(db.rows("messageAttachment")).toHaveLength(0);
     expect(mockFiles.size).toBe(0);
+  });
+
+  it("does not delete or unlink an attachment claimed during a failed placement", async () => {
+    let claimedId: string | undefined;
+    afterWriteFile = () => {
+      const row = db.rows("messageAttachment")[0];
+      claimedId = row?.id;
+      if (row) row.message_id = "message-claimed-during-upload";
+    };
+    mockRename.mockRejectedValueOnce(new Error("disk full"));
+
+    const response = await uploadAttachment(uploadReq() as never);
+
+    expect(response.status).toBe(500);
+    expect(claimedId).toBeTruthy();
+    expect(db.rows("messageAttachment")).toEqual([
+      expect.objectContaining({
+        id: claimedId,
+        family_id: FAMILY_A,
+        uploaded_by: "parent-a",
+        message_id: "message-claimed-during-upload",
+      }),
+    ]);
+    expect(mockFiles.size).toBe(0);
+  });
+
+  it("removes its unclaimed row and final file when post-rename verification fails", async () => {
+    const originalFindUnique = fakePrisma.messageAttachment.findUnique;
+    let calls = 0;
+    const findUnique = jest
+      .spyOn(fakePrisma.messageAttachment, "findUnique")
+      .mockImplementation(async (args: any) => {
+        calls += 1;
+        if (calls === 2) throw new Error("database unavailable");
+        return originalFindUnique(args);
+      });
+
+    try {
+      const response = await uploadAttachment(uploadReq() as never);
+
+      expect(response.status).toBe(500);
+      expect(calls).toBe(2);
+      expect(db.rows("messageAttachment")).toHaveLength(0);
+      expect(mockFiles.size).toBe(0);
+    } finally {
+      findUnique.mockRestore();
+    }
   });
 
   it("rejects unauthenticated, paired-device, feature-off, and sniff-invalid uploads", async () => {

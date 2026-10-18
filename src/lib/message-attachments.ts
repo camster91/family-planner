@@ -96,7 +96,10 @@ export async function storeMessageAttachment(
   let filename = messageAttachmentFilename(familyId, bytes, ext)
   let created = false
   let row: StoredMessageAttachment
+  let createdAttachment: StoredMessageAttachment | undefined
   let tmp: string | undefined
+  let filepath: string | undefined
+  let placed = false
   try {
     row = await db.$transaction(async (tx: any) => {
       if (!(await lockHouseholdForJoin(tx, familyId)))
@@ -157,11 +160,12 @@ export async function storeMessageAttachment(
       })
     })
 
-    const filepath = messageAttachmentFilePath(filename, uploadDir)
+    if (created) createdAttachment = row
+    filepath = messageAttachmentFilePath(filename, uploadDir)
     const tempPath = `${filepath}.${crypto.randomUUID()}.tmp`
     tmp = tempPath
     await import('fs/promises').then(({ writeFile }) => writeFile(tempPath, bytes))
-    const placed = !existsSync(filepath)
+    placed = !existsSync(filepath)
     if (placed) {
       await rename(tempPath, filepath)
     }
@@ -170,7 +174,6 @@ export async function storeMessageAttachment(
       select: { family_id: true },
     })
     if (!still || still.family_id !== familyId) {
-      if (placed) await unlink(filepath).catch(() => {})
       throw new Error('MESSAGE_FAMILY_NOT_FOUND')
     }
     return {
@@ -180,10 +183,22 @@ export async function storeMessageAttachment(
       size_bytes: row.size_bytes,
     }
   } catch (error) {
-    if (created) {
-      await db.messageAttachment
-        .deleteMany({ where: { filename, family_id: familyId } })
-        .catch(() => {})
+    if (createdAttachment) {
+      const removed = await db.messageAttachment.deleteMany({
+        where: {
+          id: createdAttachment.id,
+          family_id: familyId,
+          uploaded_by: userId,
+          message_id: null,
+        },
+      }).catch(() => ({ count: 0 }))
+      // A concurrent sender may have claimed the row while file placement or
+      // the post-rename verification was failing. Only unlink a final file
+      // when this exact unclaimed row was removed; a claimed attachment owns
+      // the file for its message and must remain intact.
+      if (removed.count > 0 && placed && filepath) {
+        await unlink(filepath).catch(() => {})
+      }
     }
     throw error
   } finally {
