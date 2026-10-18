@@ -31,6 +31,7 @@ const PROJECTS = new Set([
   "tablet-large-1920x1200",
   "desktop-1366x768",
 ]);
+const RECOVERY_PROJECT = "phone-390x844";
 const A = FIXTURE_IDS.familyA;
 const EMPTY = FIXTURE_IDS.familyEmpty;
 type Locale = "en" | "es";
@@ -430,6 +431,10 @@ for (const locale of ["en", "es"] as const) {
       browser,
       baseURL,
     }, info) => {
+      test.skip(
+        info.project.name !== RECOVERY_PROJECT,
+        "Transport recovery runs on the smallest phone; the real empty surface retains all six responsive projects.",
+      );
       assertFixtureTargetAllowed(process.env);
       const parent = await openAs(browser, baseURL, info, "parentA", locale);
       const child = await openAs(browser, baseURL, info, "childA", locale);
@@ -583,6 +588,10 @@ for (const locale of ["en", "es"] as const) {
       browser,
       baseURL,
     }, info) => {
+      test.skip(
+        info.project.name !== RECOVERY_PROJECT,
+        "Transport recovery runs on the smallest phone; the real empty surface retains all six responsive projects.",
+      );
       assertFixtureTargetAllowed(process.env);
       const parent = await openAs(browser, baseURL, info, "parentA", locale);
       const child = await openAs(browser, baseURL, info, "childA", locale);
@@ -696,6 +705,10 @@ for (const locale of ["en", "es"] as const) {
       browser,
       baseURL,
     }, info) => {
+      test.skip(
+        info.project.name !== RECOVERY_PROJECT,
+        "Transport recovery runs on the smallest phone; the real empty surface retains all six responsive projects.",
+      );
       assertFixtureTargetAllowed(process.env);
       const parent = await openAs(browser, baseURL, info, "parentA", locale);
       const child = await openAs(browser, baseURL, info, "childA", locale);

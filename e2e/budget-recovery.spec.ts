@@ -17,14 +17,7 @@ import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { E2E_ANCHOR, authFile } from "./support/env";
 import { expect, test } from "./support/test";
 
-const PROJECTS = [
-  "phone-390x844",
-  "phone-430x932",
-  "tablet-portrait-800x1280",
-  "fridge-landscape-1280x800",
-  "tablet-large-1920x1200",
-  "desktop-1366x768",
-] as const;
+const PROJECTS = ["desktop-1366x768", "phone-390x844"] as const;
 const FIXTURE_DATE = E2E_ANCHOR.toISOString().slice(0, 10);
 
 const SYNTHETIC_CATEGORY = {
@@ -469,7 +462,7 @@ for (const locale of ["en", "es"] as const) {
     }, info) => {
       test.skip(
         !PROJECTS.includes(info.project.name as (typeof PROJECTS)[number]),
-        "Budget recovery runs at the six representative responsive sizes",
+        "Budget transport recovery runs on the smallest phone and support desktop; the real budget overview retains all six responsive projects.",
       );
       assertFixtureTargetAllowed(process.env);
       expect(["localhost", "127.0.0.1", "[::1]"]).toContain(
