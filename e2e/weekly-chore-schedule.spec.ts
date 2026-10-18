@@ -253,6 +253,113 @@ async function assertWeekdayControl(
   await expect(checkbox).toBeChecked({ checked: expectedChecked });
 }
 
+/** Extend existing phone/desktop cases; upload responses are synthetic only. */
+async function assertPhotoRecovery(
+  page: Page,
+  info: TestInfo,
+  locale: "en" | "es",
+  mode: "create" | "edit",
+  writes: string[],
+) {
+  if (!["phone-390x844", "desktop-1366x768"].includes(info.project.name))
+    return;
+  const copy = choreFormMessages[locale];
+  const photo = page.getByLabel(copy.photo, { exact: true });
+  const section = photo.locator("xpath=ancestor::details");
+  await section.locator("summary").click();
+  const save = page.getByRole("button", {
+    name: mode === "create" ? copy.create : copy.save,
+    exact: true,
+  });
+  const title = page.getByLabel(copy.title, { exact: true });
+  const draftTitle = await title.inputValue();
+  let attempts = 0;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const file = {
+    name: "synthetic-photo.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("synthetic image"),
+  };
+  const url = "/api/files/chores/1111111111111111.png";
+  await page.route("**/api/upload", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    attempts += 1;
+    if (attempts === 1)
+      return route.fulfill({
+        status: 503,
+        json: { error: "Synthetic upload refusal" },
+      });
+    await held;
+    await route.fulfill({ status: 200, json: { url } });
+  });
+  await page.route(`**${url}`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    }),
+  );
+  try {
+    await photo.setInputFiles(file);
+    await expect(section.getByRole("alert")).toHaveText(copy.uploadFailed);
+    await expect(title).toHaveValue(draftTitle);
+    await expect(photo).toHaveValue("");
+    await expect(save).toBeEnabled();
+    await info.attach(
+      `chore-photo-${locale}-${info.project.name}-${mode}-refused`,
+      {
+        contentType: "image/png",
+        body: await page.screenshot({ fullPage: true }),
+      },
+    );
+    await photo.setInputFiles(file);
+    await expect.poll(() => attempts).toBe(2);
+    await expect(save).toBeDisabled();
+    await expect(section.getByRole("alert")).toHaveCount(0);
+    await title.evaluate((node) =>
+      (node as HTMLInputElement).form!.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true }),
+      ),
+    );
+    expect(writes).toEqual([]);
+    release();
+    await expect(save).toBeEnabled();
+    await expect(
+      section.getByRole("img", { name: copy.preview }),
+    ).toHaveAttribute("src", url);
+    await expect
+      .poll(() =>
+        section
+          .getByRole("img", { name: copy.preview })
+          .evaluate(
+            (node) =>
+              (node as HTMLImageElement).complete &&
+              (node as HTMLImageElement).naturalWidth > 0,
+          ),
+      )
+      .toBe(true);
+    await expect(title).toHaveValue(draftTitle);
+    expect(writes).toEqual([]);
+    await expect(
+      section.getByRole("button", { name: copy.removePhoto }),
+    ).toBeEnabled();
+    const violations = (
+      await new AxeBuilder({ page }).include("#main-content").analyze()
+    ).violations;
+    expect(violations).toEqual([]);
+  } finally {
+    release();
+    await page.unroute("**/api/upload");
+    await page.unroute(`**${url}`);
+  }
+}
+
 test.use({ storageState: authFile("parentA"), timezoneId: "America/Toronto" });
 
 for (const locale of ["en", "es"] as const) {
@@ -322,6 +429,7 @@ for (const locale of ["en", "es"] as const) {
       await expect(
         page.getByRole("button", { name: choreFormMessages[locale].create }),
       ).toBeEnabled();
+      await assertPhotoRecovery(page, info, locale, "create", writes);
       await captureForm(page, info, `${locale}-${info.project.name}-create`, [
         weekly,
       ]);
@@ -348,6 +456,7 @@ for (const locale of ["en", "es"] as const) {
       await expect(page.getByTestId("weekly-schedule-summary")).toHaveText(
         choreScheduleMessages[locale].weeklyDays.replace("{days}", daySummary),
       );
+      await assertPhotoRecovery(page, info, locale, "edit", writes);
       await captureForm(page, info, `${locale}-${info.project.name}-edit`, [
         editWeekly,
       ]);
