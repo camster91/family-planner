@@ -58,6 +58,22 @@ const createdRewardFor = (name: string, cost = 50, icon = "🎁") => ({
   },
 });
 
+const createdRewardForOwner = (
+  owner: { userId: string; familyId: string },
+  name: string,
+  cost = 50,
+  icon = "🎁",
+) => {
+  const created = createdRewardFor(name, cost, icon);
+  return {
+    reward: {
+      ...created.reward,
+      family_id: owner.familyId,
+      created_by: owner.userId,
+    },
+  };
+};
+
 beforeEach(() => {
   push.mockReset();
   refresh.mockReset();
@@ -130,12 +146,12 @@ it("retries an uncertain create with the same idempotency key and keeps the draf
 it("restores an unresolved owner-scoped draft and key after the sheet remounts", async () => {
   const user = userEvent.setup();
   const requests: RequestInit[] = [];
+  const owner = { userId: "owner-a", familyId: "family-a" };
   global.fetch = jest.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
     requests.push(init ?? {});
     if (requests.length === 1) throw new TypeError("offline");
-    return response(201, CREATED_REWARD);
+    return response(201, createdRewardForOwner(owner, "Extra game time", 75, "🎮"));
   }) as unknown as typeof fetch;
-  const owner = { userId: "owner-a", familyId: "family-a" };
   const first = render(<CreateRewardForm owner={owner} />);
   await user.type(screen.getByLabelText("Name"), "Extra game time");
   fireEvent.change(screen.getByLabelText("Cost in points"), { target: { value: "75" } });
@@ -159,9 +175,9 @@ it("restores an unresolved owner-scoped draft and key after the sheet remounts",
 
 it("switches owner scopes while mounted without carrying the previous draft", async () => {
   const user = userEvent.setup();
-  global.fetch = jest.fn().mockResolvedValue(response(201, createdRewardFor("B's reward", 40, "🍕")));
   const ownerA = { userId: "mounted-owner-a", familyId: "mounted-family-a" };
   const ownerB = { userId: "mounted-owner-b", familyId: "mounted-family-b" };
+  global.fetch = jest.fn().mockResolvedValue(response(201, createdRewardForOwner(ownerB, "B's reward", 40, "🍕")));
   const view = render(<CreateRewardForm owner={ownerA} />);
 
   await user.type(screen.getByLabelText("Name"), "A's private draft");
@@ -185,8 +201,8 @@ it("switches owner scopes while mounted without carrying the previous draft", as
 
 it("clears only a validated successful draft before a fresh reopen", async () => {
   const user = userEvent.setup();
-  global.fetch = jest.fn().mockResolvedValue(response(201, createdRewardFor("Fresh reward")));
   const owner = { userId: "success-owner", familyId: "success-family" };
+  global.fetch = jest.fn().mockResolvedValue(response(201, createdRewardForOwner(owner, "Fresh reward")));
   const view = render(<CreateRewardForm owner={owner} />);
   await user.type(screen.getByLabelText("Name"), "Fresh reward");
   await user.click(screen.getByRole("button", { name: "Create Reward" }));
@@ -198,13 +214,17 @@ it("clears only a validated successful draft before a fresh reopen", async () =>
   expect(screen.getByLabelText("Cost in points")).toHaveValue(50);
 });
 
-it("does not accept a successful DTO belonging to another owner", async () => {
+it.each([
+  ["another owner", { family_id: "another-family", created_by: "another-user" }],
+  ["missing owner fields", {}],
+  ["null owner fields", { family_id: null, created_by: null }],
+  ["camelCase aliases", { familyId: "dto-family", createdBy: "dto-owner" }],
+] as const)("does not accept a successful DTO with %s", async (_label, ownerFields) => {
   const user = userEvent.setup();
   global.fetch = jest.fn().mockResolvedValue(response(201, {
     reward: {
       ...createdRewardFor("Private reward").reward,
-      family_id: "another-family",
-      created_by: "another-user",
+      ...ownerFields,
     },
   }));
   const owner = { userId: "dto-owner", familyId: "dto-family" };

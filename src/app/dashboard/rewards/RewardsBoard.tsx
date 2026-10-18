@@ -158,8 +158,24 @@ export default function RewardsBoard({
       const current = parsed?.find((reward) => reward.id === target.reward.id)
       if (!current) throw new Error('status')
       applyReward(current)
+      if (target.kind === 'approve') {
+        // A GET that still says "claimed" only proves the approval has not
+        // become visible yet. Keep the same recovery/key available and avoid
+        // telling the parent that the reward was given.
+        if (!['approved', 'redeemed'].includes(current.status)) {
+          setRecoveries((items) => items.map((item) =>
+            item.kind === target.kind && item.reward.id === target.reward.id
+              ? { ...item, reward: current }
+              : item,
+          ))
+          return
+        }
+        clearRecovery(target.kind, target.reward.id)
+        addToast({ type: 'success', title: rewardsText('givenToast', { name: current.name }) })
+        return
+      }
       clearRecovery(target.kind, target.reward.id)
-      if (target.kind === 'claim' && current.status !== 'available') setConfirming(null)
+      if (current.status !== 'available') setConfirming(null)
       addToast({ type: 'success', title: current.status === 'available' ? rewardsText('available') : rewardsText('claimed') })
     } catch {
       setRecoveries((current) => current.map((item) => item.kind === target.kind && item.reward.id === target.reward.id
@@ -191,7 +207,7 @@ export default function RewardsBoard({
         return
       }
       const parsed = parseClaimResponse(await response.json().catch(() => null))
-      if (!parsed || parsed.reward.id !== reward.id || parsed.reward.status !== 'claimed' || (parsed.reward.claimedById !== null && parsed.reward.claimedById !== currentUserId)) {
+      if (!parsed || parsed.reward.id !== reward.id || parsed.reward.status !== 'claimed' || parsed.reward.claimedById !== currentUserId) {
         const message = rewardsText('recoveryTitle')
         setClaimError(message)
         putRecovery({ kind: 'claim', reward, key, message })

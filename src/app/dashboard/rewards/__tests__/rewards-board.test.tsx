@@ -150,6 +150,23 @@ describe('RewardsBoard', () => {
     expect(refresh).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['claimant is missing', {}],
+    ['claimant is null', { claimedById: null }],
+    ['claimant uses a null snake-case field', { claimed_by: null }],
+  ] as const)('does not confirm a claim when %s', async (_label, claimant) => {
+    const user = userEvent.setup()
+    mockFetch(() => ({
+      status: 200,
+      body: { reward: { ...MOVIE, status: 'claimed', ...claimant }, xp: 30 },
+    }))
+    renderBoard({ rewards: [MOVIE] })
+    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('The connection dropped before we could confirm.')
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
   it("keeps the dialog open and shows the server's reason when a claim is refused", async () => {
     const user = userEvent.setup()
     mockFetch(() => ({ status: 409, body: { error: 'Reward is no longer available' } }))
@@ -241,6 +258,46 @@ describe('RewardsBoard', () => {
     expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(2)
     expect(within(rows[0]).getByText('try later')).toBeTruthy()
     expect(within(rows[1]).getByText('try later')).toBeTruthy()
+  })
+
+  it('keeps approval recovery after a claimed status check and clears it only after redemption', async () => {
+    const user = userEvent.setup()
+    const requests: { url: string; headers?: Record<string, string> }[] = []
+    let statusChecks = 0
+    let approvalAttempts = 0
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      requests.push({ url, headers: init?.headers as Record<string, string> | undefined })
+      if (url === '/api/rewards/approve') {
+        approvalAttempts += 1
+        return { ok: false, status: 500, json: async () => ({ error: 'try later' }) } as Response
+      }
+      statusChecks += 1
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ rewards: [{ ...ICE_CREAM, status: statusChecks === 1 ? 'claimed' : 'redeemed' }] }),
+      } as Response
+    }) as unknown as typeof fetch
+    renderBoard({ isParent: true, currentUserId: 'parent_1' })
+    let row = screen.getAllByTestId('family-reward').find((item) => item.textContent?.includes('Ice cream'))!
+    await user.click(within(row).getByRole('button', { name: 'Mark Ice cream as given' }))
+    expect(within(row).getByText('try later')).toBeTruthy()
+
+    await user.click(within(row).getByRole('button', { name: 'Check status' }))
+    expect(within(row).getByText('try later')).toBeTruthy()
+    expect(screen.queryByText('Ice cream marked as given')).toBeNull()
+
+    await user.click(within(row).getByRole('button', { name: 'Try again' }))
+    expect(approvalAttempts).toBe(2)
+    const approvalRequests = requests.filter((request) => request.url === '/api/rewards/approve')
+    expect(approvalRequests[0].headers).toEqual(approvalRequests[1].headers)
+    row = screen.getAllByTestId('family-reward').find((item) => item.textContent?.includes('Ice cream'))!
+    expect(within(row).getByText('try later')).toBeTruthy()
+
+    await user.click(within(row).getByRole('button', { name: 'Check status' }))
+    await waitFor(() => expect(screen.getByText('Ice cream marked as given')).toBeTruthy())
+    expect(screen.queryByText('try later')).toBeNull()
   })
 
   it('shows an error toast with the reason when marking as given fails', async () => {

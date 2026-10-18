@@ -61,13 +61,13 @@ function isCreatedReward(
     icon?: unknown;
     status?: unknown;
     family_id?: unknown;
-    familyId?: unknown;
     created_by?: unknown;
-    createdBy?: unknown;
   };
   const ownerMatches =
-    (!owner || [row.family_id, row.familyId].every((value) => value === undefined || value === null || value === owner.familyId)) &&
-    (!owner || [row.created_by, row.createdBy].every((value) => value === undefined || value === null || value === owner.userId));
+    !owner || (
+      row.family_id !== undefined && row.family_id !== null && row.family_id === owner.familyId &&
+      row.created_by !== undefined && row.created_by !== null && row.created_by === owner.userId
+    );
   return typeof row.id === "string" && row.id.length > 0 &&
     row.name === payload.name && row.cost === payload.cost &&
     row.icon === payload.icon && row.status === "available" && ownerMatches;
