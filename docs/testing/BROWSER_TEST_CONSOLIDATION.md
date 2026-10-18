@@ -29,5 +29,5 @@ The representative choices preserve the smallest phone for touch, wrapping,
 focus, and narrow-layout behavior and the support desktop for wide-layout and
 keyboard behavior. The all-size overview/empty/child journeys remain the
 responsive regression net. If a future UI change affects the recovery form or
-transport contract, temporarily run the corresponding spec with all six
-projects before changing this map.
+transport contract, expand its scoped project selection in the same change
+and record the corresponding rendered evidence before updating this map.

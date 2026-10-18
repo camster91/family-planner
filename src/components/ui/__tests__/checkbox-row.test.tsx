@@ -10,8 +10,8 @@ import { CheckboxRow } from '../checkbox-row'
 
 const SUBTITLE = 'Avery · Due today · Takes turns · next: Jordan'
 
-describe('CheckboxRow subtitle', () => {
-  it('does the same in the control-only variant, which is described by the subtitle', () => {
+describe('CheckboxRow accessibility', () => {
+  it('describes the control-only checkbox using its subtitle', () => {
     render(
       <CheckboxRow checked={false} onChange={() => {}} toggleArea="control" title="Unload dishwasher" subtitle={SUBTITLE} />
     )
