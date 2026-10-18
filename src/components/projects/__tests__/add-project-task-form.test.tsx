@@ -237,8 +237,8 @@ it("a network failure keeps the text and asks to try again", async () => {
   await openForm(user);
   await user.type(screen.getByLabelText("Task"), "Paint fence");
   await user.click(screen.getByRole("button", { name: "Add task" }));
-  expect((await screen.findByRole("alert")).textContent).toContain(
-    "Check your connection and try again.",
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    "Couldn't add the task. Check your connection and try again.",
   );
   expect(screen.getByRole("alert").textContent).not.toContain("Failed to fetch");
   expect((screen.getByLabelText("Task") as HTMLInputElement).value).toBe(
