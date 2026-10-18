@@ -9,6 +9,7 @@ import { Suspense } from 'react'
 import { format } from 'date-fns'
 import { useTranslation } from '@/i18n'
 import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError } from '@/i18n/calendar-forms'
+import { EventFormDetails } from '@/components/calendar/EventFormDetails'
 import { EventDuration } from '@/components/calendar/EventDuration'
 import { eventFormRange } from '@/lib/dates'
 import { Dialog } from '@/components/ui/dialog'
@@ -19,6 +20,7 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
   const message = (key: CalendarFormMessage, params?: Record<string, string | number>) => t(key, params, calendarFormMessages)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const optionalDetailsRef = useRef<HTMLDetailsElement>(null)
   const [startDate, setStartDate] = useState('')
   const [startTime, setStartTime] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -136,12 +138,14 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
       const endDateTime = range?.end
 
       if (!startDateTime || !endDateTime) {
+        if (optionalDetailsRef.current) optionalDetailsRef.current.open = true
         setError({ key: 'invalidTime' })
         setLoading(false)
         return
       }
 
       if (new Date(endDateTime) < new Date(startDateTime)) {
+        if (optionalDetailsRef.current) optionalDetailsRef.current.open = true
         setError({ key: 'endBeforeStart' })
         setLoading(false)
         return
@@ -288,19 +292,6 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           />
         </div>
 
-        {/* Description */}
-        <div>
-          <label className="label-apple" htmlFor="description">{message('description')}</label>
-          <textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="input-apple min-h-[80px] resize-none"
-            placeholder={message('descriptionPlaceholder')}
-            rows={3}
-          />
-        </div>
-
         {/* Start */}
         <div>
           <label className="label-apple" htmlFor="startDate">{message('start')}</label>
@@ -326,6 +317,7 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
 
         {/* End */}
         <EventDuration value={duration} onChange={next => {
+          if (next === '' && optionalDetailsRef.current) optionalDetailsRef.current.open = true
           if (next === '' && duration !== '') {
             const range = eventFormRange({ startDate, startTime, endDate, endTime }, originalTimes.current ?? undefined, Number(duration))
             if (range) {
@@ -337,42 +329,63 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           setDuration(next)
         }} end={duration === '' ? undefined : eventFormRange({ startDate, startTime, endDate, endTime }, originalTimes.current ?? undefined, Number(duration))?.end} />
 
-        <div hidden={duration !== ''}>
-          <label className="label-apple" htmlFor="endDate">{message('end')}</label>
-          <div className="grid grid-cols-2 gap-3">
+        <EventFormDetails
+          sectionRef={optionalDetailsRef}
+          description={description}
+          location={location}
+          end={duration === '' ? eventFormRange({ startDate, startTime, endDate, endTime }, originalTimes.current ?? undefined)?.end : undefined}
+        >
+          <div hidden={duration !== ''}>
+            <label className="label-apple" htmlFor="endDate">{message('end')}</label>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                id="endDate"
+                disabled={duration !== ''}
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="input-apple"
+                min={startDate}
+              />
+              <input
+                id="endTime"
+                disabled={duration !== ''}
+                aria-label={message('endTime')}
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="input-apple"
+              />
+            </div>
+          </div>
+
+          {/* Location */}
+          <div>
+            <label className="label-apple" htmlFor="location">{message('location')}</label>
             <input
-              id="endDate"
-              disabled={duration !== ''}
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              id="location"
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
               className="input-apple"
-              min={startDate}
-            />
-            <input
-              id="endTime"
-              disabled={duration !== ''}
-              aria-label={message('endTime')}
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="input-apple"
+              placeholder={message('editLocationPlaceholder')}
             />
           </div>
-        </div>
 
-        {/* Location */}
-        <div>
-          <label className="label-apple" htmlFor="location">{message('location')}</label>
-          <input
-            id="location"
-            type="text"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            className="input-apple"
-            placeholder={message('editLocationPlaceholder')}
-          />
-        </div>
+          {/* Description */}
+          <div>
+            <label className="label-apple" htmlFor="description">{message('description')}</label>
+            <textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="input-apple min-h-[80px] resize-none"
+              placeholder={message('descriptionPlaceholder')}
+              rows={3}
+            />
+          </div>
+
+        </EventFormDetails>
 
         {/* Submit */}
         <div className={inSheet ? "sticky bottom-0 bg-[var(--surface-elevated)] pt-3 pb-1" : "pt-2"}>

@@ -12,6 +12,10 @@ scrolling form, and New List uses a labeled native type picker instead of a larg
 Existing optional chore sections stay folded. New List keeps name/type visible,
 with optional description and image sections folded. Collapsing preserves
 the draft and selected image; a failed upload reopens its section for retry.
+Calendar Title/Start/Duration stay visible. A folded Details section summarizes
+exact end, notes and location; all inputs remain mounted. Choosing exact end
+opens it, and invalid optional dates/times reopen it for correction. Existing
+all-day defaults and fetched timestamp precision stay unchanged.
 
 Close or Escape returns through router history and discards the unsaved draft.
 Browser Back also restores the prior screen; reopening starts a fresh draft.
