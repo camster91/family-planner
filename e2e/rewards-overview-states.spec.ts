@@ -239,6 +239,27 @@ async function assertHitTarget(locator: Locator): Promise<void> {
   expect(metrics.hit).toBe(true);
 }
 
+async function assertClaimedRewardRowReadable(
+  page: Page,
+  locale: Locale,
+): Promise<void> {
+  const viewport = page.viewportSize();
+  if (!viewport || viewport.width > 430) return;
+  const title = page.getByText("Pick Friday dinner", { exact: true });
+  await expect(title).toHaveCount(1);
+  const row = title.locator("xpath=ancestor::li[@data-testid='family-reward']");
+  await expect(row).toHaveCount(1);
+  const approve = row.getByRole("button", {
+    name: locale === "es" ? /Marcar .+ como entregada/ : /Mark .+ as given/,
+  });
+  await expect(approve).toHaveCount(1);
+  await expect(title).toBeVisible();
+  const titleWidth = await title.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  expect(titleWidth).toBeGreaterThanOrEqual(120);
+}
+
 async function captureState(
   page: Page,
   info: TestInfo,
@@ -589,6 +610,7 @@ for (const locale of ["en", "es"] as const) {
             exact: true,
           }),
         );
+        await assertClaimedRewardRowReadable(page, locale);
         await assertLayout(page, info);
 
         const child = await openRole(
