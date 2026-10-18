@@ -104,12 +104,15 @@ async function assertSurface(page: Page, locale: Locale, populated: boolean) {
     page.getByRole("heading", { name: copy.title, exact: true }),
   ).toBeVisible();
   if (populated) {
-    expect(await page.locator("[data-testid='messages-load-error']").count()).toBe(0);
+    expect(
+      await page.locator("[data-testid='messages-load-error']").count(),
+    ).toBe(0);
   }
   const violations = (
     await new AxeBuilder({ page }).include("#main-content").analyze()
   ).violations.filter(
-    (violation) => violation.impact === "serious" || violation.impact === "critical",
+    (violation) =>
+      violation.impact === "serious" || violation.impact === "critical",
   );
   expect(violations).toEqual([]);
   expect(
@@ -129,10 +132,12 @@ async function assertTargetSize(locator: ReturnType<Page["getByRole"]>) {
 }
 
 function csrfFromAuthFile(who: "childA" | "parentB"): string {
-  const state = JSON.parse(
-    fs.readFileSync(authFile(who), "utf8"),
-  ) as { cookies?: Array<{ name: string; value: string }> };
-  return state.cookies?.find((cookie) => cookie.name === "csrf_token")?.value ?? "";
+  const state = JSON.parse(fs.readFileSync(authFile(who), "utf8")) as {
+    cookies?: Array<{ name: string; value: string }>;
+  };
+  return (
+    state.cookies?.find((cookie) => cookie.name === "csrf_token")?.value ?? ""
+  );
 }
 
 async function loginTeen(
@@ -231,7 +236,9 @@ async function createChildMessage(
 async function createPickup(page: Page, title: string) {
   const response = await browserSend(page, "POST", "/api/pickups", {
     title,
-    pickup_time: new Date(E2E_ANCHOR.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+    pickup_time: new Date(
+      E2E_ANCHOR.getTime() + 2 * 60 * 60 * 1000,
+    ).toISOString(),
     location: "Fixture school",
     notes: "Owned Messages E2E pickup",
     assigned_to: A.child,
@@ -280,20 +287,34 @@ test.describe("Messages private send and recovery", () => {
       let sendKeys: string[] = [];
       let replayHeader: string | null = null;
       let childRequestResult: { id: string; key: string } | undefined;
-      let attachmentRoute: ((route: import("@playwright/test").Route) => Promise<void>) | undefined;
-      let messagesRoute: ((route: import("@playwright/test").Route) => Promise<void>) | undefined;
+      let attachmentRoute:
+        | ((route: import("@playwright/test").Route) => Promise<void>)
+        | undefined;
+      let messagesRoute:
+        | ((route: import("@playwright/test").Route) => Promise<void>)
+        | undefined;
 
       try {
         await page.goto("/dashboard");
-        const featuresResponse = await browserFetch(page, "/api/family/features");
+        const featuresResponse = await browserFetch(
+          page,
+          "/api/family/features",
+        );
         expect(featuresResponse.status, featuresResponse.body).toBe(200);
         originalFeatures = (
-          JSON.parse(featuresResponse.body) as { features: Record<string, boolean> }
+          JSON.parse(featuresResponse.body) as {
+            features: Record<string, boolean>;
+          }
         ).features;
         cleanAudit = await ownFeatureAudit(["messages", "pickups"]);
-        const enabled = await browserSend(page, "PATCH", "/api/family/features", {
-          features: { ...originalFeatures, messages: true, pickups: true },
-        });
+        const enabled = await browserSend(
+          page,
+          "PATCH",
+          "/api/family/features",
+          {
+            features: { ...originalFeatures, messages: true, pickups: true },
+          },
+        );
         expect(enabled.status, enabled.body).toBe(200);
 
         pickupId = await createPickup(page, pickupTitle);
@@ -382,11 +403,15 @@ test.describe("Messages private send and recovery", () => {
 
         await page.goto("/dashboard/messages");
         await assertSurface(page, locale, true);
-        await expect(page.getByText(childContent, { exact: true })).toBeVisible();
+        await expect(
+          page.getByText(childContent, { exact: true }),
+        ).toBeVisible();
 
         const readRecovery = page.getByTestId("messages-read-recovery");
         await expect(readRecovery).toBeVisible();
-        await readRecovery.getByRole("button", { name: copy.retryRead, exact: true }).click();
+        await readRecovery
+          .getByRole("button", { name: copy.retryRead, exact: true })
+          .click();
         await expect(readRecovery).toHaveCount(0);
         expect(readAttempts).toBe(2);
 
@@ -396,24 +421,39 @@ test.describe("Messages private send and recovery", () => {
         });
         await assertTargetSize(pickupButton);
         await pickupButton.click();
-        const pickupSelect = page.getByRole("combobox", { name: copy.linkPickup });
+        const pickupSelect = page.getByRole("combobox", {
+          name: copy.linkPickup,
+        });
         await expect(pickupSelect).toBeVisible();
         await pickupSelect.selectOption(pickupId);
 
-        const photoInput = page.getByLabel(copy.addPhoto, { exact: true });
+        const photoInput = page
+          .getByLabel(copy.addPhoto, { exact: true })
+          .and(page.locator('input[type="file"]'));
         await photoInput.setInputFiles({
           name: "family-note.png",
           mimeType: "image/png",
           buffer: ONE_PIXEL_PNG,
         });
-        await page.getByLabel(copy.messageTextLabel, { exact: true }).fill(parentContent);
-        const sendButton = page.getByRole("button", { name: copy.send, exact: true });
+        await page
+          .getByLabel(copy.messageTextLabel, { exact: true })
+          .fill(parentContent);
+        const sendButton = page.getByRole("button", {
+          name: copy.send,
+          exact: true,
+        });
         await assertTargetSize(sendButton);
         await sendButton.click();
-        await expect(page.getByRole("alert").filter({ hasText: copy.sendNetworkError })).toBeVisible();
-        await expect(page.getByLabel(copy.messageTextLabel, { exact: true })).toHaveValue(parentContent);
+        await expect(
+          page.getByRole("alert").filter({ hasText: copy.sendNetworkError }),
+        ).toBeVisible();
+        await expect(
+          page.getByLabel(copy.messageTextLabel, { exact: true }),
+        ).toHaveValue(parentContent);
         await sendButton.click();
-        await expect(page.getByText(parentContent, { exact: true })).toBeVisible();
+        await expect(
+          page.getByText(parentContent, { exact: true }),
+        ).toBeVisible();
 
         expect(sendAttempts).toBe(2);
         expect(sendKeys[0]).toBeTruthy();
@@ -421,7 +461,9 @@ test.describe("Messages private send and recovery", () => {
         expect(replayHeader).toBe("true");
         expect(attachmentDraftStatus).toBe(404);
         expect(attachmentId).toBeTruthy();
-        await expect(page.getByAltText(copy.photoAttachment, { exact: true })).toBeVisible();
+        await expect(
+          page.getByAltText(copy.photoAttachment, { exact: true }),
+        ).toBeVisible();
 
         const current = await browserFetch(page, "/api/messages");
         expect(current.status, current.body).toBe(200);
@@ -433,7 +475,9 @@ test.describe("Messages private send and recovery", () => {
             attachments?: string[];
           }>;
         };
-        const matching = listed.messages.filter((message) => message.content === parentContent);
+        const matching = listed.messages.filter(
+          (message) => message.content === parentContent,
+        );
         expect(matching).toHaveLength(1);
         parentMessageId = matching[0].id;
         expect(matching[0].sender_id).toBe(A.parent);
@@ -447,7 +491,8 @@ test.describe("Messages private send and recovery", () => {
           content: parentContent,
         });
         ownedReceipts.push({ key: sendKeys[0], userId: A.parent });
-        if (ownedAttachments[0]) ownedAttachments[0].messageId = parentMessageId;
+        if (ownedAttachments[0])
+          ownedAttachments[0].messageId = parentMessageId;
 
         const ownedImageStatus = await page.evaluate(async (id) => {
           const response = await fetch(`/api/messages/attachments/${id}`, {
@@ -468,7 +513,9 @@ test.describe("Messages private send and recovery", () => {
           const foreignResponse = await foreign.get(
             `/api/messages/attachments/${attachmentId}`,
           );
-          expect(foreignResponse.status(), await foreignResponse.text()).toBe(404);
+          expect(foreignResponse.status(), await foreignResponse.text()).toBe(
+            404,
+          );
         } finally {
           await foreign.dispose();
         }
@@ -487,9 +534,15 @@ test.describe("Messages private send and recovery", () => {
             const current = await browserFetch(page, "/api/messages");
             if (current.status === 200) {
               const listed = JSON.parse(current.body) as {
-                messages?: Array<{ id: string; content: string; sender_id: string }>;
+                messages?: Array<{
+                  id: string;
+                  content: string;
+                  sender_id: string;
+                }>;
               };
-              const match = listed.messages?.find((message) => message.content === parentContent);
+              const match = listed.messages?.find(
+                (message) => message.content === parentContent,
+              );
               if (match) {
                 parentMessageId = match.id;
                 ownedMessages.push({
@@ -498,8 +551,13 @@ test.describe("Messages private send and recovery", () => {
                   senderId: match.sender_id,
                   content: parentContent,
                 });
-                if (sendKeys[0]) ownedReceipts.push({ key: sendKeys[0], userId: match.sender_id });
-                if (ownedAttachments[0]) ownedAttachments[0].messageId = match.id;
+                if (sendKeys[0])
+                  ownedReceipts.push({
+                    key: sendKeys[0],
+                    userId: match.sender_id,
+                  });
+                if (ownedAttachments[0])
+                  ownedAttachments[0].messageId = match.id;
               }
             }
           }
@@ -509,7 +567,11 @@ test.describe("Messages private send and recovery", () => {
             receipts: ownedReceipts,
           });
           if (pickupId) {
-            const deletedPickup = await browserSend(page, "DELETE", `/api/pickups/${pickupId}`);
+            const deletedPickup = await browserSend(
+              page,
+              "DELETE",
+              `/api/pickups/${pickupId}`,
+            );
             expect(deletedPickup.status, deletedPickup.body).toBe(200);
           }
           if (originalFeatures) {
@@ -523,7 +585,11 @@ test.describe("Messages private send and recovery", () => {
             const canonical = await browserFetch(page, "/api/family/features");
             expect(canonical.status, canonical.body).toBe(200);
             expect(
-              (JSON.parse(canonical.body) as { features: Record<string, boolean> }).features,
+              (
+                JSON.parse(canonical.body) as {
+                  features: Record<string, boolean>;
+                }
+              ).features,
             ).toEqual(originalFeatures);
             restored = true;
           }
@@ -561,18 +627,33 @@ test.describe("Messages responsive states", () => {
       let childMessage: { id: string; key: string } | undefined;
       try {
         await page.goto("/dashboard");
-        const featuresResponse = await browserFetch(page, "/api/family/features");
+        const featuresResponse = await browserFetch(
+          page,
+          "/api/family/features",
+        );
         expect(featuresResponse.status, featuresResponse.body).toBe(200);
         originalFeatures = (
-          JSON.parse(featuresResponse.body) as { features: Record<string, boolean> }
+          JSON.parse(featuresResponse.body) as {
+            features: Record<string, boolean>;
+          }
         ).features;
         cleanAudit = await ownFeatureAudit(["messages", "pickups"]);
-        const enabled = await browserSend(page, "PATCH", "/api/family/features", {
-          features: { ...originalFeatures, messages: true, pickups: true },
-        });
+        const enabled = await browserSend(
+          page,
+          "PATCH",
+          "/api/family/features",
+          {
+            features: { ...originalFeatures, messages: true, pickups: true },
+          },
+        );
         expect(enabled.status, enabled.body).toBe(200);
 
-        childMessage = await createChildMessage(playwright, baseURL, info, longContent);
+        childMessage = await createChildMessage(
+          playwright,
+          baseURL,
+          info,
+          longContent,
+        );
         ownedMessages.push({
           id: childMessage.id,
           familyId: A.family,
@@ -583,9 +664,18 @@ test.describe("Messages responsive states", () => {
 
         await page.goto("/dashboard/messages");
         await assertSurface(page, locale, true);
-        await expect(page.getByText(longContent, { exact: true })).toBeVisible();
-        await assertTargetSize(page.getByRole("button", { name: copyFor(locale).linkPickup, exact: true }));
-        await assertTargetSize(page.getByRole("button", { name: copyFor(locale).send, exact: true }));
+        await expect(
+          page.getByText(longContent, { exact: true }),
+        ).toBeVisible();
+        await assertTargetSize(
+          page.getByRole("button", {
+            name: copyFor(locale).linkPickup,
+            exact: true,
+          }),
+        );
+        await assertTargetSize(
+          page.getByRole("button", { name: copyFor(locale).send, exact: true }),
+        );
         await info.attach(`messages-populated-${locale}-${info.project.name}`, {
           body: await page.screenshot({ fullPage: false }),
           contentType: "image/png",
@@ -594,7 +684,10 @@ test.describe("Messages responsive states", () => {
         const emptyContext = await browser.newContext({
           baseURL,
           storageState: authFile("parentB"),
-          viewport: info.project.use.viewport as { width: number; height: number },
+          viewport: info.project.use.viewport as {
+            width: number;
+            height: number;
+          },
           hasTouch: info.project.use.hasTouch as boolean,
           isMobile: info.project.use.isMobile as boolean,
           deviceScaleFactor: 1,
@@ -641,10 +734,17 @@ test.describe("Messages responsive states", () => {
                 { features: originalFeatures },
               );
               expect(restoredResponse.status, restoredResponse.body).toBe(200);
-              const canonical = await browserFetch(page, "/api/family/features");
+              const canonical = await browserFetch(
+                page,
+                "/api/family/features",
+              );
               expect(canonical.status, canonical.body).toBe(200);
               expect(
-                (JSON.parse(canonical.body) as { features: Record<string, boolean> }).features,
+                (
+                  JSON.parse(canonical.body) as {
+                    features: Record<string, boolean>;
+                  }
+                ).features,
               ).toEqual(originalFeatures);
               restored = true;
             }
@@ -678,19 +778,34 @@ test.describe("Messages role and API boundary", () => {
       let restored = false;
       try {
         await page.goto("/dashboard");
-        const featuresResponse = await browserFetch(page, "/api/family/features");
+        const featuresResponse = await browserFetch(
+          page,
+          "/api/family/features",
+        );
         expect(featuresResponse.status, featuresResponse.body).toBe(200);
         originalFeatures = (
-          JSON.parse(featuresResponse.body) as { features: Record<string, boolean> }
+          JSON.parse(featuresResponse.body) as {
+            features: Record<string, boolean>;
+          }
         ).features;
         cleanAudit = await ownFeatureAudit(["messages"]);
-        const enabled = await browserSend(page, "PATCH", "/api/family/features", {
-          features: { ...originalFeatures, messages: true },
-        });
+        const enabled = await browserSend(
+          page,
+          "PATCH",
+          "/api/family/features",
+          {
+            features: { ...originalFeatures, messages: true },
+          },
+        );
         expect(enabled.status, enabled.body).toBe(200);
 
         const teenState = await loginTeen(playwright, baseURL, info);
-        const roles: Array<{ role: Role; state: string | Awaited<ReturnType<APIRequestContext["storageState"]>>; id: string }> = [
+        const roles: Array<{
+          role: Role;
+          state:
+            string | Awaited<ReturnType<APIRequestContext["storageState"]>>;
+          id: string;
+        }> = [
           { role: "childA", state: authFile("childA"), id: A.child },
           { role: "teenA", state: teenState, id: A.teen },
         ];
@@ -746,7 +861,11 @@ test.describe("Messages role and API boundary", () => {
             const canonical = await browserFetch(page, "/api/family/features");
             expect(canonical.status, canonical.body).toBe(200);
             expect(
-              (JSON.parse(canonical.body) as { features: Record<string, boolean> }).features,
+              (
+                JSON.parse(canonical.body) as {
+                  features: Record<string, boolean>;
+                }
+              ).features,
             ).toEqual(originalFeatures);
             restored = true;
           }
