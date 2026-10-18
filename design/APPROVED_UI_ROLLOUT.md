@@ -54,13 +54,13 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Meals | Week plan, recipes, several-dish prep, eaten/remaining/next prep | Local shared Plan/Explore/Prep navigation candidate; existing canonical meal/prep behavior retained, incorporated #574 hosted candidate checks pass; wider visual/journey acceptance pending |
 | Inventory | Use soon, honest capture review, quantities and locations | Local full-width overview and shared location shortcuts; 121 affected units, exact build and six-size browser 95 passes/10 inherited scope skips; incorporated #574 hosted candidate checks pass; capture-review/wider acceptance pending |
 | Notes | Short shared notes and clear visibility | Local shared board/read-only detail and canonical color/recovery alignment: 42 affected tests, 78 browser passes/15 inherited scope skips; Family/Notes #576 candidate hosted acceptance passed and main `768e4170` is merged and production verified; wider acceptance pending |
-| Anniversaries | Upcoming dates without duplicate noise | Local chronological annual overview, short sheets and role-aware detail/discovery: 128 affected tests and 77 six-size browser passes/10 desktop-only scope skips; source/visual review pass, recovery follow-up passes 103 affected units, nine PostgreSQL cases and 89 six-size browser checks/10 declared scopes at 30dd3937; supplemental visual, hosted and release acceptance pending |
+| Anniversaries | Upcoming dates without duplicate noise | Chronological overview, short permission-aware sheets and recoverable writes: exact application0ed841aa passes89 browser cases/10 declared scopes,103 affected units and9 PostgreSQL cases; f142 test-only Notes/Capture repairs pass42/15 declared scopes; combined candidate/source review clear, combined hosted/release and wider acceptance pending |
 | Gamification | Optional quiet progress, meaningful dependencies | Parent Progress overview adapted locally with optional points/streak presentation; child/teen home and persisted quiet-mode acceptance remain pending |
 | Rewards | Clear costs and role-appropriate actions | Existing behavior retained; approved layout review pending |
 | Budget | Private summaries and contextual details | Existing behavior retained; approved layout review pending |
 | Projects | Next steps, owner and detail context | Existing behavior retained; approved layout review pending |
 | Messages | Private conversation linked to work | Existing behavior retained; approved layout review pending |
-| Analytics | Useful private trends, dependency-aware | Local parent Progress workspace uses canonical analytics API; 7 mounted/UI and 29 API/isolation/gamification tests pass, six-size EN/light and ES/dark 15-case browser matrix passes; original hosted/release and broader acceptance pending |
+| Analytics | Useful private trends, dependency-aware | Parent Progress55f417bd uses canonical API and localized strict-response recovery; 102 UI/localization and29 API/isolation/gamification cases pass, exact build and51 browser/startup-budget checks plus final phone visual review pass; combined hosted/release and broader acceptance pending |
 | Wishlist | Capture and compare family ideas | Existing behavior retained; approved layout review pending |
 | Emergency | Fast authorized access, private medical/contact fields | Existing behavior retained; approved layout review pending |
 | Locations | Saved places with private addresses protected | Existing behavior retained; approved layout review pending |
@@ -466,3 +466,14 @@ This is a bounded parent Analytics/Progress adaptation. Persisted quiet mode,
 child/teen home gamification, full feature/state acceptance and original hosted
 release gates remain open. No API/schema, role-policy, scheduler/provider/profile
 activation or native/store change is included.
+
+## Combined candidate boundary — 2026-10-18
+
+The Dates, parent Progress and saved-work recovery heads are normally integrated
+with their original history retained. Source review and combined baseline/real
+Dates database checks pass at `f9efd20c`. Exact combined build, responsive
+journeys, original hosted gates, protected restore, merge and production proof
+remain pending. Per-feature wider acceptance and all unadapted rows above stay
+open. No constellation of narrow passing checks completes the full22-feature
+programme. Saved screenshots and runtime proofs are in the existing task's
+`work/ui-plan-approved-2026-10-17/` evidence directories.

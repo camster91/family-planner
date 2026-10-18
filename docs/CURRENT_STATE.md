@@ -1,5 +1,36 @@
 # Current State
 
+## Combined Dates, Progress and saved-work candidate — 2026-10-18
+
+The isolated `codex/web-ui-recovery-release-499` candidate normally incorporates
+Dates #578 (`f1423720`, including #577 `9a8da960`), saved-work #556 (`51621a26`)
+and Progress #579 (`55f417bd`). All constituent heads/history remain intact.
+Integration source `f9efd20c` passes independent review, Prisma generation,
+typecheck and full lint. Full local units: 5820 passed, 396 established opt-in
+skips and three retained Mac backup-prune failures. Nine actual PostgreSQL
+Dates receipt/authority cases pass again on this combined source. Original
+Linux acceptance remains required; no tests or release gates are waived.
+
+Constituent rendered evidence is retained separately: Dates has 89 passes and
+10 declared scopes at exact application `0ed841aa`; subsequent test-only
+Notes/Capture repairs pass 42 cases/15 declared scopes, with genuine isolated
+logins, causally awaited availability responses and a live fixture device.
+Progress `55f417bd` passes 51 browser/startup-budget cases and independent final
+phone review; full names retain readable width with metrics below on phones.
+Storage `51621a26` passes 63 cases, with 48 captures and 24 exact source/runtime
+proofs. These constituent results do not substitute for exact combined build,
+rendered/hosted acceptance or production verification, which remain pending.
+
+The merge resolves documentation by retaining dated checkpoints and combines
+only the separately removed stale localization-inventory entries (18 Analytics,
+one Dates placeholder). Today retains Next up and person queue recovery.
+No schema, migration, permissions, device capability, default feature flag,
+provider/scheduler or native/store activation is introduced by integration.
+Production remains separately verified Family/Notes `768e4170` (#576); rollback,
+protected restore, normal merge, exact-main QA and live-runtime verification are
+required for this candidate. The complete #499/#128 22-feature programme remains
+open; Rewards is an isolated subsequent implementation, not included here.
+
 ## Dates recovery candidate — 2026-10-18
 
 The isolated `codex/dates-recovery-499` candidate incorporates #577 through
