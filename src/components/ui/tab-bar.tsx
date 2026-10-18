@@ -16,7 +16,7 @@ import {
 
 /**
  * TabBar — bottom tab bar on phones (below `md`).
- * Parents: Today · Calendar · Meals · Lists · Family (#269). Children and teens:
+ * Parents: Today · Calendar · Meals · Lists · Explore (#499). Children and teens:
  * the tabs they may open (src/lib/nav-items.ts). Feature-gated tabs hide while
  * their feature is off. The top bar carries the same tabs from `md` up.
  */

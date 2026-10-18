@@ -26,8 +26,7 @@ function groupFor(item: MoreItem): MoreGroupKey {
 }
 
 /**
- * Family → More (#269): every feature that is not a tab, in one list, showing
- * only the ones that are on, plus Chores (which lives on Today). Parents only:
+ * Explore (#499): Family, Chores and enabled tools in searchable groups. Parents only:
  * /dashboard/family/* is not on the kid allowlist. Turning features on or off
  * stays in Features.
  */
@@ -53,7 +52,7 @@ export default function MorePage() {
   })).filter((group) => group.items.length > 0)
 
   return (
-    <div className="pb-20 max-w-5xl mx-auto">
+    <div className="w-full pb-20">
       <LargeHeader
         title={more('title')}
         subtitle={
@@ -80,7 +79,7 @@ export default function MorePage() {
         </div>
 
         {groups.length > 0 ? (
-          <div className="grid gap-6 md:grid-cols-2 md:items-start">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 md:items-start">
             {groups.map((group) => {
               const copy = GROUP_COPY[group.key]
               return (

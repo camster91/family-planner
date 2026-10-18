@@ -80,3 +80,7 @@ Read `REFERENCES.md`. References are pattern research only, never permission to 
 ## Completion principle
 
 A screen is not “designed” until happy, empty, loading, error, offline/stale and permission states relevant to that journey are accounted for.
+
+## Approved cross-feature implementation — 2026-10-17
+
+[Implementation program and coverage ledger](APPROVED_UI_ROLLOUT.md) records the accepted simplification direction, current candidate and remaining all-feature journeys. Earlier design/acceptance history stays preserved.

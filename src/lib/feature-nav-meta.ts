@@ -1,6 +1,7 @@
 import type { FeatureKey } from './features'
 
 type MoreFeatureKey =
+  | 'family'
   | 'chores'
   | 'emergency'
   | 'inventory'
@@ -27,6 +28,11 @@ export type FeatureNavMeta = {
 
 /** Navigation-only metadata; full feature settings metadata stays route-local. */
 export const FEATURE_NAV_META: Record<MoreFeatureKey, FeatureNavMeta> = {
+  family: {
+    title: 'Family',
+    description: 'Members, roles, invite codes, and family settings.',
+    href: '/dashboard/family',
+  },
   chores: {
     title: 'Chores',
     description: 'Assign chores and see what is done.',

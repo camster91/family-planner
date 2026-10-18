@@ -106,12 +106,12 @@ it("updates open parent menu and both tab bars without changing private identity
       within(region)
         .getAllByRole("link")
         .map((a) => a.textContent),
-    ).toEqual(["Hoy", "Calendario", "Comidas", "Listas", "Familia"]);
+    ).toEqual(["Hoy", "Calendario", "Comidas", "Listas", "Explorar"]);
     expect(
       within(region).getByRole("link", { name: "Calendario" }),
     ).toHaveAttribute("aria-current", "page");
   }
-  expect(screen.getAllByRole("link", { name: "Explorar" })).toHaveLength(2);
+  expect(screen.getAllByRole("link", { name: "Explorar" })).toHaveLength(3);
   expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeVisible();
   expect(global.fetch).not.toHaveBeenCalled();
   expect(mockClearQueues).not.toHaveBeenCalled();

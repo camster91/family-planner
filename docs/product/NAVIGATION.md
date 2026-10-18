@@ -27,13 +27,27 @@ tabs, everything else one level down, undo instead of "are you sure", colour onl
   `KID_TABS`, `TEEN_TABS` and `homeHrefFor` in `src/lib/nav-items.ts` and the kid branch of
   `src/app/dashboard/page.tsx`.
 
+## Approved simplification — 2026-10-17
+
+The parent navigation now uses **Today · Calendar · Meals · Lists · Explore**
+on phone and desktop. Explore replaces the Family tab and the separate sixth
+header shortcut. Its canonical URL remains `/dashboard/family/more`; old Family,
+More and notification links continue to work. Family is the first core item in
+the searchable Explore hub and remains in the account menu. Family and other
+secondary feature routes keep Explore selected; Chores keeps Today selected.
+The hub widens into three feature groups on a large desktop.
+
+This follows Cameron's accepted [cross-feature mockups](../../design/APPROVED_UI_ROLLOUT.md).
+It changes entry points, not feature availability, membership or permissions.
+Child/teen tabs below remain unchanged, including one-tap Emergency.
+
 ## Tabs
 
 Phone tab bar (below `md`) and top bar (from `md`, so an 800px portrait tablet has tabs too) show the same set:
 
 | Role | Tabs |
 |---|---|
-| Parent | Today · Calendar · Meals · Lists · Family |
+| Parent | Today · Calendar · Meals · Lists · Explore |
 | Teen | Today (kid home) · Calendar · Meals · Lists · Emergency (O-37) |
 | Child | Today (kid home) · Lists · Emergency |
 
@@ -46,14 +60,16 @@ Phone tab bar (below `md`) and top bar (from `md`, so an 800px portrait tablet h
   their notification switches and "Delete my account" in the user menu instead, because they cannot open
   Settings.
 - Chores live on Today (the summary's "All chores" link, and "N chores to check" for parents). The Today tab
-  stays current on `/dashboard/chores`; the Family tab stays current on Emergency, Features, More and every
+  stays current on `/dashboard/chores`; the Explore tab stays current on Emergency, Features, More and every
   page listed under More.
 
-## Explore shortcut (#143)
+## Explore destination (#499)
 
-Parents can open the existing More feature hub directly through Explore in the desktop header (from `xl`, 1280px) or through Explore in the user menu at every width. Five primary tabs remain stable. Smaller tablet/phone headers keep their current width budget; the shortcut stays in the user menu there. This adds no new route or role privilege, and does not enable features. The hub still filters by existing canonical feature flags. Children and teens keep their current permitted entry points.
-
-This bounded entry-point change follows the existing navigation and Woven Grove foundations in `design/README.md`. Grouping the long More list, pinned destinations and a broader cross-device exploration flow remain separate #143/#152 design work; the shortcut is not proof of their acceptance.
+Explore is the fifth parent primary destination on every personal viewport.
+There is no separate sixth header shortcut. The account-menu shortcut remains
+for compatibility; the hub uses existing role/effective-feature gates and does
+not enable features. Family is reachable in the hub's Core group. Children,
+teens and shared devices retain their existing permitted entry points.
 
 ## Family and More
 

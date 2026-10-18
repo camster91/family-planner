@@ -11,6 +11,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { useFeatures } from '@/components/providers/features-provider'
 import { isFeatureEnabled } from '@/lib/feature-flags'
 import { MORE_HREF, moreItemsFor } from '@/lib/nav-items'
+import { useMoreText } from '@/i18n/more'
 
 /**
  * Family tab (#269): members, then the household's other places — Emergency
@@ -23,6 +24,7 @@ import { MORE_HREF, moreItemsFor } from '@/lib/nav-items'
 type Member = { id: string; name: string; role?: string; avatar_url?: string | null; email?: string }
 
 export default function FamilyPage() {
+  const more = useMoreText()
   const [familyMembers, setFamilyMembers] = useState<Member[]>([])
   const [myId, setMyId] = useState('')
   const [removing, setRemoving] = useState<Member | null>(null)
@@ -36,7 +38,7 @@ export default function FamilyPage() {
   const { features } = useFeatures()
   const emergencyOn = isFeatureEnabled(features, 'emergency')
   // Chores and Emergency have their own rows; count what else More holds.
-  const moreCount = moreItemsFor('parent', features).filter((i) => i.key !== 'chores' && i.key !== 'emergency').length
+  const moreCount = moreItemsFor('parent', features).filter((i) => i.key !== 'chores' && i.key !== 'emergency' && i.key !== 'family').length
 
   useEffect(() => {
     loadFamilyData()
@@ -252,7 +254,7 @@ export default function FamilyPage() {
           <ListRow
             icon={LayoutGrid}
             glyphColor="plain"
-            title="More"
+            title={more('title')}
             subtitle={
               moreCount === 0
                 ? 'Chores and features you turn on'

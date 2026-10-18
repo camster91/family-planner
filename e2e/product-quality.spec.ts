@@ -558,7 +558,7 @@ for (const locale of ["en", "es"] as const) {
       await page.goto("/dashboard/family/more");
       const more = page.getByTestId("more-list");
       await expect(more).toBeVisible();
-      const moreKeys = ["chores", ...MORE_FEATURE_KEYS] as const;
+      const moreKeys = ["family", "chores", ...MORE_FEATURE_KEYS] as const;
       for (const key of moreKeys) {
         const meta = featureNavMeta(key);
         expect(meta, `missing More metadata for ${key}`).toBeTruthy();
@@ -664,7 +664,22 @@ for (const locale of ["en", "es"] as const) {
         }
       } else {
         await expect(explore).toBeHidden();
+        await expect(
+          page.locator('.tab-bar a[href="/dashboard/family/more"]'),
+        ).toBeVisible();
       }
+
+      // Explore is a primary destination, with Family one level inside it.
+      // Exercise the real links rather than only checking the navigation model.
+      await more.locator('a[href="/dashboard/family"]').click();
+      await expect(page).toHaveURL(/\/dashboard\/family$/);
+      const exploreTab = page.locator(
+        '[data-testid="top-tabs"] a[href="/dashboard/family/more"]:visible, .tab-bar a[href="/dashboard/family/more"]:visible',
+      );
+      await expect(exploreTab).toHaveCount(1);
+      await expect(exploreTab).toHaveAttribute("aria-current", "page");
+      await exploreTab.click();
+      await expect(more).toBeVisible();
 
       await page.goto("/dashboard/calendar");
       const calendar = page.locator("main").first();

@@ -46,13 +46,13 @@ function tabLabels(container: HTMLElement) {
 }
 
 describe('tab model', () => {
-  it('parents get exactly Today · Calendar · Meals · Lists · Family', () => {
+  it('parents get exactly Today · Calendar · Meals · Lists · Explore', () => {
     expect(tabsFor('parent', defaultFeatures()).map((t) => [t.label, t.href])).toEqual([
       ['Today', '/dashboard/today'],
       ['Calendar', '/dashboard/calendar'],
       ['Meals', '/dashboard/meals'],
       ['Lists', '/dashboard/lists'],
-      ['Family', '/dashboard/family'],
+      ['Explore', '/dashboard/family/more'],
     ])
   })
 
@@ -61,7 +61,7 @@ describe('tab model', () => {
       'Today',
       'Calendar',
       'Lists',
-      'Family',
+      'Explore',
     ])
   })
 
@@ -108,7 +108,7 @@ describe('tab model', () => {
     ])
   })
 
-  it('Today lights up for chores; Family for Emergency, More and the features under it', () => {
+  it('Today lights up for chores; Explore for Family, Emergency and other feature routes', () => {
     const [today, calendar, , , family] = PRIMARY_TABS
     expect(isTabActive(today, '/dashboard')).toBe(true)
     expect(isTabActive(today, '/dashboard/chores')).toBe(true)
@@ -128,17 +128,25 @@ describe('tab model', () => {
 })
 
 describe('More list', () => {
+  it('keeps Family one tap from Explore and finds it using translated search', () => {
+    render(<I18nProvider locale="es"><MorePage /></I18nProvider>)
+    expect(screen.getByRole('link', { name: /^Familia/ }).getAttribute('href')).toBe('/dashboard/family')
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar funciones activadas' }), { target: { value: 'miembros' } })
+    expect(screen.getByRole('link', { name: /^Familia/ }).getAttribute('href')).toBe('/dashboard/family')
+    expect(screen.queryByRole('link', { name: /Contactos de emergencia/ })).toBeNull()
+  })
+
   it('lists Chores plus only the features that are on, never a tab', () => {
     const f = { ...defaultFeatures(), inventory: true, notes: true, budget: false, pickups: true, gamification: false }
     const keys = moreItemsFor('parent', f).map((i) => i.key)
-    expect(keys[0]).toBe('chores')
+    expect(keys.slice(0, 2)).toEqual(['family', 'chores'])
     expect(keys).toEqual(expect.arrayContaining(['emergency', 'inventory', 'notes', 'pickups']))
     // Off (or needing Points & streaks, which is off): absent.
     for (const k of ['budget', 'rewards', 'analytics', 'allowance', 'locations', 'travel', 'handoff', 'sick-days', 'wishlist']) {
       expect(keys).not.toContain(k)
     }
     // Tabs and the Points & streaks setting are never in More.
-    for (const k of ['calendar', 'meals', 'lists', 'family', 'gamification']) expect(keys).not.toContain(k)
+    for (const k of ['calendar', 'meals', 'lists', 'gamification']) expect(keys).not.toContain(k)
   })
 
   it('the More page renders exactly the enabled items and a link to turn features on', () => {
@@ -175,7 +183,7 @@ describe('More list', () => {
         <MorePage />
       </I18nProvider>,
     )
-    expect(screen.getByRole('heading', { name: 'Más' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Explorar' })).toBeTruthy()
     expect(
       screen.getByRole('link', { name: /Inventario de alimentos/ }).getAttribute('href'),
     ).toBe('/dashboard/inventory')
@@ -255,17 +263,17 @@ describe('TabBar (phone)', () => {
       ['Calendar', '/dashboard/calendar'],
       ['Meals', '/dashboard/meals'],
       ['Lists', '/dashboard/lists'],
-      ['Family', '/dashboard/family'],
+      ['Explore', '/dashboard/family/more'],
     ])
     expect(screen.getByRole('link', { name: 'Today' }).getAttribute('aria-current')).toBe('page')
   })
 
-  it('drops Meals when it is off and marks Family current on Emergency', () => {
+  it('drops Meals when it is off and marks Explore current on Emergency', () => {
     mockFeatures = { ...defaultFeatures(), meals: false }
     mockPath = '/dashboard/emergency'
     const { container } = render(<TabBar user={user('parent')} />)
-    expect(tabLabels(container).map(([l]) => l)).toEqual(['Today', 'Calendar', 'Lists', 'Family'])
-    expect(screen.getByRole('link', { name: 'Family' }).getAttribute('aria-current')).toBe('page')
+    expect(tabLabels(container).map(([l]) => l)).toEqual(['Today', 'Calendar', 'Lists', 'Explore'])
+    expect(screen.getByRole('link', { name: 'Explore' }).getAttribute('aria-current')).toBe('page')
   })
 
   it('gives a child Today (kid home), Lists and Emergency', () => {
@@ -311,7 +319,7 @@ describe('DashboardNav (top bar)', () => {
       'Calendar',
       'Meals',
       'Lists',
-      'Family',
+      'Explore',
     ])
     expect(screen.getByRole('link', { name: 'Herewoven home' }).getAttribute('href')).toBe('/dashboard/today')
     expect(screen.queryByRole('link', { name: 'Emergency' })).toBeNull()
@@ -320,7 +328,8 @@ describe('DashboardNav (top bar)', () => {
   it('keeps parent Explore visible from the compact desktop and tablet header', () => {
     render(<DashboardNav user={user('parent')} />)
     const explore = screen.getByTestId('desktop-explore')
-    expect(explore.className).toContain('md:inline-flex')
+    expect(within(screen.getByTestId('top-tabs')).getByRole('link', { name: 'Explore' })).toBe(explore)
+    expect(within(screen.getByRole('navigation', { name: 'Main navigation' })).getAllByRole('link', { name: 'Explore' })).toHaveLength(1)
     expect(explore.className).toContain('min-h-[44px]')
   })
 
@@ -355,16 +364,16 @@ describe('Family page', () => {
     }) as unknown as typeof fetch
   })
 
-  it('holds Emergency and More', async () => {
+  it('holds Emergency and Explore', async () => {
     render(<FamilyPage />)
     expect((await screen.findByRole('link', { name: /Emergency/ })).getAttribute('href')).toBe('/dashboard/emergency')
-    expect(screen.getByRole('link', { name: /More/ }).getAttribute('href')).toBe('/dashboard/family/more')
+    expect(screen.getByRole('link', { name: /Explore/ }).getAttribute('href')).toBe('/dashboard/family/more')
   })
 
   it('hides Emergency when it is off', async () => {
     mockFeatures = { ...defaultFeatures(), emergency: false }
     render(<FamilyPage />)
-    await screen.findByRole('link', { name: /More/ })
+    await screen.findByRole('link', { name: /Explore/ })
     expect(screen.queryByRole('link', { name: /Emergency/ })).toBeNull()
   })
 
