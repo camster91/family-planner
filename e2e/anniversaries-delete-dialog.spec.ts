@@ -422,11 +422,14 @@ for (const locale of ["en", "es"] as const) {
           .click();
         const refreshRecovery = page.getByRole("main").getByRole("alert");
         await expect(refreshRecovery).toHaveCount(1);
-        await expect(refreshRecovery).toHaveText(
-          locale === "es"
-            ? "Fecha quitada. No se pudo actualizar la lista; inténtalo de nuevo para comprobarla."
-            : "Date removed. The list could not be refreshed; try again to check it.",
-        );
+        await expect(
+          refreshRecovery.getByText(
+            locale === "es"
+              ? "Fecha quitada. No se pudo actualizar la lista; inténtalo de nuevo para comprobarla."
+              : "Date removed. The list could not be refreshed; try again to check it.",
+            { exact: true },
+          ),
+        ).toBeVisible();
         await expect(
           page
             .getByRole("main")
