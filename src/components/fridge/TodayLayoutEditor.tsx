@@ -288,6 +288,7 @@ export default function TodayLayoutEditor({
                   if (
                     calendarView === "day" ||
                     calendarView === "week" ||
+                    calendarView === "month" ||
                     calendarView === "agenda"
                   )
                     update({ ...draft, calendarView });
