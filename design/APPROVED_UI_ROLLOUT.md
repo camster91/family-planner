@@ -56,8 +56,8 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Notes | Short shared notes and clear visibility | Local shared board/read-only detail and canonical color/recovery alignment: 42 affected tests, 78 browser passes/15 inherited scope skips; Family/Notes #576 candidate hosted acceptance passed and main `768e4170` is merged and production verified; wider acceptance pending |
 | Anniversaries | Upcoming dates without duplicate noise | Chronological overview, short permission-aware sheets and recoverable writes: exact application0ed841aa passes89 browser cases/10 declared scopes,103 affected units and9 PostgreSQL cases; f142 test-only Notes/Capture repairs pass42/15 declared scopes; combined candidate/source review clear, combined hosted/release and wider acceptance pending |
 | Gamification | Optional quiet progress, meaningful dependencies | Parent Progress overview adapted locally with optional points/streak presentation; child/teen home and persisted quiet-mode acceptance remain pending |
-| Rewards | Clear costs and role-appropriate actions | Existing behavior retained; approved layout review pending |
-| Budget | Private summaries and contextual details | Existing behavior retained; approved layout review pending |
+| Rewards | Clear costs and role-appropriate actions | Local canonical receipt/authority and localized role-aware create/claim/approval presentation source-reviewed; integrated application672f1cde passes generation/types/lint and5860 units (402 opt-in skips,3 retained Mac backup failures), API6 PostgreSQL cases pass; exact build/rendered/hosted/release acceptance pending |
+| Budget | Private summaries and contextual details | Transaction receipts pass7 actual PostgreSQL cases including overlapping retries; category/localization/forms UI repairing independent review findings; rendered and release acceptance pending |
 | Projects | Next steps, owner and detail context | Existing behavior retained; approved layout review pending |
 | Messages | Private conversation linked to work | Existing behavior retained; approved layout review pending |
 | Analytics | Useful private trends, dependency-aware | Parent Progress55f417bd uses canonical API and localized strict-response recovery; 102 UI/localization and29 API/isolation/gamification cases pass, exact build and51 browser/startup-budget checks plus final phone visual review pass; combined hosted/release and broader acceptance pending |
@@ -477,3 +477,14 @@ remain pending. Per-feature wider acceptance and all unadapted rows above stay
 open. No constellation of narrow passing checks completes the full22-feature
 programme. Saved screenshots and runtime proofs are in the existing task's
 `work/ui-plan-approved-2026-10-17/` evidence directories.
+
+## Combined release follow-through — 2026-10-18
+
+The combined Dates, Progress and saved-work slice is merged in #580 and serves
+main `5cf9720b`, exactly the reviewed `b342ee24` tree. All original candidate
+gates passed, protected restore verified 71 public tables, automatic Coolify
+deployment560 finished, and exact serving image/revision/health/startup
+migrations were verified. Main Android passes; exact-main Build/E2E are still
+running at this checkpoint. See `docs/CURRENT_STATE.md` and the live PR record.
+No earlier broader-pending row is thereby marked fully accepted. Rewards and
+Budget remain separate subsequent local work; all22feature acceptance stays open.

@@ -1,5 +1,45 @@
 # Current State
 
+## Verified live web revision and subsequent UI work — 2026-10-18
+
+PR #580 normally merged as `5cf9720bd3ca38862bc54c7094ac90f87a3892d8`.
+Its tree `348eeda354693ac10662f7db00643956aee03469` exactly matches reviewed
+candidate `b342ee24`; incorporated #556/#577/#578/#579 are verified merged.
+Every original candidate workflow passed, including all viewport, Settings,
+Inventory, recovery, profile-routine, Android and fresh checked-image jobs.
+Exact combined local build and browser QA passed: 164 cases, 25 declared
+viewport scope skips, no failures/retries; seven supplemental actual phone
+footer scroll/hit checks also passed. Independent source and visual review is
+clear, with 236 unique captures and 24 queue source/runtime/hash proofs.
+
+Protected backup restored all 71 public tables in an isolated temporary
+PostgreSQL database, preserving row counts; the temporary database was removed.
+Existing automatic Coolify source deployment 560 finished at 09:30:11 UTC.
+Serving container `13ce714efd59`, image `63b22fe2b228`, release/OCI revision,
+public version/readiness/liveness and both startup migration phases were
+verified. This is a Coolify source build, not CI-image promotion. Profile setup,
+profile chores and assistant Today remain off; no household records or
+configuration were changed. No authenticated production journey is claimed.
+
+Exact-main runs remain separate acceptance: Build 39115308640 and E2E
+39115308741 are running at this checkpoint; Android 39115308615 passed.
+Follow the current [release record](https://github.com/camster91/family-planner/pull/580#issuecomment-6248271303)
+for their later outcome. Older pending statements below describe preparation.
+
+Rewards is subsequent local work: canonical optional receipts and authority,
+localized role-aware choices, owner-safe create draft recovery, strict success
+identity and approval recovery are source-reviewed. Integrated application
+`672f1cde` passes generation/types/lint; 5860 unit cases pass, 402 established
+opt-in cases skip and three existing Mac backup-prune cases fail. Six actual
+PostgreSQL Rewards cases pass on the integrated API source. Exact build,
+rendered journeys and original hosted release gates remain required. Budget
+transaction receipts pass seven actual PostgreSQL cases; its UI is repairing
+independent review findings and is not accepted or released.
+
+Full 22-feature/supporting-route acceptance remains open under #499/#128.
+Native/store/hardware/customer and actual AI/voice/provider activation retain
+their separate gates.
+
 ## Combined Dates, Progress and saved-work candidate — 2026-10-18
 
 The isolated `codex/web-ui-recovery-release-499` candidate normally incorporates
