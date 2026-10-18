@@ -501,7 +501,7 @@ export default function InventoryClient({
           {pastUseBy.length > 0 && (
             <PastUseBySection items={pastUseBy} canWrite={canWrite} busy={busy} onDiscard={(t) => quickAdjust(t, 'discard')} />
           )}
-          <div className="grid min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" data-testid="inventory-overview">
+          <div className="grid min-w-0 grid-cols-1 items-start gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" data-testid="inventory-overview">
             <UseSoonSection
               items={data.data.useSoon}
               canWrite={canWrite}
@@ -577,7 +577,7 @@ export default function InventoryClient({
             </>
           )}
           {(mealsOn || data.data.history.length > 0) && (
-            <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-2" data-testid="inventory-secondary">
+            <div className={cn('grid min-w-0 grid-cols-1 items-start gap-6', mealsOn && data.data.history.length > 0 && 'xl:grid-cols-2')} data-testid="inventory-secondary">
               {mealsOn && <CookSection load={data.data.cook} onRetry={load} canOpenRecipes={canOpenRecipes} />}
               {data.data.history.length > 0 && (
                 <HistorySection entries={data.data.history} canWrite={canWrite} onUndo={(e) => undo(e.id, e.item_name)} />
@@ -625,17 +625,17 @@ function InventoryLocations({ items, where, onWhere, capped }: {
   return (
     <section aria-labelledby="inventory-locations" className="min-w-0" data-testid="inventory-shortcuts">
       <h2 id="inventory-locations" className="section-header">{copy('locations')}</h2>
-      <div className="card-apple p-3 space-y-2">
+      <div className="card-apple grid grid-cols-2 gap-2 p-3 md:grid-cols-1">
         {locations.map((location) => (
           <button
             key={location}
             type="button"
             aria-pressed={where === location}
             onClick={() => onWhere(location)}
-            className={cn('flex min-h-[44px] w-full min-w-0 items-center justify-between gap-3 rounded-[var(--radius-md)] px-3 py-2 text-left text-subhead focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]', where === location ? 'bg-[var(--accent-fill)] text-[var(--on-accent)]' : 'bg-[var(--surface-fill)] text-label-primary')}
+            className={cn('flex min-h-[44px] w-full min-w-0 flex-col items-start justify-between gap-1 rounded-[var(--radius-md)] md:flex-row md:items-center md:gap-3 px-3 py-2 text-left text-subhead focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]', where === location ? 'bg-[var(--accent-fill)] text-[var(--on-accent)]' : 'bg-[var(--surface-fill)] text-label-primary')}
           >
             <span className="min-w-0 [overflow-wrap:anywhere]">{copy(location === 'all' ? 'everywhere' : location)}</span>
-            <span className="shrink-0 text-footnote">{countLabel(counts[location])}</span>
+            <span className="min-w-0 max-w-full text-footnote [overflow-wrap:anywhere] md:max-w-[60%] md:text-right">{countLabel(counts[location])}</span>
           </button>
         ))}
       </div>

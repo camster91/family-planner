@@ -410,7 +410,20 @@ test.describe("inventory (Family A parent)", () => {
       expect(box!.width).toBeGreaterThanOrEqual(
         page.viewportSize()!.width - 72,
       );
-      await overview.scrollIntoViewIfNeeded();
+      const soonBox = await page.getByTestId("use-soon").boundingBox();
+      const locationsBox = await shortcuts.boundingBox();
+      if (page.viewportSize()!.width >= 768) {
+        expect(locationsBox!.x).toBeGreaterThanOrEqual(
+          soonBox!.x + soonBox!.width,
+        );
+        expect(Math.abs(locationsBox!.y - soonBox!.y)).toBeLessThanOrEqual(1);
+      } else {
+        const first = await shortcuts.getByRole("button").nth(0).boundingBox();
+        const second = await shortcuts.getByRole("button").nth(1).boundingBox();
+        expect(second!.x).toBeGreaterThanOrEqual(first!.x + first!.width);
+        expect(Math.abs(second!.y - first!.y)).toBeLessThanOrEqual(1);
+      }
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({
         path: info.outputPath(`inventory-overview-${locale}.png`),
         fullPage: false,
