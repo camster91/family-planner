@@ -616,6 +616,12 @@ function InventoryLocations({ items, where, onWhere, capped }: {
   const counts = { all: items.length, fridge: 0, freezer: 0, pantry: 0 }
   for (const item of items) counts[item.location] += 1
   const locations = ['all', ...INVENTORY_LOCATIONS] as const
+  const countLabel = (count: number) => {
+    const key = capped
+      ? count === 0 ? 'locationCountIncomplete' : count === 1 ? 'locationCountCappedOne' : 'locationCountCapped'
+      : count === 1 ? 'locationCountOne' : 'locationCountMany'
+    return copy(key, { count: count.toLocaleString(locale) })
+  }
   return (
     <section aria-labelledby="inventory-locations" className="min-w-0" data-testid="inventory-shortcuts">
       <h2 id="inventory-locations" className="section-header">{copy('locations')}</h2>
@@ -629,7 +635,7 @@ function InventoryLocations({ items, where, onWhere, capped }: {
             className={cn('flex min-h-[44px] w-full min-w-0 items-center justify-between gap-3 rounded-[var(--radius-md)] px-3 py-2 text-left text-subhead focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]', where === location ? 'bg-[var(--accent-fill)] text-[var(--on-accent)]' : 'bg-[var(--surface-fill)] text-label-primary')}
           >
             <span className="min-w-0 [overflow-wrap:anywhere]">{copy(location === 'all' ? 'everywhere' : location)}</span>
-            <span className="shrink-0 text-footnote">{copy(capped ? counts[location] === 0 ? 'locationCountIncomplete' : 'locationCountCapped' : counts[location] === 1 ? 'locationCountOne' : 'locationCountMany', { count: counts[location].toLocaleString(locale) })}</span>
+            <span className="shrink-0 text-footnote">{countLabel(counts[location])}</span>
           </button>
         ))}
       </div>

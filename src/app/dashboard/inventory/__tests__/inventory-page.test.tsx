@@ -920,7 +920,13 @@ describe("/dashboard/inventory", () => {
   it("stops after 20 pages and says the list is cut short", async () => {
     const { calls } = setup({
       page: (offset) => ({
-        items: [{ ...ITEMS[2], id: `i-${offset}` }],
+        items: [
+          {
+            ...ITEMS[2],
+            id: `i-${offset}`,
+            location: offset === 0 ? "pantry" : "freezer",
+          },
+        ],
         nextOffset: offset + 500,
       }),
     });
@@ -939,13 +945,16 @@ describe("/dashboard/inventory", () => {
     ).toBeVisible();
     expect(
       within(shortcuts).getByRole("button", {
-        name: "Freezer At least 20 items",
+        name: "Freezer At least 19 items",
       }),
     ).toBeVisible();
     expect(
       within(shortcuts).getByRole("button", {
-        name: "Pantry Count incomplete",
+        name: "Fridge Count incomplete",
       }),
+    ).toBeVisible();
+    expect(
+      within(shortcuts).getByRole("button", { name: "Pantry At least 1 item" }),
     ).toBeVisible();
     expect(within(shortcuts).queryByText("0 items")).not.toBeInTheDocument();
   });
