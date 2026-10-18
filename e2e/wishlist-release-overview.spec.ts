@@ -13,6 +13,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { randomUUID } from "node:crypto";
 import type {
+  APIResponse,
+  APIRequestContext,
   Browser,
   BrowserContext,
   Locator,
@@ -448,27 +450,50 @@ async function createWishAfterFault(
   return item!;
 }
 
-async function deleteWithKey(page: Page, id: string): Promise<number> {
-  return page.evaluate(
-    async ({ id, key }) => {
-      const csrf =
-        document.cookie
-          .split("; ")
-          .find((cookie) => cookie.startsWith("csrf_token="))
-          ?.slice("csrf_token=".length) ?? "";
-      const response = await fetch(`/api/wishlist/${id}`, {
-        method: "DELETE",
-        credentials: "same-origin",
-        headers: { "Idempotency-Key": key, "X-CSRF-Token": csrf },
-      });
-      return response.status;
-    },
-    { id, key: randomUUID() },
+async function apiResponse(
+  response: APIResponse,
+): Promise<{ status: number; body: string }> {
+  return { status: response.status(), body: await response.text() };
+}
+
+async function apiCsrfToken(request: APIRequestContext): Promise<string> {
+  const state = await request.storageState();
+  return (
+    state.cookies.find((cookie) => cookie.name === "csrf_token")?.value ?? ""
   );
 }
 
-async function cleanupRunRows(page: Page) {
-  const read = await browserFetch(page, "/api/wishlist");
+async function apiDeleteWithKey(
+  request: APIRequestContext,
+  id: string,
+): Promise<number> {
+  const response = await request.delete(`/api/wishlist/${id}`, {
+    headers: {
+      "Idempotency-Key": randomUUID(),
+      "X-CSRF-Token": await apiCsrfToken(request),
+    },
+  });
+  return response.status();
+}
+
+async function apiPatch(
+  request: APIRequestContext,
+  path: string,
+  body: unknown,
+): Promise<{ status: number; body: string }> {
+  return apiResponse(
+    await request.patch(path, {
+      data: body,
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": await apiCsrfToken(request),
+      },
+    }),
+  );
+}
+
+async function cleanupRunRows(request: APIRequestContext) {
+  const read = await apiResponse(await request.get("/api/wishlist"));
   expect(read.status, read.body).toBe(200);
   const allRows = parseItems(read.body);
   const rows = allRows.filter((item) => item.title.startsWith(RUN_PREFIX));
@@ -477,11 +502,11 @@ async function cleanupRunRows(page: Page) {
     "The dedicated Wishlist fixture contains unrelated rows; refusing to delete them",
   ).toHaveLength(0);
   for (const row of rows) {
-    const status = await deleteWithKey(page, row.id);
+    const status = await apiDeleteWithKey(request, row.id);
     expect(status, `Could not delete owned Wishlist row ${row.id}`).toBe(200);
   }
 
-  const after = await browserFetch(page, "/api/wishlist");
+  const after = await apiResponse(await request.get("/api/wishlist"));
   expect(after.status, after.body).toBe(200);
   const leftovers = parseItems(after.body).filter((item) =>
     item.title.startsWith(RUN_PREFIX),
@@ -491,8 +516,8 @@ async function cleanupRunRows(page: Page) {
   );
 }
 
-async function assertDedicatedFixtureBaselineEmpty(page: Page) {
-  const read = await browserFetch(page, "/api/wishlist");
+async function assertDedicatedFixtureBaselineEmpty(request: APIRequestContext) {
+  const read = await apiResponse(await request.get("/api/wishlist"));
   expect(read.status, read.body).toBe(200);
   expect(
     parseItems(read.body),
@@ -538,6 +563,7 @@ async function openRole(
     }
     const page = await context.newPage();
     await page.clock.install({ time: E2E_ANCHOR });
+    await page.goto("/dashboard/wishlist");
     return { context, page };
   } catch (error) {
     await context.close();
@@ -588,6 +614,7 @@ for (const locale of ["en", "es"] as const) {
       context,
       page,
       baseURL,
+      playwright,
     }, info) => {
       test.skip(
         !PROJECTS.has(info.project.name),
@@ -625,10 +652,16 @@ for (const locale of ["en", "es"] as const) {
       let restored = false;
       let childContext: BrowserContext | undefined;
       let teenContext: BrowserContext | undefined;
+      let cleanupRequest: APIRequestContext | undefined;
+      let primaryError: unknown;
 
       await setLocale(context, locale);
       await installLoopbackGuard(context);
       await installWishlistRoutes(page, routeState);
+      cleanupRequest = await playwright.request.newContext({
+        baseURL,
+        storageState: authFile("parentA"),
+      });
 
       try {
         await page.goto("/dashboard");
@@ -657,8 +690,8 @@ for (const locale of ["en", "es"] as const) {
             exact: true,
           }),
         ).toBeVisible();
-        await cleanupRunRows(page);
-        await assertDedicatedFixtureBaselineEmpty(page);
+        await cleanupRunRows(cleanupRequest);
+        await assertDedicatedFixtureBaselineEmpty(cleanupRequest);
         await page.reload();
         await expect(page.getByText(copy.empty, { exact: true })).toBeVisible();
         await assertTouchTarget(
@@ -875,26 +908,64 @@ for (const locale of ["en", "es"] as const) {
         }
 
         await assertPageHealth(page, info, locale, "final");
+      } catch (error) {
+        primaryError = error;
+        throw error;
       } finally {
-        if (childContext) await childContext.close();
-        if (teenContext) await teenContext.close();
-        try {
-          await cleanupRunRows(page);
-        } finally {
-          if (originalFeatures && featureChanged) {
-            const restore = await browserSend(
-              page,
-              "PATCH",
-              "/api/family/features",
-              {
-                features: originalFeatures,
-              },
-            );
-            restored = restore.status === 200;
-          } else {
-            restored = true;
+        const cleanupErrors: unknown[] = [];
+        const attempt = async (work: () => Promise<void>) => {
+          try {
+            await work();
+          } catch (error) {
+            cleanupErrors.push(error);
           }
+        };
+
+        await attempt(async () => {
+          if (!cleanupRequest)
+            throw new Error("Wishlist cleanup request was not created");
+          await cleanupRunRows(cleanupRequest);
+        });
+        await attempt(async () => {
+          if (originalFeatures && featureChanged) {
+            if (!cleanupRequest)
+              throw new Error("Wishlist cleanup request was not created");
+            const restore = await apiPatch(
+              cleanupRequest,
+              "/api/family/features",
+              { features: originalFeatures },
+            );
+            expect(restore.status, restore.body).toBe(200);
+          }
+          restored = true;
+        });
+        await attempt(async () => {
           if (featureAudit) await featureAudit(restored);
+        });
+
+        const closeResults = await Promise.allSettled([
+          (async () => {
+            if (childContext) await childContext.close();
+          })(),
+          (async () => {
+            if (teenContext) await teenContext.close();
+          })(),
+          (async () => {
+            if (cleanupRequest) await cleanupRequest.dispose();
+          })(),
+        ]);
+        for (const result of closeResults) {
+          if (result.status === "rejected") cleanupErrors.push(result.reason);
+        }
+
+        const primaryFailure =
+          primaryError !== undefined ||
+          info.errors.length > 0 ||
+          (info.status !== undefined && info.status !== info.expectedStatus);
+        if (!primaryFailure && cleanupErrors.length > 0) {
+          throw cleanupErrors.length === 1
+            ? cleanupErrors[0]
+            : new AggregateError(cleanupErrors, "Wishlist cleanup failed");
         }
       }
     });
