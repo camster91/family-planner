@@ -379,6 +379,7 @@ it('keeps a successful save announcement outside the note cards', async () => {
   await user.click(screen.getByRole('button', { name: 'notes.save' }))
   await screen.findByText('notes.saved')
   expect(screen.getAllByRole('status')).toHaveLength(1)
+  expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }))
   expect(screen.getByTestId('note-card').querySelector('[role="status"]')).toBeNull()
 })
 
@@ -407,4 +408,18 @@ it('closes an early Add draft if the pending initial load discovers no household
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(screen.queryByRole('button', { name: 'notes.addNote' })).toBeNull()
   expect(global.fetch).toHaveBeenCalledTimes(1)
+})
+
+
+it('returns Cancel to Add after dismissing an earlier success notice', async () => {
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await user.click(await screen.findByText('Wifi code'))
+  await user.click(screen.getByRole('button', { name: 'notes.save' }))
+  await screen.findByText('notes.saved')
+  const opener = screen.getByRole('button', { name: 'notes.addNote' })
+  await user.click(opener)
+  expect(screen.queryByText('notes.saved')).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'notes.cancel' }))
+  expect(document.activeElement).toBe(opener)
 })

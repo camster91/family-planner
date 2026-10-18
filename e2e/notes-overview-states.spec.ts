@@ -184,6 +184,7 @@ for (const locale of ["en", "es"] as const) {
         .getByRole("button", { name: copy.save, exact: true })
         .click();
       await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
       await expect(page.getByRole("main").getByRole("status")).toHaveText(
         copy.savedRefresh,
       );

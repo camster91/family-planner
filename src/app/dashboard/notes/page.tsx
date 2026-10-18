@@ -91,6 +91,7 @@ function NotesPageInner() {
   const { canManage } = useFeatures()
   const { t } = useTranslation()
   const locale = useDisplayLocale()
+  const headingRef = React.useRef<HTMLHeadingElement>(null)
   const colorOptions: Array<{ key: 'yellow' | 'pink' | 'blue' | 'green' | 'purple'; label: string }> = [
     { key: 'yellow', label: t('notes.colorYellow') },
     { key: 'pink', label: t('notes.colorPink') },
@@ -168,9 +169,14 @@ function NotesPageInner() {
     fetchNotes()
   }, [fetchNotes])
 
+  React.useEffect(() => {
+    if (modalState === null && (notice || error === 'household')) headingRef.current?.focus()
+  }, [notice, modalState, error])
+
   const loadErrorMessage = error === 'load' ? t('notes.errorLoad') : null
 
   const openAddModal = () => {
+    setNotice(null)
     setFormTitle('')
     setFormBody('')
     setFormColor('yellow')
@@ -180,6 +186,7 @@ function NotesPageInner() {
   }
 
   const openEditModal = (note: Note) => {
+    setNotice(null)
     setFormTitle(note.title)
     setFormBody(note.body)
     setFormColor(note.color)
@@ -271,7 +278,7 @@ function NotesPageInner() {
       {/* Header */}
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-large-title font-display">{t('notes.title')}</h1>
+          <h1 ref={headingRef} tabIndex={-1} className="text-large-title font-display rounded-[var(--radius-sm)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">{t('notes.title')}</h1>
           <p className="text-subhead text-label-secondary mt-0.5">{t('notes.subtitle')}</p>
           {!loading && !error && <p className="mt-2 text-footnote text-label-secondary">{t(notes.length === 1 ? 'notes.countOne' : 'notes.countMany', { count: notes.length.toLocaleString(locale) })}</p>}
         </div>

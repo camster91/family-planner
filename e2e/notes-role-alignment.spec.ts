@@ -688,13 +688,29 @@ test("parent delete remains available while Family B cannot cross household boun
     });
     expect(created.status, created.body).toBe(201);
     const id = (JSON.parse(created.body) as { note: { id: string } }).note.id;
-    const deleted = await browserSend(
-      parent.page,
-      "DELETE",
-      `/api/notes/${encodeURIComponent(id)}`,
-      { id },
+    await visitNotes(parent.page, "en");
+    await parent.page
+      .getByRole("button", {
+        name: `${NOTE_TITLE_PREFIX} parent delete`,
+        exact: true,
+      })
+      .click();
+    const reply = parent.page.waitForResponse(
+      (response) =>
+        response.request().method() === "DELETE" &&
+        new URL(response.url()).pathname ===
+          `/api/notes/${encodeURIComponent(id)}`,
     );
-    expect(deleted.status, deleted.body).toBe(200);
+    await parent.page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Delete", exact: true })
+      .click();
+    const deleted = await reply;
+    expect(deleted.status(), await deleted.text()).toBe(200);
+    await expect(parent.page.getByRole("dialog")).toHaveCount(0);
+    await expect(
+      parent.page.getByRole("heading", { name: "Notes", level: 1 }),
+    ).toBeFocused();
     expect((await browserFetch(parent.page, "/api/notes")).body).not.toContain(
       id,
     );
