@@ -206,7 +206,9 @@ async function openSurface(page: Page, surface: Surface, locale: Locale) {
   const boardCopy = locale === "es" ? rewardsSpanish : rewardsEnglish;
   if (surface === "sheet") {
     await page.goto("/dashboard/rewards");
-    await page.getByRole("link", { name: boardCopy.addReward, exact: true }).click();
+    await page
+      .getByRole("link", { name: boardCopy.addReward, exact: true })
+      .click();
     const dialog = page.getByRole("dialog", { name: copy.sheetTitle });
     await expect(dialog).toBeVisible();
     await expect(
@@ -265,7 +267,8 @@ for (const locale of ["en", "es"] as const) {
           return;
         }
         postBodies.push(route.request().postDataJSON());
-        const idempotencyKey = route.request().headers()["idempotency-key"] ?? "";
+        const idempotencyKey =
+          route.request().headers()["idempotency-key"] ?? "";
         postIdempotencyKeys.push(idempotencyKey);
         expect(isValidIdempotencyKey(idempotencyKey)).toBe(true);
         if (mode === "failure") {
@@ -282,8 +285,7 @@ for (const locale of ["en", "es"] as const) {
         if (continueRequest) {
           ownedReceiptKeys.add(idempotencyKey);
           await route.continue();
-        }
-        else await route.abort();
+        } else await route.abort();
       });
 
       try {
@@ -430,7 +432,9 @@ for (const locale of ["en", "es"] as const) {
           if (surface === "sheet") await page.goto("/dashboard/rewards");
         }
         expect(postIdempotencyKeys).toHaveLength(4);
-        expect(new Set(postIdempotencyKeys).size).toBe(postIdempotencyKeys.length);
+        expect(new Set(postIdempotencyKeys).size).toBe(
+          postIdempotencyKeys.length,
+        );
         for (const key of postIdempotencyKeys) {
           expect(isValidIdempotencyKey(key)).toBe(true);
         }

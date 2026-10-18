@@ -203,7 +203,9 @@ async function assertTouchTarget(page: Page, target: Locator) {
 }
 
 async function selectSyntheticCategory(dialog: Locator, locale: "en" | "es") {
-  const category = dialog.getByRole("combobox", { name: budgetMessages[locale].transactionCategory });
+  const category = dialog.getByRole("combobox", {
+    name: budgetMessages[locale].transactionCategory,
+  });
   await expect(category).toBeVisible();
   await expect(category).toBeEnabled();
   await expect(
@@ -538,8 +540,13 @@ for (const locale of ["en", "es"] as const) {
           page.getByRole("button", { name: copy.refreshingBudget }),
         ).toBeDisabled();
 
-        await page.getByRole("button", { name: copy.addExpense }).first().click();
-        const dialog = page.getByRole("dialog", { name: copy.transactionAddTitle });
+        await page
+          .getByRole("button", { name: copy.addExpense })
+          .first()
+          .click();
+        const dialog = page.getByRole("dialog", {
+          name: copy.transactionAddTitle,
+        });
         await expect(dialog).toBeVisible();
         await expect.poll(() => harness.categoryCalls).toBe(1);
         await expect(dialog.getByRole("alert")).toContainText(
@@ -552,10 +559,16 @@ for (const locale of ["en", "es"] as const) {
         await retryCategories.click();
         await selectSyntheticCategory(dialog, locale);
         await dialog.getByLabel(copy.transactionAmount).fill("25");
-        await dialog.getByLabel(copy.transactionDescription).fill("Synthetic queued save");
+        await dialog
+          .getByLabel(copy.transactionDescription)
+          .fill("Synthetic queued save");
 
-        const submit = dialog.getByRole("button", { name: copy.addTransaction });
-        const cancel = dialog.getByRole("button", { name: copy.transactionCancel });
+        const submit = dialog.getByRole("button", {
+          name: copy.addTransaction,
+        });
+        const cancel = dialog.getByRole("button", {
+          name: copy.transactionCancel,
+        });
         await assertTouchTarget(page, submit);
         await assertTouchTarget(page, cancel);
         await assertAccessibleAndContained(
@@ -575,7 +588,10 @@ for (const locale of ["en", "es"] as const) {
 
         // A structured error envelope cannot leak its code/message, and the
         // failed save keeps the user's draft available for correction/retry.
-        await page.getByRole("button", { name: copy.addExpense }).first().click();
+        await page
+          .getByRole("button", { name: copy.addExpense })
+          .first()
+          .click();
         const recoveryDialog = page.getByRole("dialog", {
           name: copy.transactionAddTitle,
         });
@@ -593,10 +609,12 @@ for (const locale of ["en", "es"] as const) {
         await expect(saveError).not.toContainText(
           "synthetic private financial implementation detail",
         );
-        await expect(recoveryDialog.getByLabel(copy.transactionAmount)).toHaveValue("50");
-        await expect(recoveryDialog.getByLabel(copy.transactionDescription)).toHaveValue(
-          "Synthetic draft to preserve",
-        );
+        await expect(
+          recoveryDialog.getByLabel(copy.transactionAmount),
+        ).toHaveValue("50");
+        await expect(
+          recoveryDialog.getByLabel(copy.transactionDescription),
+        ).toHaveValue("Synthetic draft to preserve");
 
         // The next synthetic request stays pending. Escape and Cancel must not
         // dismiss the sheet or lose its draft while the mutation is unresolved.
@@ -614,15 +632,17 @@ for (const locale of ["en", "es"] as const) {
         await expect(recoveryDialog.getByLabel("Close")).toHaveCount(0);
         await page.keyboard.press("Escape");
         await expect(recoveryDialog).toBeVisible();
-        await expect(recoveryDialog.getByLabel(copy.transactionAmount)).toHaveValue("60");
+        await expect(
+          recoveryDialog.getByLabel(copy.transactionAmount),
+        ).toHaveValue("60");
         expect(harness.pendingPost).toBeTruthy();
         harness.pendingPost!.release();
         await expect(recoveryDialog.getByRole("alert")).toContainText(
           copy.saveFailed,
         );
-        await expect(recoveryDialog.getByLabel(copy.transactionDescription)).toHaveValue(
-          "Synthetic draft to preserve",
-        );
+        await expect(
+          recoveryDialog.getByLabel(copy.transactionDescription),
+        ).toHaveValue("Synthetic draft to preserve");
         await assertAccessibleAndContained(
           page,
           info,
