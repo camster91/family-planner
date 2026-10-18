@@ -1,40 +1,58 @@
-import { Suspense } from 'react'
-import Link from 'next/link'
-import { notFound } from 'next/navigation'
-import { ArrowLeft, CalendarPlus } from 'lucide-react'
-import { getServerUser } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
-import { LargeHeader } from '@/components/ui/large-header'
-import { ProgressRing } from '@/components/ui/progress-ring'
-import { EmptyState } from '@/components/ui/empty-state'
-import { FeatureOffState } from '@/components/ui/feature-gate'
-import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
-import { ProjectDetailActions } from './ProjectDetailActions'
-import { ProjectTaskChecklist, type ChecklistTask } from './ProjectTaskChecklist'
-import { SendToCalendarButton } from './SendToCalendarButton'
-import { AddProjectTaskForm } from '@/components/projects/AddProjectTaskForm'
+import { Suspense } from "react";
+import { notFound } from "next/navigation";
+import { getServerUser } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
+import { LargeHeader } from "@/components/ui/large-header";
+import { ProgressRing } from "@/components/ui/progress-ring";
+import { FeatureOffState } from "@/components/ui/feature-gate";
+import { isFeatureEnabled, normalizeFeatures } from "@/lib/features";
+import {
+  ProjectCalendarCopy,
+  ProjectDetailBackLink,
+  ProjectProgressSummary,
+  ProjectTasksHeading,
+  ProjectTasksEmpty,
+} from "../ProjectOverviewCopy";
+import { ProjectDetailActions } from "./ProjectDetailActions";
+import {
+  ProjectTaskChecklist,
+  type ChecklistTask,
+} from "./ProjectTaskChecklist";
+import { SendToCalendarButton } from "./SendToCalendarButton";
+import { AddProjectTaskForm } from "@/components/projects/AddProjectTaskForm";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 interface ProjectDetailPageProps {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }>;
 }
 
 async function ProjectDetailContent({ id }: { id: string }) {
-  const sessionUser = await getServerUser()
-  if (!sessionUser) return null
+  const sessionUser = await getServerUser();
+  if (!sessionUser) return null;
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    select: { family_id: true, role: true, family: { select: { features: true } } },
-  })
+    select: {
+      family_id: true,
+      role: true,
+      family: { select: { features: true } },
+    },
+  });
 
-  const familyId = user?.family_id
-  if (!familyId) return null
+  const familyId = user?.family_id;
+  if (!familyId) return null;
 
   // Same server-side gate as the projects list (route inventory F-2).
-  if (!isFeatureEnabled(normalizeFeatures(user?.family?.features), 'projects')) {
-    return <FeatureOffState featureKey="projects" canManage={sessionUser.role !== 'teen' && sessionUser.role !== 'child'} />
+  if (
+    !isFeatureEnabled(normalizeFeatures(user?.family?.features), "projects")
+  ) {
+    return (
+      <FeatureOffState
+        featureKey="projects"
+        canManage={sessionUser.role !== "teen" && sessionUser.role !== "child"}
+      />
+    );
   }
 
   const project = await prisma!.project.findUnique({
@@ -49,46 +67,46 @@ async function ProjectDetailContent({ id }: { id: string }) {
             select: { id: true, name: true, avatar_url: true },
           },
         },
-        orderBy: { position: 'asc' },
+        orderBy: { position: "asc" },
       },
     },
-  })
+  });
 
   if (!project || project.family_id !== familyId) {
-    notFound()
+    notFound();
   }
 
-  const totalTasks = project.tasks.length
-  const completedTasks = project.tasks.filter((t) => t.completed).length
-  const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+  const totalTasks = project.tasks.length;
+  const completedTasks = project.tasks.filter((t) => t.completed).length;
+  const progress =
+    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   // Get family members for assignment dropdown
   const familyMembers = await prisma!.user.findMany({
     where: { family_id: familyId },
     select: { id: true, name: true },
-    orderBy: { name: 'asc' },
-  })
+    orderBy: { name: "asc" },
+  });
 
   // Plain data only: this is a server component, so nothing it passes to the
   // client components below may be a function.
   const taskData: ChecklistTask[] = project.tasks.map((t) => ({
     id: t.id,
     title: t.title,
+    description: t.description,
     completed: t.completed,
+    assigneeName: t.assignee?.name ?? null,
     due_date: t.due_date ? t.due_date.toISOString() : null,
-  }))
+  }));
 
-  const isParent = user.role === 'parent'
-  const isComplete = project.status === 'completed' || progress === 100
+  const isParent = user.role === "parent";
+  const isComplete = project.status === "completed" || progress === 100;
 
   return (
     <div className="pb-20">
       {/* Back link + LargeHeader */}
       <div className="px-4 pt-4">
-        <Link href="/dashboard/projects" className="inline-flex items-center gap-1.5 text-subhead text-label-secondary hover:text-label-primary transition-colors mb-3">
-          <ArrowLeft className="w-4 h-4" />
-          Projects
-        </Link>
+        <ProjectDetailBackLink />
         <LargeHeader
           title={project.name}
           subtitle={project.description || undefined}
@@ -96,7 +114,9 @@ async function ProjectDetailContent({ id }: { id: string }) {
             <ProjectDetailActions
               projectId={project.id}
               projectName={project.name}
-              projectStatus={project.status as 'active' | 'completed' | 'archived'}
+              projectStatus={
+                project.status as "active" | "completed" | "archived"
+              }
               isParent={isParent}
             />
           }
@@ -111,66 +131,62 @@ async function ProjectDetailContent({ id }: { id: string }) {
             size={80}
             strokeWidth={8}
           >
-            <span className="text-[28px] font-bold leading-none">{progress}%</span>
+            <span className="text-[28px] font-bold leading-none">
+              {progress}%
+            </span>
           </ProgressRing>
-          <div className="flex-1 min-w-0">
-            <p className="text-title-3 text-label-primary leading-tight">
-              {totalTasks > 0 ? `${completedTasks} of ${totalTasks} tasks done` : 'No tasks yet'}
-            </p>
-            {totalTasks > 0 && progress < 100 && (
-              <p className="text-subhead text-label-secondary mt-1">{totalTasks - completedTasks} remaining</p>
-            )}
-            {progress === 100 && totalTasks > 0 && (
-              <p className="text-subhead text-success-text mt-1 font-medium">All done!</p>
-            )}
+          <div className="min-w-0 flex-1">
+            <ProjectProgressSummary
+              completed={completedTasks}
+              total={totalTasks}
+              progress={progress}
+            />
           </div>
           {/* Color accent dot */}
-          <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: project.color || '#3B82F6' }} />
+          <div
+            className="w-3 h-3 rounded-full shrink-0"
+            style={{ backgroundColor: project.color || "#3B82F6" }}
+          />
         </div>
 
         {/* Tasks section */}
         <section>
-          <p className="section-header">Tasks</p>
+          <ProjectTasksHeading />
           {taskData.length === 0 ? (
-            <EmptyState
-              icon={CalendarPlus}
-              glyphColor="projects"
-              title="No tasks yet"
-              description={
-                project.status === 'active' ? 'Break this project into tasks with Add task.' : 'This project has no tasks.'
-              }
-            />
+            <ProjectTasksEmpty active={project.status === "active"} />
           ) : (
             <ProjectTaskChecklist
               projectId={project.id}
               tasks={taskData}
-              canToggle={isParent && project.status === 'active'}
+              canToggle={isParent && project.status === "active"}
             />
           )}
           {/* Route inventory F-5 (#289): add a task to this project. The API
               takes tasks only while the project is active. */}
-          {project.status === 'active' && (
+          {project.status === "active" && (
             <div className="mt-3">
-              <AddProjectTaskForm projectId={project.id} familyMembers={familyMembers} />
+              <AddProjectTaskForm
+                projectId={project.id}
+                familyMembers={familyMembers}
+              />
             </div>
           )}
         </section>
 
         {/* Send to Calendar CTA */}
-        {project.status === 'active' && totalTasks > 0 && completedTasks < totalTasks && (
-          <div className="card-apple p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-subhead text-label-primary font-semibold mb-1">Send tasks to calendar</h3>
-              <p className="text-footnote text-label-secondary">
-                Add incomplete tasks with due dates to the calendar as all-day events.
-              </p>
+        {project.status === "active" &&
+          totalTasks > 0 &&
+          completedTasks < totalTasks && (
+            <div className="card-apple p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <ProjectCalendarCopy />
+              </div>
+              <SendToCalendarButton projectId={project.id} />
             </div>
-            <SendToCalendarButton projectId={project.id} />
-          </div>
-        )}
+          )}
       </div>
     </div>
-  )
+  );
 }
 
 // --- Skeleton ---
@@ -184,12 +200,12 @@ function ProjectDetailSkeleton() {
       </div>
       <div className="card-apple p-5 h-32" />
       <div className="space-y-1">
-        {[1, 2, 3].map(i => (
+        {[1, 2, 3].map((i) => (
           <div key={i} className="h-14 bg-muted rounded-xl" />
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 // --- Page export ---
@@ -199,10 +215,14 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
     <Suspense fallback={<ProjectDetailSkeleton />}>
       <AsyncProjectDetail params={params} />
     </Suspense>
-  )
+  );
 }
 
-async function AsyncProjectDetail({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  return <ProjectDetailContent id={id} />
+async function AsyncProjectDetail({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  return <ProjectDetailContent id={id} />;
 }

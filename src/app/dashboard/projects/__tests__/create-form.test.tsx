@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 import CreateProjectForm from "../create/CreateProjectForm";
 import { ProjectCreateSheet } from "@/components/projects/ProjectCreateSheet";
+import { isValidIdempotencyKey } from "@/lib/idempotency-key";
 
 const push = jest.fn();
 const refresh = jest.fn();
@@ -65,6 +66,9 @@ it("keeps the direct form destination and sends the selected project fields", as
       }),
     }),
   );
+  const headers = (global.fetch as jest.Mock).mock.calls[0][1]
+    .headers as Record<string, string>;
+  expect(isValidIdempotencyKey(headers["Idempotency-Key"])).toBe(true);
   expect(screen.getByRole("button", { name: "Color: Blue" })).toHaveClass(
     "h-11",
     "w-11",
@@ -248,5 +252,7 @@ it("replaces the direct Back link while a request is pending", async () => {
     "true",
   );
 
-  await act(async () => release(response(201, { project: { id: "project-3" } })));
+  await act(async () =>
+    release(response(201, { project: { id: "project-3" } })),
+  );
 });
