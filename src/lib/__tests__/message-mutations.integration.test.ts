@@ -37,6 +37,7 @@ const PICKUP_A = `${PREFIX}-pickup-a`;
 const PICKUP_B = `${PREFIX}-pickup-b`;
 
 const actorA: MessageActor = { id: PARENT_A, familyId: FAMILY_A };
+const actorChildA: MessageActor = { id: CHILD_A, familyId: FAMILY_A };
 const actorB: MessageActor = { id: PARENT_B, familyId: FAMILY_B };
 
 const body = (overrides: Partial<MessageWriteBody> = {}): MessageWriteBody => ({
@@ -320,5 +321,77 @@ describeWithDatabase("message mutations against disposable PostgreSQL", () => {
     expect(
       await db.message.findMany({ where: { family_id: FAMILY_A } }),
     ).toHaveLength(1);
+  });
+
+  it("keeps identical uploads owned and allocates fresh rows after a claim", async () => {
+    const bytes = new Uint8Array([9, 8, 7, 6]);
+    const parentDraft = await storeMessageAttachment(
+      db,
+      FAMILY_A,
+      PARENT_A,
+      bytes,
+      "image/png",
+      "png",
+      uploadDir,
+    );
+    const sameUploaderDraft = await storeMessageAttachment(
+      db,
+      FAMILY_A,
+      PARENT_A,
+      bytes,
+      "image/png",
+      "png",
+      uploadDir,
+    );
+    expect(sameUploaderDraft.id).toBe(parentDraft.id);
+
+    const childDraft = await storeMessageAttachment(
+      db,
+      FAMILY_A,
+      CHILD_A,
+      bytes,
+      "image/png",
+      "png",
+      uploadDir,
+    );
+    expect(childDraft.id).not.toBe(parentDraft.id);
+    expect(childDraft.filename).not.toBe(parentDraft.filename);
+
+    const childCannotClaimParentDraft = await send(
+      actorChildA,
+      body({ content: "Child cannot claim parent draft", attachment_ids: [parentDraft.id] }),
+      null,
+    );
+    expect(childCannotClaimParentDraft.status).toBe(404);
+
+    const parentCommitted = await send(
+      actorA,
+      body({ content: "Parent sends the photo", attachment_ids: [parentDraft.id] }),
+      null,
+    );
+    expect(parentCommitted.status).toBe(200);
+
+    const parentReuploadAfterClaim = await storeMessageAttachment(
+      db,
+      FAMILY_A,
+      PARENT_A,
+      bytes,
+      "image/png",
+      "png",
+      uploadDir,
+    );
+    expect(parentReuploadAfterClaim.id).not.toBe(parentDraft.id);
+    expect(parentReuploadAfterClaim.filename).not.toBe(parentDraft.filename);
+
+    const childCommitted = await send(
+      actorChildA,
+      body({ content: "Child sends the photo", attachment_ids: [childDraft.id] }),
+      null,
+    );
+    expect(childCommitted.status).toBe(200);
+    expect(
+      await db.messageAttachment.findUnique({ where: { id: parentReuploadAfterClaim.id } }),
+    ).toMatchObject({ family_id: FAMILY_A, uploaded_by: PARENT_A, message_id: null });
+    expect(await db.message.count({ where: { family_id: FAMILY_A } })).toBe(2);
   });
 });

@@ -76,7 +76,7 @@ const PNG = Uint8Array.from([
 ]);
 
 function uploadReq(
-  as: "parentA" | "parentB" = "parentA",
+  as: "parentA" | "parentB" | "childA" = "parentA",
   bytes = PNG,
   headers: Record<string, string> = {},
 ) {
@@ -216,6 +216,39 @@ describe("message attachment routes", () => {
     ]);
     expect([...mockFiles.keys()].some((file) => file.endsWith(".tmp"))).toBe(
       false,
+    );
+  });
+
+  it("deduplicates only an uploader's draft and isolates another member's identical upload", async () => {
+    const first = await uploadAttachment(uploadReq("parentA") as never);
+    const firstBody = await first.json();
+    const sameUploader = await uploadAttachment(uploadReq("parentA") as never);
+    const sameUploaderBody = await sameUploader.json();
+    const otherMember = await uploadAttachment(uploadReq("childA") as never);
+    const otherMemberBody = await otherMember.json();
+
+    expect(first.status).toBe(201);
+    expect(sameUploader.status).toBe(201);
+    expect(otherMember.status).toBe(201);
+    expect(sameUploaderBody.attachment.id).toBe(firstBody.attachment.id);
+    expect(otherMemberBody.attachment.id).not.toBe(firstBody.attachment.id);
+    expect(db.rows("messageAttachment")).toHaveLength(2);
+    expect(db.rows("messageAttachment")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: firstBody.attachment.id,
+          family_id: FAMILY_A,
+          uploaded_by: "parent-a",
+        }),
+        expect.objectContaining({
+          id: otherMemberBody.attachment.id,
+          family_id: FAMILY_A,
+          uploaded_by: "child-a",
+        }),
+      ]),
+    );
+    expect(db.rows("messageAttachment").every((row) => row.message_id == null)).toBe(
+      true,
     );
   });
 

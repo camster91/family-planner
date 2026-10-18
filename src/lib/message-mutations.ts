@@ -157,6 +157,7 @@ export async function createMessageEffect(
         where: {
           id: { in: attachmentIds },
           family_id: actor.familyId,
+          uploaded_by: actor.id,
           message_id: null,
         },
         select: { id: true, filename: true },
@@ -183,6 +184,7 @@ export async function createMessageEffect(
         where: {
           id: { in: attachments.map((item) => item.id) },
           family_id: actor.familyId,
+          uploaded_by: actor.id,
           message_id: null,
         },
         data: { message_id: created.id },

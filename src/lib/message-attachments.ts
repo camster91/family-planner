@@ -37,6 +37,25 @@ export function messageAttachmentFilename(
   return `${crypto.createHash('sha256').update(`family:${familyId}\nmessage\n`).update(bytes).digest('hex').slice(0, 32)}.${ext}`
 }
 
+/**
+ * A fresh filename is needed when a content-identical upload is already
+ * claimed, or belongs to another uploader's draft. The content digest remains
+ * part of the name for useful locality, while the nonce prevents one row and
+ * one file from being handed to two message intents.
+ */
+function freshMessageAttachmentFilename(
+  familyId: string,
+  bytes: Uint8Array,
+  ext: string,
+): string {
+  return `${crypto
+    .createHash('sha256')
+    .update(`family:${familyId}\nmessage\n${crypto.randomUUID()}\n`)
+    .update(bytes)
+    .digest('hex')
+    .slice(0, 32)}.${ext}`
+}
+
 export function messageAttachmentFilePath(
   filename: string,
   uploadDir = resolveUploadDir(),
@@ -74,21 +93,21 @@ export async function storeMessageAttachment(
     throw new Error('MESSAGE_ATTACHMENT_TOO_LARGE')
   const dir = messageAttachmentDir(uploadDir)
   await mkdir(dir, { recursive: true })
-  const filename = messageAttachmentFilename(familyId, bytes, ext)
-  const filepath = messageAttachmentFilePath(filename, uploadDir)
-  const tmp = `${filepath}.${crypto.randomUUID()}.tmp`
-  await import('fs/promises').then(({ writeFile }) => writeFile(tmp, bytes))
-
+  let filename = messageAttachmentFilename(familyId, bytes, ext)
   let created = false
+  let row: StoredMessageAttachment
+  let tmp: string | undefined
   try {
-    const row = await db.$transaction(async (tx: any) => {
+    row = await db.$transaction(async (tx: any) => {
       if (!(await lockHouseholdForJoin(tx, familyId)))
         throw new Error('MESSAGE_FAMILY_NOT_FOUND')
-      const existing = await tx.messageAttachment.findUnique({
+      let existing = await tx.messageAttachment.findUnique({
         where: { filename },
         select: {
           id: true,
           family_id: true,
+          uploaded_by: true,
+          message_id: true,
           filename: true,
           content_type: true,
           size_bytes: true,
@@ -97,7 +116,27 @@ export async function storeMessageAttachment(
       if (existing) {
         if (existing.family_id !== familyId)
           throw new Error('MESSAGE_ATTACHMENT_COLLISION')
-        return existing
+        // Reusing an unclaimed draft is safe only for the uploader who owns
+        // the pending intent. A claimed row, or another member's draft, gets
+        // a new row and file even when the bytes are identical.
+        if (existing.message_id == null && existing.uploaded_by === userId)
+          return existing
+
+        let available = false
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          filename = freshMessageAttachmentFilename(familyId, bytes, ext)
+          existing = await tx.messageAttachment.findUnique({
+            where: { filename },
+            select: { id: true, family_id: true },
+          })
+          if (!existing) {
+            available = true
+            break
+          }
+          if (existing.family_id !== familyId)
+            throw new Error('MESSAGE_ATTACHMENT_COLLISION')
+        }
+        if (!available) throw new Error('MESSAGE_ATTACHMENT_COLLISION')
       }
       created = true
       return tx.messageAttachment.create({
@@ -118,18 +157,13 @@ export async function storeMessageAttachment(
       })
     })
 
+    const filepath = messageAttachmentFilePath(filename, uploadDir)
+    const tempPath = `${filepath}.${crypto.randomUUID()}.tmp`
+    tmp = tempPath
+    await import('fs/promises').then(({ writeFile }) => writeFile(tempPath, bytes))
     const placed = !existsSync(filepath)
     if (placed) {
-      try {
-        await rename(tmp, filepath)
-      } catch (error) {
-        if (created) {
-          await db.messageAttachment
-            .deleteMany({ where: { filename, family_id: familyId } })
-            .catch(() => {})
-        }
-        throw error
-      }
+      await rename(tempPath, filepath)
     }
     const still = await db.messageAttachment.findUnique({
       where: { filename },
@@ -145,8 +179,15 @@ export async function storeMessageAttachment(
       content_type: row.content_type,
       size_bytes: row.size_bytes,
     }
+  } catch (error) {
+    if (created) {
+      await db.messageAttachment
+        .deleteMany({ where: { filename, family_id: familyId } })
+        .catch(() => {})
+    }
+    throw error
   } finally {
-    await unlink(tmp).catch(() => {})
+    if (tmp) await unlink(tmp).catch(() => {})
   }
 }
 
