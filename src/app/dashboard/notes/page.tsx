@@ -316,7 +316,8 @@ function NotesPageInner() {
           }
         />
       ) : loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div role="status" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <span className="sr-only">{t('notes.loading')}</span>
           <Skeleton className="h-[160px]" />
           <Skeleton className="h-[160px]" />
           <Skeleton className="h-[160px]" />
