@@ -130,7 +130,10 @@ export default function RewardsBoard({
   // Retired rewards remain visible in the family history, but cannot re-enter
   // the claim shelf. This keeps past choices auditable without offering stale
   // actions.
-  const familyRewards = localRewards.filter((reward) => reward.active === false || !['available', 'claimed'].includes(reward.status))
+  const familyRewards = localRewards.filter((reward) =>
+    (reward.status === 'available' && reward.active === false) ||
+    !['available', 'claimed'].includes(reward.status),
+  )
 
   const pointsUnit = (count: number) => rewardsText(count === 1 ? 'point' : 'points')
 

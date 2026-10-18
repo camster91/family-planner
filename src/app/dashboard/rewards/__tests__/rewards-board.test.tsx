@@ -91,6 +91,13 @@ describe('RewardsBoard', () => {
     expect(within(retired).queryByRole('button', { name: /Claim/ })).toBeNull()
   })
 
+  it('keeps an inactive claimed reward in pending review without duplicating it in history', () => {
+    renderBoard({ rewards: [{ ...ICE_CREAM, active: false }], isParent: true, currentUserId: 'parent_1' })
+    expect(screen.getAllByTestId('family-reward')).toHaveLength(1)
+    expect(within(screen.getByRole('region', { name: 'Claimed' })).getByText('Ice cream')).toBeTruthy()
+    expect(within(screen.getByRole('region', { name: 'All family rewards' })).queryByText('Ice cream')).toBeNull()
+  })
+
   it('retries an uncertain claim with the same idempotency key', async () => {
     const user = userEvent.setup()
     const requests: RequestInit[] = []
