@@ -46,6 +46,7 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Feature / surface | Approved direction | Current implementation disposition |
 | --- | --- | --- |
 | Shared personal navigation | Five parent tabs, searchable Explore, Family within Core | Candidate in progress; child/teen tabs retained |
+| Today (person home) | A capped Next up card, dinner and a quiet look ahead | Candidate combines scoped events/chores; focused checks/source review passed, rendered and hosted acceptance pending |
 | Chores | Grouped series, selected weekdays, clear owner, contextual actions | Existing behavior retained; approved layout review pending |
 | Calendar | Readable week/agenda, duration and clear connection controls | Existing behavior retained; approved layout review pending |
 | Lists | Direct groceries, custom lists, simple create/edit | Candidate compact overview and short create form; bounded source/runtime review passed, hosted acceptance and detail-context review pending |
@@ -106,3 +107,30 @@ fresh exact-head hosted checks remain required.
 
 Lists detail back-context/localization and remaining feature rows are still
 pending. Do not mark Lists or the all-feature programme complete from this slice.
+
+## Context and Today composition continuation — 2026-10-17
+
+Lists detail Back and successful deletion retain the validated type filter;
+creation Cancel retains the origin filter, while successful creation shows the
+selected created type (unfiltered entry still returns to All Lists). Direct and
+intercepted forms receive validated initial context from the server, avoiding a
+transient unfiltered first render. Local fabricated create/delete cleanup
+retained all seven original lists. Other detail-copy migration remains pending.
+
+The person-app Today candidate combines the existing scoped upcoming events and
+remaining household chores into one Next up card. It caps visible rows at six,
+reserves room for both kinds of work, reports separate continuation counts and
+keeps full destinations, approval totals, paused-profile status and existing
+completion/Undo hooks. Personal-summary exclusions remain in the existing view
+model. Shared fridge mode keeps its original separate schedule/chores layout;
+no DTO, permission, profile flag, API, scheduler or provider changes are made.
+This slice does not invent pickup confirmations or AI suggestions from gallery
+example content. Wider Today controls and other coverage rows remain pending.
+
+At the pre-inventory-reconciliation Today source, 64 affected tests/types/lint
+and optimized build passed. The full unit run passed 5,698 tests with 387
+established opt-in skips, three retained Mac backup-prune failures and one copy
+inventory failure. The latter identified two now-localized List detail labels;
+only those obsolete literal records were removed and the original five-test
+copy guard passed. No guard, baseline, assertion or skip was weakened. Fresh
+candidate browser, performance, hosted and release gates remain required.
