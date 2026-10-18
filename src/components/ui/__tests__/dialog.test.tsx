@@ -186,5 +186,27 @@ it.each([false, true])(
         name: shiftKey ? "Close" : "Inside details",
       }),
     ).toHaveFocus();
+
+    // Pending form fields cannot supply keyboard access to a scrollable body.
+    // Keep that body reachable even when only fixed footer actions are enabled.
+    view.rerender(
+      <Dialog
+        open
+        title="Pending"
+        variant="form"
+        footer={<button>Keep waiting</button>}
+      >
+        <p>Pending scroll content</p>
+        <fieldset disabled>
+          <input aria-label="Pending name" />
+        </fieldset>
+      </Dialog>,
+    );
+    const scrollBody = screen.getByText(
+      "Pending scroll content",
+    ).parentElement!;
+    expect(scrollBody).toHaveAttribute("tabindex", "0");
+    scrollBody.focus();
+    expect(scrollBody).toHaveFocus();
   },
 );
