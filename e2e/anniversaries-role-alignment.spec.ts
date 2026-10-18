@@ -163,6 +163,8 @@ async function cleanupDevice(db: pg.Client) {
 
 async function seedDevice(db: pg.Client) {
   await cleanupDevice(db);
+  // Credentials must be live for both the fixed calendar clock and the auth clock.
+  const credentialNow = Math.max(E2E_ANCHOR.getTime(), Date.now());
   await db.query(
     `INSERT INTO "HouseholdDevice"
       (id, family_id, label, platform, created_by, confirmed_by, paired_at, created_at, updated_at)
@@ -180,8 +182,8 @@ async function seedDevice(db: pg.Client) {
       A.family,
       hashDeviceToken(DEVICE_ACCESS),
       hashDeviceToken(DEVICE_REFRESH),
-      new Date(E2E_ANCHOR.getTime() + 60 * 60 * 1000),
-      new Date(E2E_ANCHOR.getTime() + 30 * 24 * 60 * 60 * 1000),
+      new Date(credentialNow + 60 * 60 * 1000),
+      new Date(credentialNow + 30 * 24 * 60 * 60 * 1000),
       E2E_ANCHOR,
     ],
   );
@@ -425,6 +427,28 @@ for (const locale of ["en", "es"] as const) {
       try {
         await visitDates(opened.page, locale);
         await assertRuntimeIdentity(opened.page, info, locale);
+        if (role !== "parent") {
+          const menu = opened.page.getByRole("button", {
+            name: locale === "es" ? "Menú de usuario" : "User menu",
+            exact: true,
+          });
+          await menu.click();
+          const datesLink = opened.page
+            .getByTestId("kid-feature-menu-group")
+            .getByRole("link", {
+              name:
+                locale === "es"
+                  ? "Cumpleaños y aniversarios"
+                  : "Birthdays & anniversaries",
+              exact: true,
+            });
+          await expect(datesLink).toBeVisible();
+          await expect(datesLink).toHaveAttribute(
+            "href",
+            "/dashboard/anniversaries",
+          );
+          await menu.click();
+        }
         const body = await datesBody(opened.page);
         expect(body.dates.map((date) => date.id)).not.toContain(
           DATE_IDS.foreign,
@@ -607,10 +631,6 @@ test("paired-device cookies refuse all Anniversaries handlers before person auth
     await context.addCookies([
       { name: "fp_device", value: DEVICE_ACCESS, url: baseURL! },
     ]);
-    const page = await context.newPage();
-    await page.goto("/dashboard/anniversaries", {
-      waitUntil: "domcontentloaded",
-    });
     const routeResponse = await context.request.get(
       `${baseURL}/dashboard/anniversaries`,
       { maxRedirects: 0 },
@@ -620,15 +640,30 @@ test("paired-device cookies refuse all Anniversaries handlers before person auth
       "/device/today",
     );
 
-    const replies = [
-      await browserFetch(page, "/api/anniversaries"),
-      await browserSend(page, "POST", "/api/anniversaries", {
-        name: `${DATE_PREFIX} device write`,
-        type: "anniversary",
-        date: "2026-03-05",
-      }),
-      await browserSend(
-        page,
+    // Use the same browser cookie jar without mounting the shared-device app.
+    // Its lifecycle navigation must not destroy a person-route API assertion.
+    const csrf = (await context.cookies(baseURL!)).find(
+      (cookie) => cookie.name === "csrf_token",
+    )?.value;
+    expect(csrf).toBeTruthy();
+    const deviceIdentity = await context.request.get(
+      `${baseURL}/api/device/me`,
+    );
+    expect(deviceIdentity.status()).toBe(200);
+    expect((await deviceIdentity.json()).device.id).toBe(DEVICE_ID);
+    const replies: Array<{ status: number; body: string }> = [];
+    for (const [method, path, data] of [
+      ["GET", "/api/anniversaries", undefined],
+      [
+        "POST",
+        "/api/anniversaries",
+        {
+          name: `${DATE_PREFIX} device write`,
+          type: "anniversary",
+          date: "2026-03-05",
+        },
+      ],
+      [
         "PATCH",
         `/api/anniversaries/${DATE_IDS.parent}`,
         {
@@ -636,16 +671,21 @@ test("paired-device cookies refuse all Anniversaries handlers before person auth
           type: "anniversary",
           date: "2026-01-17",
         },
-      ),
-      await browserSend(
-        page,
+      ],
+      [
         "DELETE",
         `/api/anniversaries/${DATE_IDS.parent}`,
-        {
-          id: DATE_IDS.parent,
-        },
-      ),
-    ];
+        { id: DATE_IDS.parent },
+      ],
+    ] as const) {
+      const response = await context.request.fetch(`${baseURL}${path}`, {
+        method,
+        data,
+        headers: { "X-CSRF-Token": csrf! },
+        maxRedirects: 0,
+      });
+      replies.push({ status: response.status(), body: await response.text() });
+    }
     for (const reply of replies) {
       expect(reply.status, reply.body).toBe(403);
       expect(JSON.parse(reply.body).error.code).toBe(

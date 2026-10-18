@@ -50,11 +50,11 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Chores | Grouped series, selected weekdays, clear owner, contextual actions | Local Today/Week/Series overview with inline routine stacks; 101 focused units and independent review pass; local six-size overview/completion/Undo/budget checks and incorporated #574 hosted candidate checks pass; wider acceptance pending |
 | Calendar | Readable week/agenda, duration, clear connections and overlap review | Local timing-overlap advisory and one native source selector passed bounded review; incorporated #574 hosted candidate checks pass; mobile Week/workspace and wider visual acceptance pending |
 | Lists | Direct groceries, custom lists, simple create/edit | PR #570 compact overview, short create form and validated Back/create/delete context passed bounded review; incorporated #574 hosted candidate checks pass; remaining detail-copy migration and wider acceptance pending |
-| Family | Add everyone, email-free profiles, clear account-link distinction | Local responsive account roster and EN/ES removal/recovery presentation: 44 affected tests, 78 browser checks and independent review pass; Add Everyone/profile-link and hosted/full acceptance pending |
+| Family | Add everyone, email-free profiles, clear account-link distinction | Local responsive account roster and EN/ES removal/recovery presentation: 44 affected tests, 78 browser checks and independent review pass; Family/Notes #576 candidate hosted acceptance passed and main `768e4170` is merged; production, Add Everyone/profile-link and full acceptance pending |
 | Meals | Week plan, recipes, several-dish prep, eaten/remaining/next prep | Local shared Plan/Explore/Prep navigation candidate; existing canonical meal/prep behavior retained, incorporated #574 hosted candidate checks pass; wider visual/journey acceptance pending |
 | Inventory | Use soon, honest capture review, quantities and locations | Local full-width overview and shared location shortcuts; 121 affected units, exact build and six-size browser 95 passes/10 inherited scope skips; incorporated #574 hosted candidate checks pass; capture-review/wider acceptance pending |
-| Notes | Short shared notes and clear visibility | Local shared board/read-only detail and canonical color/recovery alignment: 42 affected tests, 78 browser passes/15 inherited scope skips; hosted and wider acceptance pending |
-| Anniversaries | Upcoming dates without duplicate noise | Existing behavior retained; approved layout review pending |
+| Notes | Short shared notes and clear visibility | Local shared board/read-only detail and canonical color/recovery alignment: 42 affected tests, 78 browser passes/15 inherited scope skips; Family/Notes #576 candidate hosted acceptance passed and main `768e4170` is merged; production and wider acceptance pending |
+| Anniversaries | Upcoming dates without duplicate noise | Local chronological annual overview, short sheets and role-aware detail/discovery: 128 affected tests and 77 six-size browser passes/10 desktop-only scope skips; source/visual review pass, hosted/recovery/release acceptance pending |
 | Gamification | Optional quiet progress, meaningful dependencies | Existing behavior retained; approved layout review pending |
 | Rewards | Clear costs and role-appropriate actions | Existing behavior retained; approved layout review pending |
 | Budget | Private summaries and contextual details | Existing behavior retained; approved layout review pending |
@@ -419,3 +419,20 @@ write outcomes still need a canonical-state recovery slice, and annual wording
 does not claim scheduled reminders. Full-feature and #499/#128 acceptance remain
 open. No schema, role-policy widening, profile/provider/scheduler activation or
 native/store change is included.
+
+At app `7f2e6417` / final test head `7704da0f`, all 128 affected checks and 77 compiled
+browser cases passed, with 10 declared desktop-only boundary scopes skipped on
+other projects. All six sizes include EN/light and ES/dark, actual role/grant
+and two-household checks, a proven live device and all four API refusals,
+loading/malformed/empty/form/focus states and unchanged startup budgets. 48
+viewport captures are retained. Visual/hosted/release acceptance remains open;
+receipt recovery is a separate unaccepted continuation. A stale Dates route
+allowlist and missing kid-menu entry were repaired against D9; original APIs
+remain role-scoped and no Settings/device/finance route was widened.
+
+Supplemental source e5d2247e passes 15 additional state checks (12 EN/ES journeys
+plus 3 setup) with retained phone scroll/focus/hit geometry and 4 footer captures.
+Independent review of all 52 captures withdraws the initial apparent 390px clipping:
+the expanded list is scrollable, and its final row is fully reachable above the
+fixed bar. There is no remaining material visual blocker. Source/UI recovery,
+hosted and release acceptance are still separate gates.

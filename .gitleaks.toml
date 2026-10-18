@@ -4,8 +4,9 @@
 #
 # The default gitleaks rules apply. The allowlist below is deliberately narrow:
 # it only skips the `generic-api-key` rule, only in test files, and only for
-# values shaped like the fake idempotency keys those tests use. An idempotency
-# key is a client-chosen retry id (a random UUID in the app), not a credential.
+# values shaped like fake idempotency keys or one exact disposable device
+# fixture. An idempotency key is a client-chosen retry id (a random UUID in the
+# app), not a credential. The device fixture is scoped separately below.
 # Anything else that looks like a secret still fails the build.
 #
 # Adding an entry: keep it to one rule, test paths and a value pattern, and say
@@ -28,3 +29,14 @@ regexes = [
   # src/lib/__tests__/device-queue-send.test.ts
   '''^key-[0-9]{4}-[a-z]+$''',
 ]
+
+[[allowlists]]
+description = "Disposable local-only Anniversary browser device fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^e2e/anniversaries-role-alignment\.spec\.ts$''']
+regexTarget = "secret"
+# This literal is hashed into a guarded disposable fixture database and removed
+# by the role journey. It is never a production device credential. Match only
+# this exact test value; all other values and paths retain the default scan.
+regexes = ['''^fpd1_a_e2e_anniversaries_valid$''']
