@@ -10,6 +10,9 @@ import {
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import Explore from "@/app/dashboard/meals/explore/page";
+jest.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
 jest.mock("@/components/ui/feature-gate", () => ({
   FeatureGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));

@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { Dialog } from "@/components/ui/dialog";
+import { MealViewNav } from "@/components/meals/MealViewNav";
 import { RecipeEditor } from "@/components/meals/RecipeEditor";
 import { useRecipeExploreText } from "@/i18n/recipe-explore";
 import {
@@ -193,14 +194,13 @@ export default function RecipeExplorePage() {
     <FeatureGate featureKey="meals">
       <div className="space-y-6 pb-20">
         <header>
-          <Link href="/dashboard/meals" className="btn-plain min-h-[44px]">
-            {text("backToMeals")}
-          </Link>
           <h1 className="text-large-title font-display">{text("title")}</h1>
           <p className="text-subhead text-label-secondary">
             {text("subtitle")}
           </p>
         </header>
+
+        <MealViewNav active="explore" />
 
         <section
           className="card-apple p-4 space-y-3"
