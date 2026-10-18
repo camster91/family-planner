@@ -6,7 +6,7 @@
 // earlier open chores sit in their own small group, tomorrow's are a read-only
 // peek, and a reward claim updates the XP ring and is not offered again.
 import * as React from "react";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import KidHome from "../KidHome";
 import { ToastProvider } from "@/components/ui/toast";
@@ -127,6 +127,76 @@ const claimedReward = (id: string, xp: number, extra: Record<string, unknown> = 
 });
 
 describe("KidHome missions by due day", () => {
+  it("localizes child supporting copy while preserving household content", () => {
+    renderHome(
+      [
+        { id: "today", title: "Tidy bedroom", due_date: day(0) },
+        { id: "yesterday", title: "Water plants", due_date: day(-1) },
+      ],
+      {
+        workPreviewLimited: true,
+        events: [
+          {
+            id: "library",
+            title: "Library",
+            start_time: new Date(2026, 9, 6, 15, 0).toISOString(),
+            location: "Town",
+          },
+        ],
+      },
+      "es",
+    );
+
+    expect(screen.getByRole("heading", { name: "¡Hola, Casey!" })).toBeTruthy();
+    expect(screen.getByText(/Se muestra una parte de tus tareas/)).toBeTruthy();
+    expect(screen.getByText("Misiones de hoy")).toBeTruthy();
+    expect(screen.getByText("Pendientes")).toBeTruthy();
+    expect(screen.getByText("Era para ayer")).toBeTruthy();
+    expect(screen.getByText("Próximamente")).toBeTruthy();
+    expect(screen.getByText("Nivel 1")).toBeTruthy();
+    expect(screen.getByText("Tidy bedroom")).toBeTruthy();
+    expect(screen.getByText("Water plants")).toBeTruthy();
+    expect(screen.getByText("Library")).toBeTruthy();
+    expect(screen.queryByText("Today's Missions")).toBeNull();
+    expect(screen.queryByText("Still to do")).toBeNull();
+    expect(screen.queryByText("Coming up")).toBeNull();
+  });
+
+  it("localizes chore error fallbacks without changing a server reason", async () => {
+    replies["/api/chores/complete"] = [
+      { status: 500, body: { error: "server reason" } },
+    ];
+    renderHome([{ id: "today", title: "Tidy bedroom", due_date: day(0) }], {}, "es");
+
+    await userEvent.click(screen.getByRole("button", { name: /Tidy bedroom/ }));
+    expect(await screen.findByText("No se pudo marcar como hecha")).toBeTruthy();
+    expect(screen.getByText("server reason")).toBeTruthy();
+  });
+
+  it("localizes mission disclosure controls and empty state", async () => {
+    renderHome(
+      Array.from({ length: 5 }, (_, i) => ({
+        id: `es-${i}`,
+        title: `Tarea ${i + 1}`,
+        due_date: day(0),
+      })),
+      {},
+      "es",
+    );
+
+    const more = screen.getByRole("button", { name: "Mostrar más (2)" });
+    await userEvent.click(more);
+    expect(screen.getByRole("button", { name: "Mostrar menos" })).toBeTruthy();
+
+    // The empty state is a separate render so the disclosure remains a real
+    // interaction assertion rather than a combined fixture with two homes.
+    cleanup();
+    renderHome([], {}, "es");
+    expect(screen.getByText("¡Todo listo por hoy!")).toBeTruthy();
+    expect(screen.getByText("¡Disfruta tu día, campeón!")).toBeTruthy();
+    expect(screen.queryByText("All done for today!")).toBeNull();
+  });
+
   it("discloses a capped own-work preview rather than claiming everything is done", () => {
     renderHome([], { workPreviewLimited: true });
     expect(

@@ -12,6 +12,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import { FeaturesProvider } from "@/components/providers/features-provider";
 import { defaultFeatures } from "@/lib/features";
 import { rewardsEnglish } from "@/i18n/rewards";
+import { I18nProvider } from "@/i18n";
 
 const refresh = jest.fn();
 jest.mock("next/navigation", () => ({
@@ -88,16 +89,18 @@ const chore = (c: C) => ({
 
 const user = { name: "Casey", role: "child" as const };
 
-function renderHome(chores: C[]) {
+function renderHome(chores: C[], locale: "en" | "es" = "en") {
   return render(
-    <ToastProvider>
-      <KidHome
-        user={user}
-        chores={chores.map(chore)}
-        events={[]}
-        rewards={[]}
-      />
-    </ToastProvider>,
+    <I18nProvider locale={locale}>
+      <ToastProvider>
+        <KidHome
+          user={user}
+          chores={chores.map(chore)}
+          events={[]}
+          rewards={[]}
+        />
+      </ToastProvider>
+    </I18nProvider>,
   );
 }
 
@@ -761,6 +764,25 @@ describe("KidHome picture routines", () => {
       .closest("section")!;
     expect(within(missions).getByText("Tidy room")).toBeTruthy();
     expect(within(missions).queryByText("Brush teeth")).toBeNull();
+  });
+
+  it("localizes routine progress, next state and screen-reader copy", () => {
+    renderHome(MORNING, "es");
+    const morning = routineByName("Morning");
+
+    expect(
+      steps(morning).map((step) => step.getAttribute("aria-label")),
+    ).toEqual([
+      "Brush teeth, paso 1 de 3, siguiente paso",
+      "Get dressed, paso 2 de 3",
+      "Shoes on, paso 3 de 3",
+    ]);
+    expect(within(morning).getByTestId("routine-progress").textContent).toBe(
+      "0 de 3 hechas",
+    );
+    expect(screen.getAllByText("Siguiente")).toHaveLength(1);
+    expect(screen.getByText("Brush teeth")).toBeTruthy();
+    expect(screen.queryByText("Next")).toBeNull();
   });
 
   it("a child without routines sees the kid home exactly as before", () => {
