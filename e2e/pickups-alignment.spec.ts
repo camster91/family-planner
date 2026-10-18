@@ -1,11 +1,11 @@
 /**
- * Parent-only Pickups UI matrix (#499).
+ * Parent responsive Pickups matrix plus bounded child/teen smoke (#499).
  *
  * The document route only changes the serialized feature seed for this
  * fabricated browser journey. Pickups GET/POST/PATCH and member GET responses
  * are intercepted below, so this spec never writes a family or pickup row.
- * API authority and child/teen route policy remain covered by the direct API
- * suites; this matrix intentionally exercises the mounted parent page only.
+ * Direct API suites retain authority/isolation coverage. A single desktop
+ * smoke also renders child/teen access without repeating the transport matrix.
  */
 import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
@@ -15,6 +15,7 @@ import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { pickupsMessages } from "../src/i18n/pickups";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
+import { FIXTURE_EMAILS, FIXTURE_PASSWORD } from "../src/lib/fixtures/dataset";
 import { authFile } from "./support/env";
 import { expect, test } from "./support/test";
 
@@ -83,6 +84,7 @@ async function runtimeIdentity(
   page: Page,
   info: TestInfo,
   locale: "en" | "es",
+  role: "parentA" | "child" | "teen" = "parentA",
 ) {
   const head = checkedCommit();
   assertCleanAppSource();
@@ -106,9 +108,9 @@ async function runtimeIdentity(
       buildId,
       buildTree: tree,
       locale,
-      role: "parentA",
+      role,
       scope:
-        "parent Pickups page; feature seed and pickup/member transport fabricated; no domain writes; child/teen route coverage excluded",
+        "Pickups page; feature seed and pickup/member transport fabricated; no domain writes",
     }),
     contentType: "application/json",
   });
@@ -188,7 +190,8 @@ for (const locale of ["en", "es"] as const) {
         const method = route.request().method();
         const allowedSyntheticMutation =
           (url.pathname === "/api/pickups" && method === "POST") ||
-          (url.pathname === `/api/pickups/${PICKUP.id}` && method === "PATCH");
+          (url.pathname === `/api/pickups/${PICKUP.id}` &&
+            ["PATCH", "DELETE"].includes(method));
         if (
           url.pathname.startsWith("/api/") &&
           mutatingMethods.has(method) &&
@@ -229,6 +232,9 @@ for (const locale of ["en", "es"] as const) {
       let pickupGets = 0;
       let posts = 0;
       let patches = 0;
+      let deletes = 0;
+      let deleted = false;
+      let releaseDelete: (() => void) | undefined;
       const postBodies: unknown[] = [];
       const patchBodies: unknown[] = [];
       let releasePost: (() => void) | undefined;
@@ -268,7 +274,11 @@ for (const locale of ["en", "es"] as const) {
             await route.fulfill({
               status: 200,
               contentType: "application/json",
-              body: JSON.stringify({ pickups }),
+              body: JSON.stringify({
+                pickups: deleted
+                  ? pickups.filter((pickup) => pickup.id !== PICKUP.id)
+                  : pickups,
+              }),
             });
           }
           return;
@@ -311,6 +321,27 @@ for (const locale of ["en", "es"] as const) {
             body: JSON.stringify({ error: "Synthetic update refusal" }),
           });
           return;
+        }
+        if (
+          url.pathname === `/api/pickups/${PICKUP.id}` &&
+          request.method() === "DELETE"
+        ) {
+          deletes += 1;
+          if (deletes === 1)
+            return route.fulfill({
+              status: 403,
+              contentType: "application/json",
+              body: JSON.stringify({ error: "Synthetic delete refusal" }),
+            });
+          await new Promise<void>((resolve) => {
+            releaseDelete = resolve;
+          });
+          deleted = true;
+          return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ ok: true }),
+          });
         }
         await route.continue();
       });
@@ -520,6 +551,59 @@ for (const locale of ["en", "es"] as const) {
         await page.goBack();
         await expect(page).toHaveURL(/\/dashboard\/calendar$/);
 
+        // Capture Pickups itself after proving Back returns to Calendar.
+        await page.goto("/dashboard/pickups");
+        const remove = page.getByRole("button", {
+          name: `${copy.deletePickup}: ${PICKUP.title}`,
+          exact: true,
+        });
+        await expect(remove).toBeVisible();
+        await checkActionGeometry(page, remove);
+        if (["phone-390x844", "desktop-1366x768"].includes(info.project.name)) {
+          await remove.click();
+          const confirmation = page.getByRole("alertdialog", {
+            name: copy.deletePickup,
+          });
+          await confirmation
+            .getByRole("button", { name: copy.deletePickup, exact: true })
+            .click();
+          await expect(confirmation.getByRole("alert")).toHaveText(
+            copy.deleteFailed,
+          );
+          await checkNoBlockingA11y(page, '[role="alertdialog"]');
+          await info.attach(
+            `pickups-delete-refusal-${locale}-${info.project.name}`,
+            {
+              body: await page.screenshot({
+                fullPage: false,
+                animations: "disabled",
+              }),
+              contentType: "image/png",
+            },
+          );
+          await confirmation
+            .getByRole("button", { name: copy.refreshPickups, exact: true })
+            .click();
+          await expect(confirmation).toHaveCount(0);
+          await expect(remove).toBeVisible();
+          await remove.click();
+          await page
+            .getByRole("alertdialog")
+            .getByRole("button", { name: copy.deletePickup, exact: true })
+            .click();
+          await expect.poll(() => deletes).toBe(2);
+          await expect(
+            page
+              .getByRole("alertdialog")
+              .getByRole("button", { name: copy.cancel, exact: true }),
+          ).toBeDisabled();
+          await page.keyboard.press("Escape");
+          await expect(page.getByRole("alertdialog")).toBeVisible();
+          releaseDelete?.();
+          await expect(page.getByRole("alertdialog")).toHaveCount(0);
+          await expect(remove).toHaveCount(0);
+        }
+        await checkNoHorizontalOverflow(page);
         expect(unexpectedApiMutations).toEqual([]);
         await info.attach("pickups-mutation-audit", {
           body: JSON.stringify({
@@ -527,6 +611,7 @@ for (const locale of ["en", "es"] as const) {
             intercepted: {
               post: postBodies.length,
               patch: patchBodies.length,
+              delete: deletes,
             },
           }),
           contentType: "application/json",
@@ -542,9 +627,153 @@ for (const locale of ["en", "es"] as const) {
       } finally {
         releasePost?.();
         releasePatch?.();
+        releaseDelete?.();
         await page.unrouteAll({ behavior: "ignoreErrors" });
         await context.unrouteAll({ behavior: "ignoreErrors" });
       }
     });
   });
 }
+
+test("child and teen can coordinate pickups without parent delete controls", async ({
+  browser,
+  baseURL,
+}, info) => {
+  test.skip(
+    info.project.name !== "desktop-1366x768",
+    "Member permission presentation is checked once; parent layout retains all six sizes.",
+  );
+  assertFixtureTargetAllowed(process.env);
+  expect(["localhost", "127.0.0.1", "[::1]"]).toContain(
+    new URL(baseURL!).hostname,
+  );
+  for (const role of ["child", "teen"] as const) {
+    const context = await browser.newContext({
+      baseURL,
+      viewport: { width: 1366, height: 768 },
+      timezoneId: "America/Toronto",
+      storageState: authFile(role === "child" ? "childA" : "parentA"),
+      extraHTTPHeaders: {
+        "X-Forwarded-For":
+          role === "child" ? "198.51.100.238" : "198.51.100.239",
+      },
+      serviceWorkers: "block",
+    });
+    const unexpectedWrites: string[] = [];
+    let rows: Array<Omit<typeof PICKUP, "notes"> & { notes: string | null }> = [
+      { ...PICKUP },
+    ];
+    let creates = 0;
+    let completions = 0;
+    try {
+      await context.addInitScript(
+        ({ localeKey, themeKey }) => {
+          localStorage.setItem(localeKey, "en");
+          localStorage.setItem(themeKey, "light");
+        },
+        { localeKey: LOCALE_STORAGE_KEY, themeKey: THEME_STORAGE_KEY },
+      );
+      await context.route("**/*", async (route) => {
+        const request = route.request();
+        const url = new URL(request.url());
+        if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))
+          return route.abort();
+        const method = request.method();
+        const json = (body: unknown, status = 200) =>
+          route.fulfill({
+            status,
+            contentType: "application/json",
+            body: JSON.stringify(body),
+          });
+        if (url.pathname === "/api/auth/login") return route.continue();
+        if (url.pathname === "/api/family/members" && method === "GET")
+          return json({ members: [{ id: "member-1", name: "Sam" }] });
+        if (url.pathname === "/api/pickups" && method === "GET")
+          return json({ pickups: rows });
+        if (url.pathname === "/api/pickups" && method === "POST") {
+          creates += 1;
+          const body = request.postDataJSON();
+          expect(body.title).toBe(`${role} library pickup`);
+          const created = {
+            ...CREATED_PICKUP,
+            id: `fx_pickup_${role}`,
+            title: body.title,
+          };
+          rows = [...rows, created];
+          return json({ pickup: created }, 201);
+        }
+        if (
+          url.pathname === `/api/pickups/${PICKUP.id}` &&
+          method === "PATCH"
+        ) {
+          expect(request.postDataJSON()).toEqual({ completed: true });
+          completions += 1;
+          rows = rows.map((row) =>
+            row.id === PICKUP.id ? { ...row, completed: true } : row,
+          );
+          return json({ pickup: rows[0] });
+        }
+        if (
+          url.pathname.startsWith("/api/") &&
+          ["POST", "PATCH", "PUT", "DELETE"].includes(method)
+        ) {
+          unexpectedWrites.push(`${method} ${url.pathname}`);
+          return route.abort();
+        }
+        return route.continue();
+      });
+      if (role === "teen") {
+        const login = await context.request.post("/api/auth/login", {
+          data: {
+            email: FIXTURE_EMAILS.familyA.teen,
+            password: FIXTURE_PASSWORD,
+          },
+        });
+        expect(login.status()).toBe(200);
+      }
+      const page = await context.newPage();
+      await page.route("**/dashboard/pickups**", async (route) => {
+        const response = await route.fetch();
+        const body = (await response.text())
+          .replaceAll('"pickups":false', '"pickups":true')
+          .replaceAll('\\"pickups\\":false', '\\"pickups\\":true')
+          .replaceAll("pickups%3Afalse", "pickups%3Atrue");
+        await route.fulfill({ response, body });
+      });
+      await page.goto("/dashboard/pickups");
+      await runtimeIdentity(page, info, "en", role);
+      await expect(
+        page.getByRole("heading", { name: "Pickups", exact: true }),
+      ).toBeVisible();
+      const row = page.getByRole("checkbox", { name: /School pickup/ });
+      await expect(row).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: /^Delete pickup/ }),
+      ).toHaveCount(0);
+      await row.click();
+      await expect(row).toHaveAttribute("aria-checked", "true");
+      await expect.poll(() => completions).toBe(1);
+      await page.getByRole("button", { name: "Add", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "New pickup" });
+      await dialog
+        .getByLabel("Title", { exact: true })
+        .fill(`${role} library pickup`);
+      await dialog.getByLabel("When", { exact: true }).fill("2030-10-16T15:00");
+      await dialog.getByRole("button", { name: "Save", exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(
+        page.getByText(`${role} library pickup`, { exact: true }),
+      ).toBeVisible();
+      expect(creates).toBe(1);
+      expect(unexpectedWrites).toEqual([]);
+      await checkNoHorizontalOverflow(page);
+      await checkNoBlockingA11y(page, "main");
+      await info.attach(`pickups-${role}-desktop`, {
+        body: await page.screenshot({ fullPage: true }),
+        contentType: "image/png",
+      });
+    } finally {
+      await context.close();
+    }
+  }
+});

@@ -139,7 +139,9 @@ for (const locale of ["en", "es"] as const) {
         recoveryCopy[locale].messages.loadErrorTitle,
       );
       await expect(
-        messagesMain.getByText("No messages yet", { exact: true }),
+        messagesMain.getByText(recoveryCopy[locale].messages.emptyTitle, {
+          exact: true,
+        }),
       ).toHaveCount(0);
       const messageRetry = messagesRecovery.getByRole("button", {
         name: recoveryCopy[locale].messages.retry,
@@ -152,7 +154,7 @@ for (const locale of ["en", "es"] as const) {
       await messageRetry.click();
       await expect(
         messagesMain.getByRole("heading", {
-          name: "No messages yet",
+          name: recoveryCopy[locale].messages.emptyTitle,
           exact: true,
         }),
       ).toBeVisible();

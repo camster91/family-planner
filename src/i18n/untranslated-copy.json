@@ -70,91 +70,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "Additional notes...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "Close preview",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. (555) 123-4567",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. (555) 321-7890",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. (555) 987-6543",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. BC-123456789",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. Blue Cross",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. Dr. Jones",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. Dr. Smith",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. Emma Johnson",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. John Doe",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. Metformin 500mg",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. O+",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. Peanuts, penicillin",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. Spouse",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "e.g. Type 1 Diabetes",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/emergency/page.tsx",
-    "text": "Select a card to preview",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/family/invite/page.tsx",
     "text": "\u00b7 expires",
     "count": 1
@@ -1070,71 +985,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "Attach",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "family members",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "Load earlier messages",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "Loading earlier messages\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "Message",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "Message text",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "Messages",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "Messages thread",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "No messages yet",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "Send",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "Sending message\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "Start the conversation with your family.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/messages/page.tsx",
-    "text": "You",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/notifications/page.tsx",
     "text": "\" as read",
     "count": 1
@@ -1567,36 +1417,6 @@
   {
     "file": "src/app/dashboard/today/page.tsx",
     "text": "Today",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/wishlist/page.tsx",
-    "text": "&apos;s wishes",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/wishlist/page.tsx",
-    "text": "149.99",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/wishlist/page.tsx",
-    "text": "https://...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/wishlist/page.tsx",
-    "text": "Nintendo Switch",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/wishlist/page.tsx",
-    "text": "Optional details...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/wishlist/page.tsx",
-    "text": "Status for",
     "count": 1
   },
   {

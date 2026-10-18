@@ -195,6 +195,21 @@ describe('deleteHousehold', () => {
     ])
   })
 
+  it('removes private message attachment files with the owning household only', async () => {
+    db.rows('messageAttachment').push(
+      { id: 'message-attachment-a', family_id: FAMILY_A, filename: `${'a'.repeat(32)}.png` },
+      { id: 'message-attachment-b', family_id: FAMILY_B, filename: `${'b'.repeat(32)}.png` },
+    )
+    const { d, removed } = deps()
+
+    await deleteHousehold(FAMILY_A, 'parent-a', d)
+
+    expect(db.find('messageAttachment', 'message-attachment-a')).toBeUndefined()
+    expect(db.find('messageAttachment', 'message-attachment-b')).toBeDefined()
+    expect(removed).toContain(path.join(UPLOADS, 'messages', `${'a'.repeat(32)}.png`))
+    expect(removed).not.toContain(path.join(UPLOADS, 'messages', `${'b'.repeat(32)}.png`))
+  })
+
   it('is an explicit sequence, not one cascading family delete', async () => {
     const { d } = deps()
     await deleteHousehold(FAMILY_A, 'parent-a', d)

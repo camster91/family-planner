@@ -15,8 +15,11 @@ import { ToastProvider } from "@/components/ui/toast";
 import { pickupsMessages } from "@/i18n/pickups";
 import PickupsPage from "../page";
 
+let mockCanManage = true;
+
 jest.mock("@/components/providers/features-provider", () => ({
   useFeatureEnabled: () => true,
+  useFeatures: () => ({ canManage: mockCanManage }),
 }));
 
 const futurePickup = {
@@ -47,6 +50,7 @@ function renderPage(locale: "en" | "es" = "en", strict = false) {
 }
 
 beforeEach(() => {
+  mockCanManage = true;
   window.history.replaceState({}, "", "/dashboard/pickups");
 });
 
@@ -467,4 +471,132 @@ it("blocks dismissal and duplicate submits while saving, then restores Add focus
   expect(add).toHaveFocus();
   expect(backSpy).toHaveBeenCalledTimes(1);
   backSpy.mockRestore();
+});
+
+it("deletes only after confirmation and keeps the dialog locked while pending", async () => {
+  let finish: ((value: Response) => void) | undefined;
+  const fetcher = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "DELETE")
+      return new Promise<Response>((resolve) => {
+        finish = resolve;
+      });
+    if (String(input) === "/api/pickups")
+      return Promise.resolve(response({ pickups: [futurePickup] }));
+    return Promise.resolve(response({ members: [] }));
+  });
+  global.fetch = fetcher as unknown as typeof fetch;
+  const user = userEvent.setup();
+  renderPage();
+  await user.click(
+    await screen.findByRole("button", { name: "Delete pickup: School pickup" }),
+  );
+  const dialog = screen.getByRole("alertdialog", { name: "Delete pickup" });
+  expect(fetcher.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(
+    false,
+  );
+  await user.click(
+    within(dialog).getByRole("button", { name: "Delete pickup" }),
+  );
+  expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("alertdialog")).toBeVisible();
+  expect(screen.getByRole("checkbox")).toBeInTheDocument();
+  await act(async () => {
+    finish?.(response({ ok: true }));
+  });
+  await waitFor(() =>
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+  );
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  expect(
+    fetcher.mock.calls.filter(([, init]) => init?.method === "DELETE"),
+  ).toHaveLength(1);
+});
+
+it("retains the pickup after refused deletion and failed refresh, and allows cancel", async () => {
+  let failRefresh = false;
+  global.fetch = jest.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "DELETE")
+        return response({ error: "Parents only" }, false, 403);
+      if (String(input) === "/api/pickups")
+        return failRefresh
+          ? response({}, false)
+          : response({ pickups: [futurePickup] });
+      return response({ members: [] });
+    },
+  ) as unknown as typeof fetch;
+  const user = userEvent.setup();
+  renderPage();
+  await user.click(
+    await screen.findByRole("button", { name: "Delete pickup: School pickup" }),
+  );
+  const dialog = screen.getByRole("alertdialog");
+  await user.click(
+    within(dialog).getByRole("button", { name: "Delete pickup" }),
+  );
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    pickupsMessages.en.deleteFailed,
+  );
+  failRefresh = true;
+  await user.click(
+    within(dialog).getByRole("button", { name: "Refresh pickups" }),
+  );
+  await waitFor(() =>
+    expect(
+      within(dialog).getByRole("button", { name: "Refresh pickups" }),
+    ).toBeEnabled(),
+  );
+  expect(screen.getByRole("alertdialog")).toBeVisible();
+  await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  expect(screen.getByRole("checkbox")).toHaveAttribute("aria-checked", "false");
+});
+
+it("never offers deletion without the parent presentation capability", async () => {
+  mockCanManage = false;
+  global.fetch = jest.fn(async (input: RequestInfo | URL) =>
+    String(input) === "/api/pickups"
+      ? response({ pickups: [futurePickup] })
+      : response({ members: [] }),
+  ) as unknown as typeof fetch;
+  renderPage();
+  await screen.findByRole("checkbox");
+  expect(
+    screen.queryByRole("button", { name: /Delete pickup/ }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Add" })).toBeEnabled();
+});
+
+it("handles both pickup and member loading failures without losing the draft on retry", async () => {
+  let membersCalls = 0;
+  let pickupCalls = 0;
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    if (String(input) === "/api/pickups") {
+      pickupCalls += 1;
+      return pickupCalls === 1
+        ? response({}, false)
+        : response({ pickups: [] });
+    }
+    membersCalls += 1;
+    return membersCalls === 1
+      ? response({}, false)
+      : response({ members: [{ id: "member-1", name: "Sam" }] });
+  }) as unknown as typeof fetch;
+  const user = userEvent.setup();
+  renderPage();
+  await user.click(await screen.findByRole("button", { name: "Add" }));
+  const dialog = screen.getByRole("dialog", { name: "New pickup" });
+  await user.type(within(dialog).getByLabelText("Title"), "Library pickup");
+  expect(within(dialog).getByRole("combobox")).toBeDisabled();
+  expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+  await user.click(
+    within(dialog).getByRole("button", { name: "Reload family members" }),
+  );
+  await waitFor(() =>
+    expect(within(dialog).getByRole("combobox")).toBeEnabled(),
+  );
+  expect(within(dialog).getByLabelText("Title")).toHaveValue("Library pickup");
+  expect(
+    within(dialog).getByRole("option", { name: "Sam" }),
+  ).toBeInTheDocument();
 });

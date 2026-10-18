@@ -3,6 +3,7 @@
  * Commands, env and baseline policy: docs/testing/E2E.md.
  */
 import { defineConfig, devices, type Project } from "@playwright/test";
+import path from "node:path";
 import {
   E2E_ANCHOR,
   E2E_BASE_URL,
@@ -143,6 +144,9 @@ export default defineConfig({
       TZ: E2E_TIMEZONE,
       JWT_SECRET: process.env.JWT_SECRET || E2E_DEFAULT_JWT_SECRET,
       NEXT_TELEMETRY_DISABLED: "1",
+      // Real upload journeys need a writable, disposable root. Never fall back
+      // to the production /data volume on a fresh unprivileged CI runner.
+      UPLOAD_DIR: path.resolve(outputDir, "uploads"),
       // Shared-device mode (#241, e2e/device.spec.ts). Only requests that
       // carry device cookies behave differently, and no other spec sends one.
       SHARED_DEVICE_ENABLED: "1",

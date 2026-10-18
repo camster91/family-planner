@@ -7,7 +7,7 @@ jest.mock("@/lib/session", () => require("@/__tests__/helpers/two-household").se
 jest.mock("@/lib/prisma", () => ({ prisma: require("@/__tests__/helpers/two-household").fakePrisma }));
 jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null }));
 
-import { GET } from "../route";
+import { GET, POST } from "../route";
 import * as pickup from "../[id]/route";
 import { db, req, params, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 
@@ -40,7 +40,11 @@ describe("pickups — two households", () => {
     expect(db.find("pickup", "pickup-a")?.completed).toBe(true);
   });
 
-  it.each<[UserKey]>([["teenA"], ["childA"]])("D9: %s can complete but not delete a pickup", async (who) => {
+  it.each<[UserKey]>([["teenA"], ["childA"]])("D9: %s can create and complete but not delete a pickup", async (who) => {
+    const created = await POST(req({ as: who, body: { title: "Library pickup", pickup_time: "2030-10-16T15:00:00.000Z" } }));
+    expect(created.status).toBe(201);
+    const body = await expectNoForeignData(created);
+    expect(body.pickup.family_id).toBe(db.find("pickup", "pickup-a")?.family_id);
     expect((await pickup.PATCH(req({ as: who, body: { completed: true } }), params({ id: "pickup-a" }))).status).toBe(200);
     expect((await pickup.DELETE(req({ as: who }), params({ id: "pickup-a" }))).status).toBe(403);
     expect(db.find("pickup", "pickup-a")).toBeDefined();

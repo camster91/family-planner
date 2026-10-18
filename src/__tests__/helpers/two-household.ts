@@ -372,7 +372,15 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
     requester: { model: 'user', fk: 'requested_by' },
     status_changer: { model: 'user', fk: 'status_changed_by' },
   },
-  message: { sender: { model: 'user', fk: 'sender_id' } },
+  message: {
+    sender: { model: 'user', fk: 'sender_id' },
+    pickup: { model: 'pickup', fk: 'pickup_id' },
+  },
+  messageAttachment: {
+    family: { model: 'family', fk: 'family_id' },
+    uploader: { model: 'user', fk: 'uploaded_by' },
+    message: { model: 'message', fk: 'message_id' },
+  },
   activity: { user: { model: 'user', fk: 'user_id' }, family: { model: 'family', fk: 'family_id' } },
   familyInvite: { family: { model: 'family', fk: 'family_id' } },
   // Calendar sync (#264)

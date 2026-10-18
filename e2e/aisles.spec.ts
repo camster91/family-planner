@@ -300,7 +300,13 @@ test.describe("store sections: Family A parent", () => {
     await openList(page);
     const toggle = page.getByRole("switch", { name: /Sort by store section/ });
     await expect(toggle).toHaveAttribute("aria-checked", "true");
+    const savedSorting = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PATCH" &&
+        new URL(response.url()).pathname === "/api/lists/section-sort",
+    );
     await toggle.click();
+    expect((await savedSorting).status()).toBe(200);
     await expect(toggle).toHaveAttribute("aria-checked", "false");
     await expect(page.getByTestId("store-section")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^Move / })).toHaveCount(0);
