@@ -13,13 +13,14 @@ const push = jest.fn();
 const refresh = jest.fn();
 const back = jest.fn();
 const addToast = jest.fn();
+const removeToast = jest.fn();
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh, back }),
 }));
 
 jest.mock("@/components/ui/toast", () => ({
-  useToast: () => ({ addToast }),
+  useToast: () => ({ addToast, removeToast }),
 }));
 
 function response(status: number, body: unknown): Response {
@@ -35,6 +36,7 @@ beforeEach(() => {
   refresh.mockReset();
   back.mockReset();
   addToast.mockReset();
+  removeToast.mockReset();
   global.fetch = jest.fn();
 });
 
@@ -302,6 +304,9 @@ it("retries a malformed create success with the same idempotency key", async () 
   await user.type(name, "Shared garden");
   await user.click(screen.getByRole("button", { name: "Create Project" }));
   await waitFor(() => expect(addToast).toHaveBeenCalledTimes(1));
+  const noticeId = addToast.mock.calls[0][0].id;
+  expect(noticeId).toEqual(expect.any(String));
+  expect(removeToast).not.toHaveBeenCalled();
   const firstKey = (
     (global.fetch as jest.Mock).mock.calls[0][1].headers as Record<
       string,
@@ -323,6 +328,8 @@ it("retries a malformed create success with the same idempotency key", async () 
     >
   )["Idempotency-Key"];
   expect(secondKey).toBe(firstKey);
+  expect(removeToast).toHaveBeenCalledTimes(1);
+  expect(removeToast).toHaveBeenCalledWith(noticeId);
 });
 
 it("localizes project create labels and refusal feedback in Spanish", async () => {

@@ -519,6 +519,16 @@ for (const locale of ["en", "es"] as const) {
           page.getByRole("heading", { name: projectName, exact: true }),
         ).toBeVisible();
         await expect(
+          page.getByText(copy.create.createError, { exact: true }),
+        ).toHaveCount(0);
+        await expect(
+          page.getByText(copy.create.created, { exact: true }),
+        ).toBeVisible();
+        await info.attach("projects-create-retry-resolved-viewport.png", {
+          body: await page.screenshot({ fullPage: false }),
+          contentType: "image/png",
+        });
+        await expect(
           page.getByRole("heading", {
             name: copy.overview.noTasks,
             exact: true,

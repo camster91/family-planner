@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, PlusCircle, Check } from "lucide-react";
 import Link from "next/link";
@@ -33,7 +33,9 @@ export default function CreateProjectForm({
   onBusyChange?: (busy: boolean) => void;
 } = {}) {
   const router = useRouter();
-  const { addToast } = useToast();
+  const { addToast, removeToast } = useToast();
+  const formId = useId();
+  const recoveryNoticeId = `project-create:${formId}`;
   const { locale } = useTranslation();
   const copy = projectCreateMessages[locale];
   const [name, setName] = useState("");
@@ -105,6 +107,9 @@ export default function CreateProjectForm({
         ambiguousRequests.current.set(signature, key);
         throw new Error(copy.createFallback);
       }
+      // Only this form's resolved failure is dismissed. Other notices and
+      // Undo actions belong to their callers and must remain untouched.
+      removeToast(recoveryNoticeId);
 
       // Keep the request key until navigation is released. If the sheet or
       // route guard stays open after a confirmed response, retrying the same
@@ -126,6 +131,7 @@ export default function CreateProjectForm({
         ambiguousRequests.current.set(signature, key);
       }
       addToast({
+        id: recoveryNoticeId,
         type: "error",
         title: copy.createError,
         message: error instanceof TypeError ? copy.createNetworkError : copy.createFallback,
