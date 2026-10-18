@@ -28,7 +28,7 @@ import {
   FIXTURE_PASSWORD,
 } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
-import { LOCALE_STORAGE_KEY } from "../src/i18n";
+import { LOCALE_STORAGE_KEY, messages } from "../src/i18n";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import { E2E_ANCHOR, authFile } from "./support/env";
 import { ownFeatureAudit } from "./support/feature-audit";
@@ -97,8 +97,8 @@ const COPY: Record<Locale, Copy> = {
     link: "Link",
     description: "Description",
     price: "Approximate price",
-    delete: "Delete",
-    edit: "Edit",
+    delete: messages.en.wishlist.delete,
+    edit: messages.en.wishlist.edit,
     retry: "Refresh wishlist",
     empty: "No wishes yet",
     writeUncertain:
@@ -120,8 +120,8 @@ const COPY: Record<Locale, Copy> = {
     link: "Enlace",
     description: "Descripcion",
     price: "Precio aproximado",
-    delete: "Eliminar",
-    edit: "Editar",
+    delete: messages.es.wishlist.delete,
+    edit: messages.es.wishlist.edit,
     retry: "Actualizar deseos",
     empty: "No hay deseos todavia",
     writeUncertain:
