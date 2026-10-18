@@ -40,7 +40,9 @@ export async function removeOwnedMessageArtifacts({
 }) {
   assertFixtureTargetAllowed(process.env);
   const messageIds = [...new Set(messages.map((message) => message.id))];
-  const attachmentIds = [...new Set(attachments.map((attachment) => attachment.id))];
+  const attachmentIds = [
+    ...new Set(attachments.map((attachment) => attachment.id)),
+  ];
   const receiptKeys = [...new Set(receipts.map((receipt) => receipt.key))];
   const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
   await db.connect();
@@ -60,7 +62,9 @@ export async function removeOwnedMessageArtifacts({
         ).rows
       : [];
     expect(messageRows).toHaveLength(messageIds.length);
-    const expectedMessages = new Map(messages.map((message) => [message.id, message]));
+    const expectedMessages = new Map(
+      messages.map((message) => [message.id, message]),
+    );
     for (const row of messageRows) {
       const expected = expectedMessages.get(row.id);
       expect(expected).toBeDefined();
@@ -105,7 +109,12 @@ export async function removeOwnedMessageArtifacts({
          WHERE id = $1 AND family_id = $2 AND uploaded_by = $3
            AND message_id IS NOT DISTINCT FROM $4::text
          RETURNING id`,
-        [attachment.id, attachment.familyId, attachment.uploadedBy, attachment.messageId],
+        [
+          attachment.id,
+          attachment.familyId,
+          attachment.uploadedBy,
+          attachment.messageId,
+        ],
       );
       expect(deleted.rows.map((row) => row.id)).toEqual([attachment.id]);
     }
@@ -121,11 +130,16 @@ export async function removeOwnedMessageArtifacts({
     }
 
     const remainingMessages = messageIds.length
-      ? await db.query(`SELECT id FROM "Message" WHERE id = ANY($1::text[])`, [messageIds])
+      ? await db.query(`SELECT id FROM "Message" WHERE id = ANY($1::text[])`, [
+          messageIds,
+        ])
       : { rows: [] };
     expect(remainingMessages.rows).toHaveLength(0);
     const remainingAttachments = attachmentIds.length
-      ? await db.query(`SELECT id FROM "MessageAttachment" WHERE id = ANY($1::text[])`, [attachmentIds])
+      ? await db.query(
+          `SELECT id FROM "MessageAttachment" WHERE id = ANY($1::text[])`,
+          [attachmentIds],
+        )
       : { rows: [] };
     expect(remainingAttachments.rows).toHaveLength(0);
 
@@ -145,18 +159,24 @@ export async function removeOwnedMessageArtifacts({
         )
       ).rows;
       expect(receiptRows).toHaveLength(receiptKeys.length);
-      const expectedReceipts = new Map(receipts.map((receipt) => [receipt.key, receipt]));
+      const expectedReceipts = new Map(
+        receipts.map((receipt) => [receipt.key, receipt]),
+      );
       for (const row of receiptRows) {
         const expected = expectedReceipts.get(row.key);
         expect(expected).toBeDefined();
         expect(row).toMatchObject({
-          family_id: messages.find((message) => message.senderId === expected?.userId)?.familyId,
+          family_id: messages.find(
+            (message) => message.senderId === expected?.userId,
+          )?.familyId,
           user_id: expected?.userId,
           action: "message.create",
         });
       }
       for (const receipt of receipts) {
-        const familyId = messages.find((message) => message.senderId === receipt.userId)?.familyId;
+        const familyId = messages.find(
+          (message) => message.senderId === receipt.userId,
+        )?.familyId;
         expect(familyId).toBeTruthy();
         const deleted = await db.query<{ id: string }>(
           `DELETE FROM "IdempotencyRecord"
