@@ -71,16 +71,15 @@ for compatibility; the hub uses existing role/effective-feature gates and does
 not enable features. Family is reachable in the hub's Core group. Children,
 teens and shared devices retain their existing permitted entry points.
 
-## Family and More
+## Family and Explore
 
-- Family: members, then a Household group with Emergency (moved here from its own tab) and More.
-- More (`/dashboard/family/more`, parents): Chores first, then every enabled feature that is not a tab, in this
-  order: Emergency contacts, Food inventory, Pinned notes, Birthdays & anniversaries, Family chat, Projects,
+- Family: members, then a Household group with Emergency and Explore. Child/teen Emergency remains a primary tab.
+- Explore (`/dashboard/family/more`, parents): Family first, then Chores and every enabled feature that is not a tab, grouped into Core, Planning and Family life. Secondary destinations retain their canonical order: Emergency contacts, Food inventory, Pinned notes, Birthdays & anniversaries, Family chat, Projects,
   Budget, Rewards, Analytics, Wishlist, Pickups & dropoffs, Allowance & IOUs, Babysitter handoff, Sick days &
   meds, Locations, Travel mode. Off features are not listed; "Turn features on or off" links to Features. Points
   & streaks is a setting, not a place, so it is not listed (its pages are Rewards and Analytics).
 - The user-menu "Food inventory" link (#263) stays, for every role, because children and teens cannot open
-  More. The command palette lists the same destinations plus More, Emergency and Travel.
+  Explore. The command palette lists the same destinations plus Explore, Emergency and Travel.
 - Help (`/dashboard/help`, #146, parents and teens since O-37): user menu → Help, under Settings. Short how-to
   answers, links to the real pages, and the support contact from `src/lib/support.ts`. A teen sees the same
   text; pages a teen cannot open are named but not linked. Children cannot open it.
