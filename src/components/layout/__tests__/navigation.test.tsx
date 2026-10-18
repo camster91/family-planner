@@ -93,12 +93,13 @@ describe('tab model', () => {
     ])
   })
 
-  it('the kid allowlist includes the D9 notes route', () => {
+  it('the kid allowlist includes the D9 notes and dates routes', () => {
     expect([...KID_ALLOWED_PREFIXES]).toEqual([
       '/dashboard/wishlist',
       '/dashboard/emergency',
       '/dashboard/lists',
       '/dashboard/notes',
+      '/dashboard/anniversaries',
       '/dashboard/allowance',
       '/dashboard/handoff',
       '/dashboard/sick-days',
