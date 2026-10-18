@@ -173,6 +173,18 @@ describe("KidHome missions by due day", () => {
     expect(screen.getByText("server reason")).toBeTruthy();
   });
 
+  it("localizes the completion recovery action", async () => {
+    renderHome(
+      [{ id: "today", title: "Tidy bedroom", due_date: day(0) }],
+      {},
+      "es",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Tidy bedroom/ }));
+    expect(await screen.findByRole("button", { name: "Deshacer" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  });
+
   it("localizes mission disclosure controls and empty state", async () => {
     renderHome(
       Array.from({ length: 5 }, (_, i) => ({
