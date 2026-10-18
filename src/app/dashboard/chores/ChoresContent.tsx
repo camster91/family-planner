@@ -1144,7 +1144,7 @@ export default function ChoresContent({
               </section>
             );
           })()}
-        <div className={cn(showInlineRoutines && listChores.length > 0 ? "grid gap-6 xl:grid-cols-2 items-start" : "space-y-6")}>
+        <div className={cn(showInlineRoutines && listChores.length > 0 ? "grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2 items-start" : "space-y-6")}>
         {!now ? (
           <section
             aria-label="Chores"
@@ -1190,7 +1190,7 @@ export default function ChoresContent({
             }
           />
         )}
-        {now && showInlineRoutines && <details key={filter} open={filter === "today"} className="rounded-[var(--radius-xl)] border border-[var(--surface-separator)]">
+        {now && showInlineRoutines && <details key={filter} open={filter === "today"} className="min-w-0 rounded-[var(--radius-xl)] border border-[var(--surface-separator)]">
           <summary className="min-h-[44px] cursor-pointer px-4 py-3 text-headline text-label-primary">{overviewText("routinePanel")}</summary>
           <div className="p-3 pt-0">
             <RoutineStacks chores={routineRows} userRole={userRole} currentUserId={currentUserId} familyId={familyId}
