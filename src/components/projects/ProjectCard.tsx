@@ -1,50 +1,54 @@
-'use client'
+"use client";
 
-import { useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
-import { Glyph } from '@/components/ui/glyph'
+import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { Glyph } from "@/components/ui/glyph";
+import { useProjectOverviewText } from "@/i18n/project-overview";
 
 export interface ProjectCardData {
-  id: string
-  name: string
-  description?: string | null
-  status: 'active' | 'completed' | 'archived'
-  color: string
-  taskCount: number
-  completedTaskCount: number
+  id: string;
+  name: string;
+  description?: string | null;
+  status: "active" | "completed" | "archived";
+  color: string;
+  taskCount: number;
+  completedTaskCount: number;
   creator?: {
-    name: string
-    avatar_url?: string | null
-  } | null
+    name: string;
+    avatar_url?: string | null;
+  } | null;
 }
 
 interface ProjectCardProps {
-  project: ProjectCardData
-  className?: string
+  project: ProjectCardData;
+  className?: string;
 }
 
 const statusBadgeClasses: Record<string, string> = {
-  active: 'bg-[var(--success-tint)] text-success-text border-[var(--success-tint)]',
-  completed: 'bg-[var(--accent-tint)] text-primary border-[var(--accent-tint-strong)]',
-  archived: 'bg-muted text-label-tertiary border-border',
-}
+  active:
+    "bg-[var(--success-tint)] text-success-text border-[var(--success-tint)]",
+  completed:
+    "bg-[var(--accent-tint)] text-primary border-[var(--accent-tint-strong)]",
+  archived: "bg-muted text-label-tertiary border-border",
+};
 
 export default function ProjectCard({ project, className }: ProjectCardProps) {
-  const router = useRouter()
+  const router = useRouter();
+  const text = useProjectOverviewText();
   const percent =
     project.taskCount > 0
       ? Math.round((project.completedTaskCount / project.taskCount) * 100)
-      : 0
-  const isComplete = project.status === 'completed' || percent === 100
+      : 0;
+  const isComplete = project.status === "completed" || percent === 100;
 
   return (
     <button
       type="button"
       onClick={() => router.push(`/dashboard/projects/${project.id}`)}
       className={cn(
-        'card-apple p-5 flex flex-col gap-4 text-left w-full',
-        'hover:bg-[var(--surface-fill-secondary)] transition-colors duration-200',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-projects',
+        "card-apple p-5 flex flex-col gap-4 text-left w-full",
+        "hover:bg-[var(--surface-fill-secondary)] transition-colors duration-200",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-projects",
         className,
       )}
     >
@@ -58,14 +62,25 @@ export default function ProjectCard({ project, className }: ProjectCardProps) {
             {project.name}
           </h3>
         </div>
-        <span className={cn('shrink-0 text-caption-1 px-2.5 py-1 rounded-full font-medium border', statusBadgeClasses[project.status])}>
-          {project.status === 'active' ? 'Active' : project.status === 'completed' ? 'Done' : 'Archived'}
+        <span
+          className={cn(
+            "shrink-0 text-caption-1 px-2.5 py-1 rounded-full font-medium border",
+            statusBadgeClasses[project.status],
+          )}
+        >
+          {project.status === "active"
+            ? text("active")
+            : project.status === "completed"
+              ? text("completed")
+              : text("archived")}
         </span>
       </div>
 
       {/* Description */}
       {project.description && (
-        <p className="text-footnote text-label-secondary line-clamp-2 leading-relaxed">{project.description}</p>
+        <p className="text-footnote text-label-secondary line-clamp-2 leading-relaxed">
+          {project.description}
+        </p>
       )}
 
       {/* Progress bar */}
@@ -73,17 +88,25 @@ export default function ProjectCard({ project, className }: ProjectCardProps) {
         <div className="space-y-1.5 mt-auto">
           <div className="h-1 rounded-full bg-surface-fill overflow-hidden">
             <div
-              className={cn('h-full rounded-full transition-all duration-700 ease-out', isComplete ? 'bg-success' : 'bg-tint-projects')}
+              className={cn(
+                "h-full rounded-full transition-all duration-700 ease-out",
+                isComplete ? "bg-success" : "bg-tint-projects",
+              )}
               style={{ width: `${percent}%` }}
             />
           </div>
           <p className="text-caption-1 text-label-tertiary">
-            {project.completedTaskCount} of {project.taskCount} tasks
+            {text("tasksCount", {
+              done: project.completedTaskCount,
+              total: project.taskCount,
+            })}
           </p>
         </div>
       ) : (
-        <p className="text-caption-1 text-label-tertiary mt-auto">No tasks yet</p>
+        <p className="text-caption-1 text-label-tertiary mt-auto">
+          {text("noTasks")}
+        </p>
       )}
     </button>
-  )
+  );
 }

@@ -183,5 +183,11 @@ describe("ProjectDetailActions deletion", () => {
     expect(
       screen.queryByRole("menuitem", { name: "Delete" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Mark complete" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Archive" }),
+    ).not.toBeInTheDocument();
   });
 });
