@@ -108,7 +108,7 @@ function Input({
   )
 }
 
-function SeverityBadge({ severity }: { severity: string }) {
+function SeverityBadge({ severity, label }: { severity: string; label?: string }) {
   const colors: Record<string, string> = {
     mild: 'bg-[var(--success-tint)] text-success-text',
     moderate: 'bg-[var(--warning-tint)] text-warning-text',
@@ -116,7 +116,7 @@ function SeverityBadge({ severity }: { severity: string }) {
   }
   return (
     <span className={`px-2 py-0.5 rounded-full text-caption-1 font-semibold ${colors[severity] ?? 'bg-muted text-muted-foreground'}`}>
-      {severity}
+      {label ?? severity}
     </span>
   )
 }
@@ -130,7 +130,7 @@ export default function SickDaysPage() {
 }
 
 function SickDaysPageInner() {
-  const { t } = useTranslation()
+  const { t, locale } = useTranslation()
   const [sickDays, setSickDays] = React.useState<SickDay[]>([])
   const [members, setMembers] = React.useState<FamilyMember[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -139,6 +139,8 @@ function SickDaysPageInner() {
   const [loadedOnce, setLoadedOnce] = React.useState(false)
   // The list could not be loaded: show that, not "no sick days".
   const [loadFailed, setLoadFailed] = React.useState(false)
+  const [membersLoadFailed, setMembersLoadFailed] = React.useState(false)
+  const [medicationsLoadFailed, setMedicationsLoadFailed] = React.useState(false)
   const { addToast } = useToast()
   const [showStartModal, setShowStartModal] = React.useState(false)
   // The open sick day is kept by id and read from the current list, so a
@@ -151,8 +153,15 @@ function SickDaysPageInner() {
   const [showAddTempModal, setShowAddTempModal] = React.useState(false)
   const [showAddMedModal, setShowAddMedModal] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+  const savingRef = React.useRef(false)
+  const pendingDoseIdsRef = React.useRef(new Set<string>())
+  const [pendingDoseIds, setPendingDoseIds] = React.useState<Set<string>>(new Set())
   const [userRole, setUserRole] = React.useState<string>('child')
   const [userId, setUserId] = React.useState<string | null>(null)
+
+  const startFormId = 'sick-day-start-form'
+  const tempFormId = 'sick-day-temperature-form'
+  const medFormId = 'sick-day-medication-form'
 
   // Start sick day form
   const [startForm, setStartForm] = React.useState({ person_id: '', severity: 'mild', symptoms: '' })
@@ -168,36 +177,71 @@ function SickDaysPageInner() {
   const [nextDoseFor, setNextDoseFor] = React.useState<string | null>(null)
   const [nextDoseHours, setNextDoseHours] = React.useState('')
 
+  const beginMutation = React.useCallback(() => {
+    if (savingRef.current) return false
+    savingRef.current = true
+    setSaving(true)
+    return true
+  }, [])
+
+  const finishMutation = React.useCallback(() => {
+    savingRef.current = false
+    setSaving(false)
+  }, [])
+
+  const jsonOrThrow = React.useCallback(async (url: string) => {
+    const response = await fetch(url, { cache: 'no-store' })
+    if (!response.ok) throw new Error(`${url} returned ${response.status}`)
+    return response.json()
+  }, [])
+
   const load = React.useCallback(async () => {
     setLoading(true)
-    try {
-      const [sd, fm, me] = await Promise.all([
-        fetch('/api/sick-days', { cache: 'no-store' }).then((r) => {
-          if (!r.ok) throw new Error('sick-days load failed')
-          return r.json()
-        }),
-        fetch('/api/family/members', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ members: [] })),
-        fetch('/api/medications', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ medications: [] })),
-      ])
-      setLoadFailed(false)
-      setMembers(fm.members || [])
-      // Merge medications into sick days
-      const meds: Medication[] = me.medications || []
-      setSickDays(
-        ((sd.sickDays || []) as SickDay[]).map((day) => ({
-          ...day,
-          medications: meds.filter(
-            (m) => m.sick_day_id === day.id || (!m.sick_day_id && m.person_id === day.person_id)
-          ),
-        }))
-      )
-    } catch {
+    const [sickDaysResult, membersResult, medicationsResult] = await Promise.allSettled([
+      jsonOrThrow('/api/sick-days'),
+      jsonOrThrow('/api/family/members'),
+      jsonOrThrow('/api/medications'),
+    ])
+
+    if (sickDaysResult.status === 'rejected') {
       setLoadFailed(true)
-    } finally {
       setLoading(false)
       setLoadedOnce(true)
+      return
     }
-  }, [])
+
+    setLoadFailed(false)
+    if (membersResult.status === 'fulfilled') {
+      setMembers(membersResult.value.members || [])
+      setMembersLoadFailed(false)
+    } else {
+      setMembersLoadFailed(true)
+    }
+
+    const medicationPayload = medicationsResult.status === 'fulfilled'
+      ? (medicationsResult.value.medications || []) as Medication[]
+      : null
+    setMedicationsLoadFailed(medicationsResult.status === 'rejected')
+
+    // Keep medication records embedded in the sick-day response visible while
+    // the separate active-medication request is unavailable.
+    setSickDays(
+      ((sickDaysResult.value.sickDays || []) as SickDay[]).map((day) => ({
+        ...day,
+        medications: medicationPayload
+          ? medicationPayload.filter(
+              (m) => m.sick_day_id === day.id || (!m.sick_day_id && m.person_id === day.person_id)
+            )
+          : (day.medications || []).map((m) => ({
+              ...m,
+              sick_day_id: m.sick_day_id || day.id,
+              person_id: m.person_id || day.person_id,
+            })),
+      }))
+    )
+    setLoading(false)
+    setLoadedOnce(true)
+  }, [jsonOrThrow])
 
   // KidHome pattern: a refused or failed request says so in a toast instead
   // of doing nothing (or leaving an unhandled rejection when offline).
@@ -220,7 +264,7 @@ function SickDaysPageInner() {
   async function startSickDay(e: React.FormEvent) {
     e.preventDefault()
     if (!startForm.person_id || !startForm.severity) return
-    setSaving(true)
+    if (!beginMutation()) return
     try {
       const res = await fetch('/api/sick-days', {
         method: 'POST',
@@ -232,19 +276,19 @@ function SickDaysPageInner() {
         setStartForm({ person_id: '', severity: 'mild', symptoms: '' })
         load()
       } else {
-        await failed("Couldn't start the sick day", res)
+        await failed(t('sickDays.startFailed'), res)
       }
     } catch {
-      await failed("Couldn't start the sick day")
+      await failed(t('sickDays.startFailed'))
     } finally {
-      setSaving(false)
+      finishMutation()
     }
   }
 
   async function addTemperature(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedSickDay || !tempForm.value) return
-    setSaving(true)
+    if (!beginMutation()) return
     try {
       const res = await fetch(`/api/sick-days/${selectedSickDay.id}`, {
         method: 'PATCH',
@@ -258,18 +302,18 @@ function SickDaysPageInner() {
         setTempForm({ value: '', unit: 'F' })
         await load()
       } else {
-        await failed("Couldn't save the temperature", res)
+        await failed(t('sickDays.temperatureFailed'), res)
       }
     } catch {
-      await failed("Couldn't save the temperature")
+      await failed(t('sickDays.temperatureFailed'))
     } finally {
-      setSaving(false)
+      finishMutation()
     }
   }
 
   async function endSickness() {
     if (!selectedSickDay) return
-    setSaving(true)
+    if (!beginMutation()) return
     try {
       const res = await fetch(`/api/sick-days/${selectedSickDay.id}`, {
         method: 'PATCH',
@@ -280,19 +324,19 @@ function SickDaysPageInner() {
         setSelectedId(null)
         load()
       } else {
-        await failed("Couldn't end the sick day", res)
+        await failed(t('sickDays.endFailed'), res)
       }
     } catch {
-      await failed("Couldn't end the sick day")
+      await failed(t('sickDays.endFailed'))
     } finally {
-      setSaving(false)
+      finishMutation()
     }
   }
 
   async function addMedication(e: React.FormEvent) {
     e.preventDefault()
     if (!medForm.person_id || !medForm.name || !medForm.dosage || !medForm.schedule) return
-    setSaving(true)
+    if (!beginMutation()) return
     try {
       const res = await fetch('/api/medications', {
         method: 'POST',
@@ -304,12 +348,12 @@ function SickDaysPageInner() {
         setMedForm({ person_id: '', name: '', dosage: '', schedule: '', notes: '' })
         await load()
       } else {
-        await failed("Couldn't add the medication", res)
+        await failed(t('sickDays.medicationFailed'), res)
       }
     } catch {
-      await failed("Couldn't add the medication")
+      await failed(t('sickDays.medicationFailed'))
     } finally {
-      setSaving(false)
+      finishMutation()
     }
   }
 
@@ -327,6 +371,9 @@ function SickDaysPageInner() {
   }
 
   async function markDoseTaken(medId: string) {
+    if (savingRef.current || pendingDoseIdsRef.current.has(medId)) return
+    pendingDoseIdsRef.current.add(medId)
+    setPendingDoseIds(new Set(pendingDoseIdsRef.current))
     try {
       const res = await fetch(`/api/medications/${medId}`, {
         method: 'PATCH',
@@ -334,7 +381,7 @@ function SickDaysPageInner() {
         body: JSON.stringify({ markDoseTaken: true }),
       })
       if (!res.ok) {
-        await failed("Couldn't log the dose", res)
+        await failed(t('sickDays.doseFailed'), res)
         return
       }
       const data = await res.json().catch(() => null)
@@ -343,18 +390,21 @@ function SickDaysPageInner() {
         setNextDoseFor(medId)
         setNextDoseHours('')
       }
+      await load()
     } catch {
-      await failed("Couldn't log the dose")
+      await failed(t('sickDays.doseFailed'))
       return
+    } finally {
+      pendingDoseIdsRef.current.delete(medId)
+      setPendingDoseIds(new Set(pendingDoseIdsRef.current))
     }
-    load()
   }
 
   async function setNextDose(med: Medication) {
     const hours = Number(nextDoseHours)
     if (!med.last_dose_at || !Number.isFinite(hours) || hours < 1 || hours > 48) return
+    if (pendingDoseIdsRef.current.has(med.id) || !beginMutation()) return
     const nextAt = new Date(new Date(med.last_dose_at).getTime() + hours * 60 * 60 * 1000)
-    setSaving(true)
     try {
       const res = await fetch(`/api/medications/${med.id}`, {
         method: 'PATCH',
@@ -362,7 +412,7 @@ function SickDaysPageInner() {
         body: JSON.stringify({ next_dose_at: nextAt.toISOString() }),
       })
       if (!res.ok) {
-        await failed("Couldn't set the next dose", res)
+        await failed(t('sickDays.nextDoseFailed'), res)
         return
       }
       const data = await res.json().catch(() => null)
@@ -370,9 +420,9 @@ function SickDaysPageInner() {
       setNextDoseFor(null)
       load()
     } catch {
-      await failed("Couldn't set the next dose")
+      await failed(t('sickDays.nextDoseFailed'))
     } finally {
-      setSaving(false)
+      finishMutation()
     }
   }
 
@@ -429,9 +479,9 @@ function SickDaysPageInner() {
       {/* Active sickness list */}
       {loadFailed ? (
         <div role="alert" className="card-apple p-6 text-center space-y-3">
-          <p className="text-subhead text-label-primary">Couldn&apos;t load sick days. Check your connection and try again.</p>
-          <button type="button" onClick={() => load()} className="btn-tinted">
-            Try again
+          <p className="text-subhead text-label-primary">{t('sickDays.loadFailed')}</p>
+          <button type="button" onClick={() => void load()} className="btn-tinted">
+            {t('sickDays.tryAgain')}
           </button>
         </div>
       ) : sickDays.length === 0 ? (
@@ -454,7 +504,7 @@ function SickDaysPageInner() {
                   subtitle={`${t(`sickDays.severity.${sd.severity}`)} · ${daysSince(sd.started_at)} ${t('sickDays.daysSince')}`}
                   trailing={
                     <div className="flex items-center gap-2">
-                      <SeverityBadge severity={sd.severity} />
+                      <SeverityBadge severity={sd.severity} label={t(`sickDays.severity.${sd.severity}`)} />
                       {sd.temperature_log && sd.temperature_log.length > 0 && (
                         <span className="text-caption-1 text-label-secondary">{getLatestTemp(sd.temperature_log)}</span>
                       )}
@@ -468,9 +518,43 @@ function SickDaysPageInner() {
         </section>
       )}
 
+      {medicationsLoadFailed && (
+        <div role="alert" className="card-apple p-4 text-center space-y-2">
+          <p className="text-footnote text-label-primary">{t('sickDays.medicationsLoadFailed')}</p>
+          <button type="button" onClick={() => void load()} className="btn-plain min-h-[44px]">
+            {t('sickDays.tryAgain')}
+          </button>
+        </div>
+      )}
+      {membersLoadFailed && (
+        <div role="alert" className="card-apple p-4 text-center space-y-2">
+          <p className="text-footnote text-label-primary">{t('sickDays.membersLoadFailed')}</p>
+          <button type="button" onClick={() => void load()} className="btn-plain min-h-[44px]">
+            {t('sickDays.tryAgain')}
+          </button>
+        </div>
+      )}
+
       {/* Start sick day */}
-      <Dialog open={showStartModal} onClose={() => setShowStartModal(false)} title={t('sickDays.startSickDay')}>
-        <form onSubmit={startSickDay}>
+      <Dialog
+        open={showStartModal}
+        onClose={saving ? undefined : () => setShowStartModal(false)}
+        closeLabel={t('sickDays.closeForm')}
+        title={t('sickDays.startSickDay')}
+        description={saving ? t('sickDays.pendingDescription') : t('sickDays.draftDescription')}
+        variant="form"
+        footer={(
+          <div className="flex gap-2 justify-end">
+            <button type="button" onClick={() => setShowStartModal(false)} disabled={saving} className="btn-plain min-h-[44px] disabled:opacity-40">
+              {t('common.cancel')}
+            </button>
+            <button type="submit" form={startFormId} disabled={saving || !startForm.person_id} className="btn-filled">
+              {saving ? t('common.saving') : t('common.save')}
+            </button>
+          </div>
+        )}
+      >
+        <form id={startFormId} onSubmit={startSickDay} aria-busy={saving}>
           <div className="space-y-4">
             <FormField label={t('sickDays.person')}>
               {(id) => (
@@ -514,14 +598,6 @@ function SickDaysPageInner() {
               )}
             </FormField>
           </div>
-          <div className="mt-4 flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowStartModal(false)} className="btn-plain min-h-[44px]">
-              {t('common.cancel')}
-            </button>
-            <button type="submit" disabled={saving || !startForm.person_id} className="btn-filled">
-              {saving ? t('common.saving') : t('common.save')}
-            </button>
-          </div>
         </form>
       </Dialog>
 
@@ -530,9 +606,10 @@ function SickDaysPageInner() {
       {selectedSickDay && (
         <Dialog
           open={!showAddTempModal && !showAddMedModal}
-          onClose={() => setSelectedId(null)}
+          onClose={saving ? undefined : () => setSelectedId(null)}
+          closeLabel={t('sickDays.closeDetails')}
           title={selectedSickDay.person_name}
-          description={<SeverityBadge severity={selectedSickDay.severity} />}
+          description={<SeverityBadge severity={selectedSickDay.severity} label={t(`sickDays.severity.${selectedSickDay.severity}`)} />}
           testId="sick-day-detail"
         >
           <div className="space-y-4">
@@ -541,7 +618,7 @@ function SickDaysPageInner() {
               <Avatar name={selectedSickDay.person_name} src={selectedSickDay.person_avatar || undefined} size="sm" />
               <span>
                 {daysSince(selectedSickDay.started_at)} {t('sickDays.daysSince')} · {t('sickDays.startedOn')}{' '}
-                {new Date(selectedSickDay.started_at).toLocaleDateString()}
+                {new Date(selectedSickDay.started_at).toLocaleDateString(locale)}
               </span>
             </div>
             {selectedSickDay.symptoms && (
@@ -565,7 +642,7 @@ function SickDaysPageInner() {
                 <ul className="space-y-1" aria-label={t('sickDays.temperatureLog')}>
                   {selectedSickDay.temperature_log.map((entry, idx) => (
                     <li key={idx} className="flex items-center justify-between text-footnote">
-                      <span className="text-label-secondary">{new Date(entry.at).toLocaleString()}</span>
+                      <span className="text-label-secondary">{new Date(entry.at).toLocaleString(locale)}</span>
                       <span className="text-label-primary font-medium">
                         {entry.value}°{entry.unit}
                       </span>
@@ -599,19 +676,22 @@ function SickDaysPageInner() {
                           </p>
                           {med.last_dose_at && (
                             <p className="text-caption-1 text-label-tertiary">
-                              {t('sickDays.lastDoseAt')} {new Date(med.last_dose_at).toLocaleString()}
+                              {t('sickDays.lastDoseAt')} {new Date(med.last_dose_at).toLocaleString(locale)}
                             </p>
                           )}
                           {med.next_dose_at && (
                             <p className="text-caption-1 text-label-tertiary">
-                              {t('sickDays.nextDoseSetFor')} {new Date(med.next_dose_at).toLocaleString()}
+                              {t('sickDays.nextDoseSetFor')} {new Date(med.next_dose_at).toLocaleString(locale)}
                             </p>
                           )}
                         </div>
                         <button
                           type="button"
                           onClick={() => markDoseTaken(med.id)}
-                          className="btn-tinted min-h-[44px] shrink-0 text-subhead"
+                          disabled={saving || pendingDoseIds.has(med.id)}
+                          aria-busy={pendingDoseIds.has(med.id)}
+                          aria-label={`${t('sickDays.markDoseTaken')} ${med.name}`}
+                          className="btn-tinted min-h-[44px] shrink-0 text-subhead disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <Check className="w-4 h-4" aria-hidden="true" />
                           {t('sickDays.markDoseTaken')}
@@ -672,7 +752,7 @@ function SickDaysPageInner() {
               <button
                 type="button"
                 onClick={endSickness}
-                disabled={saving}
+                disabled={saving || pendingDoseIds.size > 0}
                 className="w-full btn-ghost min-h-[44px] text-danger-text disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {t('sickDays.endSickness')}
@@ -683,8 +763,25 @@ function SickDaysPageInner() {
       )}
 
       {/* Add temperature */}
-      <Dialog open={showAddTempModal} onClose={() => setShowAddTempModal(false)} title={t('sickDays.addTemperature')}>
-        <form onSubmit={addTemperature}>
+      <Dialog
+        open={showAddTempModal}
+        onClose={saving ? undefined : () => setShowAddTempModal(false)}
+        closeLabel={t('sickDays.closeForm')}
+        title={t('sickDays.addTemperature')}
+        description={saving ? t('sickDays.pendingDescription') : t('sickDays.draftDescription')}
+        variant="form"
+        footer={(
+          <div className="flex gap-2 justify-end">
+            <button type="button" onClick={() => setShowAddTempModal(false)} disabled={saving} className="btn-plain min-h-[44px] disabled:opacity-40">
+              {t('common.cancel')}
+            </button>
+            <button type="submit" form={tempFormId} disabled={saving || !tempForm.value} className="btn-filled">
+              {saving ? t('common.saving') : t('common.save')}
+            </button>
+          </div>
+        )}
+      >
+        <form id={tempFormId} onSubmit={addTemperature} aria-busy={saving}>
           <div className="flex gap-2">
             <div className="flex-1">
               <FormField label={t('sickDays.temperature')}>
@@ -715,20 +812,29 @@ function SickDaysPageInner() {
               )}
             </FormField>
           </div>
-          <div className="mt-4 flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowAddTempModal(false)} className="btn-plain min-h-[44px]">
-              {t('common.cancel')}
-            </button>
-            <button type="submit" disabled={saving || !tempForm.value} className="btn-filled">
-              {saving ? t('common.saving') : t('common.save')}
-            </button>
-          </div>
         </form>
       </Dialog>
 
       {/* Add medication */}
-      <Dialog open={showAddMedModal} onClose={() => setShowAddMedModal(false)} title={t('sickDays.addMedication')}>
-        <form onSubmit={addMedication}>
+      <Dialog
+        open={showAddMedModal}
+        onClose={saving ? undefined : () => setShowAddMedModal(false)}
+        closeLabel={t('sickDays.closeForm')}
+        title={t('sickDays.addMedication')}
+        description={saving ? t('sickDays.pendingDescription') : t('sickDays.draftDescription')}
+        variant="form"
+        footer={(
+          <div className="flex gap-2 justify-end">
+            <button type="button" onClick={() => setShowAddMedModal(false)} disabled={saving} className="btn-plain min-h-[44px] disabled:opacity-40">
+              {t('common.cancel')}
+            </button>
+            <button type="submit" form={medFormId} disabled={saving || !medForm.person_id || !medForm.name || !medForm.dosage || !medForm.schedule} className="btn-filled">
+              {saving ? t('common.saving') : t('common.save')}
+            </button>
+          </div>
+        )}
+      >
+        <form id={medFormId} onSubmit={addMedication} aria-busy={saving}>
           <div className="space-y-4">
             <FormField label={t('sickDays.person')}>
               {(id) => (
@@ -766,7 +872,7 @@ function SickDaysPageInner() {
                   id={id}
                   value={medForm.schedule}
                   onChange={(v) => setMedForm({ ...medForm, schedule: v })}
-                  placeholder="Twice daily"
+                  placeholder={t('sickDays.schedulePlaceholder')}
                 />
               )}
             </FormField>
@@ -782,18 +888,6 @@ function SickDaysPageInner() {
                 />
               )}
             </FormField>
-          </div>
-          <div className="mt-4 flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowAddMedModal(false)} className="btn-plain min-h-[44px]">
-              {t('common.cancel')}
-            </button>
-            <button
-              type="submit"
-              disabled={saving || !medForm.person_id || !medForm.name || !medForm.dosage || !medForm.schedule}
-              className="btn-filled"
-            >
-              {saving ? t('common.saving') : t('common.save')}
-            </button>
           </div>
         </form>
       </Dialog>

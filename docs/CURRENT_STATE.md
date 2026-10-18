@@ -1,5 +1,18 @@
 # Current State
 
+## Sick days sheets candidate — 2026-10-18
+
+Production remains PR580 at `5cf9720bd3ca38862bc54c7094ac90f87a3892d8`.
+The actual verified live revision is PR587 at
+`afb15426d9fdb63a7f4f6c437d2c23e20d55dab9`, with deployment 563 verified.
+The next PR588 candidate is `ea1d85d29a6907e56ae9cd21cf337b9e218ab36c`,
+the Dialog scroll/tab-stop fix after the real Inventory Axe failure; its
+build, CI, and browser gates are pending. This Sick days branch is based on
+the source-reviewed PR588 parent `bf31e91da33dc10bf9f8728976a8d50b4220d59e`.
+The full 22-feature goal remains open. This dated checkpoint is retained
+history; the root agent will normally integrate the latest PR588 candidate
+after review.
+
 ## Combined web review repairs — 2026-10-18
 
 Production remains PR580 at `5cf9720bd3ca38862bc54c7094ac90f87a3892d8`.
