@@ -1,5 +1,25 @@
 # Current State
 
+## Rewards inactive-claim repair — 2026-10-18
+
+Combined `4271f994` normally incorporates API `295855fc`, UI `f61044da`, and
+browser regressions `bbabca41`. Independent source review is clear: fresh claims
+require canonical activity in both the validation read and atomic transition;
+child discovery filters activity before its limit. A committed claim can replay
+after retirement, and previously claimed retired rewards remain approvable.
+Parent mapping preserves activity and avoids duplicate pending/history rows.
+Spanish recovery and singular point templates are corrected in both consumers.
+
+Fourteen actual PostgreSQL Rewards/Budget cases pass on application `5a10e09c`,
+including inactive refusal, same-key reactivation, committed replay, existing
+claims and concurrent Budget retries. Types and full lint pass. The later
+`4271f994` delta contains browser assertions only. The original conditional
+132-capture report remains retained; it is not final acceptance of the repair.
+Fresh combined baseline, exact build and both rendered matrices remain required.
+Broader child supporting copy remains a separate pending slice: typed EN/ES
+KidHome/KidRoutines dates, missions, empty/progress/error and accessibility text,
+with household content verbatim and all role/receipt gates retained.
+
 ## Rewards and Budget combined local candidate — 2026-10-18
 
 Integration `1ffe0a9f` normally merges reviewed Rewards `e0756c9a` and Budget
