@@ -25,6 +25,8 @@ export const projectCreateEnglish = {
   created: "Project created!",
   createdMessage: '"{name}" is ready.',
   createError: "Failed to create project",
+  createNetworkError:
+    "Couldn't create the project. Check your connection and try again.",
   createFallback: "Please try again.",
   draftDescription: "Close to return. Unsaved changes will be cleared.",
   pendingDescription: "Please wait for saving to finish.",
@@ -58,6 +60,8 @@ export const projectCreateSpanish: Record<ProjectCreateMessage, string> = {
   created: "¡Proyecto creado!",
   createdMessage: '"{name}" está listo.',
   createError: "No se pudo crear el proyecto",
+  createNetworkError:
+    "No se pudo crear el proyecto. Revisa tu conexión e inténtalo de nuevo.",
   createFallback: "Inténtalo de nuevo.",
   draftDescription: "Cierra para volver. Los cambios sin guardar se borrarán.",
   pendingDescription: "Espera a que termine de guardarse.",

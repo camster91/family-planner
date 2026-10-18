@@ -6,7 +6,7 @@
 // a task, like the API.
 //
 // Online only: offline the button stays but the form says so and does not
-// send. A failed save keeps what was typed and shows the server's reason.
+// send. A failed save keeps what was typed and shows localized recovery copy.
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
@@ -133,13 +133,10 @@ export function AddProjectTaskForm({
           ambiguousRequests.current.delete(signature);
           currentRequest.current = null;
         }
-        throw new Error(
-          typeof data?.error === "string"
-            ? data.error
-            : typeof data?.error?.message === "string"
-              ? data.error.message
-              : text("taskUpdateFallback"),
-        );
+        // Server text can be English, internal, or household-sensitive. Keep
+        // it out of the user-facing alert while preserving the status/key
+        // classification above.
+        throw new Error("PROJECT_TASK_ADD_FAILED");
       }
       ambiguousRequests.current.delete(signature);
       currentRequest.current = null;
@@ -159,7 +156,9 @@ export function AddProjectTaskForm({
       if (err instanceof TypeError)
         ambiguousRequests.current.set(signature, key);
       setError(
-        `${text("taskAddError")} ${err instanceof Error ? err.message : text("taskUpdateFallback")}`,
+        err instanceof TypeError
+          ? text("taskUpdateNetworkError")
+          : text("taskAddFallback"),
       );
     } finally {
       setSaving(false);
