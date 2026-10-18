@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
+import { isValidIdempotencyKey } from "../src/lib/idempotency-key";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { rewardCreateMessages } from "../src/i18n/reward-create";
 import { authFile } from "./support/env";
@@ -41,47 +42,90 @@ async function removeOwnedRewards(
   db: pg.Client,
   ids: readonly string[],
   names: readonly string[],
+  idempotencyKeys: readonly string[],
 ): Promise<void> {
-  if (!ids.length && !names.length) return;
-  const values: unknown[] = [A.family, A.parent];
-  const selectors: string[] = [];
-  if (ids.length) {
-    values.push(ids);
-    selectors.push(`id = ANY($${values.length}::text[])`);
-  }
-  if (names.length) {
-    values.push(names);
-    selectors.push(`name = ANY($${values.length}::text[])`);
-  }
-  const rewards = await db.query<{ id: string; name: string }>(
-    `SELECT id, name FROM "Reward"
-     WHERE family_id=$1 AND created_by=$2 AND (${selectors.join(" OR ")})`,
-    values,
-  );
-  const rewardIds = rewards.rows.map((row) => row.id);
-  const rewardNames = rewards.rows.map((row) => row.name);
+  if (ids.length || names.length) {
+    const values: unknown[] = [A.family, A.parent];
+    const selectors: string[] = [];
+    if (ids.length) {
+      values.push(ids);
+      selectors.push(`id = ANY($${values.length}::text[])`);
+    }
+    if (names.length) {
+      values.push(names);
+      selectors.push(`name = ANY($${values.length}::text[])`);
+    }
+    const rewards = await db.query<{ id: string; name: string }>(
+      `SELECT id, name FROM "Reward"
+       WHERE family_id=$1 AND created_by=$2 AND (${selectors.join(" OR ")})`,
+      values,
+    );
+    const rewardIds = rewards.rows.map((row) => row.id);
+    const rewardNames = rewards.rows.map((row) => row.name);
 
-  if (rewardIds.length) {
-    const deleted = await db.query(
-      `DELETE FROM "Reward"
-       WHERE id = ANY($1::text[]) AND family_id=$2 AND created_by=$3
-         AND name = ANY($4::text[])`,
-      [rewardIds, A.family, A.parent, rewardNames],
-    );
-    expect(deleted.rowCount).toBe(rewardIds.length);
+    if (rewardIds.length) {
+      const deleted = await db.query(
+        `DELETE FROM "Reward"
+         WHERE id = ANY($1::text[]) AND family_id=$2 AND created_by=$3
+           AND name = ANY($4::text[])`,
+        [rewardIds, A.family, A.parent, rewardNames],
+      );
+      expect(deleted.rowCount).toBe(rewardIds.length);
+    }
+    if (rewardNames.length) {
+      await db.query(
+        `DELETE FROM "Notification"
+         WHERE user_id IN (SELECT id FROM "User" WHERE family_id=$1 AND id <> $2)
+           AND title = 'New Reward Available!'
+           AND message = ANY($3::text[])`,
+        [
+          A.family,
+          A.parent,
+          rewardNames.map((name) => `${name} is now available for 50 points`),
+        ],
+      );
+    }
   }
-  if (rewardNames.length) {
-    await db.query(
-      `DELETE FROM "Notification"
-       WHERE user_id IN (SELECT id FROM "User" WHERE family_id=$1 AND id <> $2)
-         AND title = 'New Reward Available!'
-         AND message = ANY($3::text[])`,
-      [
-        A.family,
-        A.parent,
-        rewardNames.map((name) => `${name} is now available for 50 points`),
-      ],
+
+  const keys = [...new Set(idempotencyKeys)];
+  if (keys.length) {
+    const receipts = await db.query<{
+      id: string;
+      key: string;
+      family_id: string;
+      user_id: string | null;
+      action: string;
+    }>(
+      `SELECT id, key, family_id, user_id, action
+       FROM "IdempotencyRecord"
+       WHERE family_id = $1 AND user_id = $2
+         AND key = ANY($3::text[]) AND action = 'reward.create'`,
+      [A.family, A.parent, keys],
     );
+    expect(receipts.rows.map((row) => row.key).sort()).toEqual(keys.sort());
+    for (const row of receipts.rows) {
+      expect(row).toMatchObject({
+        family_id: A.family,
+        user_id: A.parent,
+        action: "reward.create",
+      });
+    }
+    const deleted = await db.query<{ id: string }>(
+      `DELETE FROM "IdempotencyRecord"
+       WHERE id = ANY($1::text[])
+         AND family_id = $2 AND user_id = $3
+         AND key = ANY($4::text[]) AND action = 'reward.create'
+       RETURNING id`,
+      [receipts.rows.map((row) => row.id), A.family, A.parent, keys],
+    );
+    expect(deleted.rows).toHaveLength(receipts.rows.length);
+    const remaining = await db.query<{ id: string }>(
+      `SELECT id FROM "IdempotencyRecord"
+       WHERE family_id = $1 AND user_id = $2
+         AND key = ANY($3::text[]) AND action = 'reward.create'`,
+      [A.family, A.parent, keys],
+    );
+    expect(remaining.rows).toHaveLength(0);
   }
 }
 
@@ -195,6 +239,8 @@ for (const locale of ["en", "es"] as const) {
       assertFixtureTargetAllowed(process.env);
       const blockedWrites: string[] = [];
       const postBodies: unknown[] = [];
+      const postIdempotencyKeys: string[] = [];
+      const ownedReceiptKeys = new Set<string>();
       const ownedRewardIds = new Set<string>();
       const ownedRewardNames = new Set<string>();
       const rewardRunId = randomUUID();
@@ -217,6 +263,9 @@ for (const locale of ["en", "es"] as const) {
           return;
         }
         postBodies.push(route.request().postDataJSON());
+        const idempotencyKey = route.request().headers()["idempotency-key"] ?? "";
+        postIdempotencyKeys.push(idempotencyKey);
+        expect(isValidIdempotencyKey(idempotencyKey)).toBe(true);
         if (mode === "failure") {
           await route.fulfill({
             status: 403,
@@ -228,7 +277,10 @@ for (const locale of ["en", "es"] as const) {
         const continueRequest = await new Promise<boolean>((resolve) => {
           finishPendingRequest = resolve;
         });
-        if (continueRequest) await route.continue();
+        if (continueRequest) {
+          ownedReceiptKeys.add(idempotencyKey);
+          await route.continue();
+        }
         else await route.abort();
       });
 
@@ -375,11 +427,17 @@ for (const locale of ["en", "es"] as const) {
 
           if (surface === "sheet") await page.goto("/dashboard/rewards");
         }
+        expect(postIdempotencyKeys).toHaveLength(4);
+        expect(new Set(postIdempotencyKeys).size).toBe(postIdempotencyKeys.length);
+        for (const key of postIdempotencyKeys) {
+          expect(isValidIdempotencyKey(key)).toBe(true);
+        }
         await testInfo.attach(`reward-create-${locale}-transport`, {
           body: JSON.stringify({
             locale,
             surfaces: ["sheet", "direct"],
             postCount: postBodies.length,
+            idempotencyKeys: postIdempotencyKeys,
             transport:
               "Each refusal was synthetic; each pending retry continued to the real authenticated POST, read the persisted reward through GET, and cleaned only the exact fixture-owned rows.",
           }),
@@ -393,7 +451,12 @@ for (const locale of ["en", "es"] as const) {
         const cleanupErrors: unknown[] = [];
         try {
           await withDb((db) =>
-            removeOwnedRewards(db, [...ownedRewardIds], [...ownedRewardNames]),
+            removeOwnedRewards(
+              db,
+              [...ownedRewardIds],
+              [...ownedRewardNames],
+              [...ownedReceiptKeys],
+            ),
           );
         } catch (error) {
           cleanupErrors.push(error);
