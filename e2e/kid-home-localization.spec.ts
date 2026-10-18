@@ -400,9 +400,9 @@ for (const locale of ["en", "es"] as const) {
         .locator("section")
         .filter({ hasText: text("comingUp") });
       await expect(comingUpSection).toHaveCount(1);
-      const dentistRow = comingUpSection
-        .getByText("Dentist (Casey)", { exact: true })
-        .locator("..");
+      const dentistRow = comingUpSection.locator(".row-apple").filter({
+        has: page.getByText("Dentist (Casey)", { exact: true }),
+      });
       await expect(dentistRow).toHaveCount(1);
       await expect(
         dentistRow.getByText(text("today"), { exact: true }),
