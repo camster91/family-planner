@@ -41,7 +41,7 @@ import { isFeatureEnabled } from "@/lib/feature-flags";
 import { useTranslation } from "@/i18n";
 import { useFeatureNavTitle } from "@/i18n/feature-nav";
 import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
-import { clearRewardCreateIntents } from "@/lib/reward-create-intent";
+import { clearRewardCreateIntents } from "@/lib/reward-create-intent-store";
 import {
   navigationMessages,
   navigationTabKey,
