@@ -2,6 +2,8 @@ import * as React from "react";
 import DashboardPage from "../page";
 
 const findMany = jest.fn();
+const rewardFindMany = jest.fn(async (_args?: unknown) => []);
+let mockGamification = false;
 jest.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
@@ -12,12 +14,12 @@ jest.mock("@/lib/prisma", () => ({
         family_id: "home",
         xp: 20,
         level: 1,
-        family: { features: { gamification: false, rewards: true } },
+        family: { features: { gamification: mockGamification, rewards: true } },
       })),
     },
     chore: { findMany: (...args: unknown[]) => findMany(...args) },
     event: { findMany: jest.fn(async () => []) },
-    reward: { findMany: jest.fn(async () => []) },
+    reward: { findMany: (args: unknown) => rewardFindMany(args) },
   },
 }));
 jest.mock("@/lib/supabase/server", () => ({
@@ -36,6 +38,8 @@ it.each([
   "reports the near-day window cap for %s rows without widening household access",
   async (count, limited) => {
     findMany.mockReset();
+    rewardFindMany.mockClear();
+    mockGamification = true;
     const near = Array.from({ length: count }, (_, i) => ({
       id: `near${i}`,
       due_date: new Date("2026-10-06"),
@@ -50,11 +54,18 @@ it.each([
     });
     expect(result.props.chores).toHaveLength(60);
     expect(result.props.workPreviewLimited).toBe(limited);
+    expect(rewardFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { family_id: "home", status: "available", is_active: true },
+      }),
+    );
   },
 );
 
 it("loads a bounded own catch-up preview with explicit truncation rather than silently dropping work", async () => {
   findMany.mockReset();
+  rewardFindMany.mockClear();
+  mockGamification = false;
   jest.useFakeTimers().setSystemTime(new Date("2026-10-06T12:00:00Z"));
   try {
     const old = Array.from({ length: 61 }, (_, i) => ({
