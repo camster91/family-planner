@@ -6,7 +6,13 @@
  * blob. The shared device deliberately gets no person-session note route.
  */
 import AxeBuilder from "@axe-core/playwright";
-import type { Browser, BrowserContext, Page, TestInfo } from "@playwright/test";
+import type {
+  APIRequestContext,
+  Browser,
+  BrowserContext,
+  Page,
+  TestInfo,
+} from "@playwright/test";
 import { hashDeviceToken } from "../src/lib/device-session";
 import pg from "pg";
 import {
@@ -16,7 +22,7 @@ import {
 } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
-import { E2E_ANCHOR, E2E_BASE_URL, authFile } from "./support/env";
+import { E2E_ANCHOR, authFile } from "./support/env";
 import { browserFetch, browserSend, expect, test } from "./support/test";
 
 const A = FIXTURE_IDS.familyA;
@@ -91,6 +97,8 @@ const COPY: Record<Locale, NoteCopy> = {
   },
 };
 
+let teenState: Awaited<ReturnType<APIRequestContext["storageState"]>>;
+
 let originalFeatures: unknown;
 let originalFeaturesCaptured = false;
 
@@ -124,6 +132,7 @@ async function restoreFeatures(db?: pg.Client) {
 
 async function seedSharedDevice(db: pg.Client) {
   await cleanupSharedDevice(db);
+  const liveFrom = Math.max(Date.now(), E2E_ANCHOR.getTime());
   await db.query(
     `INSERT INTO "HouseholdDevice" (id, family_id, label, platform, created_by, confirmed_by, paired_at, created_at, updated_at)
      VALUES ($1, $2, $3, 'web', $4, $4, $5, $5, $5)`,
@@ -138,8 +147,10 @@ async function seedSharedDevice(db: pg.Client) {
       A.family,
       hashDeviceToken(NOTES_DEVICE_ACCESS),
       hashDeviceToken(NOTES_DEVICE_REFRESH),
-      new Date(E2E_ANCHOR.getTime() + 60 * 60 * 1000),
-      new Date(E2E_ANCHOR.getTime() + 30 * 24 * 60 * 60 * 1000),
+      // Keep the synthetic credential live for both the anchored E2E clock and
+      // standalone compiled servers whose process clock is not shifted.
+      new Date(liveFrom + 60 * 60 * 1000),
+      new Date(liveFrom + 30 * 24 * 60 * 60 * 1000),
       E2E_ANCHOR,
     ],
   );
@@ -234,7 +245,7 @@ async function configurePresentation(context: BrowserContext, locale: Locale) {
   );
 }
 
-/** Open a fixture identity while keeping the teen login inside the guarded context. */
+/** Open a fixture identity with the teen session prepared once per viewport. */
 async function openAs(
   browser: Browser,
   testInfo: TestInfo,
@@ -254,22 +265,15 @@ async function openAs(
     reducedMotion: "reduce",
     extraHTTPHeaders: use.extraHTTPHeaders,
     storageState:
-      who === "teenA" || who === "parentB"
-        ? authFile(who === "parentB" ? "parentB" : "parentA")
-        : authFile(who),
+      who === "teenA"
+        ? teenState
+        : who === "parentB"
+          ? authFile("parentB")
+          : authFile(who),
   });
   try {
     await guardContext(context, use.baseURL!);
     await configurePresentation(context, locale);
-    if (who === "teenA") {
-      const login = await context.request.post("/api/auth/login", {
-        data: {
-          email: FIXTURE_EMAILS.familyA.teen,
-          password: FIXTURE_PASSWORD,
-        },
-      });
-      expect(login.status(), await login.text()).toBe(200);
-    }
     const page = await context.newPage();
     await page.clock.install({ time: E2E_ANCHOR });
     return { context, page };
@@ -330,6 +334,35 @@ function titleFor(role: Role) {
 }
 
 test.describe.configure({ mode: "serial" });
+
+test.beforeAll(async ({ playwright, baseURL }, info) => {
+  assertFixtureTargetAllowed(process.env);
+  expect(baseURL).toBeTruthy();
+  const projectIndex = Math.max(
+    0,
+    PROJECTS.indexOf(info.project.name as (typeof PROJECTS)[number]),
+  );
+  const request = await playwright.request.newContext({
+    baseURL,
+    extraHTTPHeaders: {
+      // Keep the one real teen login in this viewport's dedicated rate-limit
+      // bucket; every role journey below reuses the resulting session.
+      "X-Forwarded-For": `198.51.100.${100 + projectIndex}`,
+    },
+  });
+  try {
+    const login = await request.post("/api/auth/login", {
+      data: {
+        email: FIXTURE_EMAILS.familyA.teen,
+        password: FIXTURE_PASSWORD,
+      },
+    });
+    expect(login.status(), await login.text()).toBe(200);
+    teenState = await request.storageState();
+  } finally {
+    await request.dispose();
+  }
+});
 
 test.beforeAll(async () => {
   await withDb(async (db) => {

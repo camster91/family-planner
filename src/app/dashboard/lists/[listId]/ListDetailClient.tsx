@@ -1,6 +1,7 @@
 'use client'
 
 import { useTranslation } from '@/i18n'
+import { QueueStorageRecovery } from '@/components/ui/queue-storage-recovery'
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
@@ -426,7 +427,7 @@ export default function ListDetailClient({
             <div className="min-w-0 flex-1">
               <CheckboxRow
                 checked={checked}
-                disabled={item.removedElsewhere}
+                disabled={item.removedElsewhere || sync.storageBlocked}
                 onChange={() => handleToggle(item.id, !checked)}
                 title={item.content}
                 subtitle={subtitle}
@@ -515,7 +516,9 @@ export default function ListDetailClient({
         </Glyph>
       </div>
 
+      <QueueStorageRecovery queue={sync.queue} />
       <SyncBanner
+        storageBlocked={sync.storageBlocked}
         online={sync.online}
         durable={sync.durable}
         pendingCount={sync.pendingCount}
@@ -742,12 +745,14 @@ export function listOfflineDetail(durable: boolean, pendingCount: number): strin
 }
 
 export function SyncBanner({
+  storageBlocked = false,
   online,
   durable,
   pendingCount,
   notice,
   onDismiss,
 }: {
+  storageBlocked?: boolean
   online: boolean
   durable: boolean
   pendingCount: number
@@ -765,7 +770,7 @@ export function SyncBanner({
     <div role="status" aria-live="polite" className="space-y-2 empty:hidden">
       {/* The app-wide OfflineBanner says "You're offline"; this only adds what
           the list does offline (ticks queue, #162) and how many are waiting. */}
-      {!online && (
+      {!online && !storageBlocked && (
         <div className="card-apple flex items-start gap-3 p-4" data-testid="list-offline-detail">
           <CloudOff className="w-5 h-5 text-label-secondary shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-subhead text-label-primary">
@@ -773,7 +778,7 @@ export function SyncBanner({
           </p>
         </div>
       )}
-      {!durable && pendingCount > 0 && (
+      {!storageBlocked && !durable && pendingCount > 0 && (
         <div className="card-apple flex items-start gap-3 p-4" data-testid="not-durable-banner">
           <AlertTriangle className="w-5 h-5 text-label-secondary shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-subhead text-label-primary">

@@ -30,6 +30,7 @@ function fakeQueue() {
   let ops: any[] = [];
   let seq = 0;
   return {
+    ready: Promise.resolve(),
     enqueue: jest.fn(async (action: string, payload: any) => {
       const op = { id: `op-${++seq}`, action, payload, state: "pending" };
       ops.push(op);
@@ -43,6 +44,8 @@ function fakeQueue() {
       listeners.add(l);
       return () => listeners.delete(l);
     },
+    hasStorageReadError: () => false,
+    retryStorageRead: jest.fn(async () => undefined),
     fail(id: string) {
       ops.find((o) => o.id === id)!.state = "conflict";
       for (const l of Array.from(listeners)) l({ type: "change" });
@@ -289,6 +292,30 @@ describe("person board (#274)", () => {
     ).toBeInTheDocument();
     expect(within(groceries()).getByText("Milk")).toBeInTheDocument();
     expect(personQueue.list()).toEqual([]);
+  });
+  it("keeps a grocery tick visible when queue storage cannot be read", async () => {
+    personQueue.enqueue.mockRejectedValue(new QueueError("STORAGE_UNAVAILABLE"));
+    await renderBoard({ viewer: { id: "p", role: "parent" } });
+    fireEvent.click(
+      within(groceries()).getByRole("button", { name: /Tick off Milk/ }),
+    );
+    await settle();
+    expect(within(groceries()).getByText("Milk")).toBeInTheDocument();
+    expect(screen.getByText(/couldn’t load saved changes/i)).toBeInTheDocument();
+    expect(personQueue.list()).toEqual([]);
+  });
+  it("offers deliberate storage recovery on a personal Today board", async () => {
+    personQueue.hasStorageReadError = () => true;
+    personQueue.retryStorageRead.mockImplementation(async () => {
+      personQueue.hasStorageReadError = () => false;
+    });
+    await renderBoard({ viewer: { id: "p", role: "parent" } });
+    const recovery = screen.getByTestId("queue-storage-recovery");
+    expect(recovery).toHaveTextContent(/couldn’t load saved changes/i);
+    fireEvent.click(within(recovery).getByRole("button", { name: "Try loading saved changes" }));
+    await settle();
+    expect(personQueue.retryStorageRead).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("queue-storage-recovery")).toBeNull();
   });
   it("a child can tick only their own chore; a parent any chore", async () => {
     const { unmount } = await renderBoard({
@@ -570,9 +597,11 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
   async function renderDevice(enabled = true) {
     const fc = fakeClient();
     render(
-      <ToastProvider>
-        <DeviceBoard client={fc.client} enabled={enabled} />
-      </ToastProvider>,
+      <I18nProvider locale="en">
+        <ToastProvider>
+          <DeviceBoard client={fc.client} enabled={enabled} />
+        </ToastProvider>
+      </I18nProvider>,
     );
     await settle();
     return fc;
@@ -635,6 +664,24 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
         actingMemberId: "c",
       },
     );
+  });
+
+  it("keeps a grocery tick visible when tablet queue storage cannot be read", async () => {
+    deviceQueue.enqueue.mockRejectedValue(new QueueError("STORAGE_UNAVAILABLE"));
+    await renderDevice();
+    fireEvent.click(
+      within(groceries()).getByRole("button", { name: "Tick off Bread" }),
+    );
+    await settle();
+    fireEvent.click(
+      within(screen.getByTestId("who-is-this")).getByRole("button", {
+        name: "Casey Child",
+      }),
+    );
+    await settle();
+    expect(within(groceries()).getByText("Bread")).toBeInTheDocument();
+    expect(screen.getByText(/couldn’t load saved changes/i)).toBeInTheDocument();
+    expect(deviceQueue.list()).toEqual([]);
   });
 
   it('closing "Who\'s this?" cancels the tap with nothing changed', async () => {

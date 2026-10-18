@@ -3,7 +3,7 @@ import type { FeatureKey } from '@/lib/features'
 import type { Locale } from './types'
 
 /**
- * The kid menu is rendered by the shared dashboard shell. Keep only the five
+ * The kid menu is rendered by the shared dashboard shell. Keep only the
  * labels it can expose in that initial graph; the full title/description
  * catalog belongs to feature pages and their lazy surfaces.
  */
@@ -13,6 +13,7 @@ type FeatureNavKey =
   | 'handoff'
   | 'sick-days'
   | 'notes'
+  | 'anniversaries'
   | 'pickups'
 
 const english: Record<FeatureNavKey, string> = {
@@ -21,6 +22,7 @@ const english: Record<FeatureNavKey, string> = {
   handoff: 'Babysitter handoff',
   'sick-days': 'Sick days & meds',
   notes: 'Pinned notes',
+  anniversaries: 'Birthdays & anniversaries',
   pickups: 'Pickups & dropoffs',
 }
 
@@ -30,6 +32,7 @@ const spanish: Record<FeatureNavKey, string> = {
   handoff: 'Entrega al cuidador',
   'sick-days': 'Días de enfermedad y medicinas',
   notes: 'Notas fijadas',
+  anniversaries: 'Cumpleaños y aniversarios',
   pickups: 'Recogidas y entregas',
 }
 

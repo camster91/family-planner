@@ -42,6 +42,7 @@ import {
 } from './regions'
 import { actionLinkClass, regionClass } from './styles'
 import TodayControls from './TodayControls'
+import { PersonQueueStorageRecovery } from './PersonQueueStorageRecovery'
 import { NextUpRegion } from './NextUpRegion'
 import { useBoardTiles, type BoardActions } from './board-actions'
 import { usePersonBoardActions } from './use-person-board-actions'
@@ -711,6 +712,7 @@ export default function TodayBoard({
         {!fridgeMode && viewer && !tileActions && (
           <TodayControls links={data.links} role={viewer.role} onRefresh={refresh} online={online} />
         )}
+        {viewer && !tileActions && <PersonQueueStorageRecovery userId={viewer.id} />}
 
         {now && (
           <SyncNotice

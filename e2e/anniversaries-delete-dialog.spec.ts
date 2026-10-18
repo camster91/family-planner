@@ -25,6 +25,8 @@ const DATE = {
   notes: PRIVATE_NOTES,
   person_id: null,
   created_by: "fixture-parent-a",
+  can_edit: true,
+  can_delete: true,
   days_until: 10,
   next_occurrence: "2099-04-10T00:00:00.000Z",
 };
@@ -418,15 +420,27 @@ for (const locale of ["en", "es"] as const) {
             exact: true,
           })
           .click();
+        const refreshRecovery = page.getByRole("main").getByRole("alert");
+        await expect(refreshRecovery).toHaveCount(1);
         await expect(
-          page.getByText(
+          refreshRecovery.getByText(
             locale === "es"
-              ? "No se pudieron cargar las fechas"
-              : "Could not load dates",
+              ? "Fecha quitada. No se pudo actualizar la lista; inténtalo de nuevo para comprobarla."
+              : "Date removed. The list could not be refreshed; try again to check it.",
+            { exact: true },
           ),
         ).toBeVisible();
         await expect(
-          page.getByRole("button", {
+          page
+            .getByRole("main")
+            .getByText(
+              locale === "es"
+                ? "No se pudieron cargar las fechas"
+                : "Could not load dates",
+            ),
+        ).toHaveCount(0);
+        await expect(
+          refreshRecovery.getByRole("button", {
             name: locale === "es" ? "Intentar de nuevo" : "Try again",
             exact: true,
           }),

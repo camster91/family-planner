@@ -1,5 +1,163 @@
 # Current State
 
+## Combined Dates, Progress and saved-work candidate — 2026-10-18
+
+The isolated `codex/web-ui-recovery-release-499` candidate normally incorporates
+Dates #578 (`f1423720`, including #577 `9a8da960`), saved-work #556 (`51621a26`)
+and Progress #579 (`55f417bd`). All constituent heads/history remain intact.
+Integration source `f9efd20c` passes independent review, Prisma generation,
+typecheck and full lint. Full local units: 5820 passed, 396 established opt-in
+skips and three retained Mac backup-prune failures. Nine actual PostgreSQL
+Dates receipt/authority cases pass again on this combined source. Original
+Linux acceptance remains required; no tests or release gates are waived.
+
+Constituent rendered evidence is retained separately: Dates has 89 passes and
+10 declared scopes at exact application `0ed841aa`; subsequent test-only
+Notes/Capture repairs pass 42 cases/15 declared scopes, with genuine isolated
+logins, causally awaited availability responses and a live fixture device.
+Progress `55f417bd` passes 51 browser/startup-budget cases and independent final
+phone review; full names retain readable width with metrics below on phones.
+Storage `51621a26` passes 63 cases, with 48 captures and 24 exact source/runtime
+proofs. These constituent results do not substitute for exact combined build,
+rendered/hosted acceptance or production verification, which remain pending.
+
+The merge resolves documentation by retaining dated checkpoints and combines
+only the separately removed stale localization-inventory entries (18 Analytics,
+one Dates placeholder). Today retains Next up and person queue recovery.
+No schema, migration, permissions, device capability, default feature flag,
+provider/scheduler or native/store activation is introduced by integration.
+Production remains separately verified Family/Notes `768e4170` (#576); rollback,
+protected restore, normal merge, exact-main QA and live-runtime verification are
+required for this candidate. The complete #499/#128 22-feature programme remains
+open; Rewards is an isolated subsequent implementation, not included here.
+
+## Dates recovery candidate — 2026-10-18
+
+The isolated `codex/dates-recovery-499` candidate incorporates #577 through
+`9a8da960` without rewriting its history. Optional canonical idempotency keys
+make POST/PATCH/DELETE replayable while preserving legacy clients. Row writes
+and receipts commit together; current household, role, feature and ownership
+checks also protect replays. Mutation responses project current edit/delete
+grants without changing stored receipts. No schema or provider change is added.
+
+The short Dates sheets now retain uncertain intent across A/B/A draft edits and
+cancel, disable edits during pending saves, validate successful responses, keep
+confirmed rows/removals after a failed refresh, and offer a GET-only Retry.
+Independent API/shared-helper and UI source reviews pass after their specific
+findings were repaired. At application/test head `30dd3937`, optimized build,
+types, 103 affected unit checks and nine real PostgreSQL route checks pass.
+The complete six-size EN/light and ES/dark browser matrix passes 89 checks with
+10 declared desktop-only scopes skipped elsewhere, zero failures/retries, and
+64 captures. Supplemental notice captures pass 15 cases at `de7b5f63`; their visual review
+identified redundant recovery cards. A subsequent compact single-card polish
+passes 27 mounted cases/types and requires fresh rendered and hosted acceptance. The initial new-test selector/refresh-phase failures are retained.
+
+The latest full local unit run at `80994cbc` observes 5779 passes, 396 established
+opt-in skips and only three existing Mac backup-prune failures. The stale D9
+navigation expectation lists are corrected. Its polished browser run passes
+77 cases; 12 older delete-dialog cases expected the removed generic error card.
+Those expectations now require the specific confirmed-delete recovery message,
+single alert, generic-error absence and the retained focused Retry. A fresh
+complete browser run and original full Linux CI are required before merge. The new real-database route
+suite is included in the unchanged database-backed CI gate. Production is a
+separate verification state; wider #499/#128 acceptance remains open.
+
+## Family and Notes production verified — 2026-10-18
+
+PR #576 is normally merged and production verified at main
+`768e417042f0c1f924ebd3a05e8650b24f778e10`, with a whole tree identical to accepted
+candidate `fb364200`. Every original candidate and exact-main build/image,
+Android and browser workflow passed, including all viewport, Settings,
+inventory, password-recovery and email-free profile jobs. A fresh protected
+backup restored all 71 public tables, with temporary restore database removed.
+Incorporated Family #575 is merged with original head/history retained.
+
+Guarded native Coolify dispatch through unchanged application 11 produced
+source-build deployment 559 (`zcuqofb8acudxij5m4z2e7ws`), finished at
+2026-10-18T07:44:00Z. Healthy serving container `c83057090fdc`, image revision and
+runtime commit match 768e4170; schema/post-feature migrations and startup passed.
+Public version/readiness header, readiness/liveness and anonymous private-route
+login refusals passed. Default-off profile/assistant flags remain off, including
+both accepted truthy forms. Retained rollback is `f1d103a8`. Authenticated
+production household, native/store/provider/voice and customer acceptance remain
+separate. See #499 comment6247282820 for the persisted release record.
+
+## Dates overview candidate — 2026-10-18
+
+The isolated `codex/dates-overview-499` slice now includes merged main `768e4170`.
+Application `7f2e6417` and test head `7704da0f` add canonical permission-aware
+annual dates, mixed chronology, short forms, localized calendar labels and
+teen/child discovery. Explicit paired-device refusal precedes person auth on
+all four handlers. The shared route allowlist now agrees with documented D9
+rules, preserving Settings/device/finance denials; a tiny scoped dictionary
+keeps menu labels localized without loading the full catalog.
+
+128 affected tests, optimized build/types/lint/required formatting and independent
+source review pass. The final actual compiled browser matrix passes 77 cases,
+with 10 explicitly desktop-only boundary scopes skipped on other sizes, zero
+failures/retries. Six repository sizes include EN/light and ES/dark, canonical
+parent/teen/child and two-household cases, confirmed live-device redirect/all-four
+API refusals, Axe/reflow/44px controls, loading/malformed/empty/retry, raw names,
+optional fields and modal/focus recovery. Supplemental exact rebuilt source
+`e5d2247e` passes all 15 state cases, including actual phone scroll/focus/hit
+geometry above fixed navigation. All 52 retained captures pass independent
+visual review; the apparent initial narrow-screen overlap was normal scrolling.
+A real routing omission and test-only Spanish/credential-clock mistakes are
+fixed; unsuccessful runs remain retained. This is not full Dates acceptance:
+hosted/release gates and the existing ambiguous-write/stale-refresh
+recovery audit remain open. A separate unaccepted recovery continuation uses
+canonical receipts and requires fresh integration/browser verification. No new
+schema, scheduler, provider/profile activation or native/store change is included.
+Full #499/#128 acceptance remains open.
+
+## Saved-change recovery candidate — PR #556 current-main integration — 2026-10-18
+
+PR #556 storage-recovery head `3470fca841c60dadb01f197e796b179e5c06276b`
+was originally based on released main `4082e7db80ce2a1b690ffd013094d29febfe85bf`.
+This checkout now contains a normal local merge with current main
+`768e417042f0c1f924ebd3a05e8650b24f778e10` for conflict resolution and
+revalidation only; it is not a public merge or release claim. The bounded
+fallback-write repair is `391844c903c9fcbfcbc9b6ec3dee2690c7f939ce`; its
+independent source review is clear.
+
+The candidate preserves unread queue bytes after a failed storage read, pauses
+replay and mutation until deliberate recovery, retains grocery drafts, fences
+sign-out/replacement cleanup, and resets the cached device queue after fresh
+pairing. It adds no schema, API, queue protocol, feature flag, provider,
+scheduler, native plugin or production activation. The original hosted checks
+for `3470fca8` passed; exact current-main checks, formal captures, and fresh
+backup/restore remain pending. #473, #480, native hardware and production
+activation remain open.
+
+Focused queue, purge, recovery UI and Today checks pass: 9 suites and 186
+tests, with typecheck and full ESLint also passing. The full Jest gate remains
+red on this macOS checkout: 501 suites passed, 2 failed and 55 were skipped
+(5,771 tests passed, 17 failed and 387 were skipped). The failures are the
+unrelated `backup-prune` and `recovery-rehearsal-guard` shell-harness suites:
+the former depends on GNU `date -d`, while the latter uses Bash `${name,,}`;
+the host provides BSD `date` and Bash 3.2. No queue or Today suite failed.
+Current-main build, browser/hosted checks, formal captures, fresh backup/restore,
+public merge/deploy and native hardware/customer acceptance remain unrun for
+this local candidate.
+
+## Local Progress continuation — 2026-10-18
+
+Application `20eef6ac` adapts the approved Progress study to the existing parent
+Analytics route, with canonical data, strict malformed-response recovery and
+scoped EN/ES presentation. Full optimized build, typecheck/lint, 7 mounted UI
+cases, 8 i18n guards and 29 API/isolation/gamification checks pass. The six-size
+EN/light and ES/dark browser matrix passes 15 cases with a test-only main-alert
+selector repair; 36 captures are retained. Full local units: 5756 passed, 387
+established opt-in skips, 3 known Mac backup-prune failures. Hosted and release
+acceptance are pending; child/teen home and persisted quiet mode remain open.
+No schema/API, permission, provider/profile/scheduler or native activation occurs.
+
+Current production Family/Notes #576 is separately verified at main `768e4170`;
+exact-main checks, protected 71-table restore and deployment559/runtime/public
+version/health proof are recorded in #499/#128/#576. Historical release text
+below retains its dated scope. Dates #578 is a separate draft continuation.
+
+
 ## Integrated UI web release — 2026-10-18
 
 PR #574 is normally merged at `f1d103a8b68bff4e40b431070c824b239db3bb36`.
@@ -11,23 +169,12 @@ Coolify webhook source deployment 558 (`xdnitf95hzyaeyzzxhtektkd`) finished at
 2026-10-18T06:15:35Z. Public version/readiness header, healthy serving image and
 container revision, startup migrations, liveness/readiness and anonymous private-
 route refusals were verified at that exact SHA. Default-off profile/assistant
-flags remain off. Exact-main build/image and browser checks are still running;
-Android passed. This serving-runtime evidence is separate from final exact-main
-or authenticated household/native/customer acceptance. Incorporated PRs #569–#573 are merged with their
+flags remain off. All three original exact-main build/image, Android and browser workflows now
+passed at f1d103a8, including every required viewport/opt-in aggregate. Public
+version was reread at that revision. This serving-runtime and exact-main evidence
+is separate from authenticated household/native/customer acceptance. Incorporated PRs #569–#573 are merged with their
 original heads/history retained. Retained rollback release is main `9d9e6de6`.
 
-Family PR #575 is retained for incorporation into the Notes continuation rather
-than redundant merging. Local Notes application source `4b159067` follows the
-approved shared-board direction: full width, one Add action, honest household
-visibility, all five canonical colors, full read-only detail and explicit confirmed
-mutation/failed-refresh recovery. 42 affected tests, optimized build and source
-review pass. Application `fa4948d7` adds accessible loading, bounded previews, save/delete focus and expanded rendered
-confirmed-write/failed-refresh, offline draft, malformed/empty and early-household
-recovery. Original role/isolation/feature/shared-device journeys plus unchanged
-startup budgets pass: 78 cases, 15 inherited desktop-only scope skips.
-All six sizes include EN/light, ES/dark, Axe, reflow, 44px controls and read-only
-focus recovery. No schema/API, permissions, profile/provider/scheduler or native
-change is included. Full programme and hosted/release acceptance stay open.
 
 ## Earlier approved UI candidate checkpoint — 2026-10-18
 

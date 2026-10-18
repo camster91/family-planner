@@ -32,6 +32,10 @@ export const KID_ALLOWED_PREFIXES = [
   // may edit only their own note. Deleting remains parent-only in the API.
   // This is a person-session route; shared-device notes stay excluded.
   '/dashboard/notes',
+  // Family dates follow D9: everyone may read/create, own edits for teens and
+  // children, parent-only deletion. Person sessions only; API device refusal
+  // and household feature gates remain in force.
+  '/dashboard/anniversaries',
   // Their own allowance, read-only (D5, #102). The API returns only rows paid
   // to the caller and refuses POST/PATCH.
   '/dashboard/allowance',

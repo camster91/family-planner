@@ -115,6 +115,42 @@ describe('withIdempotency', () => {
     expect(JSON.stringify(records()[0])).not.toContain('"x":1')
   })
 
+  it('runs a replay transform only after the initial effect and keeps the stored receipt raw', async () => {
+    const effect = counter({ status: 200, body: { date: { can_delete: true } } })
+    const transform = jest.fn((result: EffectResult) => ({
+      ...result,
+      body: { date: { can_delete: false } },
+    }))
+    const first = await withIdempotency(fakePrisma, KEY, ctxA, { x: 1 }, effect, { transformReplay: transform })
+    expect(await first.json()).toEqual({ date: { can_delete: true } })
+    expect(transform).not.toHaveBeenCalled()
+
+    const replay = await withIdempotency(fakePrisma, KEY, ctxA, { x: 1 }, effect, { transformReplay: transform })
+    expect(replay.headers.get(IDEMPOTENCY_REPLAYED_HEADER)).toBe('true')
+    expect(await replay.json()).toEqual({ date: { can_delete: false } })
+    expect(transform).toHaveBeenCalledTimes(1)
+    expect(records()[0].response_body).toEqual({ date: { can_delete: true } })
+  })
+
+  it('does not transform a replay when the live beforeReplay guard refuses it', async () => {
+    const effect = counter({ status: 200, body: { date: { can_delete: true } } })
+    const transform = jest.fn((result: EffectResult) => ({
+      ...result,
+      body: { date: { can_delete: false } },
+    }))
+    await withIdempotency(fakePrisma, KEY, ctxA, { x: 1 }, effect)
+
+    const refused = await withIdempotency(fakePrisma, KEY, ctxA, { x: 1 }, effect, {
+      beforeReplay: async () => ({ status: 403, body: { error: 'Forbidden' } }),
+      transformReplay: transform,
+    })
+    expect(refused.status).toBe(403)
+    expect(refused.headers.get(IDEMPOTENCY_REPLAYED_HEADER)).toBeNull()
+    expect(await refused.json()).toEqual({ error: 'Forbidden' })
+    expect(transform).not.toHaveBeenCalled()
+    expect(records()[0].response_body).toEqual({ date: { can_delete: true } })
+  })
+
   it('same key + different request is 422 IDEMPOTENCY_KEY_REUSED and runs nothing', async () => {
     const effect = counter()
     await withIdempotency(fakePrisma, KEY, ctxA, { x: 1 }, effect)

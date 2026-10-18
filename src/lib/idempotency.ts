@@ -169,6 +169,8 @@ export interface EffectRun {
  * previously stored response.
  */
 export type ReplayGuard = () => Promise<EffectResult | null>
+/** Optional live projection of a completed response; the stored receipt is unchanged. */
+export type ReplayTransform = (result: EffectResult) => Promise<EffectResult> | EffectResult
 
 /**
  * Run `effect` at most once per (scope, key) while the record lives.
@@ -180,7 +182,7 @@ export async function withIdempotency(
   ctx: IdempotencyContext,
   body: unknown,
   effect: (run: EffectRun) => Promise<EffectResult>,
-  options?: { beforeReplay?: ReplayGuard },
+  options?: { beforeReplay?: ReplayGuard; transformReplay?: ReplayTransform },
 ): Promise<NextResponse> {
   if (!key) return respond(await effect({ recordId: null }))
 
@@ -236,7 +238,11 @@ export async function withIdempotency(
     if (existing.response_status != null) {
       const replayRefusal = await options?.beforeReplay?.()
       if (replayRefusal) return respond(replayRefusal)
-      return respond({ status: existing.response_status, body: existing.response_body }, true)
+      const replay = await options?.transformReplay?.({
+        status: existing.response_status,
+        body: existing.response_body,
+      })
+      return respond(replay ?? { status: existing.response_status, body: existing.response_body }, true)
     }
     if (existing.created_at.getTime() > now.getTime() - IDEMPOTENCY_LOCK_TIMEOUT_MS) {
       return idempotencyError('IDEMPOTENCY_IN_PROGRESS')

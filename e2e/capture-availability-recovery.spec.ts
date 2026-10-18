@@ -383,13 +383,28 @@ for (const locale of ["en", "es"] as const) {
 
     // Explicit disabled responses remove the launcher. Authenticated refusal
     // is a recovery boundary: it also purges the marked private envelope.
+    const waitForAvailability = (status: number) =>
+      page.waitForResponse((response) => {
+        const request = response.request();
+        return (
+          request.method() === "GET" &&
+          new URL(response.url()).pathname === "/api/capture" &&
+          response.status() === status
+        );
+      });
+
     availabilityMode = "disabled";
+    const disabledResponse = waitForAvailability(200);
     await page.reload();
+    expect((await disabledResponse).status()).toBe(200);
     await expect(
       page.getByRole("button", { name: labels.launcher, exact: true }),
     ).toHaveCount(0);
+
     availabilityMode = "refused";
+    const refusedResponse = waitForAvailability(401);
     await page.reload();
+    expect((await refusedResponse).status()).toBe(401);
     await expect(
       page.getByRole("button", { name: labels.launcher, exact: true }),
     ).toHaveCount(0);
@@ -404,11 +419,13 @@ for (const locale of ["en", "es"] as const) {
       localStorage.setItem("family-planner:capture-recovery:v1:active", key);
     }, storageKey);
     availabilityMode = "refused403";
+    const refused403Response = waitForAvailability(403);
     await page.reload();
+    expect((await refused403Response).status()).toBe(403);
     await expect(
       page.getByRole("button", { name: labels.launcher, exact: true }),
     ).toHaveCount(0);
-    expect(availabilityGets).toBe(5);
+    await expect.poll(() => availabilityGets).toBe(5);
     expect(providerPosts).toHaveLength(1);
     expect(blockedWrites).toEqual([]);
     expect(

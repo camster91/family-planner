@@ -158,3 +158,13 @@ describe('teen routes (owner decision O-37)', () => {
     expect(canRoleAccessPath('parent', path)).toBe(true)
   })
 })
+
+
+describe('Dates D9 route alignment', () => {
+  it.each(['teen', 'child'])('lets %s reach the role-aware Dates page without widening settings', (role) => {
+    expect(canRoleAccessPath(role, '/dashboard/anniversaries')).toBe(true)
+    expect(canRoleAccessPath(role, '/dashboard/anniversariesx')).toBe(false)
+    expect(canRoleAccessPath(role, '/dashboard/settings/devices')).toBe(false)
+    expect(canRoleAccessPath(role, '/dashboard/budget')).toBe(false)
+  })
+})
