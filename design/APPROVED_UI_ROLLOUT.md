@@ -46,14 +46,14 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Feature / surface | Approved direction | Current implementation disposition |
 | --- | --- | --- |
 | Shared personal navigation | Five parent tabs, searchable Explore, Family within Core | PR #568 verified live at main9d9e6de6 after exact-main QA and protected restore; child/teen tabs retained |
-| Today (person home) | A capped Next up card, dinner and a quiet look ahead | PR #570 combines scoped events/chores; bounded rendered/source checks and 117 original browser checks passed; full hosted and wider acceptance pending |
-| Chores | Grouped series, selected weekdays, clear owner, contextual actions | Local Today/Week/Series overview with inline routine stacks; 101 focused units and independent review pass; local six-size overview/completion/Undo/budget checks pass; hosted acceptance pending |
-| Calendar | Readable week/agenda, duration, clear connections and overlap review | Local timing-overlap advisory and one native source selector passed bounded review; mobile Week/workspace and full hosted acceptance pending |
-| Lists | Direct groceries, custom lists, simple create/edit | PR #570 compact overview, short create form and validated Back/create/delete context passed bounded review; full hosted acceptance and remaining detail-copy migration pending |
+| Today (person home) | A capped Next up card, dinner and a quiet look ahead | PR #570 combines scoped events/chores; bounded rendered/source checks and 117 original browser checks passed; incorporated #574 candidate hosted checks pass and source serves main f1d103a8; wider acceptance pending |
+| Chores | Grouped series, selected weekdays, clear owner, contextual actions | Local Today/Week/Series overview with inline routine stacks; 101 focused units and independent review pass; local six-size overview/completion/Undo/budget checks and incorporated #574 hosted candidate checks pass; wider acceptance pending |
+| Calendar | Readable week/agenda, duration, clear connections and overlap review | Local timing-overlap advisory and one native source selector passed bounded review; incorporated #574 hosted candidate checks pass; mobile Week/workspace and wider visual acceptance pending |
+| Lists | Direct groceries, custom lists, simple create/edit | PR #570 compact overview, short create form and validated Back/create/delete context passed bounded review; incorporated #574 hosted candidate checks pass; remaining detail-copy migration and wider acceptance pending |
 | Family | Add everyone, email-free profiles, clear account-link distinction | Local responsive account roster and EN/ES removal/recovery presentation: 44 affected tests, 78 browser checks and independent review pass; Add Everyone/profile-link and hosted/full acceptance pending |
-| Meals | Week plan, recipes, several-dish prep, eaten/remaining/next prep | Local shared Plan/Explore/Prep navigation candidate; existing canonical meal/prep behavior retained, rendered/final hosted acceptance pending |
-| Inventory | Use soon, honest capture review, quantities and locations | Local full-width overview and shared location shortcuts; 121 affected units, exact build and six-size browser 95 passes/10 inherited scope skips; hosted and wider acceptance pending |
-| Notes | Short shared notes and clear visibility | Existing behavior retained; approved layout review pending |
+| Meals | Week plan, recipes, several-dish prep, eaten/remaining/next prep | Local shared Plan/Explore/Prep navigation candidate; existing canonical meal/prep behavior retained, incorporated #574 hosted candidate checks pass; wider visual/journey acceptance pending |
+| Inventory | Use soon, honest capture review, quantities and locations | Local full-width overview and shared location shortcuts; 121 affected units, exact build and six-size browser 95 passes/10 inherited scope skips; incorporated #574 hosted candidate checks pass; capture-review/wider acceptance pending |
+| Notes | Short shared notes and clear visibility | Local shared board/read-only detail and canonical color/recovery alignment: 42 affected tests, 78 browser passes/15 inherited scope skips; hosted and wider acceptance pending |
 | Anniversaries | Upcoming dates without duplicate noise | Existing behavior retained; approved layout review pending |
 | Gamification | Optional quiet progress, meaningful dependencies | Existing behavior retained; approved layout review pending |
 | Rewards | Clear costs and role-appropriate actions | Existing behavior retained; approved layout review pending |
@@ -347,3 +347,57 @@ email-free profile presentation/account linking and their existing capability
 contracts remain separate open acceptance. No profile flag, provider, scheduler,
 API/schema or permissions change is introduced. Hosted candidate QA, normal
 merge, exact-main/recovery and production evidence remain pending.
+
+
+## Integrated core checkpoint — 2026-10-18
+
+PR #574 and incorporated #569–#573 are merged at `f1d103a8`, with an identical
+reviewed candidate tree `641f0714`. Original candidate build/image, Android, all
+viewport shards, recovery, Settings, inventory and email-free-profile routine QA
+passed. Fresh pre-merge protected recovery restored all 71 public tables and
+removed its temporary database. Source deployment 558 finished at 2026-10-18T06:15:35Z; public version/header,
+healthy serving image/container revision, startup migrations and private-route
+refusals verify f1d103a8. Exact-main build/image and browser QA remain in progress;
+Android passed. No authenticated production household/native/customer acceptance
+is inferred from runtime health.
+These are bounded core/layout checkpoints, not full feature or programme closure.
+
+## Bounded Notes checkpoint — 2026-10-18
+
+Application `fa4948d7` improves the canonical person-session shared Notes board:
+full-width responsive grid, one Add action, pinned count and honest household
+visibility, five server-supported colors, complete read-only detail for other
+members' notes, and wrapped titles/body previews. Short rounded form sheets keep
+existing edit/delete permissions, pending/back protection and draft/refusal
+recovery. Owned feedback retranslates after locale changes. Confirmed successful
+writes followed by failed refresh display a single explicit notice and Retry only
+repeats GET; no duplicate mutation is offered. Invalid/duplicate/color responses
+enter recovery, while canonical no-household refusals close early drafts and show
+existing create/join routes. Save waits for a pending roster read to settle.
+
+42 mounted/API/copy tests, optimized build and independent source review pass.
+Original role alignment plus 36 unchanged startup budgets pass in six sizes:
+78 cases and 15 inherited desktop-only scope skips. Added EN/light and ES/dark
+Axe/reflow, read-only full-body/no-input/no-mutation/focus, real child/teen ownership
+refusals, two-household and shared-device boundaries remain intact; 36 actual
+overview captures plus 12 household-state captures are retained locally. Expanded
+state checks verify malformed/empty responses, real offline refusal and confirmed
+writes followed by failed refresh. Feature and seeded-note cleanup are verified.
+Final publishing-head checks, visual signoff, hosted acceptance and release are
+pending. Gallery private-note/expiry examples need a separate canonical contract;
+they are not represented as working controls. No schema/API, permission, profile,
+provider, scheduler, native or infrastructure change is introduced.
+
+
+Final Notes QA resolved two additional real rendered findings before publication:
+a flex-growing preview measured 90px against a three-line 61px bound, and successful
+save/refresh recovery left focus on the body after replacing the opener. Previews
+now retain their three-line height; confirmed save/delete and household recovery
+focus the heading, while opening a new form clears old feedback so Cancel restores
+its opener. The existing parent deletion case now uses the UI and retains real
+DELETE 200, persisted absence and cross-household refusals. Both failed diagnostics
+are retained. Actual viewport footer hit tests adjudicate the earlier full-page
+capture overlap: after scrolling, each launcher is >=44px, at least 8px above the
+tab bar and hit-testable. No shared-shell workaround was introduced. Final source
+`fa4948d7` passes 78 browser cases/15 unchanged scope skips, with source and visual
+signoff. Wider feature/private-note/expiry, hosted and release acceptance stay open.

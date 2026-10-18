@@ -1,6 +1,35 @@
 # Current State
 
-## Approved UI rollout candidates — 2026-10-18
+## Integrated UI web release — 2026-10-18
+
+PR #574 is normally merged at `f1d103a8b68bff4e40b431070c824b239db3bb36`.
+Its tree is identical to accepted candidate `641f0714`; original build/image,
+Android, every browser viewport, Settings, inventory, profile routine and recovery
+workflow passed. A fresh protected backup restored all 71 public tables into an
+isolated database before merge, with the temporary database removed. The unchanged
+Coolify webhook source deployment 558 (`xdnitf95hzyaeyzzxhtektkd`) finished at
+2026-10-18T06:15:35Z. Public version/readiness header, healthy serving image and
+container revision, startup migrations, liveness/readiness and anonymous private-
+route refusals were verified at that exact SHA. Default-off profile/assistant
+flags remain off. Exact-main build/image and browser checks are still running;
+Android passed. This serving-runtime evidence is separate from final exact-main
+or authenticated household/native/customer acceptance. Incorporated PRs #569–#573 are merged with their
+original heads/history retained. Retained rollback release is main `9d9e6de6`.
+
+Family PR #575 is retained for incorporation into the Notes continuation rather
+than redundant merging. Local Notes application source `4b159067` follows the
+approved shared-board direction: full width, one Add action, honest household
+visibility, all five canonical colors, full read-only detail and explicit confirmed
+mutation/failed-refresh recovery. 42 affected tests, optimized build and source
+review pass. Application `fa4948d7` adds accessible loading, bounded previews, save/delete focus and expanded rendered
+confirmed-write/failed-refresh, offline draft, malformed/empty and early-household
+recovery. Original role/isolation/feature/shared-device journeys plus unchanged
+startup budgets pass: 78 cases, 15 inherited desktop-only scope skips.
+All six sizes include EN/light, ES/dark, Axe, reflow, 44px controls and read-only
+focus recovery. No schema/API, permissions, profile/provider/scheduler or native
+change is included. Full programme and hosted/release acceptance stay open.
+
+## Earlier approved UI candidate checkpoint — 2026-10-18
 
 GitHub main is verified at `9d9e6de6bce7f7bf7fe3b26e51f2118ce629d1de`
 ([PR #568](https://github.com/camster91/family-planner/pull/568)). The earlier
