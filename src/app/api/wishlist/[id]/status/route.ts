@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import {
+  authorizeWishlistReplay,
+  normalizeWishlistStatus,
+  updateWishlistStatusWithReceipt,
+  wishlistAction,
+} from '@/lib/wishlist-write'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { wishlistStatusSchema } from '@/lib/validations'
@@ -26,14 +33,6 @@ export async function PATCH(
 
     const { id } = await params
 
-    const existing = await prisma!.wishlistItem.findUnique({ where: { id } })
-    if (!existing) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    }
-    if (existing.family_id !== auth.user.family_id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
     let json: unknown
     try {
       json = await request.json()
@@ -44,25 +43,41 @@ export async function PATCH(
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
-    const { status, denied_reason } = parsed.data
+    const input = normalizeWishlistStatus(parsed.data)
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return keyError
 
-    const updated = await prisma!.wishlistItem.update({
-      where: { id },
-      data: {
-        status,
-        denied_reason: status === 'denied' ? (denied_reason ?? '').trim() : null,
-        status_changed_at: new Date(),
-        status_changed_by: auth.user.id,
+    const response = await withIdempotency(
+      prisma!,
+      key,
+      {
+        scope: `user:${auth.user.id}`,
+        familyId: auth.user.family_id,
+        userId: auth.user.id,
+        action: wishlistAction('status'),
       },
-      include: {
-        requester: { select: { id: true, name: true } },
-        status_changer: { select: { id: true, name: true } },
+      { id, ...input },
+      ({ recordId }) =>
+        updateWishlistStatusWithReceipt(
+          prisma!,
+          id,
+          input,
+          { familyId: auth.user.family_id, userId: auth.user.id },
+          recordId,
+        ),
+      {
+        beforeReplay: () =>
+          authorizeWishlistReplay(
+            prisma!,
+            'status',
+            { familyId: auth.user.family_id, userId: auth.user.id },
+            id,
+            key,
+          ),
       },
-    })
-
-    return NextResponse.json({
-      item: { ...updated, approx_price: updated.approx_price ? updated.approx_price.toString() : null },
-    })
+    )
+    response.headers.set('Cache-Control', 'private, no-store')
+    return response
   } catch (err) {
     logRouteError('PATCH /api/wishlist/[id]/status', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
