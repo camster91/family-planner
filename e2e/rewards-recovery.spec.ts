@@ -37,6 +37,32 @@ const EMPTY = FIXTURE_IDS.familyEmpty;
 type Locale = "en" | "es";
 type Who = "parentA" | "childA" | "parentB";
 
+// The real empty-household journey signs in once per locale and viewport.
+// Keep those setup requests out of the shared project buckets, which are also
+// used by the long full-matrix run, without changing the production limit or
+// any login assertions.
+const REWARDS_EMPTY_CLIENT_IPS = {
+  "phone-390x844": "198.51.100.252",
+  "phone-430x932": "198.51.100.253",
+  "tablet-portrait-800x1280": "198.51.100.254",
+  "fridge-landscape-1280x800": "203.0.113.252",
+  "tablet-large-1920x1200": "203.0.113.253",
+  "desktop-1366x768": "203.0.113.254",
+} as const;
+
+function rewardsEmptyClientIp(info: TestInfo): string {
+  const ip =
+    REWARDS_EMPTY_CLIENT_IPS[
+      info.project.name as keyof typeof REWARDS_EMPTY_CLIENT_IPS
+    ];
+  if (!ip) {
+    throw new Error(
+      `No dedicated Rewards empty-household client address for ${info.project.name}`,
+    );
+  }
+  return ip;
+}
+
 type FeatureSetup = {
   page: Page;
   original: Record<string, unknown>;
@@ -235,7 +261,10 @@ async function openEmpty(
     timezoneId: use.timezoneId,
     colorScheme: locale === "es" ? "dark" : "light",
     reducedMotion: "reduce",
-    extraHTTPHeaders: use.extraHTTPHeaders,
+    extraHTTPHeaders: {
+      ...use.extraHTTPHeaders,
+      "X-Forwarded-For": rewardsEmptyClientIp(info),
+    },
   });
   await setLocale(context, locale);
   await installLoopbackGuard(context);
