@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
     // Serialize Decimal to string for JSON
     const serialized = items.map((item) => ({
       ...item,
-      approx_price: item.approx_price ? item.approx_price.toString() : null,
+      approx_price:
+        item.approx_price == null ? null : item.approx_price.toString(),
     }))
 
     return NextResponse.json({ items: serialized })

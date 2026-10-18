@@ -55,6 +55,7 @@ jest.setTimeout(60_000);
 
 describeWithDatabase("Wishlist routes against PostgreSQL", () => {
   let db: NonNullable<typeof import("@/lib/prisma").prisma>;
+  let GET: typeof import("../route").GET;
   let POST: typeof import("../route").POST;
   let PATCH: typeof import("../[id]/route").PATCH;
   let DELETE: typeof import("../[id]/route").DELETE;
@@ -126,6 +127,7 @@ describeWithDatabase("Wishlist routes against PostgreSQL", () => {
     const mod = await import("@/lib/prisma");
     if (!mod.prisma) throw new Error("Integration database is not configured");
     db = mod.prisma;
+    GET = (await import("../route")).GET;
     POST = (await import("../route")).POST;
     PATCH = (await import("../[id]/route")).PATCH;
     DELETE = (await import("../[id]/route")).DELETE;
@@ -233,9 +235,10 @@ describeWithDatabase("Wishlist routes against PostgreSQL", () => {
 
   it("converges overlapping same-key creates to one row and receipt", async () => {
     const key = "wishlist-create-concurrent-20261018";
+    const zeroPriceBody = { ...BASE_BODY, approx_price: 0 };
     const responses = await Promise.all([
-      POST(request(PARENT, BASE_BODY, key)),
-      POST(request(PARENT, BASE_BODY, key)),
+      POST(request(PARENT, zeroPriceBody, key)),
+      POST(request(PARENT, zeroPriceBody, key)),
     ]);
     expect(
       responses.every(({ status }) => status === 201 || status === 409),
@@ -243,10 +246,18 @@ describeWithDatabase("Wishlist routes against PostgreSQL", () => {
     const winner = responses.find(({ status }) => status === 201);
     expect(winner).toBeDefined();
     const winnerBody = await winner!.json();
-    const retry = await POST(request(PARENT, BASE_BODY, key));
+    const retry = await POST(request(PARENT, zeroPriceBody, key));
     expect(retry.status).toBe(201);
     expect(retry.headers.get("Idempotency-Replayed")).toBe("true");
     expect(await retry.json()).toEqual(winnerBody);
+    expect(winnerBody.item.approx_price).toBe("0");
+    const listed = await GET(request(PARENT));
+    expect(listed.status).toBe(200);
+    expect(
+      (await listed.json()).items.find(
+        (item: { id: string }) => item.id === winnerBody.item.id,
+      ).approx_price,
+    ).toBe("0");
     expect(await db.wishlistItem.count({ where: { family_id: FAMILY } })).toBe(
       1,
     );

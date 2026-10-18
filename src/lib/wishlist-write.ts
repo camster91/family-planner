@@ -203,9 +203,10 @@ export async function createWishlistWithReceipt(
         title: input.title,
         link: input.link || null,
         description: input.description || null,
-        approx_price: input.approx_price
-          ? new Prisma.Decimal(input.approx_price.toFixed(2))
-          : null,
+        approx_price:
+          input.approx_price == null
+            ? null
+            : new Prisma.Decimal(input.approx_price.toFixed(2)),
       },
       include: { requester: { select: { id: true, name: true } } },
     })
