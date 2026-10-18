@@ -24,9 +24,12 @@
  * idempotency records the add created, so seeded data and the visual
  * baselines are unchanged outside this file. Consume/discard history rows go
  * with their items (FK cascade). Runs at 390×844, 430×932, 800×1280,
- * 1280×800 and 1366×768. The fixture guard refuses production-like databases.
+ * 1280×800 1366×768 and 1920×1200. The fixture guard refuses production-like databases.
  */
 import AxeBuilder from "@axe-core/playwright";
+import { inventoryMessages } from "../src/i18n/inventory";
+import { LOCALE_STORAGE_KEY } from "../src/i18n";
+import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import type { Locator, Page, TestInfo } from "@playwright/test";
 import pg from "pg";
 import {
@@ -47,6 +50,7 @@ const PROJECTS = [
   "tablet-portrait-800x1280",
   "fridge-landscape-1280x800",
   "desktop-1366x768",
+  "tablet-large-1920x1200",
 ];
 const LONG_NAME = `${PREFIX} ${"extra-mature farmhouse cheddar with caramelised onion chutney ".repeat(3).trim()}`;
 
@@ -67,7 +71,7 @@ const CANARY_B = `${PREFIX} B canary`;
 function onlyOnSomeProjects(testInfo: TestInfo) {
   test.skip(
     !PROJECTS.includes(testInfo.project.name),
-    "inventory journey runs at 390x844, 430x932, 800x1280, 1280x800 and 1366x768",
+    "inventory journey runs at all six representative sizes",
   );
 }
 
@@ -344,6 +348,76 @@ test.describe("inventory (Family A parent)", () => {
   }, testInfo) => {
     await tapToInventory(page, testInfo);
   });
+
+  for (const locale of ["en", "es"] as const) {
+    test(`${locale}: overview shortcuts share the filter without requests or lost search`, async ({
+      page,
+    }, info) => {
+      const copy = inventoryMessages[locale];
+      await page.addInitScript(
+        ({ locale, localeKey, themeKey }) => {
+          localStorage.setItem(localeKey, locale);
+          localStorage.setItem(themeKey, locale === "es" ? "dark" : "light");
+        },
+        { locale, localeKey: LOCALE_STORAGE_KEY, themeKey: THEME_STORAGE_KEY },
+      );
+      const inventoryRequests: string[] = [];
+      page.on("request", (request) => {
+        const url = new URL(request.url());
+        if (url.pathname.startsWith("/api/inventory"))
+          inventoryRequests.push(`${request.method()} ${url.pathname}`);
+      });
+      await page.goto("/dashboard/inventory");
+      await expect(page.locator("html")).toHaveAttribute("lang", locale);
+      const shortcuts = page.getByTestId("inventory-shortcuts");
+      const all = shortcuts.getByRole("button", {
+        name: `${copy.everywhere} ${copy.locationCountMany.replace("{count}", "5")}`,
+        exact: true,
+      });
+      await expect(all).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByTestId("inventory-item")).toHaveCount(5);
+      const requestsBefore = [...inventoryRequests];
+      const freezer = shortcuts.getByRole("button", {
+        name: `${copy.freezer} ${copy.locationCountOne.replace("{count}", "1")}`,
+        exact: true,
+      });
+      await freezer.press("Enter");
+      await expect(freezer).toBeFocused();
+      await expect(freezer).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByLabel(copy.where, { exact: true })).toHaveValue(
+        "freezer",
+      );
+      await expect(page.getByTestId("inventory-item")).toHaveCount(1);
+      await expect(itemRow(page, IDS.peas)).toBeVisible();
+      await page.getByRole("searchbox").fill("peas");
+      await page.getByLabel(copy.where, { exact: true }).selectOption("fridge");
+      await expect(page.getByTestId("no-matches")).toBeVisible();
+      await expect(page.getByRole("searchbox")).toHaveValue("peas");
+      await expect(
+        shortcuts.getByRole("button", { name: new RegExp(`^${copy.fridge} `) }),
+      ).toHaveAttribute("aria-pressed", "true");
+      await all.press("Enter");
+      await expect(page.getByRole("searchbox")).toHaveValue("peas");
+      await expect(itemRow(page, IDS.peas)).toBeVisible();
+      await page.getByRole("searchbox").fill("");
+      await expect(page.getByTestId("inventory-item")).toHaveCount(5);
+      expect(inventoryRequests).toEqual(requestsBefore);
+      await expectTargets(shortcuts);
+      await expectNoHorizontalOverflow(page);
+      await expectNoSeriousAxe(page, info, `inventory overview ${locale}`);
+      const overview = page.getByTestId("inventory-overview");
+      const box = await overview.boundingBox();
+      expect(box!.width).toBeGreaterThanOrEqual(
+        page.viewportSize()!.width - 72,
+      );
+      await overview.scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: info.outputPath(`inventory-overview-${locale}.png`),
+        fullPage: false,
+        animations: "disabled",
+      });
+    });
+  }
 
   test("groups items, labels expiry in words, and passes layout and axe checks", async ({
     page,

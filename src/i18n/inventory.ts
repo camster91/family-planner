@@ -63,6 +63,11 @@ export const inventoryEnglish = {
   where: "Where",
   use_by: "Use by",
   best_before: "Best before",
+  locations: "Locations",
+  locationCountOne: "{count} item",
+  locationCountMany: "{count} items",
+  locationCountCapped: "At least {count} items",
+  locationCountIncomplete: "Count incomplete",
   title: "Food inventory",
   subtitle:
     "What's in the fridge, freezer and pantry, as far as the family has noted it.",
@@ -240,6 +245,11 @@ export const inventorySpanish: Record<InventoryMessage, string> = {
   where: "Dónde",
   use_by: "Consumir hasta",
   best_before: "Consumo preferente",
+  locations: "Ubicaciones",
+  locationCountOne: "{count} alimento",
+  locationCountMany: "{count} alimentos",
+  locationCountCapped: "Al menos {count} alimentos",
+  locationCountIncomplete: "Recuento incompleto",
   title: "Inventario de alimentos",
   subtitle:
     "Lo que hay en el refrigerador, congelador y despensa, según lo que ha anotado la familia.",
