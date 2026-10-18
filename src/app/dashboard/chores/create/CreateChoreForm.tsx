@@ -108,6 +108,8 @@ export default function CreateChoreForm({
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState(false);
+  const photoUploadPending = useRef(false);
   const busy = loading || photoUploading;
   const directNavigation = usePendingFormNavigationController(busy && !inSheet);
   const sheetNavigation = usePendingFormNavigation();
@@ -269,6 +271,7 @@ export default function CreateChoreForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (photoUploadPending.current) return;
     if (frequency === "weekly" && !weeklyDays.length) {
       setError(message("chooseWeekday"));
       return;
@@ -837,8 +840,11 @@ export default function CreateChoreForm({
               accept="image/*"
               className="hidden"
               onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
+                const input = e.currentTarget;
+                const file = input.files?.[0];
+                if (!file || photoUploadPending.current || loading) return;
+                photoUploadPending.current = true;
+                setPhotoError(false);
                 markProfileDraftEdited();
                 setPhotoUploading(true);
                 try {
@@ -851,12 +857,18 @@ export default function CreateChoreForm({
                   const data = await res.json();
                   if (!res.ok)
                     throw new Error(data.error || message("uploadFailed"));
+                  if (
+                    typeof data?.url !== "string" ||
+                    !data.url.startsWith("/api/files/chores/")
+                  )
+                    throw new Error(message("uploadFailed"));
                   setPhotoUrl(data.url);
                   setPhotoPreview(data.url);
-                } catch (err) {
-                  console.error("Photo upload error:", err);
-                  alert(message("uploadFailed"));
+                } catch {
+                  setPhotoError(true);
                 } finally {
+                  input.value = "";
+                  photoUploadPending.current = false;
                   setPhotoUploading(false);
                 }
               }}
@@ -864,8 +876,12 @@ export default function CreateChoreForm({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={photoUploading}
-              aria-describedby={`${fieldId}-photo`}
+              disabled={busy}
+              aria-describedby={
+                photoError
+                  ? `${fieldId}-photo ${fieldId}-photo-error`
+                  : `${fieldId}-photo`
+              }
               className={cn(
                 "w-full py-3 rounded-[var(--radius-md)] border transition-all duration-200 text-center",
                 photoPreview
@@ -884,6 +900,15 @@ export default function CreateChoreForm({
                 </>
               )}
             </button>
+            {photoError && (
+              <p
+                id={`${fieldId}-photo-error`}
+                role="alert"
+                className="mt-2 text-body text-[var(--danger-text)]"
+              >
+                {message("uploadFailed")}
+              </p>
+            )}
             {photoPreview && (
               <div className="mt-2 relative w-24 h-24 rounded-[var(--radius-md)] overflow-hidden border border-[var(--surface-separator)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -896,9 +921,11 @@ export default function CreateChoreForm({
                   type="button"
                   onClick={() => {
                     markProfileDraftEdited();
+                    setPhotoError(false);
                     setPhotoUrl(null);
                     setPhotoPreview(null);
                   }}
+                  disabled={busy}
                   aria-label={message("removePhoto")}
                   className="absolute top-0 right-0 flex h-11 w-11 items-start justify-end p-1"
                 >
@@ -926,7 +953,7 @@ export default function CreateChoreForm({
         >
           <button
             type="submit"
-            disabled={loading || submitHint !== null}
+            disabled={busy || submitHint !== null}
             aria-describedby={submitHint ? `${fieldId}-submit-hint` : undefined}
             className="btn-filled w-full"
           >
