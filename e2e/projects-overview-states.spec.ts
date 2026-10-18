@@ -511,7 +511,10 @@ for (const locale of ["en", "es"] as const) {
           page.getByRole("heading", { name: projectName, exact: true }),
         ).toBeVisible();
         await expect(
-          page.getByText(copy.overview.noTasks, { exact: true }),
+          page.getByRole("heading", {
+            name: copy.overview.noTasks,
+            exact: true,
+          }),
         ).toBeVisible();
         await expect(
           page.getByRole("button", {
