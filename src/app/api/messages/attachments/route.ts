@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma'
 import { sniffImageType } from '@/lib/image-sniff'
 import {
   MESSAGE_ATTACHMENT_MAX_BYTES,
+  MESSAGE_ATTACHMENT_MAX_REQUEST_BYTES,
   messageAttachmentPath,
   pruneUnboundMessageAttachments,
   storeMessageAttachment,
@@ -20,6 +21,7 @@ export const runtime = 'nodejs'
 
 const MESSAGE_UPLOAD_RATE_LIMIT = 20
 const MESSAGE_UPLOAD_RATE_WINDOW_MS = 60 * 60 * 1000
+export const MESSAGE_UPLOAD_MAX_REQUEST_BYTES = MESSAGE_ATTACHMENT_MAX_REQUEST_BYTES
 const MESSAGE_MIMES = new Set<MessageAttachmentMime>([
   'image/jpeg',
   'image/png',
@@ -59,13 +61,18 @@ export async function POST(request: NextRequest) {
         },
       )
     }
-    const declaredLength = Number(request.headers.get('content-length'))
+    // formData() buffers the multipart body. Require a valid bounded length
+    // before parsing so chunked/invalid requests cannot allocate unbounded
+    // memory before the per-file limit is checked.
+    const rawLength = request.headers.get('content-length')?.trim() ?? ''
+    const declaredLength = /^\d+$/.test(rawLength) ? Number(rawLength) : NaN
     if (
-      Number.isFinite(declaredLength) &&
-      declaredLength > MESSAGE_ATTACHMENT_MAX_BYTES + 1024 * 1024
+      !Number.isSafeInteger(declaredLength) ||
+      declaredLength <= 0 ||
+      declaredLength > MESSAGE_ATTACHMENT_MAX_REQUEST_BYTES
     ) {
       return NextResponse.json(
-        { error: 'Message attachment is too large.' },
+        { error: 'Message attachment request is too large or has no valid length.' },
         { status: 413 },
       )
     }

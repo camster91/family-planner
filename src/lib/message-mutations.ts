@@ -17,7 +17,7 @@ export const MESSAGE_PICKUP_SELECT = {
   title: true,
   pickup_time: true,
   completed: true,
-  assignee: { select: { id: true, name: true } },
+  assignee: { select: { id: true, name: true, family_id: true } },
 } as const
 
 export const MESSAGE_INCLUDE = {
@@ -68,8 +68,11 @@ export async function authorizeMessageActorInTx(
 }
 
 function safePickup(pickup: any, familyId: string | null | undefined) {
-  if (!pickup || (pickup.family_id && pickup.family_id !== familyId))
-    return null
+  if (!pickup || pickup.family_id !== familyId) return null
+  const assignee =
+    pickup.assignee && pickup.assignee.family_id === familyId
+      ? { id: pickup.assignee.id, name: pickup.assignee.name }
+      : null
   return {
     id: pickup.id,
     title: pickup.title,
@@ -78,9 +81,7 @@ function safePickup(pickup: any, familyId: string | null | undefined) {
         ? pickup.pickup_time.toISOString()
         : pickup.pickup_time,
     completed: pickup.completed,
-    assignee: pickup.assignee
-      ? { id: pickup.assignee.id, name: pickup.assignee.name }
-      : null,
+    assignee,
   }
 }
 

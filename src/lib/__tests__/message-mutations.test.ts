@@ -27,7 +27,7 @@ describe('message response and attachment contracts', () => {
         completed: false,
         location: 'Private address',
         notes: 'Private instructions',
-        assignee: { id: 'child-1', name: 'Child' },
+        assignee: { id: 'child-1', name: 'Child', family_id: 'family-1' },
       },
     })
 
@@ -44,6 +44,16 @@ describe('message response and attachment contracts', () => {
     })
     expect(response.pickup).not.toHaveProperty('location')
     expect(response.pickup).not.toHaveProperty('notes')
+    expect(
+      toMessageResponse({
+        family_id: 'family-1',
+        pickup: {
+          id: 'pickup-2',
+          family_id: 'family-1',
+          assignee: { id: 'foreign-child', family_id: 'family-2', name: 'Foreign' },
+        },
+      }).pickup?.assignee,
+    ).toBeNull()
     expect(response.sender).toEqual({
       id: 'parent-1',
       name: 'Parent',

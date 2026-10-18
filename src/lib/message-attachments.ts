@@ -8,6 +8,11 @@ import { resolveUploadDir } from '@/lib/upload-dir'
 /** Message files never share the chore-photo directory or URL contract. */
 export const MESSAGE_ATTACHMENT_PATH_PREFIX = '/api/messages/attachments/'
 export const MESSAGE_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024
+// A single upload has one file plus bounded multipart field/header overhead.
+// The route rejects missing/invalid Content-Length before formData() buffers
+// the request, while this allowance keeps ordinary multipart clients within
+// the same 5 MiB file contract.
+export const MESSAGE_ATTACHMENT_MAX_REQUEST_BYTES = MESSAGE_ATTACHMENT_MAX_BYTES + 1024 * 1024
 export const MESSAGE_ATTACHMENT_STALE_AGE_MS = 24 * 60 * 60 * 1000
 export const MESSAGE_ATTACHMENT_STALE_BATCH = 20
 export const MESSAGE_ATTACHMENT_FILENAME_RE =

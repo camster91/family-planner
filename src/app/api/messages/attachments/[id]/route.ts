@@ -28,7 +28,10 @@ export async function GET(
 
     const { id } = await params
     const attachment = await prisma!.messageAttachment.findFirst({
-      where: { id, family_id: auth.user.family_id },
+      // Draft rows have no message yet. Do not make an uploaded-but-unclaimed
+      // file readable by every household member; serving starts after the
+      // message transaction claims it.
+      where: { id, family_id: auth.user.family_id, message_id: { not: null } },
       select: { filename: true, content_type: true },
     })
     if (!attachment)
