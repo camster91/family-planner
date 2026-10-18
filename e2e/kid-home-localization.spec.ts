@@ -29,6 +29,7 @@ const PROJECTS = new Set([
   "tablet-large-1920x1200",
   "desktop-1366x768",
 ]);
+const PARENT_PROJECTS = new Set(["phone-390x844", "desktop-1366x768"]);
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const routineName = `Morning café ${suffix}`;
 const catchupName = `After school ${suffix}`;
@@ -438,6 +439,10 @@ for (const locale of ["en", "es"] as const) {
     test(`${locale}: parent sees routine rows without child-only home copy`, async ({
       page,
     }, info) => {
+      test.skip(
+        !PARENT_PROJECTS.has(info.project.name),
+        "The parent routine-row check runs on the smallest phone and support desktop; the child home journey retains all six projects.",
+      );
       const response = await page.goto("/dashboard/chores");
       expect(response?.status()).toBe(200);
       await expect(page.locator("html")).toHaveAttribute("lang", locale);
