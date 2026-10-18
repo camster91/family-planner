@@ -80,13 +80,14 @@ checks and all150 native capture reviews pass; all exact-main Build/Test, Androi
 E2E follow-ups pass. Public/private-route
 and exact image/runtime checks do not imply authenticated production QA.
 
-PR #588 at `ea1d85d29a6907e56ae9cd21cf337b9e218ab36c` remains pending original
-hosted acceptance. Its shared form scroll-body repair follows a real Inventory
-accessibility failure in bf31; no check was waived. Exact repaired build,
-97 affected mounted cases and28 local browser journeys pass, with6 authentication
-setup cases separate. Fresh restore preserves all72 existing tables and rows,
-including attachments. Source/schema/permissions/activation remain separately
-verified; this is not a new deployment claim.
+PR #588 at `7dca47b40ffcc290432be0d50fa9f587f1c88938` remains pending original
+browser acceptance. Its shared scroll-body and Inventory completion-focus
+repairs follow real bf31/ea1d failures; no check was waived. Exact7dca build,
+27 affected mounted cases,12 Inventory browser journeys and18 completion-state
+native-image reviews pass (3 auth setup cases separate). Original Build/checked
+image and Android pass; baseline5988 cases pass with433 established opt-in skips.
+Fresh restore preserves all72 existing tables and rows, including attachments.
+This is not a new merge or deployment claim.
 
 Sick days and Handoff follow-up implementations and Travel long-text reflow are
 local, unaccepted slices. Supporting routes, Add Everyone/account linking,
