@@ -11,6 +11,7 @@ import KidHome from "../KidHome";
 import { ToastProvider } from "@/components/ui/toast";
 import { FeaturesProvider } from "@/components/providers/features-provider";
 import { defaultFeatures } from "@/lib/features";
+import { rewardsEnglish } from "@/i18n/rewards";
 
 const refresh = jest.fn();
 jest.mock("next/navigation", () => ({
@@ -708,7 +709,8 @@ describe("KidHome picture routines", () => {
       </FeaturesProvider>,
     );
     await userEvent.click(screen.getByRole("button", { name: "Claim" }));
-    expect(await screen.findByText("Couldn't claim that")).toBeTruthy();
+    expect(await screen.findByText(rewardsEnglish.connectionErrorTitle)).toBeTruthy();
+    expect(screen.getByText(rewardsEnglish.connectionErrorDescription)).toBeTruthy();
   });
 
   it('shows done and checked steps from the server, and "All done" when the routine is finished', () => {
