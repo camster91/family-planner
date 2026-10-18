@@ -1,10 +1,11 @@
 /**
  * #499 Rewards overview rendered proof.
  *
- * The parent creates two disposable rewards through the real route. A child
- * claims one choice and the parent approves it through the real UI. The other
- * choice remains available, so the page proves one row and one XP debit rather
- * than a merely mocked success. Recovery and malformed transport cases live in
+ * The parent creates the first disposable reward through the real Add reward
+ * sheet/form and the second through the real route. A child claims one choice
+ * and the parent approves it through the real UI. The other choice remains
+ * available, so the page proves one row and one XP debit rather than a merely
+ * mocked success. Recovery and malformed transport cases live in
  * rewards-recovery.spec.ts; this file keeps the happy path canonical.
  */
 import AxeBuilder from "@axe-core/playwright";
@@ -24,6 +25,7 @@ import {
 } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
+import { rewardCreateMessages } from "../src/i18n/reward-create";
 import { E2E_ANCHOR, authFile } from "./support/env";
 import { ownFeatureAudit } from "./support/feature-audit";
 import { browserFetch, expect, test } from "./support/test";
@@ -228,6 +230,16 @@ async function assertHitTarget(locator: Locator): Promise<void> {
   expect(metrics.hit).toBe(true);
 }
 
+async function captureState(
+  page: Page,
+  info: TestInfo,
+  name: string,
+): Promise<void> {
+  const path = info.outputPath(`${name}.png`);
+  await page.screenshot({ path, fullPage: true });
+  await info.attach(`${name}.png`, { path, contentType: "image/png" });
+}
+
 async function prepareFeatures(page: Page): Promise<FeatureSetup> {
   const cleanAudit = await ownFeatureAudit([
     "gamification",
@@ -412,7 +424,67 @@ for (const locale of ["en", "es"] as const) {
         });
         featureSetup = await prepareFeatures(page);
 
-        for (const name of names) {
+        const createCopy = rewardCreateMessages[locale];
+        await page.goto("/dashboard/rewards");
+        await page
+          .getByRole("link", {
+            name: locale === "es" ? "Añadir recompensa" : "Add reward",
+            exact: true,
+          })
+          .click();
+        const createDialog = page.getByRole("dialog", {
+          name: createCopy.sheetTitle,
+        });
+        await expect(createDialog).toBeVisible();
+        const nameField = createDialog.getByLabel(new RegExp(createCopy.name));
+        const descriptionField = createDialog.getByLabel(
+          createCopy.description,
+          { exact: false },
+        );
+        const submit = createDialog.getByRole("button", {
+          name: createCopy.create,
+          exact: true,
+        });
+        await nameField.fill(names[0]);
+        await descriptionField.fill(
+          `Long description ${runId} — keep every word readable.`,
+        );
+        await captureState(page, info, "rewards-create-sheet");
+        await assertHitTarget(submit);
+        const formRequest = page.waitForRequest(
+          (request) =>
+            request.url().endsWith("/api/rewards") &&
+            request.method() === "POST",
+        );
+        const formResponse = page.waitForResponse(
+          (response) =>
+            response.url().endsWith("/api/rewards") &&
+            response.request().method() === "POST",
+        );
+        await submit.click();
+        const [request, createResponse] = await Promise.all([
+          formRequest,
+          formResponse,
+        ]);
+        expect(createResponse.status()).toBe(200);
+        expect(request.headers()["idempotency-key"]).toBeTruthy();
+        const formReward = (
+          (await createResponse.json()) as { reward?: RewardRow }
+        ).reward;
+        expect(formReward).toMatchObject({
+          family_id: A.family,
+          created_by: A.parent,
+          name: names[0],
+          description: `Long description ${runId} — keep every word readable.`,
+          cost: 50,
+          icon: "🎁",
+          status: "available",
+        });
+        expect(typeof formReward?.id).toBe("string");
+        ownedIds.add(formReward?.id as string);
+        await expect(page).toHaveURL(/\/dashboard\/rewards$/);
+
+        for (const name of names.slice(1)) {
           const created = await sendWithKey(
             page,
             "POST",
@@ -447,6 +519,7 @@ for (const locale of ["en", "es"] as const) {
         await expect(
           page.locator("a[href='/dashboard/analytics']"),
         ).toHaveCount(1);
+        await captureState(page, info, "rewards-parent-overview");
         await assertHitTarget(
           page.getByRole("link", {
             name: locale === "es" ? "Añadir recompensa" : "Add reward",
@@ -477,6 +550,7 @@ for (const locale of ["en", "es"] as const) {
         await expect(
           child.page.locator('[data-testid="claimable-reward"]'),
         ).toHaveCount(2);
+        await captureState(child.page, info, "rewards-child-choice");
         const selected = child.page
           .locator('[data-testid="claimable-reward"]')
           .filter({ hasText: names[0] });
@@ -512,11 +586,12 @@ for (const locale of ["en", "es"] as const) {
             .locator('[data-testid="claimable-reward"]')
             .filter({ hasText: names[1] }),
         ).toHaveCount(1);
+        await captureState(child.page, info, "rewards-child-claim-confirmed");
         const childXpAfterClaim = (
           JSON.parse((await browserFetch(child.page, "/api/auth/me")).body)
             .user as { xp?: unknown }
         ).xp;
-        expect(childXpAfterClaim).toBe((childXpBefore as number) - 1);
+        expect(childXpAfterClaim).toBe((childXpBefore as number) - 50);
         await assertLayout(child.page, info);
 
         const teen = await openTeen(browser, baseURL, info, locale);
@@ -564,6 +639,7 @@ for (const locale of ["en", "es"] as const) {
             .locator('[data-testid="claimable-reward"]')
             .filter({ hasText: names[1] }),
         ).toHaveCount(1);
+        await captureState(page, info, "rewards-parent-given");
         const persisted = await browserFetch(page, "/api/rewards");
         expect(persisted.status, persisted.body).toBe(200);
         const persistedRows = (

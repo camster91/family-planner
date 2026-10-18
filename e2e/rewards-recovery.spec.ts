@@ -294,6 +294,16 @@ async function assertSurface(page: Page, info: TestInfo): Promise<void> {
   expect(violations).toEqual([]);
 }
 
+async function captureState(
+  page: Page,
+  info: TestInfo,
+  name: string,
+): Promise<void> {
+  const path = info.outputPath(`${name}.png`);
+  await page.screenshot({ path, fullPage: true });
+  await info.attach(`${name}.png`, { path, contentType: "image/png" });
+}
+
 for (const locale of ["en", "es"] as const) {
   test.describe(`${locale} Rewards recovery`, () => {
     test.use({
@@ -323,6 +333,7 @@ for (const locale of ["en", "es"] as const) {
           }),
         ).toBeVisible();
         await assertSurface(empty.page, info);
+        await captureState(empty.page, info, "rewards-empty");
         await info.attach(`rewards-empty-${locale}-${info.project.name}`, {
           body: JSON.stringify({
             locale,
@@ -380,6 +391,7 @@ for (const locale of ["en", "es"] as const) {
         });
         await confirm.click();
         await expect(dialog.getByRole("alert")).toBeVisible();
+        await captureState(child.page, info, "rewards-malformed-recovery");
         const statusRoute = child.context.route(
           "**/api/rewards",
           async (route) => {
@@ -424,6 +436,7 @@ for (const locale of ["en", "es"] as const) {
         await child.context.unroute("**/api/rewards");
         await child.context.unroute("**/api/rewards/claim");
         expect(claimCalls).toBe(1);
+        await captureState(child.page, info, "rewards-malformed-reconciled");
         await assertSurface(child.page, info);
         await info.attach(`rewards-malformed-${locale}-${info.project.name}`, {
           body: JSON.stringify({
@@ -480,6 +493,8 @@ for (const locale of ["en", "es"] as const) {
           calls += 1;
           keys.push(route.request().headers()["idempotency-key"] ?? "");
           if (calls === 1) {
+            const committed = await route.fetch();
+            expect(committed.status()).toBe(200);
             await route.abort();
             return;
           }
@@ -513,7 +528,9 @@ for (const locale of ["en", "es"] as const) {
             exact: true,
           })
           .click();
-        expect((await retryResponse).status()).toBe(200);
+        const replay = await retryResponse;
+        expect(replay.status()).toBe(200);
+        expect(replay.headers()["idempotency-replayed"]).toBe("true");
         await expect(dialog).toHaveCount(0);
         expect(calls).toBe(2);
         expect(keys[0]).toBeTruthy();
@@ -534,6 +551,7 @@ for (const locale of ["en", "es"] as const) {
               .user as { xp: number }
           ).xp,
         ).toBe((childXp as number) - 1);
+        await captureState(child.page, info, "rewards-lost-response-retry");
         await assertSurface(child.page, info);
       } finally {
         await child.context.unrouteAll({ behavior: "ignoreErrors" });
@@ -599,6 +617,7 @@ for (const locale of ["en", "es"] as const) {
             exact: true,
           }),
         ).toBeVisible();
+        await captureState(parent.page, info, "rewards-approval-recovery");
         const checkResponse = parent.page.waitForResponse(
           (response) =>
             response.url().endsWith("/api/rewards") &&
@@ -636,6 +655,7 @@ for (const locale of ["en", "es"] as const) {
             .locator('[data-testid="family-reward"]')
             .filter({ hasText: name }),
         ).toContainText(locale === "es" ? "Entregada" : "Given");
+        await captureState(parent.page, info, "rewards-approval-retry");
         const persisted = await browserFetch(parent.page, "/api/rewards");
         const rowData = (
           JSON.parse(persisted.body).rewards as Array<{
