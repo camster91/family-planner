@@ -1139,7 +1139,11 @@ export function fallbackQueueStore(candidates: QueueStore[], persistenceLane?: o
   async function writeThrough(op: (store: QueueStore) => Promise<void>): Promise<void> {
     await choose()
     if (current < 0) throw new QueueStorageError()
-    for (let i = current; i < candidates.length; i++) {
+    // Keep the current authority first, then probe every other store in
+    // preference order. A fallback can become unwritable after it was chosen;
+    // do not leave a writable primary unused in that case.
+    const order = [current, ...candidates.map((_, i) => i).filter((i) => i !== current)]
+    for (const i of order) {
       try {
         await op(candidates[i])
         current = i

@@ -819,6 +819,26 @@ describe('durability (Codex P2 on #247)', () => {
     expect(primary.value).not.toContain('item-2')
   })
 
+  it('returns to the preferred primary when a recovered fallback later refuses a write', async () => {
+    const saved = JSON.stringify({ v: 1, ops: [{ id: 'saved-key-abcdefghijkl', action: 'list-item.set-checked', v: 1, payload: { itemId: 'saved-item', checked: true }, createdAt: 1, state: 'pending', attempts: 0, nextAttemptAt: 0 }] })
+    const next = JSON.stringify({ v: 1, ops: [{ id: 'next-key-abcdefghijkl', action: 'list-item.set-checked', v: 1, payload: { itemId: 'next-item', checked: true }, createdAt: 2, state: 'pending', attempts: 0, nextAttemptAt: 0 }] })
+    const primary = memoryStore()
+    const fallback = memoryStore(saved)
+    const primaryWrite = jest.spyOn(primary, 'write')
+    fallback.write = jest.fn(async () => {
+      throw new Error('fallback write blocked')
+    })
+    const store = fallbackQueueStore([primary, fallback])
+
+    expect(await store.read()).toBe(saved)
+    await expect(store.write(next)).resolves.toBeUndefined()
+
+    expect(primaryWrite).toHaveBeenCalledWith(next)
+    expect(primary.value).toBe(next)
+    expect(fallback.value).toBeNull()
+    expect(await store.read()).toBe(next)
+  })
+
   it('is not durable when every store refuses writes, and never pretends to be', async () => {
     const a = flakyStore()
     const b = flakyStore()
