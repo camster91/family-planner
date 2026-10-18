@@ -715,7 +715,7 @@ for (const locale of ["en", "es"] as const) {
         );
         await expect(openSection).toBeVisible();
         const openProjectCard = openSection.locator("button").filter({
-          has: openSection.getByRole("heading", {
+          has: page.getByRole("heading", {
             name: projectName,
             exact: true,
           }),
@@ -859,7 +859,7 @@ for (const locale of ["en", "es"] as const) {
         );
         await expect(completedSection).toBeVisible();
         const completedProjectCard = completedSection.locator("button").filter({
-          has: completedSection.getByRole("heading", {
+          has: page.getByRole("heading", {
             name: projectName,
             exact: true,
           }),
