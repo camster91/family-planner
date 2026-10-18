@@ -706,11 +706,21 @@ for (const locale of ["en", "es"] as const) {
           "section[aria-labelledby='projects-active-heading']",
         );
         await expect(openSection).toBeVisible();
+        const openProjectCard = openSection.locator("button").filter({
+          has: openSection.getByRole("heading", {
+            name: projectName,
+            exact: true,
+          }),
+        });
+        await expect(openProjectCard).toHaveCount(1);
         await expect(
-          openSection.getByText(projectName, { exact: true }),
+          openProjectCard.getByRole("heading", {
+            name: projectName,
+            exact: true,
+          }),
         ).toBeVisible();
         await expect(
-          openSection.getByText(copy.overview.active, { exact: true }),
+          openProjectCard.getByText(copy.overview.active, { exact: true }),
         ).toBeVisible();
         await assertNoHorizontalOverflow(page);
         await assertA11y(page);
@@ -840,11 +850,23 @@ for (const locale of ["en", "es"] as const) {
           "section[aria-labelledby='projects-completed-heading']",
         );
         await expect(completedSection).toBeVisible();
+        const completedProjectCard = completedSection.locator("button").filter({
+          has: completedSection.getByRole("heading", {
+            name: projectName,
+            exact: true,
+          }),
+        });
+        await expect(completedProjectCard).toHaveCount(1);
         await expect(
-          completedSection.getByText(projectName, { exact: true }),
+          completedProjectCard.getByRole("heading", {
+            name: projectName,
+            exact: true,
+          }),
         ).toBeVisible();
         await expect(
-          completedSection.getByText(copy.overview.completed, { exact: true }),
+          completedProjectCard.getByText(copy.overview.completed, {
+            exact: true,
+          }),
         ).toBeVisible();
         await assertNoHorizontalOverflow(page);
         await assertA11y(page);
