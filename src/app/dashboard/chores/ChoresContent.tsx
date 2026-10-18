@@ -118,10 +118,10 @@ function isPausedProfileChore(
 function routineLabel(chore: {
   routine?: string | null;
   routine_order?: number | null;
-}): string | null {
+}, text: ReturnType<typeof useChoreOverviewText>): string | null {
   if (!chore.routine) return null;
   return chore.routine_order
-    ? `${chore.routine}, step ${chore.routine_order}`
+    ? text("routineStep", { routine: chore.routine, order: chore.routine_order })
     : chore.routine;
 }
 
@@ -136,17 +136,20 @@ function ReassignModal({
   onConfirm: (assigneeId: string) => void;
   onCancel: () => void;
 }) {
+  const overviewText = useChoreOverviewText();
+  const profileText = useProfileSetupText();
   const [selectedId, setSelectedId] = React.useState("");
   return (
     <Dialog
       open
       onClose={onCancel}
-      title="Reassign chore"
+      title={overviewText("reassignTitle")}
+      closeLabel={overviewText("close")}
       testId="reassign-dialog"
     >
       <div
         role="group"
-        aria-label="Assign to"
+        aria-label={overviewText("assignTo")}
         className="space-y-2 max-h-60 overflow-y-auto"
       >
         {familyMembers.map((m) => (
@@ -171,7 +174,7 @@ function ReassignModal({
             </div>
             <span className="text-body">{m.name}</span>
             <span className="ml-auto text-footnote text-label-tertiary capitalize">
-              {m.role}
+              {m.role === "parent" ? profileText("roleParent") : m.role === "teen" ? profileText("roleTeen") : m.role === "child" ? profileText("roleChild") : m.role}
             </span>
           </button>
         ))}
@@ -182,7 +185,7 @@ function ReassignModal({
           onClick={onCancel}
           className="flex-1 py-2.5 min-h-[44px] rounded-xl text-body font-medium text-label-secondary active:bg-[var(--surface-fill-secondary)] transition-colors"
         >
-          Cancel
+          {overviewText("cancel")}
         </button>
         <button
           type="button"
@@ -190,7 +193,7 @@ function ReassignModal({
           disabled={!selectedId}
           className="flex-1 py-2.5 min-h-[44px] rounded-xl text-body font-medium bg-[var(--accent-fill)] text-white disabled:opacity-40 active:scale-95 transition-all"
         >
-          Confirm
+          {overviewText("confirm")}
         </button>
       </div>
     </Dialog>
@@ -402,7 +405,7 @@ export default function ChoresContent({
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(data.chores)) {
         throw new Error(
-          typeof data.error === "string" ? data.error : "Please try again.",
+          typeof data.error === "string" ? data.error : overviewText("retryMessage"),
         );
       }
       const page = data.chores as ChoresContentProps["chores"];
@@ -417,12 +420,12 @@ export default function ChoresContent({
       );
     } catch (error) {
       setLoadMoreError(
-        error instanceof Error ? error.message : "Please try again.",
+        error instanceof Error ? error.message : overviewText("retryMessage"),
       );
     } finally {
       setLoadingMore(false);
     }
-  }, [nextCursor]);
+  }, [nextCursor, overviewText]);
 
   const handleCompleteChore = React.useCallback(
     async (choreId: string) => {
@@ -439,7 +442,7 @@ export default function ChoresContent({
         });
         const data = await response.json();
         if (!response.ok)
-          throw new Error(data.error || "Failed to complete chore");
+          throw new Error(data.error || overviewText("completeFailed"));
 
         const before = localChores.find((c) => c.id === choreId);
         setLocalChores((prev) =>
@@ -455,13 +458,13 @@ export default function ChoresContent({
         );
         // Undo over confirm (#269): reopen through POST /api/chores/uncomplete.
         showUndo({
-          title: before ? `“${before.title}” done` : "Chore done",
+          title: before ? overviewText("doneTitle", { title: before.title }) : overviewText("choreDone"),
           onUndo: async () => {
             const result = await setChoreDone(choreId, false);
             if (!result.ok) {
               addToast({
                 type: "error",
-                title: "Couldn't undo",
+                title: overviewText("undoFailed"),
                 message: result.message,
               });
               return;
@@ -482,12 +485,12 @@ export default function ChoresContent({
       } catch (error) {
         addToast({
           type: "error",
-          title: "Failed to complete chore",
-          message: error instanceof Error ? error.message : "Please try again.",
+          title: overviewText("completeFailed"),
+          message: error instanceof Error ? error.message : overviewText("retryMessage"),
         });
       }
     },
-    [addToast, showUndo, localChores],
+    [addToast, showUndo, localChores, overviewText],
   );
 
   // A parent checks a chore a child marked done. Status changes go
@@ -648,7 +651,7 @@ export default function ChoresContent({
         });
         const data = await response.json();
         if (!response.ok)
-          throw new Error(data.error || "Failed to snooze chore");
+          throw new Error(data.error || overviewText("snoozeRequestFailed"));
 
         const storedDueDate: string =
           data.chore?.due_date ?? `${newDueDay}T00:00:00.000Z`;
@@ -659,18 +662,18 @@ export default function ChoresContent({
         );
         addToast({
           type: "success",
-          title: "Snoozed a day",
-          message: `Now due ${formatRelativeDueDate(storedDueDate, new Date(), displayLocale).replace("Tomorrow", "tomorrow")}.`,
+          title: overviewText("snoozed"),
+          message: overviewText("snoozedMessage", { date: formatRelativeDueDate(storedDueDate, new Date(), displayLocale, { today: overviewText("today"), tomorrow: overviewText("tomorrowInSentence") }) }),
         });
       } catch (error) {
         addToast({
           type: "error",
-          title: "Failed to snooze",
-          message: error instanceof Error ? error.message : "Please try again.",
+          title: overviewText("snoozeFailed"),
+          message: error instanceof Error ? error.message : overviewText("retryMessage"),
         });
       }
     },
-    [addToast, displayLocale],
+    [addToast, displayLocale, overviewText],
   );
 
   const handleReassignChore = React.useCallback(
@@ -683,7 +686,7 @@ export default function ChoresContent({
         });
         const data = await response.json();
         if (!response.ok)
-          throw new Error(data.error || "Failed to reassign chore");
+          throw new Error(data.error || overviewText("reassignRequestFailed"));
 
         setLocalChores((prev) =>
           prev.map((c) =>
@@ -700,18 +703,18 @@ export default function ChoresContent({
         );
         addToast({
           type: "success",
-          title: "Chore reassigned",
-          message: "Assignment updated.",
+          title: overviewText("reassigned"),
+          message: overviewText("reassignedMessage"),
         });
       } catch (error) {
         addToast({
           type: "error",
-          title: "Failed to reassign",
-          message: error instanceof Error ? error.message : "Please try again.",
+          title: overviewText("reassignFailed"),
+          message: error instanceof Error ? error.message : overviewText("retryMessage"),
         });
       }
     },
-    [addToast, familyMembers],
+    [addToast, familyMembers, overviewText],
   );
 
   const openDeleteDialog = React.useCallback((choreId: string) => {
@@ -888,16 +891,16 @@ export default function ChoresContent({
                 // the series' (recurrence_id, due_date) key. Until a proper
                 // exception model exists, explain why this action is unavailable
                 // instead of sending a request that can fail or corrupt the series.
-                label: "Snooze unavailable for repeating chores",
+                label: overviewText("snoozeUnavailable"),
                 onClick: () => undefined,
                 disabled: true,
               }
             : {
-                label: "Snooze a day",
+                label: overviewText("snooze"),
                 onClick: () => handleSnoozeChore(chore.id, chore.due_date),
               },
           {
-            label: "Edit",
+            label: overviewText("edit"),
             onClick: () => router.push(`/dashboard/chores/edit?id=${chore.id}`),
           },
           ...(userRole === "parent" && isActiveRepeatingChore(chore)
@@ -912,7 +915,7 @@ export default function ChoresContent({
               ]
             : []),
           {
-            label: "Reassign",
+            label: overviewText("reassign"),
             // The action sheet hands focus back to its trigger on a
             // 0 ms timer; open the dialog after that, so the dialog
             // takes focus (and returns it to the trigger on close).
@@ -920,7 +923,7 @@ export default function ChoresContent({
               window.setTimeout(() => setReassignTarget(chore.id), 0),
           },
           {
-            label: "Mark complete",
+            label: overviewText("markComplete"),
             onClick: () => handleCompleteChore(chore.id),
           },
           {
@@ -942,13 +945,13 @@ export default function ChoresContent({
           title={chore.title}
           subtitle={[
             ownerLabel,
-            formatRelativeDueDate(chore.due_date, now, displayLocale),
+            formatRelativeDueDate(chore.due_date, now, displayLocale, { today: overviewText("today"), tomorrow: overviewText("tomorrow") }),
             profilePaused
               ? profileText("profileTargetRecurrencePaused")
               : null,
-            routineLabel(chore),
+            routineLabel(chore, overviewText),
             chore.rotation_next_name
-              ? `Takes turns · next: ${chore.rotation_next_name}`
+              ? overviewText("rotationNext", { name: chore.rotation_next_name })
               : null,
           ]
             .filter(Boolean)
@@ -973,7 +976,7 @@ export default function ChoresContent({
                 {(chore.streak ?? 0) >= 3 && (
                   <span
                     className="flex items-center text-warning-text"
-                    title={`${chore.streak} day streak`}
+                    title={overviewText("dayStreak", { count: chore.streak ?? 0 })}
                   >
                     <Flame className="w-3 h-3 fill-brand-mustard" />
                     <span className="text-footnote">{chore.streak}</span>
@@ -1046,7 +1049,7 @@ export default function ChoresContent({
             if (pendingVerification.length === 0) return null;
             return (
               <section>
-                <p className="section-header">To check</p>
+                <p className="section-header">{overviewText("toCheck")}</p>
                 <div className="list-inset">
                   {pendingVerification.map((chore, i) => {
                     const profileUnavailable =
@@ -1056,7 +1059,7 @@ export default function ChoresContent({
                     const ownerLabel = profileUnavailable
                       ? profileText("profileTargetRefresh")
                       : subjectName(chore)
-                        ? `Assigned to ${subjectName(chore)}`
+                        ? overviewText("assignedTo", { name: subjectName(chore) ?? "" })
                         : null;
                     return (
                       <div
@@ -1083,7 +1086,7 @@ export default function ChoresContent({
                           <p className="text-footnote text-label-secondary">
                             {[
                               ownerLabel,
-                              routineLabel(chore),
+                              routineLabel(chore, overviewText),
                               profilePaused
                                 ? profileText("profileTargetRecurrencePaused")
                                 : verificationText("waitingForCheck", undefined),
@@ -1147,7 +1150,7 @@ export default function ChoresContent({
         <div className={cn(showInlineRoutines && listChores.length > 0 ? "grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2 items-start" : "space-y-6")}>
         {!now ? (
           <section
-            aria-label="Chores"
+            aria-label={overviewText("title")}
             aria-busy="true"
             data-testid="chores-pending"
           >
@@ -1209,7 +1212,7 @@ export default function ChoresContent({
               aria-expanded={!doneCollapsed}
               className="section-header w-full text-left flex items-center justify-between pr-4"
             >
-              <span>Done</span>
+              <span>{overviewText("done")}</span>
               <span className="flex items-center gap-1 text-label-tertiary text-xs">
                 {doneChores.length}
                 {filter === "all" && nextCursor ? "+" : ""}
@@ -1256,7 +1259,7 @@ export default function ChoresContent({
                     role="alert"
                     className="text-footnote text-[var(--danger-text)] text-center"
                   >
-                    Couldn&apos;t load more chores. {loadMoreError}
+                    {overviewText("loadMoreFailed")} {loadMoreError}
                   </p>
                 )}
                 <button
@@ -1267,10 +1270,10 @@ export default function ChoresContent({
                   className="btn-tinted min-h-[44px] disabled:opacity-40"
                 >
                   {loadingMore
-                    ? "Loading…"
+                    ? overviewText("loading")
                     : loadMoreError
-                      ? "Try again"
-                      : "Load more"}
+                      ? overviewText("tryAgain")
+                      : overviewText("loadMore")}
                 </button>
               </div>
             )}

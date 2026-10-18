@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useRowActionText } from '@/i18n/row-actions'
 
 interface Action {
   label: string
@@ -44,7 +45,7 @@ export function LongPressRow({
   children,
   actions,
   className,
-  menuLabel = 'More actions',
+  menuLabel,
   itemName,
   showMenuButton = false,
 }: LongPressRowProps) {
@@ -52,7 +53,9 @@ export function LongPressRow({
   const holdTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const returnFocusRef = React.useRef<HTMLElement | null>(null)
   const sheetRef = React.useRef<HTMLDivElement | null>(null)
-  const accessibleName = itemName ? `${menuLabel} for ${itemName}` : menuLabel
+  const text = useRowActionText()
+  const visibleMenuLabel = menuLabel ?? text('more')
+  const accessibleName = itemName ? text('forItem', { label: visibleMenuLabel, item: itemName }) : visibleMenuLabel
 
   const clearHold = () => {
     if (holdTimerRef.current) {
@@ -184,7 +187,7 @@ export function LongPressRow({
                 'focus-visible:bg-[var(--surface-elevated)] focus-visible:text-[var(--accent)] focus-visible:text-subhead'
               )}
             >
-              {menuLabel}
+              {visibleMenuLabel}
             </button>
           </>
         )}
@@ -242,7 +245,7 @@ export function LongPressRow({
                   'transition-colors duration-150'
                 )}
               >
-                Cancel
+                {text('cancel')}
               </button>
             </div>
           </div>

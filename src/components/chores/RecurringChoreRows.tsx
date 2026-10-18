@@ -1,3 +1,5 @@
+"use client";
+
 import type { ReactNode } from "react";
 import type { Chore } from "@/types";
 import type {
@@ -7,6 +9,9 @@ import type {
 import { groupChoreSeries, choreCadence } from "@/lib/chore-series-groups";
 import { formatRelativeDueDate } from "@/lib/dates";
 import { profileSetupMessages } from "@/i18n/profile-setup";
+import { useChoreOverviewText } from "@/i18n/chore-overview";
+import { choreScheduleMessages } from "@/i18n/chore-schedule";
+import { useTranslation } from "@/i18n";
 
 type Row = Chore & {
   assignee: { name: string } | null;
@@ -28,6 +33,15 @@ export function RecurringChoreRows<T extends Row>({
   locale: string;
   renderRow: (chore: T, index: number) => ReactNode;
 }) {
+  const text = useChoreOverviewText();
+  const { locale: language } = useTranslation();
+  const cadenceLabels = {
+    weekly: text("cadenceWeekly"),
+    daily: text("cadenceDaily"),
+    monthly: text("cadenceMonthly"),
+    repeating: text("cadenceRepeating"),
+    weekdayNames: choreScheduleMessages[language].weekdayNames,
+  };
   return (
     <>
       {groupChoreSeries(chores).map((group) => {
@@ -52,7 +66,7 @@ export function RecurringChoreRows<T extends Row>({
             <summary className="min-h-[44px] px-4 py-3 cursor-pointer text-label-primary [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]">
               <span className="text-body font-medium">{next.title}</span>
               <span className="block text-footnote text-label-secondary mt-1">
-                {choreCadence(next)} ·{" "}
+                {choreCadence(next, cadenceLabels)} ·{" "}
                 {profileUnavailable
                   ? profileSetupMessages[locale.startsWith("es") ? "es" : "en"]
                       .profileTargetRefresh
@@ -61,14 +75,20 @@ export function RecurringChoreRows<T extends Row>({
                         locale.startsWith("es") ? "es" : "en"
                       ].profileTargetRecurrencePaused
                     : takesTurns
-                    ? "Takes turns"
-                    : (next.subject?.name ??
-                      next.assignee?.name ??
-                      "Unassigned")}
+                      ? text("takesTurns")
+                      : (next.subject?.name ??
+                        next.assignee?.name ??
+                        text("unassigned"))}
               </span>
               <span className="block text-footnote text-label-secondary">
-                Next: {formatRelativeDueDate(next.due_date, now, locale)} ·{" "}
-                {group.steps.length} open dates · Expand to see dates
+                {text("nextDate", {
+                  date: formatRelativeDueDate(next.due_date, now, locale, {
+                    today: text("today"),
+                    tomorrow: text("tomorrow"),
+                  }),
+                })}{" "}
+                · {text("openDates", { count: group.steps.length })} ·{" "}
+                {text("expandDates")}
               </span>
             </summary>
             <div className="border-t border-[var(--surface-separator)]">

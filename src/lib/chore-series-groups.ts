@@ -29,16 +29,37 @@ export function groupChoreSeries<T extends Chore>(
   }));
 }
 
-export function choreCadence(chore: Chore): string {
+export type ChoreCadenceLabels = Readonly<{
+  weekly: string;
+  daily: string;
+  monthly: string;
+  repeating: string;
+  weekdayNames: Readonly<Record<number, string>>;
+}>;
+const defaultCadenceLabels: ChoreCadenceLabels = {
+  weekly: "Weekly",
+  daily: "Daily",
+  monthly: "Monthly",
+  repeating: "Repeating",
+  weekdayNames: Object.fromEntries(WEEKDAYS.map((day) => [day.day, day.label])),
+};
+
+/** Presentation labels never change grouping, frequency or selected day values. */
+export function choreCadence(
+  chore: Chore,
+  labels: ChoreCadenceLabels = defaultCadenceLabels,
+): string {
   const frequency = chore.recurrence_frequency ?? chore.frequency;
   if (frequency === "weekly") {
     const days = chore.recurrence_weekly_days ?? chore.weekly_days ?? [];
     const names = WEEKDAYS.filter((d) => days.includes(d.day)).map(
-      (d) => d.label,
+      (d) => labels.weekdayNames[d.day] ?? d.label,
     );
-    return names.length ? `Weekly · ${names.join(", ")}` : "Weekly";
+    return names.length
+      ? `${labels.weekly} · ${names.join(", ")}`
+      : labels.weekly;
   }
-  if (frequency === "daily") return "Daily";
-  if (frequency === "monthly") return "Monthly";
-  return "Repeating";
+  if (frequency === "daily") return labels.daily;
+  if (frequency === "monthly") return labels.monthly;
+  return labels.repeating;
 }

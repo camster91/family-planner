@@ -236,3 +236,27 @@ Hosted, production, shared-device/installed-client and wider Chores acceptance
 remain pending. Inherited relative-date/history/action copy still needs full
 localization; this checkpoint does not claim the entire screen is localized.
 The other feature coverage rows and #499/#128 remain open.
+
+## Chores presentation continuation — 2026-10-18
+
+A separate follow-up to #572 covers inherited action-sheet, reassignment,
+history, relative-date, rotation/streak and recurrence-summary copy. Household
+names, IDs, dates and raw server failure details remain parameters/data. The
+shared row sheet localizes only its own More actions/for/Cancel labels, keeping
+custom labels, focus, open state and callbacks intact. Reassignment keeps the
+selected canonical ID through a locale change. Existing date/cadence helpers
+accept explicit presentation labels and preserve their English defaults and
+all date-only/grouping policies. Weekday labels reuse the schedule dictionary.
+No model, API, role, profile gate, timer, scheduler or provider change is made.
+
+The inventory removes exactly 17 migrated occurrences (897 to 880); its original
+guard and other migration records remain unchanged. The full local unit run
+passes 5,723 tests with 387 established opt-in skips; the same three inherited
+Mac backup-prune cases fail, with no backup script/test source changed. Types,
+touched lint and independent source/role/date review pass. New mounted cases
+cover raw names, selected weekdays, next dates, zero-write disclosure, dialog
+selection through locale change, exact reassignment/snooze IDs and date payloads,
+raw history failures and shared-sheet keyboard/focus state. New-source build,
+actual six-size action/reassignment/recurrence/budget journeys and original
+hosted gates remain pending. This is a local follow-up, not #571/#572 release
+acceptance or completion of Chores/the all-feature programme.

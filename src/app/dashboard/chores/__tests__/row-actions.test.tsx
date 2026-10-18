@@ -255,8 +255,8 @@ describe('chore row actions', () => {
       </I18nProvider>
     )
 
-    await user.click(screen.getByRole('button', { name: 'More actions for “Take out trash”' }))
-    const sheet = screen.getAllByRole('dialog', { name: 'More actions for “Take out trash”' }).at(-1)
+    await user.click(screen.getByRole('button', { name: 'Más acciones para “Take out trash”' }))
+    const sheet = screen.getAllByRole('dialog', { name: 'Más acciones para “Take out trash”' }).at(-1)
     expect(sheet).toBeTruthy()
     expect(within(sheet!).getByRole('button', { name: 'Eliminar esta ocurrencia' })).toBeTruthy()
     expect(within(sheet!).getByRole('button', { name: 'Dejar de repetir' })).toBeTruthy()
