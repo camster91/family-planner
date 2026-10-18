@@ -151,8 +151,13 @@ jobs:
             test-results/**/emergency-*.png
             test-results/**/emergency-runtime-*.json
             test-results/**/pickups-*.png
+            test-results/**/pickups-*.json
+            test-results/**/allowance-*.png
+            test-results/**/allowance-*.json
             test-results/**/wishlist-*.png
+            test-results/**/wishlist-*.json
             test-results/**/messages-*.png
+            test-results/**/messages-*.json
           if-no-files-found: ignore
           retention-days: 7
 
