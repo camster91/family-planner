@@ -24,6 +24,27 @@
   border-radius: 16px;
   background: var(--surface-elevated);
 }
+.calendarBody,
+.schedule {
+  min-width: 0;
+}
+@media (min-width: 1536px) {
+  .calendarBody.withOverlaps {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    align-items: start;
+    gap: 16px;
+  }
+  .withOverlaps > .overlaps {
+    grid-column: 2;
+    grid-row: 1;
+    margin-top: 0;
+  }
+  .withOverlaps > .schedule {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
 .overlaps summary {
   min-height: 48px;
   padding: 12px 0;

@@ -45,11 +45,11 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 
 | Feature / surface | Approved direction | Current implementation disposition |
 | --- | --- | --- |
-| Shared personal navigation | Five parent tabs, searchable Explore, Family within Core | Candidate in progress; child/teen tabs retained |
-| Today (person home) | A capped Next up card, dinner and a quiet look ahead | Candidate combines scoped events/chores; focused checks/source review passed, rendered and hosted acceptance pending |
+| Shared personal navigation | Five parent tabs, searchable Explore, Family within Core | Merged PR #568 with candidate QA passed; exact-main/production verification pending; child/teen tabs retained |
+| Today (person home) | A capped Next up card, dinner and a quiet look ahead | PR #570 combines scoped events/chores; bounded rendered/source checks and 117 original browser checks passed; full hosted and wider acceptance pending |
 | Chores | Grouped series, selected weekdays, clear owner, contextual actions | Existing behavior retained; approved layout review pending |
-| Calendar | Readable week/agenda, duration and clear connection controls | Existing behavior retained; approved layout review pending |
-| Lists | Direct groceries, custom lists, simple create/edit | Candidate compact overview and short create form; bounded source/runtime review passed, hosted acceptance and detail-context review pending |
+| Calendar | Readable week/agenda, duration, clear connections and overlap review | Bounded timing-overlap advisory candidate; remaining workspace/mobile/source-control alignment and full acceptance pending |
+| Lists | Direct groceries, custom lists, simple create/edit | PR #570 compact overview, short create form and validated Back/create/delete context passed bounded review; full hosted acceptance and remaining detail-copy migration pending |
 | Family | Add everyone, email-free profiles, clear account-link distinction | Existing behavior retained; approved layout review pending |
 | Meals | Week plan, recipes, several-dish prep, eaten/remaining/next prep | Existing behavior retained; approved layout review pending |
 | Inventory | Use soon, honest capture review, quantities and locations | Existing behavior retained; approved layout review pending |
@@ -162,3 +162,14 @@ retired meal-plan exclusion. Its new original hosted checks are pending.
 Wider accessibility/offline/enlarged-text, exact final hosted gates and release
 verification remain open. This checkpoint does not complete Today, Lists, any
 remaining feature row, or the full 22-feature programme.
+
+## Calendar overlap review candidate — 2026-10-17
+
+The advisory compares real positive-duration intervals already loaded in the
+selected source/range. It deduplicates IDs, excludes touching/zero-length
+intervals, clips continuing events, counts overlaps and previews at most three
+pairs. It makes no attendance or actual-conflict assumption. A compact native
+disclosure opens existing event details, retaining parent edit, teen read-only
+and subscription read-only rules. Wide desktops place it beside the schedule;
+smaller views place it above. Exact build/rendered/browser/hosted acceptance is
+still required. Original source controls and mobile Week alignment remain open.

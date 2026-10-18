@@ -431,269 +431,289 @@ export function CalendarPlanner({
             </nav>
             <p>{msg("showing", { source: label })}</p>
           </div>
-          {displayState === "ready" && overlaps.total > 0 && (
-            <details
-              className={styles.overlaps}
-              data-testid="calendar-overlaps"
-            >
-              <summary>
-                {msg("overlaps")}
-                <span>
-                  {msg(
-                    overlaps.total === 1 ? "overlapCountOne" : "overlapsCount",
-                    { count: overlaps.total.toLocaleString(locale) },
-                  )}
-                </span>
-              </summary>
-              <p>{msg("overlapsHelp")}</p>
-              {truncated && <p>{msg("partialHelp")}</p>}
-              <ol className={styles.overlapPairs}>
-                {overlaps.pairs.map((pair) => (
-                  <li key={JSON.stringify([pair.first.id, pair.second.id])}>
-                    <p>
-                      <time dateTime={pair.start}>
-                        {format(new Date(pair.start), {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                        {" · "}
-                        {time(new Date(pair.start))}
-                      </time>
-                      {" – "}
-                      <time dateTime={pair.end}>
-                        {dayKey(new Date(pair.start), local) !==
-                          dayKey(new Date(pair.end), local) &&
-                          `${format(new Date(pair.end), { month: "short", day: "numeric" })} · `}
-                        {time(new Date(pair.end))}
-                      </time>
-                    </p>
-                    {[pair.first, pair.second].map((event) => (
-                      <button
-                        key={event.id}
-                        type="button"
-                        aria-label={msg("reviewEvent", { title: event.title })}
-                        onClick={(ev) => {
-                          trigger.current = ev.currentTarget;
-                          setSelected(event);
-                        }}
-                      >
-                        <strong>{event.title}</strong>
-                        <small>{sourceLabel(event)}</small>
-                      </button>
-                    ))}
-                  </li>
-                ))}
-              </ol>
-              {overlaps.total > overlaps.pairs.length && (
-                <p>
-                  {msg("overlapsShown", {
-                    shown: overlaps.pairs.length,
-                    count: overlaps.total,
-                  })}
+          <div
+            className={`${styles.calendarBody} ${displayState === "ready" && overlaps.total > 0 ? styles.withOverlaps : ""}`}
+          >
+            {displayState === "ready" && overlaps.total > 0 && (
+              <details
+                className={styles.overlaps}
+                data-testid="calendar-overlaps"
+              >
+                <summary>
+                  {msg("overlaps")}{" "}
+                  <span>
+                    {msg(
+                      overlaps.total === 1
+                        ? "overlapCountOne"
+                        : "overlapsCount",
+                      { count: overlaps.total.toLocaleString(locale) },
+                    )}
+                  </span>
+                </summary>
+                <p>{msg("overlapsHelp")}</p>
+                {truncated && <p>{msg("partialHelp")}</p>}
+                <ol className={styles.overlapPairs}>
+                  {overlaps.pairs.map((pair) => (
+                    <li key={JSON.stringify([pair.first.id, pair.second.id])}>
+                      <p>
+                        <time dateTime={pair.start}>
+                          {format(new Date(pair.start), {
+                            month: "short",
+                            day: "numeric",
+                          })}
+                          {" · "}
+                          {time(new Date(pair.start))}
+                        </time>
+                        {" – "}
+                        <time dateTime={pair.end}>
+                          {dayKey(new Date(pair.start), local) !==
+                            dayKey(new Date(pair.end), local) &&
+                            `${format(new Date(pair.end), { month: "short", day: "numeric" })} · `}
+                          {time(new Date(pair.end))}
+                        </time>
+                      </p>
+                      {[pair.first, pair.second].map((event) => (
+                        <button
+                          key={event.id}
+                          type="button"
+                          aria-label={msg("reviewEvent", {
+                            title: event.title,
+                          })}
+                          onClick={(ev) => {
+                            trigger.current = ev.currentTarget;
+                            setSelected(event);
+                          }}
+                        >
+                          <strong>{event.title}</strong>
+                          <small>{sourceLabel(event)}</small>
+                        </button>
+                      ))}
+                    </li>
+                  ))}
+                </ol>
+                {overlaps.total > overlaps.pairs.length && (
+                  <p>
+                    {msg("overlapsMore", {
+                      count: (
+                        overlaps.total - overlaps.pairs.length
+                      ).toLocaleString(locale),
+                    })}
+                  </p>
+                )}
+              </details>
+            )}
+            <div className={styles.schedule}>
+              {clockChange && (
+                <p role="status" className={styles.note}>
+                  {msg("clockChange")}
                 </p>
               )}
-            </details>
-          )}
-          {clockChange && (
-            <p role="status" className={styles.note}>
-              {msg("clockChange")}
-            </p>
-          )}
-          {displayState === "unsupported" && (
-            <section className={styles.state} role="alert">
-              <h2>{msg("unsupported")}</h2>
-              <p>{msg("unsupportedHelp")}</p>
-            </section>
-          )}
-          {displayState === "loading" && (
-            <section className={styles.state} role="status">
-              <h2>{msg(view === "day" ? "loadingDay" : "loadingWeek")}</h2>
-              <p>{msg("keeping")}</p>
-            </section>
-          )}
-          {displayState === "error" && (
-            <section className={styles.state} role="alert">
-              <h2>{msg("loadFailed")}</h2>
-              <p>{msg("notEmpty")}</p>
-              <button
-                className="btn-filled"
-                onClick={() => setRetry((n) => n + 1)}
-              >
-                {msg("tryAgain")}
-              </button>
-            </section>
-          )}
-          {displayState === "ready" && truncated && (
-            <section role="status" className={styles.state}>
-              <h2>{msg("partial")}</h2>
-              <p>{msg("partialHelp")}</p>
-              <button onClick={() => move(date, "day")}>
-                {msg("showDay")}
-              </button>
-            </section>
-          )}
-          {displayState === "ready" && !hasVisible && (
-            <section
-              className={
-                view === "agenda" || clockChange
-                  ? styles.state
-                  : styles.emptyNotice
-              }
-            >
-              <h2>{filter === "all" ? msg("empty") : msg("emptySource")}</h2>
-              <p>
-                {msg("showing", { source: label })}
-                {truncated ? msg("partialSuffix") : ""}
-              </p>
-              {filter !== "all" && (
-                <button onClick={() => setFilter("all")}>
-                  {msg("showAll")}
-                </button>
+              {displayState === "unsupported" && (
+                <section className={styles.state} role="alert">
+                  <h2>{msg("unsupported")}</h2>
+                  <p>{msg("unsupportedHelp")}</p>
+                </section>
               )}
-            </section>
-          )}
-          {displayState === "ready" &&
-            (view === "agenda" || clockChange ? (
-              <div className={styles.agenda}>
-                {days.map((day) => (
-                  <section key={dayKey(day, local)}>
-                    <h2>
-                      {format(day, {
-                        weekday: "long",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </h2>
-                    {filtered
-                      .filter((e) => segmentEvent(e, day, local))
-                      .map((e) => (
-                        <React.Fragment key={e.id}>
-                          {eventButton(e, day)}
-                        </React.Fragment>
-                      ))}
-                    {!filtered.some((e) => segmentEvent(e, day, local)) && (
-                      <p>{msg("emptyDay")}</p>
-                    )}
-                  </section>
-                ))}
-              </div>
-            ) : (
-              <>
-                <div
-                  ref={gridViewport}
-                  className={styles.gridScroll}
-                  tabIndex={0}
-                  aria-label={msg("timed")}
-                >
-                  <div
-                    className={styles.grid}
-                    style={{
-                      gridTemplateColumns: `3.5rem ${days.map((day) => `minmax(${Math.max(110, layoutDayEvents(filtered, day, local).lanes * 52)}px,1fr)`).join(" ")}`,
-                    }}
+              {displayState === "loading" && (
+                <section className={styles.state} role="status">
+                  <h2>{msg(view === "day" ? "loadingDay" : "loadingWeek")}</h2>
+                  <p>{msg("keeping")}</p>
+                </section>
+              )}
+              {displayState === "error" && (
+                <section className={styles.state} role="alert">
+                  <h2>{msg("loadFailed")}</h2>
+                  <p>{msg("notEmpty")}</p>
+                  <button
+                    className="btn-filled"
+                    onClick={() => setRetry((n) => n + 1)}
                   >
-                    <div className={styles.hours}>
-                      <span>{msg("time")}</span>
-                      {Array.from({ length: 24 }, (_, h) => (
-                        <span key={h}>
-                          {new Date(Date.UTC(2026, 0, 1, h)).toLocaleTimeString(
-                            locale,
-                            { hour: "numeric", timeZone: "UTC" },
-                          )}
-                        </span>
-                      ))}
-                    </div>
-                    {days.map((day) => {
-                      const layout = layoutDayEvents(filtered, day, local);
-                      return (
-                        <section
-                          className={styles.dayColumn}
-                          key={dayKey(day, local)}
-                        >
-                          <h2
-                            aria-label={format(day, {
-                              weekday: "short",
-                              day: "numeric",
-                            })}
-                            aria-current={
-                              local &&
-                              now !== null &&
-                              dayKey(day, local) === dayKey(new Date(now), true)
-                                ? "date"
-                                : undefined
-                            }
-                          >
-                            <span className={styles.weekday}>
-                              {format(day, { weekday: "short" })}
-                            </span>
-                            <span className={styles.dayNumber}>
-                              {format(day, { day: "numeric" })}
-                            </span>
-                          </h2>
-                          <div
-                            className={styles.dayGrid}
-                            style={{
-                              gridTemplateColumns: `repeat(${layout.lanes},minmax(0,1fr))`,
-                            }}
-                          >
-                            {layout.items.map((item) => (
-                              <div
-                                key={item.event.id}
-                                className={styles.slot}
-                                style={{
-                                  gridRow: `${item.startRow} / ${item.endRow}`,
-                                  gridColumn: `${item.column} / span ${item.span}`,
-                                }}
-                              >
-                                {eventButton(item.event, day)}
-                              </div>
-                            ))}
-                          </div>
-                        </section>
-                      );
-                    })}
-                  </div>
-                </div>
-                {days.some(
-                  (day) =>
-                    layoutDayEvents(filtered, day, local).lateEvents.length > 0,
-                ) && (
-                  <section className={styles.agenda} aria-label={msg("late")}>
-                    <h2>{msg("late")}</h2>
-                    <p>{msg("lateHelp")}</p>
-                    {days.map((day) => {
-                      const lateEvents = layoutDayEvents(
-                        filtered,
-                        day,
-                        local,
-                      ).lateEvents;
-                      return lateEvents.length > 0 ? (
-                        <section key={dayKey(day, local)}>
-                          <h3>
-                            {format(day, {
-                              weekday: "long",
-                              month: "long",
-                              day: "numeric",
-                            })}
-                          </h3>
-                          {lateEvents.map((e) => (
+                    {msg("tryAgain")}
+                  </button>
+                </section>
+              )}
+              {displayState === "ready" && truncated && (
+                <section role="status" className={styles.state}>
+                  <h2>{msg("partial")}</h2>
+                  <p>{msg("partialHelp")}</p>
+                  <button onClick={() => move(date, "day")}>
+                    {msg("showDay")}
+                  </button>
+                </section>
+              )}
+              {displayState === "ready" && !hasVisible && (
+                <section
+                  className={
+                    view === "agenda" || clockChange
+                      ? styles.state
+                      : styles.emptyNotice
+                  }
+                >
+                  <h2>
+                    {filter === "all" ? msg("empty") : msg("emptySource")}
+                  </h2>
+                  <p>
+                    {msg("showing", { source: label })}
+                    {truncated ? msg("partialSuffix") : ""}
+                  </p>
+                  {filter !== "all" && (
+                    <button onClick={() => setFilter("all")}>
+                      {msg("showAll")}
+                    </button>
+                  )}
+                </section>
+              )}
+              {displayState === "ready" &&
+                (view === "agenda" || clockChange ? (
+                  <div className={styles.agenda}>
+                    {days.map((day) => (
+                      <section key={dayKey(day, local)}>
+                        <h2>
+                          {format(day, {
+                            weekday: "long",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </h2>
+                        {filtered
+                          .filter((e) => segmentEvent(e, day, local))
+                          .map((e) => (
                             <React.Fragment key={e.id}>
                               {eventButton(e, day)}
                             </React.Fragment>
                           ))}
-                        </section>
-                      ) : null;
-                    })}
-                  </section>
-                )}
-              </>
-            ))}
-          <p className={styles.note}>
-            {msg("timesHelp", {
-              zone: local
-                ? Intl.DateTimeFormat().resolvedOptions().timeZone
-                : msg("loadingZone"),
-            })}
-          </p>
+                        {!filtered.some((e) => segmentEvent(e, day, local)) && (
+                          <p>{msg("emptyDay")}</p>
+                        )}
+                      </section>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      ref={gridViewport}
+                      className={styles.gridScroll}
+                      tabIndex={0}
+                      aria-label={msg("timed")}
+                    >
+                      <div
+                        className={styles.grid}
+                        style={{
+                          gridTemplateColumns: `3.5rem ${days.map((day) => `minmax(${Math.max(110, layoutDayEvents(filtered, day, local).lanes * 52)}px,1fr)`).join(" ")}`,
+                        }}
+                      >
+                        <div className={styles.hours}>
+                          <span>{msg("time")}</span>
+                          {Array.from({ length: 24 }, (_, h) => (
+                            <span key={h}>
+                              {new Date(
+                                Date.UTC(2026, 0, 1, h),
+                              ).toLocaleTimeString(locale, {
+                                hour: "numeric",
+                                timeZone: "UTC",
+                              })}
+                            </span>
+                          ))}
+                        </div>
+                        {days.map((day) => {
+                          const layout = layoutDayEvents(filtered, day, local);
+                          return (
+                            <section
+                              className={styles.dayColumn}
+                              key={dayKey(day, local)}
+                            >
+                              <h2
+                                aria-label={format(day, {
+                                  weekday: "short",
+                                  day: "numeric",
+                                })}
+                                aria-current={
+                                  local &&
+                                  now !== null &&
+                                  dayKey(day, local) ===
+                                    dayKey(new Date(now), true)
+                                    ? "date"
+                                    : undefined
+                                }
+                              >
+                                <span className={styles.weekday}>
+                                  {format(day, { weekday: "short" })}
+                                </span>
+                                <span className={styles.dayNumber}>
+                                  {format(day, { day: "numeric" })}
+                                </span>
+                              </h2>
+                              <div
+                                className={styles.dayGrid}
+                                style={{
+                                  gridTemplateColumns: `repeat(${layout.lanes},minmax(0,1fr))`,
+                                }}
+                              >
+                                {layout.items.map((item) => (
+                                  <div
+                                    key={item.event.id}
+                                    className={styles.slot}
+                                    style={{
+                                      gridRow: `${item.startRow} / ${item.endRow}`,
+                                      gridColumn: `${item.column} / span ${item.span}`,
+                                    }}
+                                  >
+                                    {eventButton(item.event, day)}
+                                  </div>
+                                ))}
+                              </div>
+                            </section>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {days.some(
+                      (day) =>
+                        layoutDayEvents(filtered, day, local).lateEvents
+                          .length > 0,
+                    ) && (
+                      <section
+                        className={styles.agenda}
+                        aria-label={msg("late")}
+                      >
+                        <h2>{msg("late")}</h2>
+                        <p>{msg("lateHelp")}</p>
+                        {days.map((day) => {
+                          const lateEvents = layoutDayEvents(
+                            filtered,
+                            day,
+                            local,
+                          ).lateEvents;
+                          return lateEvents.length > 0 ? (
+                            <section key={dayKey(day, local)}>
+                              <h3>
+                                {format(day, {
+                                  weekday: "long",
+                                  month: "long",
+                                  day: "numeric",
+                                })}
+                              </h3>
+                              {lateEvents.map((e) => (
+                                <React.Fragment key={e.id}>
+                                  {eventButton(e, day)}
+                                </React.Fragment>
+                              ))}
+                            </section>
+                          ) : null;
+                        })}
+                      </section>
+                    )}
+                  </>
+                ))}
+              <p className={styles.note}>
+                {msg("timesHelp", {
+                  zone: local
+                    ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                    : msg("loadingZone"),
+                })}
+              </p>
+            </div>
+          </div>
         </section>
       </div>
       {selected && (
