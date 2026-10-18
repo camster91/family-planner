@@ -4,8 +4,8 @@ import * as React from "react";
 
 // Households without chore pictures do not need the full drawing catalogue.
 const Picture = React.lazy(async () => {
-  const module = await import("@/components/chores/RoutineIcon");
-  return { default: module.RoutineIcon };
+  const pictures = await import("@/components/chores/RoutineIcon");
+  return { default: pictures.RoutineIcon };
 });
 
 const pictureClass =
