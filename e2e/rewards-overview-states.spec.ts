@@ -76,8 +76,9 @@ async function removeOwnedRewards(
   db: pg.Client,
   ids: readonly string[],
   names: readonly string[],
+  keys: readonly string[],
 ): Promise<void> {
-  if (!ids.length && !names.length) return;
+  if (!ids.length && !names.length && !keys.length) return;
   const values: unknown[] = [A.family, A.parent];
   const selectors: string[] = [];
   if (ids.length) {
@@ -110,6 +111,13 @@ async function removeOwnedRewards(
        WHERE user_id IN (SELECT id FROM "User" WHERE family_id=$1)
          AND message LIKE ANY($2::text[])`,
       [A.family, rewardNames.map((name) => `%${name}%`)],
+    );
+  }
+  if (keys.length) {
+    await db.query(
+      `DELETE FROM "IdempotencyRecord"
+       WHERE family_id=$1 AND user_id = ANY($2::text[]) AND key = ANY($3::text[])`,
+      [A.family, [A.parent, A.child], keys],
     );
   }
 }
@@ -233,11 +241,24 @@ async function assertHitTarget(locator: Locator): Promise<void> {
 async function captureState(
   page: Page,
   info: TestInfo,
+  locale: Locale,
   name: string,
 ): Promise<void> {
   const path = info.outputPath(`${name}.png`);
-  await page.screenshot({ path, fullPage: true });
+  const image = await page.screenshot({ path, fullPage: true });
+  const viewport = page.viewportSize();
   await info.attach(`${name}.png`, { path, contentType: "image/png" });
+  await info.attach(`${name}.metadata.json`, {
+    body: JSON.stringify({
+      imagePath: path,
+      width: image.readUInt32BE(16),
+      height: image.readUInt32BE(20),
+      locale,
+      viewport,
+      project: info.project.name,
+    }),
+    contentType: "application/json",
+  });
 }
 
 async function prepareFeatures(page: Page): Promise<FeatureSetup> {
@@ -406,6 +427,7 @@ for (const locale of ["en", "es"] as const) {
       ];
       const ownedIds = new Set<string>();
       const ownedNames = new Set(names);
+      const ownedKeys = new Set<string>();
       let childXpBefore: number | undefined;
       let featureSetup: FeatureSetup | undefined;
       let childContext: BrowserContext | undefined;
@@ -449,7 +471,7 @@ for (const locale of ["en", "es"] as const) {
         await descriptionField.fill(
           `Long description ${runId} — keep every word readable.`,
         );
-        await captureState(page, info, "rewards-create-sheet");
+        await captureState(page, info, locale, "rewards-create-sheet");
         await assertHitTarget(submit);
         const formRequest = page.waitForRequest(
           (request) =>
@@ -467,7 +489,11 @@ for (const locale of ["en", "es"] as const) {
           formResponse,
         ]);
         expect(createResponse.status()).toBe(200);
-        expect(request.headers()["idempotency-key"]).toBeTruthy();
+        const createKey = request.headers()["idempotency-key"];
+        if (!createKey) {
+          throw new Error("Create reward omitted idempotency key");
+        }
+        ownedKeys.add(createKey);
         const formReward = (
           (await createResponse.json()) as { reward?: RewardRow }
         ).reward;
@@ -485,6 +511,7 @@ for (const locale of ["en", "es"] as const) {
         await expect(page).toHaveURL(/\/dashboard\/rewards$/);
 
         for (const name of names.slice(1)) {
+          const createKey = randomUUID();
           const created = await sendWithKey(
             page,
             "POST",
@@ -495,7 +522,7 @@ for (const locale of ["en", "es"] as const) {
               cost: 1,
               icon: "🎁",
             },
-            randomUUID(),
+            createKey,
           );
           expect(created.status, created.body).toBe(200);
           const reward = (JSON.parse(created.body) as { reward?: RewardRow })
@@ -511,6 +538,10 @@ for (const locale of ["en", "es"] as const) {
           });
           expect(typeof reward?.id).toBe("string");
           ownedIds.add(reward.id as string);
+          if (!createKey) {
+            throw new Error("Create reward omitted idempotency key");
+          }
+          ownedKeys.add(createKey);
         }
 
         await page.goto("/dashboard/rewards");
@@ -519,7 +550,7 @@ for (const locale of ["en", "es"] as const) {
         await expect(
           page.locator("a[href='/dashboard/analytics']"),
         ).toHaveCount(1);
-        await captureState(page, info, "rewards-parent-overview");
+        await captureState(page, info, locale, "rewards-parent-overview");
         await assertHitTarget(
           page.getByRole("link", {
             name: locale === "es" ? "Añadir recompensa" : "Add reward",
@@ -540,24 +571,20 @@ for (const locale of ["en", "es"] as const) {
         expect(childMe.status, childMe.body).toBe(200);
         childXpBefore = (JSON.parse(childMe.body).user as { xp?: unknown })
           .xp as number;
-        await child.page.goto("/dashboard/rewards");
+        await child.page.goto("/dashboard");
         await expect(
           child.page.getByText(names[0], { exact: true }),
         ).toBeVisible();
         await expect(
-          child.page.locator("a[href='/dashboard/analytics']"),
-        ).toHaveCount(0);
-        await expect(
-          child.page.locator('[data-testid="claimable-reward"]'),
-        ).toHaveCount(2);
-        await captureState(child.page, info, "rewards-child-choice");
+          child.page.getByText(names[1], { exact: true }),
+        ).toBeVisible();
+        await captureState(child.page, info, locale, "rewards-child-choice");
         const selected = child.page
-          .locator('[data-testid="claimable-reward"]')
+          .locator("article")
           .filter({ hasText: names[0] });
         const claimButton = selected.getByRole("button", {
-          name: new RegExp(
-            `Claim.*${escapeRegExp(names[0])}|Reclamar.*${escapeRegExp(names[0])}`,
-          ),
+          name: locale === "es" ? "Reclamar" : "Claim",
+          exact: true,
         });
         await expect(claimButton).toBeVisible();
         await assertHitTarget(claimButton);
@@ -567,26 +594,20 @@ for (const locale of ["en", "es"] as const) {
             response.request().method() === "POST",
         );
         await claimButton.click();
-        const dialog = child.page.getByRole("dialog");
-        await expect(dialog).toBeVisible();
-        const confirm = dialog.getByRole("button", {
-          name: locale === "es" ? "Reclamar" : "Claim",
-          exact: true,
-        });
-        await assertHitTarget(confirm);
-        const [response] = await Promise.all([claimResponse, confirm.click()]);
+        const response = await claimResponse;
         expect(response.status()).toBe(200);
+        const claimKey = response.request().headers()["idempotency-key"];
+        if (!claimKey) throw new Error("Claim reward omitted idempotency key");
+        ownedKeys.add(claimKey);
         await expect(
-          child.page
-            .locator('[data-testid="family-reward"]')
-            .filter({ hasText: names[0] }),
-        ).toContainText(locale === "es" ? "Reclamada" : "Claimed");
-        await expect(
-          child.page
-            .locator('[data-testid="claimable-reward"]')
-            .filter({ hasText: names[1] }),
-        ).toHaveCount(1);
-        await captureState(child.page, info, "rewards-child-claim-confirmed");
+          child.page.getByText(locale === "es" ? "¡Reclamada!" : "🎉 Claimed!"),
+        ).toBeVisible();
+        await captureState(
+          child.page,
+          info,
+          locale,
+          "rewards-child-claim-confirmed",
+        );
         const childXpAfterClaim = (
           JSON.parse((await browserFetch(child.page, "/api/auth/me")).body)
             .user as { xp?: unknown }
@@ -628,7 +649,15 @@ for (const locale of ["en", "es"] as const) {
             response.request().method() === "POST",
         );
         await approve.click();
-        expect((await approveResponse).status()).toBe(200);
+        const approvalResponse = await approveResponse;
+        expect(approvalResponse.status()).toBe(200);
+        const approvalKey = approvalResponse.request().headers()[
+          "idempotency-key"
+        ];
+        if (!approvalKey) {
+          throw new Error("Approve reward omitted idempotency key");
+        }
+        ownedKeys.add(approvalKey);
         await expect(
           page
             .locator('[data-testid="family-reward"]')
@@ -639,7 +668,7 @@ for (const locale of ["en", "es"] as const) {
             .locator('[data-testid="claimable-reward"]')
             .filter({ hasText: names[1] }),
         ).toHaveCount(1);
-        await captureState(page, info, "rewards-parent-given");
+        await captureState(page, info, locale, "rewards-parent-given");
         const persisted = await browserFetch(page, "/api/rewards");
         expect(persisted.status, persisted.body).toBe(200);
         const persistedRows = (
@@ -727,7 +756,12 @@ for (const locale of ["en", "es"] as const) {
         }
         try {
           await withDb(async (db) => {
-            await removeOwnedRewards(db, [...ownedIds], [...ownedNames]);
+            await removeOwnedRewards(
+              db,
+              [...ownedIds],
+              [...ownedNames],
+              [...ownedKeys],
+            );
             if (childXpBefore !== undefined) {
               await db.query(
                 `UPDATE "User" SET xp=$1 WHERE id=$2 AND family_id=$3`,

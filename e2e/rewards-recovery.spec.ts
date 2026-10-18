@@ -58,6 +58,7 @@ async function cleanupReward(
   id: string | undefined,
   name: string | undefined,
   childXp: number | undefined,
+  keys: readonly string[],
 ): Promise<void> {
   if (id) {
     await db.query(
@@ -79,6 +80,13 @@ async function cleanupReward(
       A.child,
       A.family,
     ]);
+  }
+  if (keys.length) {
+    await db.query(
+      `DELETE FROM "IdempotencyRecord"
+       WHERE family_id=$1 AND user_id = ANY($2::text[]) AND key = ANY($3::text[])`,
+      [A.family, [A.parent, A.child], keys],
+    );
   }
 }
 
@@ -297,11 +305,24 @@ async function assertSurface(page: Page, info: TestInfo): Promise<void> {
 async function captureState(
   page: Page,
   info: TestInfo,
+  locale: Locale,
   name: string,
 ): Promise<void> {
   const path = info.outputPath(`${name}.png`);
-  await page.screenshot({ path, fullPage: true });
+  const image = await page.screenshot({ path, fullPage: true });
+  const viewport = page.viewportSize();
   await info.attach(`${name}.png`, { path, contentType: "image/png" });
+  await info.attach(`${name}.metadata.json`, {
+    body: JSON.stringify({
+      imagePath: path,
+      width: image.readUInt32BE(16),
+      height: image.readUInt32BE(20),
+      locale,
+      viewport,
+      project: info.project.name,
+    }),
+    contentType: "application/json",
+  });
 }
 
 for (const locale of ["en", "es"] as const) {
@@ -333,7 +354,7 @@ for (const locale of ["en", "es"] as const) {
           }),
         ).toBeVisible();
         await assertSurface(empty.page, info);
-        await captureState(empty.page, info, "rewards-empty");
+        await captureState(empty.page, info, locale, "rewards-empty");
         await info.attach(`rewards-empty-${locale}-${info.project.name}`, {
           body: JSON.stringify({
             locale,
@@ -349,7 +370,7 @@ for (const locale of ["en", "es"] as const) {
       }
     });
 
-    test(`${locale}: malformed claim keeps draft and GET-only status retry`, async ({
+    test(`${locale}: malformed claim keeps reward and retries the same key`, async ({
       browser,
       baseURL,
     }, info) => {
@@ -357,20 +378,46 @@ for (const locale of ["en", "es"] as const) {
       const parent = await openAs(browser, baseURL, info, "parentA", locale);
       const child = await openAs(browser, baseURL, info, "childA", locale);
       let parentSetup: FeatureSetup | undefined;
+      const runId = randomUUID();
+      const name = `E2E Rewards malformed ${runId}`;
+      const keys: string[] = [];
+      let rewardId: string | undefined;
+      let childXp: number | undefined;
       let claimCalls = 0;
-      let statusFailures = 1;
       try {
         await parent.page.goto("/dashboard");
         parentSetup = await prepareFeatures(parent.page);
-        await child.page.goto("/dashboard/rewards");
-        const target = child.page
-          .locator('[data-testid="claimable-reward"]')
-          .first();
+        const createKey = randomUUID();
+        keys.push(createKey);
+        const created = await sendWithKey(
+          parent.page,
+          "/api/rewards",
+          {
+            name,
+            description: "Malformed response recovery",
+            cost: 1,
+            icon: "🎁",
+          },
+          createKey,
+        );
+        expect(created.status, created.body).toBe(200);
+        rewardId = (JSON.parse(created.body).reward as { id: string }).id;
+        await child.page.goto("/dashboard");
+        childXp = (
+          JSON.parse((await browserFetch(child.page, "/api/auth/me")).body)
+            .user as { xp: number }
+        ).xp;
+        const target = child.page.locator("article").filter({ hasText: name });
         await expect(target).toBeVisible();
-        const targetName = await target.locator("h3").innerText();
+        const claimButton = target.getByRole("button", {
+          name: locale === "es" ? "Reclamar" : "Claim",
+          exact: true,
+        });
+        await expect(claimButton).toBeVisible();
         await child.context.route("**/api/rewards/claim", async (route) => {
           if (route.request().method() !== "POST") return route.continue();
           claimCalls += 1;
+          keys.push(route.request().headers()["idempotency-key"] ?? "");
           if (claimCalls === 1) {
             await route.fulfill({
               status: 200,
@@ -381,77 +428,78 @@ for (const locale of ["en", "es"] as const) {
           }
           await route.continue();
         });
-        await child.page
-          .getByRole("button", { name: new RegExp(targetName) })
-          .click();
-        const dialog = child.page.getByRole("dialog");
-        const confirm = dialog.getByRole("button", {
-          name: locale === "es" ? "Reclamar" : "Claim",
-          exact: true,
-        });
-        await confirm.click();
-        await expect(dialog.getByRole("alert")).toBeVisible();
-        await captureState(child.page, info, "rewards-malformed-recovery");
-        const statusRoute = child.context.route(
-          "**/api/rewards",
-          async (route) => {
-            if (route.request().method() !== "GET") return route.continue();
-            if (statusFailures > 0) {
-              statusFailures -= 1;
-              await route.fulfill({
-                status: 503,
-                contentType: "application/json",
-                body: JSON.stringify({ error: "temporary status outage" }),
-              });
-              return;
-            }
-            await route.continue();
-          },
-        );
-        await dialog
-          .getByRole("button", {
-            name: locale === "es" ? "Comprobar estado" : "Check status",
-            exact: true,
-          })
-          .click();
+        await claimButton.click();
         await expect(
-          dialog.getByText(
+          child.page.getByText(
             locale === "es"
-              ? "No se pudieron comprobar las recompensas actuales."
-              : "We could not check the current rewards.",
+              ? "La conexión se interrumpió antes de confirmar."
+              : "The connection dropped before we could confirm.",
           ),
         ).toBeVisible();
-        await dialog
-          .getByRole("button", {
-            name: locale === "es" ? "Comprobar estado" : "Check status",
-            exact: true,
-          })
-          .click();
+        await expect(target).toBeVisible();
         await expect(
-          dialog.getByRole("button", {
-            name: locale === "es" ? "Comprobar estado" : "Check status",
-            exact: true,
-          }),
+          child.page.getByText(
+            locale === "es" ? "🎉 ¡Reclamada!" : "🎉 Claimed!",
+          ),
         ).toHaveCount(0);
-        await child.context.unroute("**/api/rewards");
+        expect(
+          (
+            JSON.parse((await browserFetch(child.page, "/api/auth/me")).body)
+              .user as { xp: number }
+          ).xp,
+        ).toBe(childXp);
+        await captureState(
+          child.page,
+          info,
+          locale,
+          "rewards-malformed-recovery",
+        );
+        const retryResponse = child.page.waitForResponse(
+          (response) =>
+            response.url().endsWith("/api/rewards/claim") &&
+            response.request().method() === "POST",
+        );
+        await claimButton.click();
+        expect((await retryResponse).status()).toBe(200);
         await child.context.unroute("**/api/rewards/claim");
-        expect(claimCalls).toBe(1);
-        await captureState(child.page, info, "rewards-malformed-reconciled");
+        expect(claimCalls).toBe(2);
+        expect(keys[1]).toBeTruthy();
+        expect(keys[2]).toBe(keys[1]);
+        const persisted = await browserFetch(child.page, "/api/rewards");
+        const row = (
+          JSON.parse(persisted.body).rewards as Array<{
+            id: string;
+            status: string;
+          }>
+        ).find((item) => item.id === rewardId);
+        expect(row?.status).toBe("claimed");
+        expect(
+          (
+            JSON.parse((await browserFetch(child.page, "/api/auth/me")).body)
+              .user as { xp: number }
+          ).xp,
+        ).toBe((childXp as number) - 1);
+        await captureState(
+          child.page,
+          info,
+          locale,
+          "rewards-malformed-reconciled",
+        );
         await assertSurface(child.page, info);
         await info.attach(`rewards-malformed-${locale}-${info.project.name}`, {
           body: JSON.stringify({
             locale,
             project: info.project.name,
-            targetName,
+            targetName: name,
             claimCalls,
-            statusGetFailures: 1,
-            transport: "failure-only malformed POST plus GET-only status retry",
+            keys,
+            transport: "malformed POST followed by real authenticated retry",
           }),
           contentType: "application/json",
         });
-        void statusRoute;
       } finally {
         await child.context.unrouteAll({ behavior: "ignoreErrors" });
+        await withDb((db) => cleanupReward(db, rewardId, name, childXp, keys));
         if (parentSetup) await restoreFeatures(parentSetup);
         await child.context.close();
         await parent.context.close();
@@ -472,18 +520,21 @@ for (const locale of ["en", "es"] as const) {
       let setup: FeatureSetup | undefined;
       let calls = 0;
       const keys: string[] = [];
+      const ownedKeys: string[] = [];
       try {
         await parent.page.goto("/dashboard");
         setup = await prepareFeatures(parent.page);
+        const createKey = randomUUID();
+        ownedKeys.push(createKey);
         const created = await sendWithKey(
           parent.page,
           "/api/rewards",
           { name, description: "Retry-safe reward", cost: 1, icon: "🎁" },
-          randomUUID(),
+          createKey,
         );
         expect(created.status, created.body).toBe(200);
         rewardId = (JSON.parse(created.body).reward as { id: string }).id;
-        await child.page.goto("/dashboard/rewards");
+        await child.page.goto("/dashboard");
         childXp = (
           JSON.parse((await browserFetch(child.page, "/api/auth/me")).body)
             .user as { xp: number }
@@ -500,41 +551,31 @@ for (const locale of ["en", "es"] as const) {
           }
           await route.continue();
         });
-        const card = child.page
-          .locator('[data-testid="claimable-reward"]')
-          .filter({ hasText: name });
-        await card.getByRole("button", { name: new RegExp(name) }).click();
-        const dialog = child.page.getByRole("dialog");
-        await dialog
-          .getByRole("button", {
-            name: locale === "es" ? "Reclamar" : "Claim",
-            exact: true,
-          })
-          .click();
+        const card = child.page.locator("article").filter({ hasText: name });
+        const claimButton = card.getByRole("button", {
+          name: locale === "es" ? "Reclamar" : "Claim",
+          exact: true,
+        });
+        await claimButton.click();
         await expect(
-          dialog.getByRole("button", {
-            name: locale === "es" ? "Intentar de nuevo" : "Try again",
-            exact: true,
-          }),
+          child.page.getByText(
+            locale === "es" ? "Problema de conexión" : "Connection problem",
+          ),
         ).toBeVisible();
         const retryResponse = child.page.waitForResponse(
           (response) =>
             response.url().endsWith("/api/rewards/claim") &&
             response.request().method() === "POST",
         );
-        await dialog
-          .getByRole("button", {
-            name: locale === "es" ? "Intentar de nuevo" : "Try again",
-            exact: true,
-          })
-          .click();
+        await expect(claimButton).toBeVisible();
+        await claimButton.click();
         const replay = await retryResponse;
         expect(replay.status()).toBe(200);
         expect(replay.headers()["idempotency-replayed"]).toBe("true");
-        await expect(dialog).toHaveCount(0);
         expect(calls).toBe(2);
         expect(keys[0]).toBeTruthy();
         expect(keys[1]).toBe(keys[0]);
+        ownedKeys.push(keys[0]);
         const persisted = await browserFetch(child.page, "/api/rewards");
         const rows = (
           JSON.parse(persisted.body).rewards as Array<{
@@ -551,18 +592,25 @@ for (const locale of ["en", "es"] as const) {
               .user as { xp: number }
           ).xp,
         ).toBe((childXp as number) - 1);
-        await captureState(child.page, info, "rewards-lost-response-retry");
+        await captureState(
+          child.page,
+          info,
+          locale,
+          "rewards-lost-response-retry",
+        );
         await assertSurface(child.page, info);
       } finally {
         await child.context.unrouteAll({ behavior: "ignoreErrors" });
-        if (setup) await restoreFeatures(setup).catch(() => undefined);
-        await withDb((db) => cleanupReward(db, rewardId, name, childXp));
+        if (setup) await restoreFeatures(setup);
+        await withDb((db) =>
+          cleanupReward(db, rewardId, name, childXp, ownedKeys),
+        );
         await child.context.close();
         await parent.context.close();
       }
     });
 
-    test(`${locale}: parent approval recovery keeps GET status read-only`, async ({
+    test(`${locale}: committed approval response retries the same key`, async ({
       browser,
       baseURL,
     }, info) => {
@@ -576,27 +624,32 @@ for (const locale of ["en", "es"] as const) {
       let setup: FeatureSetup | undefined;
       let approvalCalls = 0;
       const keys: string[] = [];
+      const ownedKeys: string[] = [];
       try {
         await parent.page.goto("/dashboard");
         setup = await prepareFeatures(parent.page);
+        const createKey = randomUUID();
+        ownedKeys.push(createKey);
         const created = await sendWithKey(
           parent.page,
           "/api/rewards",
           { name, description: "Approval recovery", cost: 1, icon: "🎁" },
-          randomUUID(),
+          createKey,
         );
         expect(created.status, created.body).toBe(200);
         rewardId = (JSON.parse(created.body).reward as { id: string }).id;
-        await child.page.goto("/dashboard/rewards");
+        await child.page.goto("/dashboard");
         childXp = (
           JSON.parse((await browserFetch(child.page, "/api/auth/me")).body)
             .user as { xp: number }
         ).xp;
+        const claimKey = randomUUID();
+        ownedKeys.push(claimKey);
         const claim = await sendWithKey(
           child.page,
           "/api/rewards/claim",
           { rewardId },
-          randomUUID(),
+          claimKey,
         );
         expect(claim.status, claim.body).toBe(200);
         await parent.page.goto("/dashboard/rewards");
@@ -604,7 +657,12 @@ for (const locale of ["en", "es"] as const) {
           if (route.request().method() !== "POST") return route.continue();
           approvalCalls += 1;
           keys.push(route.request().headers()["idempotency-key"] ?? "");
-          if (approvalCalls === 1) return route.abort();
+          if (approvalCalls === 1) {
+            const committed = await route.fetch();
+            expect(committed.status()).toBe(200);
+            await route.abort();
+            return;
+          }
           return route.continue();
         });
         const row = parent.page
@@ -617,25 +675,12 @@ for (const locale of ["en", "es"] as const) {
             exact: true,
           }),
         ).toBeVisible();
-        await captureState(parent.page, info, "rewards-approval-recovery");
-        const checkResponse = parent.page.waitForResponse(
-          (response) =>
-            response.url().endsWith("/api/rewards") &&
-            response.request().method() === "GET",
+        await captureState(
+          parent.page,
+          info,
+          locale,
+          "rewards-approval-recovery",
         );
-        await row
-          .getByRole("button", {
-            name: locale === "es" ? "Comprobar estado" : "Check status",
-            exact: true,
-          })
-          .click();
-        expect((await checkResponse).status()).toBe(200);
-        await expect(
-          row.getByRole("button", {
-            name: locale === "es" ? "Intentar de nuevo" : "Try again",
-            exact: true,
-          }),
-        ).toBeVisible();
         const approve = parent.page.waitForResponse(
           (response) =>
             response.url().endsWith("/api/rewards/approve") &&
@@ -647,15 +692,19 @@ for (const locale of ["en", "es"] as const) {
             exact: true,
           })
           .click();
-        expect((await approve).status()).toBe(200);
+        const replay = await approve;
+        expect(replay.status()).toBe(200);
+        expect(replay.headers()["idempotency-replayed"]).toBe("true");
         expect(approvalCalls).toBe(2);
         expect(keys[1]).toBe(keys[0]);
+        expect(keys[0]).toBeTruthy();
+        ownedKeys.push(keys[0]);
         await expect(
           parent.page
             .locator('[data-testid="family-reward"]')
             .filter({ hasText: name }),
         ).toContainText(locale === "es" ? "Entregada" : "Given");
-        await captureState(parent.page, info, "rewards-approval-retry");
+        await captureState(parent.page, info, locale, "rewards-approval-retry");
         const persisted = await browserFetch(parent.page, "/api/rewards");
         const rowData = (
           JSON.parse(persisted.body).rewards as Array<{
@@ -667,8 +716,10 @@ for (const locale of ["en", "es"] as const) {
         await assertSurface(parent.page, info);
       } finally {
         await parent.context.unrouteAll({ behavior: "ignoreErrors" });
-        if (setup) await restoreFeatures(setup).catch(() => undefined);
-        await withDb((db) => cleanupReward(db, rewardId, name, childXp));
+        if (setup) await restoreFeatures(setup);
+        await withDb((db) =>
+          cleanupReward(db, rewardId, name, childXp, ownedKeys),
+        );
         await child.context.close();
         await parent.context.close();
       }
