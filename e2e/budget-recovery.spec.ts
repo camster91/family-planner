@@ -14,7 +14,7 @@ import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { budgetMessages } from "../src/i18n/budget";
 import { FIXTURE_EMAILS, FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
-import { authFile } from "./support/env";
+import { E2E_ANCHOR, authFile } from "./support/env";
 import { expect, test } from "./support/test";
 
 const PROJECTS = [
@@ -25,6 +25,7 @@ const PROJECTS = [
   "tablet-large-1920x1200",
   "desktop-1366x768",
 ] as const;
+const FIXTURE_DATE = E2E_ANCHOR.toISOString().slice(0, 10);
 
 const SYNTHETIC_CATEGORY = {
   id: "fx_e2e_budget_food",
@@ -42,7 +43,7 @@ const SYNTHETIC_TRANSACTION = {
   description: "Synthetic saved budget row",
   notes: null,
   category_id: SYNTHETIC_CATEGORY.id,
-  date: "2026-01-05T00:00:00.000Z",
+  date: `${FIXTURE_DATE}T00:00:00.000Z`,
   is_recurring: false,
   recurring_interval: null,
   category: {
@@ -62,6 +63,13 @@ const RECOVERED_TRANSACTION = {
   ...SYNTHETIC_TRANSACTION,
   id: "fx_e2e_budget_recovered",
   description: "Synthetic recovered budget row",
+};
+
+const CREATED_TRANSACTION = {
+  ...SYNTHETIC_TRANSACTION,
+  id: "fx_e2e_budget_created",
+  amount: 25,
+  description: "Synthetic queued save",
 };
 
 const FRESH_TRANSACTION = {
@@ -383,7 +391,7 @@ async function installSyntheticTransport(
     if (state.transactionPosts === 1) {
       await route.fulfill({
         status: 201,
-        json: { transaction: { id: "fx_e2e_budget_created" } },
+        json: { transaction: CREATED_TRANSACTION },
       });
       return;
     }
