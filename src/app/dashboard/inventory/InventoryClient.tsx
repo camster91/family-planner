@@ -39,7 +39,6 @@ import {
   Undo2,
   Utensils,
   WifiOff,
-  X,
   type LucideIcon,
 } from 'lucide-react'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -49,6 +48,7 @@ import { useOnline } from '@/components/ui/use-online'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 import { ScanFridgeDialog } from './ScanFridgeDialog'
+import { Dialog } from '@/components/ui/dialog'
 import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { cn } from '@/lib/utils'
@@ -217,6 +217,7 @@ export default function InventoryClient({
   const [loadedAt, setLoadedAt] = React.useState<Date | null>(null)
   const [refreshFailed, setRefreshFailed] = React.useState(false)
   const [editing, setEditing] = React.useState<{ mode: 'add' } | { mode: 'edit'; item: InventoryItemDto } | null>(null)
+  const addItemRef = React.useRef<HTMLButtonElement>(null)
   const [notice, setNotice] = React.useState<{ text: InventoryFeedback; error?: boolean } | null>(null)
   const [scanning, setScanning] = React.useState(false)
   const [busy, setBusy] = React.useState<string | null>(null)
@@ -432,7 +433,7 @@ export default function InventoryClient({
               </button>
             )}
             {canWrite && (
-              <button type="button" className="btn-tinted min-h-[44px]" onClick={openAdd}>
+              <button ref={addItemRef} type="button" className="btn-tinted min-h-[44px]" onClick={openAdd}>
                 <Plus className="w-4 h-4" aria-hidden="true" />
                 <span>{copy('addItem')}</span>
               </button>
@@ -595,7 +596,10 @@ export default function InventoryClient({
           mode={editing.mode}
           initial={editing.mode === 'edit' ? editing.item : undefined}
           onClose={() => setEditing(null)}
-          onDone={afterChange}
+          onDone={(message) => {
+            void afterChange(message)
+            setTimeout(() => addItemRef.current?.focus(), 0)
+          }}
           onAdjust={adjust}
         />
       )}
@@ -1123,7 +1127,12 @@ function ItemModal({
   initial?: InventoryItemDto
   onClose: () => void
   onDone: (message: InventoryFeedback) => void
-  onAdjust: (target: AdjustTarget, kind: AdjustKind, amount: number | null, key: string) => Promise<InventoryFeedback | null>
+  onAdjust: (
+    target: AdjustTarget,
+    kind: AdjustKind,
+    amount: number | null,
+    key: string,
+  ) => Promise<InventoryFeedback | null>
 }) {
   const copy = useInventoryCopy()
   const [name, setName] = React.useState(initial?.name ?? '')
@@ -1139,6 +1148,13 @@ function ItemModal({
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<InventoryFeedback | null>(null)
   const titleId = React.useId()
+  const nameRef = React.useRef<HTMLInputElement>(null)
+  const keepRef = React.useRef<HTMLButtonElement>(null)
+  const mutationRef = React.useRef(false)
+  const [showRemove, setShowRemove] = React.useState(false)
+  const [showDetails, setShowDetails] = React.useState(
+    Boolean(initial?.category || initial?.purchased_on || initial?.opened_on),
+  )
   const saveKey = useChangeKey()
   const adjustKey = useChangeKey()
   const deleteKey = useChangeKey()
@@ -1149,20 +1165,13 @@ function ItemModal({
   usePendingFormNavigationController(saving)
 
   const guardedClose = React.useCallback(() => {
-    if (saving) return
+    if (mutationRef.current) return
     onClose()
-  }, [onClose, saving])
-
-  React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') guardedClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [guardedClose])
+  }, [onClose])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (mutationRef.current) return
     const trimmed = name.trim()
     if (!trimmed) {
       setError(feedback('enterName'))
@@ -1188,6 +1197,7 @@ function ItemModal({
       purchased_on: purchasedOn || null,
       opened_on: openedOn || null,
     }
+    mutationRef.current = true
     setSaving(true)
     setError(null)
     try {
@@ -1204,12 +1214,13 @@ function ItemModal({
     } catch {
       setError(feedback('saveNetwork'))
     } finally {
+      mutationRef.current = false
       setSaving(false)
     }
   }
 
   const adjust = async (kind: AdjustKind) => {
-    if (!initial) return
+    if (!initial || mutationRef.current) return
     let usedAmount: number | null = null
     if (kind === 'consume' && used.trim() !== '') {
       usedAmount = Number(used)
@@ -1218,23 +1229,28 @@ function ItemModal({
         return
       }
     }
+    mutationRef.current = true
     setSaving(true)
     setError(null)
-    const key = adjustKey({ kind, usedAmount })
-    const err = await onAdjust({ id: initial.id, name: initial.name, unit: initial.unit }, kind, usedAmount, key)
-    setSaving(false)
-    if (err) setError(err)
+    try {
+      const key = adjustKey({ kind, usedAmount })
+      const err = await onAdjust({ id: initial.id, name: initial.name, unit: initial.unit }, kind, usedAmount, key)
+      if (err) setError(err)
+    } catch {
+      setError(feedback('saveNetwork'))
+    } finally {
+      mutationRef.current = false
+      setSaving(false)
+    }
   }
 
   const remove = async () => {
-    if (!initial) return
-    if (!confirm(copy('removeConfirm', { name: initial.name }))) {
-      return
-    }
+    if (!initial || mutationRef.current || !showRemove) return
     if (isOffline()) {
       setError(feedback('offlineWrite'))
       return
     }
+    mutationRef.current = true
     setSaving(true)
     setError(null)
     try {
@@ -1242,7 +1258,7 @@ function ItemModal({
         `/api/inventory/${encodeURIComponent(initial.id)}`,
         undefined,
         deleteKey({ remove: initial.id }),
-        'DELETE'
+        'DELETE',
       )
       if (!res.ok) {
         setError(await errorMessage(res, feedback('removeFailed')))
@@ -1252,8 +1268,15 @@ function ItemModal({
     } catch {
       setError(feedback('removeNetwork'))
     } finally {
+      mutationRef.current = false
       setSaving(false)
     }
+  }
+
+  const closeRemove = () => {
+    if (mutationRef.current) return
+    setShowRemove(false)
+    setError(null)
   }
 
   const tile = (active: boolean) =>
@@ -1261,70 +1284,91 @@ function ItemModal({
       'relative min-h-[44px] flex items-center justify-center rounded-xl border px-2 text-subhead text-center cursor-pointer has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--accent)] has-[:focus-visible]:ring-offset-2',
       active
         ? 'border-[var(--accent)] bg-[var(--accent-tint)] text-[var(--accent-text)] font-semibold'
-        : 'border-[var(--surface-separator)] text-label-primary'
+        : 'border-[var(--surface-separator)] text-label-primary',
     )
   // Covers the whole tile, border included, so the hit target is >= 44px.
   const tileInput = 'absolute -left-px -top-px h-[calc(100%+2px)] w-[calc(100%+2px)] cursor-pointer opacity-0'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={guardedClose} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        data-testid="inventory-modal"
-        className="relative bg-[var(--surface-elevated)] rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 space-y-4"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <h2 id={titleId} className="min-w-0 break-words text-title-3 font-display text-label-primary">
-            {mode === 'add' ? copy('addItem') : copy('editName', { name: initial?.name ?? copy('itemFallback') })}
-          </h2>
-          <button
-            type="button"
-            onClick={guardedClose}
-            aria-label={copy('close')}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-[var(--surface-fill)]"
-          >
-            <X className="w-5 h-5 text-label-tertiary" aria-hidden="true" />
+    <Dialog
+      open
+      variant="form"
+      testId="inventory-modal"
+      title={mode === 'add' ? copy('addItem') : copy('editName', { name: initial?.name ?? copy('itemFallback') })}
+      closeLabel={copy('close')}
+      initialFocusRef={nameRef}
+      onClose={saving ? undefined : guardedClose}
+      footer={
+        <div className="flex gap-2">
+          {mode === 'edit' && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!mutationRef.current) {
+                  setError(null)
+                  setShowRemove(true)
+                }
+              }}
+              className="btn-destructive flex-1 min-h-[44px]"
+              disabled={saving}
+            >
+              {copy('remove')}
+            </button>
+          )}
+          <button type="submit" form={titleId} className="btn-tinted flex-1 min-h-[44px]" disabled={saving}>
+            {copy(saving ? 'saving' : 'save')}
           </button>
         </div>
-
-        {mode === 'edit' && initial && (
-          <div className="rounded-xl border border-[var(--surface-separator)] p-3 space-y-3" data-testid="adjust-panel">
-            <p className="text-subhead font-semibold text-label-primary">{copy('usedOrThrew')}</p>
-            {initial.amount !== null && (
-              <div>
-                <label htmlFor={`${titleId}-used`} className="text-subhead text-label-secondary mb-1 block">
-                  {copy('howMuch')}<span className="text-label-tertiary">{copy('emptyAll')}</span>
-                </label>
-                <input
-                  id={`${titleId}-used`}
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  step="any"
-                  value={used}
-                  onChange={(e) => setUsed(e.target.value)}
-                  placeholder={copy('allAmount', { amount: amountText(initial) ?? '' }).trim()}
-                  className="w-full input-apple"
-                />
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" className="btn-tinted min-h-[44px]" onClick={() => adjust('consume')} disabled={saving}>
-                <Utensils className="w-4 h-4" aria-hidden="true" />
-                <span>{copy('usedIt')}</span>
-              </button>
-              <button type="button" className="btn-ghost min-h-[44px]" onClick={() => adjust('discard')} disabled={saving}>
-                <Trash2 className="w-4 h-4" aria-hidden="true" />
-                <span>{copy('throwAway')}</span>
-              </button>
+      }
+    >
+      {mode === 'edit' && initial && (
+        <div className="rounded-xl border border-[var(--surface-separator)] p-3 space-y-3" data-testid="adjust-panel">
+          <p className="text-subhead font-semibold text-label-primary">{copy('usedOrThrew')}</p>
+          {initial.amount !== null && (
+            <div>
+              <label htmlFor={`${titleId}-used`} className="text-subhead text-label-secondary mb-1 block">
+                {copy('howMuch')}
+                <span className="text-label-tertiary">{copy('emptyAll')}</span>
+              </label>
+              <input
+                id={`${titleId}-used`}
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={used}
+                disabled={saving}
+                onChange={(e) => setUsed(e.target.value)}
+                placeholder={copy('allAmount', { amount: amountText(initial) ?? '' }).trim()}
+                className="w-full input-apple"
+              />
             </div>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              className="btn-tinted min-h-[44px]"
+              onClick={() => adjust('consume')}
+              disabled={saving}
+            >
+              <Utensils className="w-4 h-4" aria-hidden="true" />
+              <span>{copy('usedIt')}</span>
+            </button>
+            <button
+              type="button"
+              className="btn-ghost min-h-[44px]"
+              onClick={() => adjust('discard')}
+              disabled={saving}
+            >
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
+              <span>{copy('throwAway')}</span>
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        <form onSubmit={submit} className="space-y-4" noValidate>
+      <form id={titleId} onSubmit={submit} className="space-y-4" noValidate>
+        <fieldset disabled={saving} className="space-y-4">
           <div>
             <label htmlFor={`${titleId}-name`} className="text-subhead text-label-secondary mb-1 block">
               {copy('name')}
@@ -1336,7 +1380,7 @@ function ItemModal({
               onChange={(e) => setName(e.target.value)}
               maxLength={200}
               required
-              autoFocus
+              ref={nameRef}
               className="w-full input-apple"
             />
           </div>
@@ -1412,9 +1456,7 @@ function ItemModal({
               ))}
             </div>
             <p className="text-footnote text-label-secondary" id={`${titleId}-date-help`}>
-              {dateKind === 'use_by'
-                ? copy('useBySafety')
-                : copy('bestBeforeQuality')}
+              {dateKind === 'use_by' ? copy('useBySafety') : copy('bestBeforeQuality')}
             </p>
             <div className="flex gap-2">
               <label htmlFor={`${titleId}-expires`} className="sr-only">
@@ -1440,70 +1482,92 @@ function ItemModal({
             </div>
           </fieldset>
 
-          <div>
-            <label htmlFor={`${titleId}-category`} className="text-subhead text-label-secondary mb-1 block">
-              {copy('category')} <span className="text-label-tertiary">{copy('optional')}</span>
-            </label>
-            <select
-              id={`${titleId}-category`}
-              value={category}
-              onChange={(e) => setCategory(e.target.value as InventoryCategory | '')}
-              className="w-full input-apple min-h-[44px]"
-            >
-              <option value="">{copy('noCategory')}</option>
-              {INVENTORY_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {copy(c)}
-                </option>
-              ))}
-            </select>
-          </div>
+          <details
+            open={showDetails}
+            onToggle={(event) => setShowDetails(event.currentTarget.open)}
+            className="rounded-xl border border-[var(--surface-separator)] p-3"
+          >
+            <summary tabIndex={0} className="min-h-11 cursor-pointer py-3 text-subhead font-semibold">
+              {copy('moreDetails')}
+            </summary>
+            <div className="space-y-4 pt-2">
+              <div>
+                <label htmlFor={`${titleId}-category`} className="text-subhead text-label-secondary mb-1 block">
+                  {copy('category')} <span className="text-label-tertiary">{copy('optional')}</span>
+                </label>
+                <select
+                  id={`${titleId}-category`}
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as InventoryCategory | '')}
+                  className="w-full input-apple min-h-[44px]"
+                >
+                  <option value="">{copy('noCategory')}</option>
+                  {INVENTORY_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {copy(c)}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor={`${titleId}-purchased`} className="text-subhead text-label-secondary mb-1 block">
-                {copy('bought')} <span className="text-label-tertiary">{copy('optional')}</span>
-              </label>
-              <input
-                id={`${titleId}-purchased`}
-                type="date"
-                value={purchasedOn}
-                onChange={(e) => setPurchasedOn(e.target.value)}
-                className="w-full min-w-0 input-apple"
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor={`${titleId}-purchased`} className="text-subhead text-label-secondary mb-1 block">
+                    {copy('bought')} <span className="text-label-tertiary">{copy('optional')}</span>
+                  </label>
+                  <input
+                    id={`${titleId}-purchased`}
+                    type="date"
+                    value={purchasedOn}
+                    onChange={(e) => setPurchasedOn(e.target.value)}
+                    className="w-full min-w-0 input-apple"
+                  />
+                </div>
+                <div>
+                  <label htmlFor={`${titleId}-opened`} className="text-subhead text-label-secondary mb-1 block">
+                    {copy('opened')} <span className="text-label-tertiary">{copy('optional')}</span>
+                  </label>
+                  <input
+                    id={`${titleId}-opened`}
+                    type="date"
+                    value={openedOn}
+                    onChange={(e) => setOpenedOn(e.target.value)}
+                    className="w-full min-w-0 input-apple"
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label htmlFor={`${titleId}-opened`} className="text-subhead text-label-secondary mb-1 block">
-                {copy('opened')} <span className="text-label-tertiary">{copy('optional')}</span>
-              </label>
-              <input
-                id={`${titleId}-opened`}
-                type="date"
-                value={openedOn}
-                onChange={(e) => setOpenedOn(e.target.value)}
-                className="w-full min-w-0 input-apple"
-              />
-            </div>
-          </div>
-
-          {error && (
+          </details>
+          {error && !showRemove && (
             <p role="alert" className="text-subhead text-[var(--danger-text)]">
               <InventoryText feedback={error} />
             </p>
           )}
-
-          <div className="flex gap-2 pt-2">
-            {mode === 'edit' && (
-              <button type="button" onClick={remove} className="btn-destructive flex-1 min-h-[44px]" disabled={saving}>
-                {copy('remove')}
-              </button>
-            )}
-            <button type="submit" className="btn-tinted flex-1 min-h-[44px]" disabled={saving}>
-              {copy(saving ? 'saving' : 'save')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </fieldset>
+      </form>
+      <Dialog
+        open={showRemove}
+        role="alertdialog"
+        title={copy('remove')}
+        description={copy('removeConfirm', { name: initial?.name ?? copy('itemFallback') })}
+        closeLabel={copy('close')}
+        initialFocusRef={keepRef}
+        onClose={saving ? undefined : closeRemove}
+      >
+        {error && (
+          <p role="alert" className="mb-4 text-subhead text-[var(--danger-text)]">
+            <InventoryText feedback={error} />
+          </p>
+        )}
+        <div className="flex flex-wrap justify-end gap-2">
+          <button ref={keepRef} type="button" className="btn-tinted min-h-11" disabled={saving} onClick={closeRemove}>
+            {copy('keepItem')}
+          </button>
+          <button type="button" className="btn-destructive min-h-11" disabled={saving} onClick={() => void remove()}>
+            {copy(saving ? 'saving' : 'remove')}
+          </button>
+        </div>
+      </Dialog>
+    </Dialog>
   )
 }

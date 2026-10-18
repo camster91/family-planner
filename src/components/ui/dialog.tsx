@@ -10,7 +10,7 @@ const openPanels: Array<{ panel: HTMLElement; previous: HTMLElement | null }> =
   [];
 
 const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'a[href], summary:not([tabindex="-1"]), button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"]):not(:disabled)';
 
 /**
  * Modal dialog: `role="dialog"`, `aria-modal`, labelled by its title, focus

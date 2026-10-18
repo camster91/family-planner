@@ -1155,13 +1155,25 @@ test.describe("inventory localization synthetic server", () => {
             exact: true,
           })
           .click();
-        page.once("dialog", async (dialog) => {
-          expect(dialog.message()).toBe(msg(locale, "removeConfirm", { name }));
-          await dialog.dismiss();
+        const removeButton = modal.getByRole("button", {
+          name: msg(locale, "remove"),
+          exact: true,
         });
-        await modal
-          .getByRole("button", { name: msg(locale, "remove"), exact: true })
+        await removeButton.click();
+        const confirmation = page.getByRole("alertdialog", {
+          name: msg(locale, "remove"),
+          exact: true,
+        });
+        await expect(
+          confirmation.getByText(msg(locale, "removeConfirm", { name }), {
+            exact: true,
+          }),
+        ).toBeVisible();
+        await confirmation
+          .getByRole("button", { name: msg(locale, "keepItem"), exact: true })
           .click();
+        await expect(confirmation).toHaveCount(0);
+        await expect(removeButton).toBeFocused();
         await expect(modal).toBeVisible();
         const removals: Array<{
           url: string;
@@ -1189,16 +1201,16 @@ test.describe("inventory localization synthetic server", () => {
             json: { error: { message: "raw removal refusal {name} 李" } },
           });
         });
+        await removeButton.click();
         for (let attempt = 0; attempt < 2; attempt++) {
-          page.once("dialog", (dialog) => dialog.accept());
-          await modal
+          await confirmation
             .getByRole("button", { name: msg(locale, "remove"), exact: true })
             .click();
           if (attempt === 0) {
             try {
               await expect(
-                modal.getByRole("button", {
-                  name: msg(locale, "remove"),
+                confirmation.getByRole("button", {
+                  name: msg(locale, "saving"),
                   exact: true,
                 }),
               ).toBeDisabled();
@@ -1222,11 +1234,7 @@ test.describe("inventory localization synthetic server", () => {
         expect(removals[0].key).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
         expect(removals[0].body).toBeNull();
         await page.unroute(removeUrl);
-        page.once("dialog", async (dialog) => {
-          expect(dialog.message()).toBe(msg(locale, "removeConfirm", { name }));
-          await dialog.accept();
-        });
-        await modal
+        await confirmation
           .getByRole("button", { name: msg(locale, "remove"), exact: true })
           .click();
         await expect(modal).toHaveCount(0);

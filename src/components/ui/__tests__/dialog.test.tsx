@@ -81,7 +81,8 @@ it("does not let Escape fall through a non-dismissible child", async () => {
 
 it.each([false, true])(
   "keeps %s-shift Tab inside when a pending submit becomes disabled",
-  (shiftKey) => {
+  async (shiftKey) => {
+    const user = userEvent.setup();
     const view = render(
       <Dialog open title="Pending" onClose={() => undefined}>
         <button>Cancel pending</button>
@@ -113,6 +114,76 @@ it.each([false, true])(
     expect(
       screen.getByRole("button", {
         name: shiftKey ? "Cancel pending" : "Close",
+      }),
+    ).toHaveFocus();
+
+    // Native fieldset disabling must exclude descendants too, including a
+    // control with an explicit tab stop.
+    view.rerender(
+      <Dialog open title="Pending" onClose={() => undefined}>
+        <button>Cancel pending</button>
+        <fieldset>
+          <button tabIndex={0}>Submit pending</button>
+        </fieldset>
+      </Dialog>,
+    );
+    for (const button of within(panel).getAllByRole("button"))
+      Object.defineProperty(button, "offsetParent", {
+        configurable: true,
+        get: () => panel,
+      });
+    screen.getByRole("button", { name: "Submit pending" }).focus();
+    view.rerender(
+      <Dialog open title="Pending" onClose={() => undefined}>
+        <button>Cancel pending</button>
+        <fieldset disabled>
+          <button tabIndex={0}>Submit pending</button>
+        </fieldset>
+      </Dialog>,
+    );
+    const fieldsetKey = new KeyboardEvent("keydown", {
+      key: "Tab",
+      shiftKey,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(fieldsetKey);
+    expect(fieldsetKey.defaultPrevented).toBe(true);
+    expect(
+      screen.getByRole("button", {
+        name: shiftKey ? "Cancel pending" : "Close",
+      }),
+    ).toHaveFocus();
+
+    view.rerender(
+      <Dialog open title="Pending" onClose={() => undefined}>
+        <details open>
+          <summary>Optional details</summary>
+          <button>Inside details</button>
+        </details>
+        <button>Done</button>
+      </Dialog>,
+    );
+    const summary = screen.getByText("Optional details");
+    for (const element of [...within(panel).getAllByRole("button"), summary])
+      Object.defineProperty(element, "offsetParent", {
+        configurable: true,
+        get: () => panel,
+      });
+    summary.focus();
+    expect(summary).toHaveFocus();
+    const summaryKey = new KeyboardEvent("keydown", {
+      key: "Tab",
+      shiftKey,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(summaryKey);
+    expect(summaryKey.defaultPrevented).toBe(false);
+    await user.tab({ shift: shiftKey });
+    expect(
+      screen.getByRole("button", {
+        name: shiftKey ? "Close" : "Inside details",
       }),
     ).toHaveFocus();
   },

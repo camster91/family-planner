@@ -344,7 +344,6 @@ function setup({
     },
   );
   global.fetch = fetchMock as unknown as typeof fetch;
-  window.confirm = jest.fn(() => true);
   render(
     <ToastProvider>
       <InventoryClient canWrite={canWrite} canOpenRecipes={canWrite} />
@@ -400,15 +399,14 @@ describe("/dashboard/inventory", () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
+    expect(within(dialog).getByLabelText("Name")).toBeDisabled();
     await user.keyboard("{Escape}");
     expect(screen.getByTestId("inventory-modal")).toBeTruthy();
-    const close = within(screen.getByTestId("inventory-modal")).getByRole(
-      "button",
-      { name: "Close" },
-    );
-    expect(close).toBeTruthy();
-    await user.click(close);
-    expect(screen.getByTestId("inventory-modal")).toBeTruthy();
+    expect(
+      within(screen.getByTestId("inventory-modal")).queryByRole("button", {
+        name: "Close",
+      }),
+    ).toBeNull();
 
     release();
     await waitFor(() =>
@@ -546,6 +544,9 @@ describe("/dashboard/inventory", () => {
     await screen.findAllByTestId("inventory-item");
     await user.click(screen.getAllByRole("button", { name: "Add item" })[0]);
     const dialog = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(within(dialog).getByLabelText("Name")).toHaveFocus(),
+    );
     await user.type(within(dialog).getByLabelText("Name"), "  Yogurt ");
     await user.click(within(dialog).getByLabelText("Freezer"));
     await user.type(within(dialog).getByLabelText(/Amount/), "2");
@@ -554,6 +555,11 @@ describe("/dashboard/inventory", () => {
       within(dialog).getByText(/do not eat it after this day/),
     ).toBeTruthy();
     await user.type(within(dialog).getByLabelText("Use by date"), "2026-01-09");
+    await user.click(
+      within(dialog).getByText("Category and purchase dates", {
+        selector: "summary",
+      }),
+    );
     await user.selectOptions(
       within(dialog).getByLabelText(/Category/),
       "dairy_eggs",
@@ -585,7 +591,45 @@ describe("/dashboard/inventory", () => {
     expect(
       (within(edit).getByLabelText("Best before") as HTMLInputElement).checked,
     ).toBe(true);
-    await user.click(within(edit).getByRole("button", { name: "Remove" }));
+    const removeButton = within(edit).getByRole("button", { name: "Remove" });
+    await user.click(removeButton);
+    let confirmation = screen.getByRole("alertdialog");
+    await waitFor(() =>
+      expect(
+        within(confirmation).getByRole("button", { name: "Keep item" }),
+      ).toHaveFocus(),
+    );
+    expect(calls.filter((c) => c.method === "DELETE")).toHaveLength(0);
+    await user.click(
+      within(confirmation).getByRole("button", { name: "Keep item" }),
+    );
+    expect(removeButton).toHaveFocus();
+    await user.click(removeButton);
+    confirmation = screen.getByRole("alertdialog");
+    let releaseRemoval!: (response: Response) => void;
+    pendingMutation = new Promise<Response>((resolve) => {
+      releaseRemoval = resolve;
+    });
+    await user.dblClick(
+      within(confirmation).getByRole("button", { name: "Remove" }),
+    );
+    expect(calls.filter((c) => c.method === "DELETE")).toHaveLength(1);
+    await user.keyboard("{Escape}");
+    expect(confirmation).toBeInTheDocument();
+    expect(
+      within(confirmation).getByRole("button", { name: "Keep item" }),
+    ).toBeDisabled();
+    releaseRemoval({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+    } as Response);
+    await within(confirmation).findByRole("alert");
+    expect(within(edit).getByLabelText("Name")).toHaveValue("Peas");
+    pendingMutation = null;
+    await user.click(
+      within(confirmation).getByRole("button", { name: "Remove" }),
+    );
     await waitFor(() =>
       expect(
         calls.some(
@@ -595,6 +639,17 @@ describe("/dashboard/inventory", () => {
     );
     const del = calls.find((c) => c.method === "DELETE")!;
     expect(header(del, "Idempotency-Key")).toMatch(/^[0-9a-f-]{36}$/);
+    const deletes = calls.filter((c) => c.method === "DELETE");
+    expect(deletes).toHaveLength(2);
+    expect(header(deletes[1], "Idempotency-Key")).toBe(
+      header(del, "Idempotency-Key"),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button", { name: "Add item" })[0],
+      ).toHaveFocus(),
+    );
   });
 
   it("an edit retried after a failure reuses its Idempotency-Key; a changed edit gets a new one", async () => {

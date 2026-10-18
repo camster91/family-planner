@@ -142,25 +142,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Preserve feature UI review captures
-        if: ${{ !cancelled() && inputs.update_snapshots != true }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: feature-ui-captures-${{ matrix.group }}-${{ github.sha }}
-          path: |
-            test-results/**/emergency-*.png
-            test-results/**/emergency-runtime-*.json
-            test-results/**/pickups-*.png
-            test-results/**/pickups-*.json
-            test-results/**/allowance-*.png
-            test-results/**/allowance-*.json
-            test-results/**/wishlist-*.png
-            test-results/**/wishlist-*.json
-            test-results/**/messages-*.png
-            test-results/**/messages-*.json
-          if-no-files-found: ignore
-          retention-days: 7
-
+      # JSON reporter bodies retain inline feature PNGs and runtime metadata.
+      # They are not individual test-results files; preserve this report rather
+      # than uploading filename globs that cannot match body attachments.
       - name: Preserve queue storage recovery captures
         if: ${{ !cancelled() && inputs.update_snapshots != true }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
