@@ -469,38 +469,41 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
         )}
 
         {/* Progress ring + summary */}
-        <div className="card-apple p-5 flex items-center gap-5">
-          {ring && budgetLimit !== null && (
-            <ProgressRing
-              progress={ring.progress}
-              size={80}
-              strokeWidth={8}
-              color={ring.over ? 'var(--tint-rewards)' : 'var(--accent)'}
-            >
-              <span className="text-[28px] font-bold leading-none text-label-primary">
-                {Math.round(ring.progress * 100)}%
-              </span>
-            </ProgressRing>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-title-3 text-label-primary font-semibold">
-              {formatCurrency(spent, displayLocale)}
-            </p>
-            <p className="text-subhead text-label-secondary mt-0.5">
-              {ring && budgetLimit !== null
-                ? text('householdLimit', { limit: formatCurrency(budgetLimit, displayLocale) })
-                : text('spentThisMonth')}
-            </p>
-            {ring?.over && (
-              <p className="text-footnote text-[var(--tint-rewards-text)] mt-1 font-medium">
-                {text('overBudgetBy', { amount: formatCurrency(ring.overBy, displayLocale) })}
-              </p>
+        <div className="card-apple flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:gap-5">
+          <div className="flex min-w-0 items-center gap-4 sm:flex-1">
+            {ring && budgetLimit !== null && (
+              <ProgressRing
+                progress={ring.progress}
+                size={80}
+                strokeWidth={8}
+                color={ring.over ? 'var(--tint-rewards)' : 'var(--accent)'}
+                className="shrink-0"
+              >
+                <span className="text-[28px] font-bold leading-none text-label-primary">
+                  {Math.round(ring.progress * 100)}%
+                </span>
+              </ProgressRing>
             )}
+            <div className="min-w-0 flex-1">
+              <p className="text-title-3 text-label-primary font-semibold">
+                {formatCurrency(spent, displayLocale)}
+              </p>
+              <p className="text-subhead text-label-secondary mt-0.5 [overflow-wrap:anywhere]">
+                {ring && budgetLimit !== null
+                  ? text('householdLimit', { limit: formatCurrency(budgetLimit, displayLocale) })
+                  : text('spentThisMonth')}
+              </p>
+              {ring?.over && (
+                <p className="text-footnote text-[var(--tint-rewards-text)] mt-1 font-medium [overflow-wrap:anywhere]">
+                  {text('overBudgetBy', { amount: formatCurrency(ring.overBy, displayLocale) })}
+                </p>
+              )}
+            </div>
           </div>
           {canEdit && (
             <button
               onClick={() => setShowForm(true)}
-              className="btn-filled min-h-[44px] shrink-0 gap-2 px-4"
+              className="btn-filled min-h-[44px] w-full shrink-0 justify-center gap-2 px-4 sm:w-auto"
               aria-label={text('addExpense')}
             >
               <Plus className="w-4 h-4" aria-hidden="true" />
