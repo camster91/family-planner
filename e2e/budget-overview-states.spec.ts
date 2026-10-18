@@ -167,6 +167,30 @@ async function assertTouchTarget(page: Page, target: Locator) {
   expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width);
 }
 
+async function assertSummaryLimitLayout(page: Page, label: string) {
+  const summaryLimit = page.getByText(label, { exact: true });
+  await expect(summaryLimit).toHaveCount(1);
+  const geometry = await summaryLimit.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    const fontSize = Number.parseFloat(style.fontSize) || 16;
+    const lineHeight =
+      style.lineHeight === "normal"
+        ? fontSize * 1.2
+        : Number.parseFloat(style.lineHeight) || fontSize * 1.2;
+    return {
+      right: rect.right,
+      width: rect.width,
+      lines: Math.ceil(rect.height / lineHeight),
+    };
+  });
+  const viewport = page.viewportSize();
+  expect(viewport).toBeTruthy();
+  expect(geometry.width).toBeGreaterThan(0);
+  expect(geometry.right).toBeLessThanOrEqual(viewport!.width);
+  expect(geometry.lines).toBeLessThanOrEqual(2);
+}
+
 async function assertNoOverflow(page: Page) {
   expect(
     await page.evaluate(
@@ -389,6 +413,12 @@ for (const locale of ["en", "es"] as const) {
             { exact: true },
           ),
         ).toBeVisible();
+        await assertSummaryLimitLayout(
+          page,
+          fill(copy.householdLimit, {
+            limit: currency(locale, CATEGORY_LIMIT),
+          }),
+        );
 
         const add = page
           .getByRole("button", { name: copy.addExpense, exact: true })
@@ -521,11 +551,13 @@ for (const locale of ["en", "es"] as const) {
         await expect(categoryCard).toContainText(
           fill(copy.categoryOverBy, { amount: currency(locale, 22) }),
         );
+        const row = page.getByRole("button").filter({ hasText: DESCRIPTION });
+        await expect(row).toHaveCount(1);
         await expect(
-          page.getByText(`-${currency(locale, 42)}`, { exact: true }),
+          row.getByText(`-${currency(locale, 42)}`, { exact: true }),
         ).toBeVisible();
         await expect(
-          page.getByText(currency(locale, 42), { exact: true }).first(),
+          categoryCard.getByText(currency(locale, 42), { exact: true }),
         ).toBeVisible();
         await assertNoOverflow(page);
         await assertNoSeriousAxe(
@@ -535,8 +567,6 @@ for (const locale of ["en", "es"] as const) {
         );
         await captureProof(page, info, locale, "overage");
 
-        const row = page.getByRole("button").filter({ hasText: DESCRIPTION });
-        await expect(row).toHaveCount(1);
         await row.click();
         const editDialog = page.getByRole("dialog", {
           name: copy.transactionEditTitle,
@@ -578,7 +608,7 @@ for (const locale of ["en", "es"] as const) {
         ).toHaveLength(1);
         await expect(editDialog).toHaveCount(0);
         await expect(
-          page.getByText(`-${currency(locale, 60)}`, { exact: true }),
+          row.getByText(`-${currency(locale, 60)}`, { exact: true }),
         ).toBeVisible();
         await expect(categoryCard).toContainText(
           fill(copy.categoryOverBy, { amount: currency(locale, 40) }),
