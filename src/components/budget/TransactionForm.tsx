@@ -92,6 +92,9 @@ function parseTransactionResponse(
     typeof category.icon === 'string' &&
     typeof category.color === 'string'
   )
+  const categoryMatchesId = row.category_id === null
+    ? category === null
+    : isRecord(category) && validCategory && category.id === row.category_id
   const validUser = isRecord(user) &&
     typeof user.id === 'string' &&
     typeof user.name === 'string' &&
@@ -113,7 +116,7 @@ function parseTransactionResponse(
     row.is_recurring !== body.is_recurring ||
     row.recurring_interval !== body.recurring_interval ||
     (typeof body.date !== 'string' || row.date.slice(0, 10) !== body.date) ||
-    !validCategory || !validUser
+    !validCategory || !categoryMatchesId || !validUser
   ) return null
   return {
     id: row.id,

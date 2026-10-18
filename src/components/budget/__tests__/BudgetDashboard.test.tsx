@@ -12,10 +12,18 @@ import type { BudgetPageData } from '@/app/dashboard/budget/page'
 
 jest.mock('../TransactionForm', () => ({
   __esModule: true,
-  default: ({ onSuccess }: { onSuccess: () => void }) => (
-    <button type="button" data-testid="mock-transaction-success" onClick={() => onSuccess()}>
-      Mock transaction saved
-    </button>
+  default: ({ onSuccess, onDeleted }: {
+    onSuccess: (transaction?: unknown) => void
+    onDeleted?: (transactionId?: string) => void
+  }) => (
+    <>
+      <button type="button" data-testid="mock-transaction-success" onClick={() => onSuccess(MOCK_SAVED_TRANSACTION)}>
+        Mock transaction saved
+      </button>
+      <button type="button" data-testid="mock-transaction-delete" onClick={() => onDeleted?.('tx-1')}>
+        Mock transaction deleted
+      </button>
+    </>
   ),
 }))
 
@@ -53,6 +61,11 @@ function transaction(overrides: Partial<BudgetPageData['recent_transactions'][nu
     ...overrides,
   }
 }
+
+const MOCK_SAVED_TRANSACTION = transaction({
+  id: 'tx-saved',
+  description: 'Confirmed saved row',
+})
 
 let fetchMock: jest.Mock
 
@@ -165,6 +178,64 @@ it('keeps saved rows when a successful refresh has invalid JSON or shape', async
   await user.click(screen.getByRole('button', { name: 'Retry budget refresh' }))
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
   expect(screen.getByText('Still here')).toBeTruthy()
+})
+
+it('rejects impossible stats ranges without replacing known good data', async () => {
+  const stale = pageData({ recent_transactions: [transaction()] })
+  fetchMock = jest.fn().mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => pageData({
+      category_breakdown: [{
+        category_id: 'cat-food', name: 'Food', icon: 'F', color: '#f00',
+        budget_limit: 100, total: 10, percentage: 101,
+      }],
+    }),
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={stale} userId="u1" />)
+  await user.click(screen.getByRole('button', { name: 'Refresh budget' }))
+
+  expect((await screen.findByRole('alert')).textContent).toContain('Showing saved rows')
+  expect(screen.getByText('Still here')).toBeTruthy()
+})
+
+it('keeps the confirmed saved row and marks stale totals until a GET catches up', async () => {
+  fetchMock = jest.fn().mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => pageData({ recent_transactions: [] }),
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={pageData({ recent_transactions: [] })} userId="u1" />)
+  await user.click(screen.getAllByRole('button', { name: 'Add expense' })[0]!)
+  await user.click(screen.getByTestId('mock-transaction-success'))
+
+  expect(await screen.findByText('Confirmed saved row')).toBeTruthy()
+  expect((await screen.findByRole('alert')).textContent).toContain('Transaction saved')
+  expect(screen.getByRole('button', { name: 'Retry budget refresh' })).toBeTruthy()
+})
+
+it('keeps a confirmed deletion out of stale stats rows and marks the summary', async () => {
+  fetchMock = jest.fn().mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => pageData({ recent_transactions: [transaction()] }),
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={pageData({ recent_transactions: [transaction()] })} userId="u1" />)
+  await user.click(screen.getByRole('button', { name: /Still here/ }))
+  await user.click(screen.getByTestId('mock-transaction-delete'))
+
+  expect(screen.queryByText('Still here')).toBeNull()
+  expect((await screen.findByRole('alert')).textContent).toContain('Transaction deleted')
+  expect(screen.getByRole('button', { name: 'Retry budget refresh' })).toBeTruthy()
 })
 
 it('allows only one budget refresh while the current request is pending', async () => {

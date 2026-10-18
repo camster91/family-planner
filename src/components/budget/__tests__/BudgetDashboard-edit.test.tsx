@@ -161,4 +161,14 @@ it('teens and children see rows but cannot open the edit form (the API is parent
   )
   expect(screen.getByText('Groceries')).toBeTruthy()
   expect(screen.queryByRole('button', { name: /Groceries/ })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Add expense' })).toBeNull()
+})
+
+it('does not show empty-state or summary add actions to viewers without edit rights', () => {
+  render(
+    <ToastProvider>
+      <BudgetDashboard initialData={pageData({ recent_transactions: [] })} userId="u1" canEdit={false} />
+    </ToastProvider>
+  )
+  expect(screen.queryByRole('button', { name: 'Add expense' })).toBeNull()
 })

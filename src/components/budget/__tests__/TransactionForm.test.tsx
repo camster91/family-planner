@@ -261,6 +261,39 @@ it('retains the save intent when a success response is malformed', async () => {
   expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
 })
 
+it('rejects a success row whose category identity does not match category_id', async () => {
+  const onSuccess = jest.fn()
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined, headers: init?.headers })
+    if (url.startsWith('/api/budget/categories')) {
+      return { ok: true, status: 200, json: async () => ({ categories: CATEGORIES.filter((c) => c.type === 'expense') }) } as Response
+    }
+    const body = JSON.parse(String(init?.body))
+    return {
+      ok: true,
+      status: 201,
+      json: async () => ({ transaction: {
+        ...SAVED_TRANSACTION,
+        ...body,
+        category_id: 'cat_food',
+        category: { id: 'cat_rent', name: 'Rent', icon: 'R', color: '#0f0' },
+      } }),
+    } as Response
+  }) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<TransactionForm onClose={noop} onSuccess={onSuccess} />)
+  await screen.findByRole('option', { name: /Food/ })
+  await user.selectOptions(screen.getByLabelText('Category'), 'cat_food')
+  await user.type(screen.getByLabelText('Amount'), '50')
+  await user.click(screen.getByRole('button', { name: 'Add transaction' }))
+
+  expect((await screen.findByRole('alert')).textContent).toContain("couldn't confirm")
+  expect(onSuccess).not.toHaveBeenCalled()
+})
+
 it('does not let a slower old category request win after switching type', async () => {
   const resolvers: Array<(value: Response) => void> = []
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

@@ -43,6 +43,10 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
+function isPercentage(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= 0 && value <= 100
+}
+
 function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string'
 }
@@ -54,9 +58,9 @@ function isCategoryBreakdown(value: unknown): boolean {
     typeof value.name === 'string' &&
     typeof value.icon === 'string' &&
     typeof value.color === 'string' &&
-    (value.budget_limit === null || isFiniteNumber(value.budget_limit)) &&
+    (value.budget_limit === null || (isFiniteNumber(value.budget_limit) && value.budget_limit >= 0)) &&
     isFiniteNumber(value.total) &&
-    isFiniteNumber(value.percentage)
+    isPercentage(value.percentage)
   )
 }
 
@@ -79,7 +83,8 @@ function isRecentTransaction(value: unknown): boolean {
   return (
     typeof value.id === 'string' &&
     isFiniteNumber(value.amount) &&
-    typeof value.type === 'string' &&
+    value.amount !== 0 &&
+    (value.type === 'income' || value.type === 'expense') &&
     isNullableString(value.description) &&
     typeof value.date === 'string' &&
     typeof value.is_recurring === 'boolean' &&
@@ -105,7 +110,7 @@ function normalizeBudgetData(value: unknown): NormalizedBudgetData | null {
     !isFiniteNumber(value.total_income) ||
     !isFiniteNumber(value.total_expenses) ||
     !isFiniteNumber(value.balance) ||
-    (value.budget_limit !== null && !isFiniteNumber(value.budget_limit)) ||
+    (value.budget_limit !== null && (!isFiniteNumber(value.budget_limit) || value.budget_limit < 0)) ||
     !Array.isArray(value.category_breakdown) ||
     !value.category_breakdown.every(isCategoryBreakdown) ||
     !Array.isArray(value.recent_transactions) ||
@@ -154,6 +159,20 @@ function groupByDate(transactions: Transaction[]): Record<string, Transaction[]>
   return groups
 }
 
+function formatBudgetTransactionDate(
+  value: Date | string,
+  locale: string,
+  labels: { today: string; yesterday: string },
+  now: Date = new Date(),
+): string {
+  const day = toDateOnlyUTC(value)
+  if (day === toDateOnlyLocal(now)) return labels.today
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (day === toDateOnlyLocal(yesterday)) return labels.yesterday
+  return formatRelativePastDate(value, now, locale)
+}
+
 const noopSubscribe = () => () => {}
 
 /**
@@ -187,6 +206,79 @@ interface Transaction {
   user: { id: string; name: string; avatar_url: string | null }
 }
 
+type ConfirmedMutation =
+  | { kind: 'saved'; transaction: Transaction }
+  | { kind: 'deleted' }
+
+function transactionCategoryId(transaction: Transaction): string | null {
+  return transaction.category_id ?? transaction.category?.id ?? null
+}
+
+function sameTransaction(left: Transaction, right: Transaction): boolean {
+  return (
+    left.id === right.id &&
+    left.amount === right.amount &&
+    left.type === right.type &&
+    left.description === right.description &&
+    (left.notes ?? null) === (right.notes ?? null) &&
+    transactionCategoryId(left) === transactionCategoryId(right) &&
+    toDateOnlyUTC(left.date) === toDateOnlyUTC(right.date) &&
+    left.is_recurring === right.is_recurring &&
+    left.recurring_interval === right.recurring_interval
+  )
+}
+
+function pendingMutationKind(mutations: Map<string, ConfirmedMutation>): ConfirmedMutation['kind'] | null {
+  for (const mutation of mutations.values()) {
+    if (mutation.kind === 'saved') return 'saved'
+  }
+  return mutations.size > 0 ? 'deleted' : null
+}
+
+/**
+ * Stats and recent rows can be observed at different points during a save or
+ * delete. Keep a confirmed row/removal authoritative until a later GET
+ * reflects it; the caller marks summary totals as needing refresh while this
+ * reconciliation is unresolved.
+ */
+function reconcileConfirmedMutations(
+  nextData: NormalizedBudgetData,
+  mutations: Map<string, ConfirmedMutation>,
+): { data: NormalizedBudgetData; unresolved: boolean; notice: ConfirmedMutation['kind'] | null } {
+  const rows = [...nextData.recent_transactions] as Transaction[]
+  let unresolved = false
+
+  for (const [id, mutation] of mutations) {
+    const index = rows.findIndex((row) => row.id === id)
+    if (mutation.kind === 'deleted') {
+      if (index >= 0) {
+        rows.splice(index, 1)
+        unresolved = true
+      } else {
+        mutations.delete(id)
+      }
+      continue
+    }
+
+    const confirmed = mutation.transaction
+    if (index < 0) {
+      rows.unshift(confirmed)
+      unresolved = true
+    } else if (!sameTransaction(rows[index]!, confirmed)) {
+      rows[index] = confirmed
+      unresolved = true
+    } else {
+      mutations.delete(id)
+    }
+  }
+
+  return {
+    data: { ...nextData, recent_transactions: rows as BudgetPageData['recent_transactions'] },
+    unresolved,
+    notice: pendingMutationKind(mutations),
+  }
+}
+
 interface BudgetDashboardProps {
   initialData: BudgetPageData
   userId: string
@@ -210,9 +302,11 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
   const [filter, setFilter] = React.useState<'all' | 'income' | 'expense'>('all')
   const [isLoading, setIsLoading] = React.useState(false)
   const [refreshError, setRefreshError] = React.useState<'server' | 'network' | null>(null)
+  const [mutationRefreshNotice, setMutationRefreshNotice] = React.useState<ConfirmedMutation['kind'] | null>(null)
   const refreshInFlight = React.useRef(false)
   const refreshQueued = React.useRef(false)
   const refreshDataRef = React.useRef<() => Promise<void>>(async () => {})
+  const confirmedMutations = React.useRef(new Map<string, ConfirmedMutation>())
 
   // All transactions from the data
   const allTransactions = data.recent_transactions as Transaction[]
@@ -257,11 +351,26 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
       const nextData = normalizeBudgetData(json)
       if (!nextData) {
         setRefreshError('server')
+        setMutationRefreshNotice(pendingMutationKind(confirmedMutations.current))
         return
       }
-      setData(nextData)
+      const reconciled = reconcileConfirmedMutations(nextData, confirmedMutations.current)
+      if (reconciled.unresolved) {
+        // Keep the last known aggregate/category summary. A stale stats body
+        // must not silently contradict the confirmed row just shown.
+        setData((current) => ({
+          ...current,
+          recent_transactions: reconciled.data.recent_transactions,
+        }))
+        setRefreshError('server')
+        setMutationRefreshNotice(reconciled.notice)
+      } else {
+        setData(reconciled.data)
+        setMutationRefreshNotice(null)
+      }
     } catch {
       setRefreshError('network')
+      setMutationRefreshNotice(pendingMutationKind(confirmedMutations.current))
     } finally {
       const shouldRefreshAgain = refreshQueued.current
       refreshQueued.current = false
@@ -290,6 +399,7 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
   const handleSuccess = React.useCallback((transaction?: Transaction) => {
     closeForm()
     if (transaction) {
+      confirmedMutations.current.set(transaction.id, { kind: 'saved', transaction })
       setData((current) => ({
         ...current,
         recent_transactions: current.recent_transactions.some((row) => row.id === transaction.id)
@@ -303,6 +413,7 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
   const handleDeleted = React.useCallback((transactionId?: string) => {
     closeForm()
     if (transactionId) {
+      confirmedMutations.current.set(transactionId, { kind: 'deleted' })
       setData((current) => ({
         ...current,
         recent_transactions: current.recent_transactions.filter((row) => row.id !== transactionId),
@@ -310,7 +421,7 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
     }
     addToast({ type: 'success', title: text('transactionDeleted') })
     void refreshData()
-  }, [closeForm, addToast, refreshData, text])
+  }, [addToast, closeForm, refreshData, text])
 
   return (
     <div className="pb-20">
@@ -337,7 +448,13 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
         {refreshError && (
           <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--tint-rewards)] bg-[var(--tint-rewards)]/10 px-4 py-3">
             <p className="text-subhead text-label-primary">
-              {refreshError === 'network' ? text('refreshNetworkError') : text('refreshFailed')}
+              {mutationRefreshNotice === 'saved'
+                ? text('transactionSavedRefreshFailed')
+                : mutationRefreshNotice === 'deleted'
+                  ? text('transactionDeletedRefreshFailed')
+                  : refreshError === 'network'
+                    ? text('refreshNetworkError')
+                    : text('refreshFailed')}
             </p>
             <button
               type="button"
@@ -379,14 +496,16 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
               </p>
             )}
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="btn-filled min-h-[44px] shrink-0 gap-2 px-4"
-            aria-label={text('addExpense')}
-          >
-            <Plus className="w-4 h-4" aria-hidden="true" />
-            <span>{text('addExpense')}</span>
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="btn-filled min-h-[44px] shrink-0 gap-2 px-4"
+              aria-label={text('addExpense')}
+            >
+              <Plus className="w-4 h-4" aria-hidden="true" />
+              <span>{text('addExpense')}</span>
+            </button>
+          )}
         </div>
 
         {/* Stats row */}
@@ -479,7 +598,12 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
         {sortedDates.length > 0 ? (
           sortedDates.map((dateKey) => {
             const txs = grouped[dateKey]
-            const dateLabel = hydrated ? formatRelativePastDate(dateKey) : formatDateOnly(dateKey)
+            const dateLabel = hydrated
+              ? formatBudgetTransactionDate(dateKey, displayLocale, {
+                today: text('transactionToday'),
+                yesterday: text('transactionYesterday'),
+              })
+              : formatDateOnly(dateKey, undefined, displayLocale)
             return (
               <section key={dateKey}>
                 <SectionHeader>{dateLabel}</SectionHeader>
@@ -489,7 +613,7 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
                     return (
                       <ListRow
                         key={tx.id}
-                        title={tx.description || tx.category?.name || (tx.type === 'income' ? 'Income' : 'Expense')}
+                        title={tx.description || tx.category?.name || text(tx.type === 'income' ? 'transactionIncome' : 'transactionExpense')}
                         subtitle={tx.category?.name || undefined}
                         glyphColor={tx.type === 'income' ? 'lists' : 'rewards'}
                         showChevron={canEdit}
@@ -518,12 +642,12 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
             glyphColor="budget"
             title={text('noTransactions')}
             description={text('noTransactionsDescription')}
-            action={
+            action={canEdit ? (
               <button onClick={() => setShowForm(true)} className="btn-filled min-h-[44px] gap-2 px-4">
                 <Plus className="w-4 h-4" aria-hidden="true" />
                 <span>{text('addExpense')}</span>
               </button>
-            }
+            ) : undefined}
           />
         )}
       </div>
