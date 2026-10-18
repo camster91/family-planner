@@ -129,7 +129,7 @@ export default async function DashboardPage() {
     // endpoint 403s, so no card is offered.
     rewardsOn
       ? prisma!.reward.findMany({
-          where: { family_id: familyId, status: "available" },
+          where: { family_id: familyId, status: "available", is_active: true },
           orderBy: { created_at: "desc" },
           take: 5,
         })

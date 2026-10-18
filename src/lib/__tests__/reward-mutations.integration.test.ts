@@ -206,6 +206,7 @@ describeWithDatabase("Rewards mutations against disposable PostgreSQL", () => {
     id: string,
     status: string = "available",
     cost = 10,
+    isActive = true,
   ): Promise<void> {
     await db.reward.create({
       data: {
@@ -216,6 +217,7 @@ describeWithDatabase("Rewards mutations against disposable PostgreSQL", () => {
         cost,
         icon: "gift",
         status,
+        is_active: isActive,
         created_by: PARENT_A,
         claimed_by: status === "claimed" ? CHILD_A : null,
         claimed_at: status === "claimed" ? new Date() : null,
@@ -394,9 +396,73 @@ describeWithDatabase("Rewards mutations against disposable PostgreSQL", () => {
     expect(await db.user.findUnique({ where: { id: CHILD_A }, select: { xp: true } })).toEqual({ xp: 400 });
   });
 
+  it("refuses inactive fresh claims, retries after reactivation, and replays a committed claim after deactivation", async () => {
+    const inactiveId = `${PREFIX}-inactive`;
+    await createFixtureReward(inactiveId, "available", 10, false);
+    const child = actor(CHILD_A, FAMILY_A, "child");
+    const inactiveBody = { rewardId: inactiveId };
+    const inactiveKey = freshKey();
+
+    const refused = await runEffect(
+      inactiveKey,
+      child,
+      "reward.claim",
+      inactiveBody,
+      async (recordId) => (await claimReward(db, inactiveBody, child, recordId)).result,
+      () => authorizeRewardReplay(db, child, false),
+    );
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toEqual({ error: "Reward is not available" });
+    expect(await db.reward.findUnique({ where: { id: inactiveId }, select: { status: true, is_active: true } })).toEqual({ status: "available", is_active: false });
+    expect(await db.user.findUnique({ where: { id: CHILD_A }, select: { xp: true } })).toEqual({ xp: 500 });
+    expect(await db.idempotencyRecord.count({ where: { key: inactiveKey } })).toBe(0);
+
+    await db.reward.update({ where: { id: inactiveId }, data: { is_active: true } });
+    const retried = await runEffect(
+      inactiveKey,
+      child,
+      "reward.claim",
+      inactiveBody,
+      async (recordId) => (await claimReward(db, inactiveBody, child, recordId)).result,
+      () => authorizeRewardReplay(db, child, false),
+    );
+    expect(retried.status).toBe(200);
+    expect(retried.headers.get("Idempotency-Replayed")).toBeNull();
+    expect(await db.reward.findUnique({ where: { id: inactiveId }, select: { status: true, claimed_by: true } })).toEqual({ status: "claimed", claimed_by: CHILD_A });
+    expect(await db.user.findUnique({ where: { id: CHILD_A }, select: { xp: true } })).toEqual({ xp: 490 });
+
+    const committedId = `${PREFIX}-deactivated-after-claim`;
+    await createFixtureReward(committedId, "available", 10);
+    const committedBody = { rewardId: committedId };
+    const committedKey = freshKey();
+    const committed = await runEffect(
+      committedKey,
+      child,
+      "reward.claim",
+      committedBody,
+      async (recordId) => (await claimReward(db, committedBody, child, recordId)).result,
+      () => authorizeRewardReplay(db, child, false),
+    );
+    expect(committed.status).toBe(200);
+    await db.reward.update({ where: { id: committedId }, data: { is_active: false } });
+
+    const replay = await runEffect(
+      committedKey,
+      child,
+      "reward.claim",
+      committedBody,
+      async (recordId) => (await claimReward(db, committedBody, child, recordId)).result,
+      () => authorizeRewardReplay(db, child, false),
+    );
+    expect(replay.status).toBe(200);
+    expect(replay.headers.get("Idempotency-Replayed")).toBe("true");
+    expect(await db.reward.findUnique({ where: { id: committedId }, select: { status: true, is_active: true } })).toEqual({ status: "claimed", is_active: false });
+    expect(await db.user.findUnique({ where: { id: CHILD_A }, select: { xp: true } })).toEqual({ xp: 480 });
+  });
+
   it("transitions approval once and invokes the test notification transport only once", async () => {
     const rewardId = `${PREFIX}-approval`;
-    await createFixtureReward(rewardId, "claimed", 10);
+    await createFixtureReward(rewardId, "claimed", 10, false);
     const parent = actor(PARENT_A);
     const body = { rewardId };
     const notify = notificationServiceServer.sendNotification as jest.Mock;

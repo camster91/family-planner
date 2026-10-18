@@ -242,6 +242,7 @@ export async function claimReward(
         family_id: true,
         cost: true,
         name: true,
+        is_active: true,
       },
     });
     if (!current)
@@ -254,10 +255,17 @@ export async function claimReward(
         result: { status: 403, body: { error: "Forbidden" } },
         applied: false,
       };
+    if (!current.is_active) {
+      return {
+        result: { status: 400, body: { error: "Reward is not available" } },
+        applied: false,
+      };
+    }
     const claimedReward = await tx.reward.updateMany({
       where: {
         id: input.rewardId,
         status: "available",
+        is_active: true,
         family_id: actor.familyId,
       },
       data: {

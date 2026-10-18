@@ -168,6 +168,70 @@ describe('Rewards idempotency', () => {
     expect(send).toHaveBeenCalledTimes(1)
   })
 
+  it('refuses an inactive reward without debiting points and lets the same key retry after reactivation', async () => {
+    db.find('reward', 'reward-a')!.is_active = false
+    const key = '3c1b8a7e-4f62-4d91-a835-6e2f0b7c9a14'
+
+    const refused = await claim(req({
+      as: 'childA',
+      body: { rewardId: 'reward-a' },
+      headers: { 'Idempotency-Key': key },
+    }))
+    expect(refused.status).toBe(400)
+    expect(await bodyOf(refused)).toEqual({ error: 'Reward is not available' })
+    expect(db.find('reward', 'reward-a')).toMatchObject({ status: 'available', is_active: false })
+    expect(db.find('user', 'child-a')?.xp).toBe(500)
+    expect(writesTo('reward').filter((write) => write.op === 'updateMany')).toHaveLength(0)
+    expect(db.rows('idempotencyRecord')).toHaveLength(0)
+    expect(metric).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+
+    db.find('reward', 'reward-a')!.is_active = true
+    const retried = await claim(req({
+      as: 'childA',
+      body: { rewardId: 'reward-a' },
+      headers: { 'Idempotency-Key': key },
+    }))
+    expect(retried.status).toBe(200)
+    expect(retried.headers.get('Idempotency-Replayed')).toBeNull()
+    expect(db.find('reward', 'reward-a')).toMatchObject({ status: 'claimed', claimed_by: 'child-a' })
+    expect(db.find('user', 'child-a')?.xp).toBe(490)
+  })
+
+  it('replays a committed claim after the reward is later deactivated', async () => {
+    const key = '4d2c9b8f-5a73-4e02-b946-7f3a1c8d0b25'
+    const first = await claim(req({
+      as: 'childA',
+      body: { rewardId: 'reward-a' },
+      headers: { 'Idempotency-Key': key },
+    }))
+    expect(first.status).toBe(200)
+    db.find('reward', 'reward-a')!.is_active = false
+
+    const replay = await claim(req({
+      as: 'childA',
+      body: { rewardId: 'reward-a' },
+      headers: { 'Idempotency-Key': key },
+    }))
+    expect(replay.status).toBe(200)
+    expect(replay.headers.get('Idempotency-Replayed')).toBe('true')
+    expect((await bodyOf(replay)).xp).toBe(490)
+    expect(db.find('reward', 'reward-a')).toMatchObject({ status: 'claimed', is_active: false })
+    expect(db.find('user', 'child-a')?.xp).toBe(490)
+  })
+
+  it('keeps already claimed inactive rewards approvable for history completion', async () => {
+    const reward = db.find('reward', 'reward-a')!
+    reward.status = 'claimed'
+    reward.claimed_by = 'child-a'
+    reward.claimed_at = new Date()
+    reward.is_active = false
+
+    const response = await approve(req({ as: 'parentA', body: { rewardId: 'reward-a' } }))
+    expect(response.status).toBe(200)
+    expect(db.find('reward', 'reward-a')).toMatchObject({ status: 'redeemed', is_active: false })
+  })
+
   it.each<ClaimUser>(['parentA', 'teenA', 'childA'])('%s can claim a same-family reward', async (who) => {
     const response = await claim(req({ as: who, body: { rewardId: 'reward-a' } }))
     expect(response.status).toBe(200)
