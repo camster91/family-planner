@@ -246,7 +246,7 @@ function isHttpUrl(value: string): boolean {
 
 function WishlistContent() {
   const { t } = useTranslation()
-  const { addToast } = useMaybeToast()
+  const { addToast, removeToast } = useMaybeToast()
   const [items, setItems] = useState<WishlistItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -285,6 +285,13 @@ function WishlistContent() {
   const denialReasonRef = useRef<HTMLTextAreaElement>(null)
   const statusSelectRefs = useRef(new Map<string, HTMLSelectElement>())
   const statusFocusIdRef = useRef<string | null>(null)
+
+  const statusNoticeId = (id: string) =>
+    `wishlist-status:${userId || 'session'}:${id}`
+
+  const clearStatusNotice = (id: string) => {
+    removeToast(statusNoticeId(id))
+  }
 
   const fetchItems = useCallback(
     async (options?: { showPageError?: boolean }) => {
@@ -475,9 +482,7 @@ function WishlistContent() {
           setModalError(t('wishlist.writeUncertain'))
         } else {
           clearMutationKey('add')
-          setModalError(
-            `${t('wishlist.errorSave')} ${details.message ?? t('common.tryAgain')}`,
-          )
+          setModalError(t('wishlist.errorSave'))
         }
         return
       }
@@ -544,9 +549,19 @@ function WishlistContent() {
     [fetchItems],
   )
 
-  const reportStatusError = (message: string, target: 'toast' | 'modal') => {
+  const reportStatusError = (
+    id: string,
+    message: string,
+    target: 'toast' | 'modal',
+  ) => {
     if (target === 'modal') setStatusModalError(message)
-    else addToast({ type: 'error', title: t('wishlist.errorStatus'), message })
+    else
+      addToast({
+        id: statusNoticeId(id),
+        type: 'error',
+        title: t('wishlist.errorStatus'),
+        message,
+      })
   }
 
   const handleStatusChange = async (
@@ -583,9 +598,12 @@ function WishlistContent() {
           normalizedReason,
           currentItem,
         )
-        if (confirmed) clearMutationKey(scope)
+        if (confirmed) {
+          clearMutationKey(scope)
+          clearStatusNotice(id)
+        }
         if (!confirmed)
-          reportStatusError(t('wishlist.statusUncertain'), errorTarget)
+          reportStatusError(id, t('wishlist.statusUncertain'), errorTarget)
         return confirmed
       }
       if (!res.ok) {
@@ -597,16 +615,16 @@ function WishlistContent() {
             normalizedReason,
             currentItem,
           )
-          if (confirmed) clearMutationKey(scope)
+          if (confirmed) {
+            clearMutationKey(scope)
+            clearStatusNotice(id)
+          }
           if (!confirmed)
-            reportStatusError(t('wishlist.statusUncertain'), errorTarget)
+            reportStatusError(id, t('wishlist.statusUncertain'), errorTarget)
           return confirmed
         }
         clearMutationKey(scope)
-        reportStatusError(
-          details.message ?? t('common.tryAgain'),
-          errorTarget,
-        )
+        reportStatusError(id, t('wishlist.errorStatus'), errorTarget)
         return false
       }
 
@@ -621,15 +639,19 @@ function WishlistContent() {
           normalizedReason,
           currentItem,
         )
-        if (confirmed) clearMutationKey(scope)
+        if (confirmed) {
+          clearMutationKey(scope)
+          clearStatusNotice(id)
+        }
         if (!confirmed)
-          reportStatusError(t('wishlist.statusUncertain'), errorTarget)
+          reportStatusError(id, t('wishlist.statusUncertain'), errorTarget)
         return confirmed
       }
 
       const confirmedItem = responseWishlistItem(payload)
       if (!confirmedItem) return false
       clearMutationKey(scope)
+      clearStatusNotice(id)
       setItems((current) =>
         current.map((item) => (item.id === id ? confirmedItem : item)),
       )
@@ -706,9 +728,7 @@ function WishlistContent() {
           setModalError(t('wishlist.writeUncertain'))
         else {
           clearMutationKey(scope)
-          setModalError(
-            `${t('wishlist.errorDelete')} ${details.message ?? t('common.tryAgain')}`,
-          )
+          setModalError(t('wishlist.errorDelete'))
         }
         return
       }
@@ -790,9 +810,7 @@ function WishlistContent() {
           setModalError(t('wishlist.writeUncertain'))
         else {
           clearMutationKey(scope)
-          setModalError(
-            `${t('wishlist.errorSave')} ${details.message ?? t('common.tryAgain')}`,
-          )
+          setModalError(t('wishlist.errorSave'))
         }
         return
       }

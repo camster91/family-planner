@@ -93,8 +93,9 @@ it("adding: shows the server's error field in the modal instead of alert()", asy
   await user.click(screen.getByRole('button', { name: 'wishlist.save' }))
 
   expect((await screen.findByRole('alert')).textContent).toBe(
-    'wishlist.errorSave Title is required',
+    'wishlist.errorSave',
   )
+  expect(screen.getByRole('alert').textContent).not.toContain('Title is required')
   expect(window.alert).not.toHaveBeenCalled()
   expect(
     (screen.getByLabelText(/wishlist\.wishTitle/) as HTMLInputElement).value,
@@ -178,25 +179,57 @@ it('renaming: a network error shows a message and the buttons work again', async
   expect(input.value).toBe('Red bike')
 })
 
-it('changing status: a failure shows an error toast instead of alert()', async () => {
-  mutationReply = async () =>
-    ({
-      ok: false,
-      status: 403,
-      json: async () => ({ error: 'Parents only' }),
-    }) as Response
+it('changing status: a failure shows a localized toast that clears after a valid retry', async () => {
+  let current = { ...ITEM }
+  let statusReply: Response = {
+    ok: false,
+    status: 403,
+    json: async () => ({ error: 'Parents only' }),
+  } as Response
+  global.fetch = jest.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (url === '/api/auth/me') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ user: { id: 'u1', role: 'parent' } }),
+        } as Response
+      }
+      if (url === '/api/wishlist' && method === 'GET') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [current] }),
+        } as Response
+      }
+      if (url === '/api/wishlist/w1/status' && method === 'PATCH') {
+        return statusReply
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as Response
+    },
+  ) as unknown as typeof fetch
   const user = userEvent.setup()
   renderPage()
   await screen.findByText('Bike')
-  await user.selectOptions(
-    screen.getByRole('combobox', { name: 'wishlist.statusFor' }),
-    'received',
-  )
+  const select = screen.getByRole('combobox', { name: 'wishlist.statusFor' })
+  await user.selectOptions(select, 'received')
 
   const toast = await screen.findByRole('alert')
   expect(toast.textContent).toContain('wishlist.errorStatus')
-  expect(toast.textContent).toContain('Parents only')
+  expect(toast.textContent).not.toContain('Parents only')
   expect(window.alert).not.toHaveBeenCalled()
+
+  current = { ...current, status: 'received' }
+  statusReply = {
+    ok: true,
+    status: 200,
+    json: async () => ({ item: current }),
+  } as Response
+  await user.selectOptions(select, 'received')
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+  expect((select as HTMLSelectElement).value).toBe('received')
 })
 
 it('denying: uses a draft-preserving dialog instead of window.prompt', async () => {
@@ -224,7 +257,7 @@ it('denying: uses a draft-preserving dialog instead of window.prompt', async () 
   )
 
   expect((await within(dialog).findByRole('alert')).textContent).toBe(
-    'Parents only',
+    'wishlist.errorStatus',
   )
   expect(reason.value).toBe('It is no longer needed')
   expect(window.prompt).not.toHaveBeenCalled()
