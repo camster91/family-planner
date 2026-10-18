@@ -10,7 +10,14 @@ import * as messages from "../route";
 import { db, req, writesTo, expectNoForeignData } from "@/__tests__/helpers/two-household";
 
 describe("messages — two households", () => {
-  beforeEach(() => db.reset());
+  beforeEach(() => {
+    db.reset();
+    // The mutation effect repeats the feature check under its membership
+    // locks; keep this harness explicit rather than relying on null-family
+    // legacy defaults.
+    db.find("family", "family-A")!.features = { messages: true };
+    db.find("family", "family-B")!.features = { messages: true };
+  });
 
   it("returns 401 to an unauthenticated caller on every handler", async () => {
     expect((await messages.GET(req())).status).toBe(401);
@@ -41,5 +48,40 @@ describe("messages — two households", () => {
     const res = await messages.POST(req({ as: "childA", body: { content: "hi", family_id: "family-B" } }));
     expect(res.status).toBe(200);
     expect(writesTo("message")[0].args.data).toMatchObject({ family_id: "family-A", sender_id: "child-a" });
+  });
+
+  it('returns only the safe pickup context for a linked family pickup', async () => {
+    const res = await messages.POST(req({ as: 'parentA', body: { content: 'I will be there', pickup_id: 'pickup-a' } }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.message.pickup).toMatchObject({ id: 'pickup-a', title: 'Home school pickup', completed: false });
+    expect(body.message.pickup).toHaveProperty('pickup_time');
+    expect(body.message.pickup).not.toHaveProperty('location');
+    expect(body.message.pickup).not.toHaveProperty('notes');
+  });
+
+  it('does not link a pickup from another family', async () => {
+    const res = await messages.POST(req({ as: 'parentA', body: { content: 'foreign context', pickup_id: 'pickup-b' } }));
+    expect(res.status).toBe(404);
+    expect(writesTo('message')).toHaveLength(0);
+  });
+
+  it('replays a keyed send without creating a second message', async () => {
+    const first = await messages.POST(req({
+      as: 'parentA',
+      body: { content: 'same once', pickup_id: 'pickup-a' },
+      headers: { 'Idempotency-Key': 'messages-create-20261018-0001' },
+    }));
+    const second = await messages.POST(req({
+      as: 'parentA',
+      body: { pickup_id: 'pickup-a', content: 'same once' },
+      headers: { 'Idempotency-Key': 'messages-create-20261018-0001' },
+    }));
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(second.headers.get('Idempotency-Replayed')).toBe('true');
+    expect(writesTo('message').filter((write) => write.op === 'create')).toHaveLength(1);
+    expect(await first.json()).toEqual(await second.json());
   });
 });

@@ -267,10 +267,27 @@ CREATE TABLE IF NOT EXISTS "Message" (
   "type" TEXT NOT NULL DEFAULT 'text',
   "attachments" TEXT[] NOT NULL DEFAULT '{}',
   "read_by" TEXT[] NOT NULL DEFAULT '{}',
+  "pickup_id" TEXT,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE "Message" ADD COLUMN IF NOT EXISTS "attachments" TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE "Message" ADD COLUMN IF NOT EXISTS "read_by" TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE "Message" ADD COLUMN IF NOT EXISTS "pickup_id" TEXT;
+
+-- Message attachments are separate from chore photos. They are household
+-- scoped, live under the messages storage namespace, and can be attached to
+-- one message after upload. NULL message_id rows are cleaned opportunistically
+-- by the message attachment housekeeping helper.
+CREATE TABLE IF NOT EXISTS "MessageAttachment" (
+  "id" TEXT PRIMARY KEY,
+  "family_id" TEXT NOT NULL,
+  "uploaded_by" TEXT,
+  "message_id" TEXT,
+  "filename" TEXT NOT NULL UNIQUE,
+  "content_type" TEXT NOT NULL,
+  "size_bytes" INTEGER NOT NULL,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- ============ Notification ============
 CREATE TABLE IF NOT EXISTS "Notification" (
@@ -770,6 +787,16 @@ DO $$ BEGIN
   ALTER TABLE "Message" ADD CONSTRAINT "Message_sender_id_fkey" FOREIGN KEY ("sender_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+DO $$ BEGIN
+  ALTER TABLE "MessageAttachment" ADD CONSTRAINT "MessageAttachment_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "MessageAttachment" ADD CONSTRAINT "MessageAttachment_uploaded_by_fkey" FOREIGN KEY ("uploaded_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "MessageAttachment" ADD CONSTRAINT "MessageAttachment_message_id_fkey" FOREIGN KEY ("message_id") REFERENCES "Message"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 -- Reward FKs (wrapped in existence check so legacy schemas without these columns don't error)
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Reward' AND column_name = 'created_by') THEN
@@ -879,6 +906,11 @@ CREATE INDEX IF NOT EXISTS "Message_family_id_idx" ON "Message"("family_id");
 CREATE INDEX IF NOT EXISTS "Message_sender_id_idx" ON "Message"("sender_id");
 CREATE INDEX IF NOT EXISTS "Message_created_at_idx" ON "Message"("created_at");
 CREATE INDEX IF NOT EXISTS "Message_family_id_created_at_idx" ON "Message"("family_id", "created_at");
+CREATE INDEX IF NOT EXISTS "Message_pickup_id_idx" ON "Message"("pickup_id");
+CREATE INDEX IF NOT EXISTS "MessageAttachment_family_id_idx" ON "MessageAttachment"("family_id");
+CREATE INDEX IF NOT EXISTS "MessageAttachment_message_id_idx" ON "MessageAttachment"("message_id");
+CREATE INDEX IF NOT EXISTS "MessageAttachment_uploaded_by_idx" ON "MessageAttachment"("uploaded_by");
+CREATE INDEX IF NOT EXISTS "MessageAttachment_family_id_message_id_created_at_idx" ON "MessageAttachment"("family_id", "message_id", "created_at");
 
 CREATE INDEX IF NOT EXISTS "Reward_family_id_idx" ON "Reward"("family_id");
 CREATE INDEX IF NOT EXISTS "Reward_family_id_status_idx" ON "Reward"("family_id", "status");

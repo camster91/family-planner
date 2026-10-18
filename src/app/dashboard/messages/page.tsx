@@ -1,20 +1,26 @@
 'use client'
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { Send, Plus, MessageSquare } from 'lucide-react'
+import { ImagePlus, Link2, Send, MessageSquare, X } from 'lucide-react'
+import Image from 'next/image'
+import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
 import { Glyph } from '@/components/ui/glyph'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { FeatureGate } from '@/components/ui/feature-gate'
-import { cn, formatDate } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import { useTranslation } from '@/i18n'
 import { useMessagesText } from '@/i18n/messages'
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import { mergeLatest, prependEarlier } from './thread'
 
 /** GET /api/messages page size (the route's default). */
 const PAGE_SIZE = 50
 /** Within this many pixels of the bottom counts as reading the newest messages. */
 const NEAR_BOTTOM_PX = 120
+const MAX_MESSAGE_ATTACHMENTS = 8
+const MAX_MESSAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
 interface ChatMessage {
   id: string
@@ -22,6 +28,28 @@ interface ChatMessage {
   content: string
   sender_id: string
   sender?: { id: string; name: string; avatar_url?: string | null } | null
+  pickup?: ChatPickup | null
+  attachments?: string[]
+}
+
+interface ChatPickup {
+  id: string
+  title: string
+  pickup_time: string
+  completed: boolean
+  assignee?: { id: string; name: string } | null
+}
+
+interface PickupOption {
+  id: string
+  title: string
+  pickup_time: string
+  completed: boolean
+}
+
+interface PendingAttachment {
+  file: File
+  id?: string
 }
 
 interface Member {
@@ -29,10 +57,9 @@ interface Member {
   name: string
 }
 
-/** The server's `error` text, or null when the body has none. */
-async function serverError(res: Response): Promise<string | null> {
-  const data = await res.json().catch(() => null)
-  return data && typeof data.error === 'string' && data.error ? data.error : null
+interface SendIntent {
+  payload: string
+  key: string
 }
 
 function sameIds(a: { id: string }[], b: { id: string }[]): boolean {
@@ -43,6 +70,9 @@ function isChatMessage(value: unknown): value is ChatMessage {
   if (!value || typeof value !== 'object') return false
   const message = value as Record<string, unknown>
   const sender = message.sender
+  const pickup = message.pickup
+  const assignee = pickup && typeof pickup === 'object' ? (pickup as Record<string, unknown>).assignee : undefined
+  const attachments = message.attachments
   return (
     typeof message.id === 'string' &&
     typeof message.created_at === 'string' &&
@@ -56,8 +86,50 @@ function isChatMessage(value: unknown): value is ChatMessage {
       ((sender as Record<string, unknown>).avatar_url === undefined ||
         (sender as Record<string, unknown>).avatar_url === null ||
         typeof (sender as Record<string, unknown>).avatar_url === 'string')
+    )) &&
+    (pickup === undefined || pickup === null || (
+      typeof pickup === 'object' &&
+      typeof (pickup as Record<string, unknown>).id === 'string' &&
+      typeof (pickup as Record<string, unknown>).title === 'string' &&
+      typeof (pickup as Record<string, unknown>).pickup_time === 'string' &&
+      !Number.isNaN(Date.parse((pickup as Record<string, unknown>).pickup_time as string)) &&
+      typeof (pickup as Record<string, unknown>).completed === 'boolean' &&
+      (assignee === undefined || assignee === null || (
+        typeof assignee === 'object' &&
+        typeof (assignee as Record<string, unknown>).id === 'string' &&
+        typeof (assignee as Record<string, unknown>).name === 'string'
+      ))
+    )) &&
+    (attachments === undefined || (
+      Array.isArray(attachments) && attachments.every((attachment) => isMessageAttachmentUrl(attachment))
     ))
   )
+}
+
+function isMessageAttachmentUrl(value: unknown): value is string {
+  return typeof value === 'string' && /^\/api\/messages\/attachments\/[A-Za-z0-9._~%-]+$/.test(value)
+}
+
+function isPickupOption(value: unknown): value is PickupOption {
+  if (!value || typeof value !== 'object') return false
+  const pickup = value as Record<string, unknown>
+  return (
+    typeof pickup.id === 'string' &&
+    typeof pickup.title === 'string' &&
+    typeof pickup.pickup_time === 'string' &&
+    !Number.isNaN(Date.parse(pickup.pickup_time)) &&
+    typeof pickup.completed === 'boolean'
+  )
+}
+
+function formatPickupDate(date: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale === 'es' ? 'es-ES' : 'en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(date))
 }
 
 function isMember(value: unknown): value is Member {
@@ -78,6 +150,16 @@ function parseMessagesResponse(value: unknown): { messages: ChatMessage[]; membe
     : null
 }
 
+function formatMessageDate(date: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale === 'es' ? 'es-ES' : 'en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(date))
+}
+
 // Gated like the other feature pages (route inventory F-2): with Family chat
 // off nothing below mounts, so it neither polls /api/messages nor shows a 403.
 export default function MessagesPage() {
@@ -89,20 +171,30 @@ export default function MessagesPage() {
 }
 
 function MessagesContent() {
+  const { locale } = useTranslation()
+  const messageText = useMessagesText()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [familyMembers, setFamilyMembers] = useState<Member[]>([])
+  const [pickups, setPickups] = useState<PickupOption[]>([])
+  const [selectedPickupId, setSelectedPickupId] = useState('')
+  const [showPickupPicker, setShowPickupPicker] = useState(false)
+  const [pickupLoading, setPickupLoading] = useState(false)
+  const [pickupLoaded, setPickupLoaded] = useState(false)
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [showAttach, setShowAttach] = useState(false)
+  const [readPending, setReadPending] = useState(false)
+  const [readError, setReadError] = useState(false)
+  const attachmentInputRef = useRef<HTMLInputElement>(null)
   // Older history: GET /api/messages?cursor=<oldest created_at> returns the
   // page of messages created before it.
   const [hasEarlier, setHasEarlier] = useState(false)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
-  const [earlierError, setEarlierError] = useState<string | null>(null)
+  const [earlierError, setEarlierError] = useState(false)
   const threadRef = useRef<HTMLDivElement>(null)
   // Start pinned to the bottom; scrolling up to read history unpins.
   const nearBottomRef = useRef(true)
@@ -112,7 +204,37 @@ function MessagesContent() {
   const prependAnchorRef = useRef<number | null>(null)
   const latestLoadRef = useRef(0)
   const latestLoadPendingRef = useRef(false)
-  const messageText = useMessagesText()
+  const markedReadSignatureRef = useRef<string | null>(null)
+  const readRequestRef = useRef(0)
+  // One body/key pair represents one logical send. Ambiguous outcomes stay in
+  // this map so editing away and back to a draft still retries the same write.
+  const sendIntentRef = useRef<SendIntent | null>(null)
+  const ambiguousSendRef = useRef(new Map<string, string>())
+
+  const markMessagesRead = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return
+    const signature = ids.join(',')
+    if (markedReadSignatureRef.current === signature) return
+    markedReadSignatureRef.current = signature
+    const request = ++readRequestRef.current
+    setReadPending(true)
+    setReadError(false)
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageIds: ids }),
+      })
+      if (!res.ok) throw new Error('read status')
+    } catch {
+      if (request === readRequestRef.current) {
+        markedReadSignatureRef.current = null
+        setReadError(true)
+      }
+    } finally {
+      if (request === readRequestRef.current) setReadPending(false)
+    }
+  }, [])
 
   const loadData = useCallback(async () => {
     const request = ++latestLoadRef.current
@@ -135,6 +257,7 @@ function MessagesContent() {
       setFamilyMembers(prev => (sameIds(prev, data.members) ? prev : data.members))
       setCurrentUserId(data.userId)
       setLoadError(false)
+      void markMessagesRead(data.messages.map(message => message.id))
     } catch {
       if (request === latestLoadRef.current) setLoadError(true)
     } finally {
@@ -143,10 +266,10 @@ function MessagesContent() {
         setLoading(false)
       }
     }
-  }, [])
+  }, [markMessagesRead])
 
   useEffect(() => {
-    loadData()
+    void loadData()
     const interval = setInterval(() => {
       if (!latestLoadPendingRef.current) void loadData()
     }, 5000)
@@ -154,6 +277,7 @@ function MessagesContent() {
       clearInterval(interval)
       latestLoadRef.current += 1
       latestLoadPendingRef.current = false
+      readRequestRef.current += 1
     }
   }, [loadData])
 
@@ -192,20 +316,20 @@ function MessagesContent() {
     const oldest = messages[0]
     if (!oldest || loadingEarlier) return
     setLoadingEarlier(true)
-    setEarlierError(null)
+    setEarlierError(false)
     try {
       const res = await fetch(`/api/messages?cursor=${encodeURIComponent(oldest.created_at)}&limit=${PAGE_SIZE}`)
       if (!res.ok) {
-        setEarlierError(`Couldn't load earlier messages. ${(await serverError(res)) ?? 'Please try again.'}`)
+        setEarlierError(true)
         return
       }
-      const data = await res.json()
+      const data = await res.json().catch(() => null)
       const older: ChatMessage[] =
         data && typeof data === 'object' && Array.isArray(data.messages) && data.messages.every(isChatMessage)
           ? data.messages
           : []
       if (!data || typeof data !== 'object' || !Array.isArray(data.messages) || !data.messages.every(isChatMessage)) {
-        setEarlierError('Couldn\'t load earlier messages. Please try again.')
+        setEarlierError(true)
         return
       }
       setHasEarlier(older.length >= PAGE_SIZE)
@@ -214,73 +338,191 @@ function MessagesContent() {
         setMessages(prev => prependEarlier(prev, older))
       }
     } catch {
-      setEarlierError("Couldn't load earlier messages. Check your connection and try again.")
+      setEarlierError(true)
     } finally {
       setLoadingEarlier(false)
     }
   }
 
+  const retryRead = () => {
+    markedReadSignatureRef.current = null
+    void markMessagesRead(messages.map(message => message.id))
+  }
+
+  const togglePickupPicker = async () => {
+    const nextVisible = !showPickupPicker
+    setShowPickupPicker(nextVisible)
+    if (!nextVisible || pickupLoaded || pickupLoading) return
+    setPickupLoading(true)
+    try {
+      const response = await fetch('/api/pickups', { cache: 'no-store' })
+      const data = response.ok ? await response.json().catch(() => null) : null
+      if (data && typeof data === 'object' && Array.isArray(data.pickups)) {
+        setPickups(data.pickups.filter(isPickupOption))
+      }
+    } catch {
+      // Linking is optional. Do not turn a healthy message thread into an
+      // error state when the separate Pickups feature is unavailable.
+    } finally {
+      setPickupLoaded(true)
+      setPickupLoading(false)
+    }
+  }
+
+  const handleAttachmentSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files ?? [])
+    event.target.value = ''
+    if (selected.length === 0) return
+    if (pendingAttachments.length + selected.length > MAX_MESSAGE_ATTACHMENTS) {
+      setSendError(messageText('photoUploadFailed'))
+      return
+    }
+    const valid = selected.filter((file) => (
+      ['image/jpeg', 'image/png', 'image/webp', 'image/heic'].includes(file.type) &&
+      file.size <= MAX_MESSAGE_ATTACHMENT_BYTES
+    ))
+    if (valid.length !== selected.length) {
+      setSendError(messageText('photoUploadFailed'))
+      return
+    }
+    setPendingAttachments((current) => [...current, ...valid.map((file) => ({ file }))])
+    setSendError(null)
+  }
+
+  const removeAttachment = (index: number) => {
+    if (sending) return
+    setPendingAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))
+  }
+
+  const uploadPendingAttachments = async (items: PendingAttachment[]): Promise<string[] | null> => {
+    const uploaded = [...items]
+    for (let index = 0; index < uploaded.length; index += 1) {
+      const item = uploaded[index]
+      if (item.id) continue
+      const formData = new FormData()
+      formData.append('file', item.file)
+      let response: Response
+      try {
+        response = await fetch('/api/messages/attachments', { method: 'POST', body: formData })
+      } catch {
+        setSendError(messageText('photoUploadFailed'))
+        return null
+      }
+      const data = await response.json().catch(() => null)
+      const id = data && typeof data === 'object' && data.attachment && typeof data.attachment === 'object'
+        ? (data.attachment as Record<string, unknown>).id
+        : null
+      if (!response.ok || typeof id !== 'string' || id.length === 0) {
+        setSendError(messageText('photoUploadFailed'))
+        return null
+      }
+      uploaded[index] = { ...item, id }
+      setPendingAttachments([...uploaded])
+    }
+    return uploaded.map((item) => item.id).filter((id): id is string => Boolean(id))
+  }
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMessage.trim() || sending) return
+    const content = newMessage.trim()
+    if (!content || sending) return
 
     setSending(true)
     setSendError(null)
+    const attachmentIds = await uploadPendingAttachments(pendingAttachments)
+    if (attachmentIds === null) {
+      setSending(false)
+      return
+    }
+    const body = {
+      content,
+      type: 'text',
+      pickup_id: selectedPickupId || null,
+      attachment_ids: attachmentIds,
+    }
+    const payload = JSON.stringify(body)
+    const current = sendIntentRef.current
+    const key = current?.payload === payload
+      ? current.key
+      : ambiguousSendRef.current.get(payload) ?? newIdempotencyKey()
+    sendIntentRef.current = { payload, key }
+
     try {
       let res: Response
       try {
         res = await fetch('/api/messages', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: newMessage.trim(), type: 'text' }),
+          headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: key },
+          body: payload,
         })
       } catch {
-        // The typed text stays in the field so it can be sent again.
-        setSendError("Couldn't send your message. Check your connection and try again.")
+        // The typed text and key stay in place so the same intent can be sent again.
+        ambiguousSendRef.current.set(payload, key)
+        setSendError(messageText('sendNetworkError'))
         return
       }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data?.message) {
-        const reason = typeof data?.error === 'string' && data.error ? data.error : 'Please try again.'
-        setSendError(`Couldn't send your message. ${reason}`)
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        if (res.status >= 400 && res.status < 500 && res.status !== 409) {
+          ambiguousSendRef.current.delete(payload)
+          if (sendIntentRef.current?.payload === payload) sendIntentRef.current = null
+        } else {
+          ambiguousSendRef.current.set(payload, key)
+        }
+        setSendError(messageText('sendFailed'))
         return
       }
-      const sent = data.message as ChatMessage
+      if (!data || !isChatMessage(data.message)) {
+        ambiguousSendRef.current.set(payload, key)
+        setSendError(messageText('sendUnconfirmed'))
+        return
+      }
       justSentRef.current = true
-      setMessages(prev => (prev.some(m => m.id === sent.id) ? prev : [...prev, sent]))
+      setMessages(prev => (prev.some(m => m.id === data.message.id) ? prev : [...prev, data.message]))
       setNewMessage('')
+      setSelectedPickupId('')
+      setPendingAttachments([])
+      ambiguousSendRef.current.delete(payload)
+      if (sendIntentRef.current?.payload === payload) sendIntentRef.current = null
     } finally {
       setSending(false)
     }
   }
 
-  // Group messages by sender for avatar+name header per message
   return (
     <div className="pb-20">
-      {/* Header */}
       <div className="px-4 pt-2 pb-3">
-        <div className="flex items-end justify-between">
+        <div className="flex items-end justify-between gap-4">
           <div>
-            <h1 className="text-large-title text-label-primary">Messages</h1>
+            <h1 className="text-large-title text-label-primary">{messageText('title')}</h1>
             <p className="text-subhead text-label-secondary mt-0.5">
-              {familyMembers.length} family members
+              {messageText('subtitle', { count: familyMembers.length })}
             </p>
           </div>
           <Glyph color="messages" size="md">
             <MessageSquare className="w-4 h-4" />
           </Glyph>
         </div>
+        <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+          {readPending ? messageText('readUpdating') : ''}
+        </div>
+        {readError && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[var(--surface-fill)] px-3 py-2" role="alert" data-testid="messages-read-recovery">
+            <p className="text-footnote text-label-secondary">{messageText('readError')}</p>
+            <button type="button" onClick={retryRead} className="btn-tinted min-h-[44px] min-w-[44px] px-3">
+              {messageText('retryRead')}
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Chat area */}
       <div className="card-apple mx-4 overflow-hidden">
-        {/* Messages thread */}
         <div
           ref={threadRef}
           onScroll={handleScroll}
           className="h-[calc(100vh-18rem)] overflow-y-auto"
           role="region"
-          aria-label="Messages thread"
+          aria-label={messageText('threadLabel')}
           tabIndex={0}
         >
           {loadError && !loading && (
@@ -309,8 +551,8 @@ function MessagesContent() {
                 icon={MessageSquare}
                 glyphColor="messages"
                 illustration={ILLUSTRATIONS.messagesEmpty}
-                title="No messages yet"
-                description="Start the conversation with your family."
+                title={messageText('emptyTitle')}
+                description={messageText('emptyDescription')}
               />
             </div>
           ) : messages.length > 0 ? (
@@ -324,11 +566,11 @@ function MessagesContent() {
                     aria-busy={loadingEarlier || undefined}
                     className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full px-4 text-subhead font-medium text-[var(--accent-text)] hover:bg-[var(--surface-fill)] disabled:opacity-60 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
                   >
-                    {loadingEarlier ? 'Loading earlier messages…' : 'Load earlier messages'}
+                    {loadingEarlier ? messageText('loadingEarlier') : messageText('loadEarlier')}
                   </button>
                   {earlierError && (
                     <p role="alert" className="text-footnote text-[var(--danger-text)] text-center">
-                      {earlierError}
+                      {messageText('earlierError')}
                     </p>
                   )}
                 </div>
@@ -336,19 +578,18 @@ function MessagesContent() {
               {messages.map((message) => {
                 const isCurrentUser = message.sender_id === currentUserId
                 const sender = message.sender
+                const formattedDate = formatMessageDate(message.created_at, locale)
                 return (
                   <div key={message.id} className="px-4 py-2">
-                    {/* Avatar + name header */}
                     <div className="flex items-center gap-2 mb-1">
                       <Avatar name={sender?.name || '?'} src={sender?.avatar_url} size="xs" />
                       <span className="text-footnote font-semibold text-label-primary">
-                        {isCurrentUser ? 'You' : sender?.name}
+                        {isCurrentUser ? messageText('you') : sender?.name}
                       </span>
-                      <span className="text-caption-1 text-label-tertiary">
-                        {formatDate(message.created_at)}
-                      </span>
+                      <time className="text-caption-1 text-label-tertiary" dateTime={message.created_at} aria-label={messageText('dateLabel', { date: formattedDate })}>
+                        {formattedDate}
+                      </time>
                     </div>
-                    {/* Message bubble */}
                     <div
                       className={cn(
                         'ml-6 rounded-2xl px-3 py-2 max-w-[80%]',
@@ -358,7 +599,38 @@ function MessagesContent() {
                       )}
                     >
                       <p className="text-body">{message.content}</p>
+                      {message.attachments && message.attachments.length > 0 && (
+                        <div className="mt-2 grid max-w-full grid-cols-2 gap-2" aria-label={messageText('photoAttachment')}>
+                          {message.attachments.map((attachment) => (
+                            <Image
+                              key={attachment}
+                              src={attachment}
+                              alt={messageText('photoAttachment')}
+                              width={320}
+                              height={192}
+                              unoptimized
+                              loading="lazy"
+                              className="max-h-48 w-full rounded-xl object-cover"
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
+                    {message.pickup && (
+                      <Link
+                        href="/dashboard/pickups"
+                        className="ml-6 mt-2 inline-flex min-h-[44px] max-w-full items-center gap-2 rounded-xl bg-surface-fill px-3 py-2 text-left text-footnote text-label-primary hover:bg-[var(--surface-elevated)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
+                        aria-label={`${messageText('pickupContext')}: ${message.pickup.title}`}
+                      >
+                        <Link2 className="h-4 w-4 shrink-0 text-[var(--accent-text)]" aria-hidden="true" />
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold">{message.pickup.title}</span>
+                          <time dateTime={message.pickup.pickup_time} className="block truncate text-label-secondary">
+                            {formatPickupDate(message.pickup.pickup_time, locale)}
+                          </time>
+                        </span>
+                      </Link>
+                    )}
                   </div>
                 )
               })}
@@ -366,30 +638,91 @@ function MessagesContent() {
           ) : null}
         </div>
 
-        {/* Bottom anchored input */}
         <div className="border-t border-[var(--surface-separator)] px-4 py-3 bg-[var(--surface-base)]">
+          {(showPickupPicker || pickups.length > 0 || pendingAttachments.length > 0) && (
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              {showPickupPicker && pickups.length > 0 && (
+                <label className="inline-flex min-h-[44px] max-w-full items-center gap-2 rounded-xl bg-surface-fill px-3 text-footnote text-label-primary">
+                  <Link2 className="h-4 w-4 shrink-0 text-[var(--accent-text)]" aria-hidden="true" />
+                  <span className="sr-only">{messageText('linkPickup')}</span>
+                  <select
+                    value={selectedPickupId}
+                    onChange={(event) => setSelectedPickupId(event.target.value)}
+                    disabled={sending}
+                    aria-label={messageText('linkPickup')}
+                    className="min-w-0 max-w-[16rem] bg-transparent text-label-primary outline-none"
+                  >
+                    <option value="">{messageText('noPickup')}</option>
+                    {pickups.map((pickup) => (
+                      <option key={pickup.id} value={pickup.id}>
+                        {pickup.title} · {formatPickupDate(pickup.pickup_time, locale)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {showPickupPicker && pickupLoading && (
+                <span className="text-footnote text-label-secondary" role="status">
+                  {messageText('refreshing')}
+                </span>
+              )}
+              {pendingAttachments.map((attachment, index) => (
+                <span key={`${attachment.file.name}-${index}`} className="inline-flex min-h-[44px] max-w-full items-center gap-2 rounded-xl bg-surface-fill px-3 text-footnote text-label-primary">
+                  <span className="max-w-[12rem] truncate">{attachment.file.name}</span>
+                  {attachment.id ? <span className="text-label-secondary">✓</span> : null}
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(index)}
+                    disabled={sending}
+                    className="inline-flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full text-label-secondary hover:bg-[var(--surface-elevated)] disabled:opacity-60"
+                    aria-label={messageText('removePhoto')}
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
           <form onSubmit={handleSendMessage} className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowAttach(!showAttach)}
+              onClick={() => void togglePickupPicker()}
+              disabled={sending}
               className={cn(
-                'w-11 h-11 rounded-full flex items-center justify-center transition-colors',
-                showAttach
+                'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors',
+                showPickupPicker || selectedPickupId
                   ? 'bg-tint-messages text-white'
-                  : 'bg-surface-fill text-label-secondary hover:bg-surface-fill-secondary'
+                  : 'bg-surface-fill text-label-secondary hover:bg-[var(--surface-elevated)]'
               )}
-              aria-label="Attach"
+              aria-label={messageText('linkPickup')}
+              aria-expanded={showPickupPicker}
             >
-              <Plus className="w-4 h-4" />
+              <Link2 className="h-4 w-4" aria-hidden="true" />
             </button>
+            <label
+              className="inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-surface-fill text-label-secondary hover:bg-[var(--surface-elevated)] focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-[var(--accent-text)]"
+              aria-label={messageText('addPhoto')}
+            >
+              <ImagePlus className="h-4 w-4" aria-hidden="true" />
+              <input
+                ref={attachmentInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic"
+                multiple
+                onChange={handleAttachmentSelection}
+                disabled={sending || pendingAttachments.length >= MAX_MESSAGE_ATTACHMENTS}
+                className="sr-only"
+                aria-label={messageText('addPhoto')}
+              />
+            </label>
             <input
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Message"
-              className="input-apple flex-1"
+              placeholder={messageText('messagePlaceholder')}
+              className="input-apple min-h-[44px] flex-1"
               disabled={sending}
-              aria-label="Message text"
+              aria-label={messageText('messageTextLabel')}
               aria-invalid={sendError ? true : undefined}
               aria-describedby={sendError ? 'message-send-error' : undefined}
             />
@@ -402,7 +735,7 @@ function MessagesContent() {
                   ? 'bg-tint-messages text-white'
                   : 'bg-surface-fill text-label-tertiary'
               )}
-              aria-label="Send"
+              aria-label={messageText('send')}
             >
               <Send className="w-3.5 h-3.5" />
             </button>
@@ -414,9 +747,8 @@ function MessagesContent() {
             </p>
           )}
 
-          {/* Live region for screen readers — announces send events */}
           <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-            {sending ? 'Sending message…' : ''}
+            {sending ? messageText('sending') : ''}
           </div>
         </div>
       </div>

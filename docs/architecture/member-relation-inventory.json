@@ -394,6 +394,14 @@
     "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
   },
   {
+    "relation": "MessageAttachment.uploader",
+    "fields": [
+      "uploaded_by"
+    ],
+    "kind": "actor",
+    "migration": "Keep authenticated uploader provenance during profile archive/link/unlink; a name-only profile cannot upload or authenticate. Permanent account erasure removes attachments belonging to erased messages and clears the nullable uploader link on surviving household-owned files through ON DELETE SET NULL. Never transfer uploader identity to a successor. Household erasure removes attachment rows and private files."
+  },
+  {
     "relation": "Notification.user",
     "fields": [
       "user_id"

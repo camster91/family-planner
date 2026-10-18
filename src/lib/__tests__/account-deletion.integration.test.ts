@@ -140,6 +140,9 @@ describeWithDatabase('account deletion against Postgres', () => {
     ] })
     // Messages, notifications, activity
     await db.message.create({ data: { id: id('msg'), family_id: f, sender_id: parent, content: 'hi', read_by: [child] } })
+    const messageFilename = `${h.repeat(32)}.jpg`
+    fs.writeFileSync(path.join(uploadDir, 'messages', messageFilename), 'x')
+    await db.messageAttachment.create({ data: { id: id('message-attachment'), family_id: f, uploaded_by: parent, message_id: id('msg'), filename: messageFilename, content_type: 'image/jpeg', size_bytes: 1 } })
     await db.notification.create({ data: { id: id('notif'), user_id: child, title: 't', message: 'm', type: 'system' } })
     await db.activity.create({ data: { id: id('act'), family_id: f, user_id: parent, subject_member_id: id('member'), type: 'x', title: 'x' } })
     // Lists and budget
@@ -245,6 +248,7 @@ describeWithDatabase('account deletion against Postgres', () => {
     tokens = await import('@/lib/tokens')
     uploadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fp-account-deletion-'))
     fs.mkdirSync(path.join(uploadDir, 'chores'))
+    fs.mkdirSync(path.join(uploadDir, 'messages'))
     for (const level of ['log', 'info'] as const) jest.spyOn(console, level).mockImplementation(() => undefined)
     await cleanup()
   })
@@ -424,7 +428,7 @@ describeWithDatabase('account deletion against Postgres', () => {
       },
     })
 
-    expect(result).toMatchObject({ deleted: true, membersRemoved: 3, filesRemoved: 1, filesNotRemoved: 0 })
+    expect(result).toMatchObject({ deleted: true, membersRemoved: 3, filesRemoved: 2, filesNotRemoved: 0 })
     expect(await rowsOf('a')).toEqual({})
     expect(await rowsOf('b')).toEqual(beforeB)
     expect(disconnected).toEqual([`${P}-a-conn`])
@@ -432,6 +436,8 @@ describeWithDatabase('account deletion against Postgres', () => {
     // Files: A's upload is gone from disk, B's is still there.
     expect(fs.existsSync(path.join(uploadDir, 'chores', 'a1a1a1a1a1a1a1a1.jpg'))).toBe(false)
     expect(fs.existsSync(path.join(uploadDir, 'chores', 'b2b2b2b2b2b2b2b2.jpg'))).toBe(true)
+    expect(fs.existsSync(path.join(uploadDir, 'messages', `${'a'.repeat(32)}.jpg`))).toBe(false)
+    expect(fs.existsSync(path.join(uploadDir, 'messages', `${'b'.repeat(32)}.jpg`))).toBe(true)
 
     // Tokens: A's no longer resolve; B's still do.
     expect(await session.verifySessionToken(cookieA)).toBeNull()
@@ -559,6 +565,8 @@ describeWithDatabase('account deletion against Postgres', () => {
     expect(await owner('listItem', 'item', 'checked_by')).toBeNull()
     // Their personal rows and credentials are gone; the household's tablet stays paired.
     expect(await prisma.message.count({ where: { id: `${P}-a-msg` } })).toBe(0)
+    expect(await prisma.messageAttachment.count({ where: { id: `${P}-a-message-attachment` } })).toBe(0)
+    expect(fs.existsSync(path.join(uploadDir, 'messages', `${'a'.repeat(32)}.jpg`))).toBe(false)
     expect(await prisma.calendarConnection.count({ where: { id: `${P}-a-conn` } })).toBe(0)
     // Events imported through their connection go with it, as on a disconnect.
     expect(await prisma.event.count({ where: { id: `${P}-a-event-imported` } })).toBe(0)
