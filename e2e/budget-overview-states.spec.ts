@@ -45,12 +45,16 @@ const EDIT_DESCRIPTION = `${DESCRIPTION_PREFIX} edited ${FIXTURE_LONG_TEXT.descr
 const EDIT_NOTES = `${DESCRIPTION_PREFIX} edited notes — preserve this long user content verbatim.`;
 const PADDED_EDIT_DESCRIPTION = `  ${EDIT_DESCRIPTION}  `;
 const PADDED_EDIT_NOTES = `  ${EDIT_NOTES}  `;
+const WINDOW_SEED_PREFIX = `${DESCRIPTION_PREFIX} window seed`;
+const BACKDATED_DESCRIPTION = `${DESCRIPTION_PREFIX} backdated`;
+const BACKDATED_NOTES = `${DESCRIPTION_PREFIX} backdated notes`;
 const BACKDATED_DATE = (() => {
   const date = new Date(E2E_ANCHOR);
   date.setUTCDate(date.getUTCDate() - 30);
   return date.toISOString().slice(0, 10);
 })();
 const CATEGORY_LIMIT = 20;
+const WINDOW_CASES = new Set(["phone-390x844", "desktop-1366x768"]);
 
 const ownedTransactionIds = new Set<string>();
 const ownedIdempotencyKeys = new Set<string>();
@@ -334,6 +338,7 @@ for (const locale of ["en", "es"] as const) {
       expect(LOOPBACK_HOSTS.has(new URL(baseURL!).hostname)).toBe(true);
 
       const blockedWrites: string[] = [];
+      const isWindowCase = WINDOW_CASES.has(info.project.name);
       const transactionWrites: Array<{
         method: string;
         path: string;
@@ -637,49 +642,6 @@ for (const locale of ["en", "es"] as const) {
         );
 
         await updatedRow.click();
-        const backdatedDialog = page.getByRole("dialog", {
-          name: copy.transactionEditTitle,
-          exact: true,
-        });
-        await expect(backdatedDialog).toBeVisible();
-        await expect(
-          backdatedDialog.getByLabel(copy.transactionDescription, {
-            exact: true,
-          }),
-        ).toHaveValue(EDIT_DESCRIPTION);
-        await expect(
-          backdatedDialog.getByLabel(copy.transactionNotes, { exact: false }),
-        ).toHaveValue(EDIT_NOTES);
-        await backdatedDialog
-          .getByLabel(copy.transactionDate, { exact: true })
-          .fill(BACKDATED_DATE);
-        const backdatedResponsePromise = page.waitForResponse(
-          (response) =>
-            response.request().method() === "PATCH" &&
-            new URL(response.url()).pathname ===
-              `/api/budget/transactions/${created.id}`,
-        );
-        await backdatedDialog
-          .getByRole("button", { name: copy.transactionSave, exact: true })
-          .click();
-        const backdatedResponse = await backdatedResponsePromise;
-        expect(backdatedResponse.status()).toBe(200);
-        const backdated = await parseTransactionResponse(backdatedResponse);
-        expect(backdated).toMatchObject({
-          id: created.id,
-          date: expect.stringContaining(BACKDATED_DATE),
-          description: EDIT_DESCRIPTION,
-          notes: EDIT_NOTES,
-        });
-        expect(
-          transactionWrites.filter((write) => write.method === "PATCH"),
-        ).toHaveLength(2);
-        await expect(backdatedDialog).toHaveCount(0);
-        await expect(
-          page.getByText(EDIT_DESCRIPTION, { exact: true }),
-        ).toBeVisible();
-
-        await updatedRow.click();
         const deleteDialog = page.getByRole("dialog", {
           name: copy.transactionEditTitle,
           exact: true,
@@ -784,9 +746,154 @@ for (const locale of ["en", "es"] as const) {
           `${locale}-${info.project.name}-empty-after-delete`,
         );
         await captureProof(page, info, locale, "empty-after-delete");
+
+        if (isWindowCase) {
+          const seedIds = Array.from({ length: 10 }, () => randomUUID());
+          for (const id of seedIds) ownedTransactionIds.add(id);
+          const seedDate = new Date(E2E_ANCHOR);
+          seedDate.setUTCDate(seedDate.getUTCDate() - 1);
+          await withDb(async (db) => {
+            const now = new Date(E2E_ANCHOR).toISOString();
+            for (const [index, id] of seedIds.entries()) {
+              await db.query(
+                `INSERT INTO "Transaction"
+                 (id, family_id, user_id, amount, type, category_id, description, notes, date, created_at, updated_at)
+                 VALUES ($1, $2, $3, 1, 'expense', $4, $5, NULL, $6, $7, $7)`,
+                [
+                  id,
+                  A.family,
+                  A.parent,
+                  CATEGORY_ID,
+                  `${WINDOW_SEED_PREFIX} ${index}`,
+                  seedDate.toISOString(),
+                  now,
+                ],
+              );
+            }
+          });
+
+          await page
+            .getByRole("button", { name: copy.refreshBudget, exact: true })
+            .click();
+          await expect(
+            page.getByText(`${WINDOW_SEED_PREFIX} 0`, { exact: true }),
+          ).toBeVisible();
+          await expect(refreshNotice).toHaveCount(0);
+
+          const windowAdd = page
+            .getByRole("button", { name: copy.addExpense, exact: true })
+            .first();
+          await windowAdd.click();
+          const windowDialog = page.getByRole("dialog", {
+            name: copy.transactionAddTitle,
+            exact: true,
+          });
+          await expect(windowDialog).toBeVisible();
+          await windowDialog
+            .getByRole("combobox", {
+              name: copy.transactionCategory,
+              exact: true,
+            })
+            .selectOption(CATEGORY_ID);
+          await windowDialog
+            .getByLabel(copy.transactionAmount, { exact: true })
+            .fill("7");
+          await windowDialog
+            .getByLabel(copy.transactionDescription, { exact: true })
+            .fill(BACKDATED_DESCRIPTION);
+          await windowDialog
+            .getByLabel(copy.transactionDate, { exact: true })
+            .fill(BACKDATED_DATE);
+          await windowDialog
+            .getByLabel(copy.transactionNotes, { exact: false })
+            .fill(BACKDATED_NOTES);
+
+          const windowCreateResponsePromise = page.waitForResponse(
+            (response) =>
+              response.request().method() === "POST" &&
+              new URL(response.url()).pathname === "/api/budget/transactions",
+          );
+          const statsAfterWindowCreatePromise = page.waitForResponse(
+            (response) =>
+              response.request().method() === "GET" &&
+              new URL(response.url()).pathname === "/api/budget/stats",
+          );
+          await windowDialog
+            .getByRole("button", { name: copy.addTransaction, exact: true })
+            .click();
+          const windowCreateResponse = await windowCreateResponsePromise;
+          expect(windowCreateResponse.status()).toBe(201);
+          const windowCreated =
+            await parseTransactionResponse(windowCreateResponse);
+          ownedTransactionIds.add(windowCreated.id);
+          expect(windowCreated).toMatchObject({
+            family_id: A.family,
+            user_id: A.parent,
+            amount: 7,
+            category_id: CATEGORY_ID,
+            date: expect.stringContaining(BACKDATED_DATE),
+            description: BACKDATED_DESCRIPTION,
+            notes: BACKDATED_NOTES,
+          });
+          await expect(windowDialog).toHaveCount(0);
+
+          const statsAfterWindowCreate = await statsAfterWindowCreatePromise;
+          expect(statsAfterWindowCreate.status()).toBe(200);
+          const statsAfterWindowCreateBody = JSON.parse(
+            await statsAfterWindowCreate.text(),
+          ) as {
+            total_expenses: number;
+            category_breakdown: Array<{
+              category_id: string | null;
+              total: number;
+            }>;
+            recent_transactions: Array<{ id: string }>;
+          };
+          expect(statsAfterWindowCreateBody.total_expenses).toBe(10);
+          expect(statsAfterWindowCreateBody.category_breakdown).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({ category_id: CATEGORY_ID, total: 10 }),
+            ]),
+          );
+          expect(statsAfterWindowCreateBody.recent_transactions).toHaveLength(
+            10,
+          );
+          expect(
+            statsAfterWindowCreateBody.recent_transactions.some(
+              (row) => row.id === windowCreated.id,
+            ),
+          ).toBe(false);
+          await expect(
+            page.getByText(BACKDATED_DESCRIPTION, { exact: true }),
+          ).toHaveCount(0);
+          await expect(refreshNotice).toHaveCount(0);
+          await expect(
+            page.getByText(`${WINDOW_SEED_PREFIX} 0`, { exact: true }),
+          ).toBeVisible();
+          await assertNoOverflow(page);
+
+          const windowKey = transactionWrites.at(-1)?.key;
+          expect(windowKey).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
+          if (!windowKey)
+            throw new Error("Missing window transaction idempotency key");
+          await withDb(async (db) => {
+            const receipt = await db.query<{
+              action: string;
+              response_status: number | null;
+            }>(
+              `SELECT action, response_status FROM "IdempotencyRecord"
+               WHERE family_id = $1 AND user_id = $2 AND key = $3`,
+              [A.family, A.parent, windowKey],
+            );
+            expect(receipt.rows).toEqual([
+              { action: "budget.transaction.create", response_status: 201 },
+            ]);
+          });
+        }
+
         expect(blockedWrites).toEqual([]);
         expect(new Set(statsMethods)).toEqual(new Set(["GET"]));
-        expect(transactionWrites).toHaveLength(3);
+        expect(transactionWrites).toHaveLength(isWindowCase ? 4 : 3);
       } finally {
         await page.unrouteAll({ behavior: "ignoreErrors" });
         const cleanupErrors: unknown[] = [];
