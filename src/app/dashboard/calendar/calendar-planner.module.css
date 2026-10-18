@@ -178,22 +178,6 @@
   width: 100%;
   margin-bottom: 12px;
 }
-.sourceButtons {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 16px;
-}
-.sourceButtons button {
-  text-align: left;
-  border-color: transparent;
-  background: transparent;
-  color: var(--label-secondary);
-}
-.sourceButtons button[aria-pressed="true"] {
-  background: var(--surface-fill);
-  color: var(--label-primary);
-}
 .sources p {
   margin: 12px 0;
 }
@@ -474,9 +458,6 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-  }
-  .sourceButtons {
-    display: none;
   }
   .sources p {
     margin: 4px 0;

@@ -24,7 +24,7 @@ for (const role of ["parent", "teen"] as const) {
     page,
   }) => {
     await loginViaUi(page, FIXTURE_EMAILS.familyA[role]);
-      await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
+    await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
     const writes: string[] = [];
     page.on("request", (request) => {
       if (!["GET", "HEAD", "OPTIONS"].includes(request.method()))
@@ -34,7 +34,7 @@ for (const role of ["parent", "teen"] as const) {
     await page.goto(`/dashboard/calendar?date=2026-01-05&view=${view}`);
     const panel = page.getByTestId("calendar-overlaps");
     await expect(panel).toContainText("1 overlap");
-      await expect(panel).toHaveJSProperty("open", false);
+    await expect(panel).toHaveJSProperty("open", false);
     await panel.locator("summary").press("Enter");
     const review = panel.getByRole("button", {
       name: "Review Soccer practice",
@@ -121,8 +121,8 @@ test("parent planning: real range, fixed clock geometry, source empty, detail an
   await page.keyboard.press("Escape");
   await expect(longEvent).toBeFocused();
   await page
-    .getByRole("button", { name: "Connected calendar", exact: true })
-    .click();
+    .getByRole("combobox", { name: "Calendar source", exact: true })
+    .selectOption("connected");
   await expect(
     page.getByRole("heading", { name: "No events from this calendar" }),
   ).toBeVisible();

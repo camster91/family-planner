@@ -339,18 +339,6 @@ export function CalendarPlanner({
               </option>
             ))}
           </select>
-          <div className={styles.sourceButtons}>
-            {options.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                aria-pressed={filter === s.id}
-                onClick={() => setFilter(s.id)}
-              >
-                {s.name}
-              </button>
-            ))}
-          </div>
           {canEditEvents && (
             <details className={styles.connectionMenu}>
               <summary>{msg("addConnection")}</summary>

@@ -172,4 +172,7 @@ pairs. It makes no attendance or actual-conflict assumption. A compact native
 disclosure opens existing event details, retaining parent edit, teen read-only
 and subscription read-only rules. Wide desktops place it beside the schedule;
 smaller views place it above. Exact build/rendered/browser/hosted acceptance is
-still required. Original source controls and mobile Week alignment remain open.
+still required. The duplicate source button list is removed in favor of the
+existing labeled native selector at every width; the same filter values, empty
+source recovery and date navigation remain covered. Mobile Week alignment
+remains open.
