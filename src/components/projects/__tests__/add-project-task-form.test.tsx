@@ -169,6 +169,56 @@ it("a refused save keeps what was typed and shows the server's reason", async ()
   expect(mockRefresh).not.toHaveBeenCalled();
 });
 
+it("retries an in-progress response with the same idempotency key", async () => {
+  reply = {
+    status: 409,
+    body: {
+      error: {
+        code: "IDEMPOTENCY_IN_PROGRESS",
+        message: "Please retry this project request.",
+      },
+    },
+  };
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "Paint fence");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await screen.findByRole("alert");
+  const firstKey = (calls[0].headers as Record<string, string>)[
+    "Idempotency-Key"
+  ];
+
+  reply = { status: 201, body: { task: { id: "t9", title: "Paint fence" } } };
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await waitFor(() => expect(calls).toHaveLength(2));
+  expect((calls[1].headers as Record<string, string>)["Idempotency-Key"]).toBe(
+    firstKey,
+  );
+  expect(mockRefresh).toHaveBeenCalledTimes(1);
+});
+
+it("retries a malformed success response with the same idempotency key", async () => {
+  reply = { status: 201, body: { task: { id: "t9" } } };
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "Paint fence");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await screen.findByRole("alert");
+  const firstKey = (calls[0].headers as Record<string, string>)[
+    "Idempotency-Key"
+  ];
+
+  reply = { status: 201, body: { task: { id: "t9", title: "Paint fence" } } };
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await waitFor(() => expect(calls).toHaveLength(2));
+  expect((calls[1].headers as Record<string, string>)["Idempotency-Key"]).toBe(
+    firstKey,
+  );
+  expect(mockRefresh).toHaveBeenCalledTimes(1);
+});
+
 it("a network failure keeps the text and asks to try again", async () => {
   reply = "network";
   const user = userEvent.setup();

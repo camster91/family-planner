@@ -81,17 +81,27 @@ export default function CreateProjectForm({
         body: JSON.stringify(body),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (res.status >= 500) ambiguousRequests.current.set(signature, key);
-        else {
+        const code =
+          data?.error && typeof data.error === "object"
+            ? data.error.code
+            : undefined;
+        const retryableInProgress =
+          res.status === 409 && code === "IDEMPOTENCY_IN_PROGRESS";
+        if (res.status >= 500 || retryableInProgress) {
+          ambiguousRequests.current.set(signature, key);
+        } else {
           ambiguousRequests.current.delete(signature);
           currentRequest.current = null;
         }
         const serverMessage =
           typeof data?.error === "string" && data.error.trim()
             ? data.error
-            : copy.createFallback;
+            : typeof data?.error?.message === "string" &&
+                data.error.message.trim()
+              ? data.error.message
+              : copy.createFallback;
         throw new Error(serverMessage);
       }
       const projectId = data?.project?.id;
