@@ -34,13 +34,19 @@ function openDelete(
   user: ReturnType<typeof userEvent.setup>,
   locale: "en" | "es" = "en",
 ) {
-  return user.click(screen.getByRole("button", { name: "Actions" })).then(() =>
-    user.click(
-      screen.getByRole("menuitem", {
-        name: locale === "es" ? "Eliminar" : "Delete",
+  return user
+    .click(
+      screen.getByRole("button", {
+        name: locale === "es" ? "Acciones" : "Actions",
       }),
-    ),
-  );
+    )
+    .then(() =>
+      user.click(
+        screen.getByRole("menuitem", {
+          name: locale === "es" ? "Eliminar" : "Delete",
+        }),
+      ),
+    );
 }
 
 beforeEach(() => {
