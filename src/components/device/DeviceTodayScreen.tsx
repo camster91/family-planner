@@ -13,6 +13,7 @@ import { genericErrorText, useDeviceClient, type DeviceMe } from './use-device-c
 import { useDeviceBoardActions } from './use-device-board-actions'
 import { useDeviceBoardSnapshot } from './use-device-board-snapshot'
 import { useTodayBoardText } from '@/i18n/today-board'
+import { clearRewardCreateIntents } from '@/lib/reward-create-intent'
 import {
   dangerButtonClass,
   errorTextClass,
@@ -91,7 +92,11 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
     setElevation(client.getElevation())
     return client.subscribe((event) => {
       setElevation(client.getElevation())
-      if (event === 'purge') { setMe(null); setSheetOpen(false) }
+      if (event === 'purge') {
+        clearRewardCreateIntents()
+        setMe(null)
+        setSheetOpen(false)
+      }
     })
   }, [client])
 

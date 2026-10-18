@@ -5,6 +5,7 @@ import { Loader2, TabletSmartphone } from 'lucide-react'
 import { App } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { DeviceApiError, formatCodeInput, isCompleteCode, PAIRING_POLL_MS } from '@/lib/device-client'
+import { clearRewardCreateIntents } from '@/lib/reward-create-intent'
 import { formatCountdown, genericErrorText, useDeviceClient, waitText } from './use-device-client'
 import {
   errorTextClass,
@@ -107,6 +108,7 @@ export default function PairScreen() {
         if (cancelled) return
         switch (result.status) {
           case 'paired':
+            clearRewardCreateIntents()
             setState({ kind: 'paired', label: result.device.label })
             // A full load, so the board page sees the new device cookies.
             window.location.replace('/device/today')

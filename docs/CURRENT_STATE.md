@@ -1,5 +1,28 @@
 # Current State
 
+## Combined web review repairs — 2026-10-18
+
+Production remains PR580 at `5cf9720bd3ca38862bc54c7094ac90f87a3892d8`.
+PR581's `d9c3b85d` passed all original hosted checks, but normal merge was
+refused because three required review conversations remained unresolved. No
+policy override was used. The new local integration includes Projects
+`e4d93c54` unchanged, canonical Budget optional-text normalization `6eae6e03`,
+and bounded recent-transaction reconciliation `7c4548a8`. Independent source
+review of both Budget fixes is clear; all42 affected mounted cases pass together.
+The owner-scoped durable Rewards intent repair `d256efa1` includes explicit
+capacity refusal before dispatch and is independently reviewed clear. All65
+focused Rewards-create, durable-intent and Budget mounted cases pass together.
+Existing browser journeys now cover real API text normalization, a backdated
+save outside the ten-row recent window, and lost-response/reload/same-key reward
+recovery; their new rendered run remains pending.
+
+These are local implementation checkpoints, not a new release. The combined
+candidate still needs completed review repairs, exact-source build/rendered
+journeys, fresh original hosted checks, resolved verified conversations and
+protected recovery evidence before normal merge and deployment verification.
+Earlier dated checkpoint paragraphs below are retained history. The full
+22-feature and supporting-route scope remains open under #499/#128.
+
 ## Combined child, Rewards and Budget verification — 2026-10-18
 
 The child localization and resolved reward-notice product source is reviewed at

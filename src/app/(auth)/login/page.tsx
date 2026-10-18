@@ -14,6 +14,7 @@ import {
 
 import { clearAllPersonQueues } from "@/lib/offline-queue-browser";
 import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
+import { clearRewardCreateIntents } from "@/lib/reward-create-intent";
 import { loginNoticeFor, safeRedirectPath } from "@/lib/safe-redirect";
 
 export default function LoginPage() {
@@ -42,6 +43,7 @@ export default function LoginPage() {
     // away), so offline changes left by an ended session are dropped, never
     // replayed (#162, OFFLINE_SYNC.md "Security").
     clearCaptureRecoveryStorage(undefined);
+    clearRewardCreateIntents();
     void clearAllPersonQueues();
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
