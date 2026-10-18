@@ -52,20 +52,20 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Lists | Direct groceries, custom lists, simple create/edit | PR #570 compact overview, short create form and validated Back/create/delete context passed bounded review; incorporated #574 hosted candidate checks pass; remaining detail-copy migration and wider acceptance pending |
 | Family | Add everyone, email-free profiles, clear account-link distinction | Local responsive account roster and EN/ES removal/recovery presentation: 44 affected tests, 78 browser checks and independent review pass; Family/Notes #576 candidate hosted acceptance passed and main `768e4170` is merged and production verified; Add Everyone/profile-link and full acceptance pending |
 | Meals | Week plan, recipes, several-dish prep, eaten/remaining/next prep | Local shared Plan/Explore/Prep navigation candidate; existing canonical meal/prep behavior retained, incorporated #574 hosted candidate checks pass; wider visual/journey acceptance pending |
-| Inventory | Use soon, honest capture review, quantities and locations | Core overview is included in prior verified release; staged PR #588 at `b34e976d` converts item forms/removal to shared short sheets with keyboard/draft recovery. Affected checks/source review pass; fresh rendered/hosted/release and broader capture acceptance pending |
+| Inventory | Use soon, honest capture review, quantities and locations | Core overview retains prior verified release behavior. PR #588 combines reviewed shared item/removal sheets and keyboard/draft recovery with chore-photo fixes. Fresh integrated hosted/rendered/release and broader capture acceptance pending |
 | Notes | Short shared notes and clear visibility | Local shared board/read-only detail and canonical color/recovery alignment: 42 affected tests, 78 browser passes/15 inherited scope skips; Family/Notes #576 candidate hosted acceptance passed and main `768e4170` is merged and production verified; wider acceptance pending |
 | Anniversaries | Upcoming dates without duplicate noise | Chronological overview, short permission-aware sheets and recoverable writes: exact application0ed841aa passes89 browser cases/10 declared scopes,103 affected units and9 PostgreSQL cases; f142 test-only Notes/Capture repairs pass42/15 declared scopes; combined #580 hosted and exact-main QA pass; serving main `5cf9720b` verified; wider acceptance pending |
 | Gamification | Optional quiet progress, meaningful dependencies | Child home/routine localization and resolved-claim feedback are included in verified live release #581 at `d752df36`. Broader persisted quiet-mode, shared-device and feature/state acceptance remain open |
 | Rewards | Clear costs and role-appropriate actions | Reviewed role-aware create/claim/approval, canonical receipts and durable intent recovery are included in verified live release #581 at `d752df36`. Broader feature/state and customer acceptance remain open |
 | Budget | Private summaries and contextual details | Reviewed private summaries, category detail, canonical transaction receipts and recovery repairs are included in verified live release #581 at `d752df36`. Broader feature/state and customer acceptance remain open |
 | Projects | Next steps, owner and detail context | PR #582 is included unchanged in release #581, verified serving main `d752df36`. Bounded source/rendered/recovery acceptance exists; broader feature/state acceptance remains open |
-| Messages | Private conversation linked to work | Reviewed private conversation, photo and pickup-link slice in PR #587 at `590e5a04`; original hosted gates running after test-only CI upload-root repair. Prior a927 captures reviewed; actual new-head upload acceptance and release pending |
+| Messages | Private conversation linked to work | Reviewed private conversation/photo/pickup-link slice merged through PR #587 atafb15426; all original gates and150 exact-candidate capture reviews pass. Coolify deployment563 is in progress; exact-live and broader feature acceptance pending |
 | Analytics | Useful private trends, dependency-aware | Parent Progress55f417bd uses canonical API and localized strict-response recovery; 102 UI/localization and29 API/isolation/gamification cases pass, exact build and51 browser/startup-budget checks plus final phone visual review pass; combined #580 hosted and exact-main QA pass; serving main `5cf9720b` verified; broader acceptance pending |
-| Wishlist | Capture and compare family ideas | Reviewed canonical states/roles/recovery slice in PR #587 at `590e5a04`; prior a927 captures clear. Fresh original hosted gates and release pending; compare/curation expansion is not implied |
-| Emergency | Fast authorized access, private medical/contact fields | Reviewed private short forms, preview/print and recovery slice in PR #587 at `590e5a04`; prior a927 desktop captures clear. Fresh original hosted gates and release pending; no public/shared-device permission expansion |
+| Wishlist | Capture and compare family ideas | Reviewed canonical states/roles/recovery slice merged through PR #587 atafb15426; original gates/capture review pass. Deployment563 and exact-live verification pending; compare/curation expansion not implied |
+| Emergency | Fast authorized access, private medical/contact fields | Reviewed private short forms/preview/print/recovery slice merged through PR #587 atafb15426; original gates/capture review pass. Deployment563/exact-live pending; shared/public permissions unchanged |
 | Locations | Saved places with private addresses protected | Live source includes short create/edit, pending input protection and removal/focus recovery (latest owned source b8cef86b). Approved all-feature rendered/state adoption still needs evidence reconciliation; retained code alone does not mark complete |
-| Pickups | Explicit responsibility, confirmation and backup | Reviewed member/parent coordination and removal recovery in PR #587 at `590e5a04`; prior a927 captures clear. Fresh original hosted gates and release pending; full responsibility/backup semantics retain separate acceptance |
-| Allowance | Own balance versus parent administration | Staged PR #588 at `b34e976d` implements canonical receipt recovery, guarded cancellation and localized history; affected checks and independent source review pass. Actual build/rendered/original hosted and release acceptance pending |
+| Pickups | Explicit responsibility, confirmation and backup | Reviewed member/parent coordination/removal slice merged through PR #587 atafb15426; original gates/capture review pass. Deployment563/exact-live and broader responsibility/backup acceptance pending |
+| Allowance | Own balance versus parent administration | PR #588 now combines reviewed Allowance/Inventory sourceb34 and chore-photo sourcec73 over mainafb15426. Canonical receipt/cancellation/history checks and source review pass; fresh integrated hosted/rendered/release acceptance pending |
 | Travel | Trip preparation and deliberate recurrence changes | Live source retains unknown-write reconciliation (2a250f1d) and narrow-screen date layout (49f4f054). Approved all-feature layout/state acceptance remains pending; no new recurrence/provider behavior is inferred |
 | Handoff | Scoped brief, expiry and owned responsibility | Live source retains localized load recovery and guarded removal/refresh (537b286b). Approved all-feature layout/state acceptance remains pending; scoped share/expiry/privacy contracts are unchanged |
 | Sick days | Role-scoped care, no private shared-display exposure | Existing canonical care/medication behavior retained. Source audit confirms legacy long forms and dismissible pending mutations; approved short-sheet, recovery and role/private-state review remain open |
@@ -514,3 +514,20 @@ migrations were verified. Main Android passes; exact-main Build/E2E are still
 running at this checkpoint. See `docs/CURRENT_STATE.md` and the live PR record.
 No earlier broader-pending row is thereby marked fully accepted. Rewards and
 Budget remain separate subsequent local work; all22feature acceptance stays open.
+
+
+## Reviewed recovery integration — 2026-10-18
+
+PR #587 merged normally at `afb15426`, with a Git tree identical to reviewed
+candidate `590e5a04`. All original gates and150 exact-candidate PNG reviews
+pass. Fresh protected restore at21:43:49Z preserved71 existing tables/row counts,
+ran additive migrations twice and removed the temporary DB. Existing Coolify
+webhook deployment563 is in progress; production verification is not yet claimed.
+
+PR #588 now normally integrates the reviewed Allowance/Inventory/shared-modal
+work and chore-photo recovery over merged main. All application/schema/migration
+sources retain the reviewed436dc bytes; no conflicts or manual source rewrites.
+This combines related recovery fixes into one fresh hosted QA cycle. Unit/types,
+exact original hosted/rendered acceptance and release status stay separate.
+The22-feature programme, Sick days/remaining supporting-state work and independent
+native/provider/hardware/customer gates remain open.
