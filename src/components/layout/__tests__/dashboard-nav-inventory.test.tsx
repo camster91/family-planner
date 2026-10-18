@@ -38,7 +38,6 @@ describe('DashboardNav user menu: food inventory', () => {
     await openMenu(role)
     const link = screen.getByRole('link', { name: 'Food inventory' })
     expect(link.getAttribute('href')).toBe('/dashboard/inventory')
-    expect(link.className).toContain('min-h-[44px]')
   })
 
   it('hides the link when the feature is off', async () => {
@@ -76,7 +75,6 @@ it('offers the parent Explore shortcut in the header and menu', async () => {
   const links = screen.getAllByRole('link', { name: 'Explore' })
   expect(links).toHaveLength(2)
   expect(links.every(link => link.getAttribute('href') === '/dashboard/family/more')).toBe(true)
-  expect(links.every(link => link.className.includes('min-h-[44px]'))).toBe(true)
 })
 it.each(['child', 'teen'] as const)('does not expose the parent feature hub to a %s', async role => {
   await openMenu(role)

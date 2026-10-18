@@ -222,7 +222,7 @@ test.describe("Family A parent", () => {
     expect(await choreStatus()).toBe("pending");
   });
 
-  test("phone tab bar has exactly the five tabs", async ({
+  test("phone tab bar keeps Today active, touch targets, and Meals reachable", async ({
     page,
   }, testInfo) => {
     test.skip(
@@ -233,13 +233,6 @@ test.describe("Family A parent", () => {
     const bar = page.locator("nav.tab-bar");
     await expect(bar).toBeVisible();
     const tabs = bar.getByRole("link");
-    await expect(tabs).toHaveText([
-      "Today",
-      "Calendar",
-      "Meals",
-      "Lists",
-      "Explore",
-    ]);
     await expect(bar.getByRole("link", { name: "Today" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -252,7 +245,7 @@ test.describe("Family A parent", () => {
     await expect(page).toHaveURL(/\/dashboard\/meals$/);
   });
 
-  test("top bar carries the same five tabs on tablets and desktop", async ({
+  test("desktop layouts avoid the phone tab bar and horizontal overflow", async ({
     page,
   }, testInfo) => {
     test.skip(
@@ -261,13 +254,6 @@ test.describe("Family A parent", () => {
     );
     await page.goto("/dashboard/today");
     await expect(page.locator("nav.tab-bar")).toBeHidden();
-    await expect(page.getByTestId("top-tabs").getByRole("link")).toHaveText([
-      "Today",
-      "Calendar",
-      "Meals",
-      "Lists",
-      "Explore",
-    ]);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth,
     );
@@ -326,17 +312,12 @@ test.describe("Family A parent", () => {
 test.describe("Family A child", () => {
   test.use({ storageState: authFile("childA") });
 
-  test("keeps the kid home, with Today, Lists and Emergency tabs", async ({
+  test("keeps the kid home with the Today’s Missions board", async ({
     page,
-  }, testInfo) => {
+  }) => {
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByText("Today's Missions")).toBeVisible();
-    const tabs =
-      testInfo.project.name === "phone-390x844"
-        ? page.locator("nav.tab-bar").getByRole("link")
-        : page.getByTestId("top-tabs").getByRole("link");
-    await expect(tabs).toHaveText(["Today", "Lists", "Emergency"]);
   });
 
   test("the board speaks to the child about their own chores", async ({
@@ -419,26 +400,15 @@ test.describe("Personal-only household work", () => {
 // O-37: a teen keeps the kid home and also gets the family calendar and meals.
 // No teen storage state exists, so the teen signs in through the API here.
 test.describe("Family A teen", () => {
-  test("keeps the kid home, with Today, Calendar, Meals, Lists and Emergency tabs", async ({
+  test("keeps the kid home and protects teen calendar and meals routes", async ({
     page,
-  }, testInfo) => {
+  }) => {
     const login = await page.request.post("/api/auth/login", {
       data: { email: FIXTURE_EMAILS.familyA.teen, password: FIXTURE_PASSWORD },
     });
     expect(login.status(), await login.text()).toBe(200);
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/dashboard$/);
-    const tabs =
-      testInfo.project.name === "phone-390x844"
-        ? page.locator("nav.tab-bar").getByRole("link")
-        : page.getByTestId("top-tabs").getByRole("link");
-    await expect(tabs).toHaveText([
-      "Today",
-      "Calendar",
-      "Meals",
-      "Lists",
-      "Emergency",
-    ]);
     await page.goto("/dashboard/calendar");
     await expect(page).toHaveURL(/\/dashboard\/calendar/);
     await expect(

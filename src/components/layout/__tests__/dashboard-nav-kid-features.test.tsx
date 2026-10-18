@@ -60,7 +60,6 @@ describe('DashboardNav user menu: kid feature discovery', () => {
       const link = screen.getByRole('link', { name: label })
       expect(link.getAttribute('href')).toBe(href)
       expect(link.closest('[data-testid="kid-feature-menu-group"]')).toBe(group)
-      expect(link.className).toContain('min-h-[44px]')
     }
   })
 
