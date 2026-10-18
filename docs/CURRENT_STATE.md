@@ -1,5 +1,36 @@
 # Current State
 
+## Rewards and Budget combined local candidate — 2026-10-18
+
+Integration `1ffe0a9f` normally merges reviewed Rewards `e0756c9a` and Budget
+`d9d040a3` over accepted main `5cf9720b`. Only the translation migration inventory
+conflicted: keep the exact 37 Rewards and 38 Budget removed entries, retain all
+other entries and the valid numeric `0.00` placeholder; no guard is weakened.
+Both actual PostgreSQL suites are added to the existing database-backed CI job.
+No application/API/schema/workflow conflict required manual source resolution.
+
+Rewards constituent application `c2c95b60` passes its optimized build and the
+six-size EN/light, ES/dark matrix: 116 passed, 25 declared desktop-only scope
+skips, no failures/retries, including all 36 unchanged startup budgets. The
+verified runtime matches that application; its final test-only source is
+`e0756c9a`. All 132 required state/locale/viewport captures are retained with
+pixel hashes and dimensions. Source review and 303 affected tests pass; bounded
+independent visual review is pending. Earlier interrupted/failed test-harness
+reports are retained and are not substituted for the accepted matrix.
+
+Budget constituent has clear scoped source review, 144 affected test passes,
+types/lint passes and seven real PostgreSQL cases, including concurrent retries.
+Full local units: 5833 passed, 403 established opt-in skips, three retained Mac
+backup-prune failures. Actual canonical add/edit/delete and stats-recovery
+browser QA is prepared but has not run. The combined candidate still requires
+its own baseline, exact build, both rendered matrices, independent review and
+fresh original hosted/release gates before any new merge or deployment.
+
+The already serving #580 remains `5cf9720b`, with production runtime verified.
+Main Build/Test, checked-image and Android checks pass; main E2E is still live
+at this checkpoint. Consult the live #580 record for its later terminal outcome.
+The full22feature/supporting-route and separate native/provider gates remain open.
+
 ## Verified live web revision and subsequent UI work — 2026-10-18
 
 PR #580 normally merged as `5cf9720bd3ca38862bc54c7094ac90f87a3892d8`.
