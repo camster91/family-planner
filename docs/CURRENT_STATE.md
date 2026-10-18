@@ -1,5 +1,32 @@
 # Current State
 
+## Dates recovery candidate — 2026-10-18
+
+The isolated `codex/dates-recovery-499` candidate incorporates #577 through
+`9a8da960` without rewriting its history. Optional canonical idempotency keys
+make POST/PATCH/DELETE replayable while preserving legacy clients. Row writes
+and receipts commit together; current household, role, feature and ownership
+checks also protect replays. Mutation responses project current edit/delete
+grants without changing stored receipts. No schema or provider change is added.
+
+The short Dates sheets now retain uncertain intent across A/B/A draft edits and
+cancel, disable edits during pending saves, validate successful responses, keep
+confirmed rows/removals after a failed refresh, and offer a GET-only Retry.
+Independent API/shared-helper and UI source reviews pass after their specific
+findings were repaired. At application/test head `30dd3937`, optimized build,
+types, 103 affected unit checks and nine real PostgreSQL route checks pass.
+The complete six-size EN/light and ES/dark browser matrix passes 89 checks with
+10 declared desktop-only scopes skipped elsewhere, zero failures/retries, and
+64 captures. Supplemental notice captures and fresh hosted/release acceptance
+remain pending. The initial new-test selector/refresh-phase failures are retained.
+
+A full local unit run observed 5777 passes, 396 established opt-in skips and five
+failures: two stale D9 navigation expectation lists have since been corrected
+and pass the focused checks; three existing Mac backup-prune failures remain.
+Original full Linux CI is required before merge. The new real-database route
+suite is included in the unchanged database-backed CI gate. Production is a
+separate verification state; wider #499/#128 acceptance remains open.
+
 ## Family and Notes merged release — 2026-10-18
 
 PR #576 is normally merged at `768e417042f0c1f924ebd3a05e8650b24f778e10`,

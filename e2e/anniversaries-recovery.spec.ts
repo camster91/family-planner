@@ -339,6 +339,16 @@ for (const locale of ["en", "es"] as const) {
         await expect(
           page.getByText(copy.savedRefresh, { exact: true }),
         ).toBeVisible();
+        await info.attach(
+          `anniversaries-recovery-${locale}-${info.project.name}-saved-refresh-failed`,
+          {
+            body: await page.screenshot({
+              fullPage: false,
+              animations: "disabled",
+            }),
+            contentType: "image/png",
+          },
+        );
         expect(postAttempts).toBe(2);
         expect(postKeys[0]).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
         expect(postKeys[1]).toBe(postKeys[0]);
@@ -467,6 +477,16 @@ for (const locale of ["en", "es"] as const) {
         await expect(
           page.getByText(copy.removedRefresh, { exact: true }),
         ).toBeVisible();
+        await info.attach(
+          `anniversaries-recovery-${locale}-${info.project.name}-deleted-refresh-failed`,
+          {
+            body: await page.screenshot({
+              fullPage: false,
+              animations: "disabled",
+            }),
+            contentType: "image/png",
+          },
+        );
         await expect(
           page.getByRole("button", { name: OTHER_NAME }),
         ).toBeVisible();
