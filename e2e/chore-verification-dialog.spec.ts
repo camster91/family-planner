@@ -226,13 +226,11 @@ function state(
 }
 
 function queueFor(page: Page, sendBackLabel: string, locale: Locale) {
-  const queue = page
-    .locator("section")
-    .filter({
-      has: page.getByText(choreOverviewMessages[locale].toCheck, {
-        exact: true,
-      }),
-    });
+  const queue = page.locator("section").filter({
+    has: page.getByText(choreOverviewMessages[locale].toCheck, {
+      exact: true,
+    }),
+  });
   return queue
     .getByRole("button", { name: sendBackLabel, exact: true })
     .locator("..")
