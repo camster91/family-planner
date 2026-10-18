@@ -123,6 +123,7 @@ it("posts the task to the project, clears the form, confirms and refreshes", asy
   expect((screen.getByLabelText("Task") as HTMLInputElement).value).toBe("");
   expect(await screen.findByText("Task added")).toBeTruthy();
   expect(screen.queryByText(/Couldn't add the task/)).toBeNull();
+  expect(screen.getByLabelText("Task")).toHaveFocus();
 });
 
 it("sends only the title when nothing else is chosen", async () => {

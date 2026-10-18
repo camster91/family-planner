@@ -39,6 +39,8 @@ export function AddProjectTaskForm({
   const [dueDate, setDueDate] = React.useState("");
   const [assignee, setAssignee] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  const [refreshing, startRefresh] = React.useTransition();
+  const focusAfterSave = React.useRef(false);
   const [error, setError] = React.useState<string | null>(null);
   const currentRequest = React.useRef<{
     key: string;
@@ -52,8 +54,16 @@ export function AddProjectTaskForm({
     if (open) titleRef.current?.focus();
   }, [open]);
 
+  React.useEffect(() => {
+    if (open && !saving && !refreshing && focusAfterSave.current) {
+      focusAfterSave.current = false;
+      titleRef.current?.focus();
+    }
+  }, [open, saving, refreshing]);
+
   const close = () => {
     if (saving) return;
+    focusAfterSave.current = false;
     setOpen(false);
     setTitle("");
     setDueDate("");
@@ -141,8 +151,10 @@ export function AddProjectTaskForm({
         title: text("taskAdded"),
         message: text("taskAddedMessage", { name: data.task.title }),
       });
-      router.refresh();
-      titleRef.current?.focus();
+      // Wait until the fieldset is enabled and the canonical server refresh
+      // commits before restoring the next-entry focus.
+      focusAfterSave.current = true;
+      startRefresh(() => router.refresh());
     } catch (err) {
       if (err instanceof TypeError)
         ambiguousRequests.current.set(signature, key);
