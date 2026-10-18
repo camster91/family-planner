@@ -14,17 +14,11 @@ import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { budgetMessages } from "../src/i18n/budget";
 import { FIXTURE_EMAILS, FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
-import { authFile } from "./support/env";
+import { E2E_ANCHOR, authFile } from "./support/env";
 import { expect, test } from "./support/test";
 
-const PROJECTS = [
-  "phone-390x844",
-  "phone-430x932",
-  "tablet-portrait-800x1280",
-  "fridge-landscape-1280x800",
-  "tablet-large-1920x1200",
-  "desktop-1366x768",
-] as const;
+const PROJECTS = ["desktop-1366x768", "phone-390x844"] as const;
+const FIXTURE_DATE = E2E_ANCHOR.toISOString().slice(0, 10);
 
 const SYNTHETIC_CATEGORY = {
   id: "fx_e2e_budget_food",
@@ -42,7 +36,7 @@ const SYNTHETIC_TRANSACTION = {
   description: "Synthetic saved budget row",
   notes: null,
   category_id: SYNTHETIC_CATEGORY.id,
-  date: "2026-01-05T00:00:00.000Z",
+  date: `${FIXTURE_DATE}T00:00:00.000Z`,
   is_recurring: false,
   recurring_interval: null,
   category: {
@@ -62,6 +56,13 @@ const RECOVERED_TRANSACTION = {
   ...SYNTHETIC_TRANSACTION,
   id: "fx_e2e_budget_recovered",
   description: "Synthetic recovered budget row",
+};
+
+const CREATED_TRANSACTION = {
+  ...SYNTHETIC_TRANSACTION,
+  id: "fx_e2e_budget_created",
+  amount: 25,
+  description: "Synthetic queued save",
 };
 
 const FRESH_TRANSACTION = {
@@ -194,8 +195,10 @@ async function assertTouchTarget(page: Page, target: Locator) {
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height);
 }
 
-async function selectSyntheticCategory(dialog: Locator) {
-  const category = dialog.getByRole("combobox", { name: "Category" });
+async function selectSyntheticCategory(dialog: Locator, locale: "en" | "es") {
+  const category = dialog.getByRole("combobox", {
+    name: budgetMessages[locale].transactionCategory,
+  });
   await expect(category).toBeVisible();
   await expect(category).toBeEnabled();
   await expect(
@@ -383,7 +386,7 @@ async function installSyntheticTransport(
     if (state.transactionPosts === 1) {
       await route.fulfill({
         status: 201,
-        json: { transaction: { id: "fx_e2e_budget_created" } },
+        json: { transaction: CREATED_TRANSACTION },
       });
       return;
     }
@@ -400,10 +403,10 @@ async function installSyntheticTransport(
       try {
         await released;
         await route.fulfill({
-          status: 409,
+          status: 422,
           json: {
             error: {
-              code: "IDENTITY_CONFLICT",
+              code: "INVALID_TRANSACTION",
               message: "synthetic private financial implementation detail",
             },
           },
@@ -415,10 +418,10 @@ async function installSyntheticTransport(
       return;
     }
     await route.fulfill({
-      status: 409,
+      status: 422,
       json: {
         error: {
-          code: "IDENTITY_CONFLICT",
+          code: "INVALID_TRANSACTION",
           message: "synthetic private financial implementation detail",
         },
       },
@@ -459,7 +462,7 @@ for (const locale of ["en", "es"] as const) {
     }, info) => {
       test.skip(
         !PROJECTS.includes(info.project.name as (typeof PROJECTS)[number]),
-        "Budget recovery runs at the six representative responsive sizes",
+        "Budget transport recovery runs on the smallest phone and support desktop; the real budget overview retains all six responsive projects.",
       );
       assertFixtureTargetAllowed(process.env);
       expect(["localhost", "127.0.0.1", "[::1]"]).toContain(
@@ -475,14 +478,14 @@ for (const locale of ["en", "es"] as const) {
       try {
         await page.goto("/dashboard/budget");
         await expect(page.locator("html")).toHaveAttribute("lang", locale);
+        const copy = budgetMessages[locale];
         await expect(
           page
             .locator("#main-content")
-            .getByRole("heading", { name: "Budget" }),
+            .getByRole("heading", { name: copy.pageTitle }),
         ).toBeVisible();
         await runtimeIdentity(page, info, locale);
 
-        const copy = budgetMessages[locale];
         const refresh = page.getByRole("button", {
           name: copy.refreshBudget,
         });
@@ -530,8 +533,13 @@ for (const locale of ["en", "es"] as const) {
           page.getByRole("button", { name: copy.refreshingBudget }),
         ).toBeDisabled();
 
-        await page.locator('button[aria-label="Add transaction"]').click();
-        const dialog = page.getByRole("dialog", { name: "Add Transaction" });
+        await page
+          .getByRole("button", { name: copy.addExpense })
+          .first()
+          .click();
+        const dialog = page.getByRole("dialog", {
+          name: copy.transactionAddTitle,
+        });
         await expect(dialog).toBeVisible();
         await expect.poll(() => harness.categoryCalls).toBe(1);
         await expect(dialog.getByRole("alert")).toContainText(
@@ -542,12 +550,18 @@ for (const locale of ["en", "es"] as const) {
         });
         await assertTouchTarget(page, retryCategories);
         await retryCategories.click();
-        await selectSyntheticCategory(dialog);
-        await dialog.getByLabel("Amount").fill("25");
-        await dialog.getByLabel("Description").fill("Synthetic queued save");
+        await selectSyntheticCategory(dialog, locale);
+        await dialog.getByLabel(copy.transactionAmount).fill("25");
+        await dialog
+          .getByLabel(copy.transactionDescription)
+          .fill("Synthetic queued save");
 
-        const submit = dialog.getByRole("button", { name: "Add Transaction" });
-        const cancel = dialog.getByRole("button", { name: "Cancel" });
+        const submit = dialog.getByRole("button", {
+          name: copy.addTransaction,
+        });
+        const cancel = dialog.getByRole("button", {
+          name: copy.transactionCancel,
+        });
         await assertTouchTarget(page, submit);
         await assertTouchTarget(page, cancel);
         await assertAccessibleAndContained(
@@ -567,54 +581,92 @@ for (const locale of ["en", "es"] as const) {
 
         // A structured error envelope cannot leak its code/message, and the
         // failed save keeps the user's draft available for correction/retry.
-        await page.locator('button[aria-label="Add transaction"]').click();
+        await page
+          .getByRole("button", { name: copy.addExpense })
+          .first()
+          .click();
         const recoveryDialog = page.getByRole("dialog", {
-          name: "Add Transaction",
+          name: copy.transactionAddTitle,
         });
-        await selectSyntheticCategory(recoveryDialog);
-        await recoveryDialog.getByLabel("Amount").fill("50");
+        await selectSyntheticCategory(recoveryDialog, locale);
+        await recoveryDialog.getByLabel(copy.transactionAmount).fill("50");
         await recoveryDialog
-          .getByLabel("Description")
+          .getByLabel(copy.transactionDescription)
           .fill("Synthetic draft to preserve");
         await recoveryDialog
-          .getByRole("button", { name: "Add Transaction" })
+          .getByRole("button", { name: copy.addTransaction })
           .click();
         const saveError = recoveryDialog.getByRole("alert");
         await expect(saveError).toContainText(copy.saveFailed);
-        await expect(saveError).not.toContainText("IDENTITY_CONFLICT");
+        await expect(saveError).not.toContainText("INVALID_TRANSACTION");
         await expect(saveError).not.toContainText(
           "synthetic private financial implementation detail",
         );
-        await expect(recoveryDialog.getByLabel("Amount")).toHaveValue("50");
-        await expect(recoveryDialog.getByLabel("Description")).toHaveValue(
-          "Synthetic draft to preserve",
+        await expect(
+          recoveryDialog.getByLabel(copy.transactionAmount),
+        ).toHaveValue("50");
+        await expect(
+          recoveryDialog.getByLabel(copy.transactionDescription),
+        ).toHaveValue("Synthetic draft to preserve");
+        const recoverySubmit = recoveryDialog.getByRole("button", {
+          name: copy.addTransaction,
+        });
+        // Pending disabled the submit, so the browser may have blurred it.
+        // Verify visibility before any focus/scroll assistance, then keyboard access.
+        await expect(recoverySubmit).toBeInViewport({ ratio: 1 });
+        await expect(
+          recoveryDialog.getByRole("button", { name: copy.transactionCancel }),
+        ).toBeInViewport({ ratio: 1 });
+        expect(
+          await recoverySubmit.evaluate((button) => {
+            const rect = button.getBoundingClientRect();
+            return button.contains(
+              document.elementFromPoint(
+                rect.x + rect.width / 2,
+                rect.y + rect.height / 2,
+              ),
+            );
+          }),
+        ).toBe(true);
+        await recoveryDialog
+          .getByRole("button", { name: copy.transactionCancel })
+          .focus();
+        await page.keyboard.press("Tab");
+        await expect(recoverySubmit).toBeFocused();
+        await assertTouchTarget(page, recoverySubmit);
+        await assertAccessibleAndContained(
+          page,
+          info,
+          `${locale}-${info.project.name}-recovery-footer`,
         );
 
         // The next synthetic request stays pending. Escape and Cancel must not
         // dismiss the sheet or lose its draft while the mutation is unresolved.
-        await recoveryDialog.getByLabel("Amount").fill("60");
+        await recoveryDialog.getByLabel(copy.transactionAmount).fill("60");
         await recoveryDialog
-          .getByRole("button", { name: "Add Transaction" })
+          .getByRole("button", { name: copy.addTransaction })
           .click();
         await expect.poll(() => harness.transactionPosts).toBe(3);
         await expect(
-          recoveryDialog.getByRole("button", { name: "Cancel" }),
+          recoveryDialog.getByRole("button", { name: copy.transactionCancel }),
         ).toBeDisabled();
         await expect(
-          recoveryDialog.getByRole("button", { name: "Add Transaction" }),
+          recoveryDialog.getByRole("button", { name: copy.transactionSaving }),
         ).toBeDisabled();
         await expect(recoveryDialog.getByLabel("Close")).toHaveCount(0);
         await page.keyboard.press("Escape");
         await expect(recoveryDialog).toBeVisible();
-        await expect(recoveryDialog.getByLabel("Amount")).toHaveValue("60");
+        await expect(
+          recoveryDialog.getByLabel(copy.transactionAmount),
+        ).toHaveValue("60");
         expect(harness.pendingPost).toBeTruthy();
         harness.pendingPost!.release();
         await expect(recoveryDialog.getByRole("alert")).toContainText(
           copy.saveFailed,
         );
-        await expect(recoveryDialog.getByLabel("Description")).toHaveValue(
-          "Synthetic draft to preserve",
-        );
+        await expect(
+          recoveryDialog.getByLabel(copy.transactionDescription),
+        ).toHaveValue("Synthetic draft to preserve");
         await assertAccessibleAndContained(
           page,
           info,

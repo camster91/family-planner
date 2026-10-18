@@ -6,6 +6,8 @@ import { notificationServiceServer } from '@/lib/notifications-server'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import { authorizeRewardReplay, createReward, updateReward, type RewardActor } from '@/lib/reward-mutations'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,43 +66,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { name, description, cost, icon } = parsed.data
-
-    const reward = await prisma!.reward.create({
-      data: {
-        family_id: auth.user.family_id,
-        name,
-        description: description || null,
-        cost,
-        icon: icon || 'gift',
-        status: 'available',
-        created_by: auth.user.id,
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return keyError
+    const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role }
+    let applied = false
+    const response = await withIdempotency(
+      prisma!,
+      key,
+      { scope: `user:${actor.userId}`, familyId: actor.familyId, userId: actor.userId, action: 'reward.create' },
+      parsed.data,
+      async ({ recordId }) => {
+        const mutation = await createReward(prisma!, parsed.data, actor, recordId)
+        applied = mutation.applied
+        return mutation.result
       },
-      include: {
-        creator: { select: { id: true, name: true } },
-      },
-    })
+      { beforeReplay: () => authorizeRewardReplay(prisma!, actor, true) },
+    )
 
     // Notify family members about new reward
-    try {
-      const members = await prisma!.user.findMany({
-        where: { family_id: auth.user.family_id, id: { not: auth.user.id } },
-        select: { id: true },
-      })
-      for (const member of members) {
-        await notificationServiceServer.sendNotification({
-          familyId: auth.user.family_id,
-          userId: member.id,
-          title: 'New Reward Available!',
-          message: `${name} is now available for ${cost} points`,
-          type: 'reward',
+    if (applied) {
+      try {
+        const members = await prisma!.user.findMany({
+          where: { family_id: auth.user.family_id, id: { not: auth.user.id } },
+          select: { id: true },
         })
+        for (const member of members) {
+          await notificationServiceServer.sendNotification({
+            familyId: auth.user.family_id,
+            userId: member.id,
+            title: 'New Reward Available!',
+            message: `${parsed.data.name} is now available for ${parsed.data.cost} points`,
+            type: 'reward',
+          })
+        }
+      } catch (err) {
+        logRouteError('POST /api/rewards (notification)', err, getRequestId(request))
       }
-    } catch (err) {
-      logRouteError('POST /api/rewards (notification)', err, getRequestId(request))
     }
 
-    return NextResponse.json({ reward })
+    return response
   } catch (error) {
     logRouteError('POST /api/rewards', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -131,7 +135,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { rewardId, ...updates } = parsed.data
+    const { rewardId } = parsed.data
 
     const reward = await prisma!.reward.findUnique({
       where: { id: rewardId },
@@ -145,22 +149,17 @@ export async function PATCH(request: NextRequest) {
     const familyError = requireFamilyMatch(reward.family_id, auth.user.family_id)
     if (familyError) return familyError
 
-    const updateData: Record<string, unknown> = {}
-    if (updates.name !== undefined) updateData.name = updates.name
-    if (updates.description !== undefined) updateData.description = updates.description
-    if (updates.cost !== undefined) updateData.cost = updates.cost
-    if (updates.icon !== undefined) updateData.icon = updates.icon
-
-    const updated = await prisma!.reward.update({
-      where: { id: rewardId },
-      data: updateData,
-      include: {
-        creator: { select: { id: true, name: true } },
-        claimer: { select: { id: true, name: true } },
-      },
-    })
-
-    return NextResponse.json({ reward: updated })
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return keyError
+    const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role }
+    return await withIdempotency(
+      prisma!,
+      key,
+      { scope: `user:${actor.userId}`, familyId: actor.familyId, userId: actor.userId, action: 'reward.update' },
+      parsed.data,
+      ({ recordId }) => updateReward(prisma!, parsed.data, actor, recordId).then((mutation) => mutation.result),
+      { beforeReplay: () => authorizeRewardReplay(prisma!, actor, true) },
+    )
   } catch (error) {
     logRouteError('PATCH /api/rewards', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

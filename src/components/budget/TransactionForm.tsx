@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { toDateOnlyLocal, toDateOnlyUTC } from '@/lib/dates'
 import { Dialog } from '@/components/ui/dialog'
 import { useBudgetText } from '@/i18n/budget'
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 
 interface Category {
   id: string
@@ -19,9 +20,9 @@ interface Category {
 interface TransactionFormProps {
   onClose: () => void
   /** Called after a save, or after a delete when `onDeleted` is not given. */
-  onSuccess: () => void
+  onSuccess: (transaction?: SavedTransaction) => void
   /** Called after the transaction was deleted (edit mode only). */
-  onDeleted?: () => void
+  onDeleted?: (transactionId?: string) => void
   initialData?: {
     id: string
     amount: number
@@ -34,6 +35,20 @@ interface TransactionFormProps {
     recurring_interval?: string | null
     category?: { id: string; name: string; icon: string; color: string } | null
   } | null
+}
+
+export interface SavedTransaction {
+  id: string
+  amount: number
+  type: string
+  description: string | null
+  notes: string | null
+  category_id: string | null
+  date: string
+  is_recurring: boolean
+  recurring_interval: string | null
+  category: { id: string; name: string; icon: string; color: string } | null
+  user: { id: string; name: string; avatar_url: string | null }
 }
 
 const FIELD_CLASS =
@@ -56,9 +71,78 @@ function isCategory(value: unknown): value is Category {
   )
 }
 
+// The budget API trims optional text before writing it and treats an empty
+// result as null. Build the request from that canonical value so an accepted
+// response still validates when the draft included surrounding whitespace.
+function canonicalOptionalText(value: string): string | null {
+  const trimmed = value.trim()
+  return trimmed || null
+}
+
 function parseCategoriesResponse(value: unknown): Category[] | null {
   if (!isRecord(value) || !Array.isArray(value.categories) || !value.categories.every(isCategory)) return null
   return value.categories
+}
+
+function parseTransactionResponse(
+  value: unknown,
+  expectedId: string | null,
+  body: Record<string, unknown>,
+): SavedTransaction | null {
+  if (!isRecord(value) || !isRecord(value.transaction)) return null
+  const row = value.transaction
+  const category = row.category
+  const user = row.user
+  const validCategory = category === null || (
+    isRecord(category) &&
+    typeof category.id === 'string' &&
+    typeof category.name === 'string' &&
+    typeof category.icon === 'string' &&
+    typeof category.color === 'string'
+  )
+  const categoryMatchesId = row.category_id === null
+    ? category === null
+    : isRecord(category) && validCategory && category.id === row.category_id
+  const validUser = isRecord(user) &&
+    typeof user.id === 'string' &&
+    typeof user.name === 'string' &&
+    (user.avatar_url === null || typeof user.avatar_url === 'string')
+  if (
+    typeof row.id !== 'string' || !row.id ||
+    (expectedId !== null && row.id !== expectedId) ||
+    typeof row.amount !== 'number' || !Number.isFinite(row.amount) || row.amount !== body.amount ||
+    typeof row.type !== 'string' || row.type !== body.type ||
+    (row.description !== null && typeof row.description !== 'string') ||
+    (row.notes !== null && typeof row.notes !== 'string') ||
+    typeof row.date !== 'string' ||
+    typeof row.is_recurring !== 'boolean' ||
+    (row.recurring_interval !== null && typeof row.recurring_interval !== 'string') ||
+    (row.category_id !== null && typeof row.category_id !== 'string') ||
+    row.category_id !== body.category_id ||
+    row.description !== body.description ||
+    row.notes !== body.notes ||
+    row.is_recurring !== body.is_recurring ||
+    row.recurring_interval !== body.recurring_interval ||
+    (typeof body.date !== 'string' || row.date.slice(0, 10) !== body.date) ||
+    !validCategory || !categoryMatchesId || !validUser
+  ) return null
+  return {
+    id: row.id,
+    amount: row.amount,
+    type: row.type as string,
+    description: row.description,
+    notes: row.notes,
+    category_id: row.category_id,
+    date: row.date,
+    is_recurring: row.is_recurring,
+    recurring_interval: row.recurring_interval,
+    category: category as SavedTransaction['category'],
+    user: user as SavedTransaction['user'],
+  }
+}
+
+function isConfirmedDelete(value: unknown): boolean {
+  return isRecord(value) && value.success === true
 }
 
 const PERMISSION_ERROR_CODES = new Set([
@@ -78,6 +162,15 @@ const CONFLICT_ERROR_CODES = new Set([
   'DUPLICATE_OPEN_ITEM',
   'ALREADY_EXISTS',
 ])
+
+function isAmbiguousMutation(status: number, payload: unknown): boolean {
+  const code = errorCode(payload)
+  if (code === 'IDEMPOTENCY_KEY_REUSED' || code === 'IDEMPOTENCY_KEY_INVALID' || code === 'IDEMPOTENCY_KEY_REQUIRED') {
+    return false
+  }
+  if (code === 'IDEMPOTENCY_IN_PROGRESS') return true
+  return status === 408 || status === 409 || status >= 500 || (code !== null && CONFLICT_ERROR_CODES.has(code))
+}
 
 function errorCode(value: unknown): string | null {
   if (typeof value === 'string') {
@@ -113,6 +206,7 @@ function mutationErrorMessage(
 export default function TransactionForm({ onClose, onSuccess, onDeleted, initialData }: TransactionFormProps) {
   const isEditing = !!initialData
   const text = useBudgetText()
+  const formId = useId()
   const ids = {
     amount: useId(),
     category: useId(),
@@ -145,6 +239,9 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
   const categoryRequest = useRef({ token: 0, type: type as string, inFlight: false })
   const submitInFlight = useRef(false)
   const deleteInFlight = useRef(false)
+  const saveIntent = useRef<{ payload: string; key: string } | null>(null)
+  const deleteIntent = useRef<string | null>(null)
+  const [mutationRecovery, setMutationRecovery] = useState<'save' | 'delete' | null>(null)
   const busy = isSubmitting || isDeleting
 
   const fetchCategories = useCallback(async () => {
@@ -200,6 +297,17 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
   // The Dialog focuses its first control (Close) on open; a new transaction
   // starts in Amount instead.
   const amountRef = useRef<HTMLInputElement>(null)
+  const errorRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const errorElement = errorRef.current
+    const scrollIntoView = errorElement?.scrollIntoView
+    if (error && errorElement && typeof scrollIntoView === 'function') {
+      // Keep the focused field or action unchanged while revealing the new
+      // message inside the form's scrolling body above the fixed footer.
+      scrollIntoView.call(errorElement, { block: 'nearest' })
+    }
+  }, [error])
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
@@ -209,16 +317,32 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const submitTransaction = async () => {
     if (busy || submitInFlight.current || deleteInFlight.current) return
     setError('')
 
     const numericAmount = parseFloat(amount)
     if (!amount || isNaN(numericAmount) || numericAmount <= 0) {
-      setError('Please enter a valid amount')
+      setError(text('transactionInvalidAmount'))
       return
     }
+
+    const body: Record<string, unknown> = {
+      amount: numericAmount,
+      type,
+      category_id: categoryId || null,
+      description: canonicalOptionalText(description),
+      notes: canonicalOptionalText(notes),
+      date,
+      is_recurring: isRecurring,
+      recurring_interval: isRecurring ? recurringInterval : null,
+    }
+    const payload = JSON.stringify(body)
+    const intent = saveIntent.current?.payload === payload
+      ? saveIntent.current
+      : { payload, key: newIdempotencyKey() }
+    saveIntent.current = intent
+    setMutationRecovery(null)
 
     submitInFlight.current = true
     setIsSubmitting(true)
@@ -228,65 +352,101 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
 
       const method = isEditing ? 'PATCH' : 'POST'
 
-      const body: Record<string, unknown> = {
-        amount: numericAmount,
-        type,
-        category_id: categoryId || null,
-        description: description || null,
-        notes: notes || null,
-        date,
-        is_recurring: isRecurring,
-        recurring_interval: isRecurring ? recurringInterval : null,
-      }
-
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: intent.key },
+        body: payload,
       })
 
       if (!res.ok) {
         const json = await res.json().catch(() => undefined)
-        setError(mutationErrorMessage(json, res.status, 'save', text))
+        if (isAmbiguousMutation(res.status, json)) {
+          setMutationRecovery('save')
+          setError(text('transactionSaveUnknown'))
+        } else {
+          saveIntent.current = null
+          setMutationRecovery(null)
+          setError(mutationErrorMessage(json, res.status, 'save', text))
+        }
         submitInFlight.current = false
         setIsSubmitting(false)
         return
       }
 
+      const json = await res.json().catch(() => undefined)
+      const transaction = parseTransactionResponse(json, initialData?.id ?? null, body)
+      if (!transaction) {
+        setMutationRecovery('save')
+        setError(text('transactionSaveUnknown'))
+        submitInFlight.current = false
+        setIsSubmitting(false)
+        return
+      }
+      saveIntent.current = null
+      setMutationRecovery(null)
       submitInFlight.current = false
       setIsSubmitting(false)
-      onSuccess()
-    } catch (err) {
-      console.error('Failed to save:', err)
+      onSuccess(transaction)
+    } catch {
+      setMutationRecovery('save')
       setError(text('saveNetworkError'))
       submitInFlight.current = false
       setIsSubmitting(false)
     }
   }
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    void submitTransaction()
+  }
+
   const handleDelete = async () => {
     if (!initialData || busy || submitInFlight.current || deleteInFlight.current) return
     setError('')
+    const key = deleteIntent.current ?? newIdempotencyKey()
+    deleteIntent.current = key
+    setMutationRecovery(null)
     deleteInFlight.current = true
     setIsDeleting(true)
     try {
-      const res = await fetch(`/api/budget/transactions/${initialData.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/budget/transactions/${initialData.id}`, {
+        method: 'DELETE',
+        headers: { [IDEMPOTENCY_HEADER]: key },
+      })
       if (!res.ok) {
         const json = await res.json().catch(() => undefined)
-        setError(mutationErrorMessage(json, res.status, 'delete', text))
+        if (isAmbiguousMutation(res.status, json)) {
+          setMutationRecovery('delete')
+          setError(text('transactionDeleteUnknown'))
+        } else {
+          deleteIntent.current = null
+          setMutationRecovery(null)
+          setError(mutationErrorMessage(json, res.status, 'delete', text))
+          setConfirmingDelete(false)
+        }
         deleteInFlight.current = false
         setIsDeleting(false)
-        setConfirmingDelete(false)
         return
       }
+      const json = await res.json().catch(() => undefined)
+      if (!isConfirmedDelete(json)) {
+        setMutationRecovery('delete')
+        setError(text('transactionDeleteUnknown'))
+        deleteInFlight.current = false
+        setIsDeleting(false)
+        return
+      }
+      deleteIntent.current = null
+      setMutationRecovery(null)
       deleteInFlight.current = false
       setIsDeleting(false)
-      ;(onDeleted ?? onSuccess)()
+      if (onDeleted) onDeleted(initialData.id)
+      else onSuccess()
     } catch {
+      setMutationRecovery('delete')
       setError(text('deleteNetworkError'))
       deleteInFlight.current = false
       setIsDeleting(false)
-      setConfirmingDelete(false)
     }
   }
 
@@ -294,13 +454,34 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
     <Dialog
       open
       onClose={busy ? undefined : onClose}
-      title={isEditing ? 'Edit Transaction' : 'Add Transaction'}
+      title={isEditing ? text('transactionEditTitle') : text('transactionAddTitle')}
       testId="transaction-form"
       initialFocusRef={isEditing ? undefined : amountRef}
+      variant="form"
+      footer={(
+        <div className="flex gap-3">
+          <button type="button" onClick={busy ? undefined : onClose} disabled={busy} className="btn-ghost min-h-[44px] flex-1 disabled:opacity-40">
+            {text('transactionCancel')}
+          </button>
+          <button
+            type="submit"
+            form={formId}
+            disabled={busy}
+            className={cn(
+              'flex-1 min-h-[44px] px-4 py-2.5 text-subhead font-semibold text-white rounded-xl transition-all flex items-center justify-center gap-2',
+              type === 'income' ? 'bg-tint-lists hover:opacity-90' : 'bg-accent-fill hover:bg-accent-fill-hover',
+              busy && 'opacity-70 cursor-not-allowed'
+            )}
+          >
+            {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
+            {isSubmitting ? text('transactionSaving') : isEditing ? text('transactionSave') : text('addTransaction')}
+          </button>
+        </div>
+      )}
     >
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form id={formId} onSubmit={handleSubmit} className="space-y-5">
         {/* Type Toggle */}
-        <div className="flex gap-2" role="group" aria-label="Type">
+        <div className="flex gap-2" role="group" aria-label={text('transactionType')}>
           <button
             type="button"
             aria-pressed={type === 'expense'}
@@ -312,7 +493,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
                 : 'border-[var(--surface-separator)] text-label-secondary'
             )}
           >
-            <span aria-hidden="true">💸 </span>Expense
+            <span aria-hidden="true">💸 </span>{text('transactionExpense')}
           </button>
           <button
             type="button"
@@ -325,14 +506,14 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
                 : 'border-[var(--surface-separator)] text-label-secondary'
             )}
           >
-            <span aria-hidden="true">💰 </span>Income
+            <span aria-hidden="true">💰 </span>{text('transactionIncome')}
           </button>
         </div>
 
         {/* Amount */}
         <div>
           <label htmlFor={ids.amount} className={LABEL_CLASS}>
-            Amount
+            {text('transactionAmount')}
           </label>
           <div className="relative">
             <span
@@ -358,10 +539,10 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
         <div>
           {filteredCategories.length > 0 ? (
             <label htmlFor={ids.category} className={LABEL_CLASS}>
-              Category
+              {text('transactionCategory')}
             </label>
           ) : (
-            <p className={LABEL_CLASS}>Category</p>
+            <p className={LABEL_CLASS}>{text('transactionCategory')}</p>
           )}
           {isLoadingCategories && (
             <p role="status" className="text-subhead text-label-secondary py-2.5 px-4 bg-[var(--surface-secondary)] rounded-xl">
@@ -391,7 +572,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
                 onChange={(e) => setCategoryId(e.target.value)}
                 className={FIELD_CLASS}
               >
-                <option value="">Select a category</option>
+                <option value="">{text('transactionSelectCategory')}</option>
                 {filteredCategories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.icon} {cat.name}
@@ -411,14 +592,14 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
         {/* Description */}
         <div>
           <label htmlFor={ids.description} className={LABEL_CLASS}>
-            Description
+            {text('transactionDescription')}
           </label>
           <input
             id={ids.description}
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="e.g., Groceries, Salary..."
+            placeholder={text('transactionDescriptionPlaceholder')}
             className={FIELD_CLASS}
           />
         </div>
@@ -426,7 +607,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
         {/* Date */}
         <div>
           <label htmlFor={ids.date} className={LABEL_CLASS}>
-            Date
+            {text('transactionDate')}
           </label>
           <div className="relative">
             <Calendar
@@ -446,13 +627,13 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
         {/* Notes */}
         <div>
           <label htmlFor={ids.notes} className={LABEL_CLASS}>
-            Notes <span className="text-label-tertiary font-normal">(optional)</span>
+            {text('transactionNotes')} <span className="text-label-tertiary font-normal">{text('transactionNotesOptional')}</span>
           </label>
           <textarea
             id={ids.notes}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Any additional notes..."
+            placeholder={text('transactionNotesPlaceholder')}
             rows={2}
             className={cn(FIELD_CLASS, 'resize-none')}
           />
@@ -463,7 +644,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
           <div className="flex items-center justify-between mb-3">
             <label htmlFor={ids.recurring} className="text-subhead font-medium text-label-secondary flex items-center gap-2">
               <Repeat className="w-4 h-4 text-label-tertiary" aria-hidden="true" />
-              Recurring
+              {text('transactionRecurring')}
             </label>
             <button
               id={ids.recurring}
@@ -490,7 +671,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
           {isRecurring && (
             <>
               <label htmlFor={ids.interval} className="sr-only">
-                Repeats
+                {text('transactionRepeats')}
               </label>
               <select
                 id={ids.interval}
@@ -498,9 +679,9 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
                 onChange={(e) => setRecurringInterval(e.target.value)}
                 className={FIELD_CLASS}
               >
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Biweekly</option>
-                <option value="monthly">Monthly</option>
+                <option value="weekly">{text('transactionWeekly')}</option>
+                <option value="biweekly">{text('transactionBiweekly')}</option>
+                <option value="monthly">{text('transactionMonthly')}</option>
               </select>
             </>
           )}
@@ -508,36 +689,27 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
 
         {/* Error */}
         {error && (
-          <div role="alert" className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5">
+          <div ref={errorRef} role="alert" className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5">
             <p className="text-subhead text-rose-700">{error}</p>
+            {mutationRecovery && (
+              <button
+                type="button"
+                onClick={() => mutationRecovery === 'save' ? void submitTransaction() : void handleDelete()}
+                disabled={busy}
+                className="btn-ghost mt-2 min-h-[44px] px-3"
+              >
+                {text('transactionRetry')}
+              </button>
+            )}
           </div>
         )}
-
-        {/* Actions */}
-        <div className="flex gap-3 pt-2">
-          <button type="button" onClick={busy ? undefined : onClose} disabled={busy} className="btn-ghost min-h-[44px] flex-1 disabled:opacity-40">
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={busy}
-            className={cn(
-              'flex-1 min-h-[44px] px-4 py-2.5 text-subhead font-semibold text-white rounded-xl transition-all flex items-center justify-center gap-2',
-              type === 'income' ? 'bg-tint-lists hover:opacity-90' : 'bg-accent-fill hover:bg-accent-fill-hover',
-              busy && 'opacity-70 cursor-not-allowed'
-            )}
-          >
-            {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
-            {isEditing ? 'Save Changes' : 'Add Transaction'}
-          </button>
-        </div>
 
         {/* Delete (edit only): a second tap confirms, inside the dialog. */}
         {isEditing && (
           <div className="border-t border-[var(--surface-separator)] pt-4">
             {confirmingDelete ? (
-              <div className="space-y-2" role="group" aria-label="Delete transaction">
-                <p className="text-subhead text-label-primary">Delete this transaction? This can&apos;t be undone.</p>
+              <div className="space-y-2" role="group" aria-label={text('transactionDelete')}>
+                <p className="text-subhead text-label-primary">{text('transactionDeleteConfirm')}</p>
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -545,7 +717,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
                     disabled={isDeleting}
                     className="btn-ghost min-h-[44px] flex-1"
                   >
-                    Keep
+                    {text('transactionKeep')}
                   </button>
                   <button
                     type="button"
@@ -553,7 +725,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
                     disabled={busy}
                     className="btn-destructive flex-1 disabled:opacity-40"
                   >
-                    {isDeleting ? 'Deleting…' : 'Delete'}
+                    {isDeleting ? text('transactionDeleting') : text('transactionDeleteAction')}
                   </button>
                 </div>
               </div>
@@ -565,7 +737,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
                 className="min-h-[44px] w-full inline-flex items-center justify-center gap-2 rounded-xl text-subhead font-medium text-danger-text hover:bg-[var(--surface-secondary)] disabled:opacity-40"
               >
                 <Trash2 className="w-4 h-4" aria-hidden="true" />
-                Delete transaction
+                {text('transactionDelete')}
               </button>
             )}
           </div>

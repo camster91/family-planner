@@ -5,6 +5,8 @@ import { createProjectSchema } from '@/lib/validations'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import { authorizeProjectReplay, createProjectWithReceipt, projectAction } from '@/lib/project-mutations'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,28 +90,36 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { name, description, color, status } = parsed.data
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return keyError
 
-    const project = await prisma!.project.create({
-      data: {
-        family_id: auth.user.family_id,
-        name,
-        description: description || null,
-        color: color || '#3B82F6',
-        status: status || 'active',
-        created_by: auth.user.id,
+    const response = await withIdempotency(
+      prisma!,
+      key,
+      {
+        scope: `user:${auth.user.id}`,
+        familyId: auth.user.family_id,
+        userId: auth.user.id,
+        action: projectAction('create'),
       },
-      include: {
-        creator: {
-          select: { id: true, name: true, avatar_url: true },
-        },
-        _count: {
-          select: { tasks: true },
-        },
+      parsed.data,
+      ({ recordId }) =>
+        createProjectWithReceipt(
+          prisma!,
+          parsed.data,
+          { familyId: auth.user.family_id, userId: auth.user.id },
+          recordId,
+        ),
+      {
+        beforeReplay: () =>
+          authorizeProjectReplay(prisma!, 'create', {
+            familyId: auth.user.family_id,
+            userId: auth.user.id,
+          }, undefined, key),
       },
-    })
-
-    return NextResponse.json({ project }, { status: 201 })
+    )
+    response.headers.set('Cache-Control', 'private, no-store')
+    return response
   } catch (error) {
     logRouteError('POST /api/projects', error, getRequestId(request))
     return NextResponse.json(

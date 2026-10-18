@@ -1,11 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "@/i18n";
 import { rewardCreateMessages } from "@/i18n/reward-create";
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import {
+  forgetLatestRewardCreateDraft,
+  forgetRewardCreateIntent,
+  latestRewardCreateDraft,
+  rememberRewardCreateDraft,
+  rememberRewardCreateIntent,
+  rewardCreateIntent,
+  rewardCreateOwnerKey,
+  rewardCreateSignature,
+  type RewardCreateDraft,
+  type RewardCreateOwner,
+} from "@/lib/reward-create-intent";
 import {
   usePendingFormNavigation,
   usePendingFormNavigationController,
@@ -26,31 +39,91 @@ const ICON_OPTIONS = [
 
 type RewardCreateError = "permissionError" | "createError";
 
+type CreatePayload = {
+  name: string;
+  description?: string;
+  cost: number;
+  icon: string;
+};
+
+function isCreatedReward(
+  value: unknown,
+  payload: CreatePayload,
+  owner?: RewardCreateOwner,
+): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const reward = (value as { reward?: unknown }).reward;
+  if (!reward || typeof reward !== "object" || Array.isArray(reward)) return false;
+  const row = reward as {
+    id?: unknown;
+    name?: unknown;
+    cost?: unknown;
+    icon?: unknown;
+    status?: unknown;
+    family_id?: unknown;
+    created_by?: unknown;
+  };
+  const ownerMatches =
+    !owner || (
+      row.family_id !== undefined && row.family_id !== null && row.family_id === owner.familyId &&
+      row.created_by !== undefined && row.created_by !== null && row.created_by === owner.userId
+    );
+  return typeof row.id === "string" && row.id.length > 0 &&
+    row.name === payload.name && row.cost === payload.cost &&
+    row.icon === payload.icon && row.status === "available" && ownerMatches;
+}
+
 class CreateRewardFailure extends Error {
   constructor(readonly messageKey: RewardCreateError) {
     super(messageKey);
   }
 }
 
-export default function CreateRewardForm({
-  inSheet = false,
-  onBusyChange,
-  canCreate = true,
-}: {
+type CreateRewardFormProps = {
   inSheet?: boolean;
   onBusyChange?: (busy: boolean) => void;
   canCreate?: boolean;
-} = {}) {
+  owner?: RewardCreateOwner;
+};
+
+/**
+ * Keep each household's draft state in its own mounted boundary. The key is
+ * deterministic on both server and client; the browser-only draft cache is
+ * hydrated in an effect inside the keyed form below.
+ */
+export default function CreateRewardForm(props: CreateRewardFormProps = {}) {
+  return <CreateRewardFormInner key={rewardCreateOwnerKey(props.owner)} {...props} />;
+}
+
+function CreateRewardFormInner({
+  inSheet = false,
+  onBusyChange,
+  canCreate = true,
+  owner,
+}: CreateRewardFormProps) {
   const router = useRouter();
   const { locale } = useTranslation();
   const copy = rewardCreateMessages[locale];
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [cost, setCost] = useState(50);
-  const [icon, setIcon] = useState<(typeof ICON_OPTIONS)[number]>("🎁");
+  const [icon, setIcon] = useState<(typeof ICON_OPTIONS)[number]>(
+    "🎁",
+  );
+  const [hydrated, setHydrated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uncertain, setUncertain] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const submittingRef = useRef(false);
+  const requestKeys = useRef(new Map<string, string>());
+  const confirmedRequests = useRef(new Set<string>());
+  const ownerUserId = owner?.userId;
+  const ownerFamilyId = owner?.familyId;
+  const scopedOwner = useMemo(
+    () => ownerUserId && ownerFamilyId ? { userId: ownerUserId, familyId: ownerFamilyId } : undefined,
+    [ownerUserId, ownerFamilyId],
+  );
   const directNavigation = usePendingFormNavigationController(
     loading && !inSheet,
   );
@@ -61,50 +134,121 @@ export default function CreateRewardForm({
     onBusyChange?.(loading);
   }, [loading, onBusyChange]);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  useEffect(() => {
+    // This effect is intentionally the first browser read. Rendering always
+    // starts from the same defaults as SSR, so a cached private draft cannot
+    // change the server/client HTML during hydration.
+    const draft = latestRewardCreateDraft(scopedOwner);
+    if (draft) {
+      setName(draft.name);
+      setDescription(draft.description);
+      setCost(draft.cost);
+      setIcon((draft.icon as (typeof ICON_OPTIONS)[number]) || "🎁");
+    }
+    setHydrated(true);
+  }, [scopedOwner]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    // This write is fenced behind post-mount hydration. It cannot write the
+    // previous owner's state into the new owner's scope during a key switch.
+    rememberRewardCreateDraft(scopedOwner, { name, description, cost, icon });
+  }, [hydrated, scopedOwner, name, description, cost, icon]);
+
+  const submit = async () => {
     if (!name.trim() || submittingRef.current) return;
+
+    const draft: RewardCreateDraft = {
+      name: name.trim(),
+      description: description.trim(),
+      cost,
+      icon,
+    };
+    const payload: CreatePayload = {
+      ...draft,
+      description: draft.description || undefined,
+    };
+    const signature = rewardCreateSignature(draft);
+    if (confirmedRequests.current.has(signature)) {
+      router.push("/dashboard/rewards");
+      router.refresh();
+      return;
+    }
+    const storedIntent = rewardCreateIntent(scopedOwner, signature);
+    const existingKey = requestKeys.current.get(signature) ?? storedIntent?.key;
+    const key = existingKey ?? newIdempotencyKey();
+    const remembered = rememberRewardCreateIntent(scopedOwner, signature, draft, key);
+    if (scopedOwner && !existingKey && !remembered) {
+      setUncertain(false);
+      setError(copy.capacityError);
+      return;
+    }
+    requestKeys.current.set(signature, key);
 
     submittingRef.current = true;
     setLoading(true);
     setError(null);
+    setUncertain(false);
+    setConfirmed(false);
 
     try {
       const response = await fetch("/api/rewards", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          description: description || undefined,
-          cost,
-          icon,
-        }),
+        headers: { "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: key },
+        body: JSON.stringify(payload),
       });
 
-      // Consume the response safely without displaying arbitrary server text.
-      // The API remains the authority; the UI gives a stable localized reason.
-      await response.json().catch(() => null);
+      const data = await response.json().catch(() => null);
       if (!response.ok) {
+        const ambiguous = response.status >= 500 || response.status === 409;
+        if (ambiguous) setUncertain(true);
+        else {
+          requestKeys.current.delete(signature);
+          forgetRewardCreateIntent(scopedOwner, signature);
+        }
         throw new CreateRewardFailure(
           response.status === 403 ? "permissionError" : "createError",
         );
       }
+      if (!isCreatedReward(data, payload, scopedOwner)) {
+        submittingRef.current = false;
+        setUncertain(true);
+        setError(copy.recoveryTitle);
+        return;
+      }
+      confirmedRequests.current.add(signature);
+      requestKeys.current.delete(signature);
+      forgetRewardCreateIntent(scopedOwner, signature);
+      forgetLatestRewardCreateDraft(scopedOwner, signature);
 
-      if ((await navigation?.releaseBeforeNavigation()) === false) return;
+      if ((await navigation?.releaseBeforeNavigation()) === false) {
+        // A pending-navigation guard can keep the user on this form. Allow a
+        // GET-only return to the rewards shelf after the create is confirmed.
+        submittingRef.current = false;
+        setConfirmed(true);
+        return;
+      }
       router.push("/dashboard/rewards");
       router.refresh();
     } catch (cause) {
       submittingRef.current = false;
+      const isNetwork = cause instanceof TypeError;
+      if (isNetwork) setUncertain(true);
       setError(
         cause instanceof CreateRewardFailure
           ? copy[cause.messageKey]
-          : cause instanceof TypeError
+          : isNetwork
             ? copy.networkError
             : copy.createError,
       );
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await submit();
   };
 
   if (!canCreate) {
@@ -168,15 +312,50 @@ export default function CreateRewardForm({
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5 px-4">
+        {confirmed && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-xl border border-[var(--success-tint)] bg-[var(--success-tint)]/40 p-4 text-success-text text-sm"
+          >
+            <p>{copy.confirmedTitle}</p>
+            <p className="mt-1 text-label-secondary">{copy.confirmedDescription}</p>
+            <button
+              type="button"
+              className="btn-plain mt-3 min-h-[44px]"
+              onClick={() => {
+                router.push("/dashboard/rewards");
+                router.refresh();
+              }}
+            >
+              {copy.checkRewards}
+            </button>
+          </div>
+        )}
+
         {error && (
           <div
             role="alert"
             className="rounded-xl bg-[var(--danger-tint)] border border-[var(--danger-tint)] p-4 text-danger-text text-sm"
           >
-            {error}
+            <p>{error}</p>
+            {uncertain && (
+              <>
+                <p className="mt-1">{copy.recoveryDescription}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" className="btn-plain min-h-[44px]" onClick={() => void submit()} disabled={loading}>
+                    {copy.tryAgain}
+                  </button>
+                  <button type="button" className="btn-plain min-h-[44px]" onClick={() => { router.push("/dashboard/rewards"); router.refresh(); }} disabled={loading}>
+                    {copy.checkRewards}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
+        <fieldset disabled={loading} aria-busy={loading} className="space-y-5">
         <div className="space-y-1.5">
           <label
             htmlFor="reward-name"
@@ -275,6 +454,7 @@ export default function CreateRewardForm({
             ))}
           </div>
         </div>
+        </fieldset>
 
         <div
           className={

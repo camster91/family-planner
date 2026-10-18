@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/toast";
 import { setChoreDone } from "@/lib/chore-tick-client";
 import {
-  formatRelativePastDate,
+  formatDateOnly,
   isDueToday,
   toDateOnlyLocal,
   toDateOnlyUTC,
@@ -30,6 +30,10 @@ import { groupByRoutine, normalizeRoutineName } from "@/lib/routine-icons";
 import KidRoutines from "./KidRoutines";
 import { useLocalNow } from "@/components/ui/use-hydrated";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
+import { useRewardsText } from "@/i18n/rewards";
+import { useKidHomeText } from "@/i18n/kid-home";
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import Link from "next/link";
 
 interface Chore {
   id: string;
@@ -61,6 +65,7 @@ interface Reward {
 
 interface KidHomeProps {
   user: {
+    id?: string;
     name?: string;
     role?: UserRole;
     avatar_url?: string | null;
@@ -76,13 +81,18 @@ interface KidHomeProps {
 
 // Both helpers use the viewer's zone, so they are only called after hydration
 // (useLocalNow is non-null): the server renders in UTC (O-31).
-function formatRelativeDate(dateStr: string, now: Date, locale: string): string {
+function formatRelativeDate(
+  dateStr: string,
+  now: Date,
+  locale: string,
+  labels: Readonly<{ today: string; tomorrow: string }>,
+): string {
   const date = new Date(dateStr);
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  if (date.toDateString() === now.toDateString()) return "Today";
-  if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+  if (date.toDateString() === now.toDateString()) return labels.today;
+  if (date.toDateString() === tomorrow.toDateString()) return labels.tomorrow;
   return date.toLocaleDateString(locale, { month: "short", day: "numeric" });
 }
 
@@ -97,9 +107,26 @@ const OPEN_STATUSES = new Set(["pending", "in_progress", "overdue"]);
 const isOpen = (c: Chore) => OPEN_STATUSES.has(c.status);
 
 /** "Was due yesterday" / "Was due Jan 3": a plain fact, no scolding (BRAND.md). */
-function wasDueLabel(dueDate: string, now: Date): string {
-  const label = formatRelativePastDate(dueDate, now);
-  return `Was due ${label === "Yesterday" ? "yesterday" : label}`;
+function wasDueLabel(
+  dueDate: string,
+  now: Date,
+  locale: string,
+  labels: Readonly<{
+    today: string;
+    yesterday: string;
+    wasDue: (date: string) => string;
+  }>,
+): string {
+  const day = toDateOnlyUTC(dueDate);
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const label =
+    day === toDateOnlyLocal(now)
+      ? labels.today
+      : day === toDateOnlyLocal(yesterday)
+        ? labels.yesterday
+        : formatDateOnly(dueDate, undefined, locale);
+  return labels.wasDue(label);
 }
 
 /** How long the "You did it!" celebration stays before settling into "All done". */
@@ -147,10 +174,14 @@ export default function KidHome({
   workPreviewLimited = false,
 }: KidHomeProps) {
   const displayLocale = useDisplayLocale();
+  const kidHomeText = useKidHomeText();
+  const rewardsText = useRewardsText();
+  const pointsUnit = (count: number) => rewardsText(count === 1 ? "point" : "points");
   const [celebratingReward, setCelebratingReward] = useState<string | null>(
     null,
   );
   const [claimingReward, setClaimingReward] = useState(false);
+  const rewardClaimKeys = useRef(new Map<string, string>());
   const rewardsEnabled = useFeatureEnabled("rewards");
   // Points & streaks (#248). When off the server also omits xp/level and the
   // chores' points, so this only decides what to draw.
@@ -212,7 +243,7 @@ export default function KidHome({
   const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const celebrationRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const { addToast } = useToast();
+  const { addToast, removeToast } = useToast();
   const showUndo = useUndoToast();
   // A short page can end (the Rewards card) right where the Undo card sits:
   // while one shows, reserve its height below the content and lift the end
@@ -370,38 +401,72 @@ export default function KidHome({
         .slice(0, 2)
     : [];
 
-  // The reward to offer: the one being celebrated (its cost is already spent,
-  // so it may no longer look affordable), else the first one the child can
-  // afford, else the first available one with "Need N more XP" (as on the
-  // Rewards board; the claim endpoint refuses a reward the XP cannot cover).
+  // Keep several rewards visible so children can choose what to work toward.
+  // A claimed row stays visible through its short celebration, then disappears
+  // from this bounded preview after the server refresh.
   const availableRewards = (rewards ?? []).filter(
     (r) => r.status === "available" && !claimedRewards.has(r.id),
   );
-  const claimableReward =
-    availableRewards.find((r) => r.id === celebratingReward) ??
-    availableRewards.find((r) => r.cost <= userXp) ??
-    availableRewards[0];
-  const celebratingThis =
-    !!claimableReward && celebratingReward === claimableReward.id;
-  const canClaimReward =
-    !!claimableReward && (celebratingThis || claimableReward.cost <= userXp);
+
+  const rewardClaimKey = (rewardId: string) => {
+    const existing = rewardClaimKeys.current.get(rewardId);
+    if (existing) return existing;
+    const key = newIdempotencyKey();
+    rewardClaimKeys.current.set(rewardId, key);
+    return key;
+  };
+
+  const parseClaimResult = (value: unknown, expectedRewardId: string): { rewardId: string; xp: number } | null => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const data = value as { reward?: unknown; xp?: unknown };
+    if (!data.reward || typeof data.reward !== "object" || Array.isArray(data.reward)) return null;
+    const reward = data.reward as { id?: unknown; status?: unknown; claimed_by?: unknown; family_id?: unknown };
+    if (
+      typeof reward.id !== "string" ||
+      reward.id !== expectedRewardId ||
+      reward.status !== "claimed" ||
+      typeof user.id !== "string" ||
+      typeof reward.claimed_by !== "string" ||
+      reward.claimed_by !== user.id ||
+      (reward.family_id !== undefined &&
+        (typeof reward.family_id !== "string" || reward.family_id !== user.family_id)) ||
+      typeof data.xp !== "number" ||
+      !Number.isFinite(data.xp) ||
+      data.xp < 0
+    ) return null;
+    return { rewardId: reward.id, xp: data.xp };
+  };
+
+  const rewardClaimNoticeId = (rewardId: string) =>
+    `kid-reward-claim:${user.id ?? ""}:${rewardId}`;
 
   async function handleClaimReward(rewardId: string) {
     if (claimingReward) return;
     setClaimingReward(true);
+    const key = rewardClaimKey(rewardId);
     try {
       const res = await fetch("/api/rewards/claim", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: key },
         body: JSON.stringify({ rewardId }),
       });
       if (res.ok) {
         // The claim spent XP: show the new balance now (the response carries
         // it), then drop the claimed reward and reload server data once the
         // celebration ends, so it is never offered again.
-        const data = await res.json().catch(() => ({}));
-        if (typeof data?.xp === "number")
-          setXpAfterClaim({ from: user.xp, xp: data.xp });
+        const data = parseClaimResult(await res.json().catch(() => null), rewardId);
+        if (!data) {
+          addToast({
+            id: rewardClaimNoticeId(rewardId),
+            type: "error",
+            title: rewardsText("recoveryTitle"),
+            message: rewardsText("recoveryDescription"),
+          });
+          return;
+        }
+        removeToast(rewardClaimNoticeId(rewardId));
+        rewardClaimKeys.current.delete(rewardId);
+        setXpAfterClaim({ from: user.xp, xp: data.xp });
         setCelebratingReward(rewardId);
         setTimeout(() => {
           setCelebratingReward(null);
@@ -409,19 +474,21 @@ export default function KidHome({
           router.refresh();
         }, 2000);
       } else {
-        const data = await res.json().catch(() => ({}));
+        await res.json().catch(() => null);
         addToast({
+          id: rewardClaimNoticeId(rewardId),
           type: "error",
-          title: "Couldn't claim that",
-          message: data.error || "Please try again.",
+          title: rewardsText("claimErrorTitle"),
+          message: rewardsText("claimErrorDescription"),
         });
       }
     } catch {
       // Offline or the request failed: say so instead of an unhandled rejection.
       addToast({
+        id: rewardClaimNoticeId(rewardId),
         type: "error",
-        title: "Couldn't claim that",
-        message: "Check your connection and try again.",
+        title: rewardsText("connectionErrorTitle"),
+        message: rewardsText("connectionErrorDescription"),
       });
     } finally {
       setClaimingReward(false);
@@ -458,8 +525,8 @@ export default function KidHome({
         const data = await res.json().catch(() => ({}));
         addToast({
           type: "error",
-          title: "Couldn't mark it done",
-          message: data.error || "Please try again.",
+          title: kidHomeText("markDoneError"),
+          message: data.error || kidHomeText("tryAgain"),
         });
         return;
       }
@@ -467,8 +534,8 @@ export default function KidHome({
       rollback();
       addToast({
         type: "error",
-        title: "Couldn't mark it done",
-        message: "Check your connection and try again.",
+        title: kidHomeText("markDoneError"),
+        message: kidHomeText("connectionError"),
       });
       return;
     } finally {
@@ -486,8 +553,10 @@ export default function KidHome({
     // Undo over confirm (#269): a mis-tap is one tap to reverse.
     const title = (chores ?? []).find((c) => c.id === choreId)?.title;
     showUndo({
-      title: title ? `“${title}” done` : "Done",
-      message: "A parent will check it.",
+      title: title
+        ? kidHomeText("doneToast", { title })
+        : kidHomeText("done"),
+      message: kidHomeText("parentWillCheck"),
       onUndo: async () => {
         const result = await setChoreDone(choreId, false);
         if (result.ok) {
@@ -504,7 +573,7 @@ export default function KidHome({
         } else
           addToast({
             type: "error",
-            title: "Couldn't undo",
+            title: kidHomeText("undoError"),
             message: result.message,
           });
       },
@@ -567,7 +636,9 @@ export default function KidHome({
           )}
           {!isDone && chore.verified_notes?.trim() && (
             <div className="text-footnote text-label-secondary mt-1 [overflow-wrap:anywhere]">
-              <span className="block font-semibold">Have another go</span>
+              <span className="block font-semibold">
+                {kidHomeText("haveAnotherGo")}
+              </span>
               <span className="block">{chore.verified_notes.trim()}</span>
             </div>
           )}
@@ -575,14 +646,14 @@ export default function KidHome({
             <div className="flex items-center gap-1 mt-1">
               <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
               <span className="text-footnote text-label-secondary">
-                {chore.points} points
+                {chore.points} {pointsUnit(chore.points)}
               </span>
             </div>
           )}
         </div>
         {isDone && (
           <span className="text-body text-success-text font-medium shrink-0">
-            You did it!
+            {kidHomeText("didIt")}
           </span>
         )}
       </button>
@@ -595,7 +666,9 @@ export default function KidHome({
     <div className="mx-auto max-w-4xl pb-28 md:pb-20">
       <header className="mb-5 flex items-center justify-between gap-4">
         <h1 className="min-w-0 font-display text-[30px] font-semibold leading-tight tracking-tight text-label-primary [overflow-wrap:anywhere] md:text-[40px]">
-          {`Hi, ${firstName(user?.name) ?? "there"}!`}
+          {kidHomeText("greeting", {
+            name: firstName(user?.name) ?? kidHomeText("greetingFallback"),
+          })}
         </h1>
         <Avatar name={user?.name ?? "?"} src={user?.avatar_url} size="lg" />
       </header>
@@ -603,8 +676,7 @@ export default function KidHome({
       <div ref={contentRef} className="space-y-5 md:space-y-6">
         {workPreviewLimited && (
           <p role="status" className="text-footnote text-label-secondary">
-            Showing a limited set of your chores. A parent can help you find any
-            others.
+            {kidHomeText("limitedWork")}
           </p>
         )}
 
@@ -627,7 +699,7 @@ export default function KidHome({
         {/* Today's Chores */}
         {todayChores.length > 0 && (
           <section>
-            <p className="section-header">Today&apos;s Missions</p>
+            <p className="section-header">{kidHomeText("todayMissions")}</p>
             <div className="list-inset" id="today-missions">
               {todayChores.map((chore, i) => (
                 <div
@@ -646,7 +718,9 @@ export default function KidHome({
                 onClick={() => setShowToday((show) => !show)}
                 className="min-h-[44px] px-4 text-body text-label-primary focus-visible:outline"
               >
-                {showToday ? "Show less" : `Show more (${hiddenToday})`}
+                {showToday
+                  ? kidHomeText("showLess")
+                  : kidHomeText("showMore", { count: hiddenToday })}
               </button>
             )}
           </section>
@@ -655,7 +729,7 @@ export default function KidHome({
         {/* Earlier open chores: their own small group, most recent first, tickable */}
         {earlierChores.length > 0 && (
           <section>
-            <p className="section-header">Still to do</p>
+            <p className="section-header">{kidHomeText("stillToDo")}</p>
             <div className="list-inset" id="earlier-missions">
               {earlierChores.map((chore, i) => (
                 <div
@@ -663,7 +737,14 @@ export default function KidHome({
                   className={cn(i === earlierChores.length - 1 && "border-b-0")}
                 >
                   {now &&
-                    renderMission(chore, wasDueLabel(chore.due_date, now))}
+                    renderMission(
+                      chore,
+                      wasDueLabel(chore.due_date, now, displayLocale, {
+                        today: kidHomeText("today"),
+                        yesterday: kidHomeText("yesterday"),
+                        wasDue: (date) => kidHomeText("wasDue", { date }),
+                      }),
+                    )}
                 </div>
               ))}
             </div>
@@ -675,7 +756,9 @@ export default function KidHome({
                 onClick={() => setShowEarlier((show) => !show)}
                 className="min-h-[44px] px-4 text-body text-label-primary focus-visible:outline"
               >
-                {showEarlier ? "Show less" : `Show more (${hiddenEarlier})`}
+                {showEarlier
+                  ? kidHomeText("showLess")
+                  : kidHomeText("showMore", { count: hiddenEarlier })}
               </button>
             )}
           </section>
@@ -685,10 +768,10 @@ export default function KidHome({
         {catchupChores.length > 0 && (
           <section aria-labelledby="routine-catchup-heading">
             <h2 id="routine-catchup-heading" className="section-header">
-              Routine catch-up
+              {kidHomeText("routineCatchup")}
             </h2>
             <p className="text-footnote text-label-secondary mb-2">
-              Earlier steps to finish when you can.
+              {kidHomeText("catchupDescription")}
             </p>
             <div className="list-inset" id="routine-catchup-work">
               {catchupChores.map((chore) => (
@@ -696,7 +779,16 @@ export default function KidHome({
                   {now &&
                     renderMission(
                       chore,
-                      `${chore.routine?.trim()} · ${wasDueLabel(chore.due_date, now)}`,
+                      `${chore.routine?.trim()} · ${wasDueLabel(
+                        chore.due_date,
+                        now,
+                        displayLocale,
+                        {
+                          today: kidHomeText("today"),
+                          yesterday: kidHomeText("yesterday"),
+                          wasDue: (date) => kidHomeText("wasDue", { date }),
+                        },
+                      )}`,
                     )}
                 </div>
               ))}
@@ -710,8 +802,8 @@ export default function KidHome({
                 className="min-h-[44px] px-4 text-body text-label-primary focus-visible:outline"
               >
                 {showCatchup
-                  ? "Show less"
-                  : `Show more (${hiddenCatchup})`}
+                  ? kidHomeText("showLess")
+                  : kidHomeText("showMore", { count: hiddenCatchup })}
               </button>
             )}
           </section>
@@ -720,7 +812,7 @@ export default function KidHome({
         {/* Before hydration the local day is unknown: hold the missions' place. */}
         {!now && (
           <section
-            aria-label="Today's chores"
+            aria-label={kidHomeText("todayChores")}
             aria-busy="true"
             data-testid="kid-home-pending"
           >
@@ -741,7 +833,7 @@ export default function KidHome({
             <button
               type="button"
               onClick={() => setCelebration("settled")}
-              aria-label="Close"
+              aria-label={kidHomeText("close")}
               className="absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-full text-label-tertiary hover:text-label-secondary"
             >
               <X className="h-5 w-5" aria-hidden="true" />
@@ -752,10 +844,10 @@ export default function KidHome({
               className="mx-auto mb-3 h-auto w-[192px] rounded-[var(--radius-lg)] md:w-[224px]"
             />
             <p className="text-title-2 font-semibold text-label-primary">
-              You did it!
+              {kidHomeText("didIt")}
             </p>
             <p className="text-body text-label-secondary mt-1">
-              All done for today.
+              {kidHomeText("allDoneToday")}
             </p>
           </div>
         )}
@@ -770,10 +862,10 @@ export default function KidHome({
               className="mx-auto mb-3 h-auto w-[160px] rounded-[var(--radius-lg)] md:w-[192px]"
             />
             <p className="text-title-3 text-label-primary">
-              All done for today!
+              {kidHomeText("allDoneForToday")}
             </p>
             <p className="text-subhead text-label-secondary mt-1">
-              Enjoy your day, superstar!
+              {kidHomeText("enjoyDay")}
             </p>
           </div>
         )}
@@ -793,19 +885,19 @@ export default function KidHome({
                 // Not "all done" while older chores are still waiting above.
                 <>
                   <p className="text-title-3 text-label-primary">
-                    Nothing new today!
+                    {kidHomeText("nothingNewToday")}
                   </p>
                   <p className="text-subhead text-label-secondary mt-1">
-                    Finish the ones above when you can.
+                    {kidHomeText("finishAbove")}
                   </p>
                 </>
               ) : (
                 <>
                   <p className="text-title-3 text-label-primary">
-                    All done for today!
+                    {kidHomeText("allDoneForToday")}
                   </p>
                   <p className="text-subhead text-label-secondary mt-1">
-                    Enjoy your day, superstar!
+                    {kidHomeText("enjoyDay")}
                   </p>
                 </>
               )}
@@ -830,10 +922,10 @@ export default function KidHome({
             </ProgressRing>
             <div className="flex-1 min-w-0">
               <p className="text-title-3 text-label-primary leading-tight font-semibold">
-                Level {userLevel}
+                {kidHomeText("level", { level: userLevel })}
               </p>
               <p className="text-subhead text-label-secondary mt-1">
-                {xpNextLevel - userXp} points to go!
+                {kidHomeText("pointsToGo", { count: xpNextLevel - userXp })}
               </p>
               <div className="mt-3 flex items-center gap-1.5">
                 {[...Array(Math.min(userLevel, 5))].map((_, i) => (
@@ -844,7 +936,7 @@ export default function KidHome({
                 ))}
                 {userLevel > 5 && (
                   <span className="text-footnote text-label-tertiary">
-                    +{userLevel - 5} more
+                    {kidHomeText("more", { count: userLevel - 5 })}
                   </span>
                 )}
               </div>
@@ -855,7 +947,7 @@ export default function KidHome({
         {/* Tomorrow: a read-only peek, so "All done for today!" can be true */}
         {tomorrowChores.length > 0 && (
           <section>
-            <p className="section-header">Tomorrow</p>
+            <p className="section-header">{kidHomeText("tomorrow")}</p>
             <ul className="list-inset">
               {tomorrowChores.map((chore, i) => (
                 <li
@@ -875,7 +967,7 @@ export default function KidHome({
         {/* Coming up — events */}
         {todayEvents.length > 0 && (
           <section>
-            <p className="section-header">Coming up</p>
+            <p className="section-header">{kidHomeText("comingUp")}</p>
             <div className="list-inset">
               {todayEvents.map((event, i) => (
                 <ListRow
@@ -891,7 +983,11 @@ export default function KidHome({
                   showChevron={false}
                   trailing={
                     <span className="text-footnote text-label-tertiary">
-                      {now && formatRelativeDate(event.start_time, now, displayLocale)}
+                      {now &&
+                        formatRelativeDate(event.start_time, now, displayLocale, {
+                          today: kidHomeText("today"),
+                          tomorrow: kidHomeText("tomorrow"),
+                        })}
                     </span>
                   }
                   className={cn(i === todayEvents.length - 1 && "border-b-0")}
@@ -901,70 +997,38 @@ export default function KidHome({
           </section>
         )}
 
-        {/* Rewards card — claim most recent available reward (hidden when the
-            rewards feature is off; the claim endpoint 403s in that case) */}
-        {rewardsEnabled && claimableReward && (
-          <section>
-            <p className="section-header">Rewards</p>
-            <div className="card-apple p-4">
-              <div className="flex items-center gap-3">
-                <div
-                  className={cn(
-                    "w-12 h-12 rounded-full bg-tint-rewards flex items-center justify-center shrink-0 transition-transform duration-300",
-                    celebratingReward === claimableReward.id && "scale-125",
-                  )}
-                >
-                  <Gift className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-body text-label-primary font-medium truncate">
-                    {claimableReward.name}
-                  </p>
-                  {claimableReward.description && (
-                    <p className="text-footnote text-label-secondary truncate mt-0.5">
-                      {claimableReward.description}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-1 mt-1">
-                    <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
-                    <span className="text-footnote text-label-secondary">
-                      {claimableReward.cost} points
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleClaimReward(claimableReward.id)}
-                  disabled={
-                    claimingReward || celebratingThis || !canClaimReward
-                  }
-                  className={cn(
-                    "btn-primary min-h-[44px] px-4 py-2 text-body shrink-0 transition-all duration-200",
-                    celebratingThis
-                      ? "bg-success animate-check-pop"
-                      : !canClaimReward
-                        ? "bg-muted text-label-tertiary cursor-not-allowed"
-                        : claimingReward
-                          ? "opacity-50"
-                          : "",
-                  )}
-                >
-                  {celebratingThis
-                    ? "🎉 Claimed!"
-                    : canClaimReward
-                      ? "Claim"
-                      : `Need ${claimableReward.cost - userXp} more points`}
-                </button>
+        {/* Rewards shelf — several choices stay visible so a child can choose
+            a reachable reward or see what they are working toward. */}
+        {rewardsEnabled && availableRewards.length > 0 && (
+          <section aria-labelledby="kid-rewards-heading">
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <p id="kid-rewards-heading" className="section-header">{rewardsText("claimable")}</p>
+                <p className="text-footnote text-label-secondary">{rewardsText("claimableHint")}</p>
               </div>
-              {celebratingReward === claimableReward.id && (
-                <div className="mt-3 flex items-center justify-center gap-1 animate-spring-up">
-                  <span className="text-xl">🎉</span>
-                  <span className="text-title-3 text-success-text font-semibold">
-                    You got it!
-                  </span>
-                  <span className="text-xl">🎉</span>
-                </div>
-              )}
+              <Link href="/dashboard/rewards" className="min-h-[44px] inline-flex items-center text-footnote text-rewards">{rewardsText("allFamily")}</Link>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {availableRewards.map((reward) => {
+                const celebratingThis = celebratingReward === reward.id;
+                const canClaim = celebratingThis || reward.cost <= userXp;
+                return <article key={reward.id} className="card-apple p-4 min-w-0">
+                  <div className="flex items-center gap-3">
+                    <div className={cn("w-12 h-12 rounded-full bg-tint-rewards flex items-center justify-center shrink-0 transition-transform duration-300", celebratingThis && "scale-125")}>
+                      <Gift className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-body text-label-primary font-medium [overflow-wrap:anywhere]">{reward.name}</p>
+                      {reward.description && <p className="text-footnote text-label-secondary [overflow-wrap:anywhere] mt-0.5">{reward.description}</p>}
+                      <div className="flex items-center gap-1 mt-1"><Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" /><span className="text-footnote text-label-secondary">{reward.cost} {pointsUnit(reward.cost)}</span></div>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => handleClaimReward(reward.id)} disabled={claimingReward || celebratingThis || !canClaim} className={cn("btn-primary mt-3 w-full min-h-[44px] px-4 py-2 text-body transition-all duration-200", celebratingThis ? "bg-success animate-check-pop" : !canClaim ? "bg-muted text-label-tertiary cursor-not-allowed" : claimingReward ? "opacity-50" : "")}>
+                    {celebratingThis ? rewardsText("claimedCelebration") : canClaim ? rewardsText("claim") : rewardsText("needMore", { points: reward.cost - userXp, unit: pointsUnit(reward.cost - userXp) })}
+                  </button>
+                  {celebratingThis && <div className="mt-3 flex items-center justify-center gap-1 animate-spring-up"><span className="text-xl">🎉</span><span className="text-title-3 text-success-text font-semibold">{rewardsText("gotIt")}</span><span className="text-xl">🎉</span></div>}
+                </article>
+              })}
             </div>
           </section>
         )}

@@ -230,7 +230,7 @@ function seed(): Tables {
     })),
     reward: perFamily((f, family_id, tag) => ({
       id: `reward-${f}`, family_id, name: `${tag} ice cream`, description: null, cost: 10,
-      icon: 'gift', status: 'available', created_by: `parent-${f}`, claimed_by: null,
+      icon: 'gift', status: 'available', is_active: true, created_by: `parent-${f}`, claimed_by: null,
       claimed_at: null, approved: false, created_at: T0,
     })),
     wishlistItem: perFamily((f, family_id, tag) => ({

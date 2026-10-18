@@ -18,7 +18,14 @@ const newTxn = { amount: 10, type: "expense", description: "milk" };
 const newCat = { name: "Fuel", type: "expense" };
 
 describe("budget — two households, parent only", () => {
-  beforeEach(() => db.reset());
+  beforeEach(() => {
+    db.reset();
+    // Budget mutations repeat the production effective-feature check inside
+    // their transaction; keep this fixture explicit instead of relying on a
+    // null feature blob or a mocked outer gate.
+    db.find("family", "family-A")!.features = { budget: true };
+    db.find("family", "family-B")!.features = { budget: true };
+  });
 
   it("returns 401 to an unauthenticated caller on every handler", async () => {
     const statuses = [

@@ -176,6 +176,7 @@ jobs:
         run: >-
           npx jest --ci --runInBand --no-watchman --forceExit
           src/app/api/anniversaries/__tests__/route.integration.test.ts
+          src/app/api/budget/__tests__/transactions.integration.test.ts
           src/app/api/calendar/import-suggestions/__tests__/commit.integration.test.ts
           src/app/api/capture/receipt/__tests__/route.integration.test.ts
           src/app/api/capture/__tests__/grocery-receipt.integration.test.ts
@@ -190,6 +191,7 @@ jobs:
           src/app/api/lists/__tests__/from-recipe.integration.test.ts
           src/app/api/lists/__tests__/sections.integration.test.ts
           src/app/api/locations/__tests__/route.integration.test.ts
+          src/app/api/projects/__tests__/route.integration.test.ts
           src/app/api/recipes/__tests__/recipes.integration.test.ts
           src/app/api/search/__tests__/search.integration.test.ts
           src/app/api/users/__tests__/preferences.integration.test.ts
@@ -209,6 +211,7 @@ jobs:
           src/lib/__tests__/membership-write-races.integration.test.ts
           src/lib/__tests__/person-allowance-create.integration.test.ts
           src/lib/__tests__/recurring-series.integration.test.ts
+          src/lib/__tests__/reward-mutations.integration.test.ts
           src/lib/__tests__/routine-stack.integration.test.ts
           src/lib/__tests__/routine-stack-migration-guards.integration.test.ts
           src/lib/__tests__/profile-chore.integration.test.ts

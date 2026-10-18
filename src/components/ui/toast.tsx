@@ -25,8 +25,11 @@ interface Toast {
 /** How long an Undo toast stays up. The timer pauses while it is hovered or focused. */
 export const UNDO_TOAST_MS = 8000
 
+type ToastInput = Omit<Toast, 'id'> & { id?: string }
+
 interface ToastContextType {
-  addToast: (toast: Omit<Toast, 'id'>) => void
+  /** A stable id replaces only that notice and can be dismissed when its action resolves. */
+  addToast: (toast: ToastInput) => void
   removeToast: (id: string) => void
 }
 
@@ -154,12 +157,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts(prev => prev.filter(t => t.id !== id))
   }, [])
 
-  const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
-    const id = Math.random().toString(36).slice(2)
+  const addToast = useCallback((toast: ToastInput) => {
+    const id = toast.id || Math.random().toString(36).slice(2)
     // One Undo at a time (O-42): a new Undo replaces the one showing, so quick
     // ticks never stack cards over the list. The earlier action stays done;
     // only its chance to undo from the toast ends.
-    setToasts(prev => [...(toast.type === 'undo' ? prev.filter(t => t.type !== 'undo') : prev), { ...toast, id }])
+    setToasts(prev => [...prev.filter(t => t.id !== id && (toast.type !== 'undo' || t.type !== 'undo')), { ...toast, id }])
   }, [])
 
   return (

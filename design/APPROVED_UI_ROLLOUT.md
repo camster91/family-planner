@@ -54,13 +54,13 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Meals | Week plan, recipes, several-dish prep, eaten/remaining/next prep | Local shared Plan/Explore/Prep navigation candidate; existing canonical meal/prep behavior retained, incorporated #574 hosted candidate checks pass; wider visual/journey acceptance pending |
 | Inventory | Use soon, honest capture review, quantities and locations | Local full-width overview and shared location shortcuts; 121 affected units, exact build and six-size browser 95 passes/10 inherited scope skips; incorporated #574 hosted candidate checks pass; capture-review/wider acceptance pending |
 | Notes | Short shared notes and clear visibility | Local shared board/read-only detail and canonical color/recovery alignment: 42 affected tests, 78 browser passes/15 inherited scope skips; Family/Notes #576 candidate hosted acceptance passed and main `768e4170` is merged and production verified; wider acceptance pending |
-| Anniversaries | Upcoming dates without duplicate noise | Chronological overview, short permission-aware sheets and recoverable writes: exact application0ed841aa passes89 browser cases/10 declared scopes,103 affected units and9 PostgreSQL cases; f142 test-only Notes/Capture repairs pass42/15 declared scopes; combined candidate/source review clear, combined hosted/release and wider acceptance pending |
-| Gamification | Optional quiet progress, meaningful dependencies | Parent Progress overview adapted locally with optional points/streak presentation; child/teen home and persisted quiet-mode acceptance remain pending |
-| Rewards | Clear costs and role-appropriate actions | Existing behavior retained; approved layout review pending |
-| Budget | Private summaries and contextual details | Existing behavior retained; approved layout review pending |
+| Anniversaries | Upcoming dates without duplicate noise | Chronological overview, short permission-aware sheets and recoverable writes: exact application0ed841aa passes89 browser cases/10 declared scopes,103 affected units and9 PostgreSQL cases; f142 test-only Notes/Capture repairs pass42/15 declared scopes; combined #580 hosted and exact-main QA pass; serving main5cf9720b verified; wider acceptance pending |
+| Gamification | Optional quiet progress, meaningful dependencies | Parent Progress overview adapted locally; child home/routine EN/ES source19ed and resolved-claim notice follow-up pass92 affected checks, with24 new six-size browser cases prepared; final rendered/hosted and persisted quiet-mode acceptance remain pending |
+| Rewards | Clear costs and role-appropriate actions | Canonical receipt/authority and localized role-aware create/claim/approval presentation source-reviewed; appc2c95b60 build and six-size ENES matrix116PASS25declaredscopes0retry,132 captures and303 affected cases pass; API6 PostgreSQL cases pass; independent visual review is conditional on inactive-claim and Spanish recovery/singular fixes; broader child supporting-copy localization and combined hosted/release acceptance remain pending |
+| Budget | Private summaries and contextual details | Canonical transaction receipts, category detail, localized parent controls and confirmed-write/GET-only recovery are source-reviewed;144 affected cases and7 PostgreSQL cases pass; full local5833PASS403opt-ins3retained Macbackupfailures; actual rendered/combined release acceptance pending |
 | Projects | Next steps, owner and detail context | Existing behavior retained; approved layout review pending |
 | Messages | Private conversation linked to work | Existing behavior retained; approved layout review pending |
-| Analytics | Useful private trends, dependency-aware | Parent Progress55f417bd uses canonical API and localized strict-response recovery; 102 UI/localization and29 API/isolation/gamification cases pass, exact build and51 browser/startup-budget checks plus final phone visual review pass; combined hosted/release and broader acceptance pending |
+| Analytics | Useful private trends, dependency-aware | Parent Progress55f417bd uses canonical API and localized strict-response recovery; 102 UI/localization and29 API/isolation/gamification cases pass, exact build and51 browser/startup-budget checks plus final phone visual review pass; combined #580 hosted and exact-main QA pass; serving main5cf9720b verified; broader acceptance pending |
 | Wishlist | Capture and compare family ideas | Existing behavior retained; approved layout review pending |
 | Emergency | Fast authorized access, private medical/contact fields | Existing behavior retained; approved layout review pending |
 | Locations | Saved places with private addresses protected | Existing behavior retained; approved layout review pending |
@@ -477,3 +477,14 @@ remain pending. Per-feature wider acceptance and all unadapted rows above stay
 open. No constellation of narrow passing checks completes the full22-feature
 programme. Saved screenshots and runtime proofs are in the existing task's
 `work/ui-plan-approved-2026-10-17/` evidence directories.
+
+## Combined release follow-through — 2026-10-18
+
+The combined Dates, Progress and saved-work slice is merged in #580 and serves
+main `5cf9720b`, exactly the reviewed `b342ee24` tree. All original candidate
+gates passed, protected restore verified 71 public tables, automatic Coolify
+deployment560 finished, and exact serving image/revision/health/startup
+migrations were verified. Main Android passes; exact-main Build/E2E are still
+running at this checkpoint. See `docs/CURRENT_STATE.md` and the live PR record.
+No earlier broader-pending row is thereby marked fully accepted. Rewards and
+Budget remain separate subsequent local work; all22feature acceptance stays open.

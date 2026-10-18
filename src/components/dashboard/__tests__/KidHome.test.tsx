@@ -6,12 +6,14 @@
 // earlier open chores sit in their own small group, tomorrow's are a read-only
 // peek, and a reward claim updates the XP ring and is not offered again.
 import * as React from "react";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import KidHome from "../KidHome";
 import { ToastProvider } from "@/components/ui/toast";
 import { FeaturesProvider } from "@/components/providers/features-provider";
 import { defaultFeatures } from "@/lib/features";
+import { isValidIdempotencyKey } from "@/lib/idempotency-key";
+import { I18nProvider } from "@/i18n";
 
 const refresh = jest.fn();
 jest.mock("next/navigation", () => ({
@@ -21,6 +23,7 @@ jest.mock("next/navigation", () => ({
 type Reply = { status: number; body?: unknown };
 let replies: Record<string, Reply[]> = {};
 let calls: string[] = [];
+let requestInits: RequestInit[] = [];
 
 // jsdom has no media playback; keep the real chore UI and mock only that platform gap.
 beforeAll(() => {
@@ -36,10 +39,12 @@ beforeEach(() => {
     .setSystemTime(new Date(2026, 9, 6, 12));
   replies = {};
   calls = [];
+  requestInits = [];
   refresh.mockClear();
-  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push(url);
+    requestInits.push(init ?? {});
     const next = replies[url]?.shift() ?? {
       status: 200,
       body: { success: true },
@@ -66,6 +71,7 @@ type C = {
   title: string;
   status?: string;
   due_date: string;
+  points?: number;
 };
 const chore = (c: C) => ({
   status: "pending",
@@ -78,28 +84,131 @@ const chore = (c: C) => ({
 function renderHome(
   chores: C[],
   extra: Partial<React.ComponentProps<typeof KidHome>> = {},
+  locale: "en" | "es" = "en",
 ) {
+  const { user: extraUser, ...rest } = extra;
   return render(
-    <FeaturesProvider
-      initial={{ ...defaultFeatures(), gamification: true, rewards: true }}
-    >
-      <ToastProvider>
-        <KidHome
-          user={{ name: "Casey", role: "child" }}
-          chores={chores.map(chore)}
-          events={[]}
-          rewards={[]}
-          {...extra}
-        />
-      </ToastProvider>
-    </FeaturesProvider>,
+    <I18nProvider locale={locale}>
+      <FeaturesProvider
+        initial={{ ...defaultFeatures(), gamification: true, rewards: true }}
+      >
+        <ToastProvider>
+          <KidHome
+            user={{
+              id: "kid-1",
+              family_id: "family-1",
+              name: "Casey",
+              role: "child",
+              ...extraUser,
+            }}
+            chores={chores.map(chore)}
+            events={[]}
+            rewards={[]}
+            {...rest}
+          />
+        </ToastProvider>
+      </FeaturesProvider>
+    </I18nProvider>,
   );
 }
 
 const section = (heading: string) =>
   screen.getByText(heading).closest("section") as HTMLElement;
 
+const claimedReward = (id: string, xp: number, extra: Record<string, unknown> = {}) => ({
+  reward: {
+    id,
+    status: "claimed",
+    claimed_by: "kid-1",
+    family_id: "family-1",
+    ...extra,
+  },
+  xp,
+});
+
 describe("KidHome missions by due day", () => {
+  it("localizes child supporting copy while preserving household content", () => {
+    renderHome(
+      [
+        { id: "today", title: "Tidy bedroom", due_date: day(0) },
+        { id: "yesterday", title: "Water plants", due_date: day(-1) },
+      ],
+      {
+        workPreviewLimited: true,
+        events: [
+          {
+            id: "library",
+            title: "Library",
+            start_time: new Date(2026, 9, 6, 15, 0).toISOString(),
+            location: "Town",
+          },
+        ],
+      },
+      "es",
+    );
+
+    expect(screen.getByRole("heading", { name: "¡Hola, Casey!" })).toBeTruthy();
+    expect(screen.getByText(/Se muestra una parte de tus tareas/)).toBeTruthy();
+    expect(screen.getByText("Misiones de hoy")).toBeTruthy();
+    expect(screen.getByText("Pendientes")).toBeTruthy();
+    expect(screen.getByText("Era para ayer")).toBeTruthy();
+    expect(screen.getByText("Próximamente")).toBeTruthy();
+    expect(screen.getByText("Nivel 1")).toBeTruthy();
+    expect(screen.getByText("Tidy bedroom")).toBeTruthy();
+    expect(screen.getByText("Water plants")).toBeTruthy();
+    expect(screen.getByText("Library")).toBeTruthy();
+    expect(screen.queryByText("Today's Missions")).toBeNull();
+    expect(screen.queryByText("Still to do")).toBeNull();
+    expect(screen.queryByText("Coming up")).toBeNull();
+  });
+
+  it("localizes chore error fallbacks without changing a server reason", async () => {
+    replies["/api/chores/complete"] = [
+      { status: 500, body: { error: "server reason" } },
+    ];
+    renderHome([{ id: "today", title: "Tidy bedroom", due_date: day(0) }], {}, "es");
+
+    await userEvent.click(screen.getByRole("button", { name: /Tidy bedroom/ }));
+    expect(await screen.findByText("No se pudo marcar como hecha")).toBeTruthy();
+    expect(screen.getByText("server reason")).toBeTruthy();
+  });
+
+  it("localizes the completion recovery action", async () => {
+    renderHome(
+      [{ id: "today", title: "Tidy bedroom", due_date: day(0) }],
+      {},
+      "es",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Tidy bedroom/ }));
+    expect(await screen.findByRole("button", { name: "Deshacer" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  });
+
+  it("localizes mission disclosure controls and empty state", async () => {
+    renderHome(
+      Array.from({ length: 5 }, (_, i) => ({
+        id: `es-${i}`,
+        title: `Tarea ${i + 1}`,
+        due_date: day(0),
+      })),
+      {},
+      "es",
+    );
+
+    const more = screen.getByRole("button", { name: "Mostrar más (2)" });
+    await userEvent.click(more);
+    expect(screen.getByRole("button", { name: "Mostrar menos" })).toBeTruthy();
+
+    // The empty state is a separate render so the disclosure remains a real
+    // interaction assertion rather than a combined fixture with two homes.
+    cleanup();
+    renderHome([], {}, "es");
+    expect(screen.getByText("¡Todo listo por hoy!")).toBeTruthy();
+    expect(screen.getByText("¡Disfruta tu día, campeón!")).toBeTruthy();
+    expect(screen.queryByText("All done for today!")).toBeNull();
+  });
+
   it("discloses a capped own-work preview rather than claiming everything is done", () => {
     renderHome([], { workPreviewLimited: true });
     expect(
@@ -268,7 +377,7 @@ describe("KidHome reward claim", () => {
 
   it("updates the XP ring from the response, then drops the reward and refreshes", async () => {
     replies["/api/rewards/claim"] = [
-      { status: 200, body: { reward: { id: "r1" }, xp: 30 } },
+      { status: 200, body: claimedReward("r1", 30) },
     ];
     renderHome([], {
       user: { name: "Casey", role: "child", xp: 80, level: 1 },
@@ -279,7 +388,7 @@ describe("KidHome reward claim", () => {
     });
     expect(screen.getByText("80")).toBeTruthy();
 
-    await userEvent.click(screen.getByRole("button", { name: "Claim" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "Claim" })[0]);
     expect(await screen.findByText("You got it!")).toBeTruthy();
     expect(screen.getByText("30")).toBeTruthy();
     expect(screen.getByText("70 points to go!")).toBeTruthy();
@@ -293,6 +402,20 @@ describe("KidHome reward claim", () => {
     expect(screen.getByText("30")).toBeTruthy();
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(calls.filter((u) => u === "/api/rewards/claim")).toHaveLength(1);
+    expect(isValidIdempotencyKey((requestInits.find((init) => init.method === "POST" && String(init.body).includes("r1"))?.headers as Record<string, string>)["Idempotency-Key"])).toBe(true);
+  });
+
+  it("uses localized celebration copy", async () => {
+    replies["/api/rewards/claim"] = [
+      { status: 200, body: claimedReward("r1", 30) },
+    ];
+    renderHome([], {
+      user: { name: "Casey", role: "child", xp: 80, level: 1 },
+      rewards: [{ id: "r1", name: "Noche de cine", cost: 50, status: "available" }],
+    }, "es");
+    await userEvent.click(screen.getByRole("button", { name: "Reclamar" }));
+    expect(await screen.findByText("🎉 ¡Reclamada!")).toBeTruthy();
+    expect(screen.getByText("¡Lo lograste!")).toBeTruthy();
   });
 
   it("keeps the reward and balance when the claim fails", async () => {
@@ -306,17 +429,75 @@ describe("KidHome reward claim", () => {
       ],
     });
     await userEvent.click(screen.getByRole("button", { name: "Claim" }));
-    expect(
-      await screen.findByText("Reward is no longer available"),
-    ).toBeTruthy();
+    expect(await screen.findByText("We could not confirm that reward. Try again.")).toBeTruthy();
+    expect(screen.queryByText("Reward is no longer available")).toBeNull();
     expect(screen.getByText("80")).toBeTruthy();
     expect(screen.getByText("Movie night")).toBeTruthy();
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it("keeps a reward visible when a successful claim has an invalid envelope", async () => {
+    replies["/api/rewards/claim"] = [
+      { status: 200, body: { reward: { id: "r1" }, xp: 30 } },
+    ];
+    renderHome([], {
+      user: { name: "Casey", role: "child", xp: 80, level: 1 },
+      rewards: [{ id: "r1", name: "Movie night", cost: 50, status: "available" }],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Claim" }));
+    expect(await screen.findByText("The connection dropped before we could confirm.")).toBeTruthy();
+    expect(screen.getByText("Movie night")).toBeTruthy();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["missing claimant", { claimed_by: undefined }],
+    ["null claimant", { claimed_by: null }],
+    ["wrong claimant", { claimed_by: "another-kid" }],
+    ["wrong household", { family_id: "another-family" }],
+  ] as const)("keeps a reward visible when the claim response has a %s", async (_label, identity) => {
+    replies["/api/rewards/claim"] = [
+      { status: 200, body: claimedReward("r1", 30, identity) },
+    ];
+    renderHome([], {
+      user: { name: "Casey", role: "child", xp: 80, level: 1 },
+      rewards: [{ id: "r1", name: "Movie night", cost: 50, status: "available" }],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Claim" }));
+    expect(await screen.findByText("The connection dropped before we could confirm.")).toBeTruthy();
+    expect(screen.getByText("Movie night")).toBeTruthy();
+    expect(screen.queryByText("You got it!")).toBeNull();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it.each(["en", "es"] as const)("clears the reward recovery notice after a confirmed %s retry", async (locale) => {
+    replies["/api/rewards/claim"] = [
+      { status: 200, body: { reward: { id: "r1" }, xp: 30 } },
+      { status: 200, body: claimedReward("r1", 30) },
+    ];
+    renderHome([], {
+      user: { name: "Casey", role: "child", xp: 80, level: 1 },
+      rewards: [{ id: "r1", name: "Movie night", cost: 50, status: "available" }],
+    }, locale);
+    const claim = locale === "es" ? "Reclamar" : "Claim";
+    const recovery = locale === "es"
+      ? "La conexión se interrumpió antes de confirmar."
+      : "The connection dropped before we could confirm.";
+    await userEvent.click(screen.getByRole("button", { name: claim }));
+    expect(await screen.findByText(recovery)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: claim }));
+    expect(await screen.findByText(locale === "es" ? "¡Lo lograste!" : "You got it!")).toBeTruthy();
+    expect(screen.queryByText(recovery)).toBeNull();
+    const keys = requestInits.filter((_init, i) => calls[i] === "/api/rewards/claim")
+      .map((init) => (init.headers as Record<string, string>)["Idempotency-Key"]);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[1]).toBe(keys[0]);
+  });
+
   it("offers an affordable reward before one the XP cannot cover", async () => {
     replies["/api/rewards/claim"] = [
-      { status: 200, body: { reward: { id: "r2" }, xp: 10 } },
+      { status: 200, body: claimedReward("r2", 10) },
     ];
     renderHome([], {
       user: { name: "Casey", role: "child", xp: 30, level: 1 },
@@ -325,7 +506,7 @@ describe("KidHome reward claim", () => {
         { id: "r2", name: "Sticker", cost: 20, status: "available" },
       ],
     });
-    expect(screen.queryByText("Movie night")).toBeNull();
+    expect(screen.getByText("Movie night")).toBeTruthy();
     expect(screen.getByText("Sticker")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Claim" }));
     expect(await screen.findByText("You got it!")).toBeTruthy();
@@ -350,5 +531,31 @@ describe("KidHome reward claim", () => {
     expect(button.className).toMatch(/min-h-\[44px\]/);
     await userEvent.click(button);
     expect(calls).not.toContain("/api/rewards/claim");
+  });
+
+  it('uses singular Spanish point units across a chore and the reward shelf', () => {
+    renderHome(
+      [{ id: "small-chore", title: "Put away one book", due_date: day(0), points: 1 }],
+      {
+        user: { name: "Casey", role: "child", xp: 49, level: 1 },
+        rewards: [{ id: "r1", name: "Sticker", cost: 1, status: "available" }],
+      },
+      "es",
+    );
+    expect(screen.getAllByText("1 punto").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('localizes one missing point in the child reward action without leaving a token', () => {
+    renderHome(
+      [],
+      {
+        user: { name: "Casey", role: "child", xp: 49, level: 1 },
+        rewards: [{ id: "r1", name: "Movie night", cost: 50, status: "available" }],
+      },
+      "es",
+    );
+    const button = screen.getByRole("button", { name: "Necesitas 1 punto más" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(screen.queryByText("{unit}")).toBeNull();
   });
 });

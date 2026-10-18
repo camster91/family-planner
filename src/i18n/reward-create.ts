@@ -23,8 +23,15 @@ export const rewardCreateEnglish = {
     "We couldn't create that reward. Check the details and try again.",
   networkError: "Check your connection and try again.",
   permissionError: "Only a parent can create rewards.",
+  confirmedTitle: "Reward created.",
+  confirmedDescription: "The reward is ready in your family rewards list.",
   draftDescription: "Close to return. Unsaved changes will be cleared.",
   pendingDescription: "Please wait for saving to finish.",
+  recoveryTitle: "The reward may have been saved, but we couldn't confirm it.",
+  recoveryDescription: "Your draft is still here. Retry safely or check the rewards list.",
+  capacityError: "There are too many unfinished reward saves on this device. Check rewards or sign out before trying again.",
+  tryAgain: "Try again",
+  checkRewards: "Check rewards",
 } as const;
 
 export type RewardCreateMessage = keyof typeof rewardCreateEnglish;
@@ -54,8 +61,15 @@ export const rewardCreateSpanish: Record<RewardCreateMessage, string> = {
     "No se pudo crear la recompensa. Revisa los datos e inténtalo de nuevo.",
   networkError: "Revisa tu conexión e inténtalo de nuevo.",
   permissionError: "Solo un padre o madre puede crear recompensas.",
+  confirmedTitle: "Recompensa creada.",
+  confirmedDescription: "La recompensa está lista en la lista familiar.",
   draftDescription: "Cierra para volver. Los cambios sin guardar se borrarán.",
   pendingDescription: "Espera a que termine de guardarse.",
+  recoveryTitle: "Es posible que la recompensa se haya guardado, pero no pudimos confirmarlo.",
+  recoveryDescription: "Tu borrador sigue aquí. Reintenta de forma segura o revisa la lista.",
+  capacityError: "Hay demasiados guardados de recompensas sin terminar en este dispositivo. Revisa Recompensas o cierra sesión antes de intentarlo de nuevo.",
+  tryAgain: "Intentar de nuevo",
+  checkRewards: "Revisar recompensas",
 };
 
 export const rewardCreateMessages: Record<

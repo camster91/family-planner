@@ -1,5 +1,189 @@
 # Current State
 
+## Combined web review repairs — 2026-10-18
+
+Production remains PR580 at `5cf9720bd3ca38862bc54c7094ac90f87a3892d8`.
+PR581's `d9c3b85d` passed all original hosted checks, but normal merge was
+refused because three required review conversations remained unresolved. No
+policy override was used. The new local integration includes Projects
+`e4d93c54` unchanged, canonical Budget optional-text normalization `6eae6e03`,
+and bounded recent-transaction reconciliation `7c4548a8`. Independent source
+review of both Budget fixes is clear; all42 affected mounted cases pass together.
+The owner-scoped durable Rewards intent repair `d256efa1` includes explicit
+capacity refusal before dispatch and is independently reviewed clear. All65
+focused Rewards-create, durable-intent and Budget mounted cases pass together.
+Existing browser journeys now cover real API text normalization, a backdated
+save outside the ten-row recent window, and lost-response/reload/same-key reward
+recovery; their new rendered run remains pending.
+
+These are local implementation checkpoints, not a new release. The combined
+candidate still needs completed review repairs, exact-source build/rendered
+journeys, fresh original hosted checks, resolved verified conversations and
+protected recovery evidence before normal merge and deployment verification.
+Earlier dated checkpoint paragraphs below are retained history. The full
+22-feature and supporting-route scope remains open under #499/#128.
+
+## Combined child, Rewards and Budget verification — 2026-10-18
+
+The child localization and resolved reward-notice product source is reviewed at
+c89ee28d. All92 affected cases pass. Full baseline has5895 passing cases,
+410 established opt-in skips, and three unchanged Mac backup-prune failures;
+full types/lint/format and optimized builds pass. The original Linux gate is
+retained, and all hosted checks on remote4381659b have now passed.
+
+The later child browser repairs preserve UTC date-only fixtures with ISO SQL
+parameters and scope date assertions to their event/mission content. A phone
+diagnostic using compiled b9473aa0 and test77438bbf passes all seven cases,
+including setup and both EN/ES child and parent routine views. This diagnostic
+has different application/test commits and is not final exact-head acceptance.
+The prior exactfe878 phone run separately verifies both malformed-claim retries
+remove the resolved notice. Fresh exact-head build, expanded six-size matrix,
+independent capture review and original hosted gates are still required.
+
+Cameron requested test consolidation. A separate cleanup removes only confirmed
+duplicate navigation checks and implementation-class mirrors while preserving
+behavioral, role, privacy and recovery checks. Current release gates remain
+unchanged. Projects remains separate and its reviewed retry/replay repairs are
+being integrated; no production household data has been changed.
+
+## Child home localization and resolved-notice follow-up — 2026-10-18
+
+PR581 now incorporates reviewed child UI19ed11cb and browser QA18ba9828 over
+4381659b. Product dates, missions, routine states, errors, Undo and screen-reader
+labels use typed EN/ES copy; household text and permissions remain unchanged.
+The prior438 exact build and six-size Rewards/Budget matrix pass140 cases,
+25 declared desktop scopes and all36 unchanged startup budgets, with180 unique
+PNG captures. Independent visual review found a stale claim error toast after
+successful retry. That source is retained as a conditional checkpoint.
+
+The follow-up gives an action notice a stable caller-owned identity, replaces
+only repeated notices for that action, and dismisses the reward notice after a
+validated successful claim. Existing toast callers and Undo behavior retain
+unchanged defaults. EN/ES mounted tests verify the notice clears and the same
+idempotency key is retained; a separate test verifies other alerts survive.
+All92 affected child/routine/toast/copy-guard cases pass. Fresh combined baseline,
+exact build, expanded rendered matrix and original hosted gates remain required;
+the24 new child cases are prepared but not yet run. Projects is separate work.
+
+## Combined Rewards/Budget rebuild checkpoint — 2026-10-18
+
+Source `59c1a92b` incorporates the inactive-reward and Spanish-copy repairs plus
+reviewed phone Budget summary reflow. App `22f482a6` passed its exact optimized
+build, generation/types/lint, secret-history scan and 5887 unit cases; 410
+established opt-in cases skipped and the three retained Mac backup-prune cases
+failed. Fourteen actual PostgreSQL Rewards/Budget cases pass. No gate is waived.
+
+The first combined browser attempt retained three harness failures: an alert
+selector also matched the Next route announcer, and an old synthetic 201 lacked
+the now-required canonical transaction fields. The phone diagnostic then exposed
+a duplicate currency selector and correctly rejected mismatched build/test
+identity. Those fixture/selectors are repaired without weakening assertions.
+Independent capture review also confirmed cramped phone summary copy; the
+reviewed product fix moves the action below metrics on phones and keeps desktop
+layout. Its 25 affected cases/types/lint pass, and browser checks now measure
+actual localized sentence wrapping. A fresh exact-source build/matrix and
+original hosted gates remain required before merge/deploy. All failed reports
+and the earlier runtime identity are retained separately.
+
+
+## Rewards inactive-claim repair — 2026-10-18
+
+Combined `4271f994` normally incorporates API `295855fc`, UI `f61044da`, and
+browser regressions `bbabca41`. Independent source review is clear: fresh claims
+require canonical activity in both the validation read and atomic transition;
+child discovery filters activity before its limit. A committed claim can replay
+after retirement, and previously claimed retired rewards remain approvable.
+Parent mapping preserves activity and avoids duplicate pending/history rows.
+Spanish recovery and singular point templates are corrected in both consumers.
+
+Fourteen actual PostgreSQL Rewards/Budget cases pass on application `5a10e09c`,
+including inactive refusal, same-key reactivation, committed replay, existing
+claims and concurrent Budget retries. Types and full lint pass. The later
+`4271f994` delta contains browser assertions only. The original conditional
+132-capture report remains retained; it is not final acceptance of the repair.
+Fresh combined baseline, exact build and both rendered matrices remain required.
+Broader child supporting copy remains a separate pending slice: typed EN/ES
+KidHome/KidRoutines dates, missions, empty/progress/error and accessibility text,
+with household content verbatim and all role/receipt gates retained.
+
+## Rewards and Budget combined local candidate — 2026-10-18
+
+Integration `1ffe0a9f` normally merges reviewed Rewards `e0756c9a` and Budget
+`d9d040a3` over accepted main `5cf9720b`. Only the translation migration inventory
+conflicted: keep the exact 37 Rewards and 38 Budget removed entries, retain all
+other entries and the valid numeric `0.00` placeholder; no guard is weakened.
+Both actual PostgreSQL suites are added to the existing database-backed CI job.
+No application/API/schema/workflow conflict required manual source resolution.
+
+Rewards constituent application `c2c95b60` passes its optimized build and the
+six-size EN/light, ES/dark matrix: 116 passed, 25 declared desktop-only scope
+skips, no failures/retries, including all 36 unchanged startup budgets. The
+verified runtime matches that application; its final test-only source is
+`e0756c9a`. All 132 required state/locale/viewport captures are retained with
+pixel hashes and dimensions. Source review and 303 affected tests pass.
+Independent rendered review is conditional: canonical inactive rewards can still
+be newly claimed, Spanish approval recovery has an English headline, and singular
+points copy needs correction. API/UI repairs are in isolated author branches;
+this candidate is not accepted for release. Wider child supporting-copy
+localization remains open under the full role-alignment scope. Earlier interrupted/failed test-harness
+reports are retained and are not substituted for the accepted matrix.
+
+Budget constituent has clear scoped source review, 144 affected test passes,
+types/lint passes and seven real PostgreSQL cases, including concurrent retries.
+Full local units: 5833 passed, 403 established opt-in skips, three retained Mac
+backup-prune failures. Actual canonical add/edit/delete and stats-recovery
+browser QA is prepared but has not run. The combined candidate still requires
+its own baseline, exact build, both rendered matrices, independent review and
+fresh original hosted/release gates before any new merge or deployment.
+
+The already serving #580 remains `5cf9720b`, with production runtime verified.
+Original exact-main Build/Test and checked-image (39115308640), Android
+(39115308615), and E2E (39115308741) are terminal success. All nine E2E jobs,
+including every viewport and opt-in feature QA job, passed. The existing
+production runtime verification remains separate from authenticated household
+acceptance; no production household records were changed.
+The full22feature/supporting-route and separate native/provider gates remain open.
+
+## Verified live web revision and subsequent UI work — 2026-10-18
+
+PR #580 normally merged as `5cf9720bd3ca38862bc54c7094ac90f87a3892d8`.
+Its tree `348eeda354693ac10662f7db00643956aee03469` exactly matches reviewed
+candidate `b342ee24`; incorporated #556/#577/#578/#579 are verified merged.
+Every original candidate workflow passed, including all viewport, Settings,
+Inventory, recovery, profile-routine, Android and fresh checked-image jobs.
+Exact combined local build and browser QA passed: 164 cases, 25 declared
+viewport scope skips, no failures/retries; seven supplemental actual phone
+footer scroll/hit checks also passed. Independent source and visual review is
+clear, with 236 unique captures and 24 queue source/runtime/hash proofs.
+
+Protected backup restored all 71 public tables in an isolated temporary
+PostgreSQL database, preserving row counts; the temporary database was removed.
+Existing automatic Coolify source deployment 560 finished at 09:30:11 UTC.
+Serving container `13ce714efd59`, image `63b22fe2b228`, release/OCI revision,
+public version/readiness/liveness and both startup migration phases were
+verified. This is a Coolify source build, not CI-image promotion. Profile setup,
+profile chores and assistant Today remain off; no household records or
+configuration were changed. No authenticated production journey is claimed.
+
+Exact-main runs remain separate acceptance: Build 39115308640 and E2E
+39115308741 are running at this checkpoint; Android 39115308615 passed.
+Follow the current [release record](https://github.com/camster91/family-planner/pull/580#issuecomment-6248271303)
+for their later outcome. Older pending statements below describe preparation.
+
+Rewards is subsequent local work: canonical optional receipts and authority,
+localized role-aware choices, owner-safe create draft recovery, strict success
+identity and approval recovery are source-reviewed. Integrated application
+`672f1cde` passes generation/types/lint; 5860 unit cases pass, 402 established
+opt-in cases skip and three existing Mac backup-prune cases fail. Six actual
+PostgreSQL Rewards cases pass on the integrated API source. Exact build,
+rendered journeys and original hosted release gates remain required. Budget
+transaction receipts pass seven actual PostgreSQL cases; its UI is repairing
+independent review findings and is not accepted or released.
+
+Full 22-feature/supporting-route acceptance remains open under #499/#128.
+Native/store/hardware/customer and actual AI/voice/provider activation retain
+their separate gates.
+
 ## Combined Dates, Progress and saved-work candidate — 2026-10-18
 
 The isolated `codex/web-ui-recovery-release-499` candidate normally incorporates

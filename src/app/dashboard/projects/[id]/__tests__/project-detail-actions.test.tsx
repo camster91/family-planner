@@ -34,13 +34,19 @@ function openDelete(
   user: ReturnType<typeof userEvent.setup>,
   locale: "en" | "es" = "en",
 ) {
-  return user.click(screen.getByRole("button", { name: "Actions" })).then(() =>
-    user.click(
-      screen.getByRole("menuitem", {
-        name: locale === "es" ? "Eliminar" : "Delete",
+  return user
+    .click(
+      screen.getByRole("button", {
+        name: locale === "es" ? "Acciones" : "Actions",
       }),
-    ),
-  );
+    )
+    .then(() =>
+      user.click(
+        screen.getByRole("menuitem", {
+          name: locale === "es" ? "Eliminar" : "Delete",
+        }),
+      ),
+    );
 }
 
 beforeEach(() => {
@@ -182,6 +188,12 @@ describe("ProjectDetailActions deletion", () => {
 
     expect(
       screen.queryByRole("menuitem", { name: "Delete" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Mark complete" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Archive" }),
     ).not.toBeInTheDocument();
   });
 });

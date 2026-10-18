@@ -1,0 +1,216 @@
+"use client";
+
+import Link from "next/link";
+import { ArrowLeft, FolderKanban } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LargeHeader } from "@/components/ui/large-header";
+import ProjectCard, {
+  type ProjectCardData,
+} from "@/components/projects/ProjectCard";
+import { useProjectOverviewText } from "@/i18n/project-overview";
+import { useTranslation } from "@/i18n";
+import { formatDateOnly } from "@/lib/dates";
+
+type ProjectStatus = "active" | "completed" | "archived";
+
+export function ProjectsHeader({ isParent }: { isParent: boolean }) {
+  const text = useProjectOverviewText();
+
+  return (
+    <LargeHeader
+      title={text("pageTitle")}
+      subtitle={text("pageSubtitle")}
+      className="w-full px-4 sm:px-6 lg:px-8"
+      trailing={
+        isParent ? (
+          <Link
+            href="/dashboard/projects/create"
+            className="btn-tinted min-h-[44px] bg-tint-projects px-4 py-2 text-sm font-medium text-white"
+          >
+            {text("newProject")}
+          </Link>
+        ) : undefined
+      }
+    />
+  );
+}
+
+export function ProjectOverviewSection({
+  status,
+  projects,
+}: {
+  status: ProjectStatus;
+  projects: ProjectCardData[];
+}) {
+  const text = useProjectOverviewText();
+  const heading =
+    status === "active"
+      ? "active"
+      : status === "completed"
+        ? "completed"
+        : "archived";
+
+  if (projects.length === 0) return null;
+
+  return (
+    <section aria-labelledby={`projects-${status}-heading`}>
+      <p id={`projects-${status}-heading`} className="section-header">
+        {text(heading)}
+      </p>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {projects.map((project) => (
+          <ProjectCard key={project.id} project={project} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function ProjectsEmptyState({ isParent }: { isParent: boolean }) {
+  const text = useProjectOverviewText();
+
+  return (
+    <div className="card-apple p-8 text-center">
+      <EmptyState
+        icon={FolderKanban}
+        glyphColor="projects"
+        title={text("noProjectsTitle")}
+        description={text("noProjectsDescription")}
+        action={
+          isParent ? (
+            <Link
+              href="/dashboard/projects/create"
+              className="btn-tinted min-h-[44px] bg-tint-projects px-5 py-2 text-base font-medium text-white"
+            >
+              {text("createProject")}
+            </Link>
+          ) : undefined
+        }
+      />
+    </div>
+  );
+}
+
+export function ProjectNoFamilyState() {
+  const text = useProjectOverviewText();
+
+  return (
+    <EmptyState
+      icon={FolderKanban}
+      glyphColor="projects"
+      title={text("noFamilyTitle")}
+      description={text("noFamilyDescription")}
+    />
+  );
+}
+
+export function ProjectDetailBackLink() {
+  const text = useProjectOverviewText();
+
+  return (
+    <Link
+      href="/dashboard/projects"
+      className="mb-3 inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-label-secondary transition-colors hover:text-label-primary"
+    >
+      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+      {text("backToProjects")}
+    </Link>
+  );
+}
+
+export function ProjectProgressSummary({
+  completed,
+  total,
+  progress,
+}: {
+  completed: number;
+  total: number;
+  progress: number;
+}) {
+  const text = useProjectOverviewText();
+
+  return (
+    <div>
+      <p className="text-title-3 leading-tight text-label-primary">
+        {total > 0
+          ? text("progressTasks", { done: completed, total })
+          : text("noTasks")}
+      </p>
+      {total > 0 && progress < 100 && (
+        <p className="mt-1 text-subhead text-label-secondary">
+          {text("progressRemaining", { count: total - completed })}
+        </p>
+      )}
+      {progress === 100 && total > 0 && (
+        <p className="mt-1 text-subhead font-medium text-success-text">
+          {text("allDone")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function ProjectTasksEmpty({ active }: { active: boolean }) {
+  const text = useProjectOverviewText();
+
+  return (
+    <EmptyState
+      icon={FolderKanban}
+      glyphColor="projects"
+      title={text("noTasks")}
+      description={
+        active ? text("noTasksDescription") : text("noTasksForClosed")
+      }
+    />
+  );
+}
+
+export function ProjectTasksHeading() {
+  const text = useProjectOverviewText();
+  return <p className="section-header">{text("tasksHeading")}</p>;
+}
+
+export function ProjectCalendarCopy() {
+  const text = useProjectOverviewText();
+
+  return (
+    <>
+      <h3 className="mb-1 text-subhead font-semibold text-label-primary">
+        {text("calendarTitle")}
+      </h3>
+      <p className="text-footnote text-label-secondary">
+        {text("calendarDescription")}
+      </p>
+    </>
+  );
+}
+
+export function ProjectTaskDetails({
+  assigneeName,
+  dueDate,
+  description,
+}: {
+  assigneeName?: string | null;
+  dueDate?: string | null;
+  description?: string | null;
+}) {
+  const text = useProjectOverviewText();
+  const { locale } = useTranslation();
+  const details: string[] = [];
+
+  if (assigneeName)
+    details.push(text("taskAssignedTo", { name: assigneeName }));
+  if (dueDate) {
+    const formatted =
+      formatDateOnly(
+        dueDate,
+        { weekday: "short", month: "short", day: "numeric" },
+        locale === "es" ? "es-ES" : "en-US",
+      ) || dueDate;
+    details.push(text("taskDue", { date: formatted }));
+  }
+  if (description?.trim()) details.push(description.trim());
+
+  if (details.length === 0) return null;
+  return <span>{text("taskDetails", { details: details.join(" · ") })}</span>;
+}

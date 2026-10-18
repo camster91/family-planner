@@ -268,6 +268,7 @@ describe("POST /api/rewards/approve", () => {
   });
 
   it("a valid approval still works", async () => {
+    db.find("family", "family-A")!.features = { gamification: true, rewards: true };
     Object.assign(db.find("reward", "reward-a")!, { status: "claimed", claimed_by: "child-a" });
     const res = await rewardsApprove.POST(req({ as: "parentA", method: "POST", body: { rewardId: "reward-a" } }));
     expect(res.status).toBe(200);

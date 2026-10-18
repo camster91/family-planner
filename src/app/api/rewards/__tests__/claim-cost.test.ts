@@ -24,6 +24,7 @@ describe('POST /api/rewards/claim cost', () => {
 
   beforeEach(() => {
     db.reset()
+    db.find('family', 'family-A')!.features = { gamification: true, rewards: true }
     send.mockClear()
     originalFindUnique = fakePrisma.reward.findUnique
   })

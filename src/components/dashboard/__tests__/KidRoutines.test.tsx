@@ -11,6 +11,8 @@ import KidHome from "../KidHome";
 import { ToastProvider } from "@/components/ui/toast";
 import { FeaturesProvider } from "@/components/providers/features-provider";
 import { defaultFeatures } from "@/lib/features";
+import { rewardsEnglish } from "@/i18n/rewards";
+import { I18nProvider } from "@/i18n";
 
 const refresh = jest.fn();
 jest.mock("next/navigation", () => ({
@@ -87,16 +89,18 @@ const chore = (c: C) => ({
 
 const user = { name: "Casey", role: "child" as const };
 
-function renderHome(chores: C[]) {
+function renderHome(chores: C[], locale: "en" | "es" = "en") {
   return render(
-    <ToastProvider>
-      <KidHome
-        user={user}
-        chores={chores.map(chore)}
-        events={[]}
-        rewards={[]}
-      />
-    </ToastProvider>,
+    <I18nProvider locale={locale}>
+      <ToastProvider>
+        <KidHome
+          user={user}
+          chores={chores.map(chore)}
+          events={[]}
+          rewards={[]}
+        />
+      </ToastProvider>
+    </I18nProvider>,
   );
 }
 
@@ -139,14 +143,16 @@ describe("KidHome picture routines", () => {
     const view = renderHome([original]);
     await userEvent.click(steps(routineByName("Morning"))[0]);
     view.rerender(
-      <ToastProvider>
-        <KidHome
-          user={user}
-          chores={[{ ...original, status: "completed" }]}
-          events={[]}
-          rewards={[]}
-        />
-      </ToastProvider>,
+      <I18nProvider locale="en">
+        <ToastProvider>
+          <KidHome
+            user={user}
+            chores={[{ ...original, status: "completed" }]}
+            events={[]}
+            rewards={[]}
+          />
+        </ToastProvider>
+      </I18nProvider>,
     );
     expect(
       (steps(routineByName("Morning"))[0] as HTMLButtonElement).disabled,
@@ -170,14 +176,16 @@ describe("KidHome picture routines", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
     // A subsequent authoritative server check must win over the Undo overlay.
     view.rerender(
-      <ToastProvider>
-        <KidHome
-          user={user}
-          chores={[{ ...original, status: "verified" }]}
-          events={[]}
-          rewards={[]}
-        />
-      </ToastProvider>,
+      <I18nProvider locale="en">
+        <ToastProvider>
+          <KidHome
+            user={user}
+            chores={[{ ...original, status: "verified" }]}
+            events={[]}
+            rewards={[]}
+          />
+        </ToastProvider>
+      </I18nProvider>,
     );
     expect(
       (steps(routineByName("Morning"))[0] as HTMLButtonElement).disabled,
@@ -205,17 +213,19 @@ describe("KidHome picture routines", () => {
         ).getByRole("button", { name: /Earlier teeth/ }),
       );
       view.rerender(
-        <ToastProvider>
-          <KidHome
-            user={user}
-            chores={[
-              ...MORNING.map(chore),
-              ...(retained ? [{ ...old, status: "completed" }] : []),
-            ]}
-            events={[]}
-            rewards={[]}
-          />
-        </ToastProvider>,
+        <I18nProvider locale="en">
+          <ToastProvider>
+            <KidHome
+              user={user}
+              chores={[
+                ...MORNING.map(chore),
+                ...(retained ? [{ ...old, status: "completed" }] : []),
+              ]}
+              events={[]}
+              rewards={[]}
+            />
+          </ToastProvider>
+        </I18nProvider>,
       );
       expect(
         screen.queryByRole("region", { name: "Routine catch-up" }),
@@ -264,14 +274,16 @@ describe("KidHome picture routines", () => {
       const view = renderHome([original]);
       await userEvent.click(steps(routineByName("Morning"))[0]);
       view.rerender(
-        <ToastProvider>
-          <KidHome
-            user={user}
-            chores={[{ ...original }]}
-            events={[]}
-            rewards={[]}
-          />
-        </ToastProvider>,
+        <I18nProvider locale="en">
+          <ToastProvider>
+            <KidHome
+              user={user}
+              chores={[{ ...original }]}
+              events={[]}
+              rewards={[]}
+            />
+          </ToastProvider>
+        </I18nProvider>,
       );
       const step = steps(routineByName("Morning"))[0] as HTMLButtonElement;
       expect(step.disabled).toBe(true);
@@ -318,14 +330,16 @@ describe("KidHome picture routines", () => {
       const view = renderHome([original]);
       await userEvent.click(steps(routineByName("Morning"))[0]);
       view.rerender(
-        <ToastProvider>
-          <KidHome
-            user={user}
-            chores={[{ ...original, status: String(state) }]}
-            events={[]}
-            rewards={[]}
-          />
-        </ToastProvider>,
+        <I18nProvider locale="en">
+          <ToastProvider>
+            <KidHome
+              user={user}
+              chores={[{ ...original, status: String(state) }]}
+              events={[]}
+              rewards={[]}
+            />
+          </ToastProvider>
+        </I18nProvider>,
       );
       replies["/api/chores/uncomplete"] = [
         {
@@ -352,19 +366,21 @@ describe("KidHome picture routines", () => {
       (steps(routineByName("Morning"))[0] as HTMLButtonElement).disabled,
     ).toBe(true);
     view.rerender(
-      <ToastProvider>
-        <KidHome
-          user={user}
-          chores={[
-            chore({
-              ...MORNING[1],
-              verified_notes: "Try the back teeth again",
-            }),
-          ]}
-          events={[]}
-          rewards={[]}
-        />
-      </ToastProvider>,
+      <I18nProvider locale="en">
+        <ToastProvider>
+          <KidHome
+            user={user}
+            chores={[
+              chore({
+                ...MORNING[1],
+                verified_notes: "Try the back teeth again",
+              }),
+            ]}
+            events={[]}
+            rewards={[]}
+          />
+        </ToastProvider>
+      </I18nProvider>,
     );
     const step = steps(routineByName("Morning"))[0] as HTMLButtonElement;
     await waitFor(() => expect(step.disabled).toBe(false));
@@ -708,7 +724,8 @@ describe("KidHome picture routines", () => {
       </FeaturesProvider>,
     );
     await userEvent.click(screen.getByRole("button", { name: "Claim" }));
-    expect(await screen.findByText("Couldn't claim that")).toBeTruthy();
+    expect(await screen.findByText(rewardsEnglish.connectionErrorTitle)).toBeTruthy();
+    expect(screen.getByText(rewardsEnglish.connectionErrorDescription)).toBeTruthy();
   });
 
   it('shows done and checked steps from the server, and "All done" when the routine is finished', () => {
@@ -759,6 +776,25 @@ describe("KidHome picture routines", () => {
       .closest("section")!;
     expect(within(missions).getByText("Tidy room")).toBeTruthy();
     expect(within(missions).queryByText("Brush teeth")).toBeNull();
+  });
+
+  it("localizes routine progress, next state and screen-reader copy", () => {
+    renderHome(MORNING, "es");
+    const morning = routineByName("Morning");
+
+    expect(
+      steps(morning).map((step) => step.getAttribute("aria-label")),
+    ).toEqual([
+      "Brush teeth, paso 1 de 3, siguiente paso",
+      "Get dressed, paso 2 de 3",
+      "Shoes on, paso 3 de 3",
+    ]);
+    expect(within(morning).getByTestId("routine-progress").textContent).toBe(
+      "0 de 3 hechas",
+    );
+    expect(screen.getAllByText("Siguiente")).toHaveLength(1);
+    expect(screen.getByText("Brush teeth")).toBeTruthy();
+    expect(screen.queryByText("Next")).toBeNull();
   });
 
   it("a child without routines sees the kid home exactly as before", () => {

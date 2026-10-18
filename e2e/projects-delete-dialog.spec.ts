@@ -18,6 +18,7 @@ import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import { authFile } from "./support/env";
 import { ownFeatureAudit } from "./support/feature-audit";
+import { projectOverviewMessages } from "../src/i18n/project-overview";
 import { browserFetch, browserSend, expect, test } from "./support/test";
 
 test.use({ storageState: authFile("parentA") });
@@ -129,7 +130,10 @@ async function checkActionGeometry(page: Page, action: Locator) {
 }
 
 async function openDelete(page: Page, locale: Locale) {
-  const opener = page.getByRole("button", { name: "Actions", exact: true });
+  const opener = page.getByRole("button", {
+    name: projectOverviewMessages[locale].actions,
+    exact: true,
+  });
   await opener.click();
   const menu = page.getByRole("menu");
   await expect(

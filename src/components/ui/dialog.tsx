@@ -23,6 +23,7 @@ export function Dialog({
   title,
   description,
   children,
+  footer,
   className,
   testId,
   initialFocusRef,
@@ -39,6 +40,8 @@ export function Dialog({
   title: string;
   description?: React.ReactNode;
   children: React.ReactNode;
+  /** Optional fixed action area for long form sheets. */
+  footer?: React.ReactNode;
   className?: string;
   testId?: string;
   initialFocusRef?: React.RefObject<HTMLElement | null>;
@@ -154,11 +157,18 @@ export function Dialog({
         className={cn(
           "max-h-[100dvh] w-full overflow-y-auto rounded-t-[var(--radius-2xl)] bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-lg)] outline-none sm:max-w-lg sm:rounded-[var(--radius-2xl)]",
           "motion-safe:animate-spring-in",
-          variant === "form" && "flex max-h-[92dvh] flex-col overflow-hidden p-0 sm:max-h-[90dvh] sm:max-w-xl",
+          variant === "form" &&
+            "flex max-h-[92dvh] flex-col overflow-hidden p-0 sm:max-h-[90dvh] sm:max-w-xl",
           className,
         )}
       >
-        <div className={variant === "form" ? "flex shrink-0 items-start justify-between gap-4 border-b border-[var(--separator)] p-5" : "mb-4 flex items-start justify-between gap-4"}>
+        <div
+          className={
+            variant === "form"
+              ? "flex shrink-0 items-start justify-between gap-4 border-b border-[var(--separator)] p-5"
+              : "mb-4 flex items-start justify-between gap-4"
+          }
+        >
           <div className="min-w-0">
             <h2
               id={titleId}
@@ -187,8 +197,26 @@ export function Dialog({
           )}
         </div>
         {variant === "form" ? (
-          <div className="min-h-0 overflow-y-auto overscroll-contain px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">{children}</div>
-        ) : children}
+          <>
+            <div
+              className={cn(
+                "min-h-0 overflow-y-auto overscroll-contain px-5 pt-5",
+                footer
+                  ? "flex-1 pb-5"
+                  : "pb-[max(1.25rem,env(safe-area-inset-bottom))]",
+              )}
+            >
+              {children}
+            </div>
+            {footer && (
+              <div className="shrink-0 border-t border-[var(--separator)] px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                {footer}
+              </div>
+            )}
+          </>
+        ) : (
+          children
+        )}
       </div>
     </div>
   );

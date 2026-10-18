@@ -10,7 +10,10 @@ export default async function CreateRewardPage() {
 
   return (
     <FeatureGate featureKey="rewards">
-      <CreateRewardForm canCreate={sessionUser.role === "parent"} />
+      <CreateRewardForm
+        canCreate={sessionUser.role === "parent"}
+        owner={sessionUser.family_id ? { userId: sessionUser.id, familyId: sessionUser.family_id } : undefined}
+      />
     </FeatureGate>
   );
 }
