@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import {
+  authorizeWishlistReplay,
+  createWishlistWithReceipt,
+  normalizeWishlistCreate,
+  wishlistAction,
+} from '@/lib/wishlist-write'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { createWishlistItemSchema } from '@/lib/validations'
@@ -59,27 +65,37 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
-    const { title, link, description, approx_price } = parsed.data
+    const input = normalizeWishlistCreate(parsed.data)
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return keyError
 
-    const item = await prisma!.wishlistItem.create({
-      data: {
-        family_id: auth.user.family_id,
-        requested_by: auth.user.id,
-        title,
-        link: link?.trim() || null,
-        description: description?.trim() || null,
-        // 0 or no price stores no price, as before.
-        approx_price: approx_price ? new Prisma.Decimal(approx_price.toFixed(2)) : null,
+    const response = await withIdempotency(
+      prisma!,
+      key,
+      {
+        scope: `user:${auth.user.id}`,
+        familyId: auth.user.family_id,
+        userId: auth.user.id,
+        action: wishlistAction('create'),
       },
-      include: {
-        requester: { select: { id: true, name: true } },
+      input,
+      ({ recordId }) =>
+        createWishlistWithReceipt(
+          prisma!,
+          input,
+          { familyId: auth.user.family_id, userId: auth.user.id },
+          recordId,
+        ),
+      {
+        beforeReplay: () =>
+          authorizeWishlistReplay(prisma!, 'create', {
+            familyId: auth.user.family_id,
+            userId: auth.user.id,
+          }),
       },
-    })
-
-    return NextResponse.json(
-      { item: { ...item, approx_price: item.approx_price ? item.approx_price.toString() : null } },
-      { status: 201 }
     )
+    response.headers.set('Cache-Control', 'private, no-store')
+    return response
   } catch (err) {
     logRouteError('POST /api/wishlist', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
