@@ -573,7 +573,9 @@ for (const locale of ["en", "es"] as const) {
           const onePointReward = page
             .locator('[data-testid="claimable-reward"]')
             .filter({ hasText: names[1] });
-          const pointDetails = onePointReward.locator("p").filter({ hasText: /^1 / });
+          const pointDetails = onePointReward
+            .locator("p")
+            .filter({ hasText: /^1 / });
           await expect(pointDetails).toContainText(/^1 punto\b/);
           await expect(pointDetails).not.toContainText(/^1 puntos\b/);
         }
