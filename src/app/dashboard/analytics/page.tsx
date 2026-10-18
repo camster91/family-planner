@@ -209,9 +209,9 @@ function AnalyticsPageContent() {
             ) : (
               <ul className="card-apple divide-y divide-[var(--surface-separator)] overflow-hidden" data-testid="progress-members">
                 {members.map((member) => (
-                  <li key={member.id || member.name} className="flex min-w-0 flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
-                    <Avatar name={member.name || '?'} src={member.avatar_url} size="sm" />
-                    <div className="min-w-0 flex-1">
+                  <li key={member.id || member.name} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-4 py-3 sm:flex sm:gap-3 sm:px-5">
+                    <div className="row-span-2 self-center sm:row-auto"><Avatar name={member.name || '?'} src={member.avatar_url} size="sm" /></div>
+                    <div className="min-w-0 sm:flex-1">
                       <div className="break-words text-body text-label-primary">{member.name || '—'}</div>
                       <div className="text-footnote text-label-secondary">
                         {gamification
@@ -220,7 +220,7 @@ function AnalyticsPageContent() {
                       </div>
                     </div>
                     {gamification ? (
-                      <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-footnote text-label-secondary">
+                      <div className="col-start-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-footnote text-label-secondary sm:shrink-0 sm:justify-end">
                         {(member.streak ?? 0) > 0 && <span>{analyticsText('dayStreak', { count: member.streak ?? 0 })}</span>}
                         <span data-testid="member-points" className="font-semibold text-label-primary">{analyticsText('points', { count: member.xp || 0 })}</span>
                       </div>

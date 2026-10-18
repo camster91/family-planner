@@ -305,9 +305,9 @@ for (const locale of ["en", "es"] as const) {
         ).toBeLessThanOrEqual(geometry.viewport + 1);
       }
     };
-    const capture = async (state: string) => {
+    const capture = async (state: string, fullPage = true) => {
       await info.attach(`progress-${locale}-${state}`, {
-        body: await page.screenshot({ fullPage: true }),
+        body: await page.screenshot({ fullPage }),
         contentType: "image/png",
       });
     };
@@ -362,6 +362,43 @@ for (const locale of ["en", "es"] as const) {
       await assertNoOverflow("populated");
       await assertA11y("populated");
       await capture("populated");
+
+      // Full-page screenshots can paint a fixed bottom bar across scrolled
+      // content. Verify the real phone viewport can expose both the chart
+      // and a long member name without the navigation covering their centre.
+      if (info.project.use.viewport!.width <= 430) {
+        for (const [label, target] of [
+          [
+            "trend",
+            page.getByTestId("weekly-trend").locator('[role="group"]').last(),
+          ],
+          ["member", page.getByText(text.member, { exact: true })],
+        ] as const) {
+          await target.evaluate((element) =>
+            element.scrollIntoView({ block: "center" }),
+          );
+          await expect(target).toBeInViewport();
+          if (label === "member") {
+            expect(
+              (await target.boundingBox())!.width,
+              "long names need readable phone width",
+            ).toBeGreaterThanOrEqual(180);
+          }
+          await expect
+            .poll(() =>
+              target.evaluate((element) => {
+                const rect = element.getBoundingClientRect();
+                const hit = document.elementFromPoint(
+                  rect.left + rect.width / 2,
+                  rect.top + rect.height / 2,
+                );
+                return hit !== null && element.contains(hit);
+              }),
+            )
+            .toBe(true);
+          await capture(`${label}-scrolled-viewport`, false);
+        }
+      }
 
       phase = "malformed";
       await page.reload();
