@@ -39,6 +39,17 @@ const CATEGORY_NAME = `E2E Budget Category ${RUN_ID}`;
 const DESCRIPTION_PREFIX = `E2E Budget ${RUN_ID}`;
 const DESCRIPTION = `${DESCRIPTION_PREFIX} ${FIXTURE_LONG_TEXT.description}`;
 const NOTES = `${DESCRIPTION_PREFIX} notes — preserve this long user content verbatim.`;
+const PADDED_DESCRIPTION = `  ${DESCRIPTION}  `;
+const PADDED_NOTES = `  ${NOTES}  `;
+const EDIT_DESCRIPTION = `${DESCRIPTION_PREFIX} edited ${FIXTURE_LONG_TEXT.description}`;
+const EDIT_NOTES = `${DESCRIPTION_PREFIX} edited notes — preserve this long user content verbatim.`;
+const PADDED_EDIT_DESCRIPTION = `  ${EDIT_DESCRIPTION}  `;
+const PADDED_EDIT_NOTES = `  ${EDIT_NOTES}  `;
+const BACKDATED_DATE = (() => {
+  const date = new Date(E2E_ANCHOR);
+  date.setUTCDate(date.getUTCDate() - 30);
+  return date.toISOString().slice(0, 10);
+})();
 const CATEGORY_LIMIT = 20;
 
 const ownedTransactionIds = new Set<string>();
@@ -54,6 +65,7 @@ type TransactionResponse = {
   amount: number;
   type: string;
   category_id: string | null;
+  date: string;
   description: string | null;
   notes: string | null;
   category: { id: string; name: string; icon: string; color: string } | null;
@@ -461,10 +473,10 @@ for (const locale of ["en", "es"] as const) {
           .fill("42");
         await dialog
           .getByLabel(copy.transactionDescription, { exact: true })
-          .fill(DESCRIPTION);
+          .fill(PADDED_DESCRIPTION);
         await dialog
           .getByLabel(copy.transactionNotes, { exact: false })
-          .fill(NOTES);
+          .fill(PADDED_NOTES);
         await assertTouchTarget(
           page,
           dialog.getByRole("button", {
@@ -582,6 +594,12 @@ for (const locale of ["en", "es"] as const) {
         await editDialog
           .getByLabel(copy.transactionAmount, { exact: true })
           .fill("60");
+        await editDialog
+          .getByLabel(copy.transactionDescription, { exact: true })
+          .fill(PADDED_EDIT_DESCRIPTION);
+        await editDialog
+          .getByLabel(copy.transactionNotes, { exact: false })
+          .fill(PADDED_EDIT_NOTES);
         const updateResponsePromise = page.waitForResponse(
           (response) =>
             response.request().method() === "PATCH" &&
@@ -600,21 +618,68 @@ for (const locale of ["en", "es"] as const) {
           user_id: A.parent,
           amount: 60,
           category_id: CATEGORY_ID,
-          description: DESCRIPTION,
-          notes: NOTES,
+          description: EDIT_DESCRIPTION,
+          notes: EDIT_NOTES,
         });
         expect(
           transactionWrites.filter((write) => write.method === "PATCH"),
         ).toHaveLength(1);
         await expect(editDialog).toHaveCount(0);
+        const updatedRow = page
+          .getByRole("button")
+          .filter({ hasText: EDIT_DESCRIPTION });
+        await expect(updatedRow).toHaveCount(1);
         await expect(
-          row.getByText(`-${currency(locale, 60)}`, { exact: true }),
+          updatedRow.getByText(`-${currency(locale, 60)}`, { exact: true }),
         ).toBeVisible();
         await expect(categoryCard).toContainText(
           fill(copy.categoryOverBy, { amount: currency(locale, 40) }),
         );
 
-        await page.getByRole("button").filter({ hasText: DESCRIPTION }).click();
+        await updatedRow.click();
+        const backdatedDialog = page.getByRole("dialog", {
+          name: copy.transactionEditTitle,
+          exact: true,
+        });
+        await expect(backdatedDialog).toBeVisible();
+        await expect(
+          backdatedDialog.getByLabel(copy.transactionDescription, {
+            exact: true,
+          }),
+        ).toHaveValue(EDIT_DESCRIPTION);
+        await expect(
+          backdatedDialog.getByLabel(copy.transactionNotes, { exact: false }),
+        ).toHaveValue(EDIT_NOTES);
+        await backdatedDialog
+          .getByLabel(copy.transactionDate, { exact: true })
+          .fill(BACKDATED_DATE);
+        const backdatedResponsePromise = page.waitForResponse(
+          (response) =>
+            response.request().method() === "PATCH" &&
+            new URL(response.url()).pathname ===
+              `/api/budget/transactions/${created.id}`,
+        );
+        await backdatedDialog
+          .getByRole("button", { name: copy.transactionSave, exact: true })
+          .click();
+        const backdatedResponse = await backdatedResponsePromise;
+        expect(backdatedResponse.status()).toBe(200);
+        const backdated = await parseTransactionResponse(backdatedResponse);
+        expect(backdated).toMatchObject({
+          id: created.id,
+          date: expect.stringContaining(BACKDATED_DATE),
+          description: EDIT_DESCRIPTION,
+          notes: EDIT_NOTES,
+        });
+        expect(
+          transactionWrites.filter((write) => write.method === "PATCH"),
+        ).toHaveLength(2);
+        await expect(backdatedDialog).toHaveCount(0);
+        await expect(
+          page.getByText(EDIT_DESCRIPTION, { exact: true }),
+        ).toBeVisible();
+
+        await updatedRow.click();
         const deleteDialog = page.getByRole("dialog", {
           name: copy.transactionEditTitle,
           exact: true,
@@ -647,9 +712,9 @@ for (const locale of ["en", "es"] as const) {
           transactionWrites.filter((write) => write.method === "DELETE"),
         ).toHaveLength(1);
         await expect(deleteDialog).toHaveCount(0);
-        await expect(page.getByText(DESCRIPTION, { exact: true })).toHaveCount(
-          0,
-        );
+        await expect(
+          page.getByText(EDIT_DESCRIPTION, { exact: true }),
+        ).toHaveCount(0);
         await expect(refreshNotice).toContainText(
           copy.transactionDeletedRefreshFailed,
         );
