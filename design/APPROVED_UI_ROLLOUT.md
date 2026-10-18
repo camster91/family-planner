@@ -134,3 +134,31 @@ inventory failure. The latter identified two now-localized List detail labels;
 only those obsolete literal records were removed and the original five-test
 copy guard passed. No guard, baseline, assertion or skip was weakened. Fresh
 candidate browser, performance, hosted and release gates remain required.
+
+## Next up runtime and performance checkpoint — 2026-10-17
+
+At source `6dfe3fce`, the original home, core JavaScript budget and retired
+meal-plan exclusion browser suites pass: 81 passed, 24 existing project-scope
+skips across six viewports. Today initially failed its unchanged 250000-byte
+gzip limit at 251341 bytes. Loading the optional routine drawing catalogue only
+when a chore has a picture reduces the no-picture initial view to 246945 bytes
+at all six sizes. Picture-enabled views still download their actual catalogue;
+no functionality or byte threshold is removed. A fixed-size decorative fallback
+and local error boundary keep the labelled chore action usable if it fails.
+All 121 board unit tests, typecheck, touched lint, optimized build and independent
+source review pass.
+
+Chrome captures at the previous same-layout source 84903a3b verify a populated
+Next up card with 3 events, 3 chores, additional-item counts and done/approval
+totals at all six sizes, without horizontal overflow and with chore targets
+>=52px. The original fridge layout is retained. At 6dfe3fce the Spanish/light
+empty view also has no document overflow at all six sizes. Local captures and
+measurement JSON remain in the task evidence folder. Temporary fixture dates
+and language/theme settings were restored after review.
+
+PR #569 is separately frozen at 69b7878c after repairing its stale Grocery-button
+assertion to verify the approved native selector, its five allowed values and
+retired meal-plan exclusion. Its new original hosted checks are pending.
+Wider accessibility/offline/enlarged-text, exact final hosted gates and release
+verification remain open. This checkpoint does not complete Today, Lists, any
+remaining feature row, or the full 22-feature programme.
