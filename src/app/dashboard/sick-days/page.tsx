@@ -72,6 +72,10 @@ function isTemperatureEntry(value: unknown): value is TemperatureEntry {
   return isRecord(value) && typeof value.value === 'number' && Number.isFinite(value.value) && typeof value.unit === 'string' && typeof value.at === 'string'
 }
 
+function isTemperatureLog(value: unknown): value is TemperatureEntry[] | null {
+  return value === null || (Array.isArray(value) && value.every(isTemperatureEntry))
+}
+
 function isMedicationRecord(value: unknown): value is MedicationRecord {
   return (
     isRecord(value) &&
@@ -104,8 +108,7 @@ function isSickDayRecord(value: unknown): value is SickDayRecord {
     isNullableString(value.symptoms) &&
     typeof value.severity === 'string' &&
     typeof value.status === 'string' &&
-    Array.isArray(value.temperature_log) &&
-    value.temperature_log.every(isTemperatureEntry) &&
+    isTemperatureLog(value.temperature_log) &&
     isNullableString(value.notes) &&
     Array.isArray(value.medications) &&
     value.medications.every(isMedicationRecord)

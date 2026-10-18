@@ -14,6 +14,8 @@ medication records already embedded in the sick-day response remain visible.
 Malformed successful payloads use the same truthful failure paths, and a
 sequence guard prevents an older retry from replacing a newer read. No
 automatic clinical retry or schedule inference is added.
+The canonical `SickDay.temperature_log` field remains nullable JSON; a null
+log is accepted as an empty display while malformed JSON is rejected.
 
 The new recovery, form, pending, severity, and schedule placeholder copy is
 present in both the English and Spanish `sickDays` message blocks in

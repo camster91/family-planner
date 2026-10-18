@@ -35,7 +35,7 @@ const SICK_DAY = {
   symptoms: 'Cough',
   severity: 'mild',
   status: 'active',
-  temperature_log: [],
+  temperature_log: null,
   notes: null,
   medications: [],
 }
@@ -92,7 +92,10 @@ const renderPage = () =>
 
 describe('sick days page errors', () => {
   it('a failed load says so instead of showing the empty state, and Try again reloads', async () => {
-    routes['/api/sick-days'] = () => ({ status: 200, body: { sickDays: { malformed: true } } })
+    routes['/api/sick-days'] = () => ({
+      status: 200,
+      body: { sickDays: [{ ...SICK_DAY, temperature_log: { malformed: true } }] },
+    })
     const user = userEvent.setup()
     renderPage()
 
