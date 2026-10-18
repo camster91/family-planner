@@ -194,6 +194,51 @@ function AddedByLabel({ person }: { person: BoardPerson }) {
   )
 }
 
+/** Shared event rows keep source, time and member labels identical across app/fridge views. */
+export function ScheduleEventRows({
+  events,
+  people,
+}: {
+  events: TodayEvent[]
+  people?: Map<string, BoardPerson>
+}) {
+  const locale = useDisplayLocale()
+  const text = useTodayBoardText()
+  return (
+    <ul className="divide-y divide-[var(--surface-separator)]">
+      {events.map((e) => {
+        const person = e.addedById ? people?.get(e.addedById) : undefined
+        return (
+          <li
+            key={e.id}
+            data-testid="today-event"
+            className="flex gap-3 py-3 first:pt-0 2xl:gap-4 2xl:py-4"
+          >
+            <p className="w-[78px] min-w-[4.875em] shrink-0 pt-0.5 text-[16px] font-semibold tabular-nums text-label-primary md:w-[96px] md:min-w-[5em] md:text-[19px] 2xl:w-[120px] 2xl:text-[24px]">
+              {eventTimeLabel(e, locale, text)}
+            </p>
+            <div className="min-w-0 flex-1">
+              <p className={cn(itemTextClass, 'break-words font-medium')}>
+                {e.title}
+              </p>
+              {(e.happeningNow || e.isTask || e.source || person) && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  {e.happeningNow && !e.startedEarlier && (
+                    <Tag>{text('now')}</Tag>
+                  )}
+                  {e.isTask && <Tag>{text('task')}</Tag>}
+                  {person && <AddedByLabel person={person} />}
+                  {e.source && <SourceLabel source={e.source} />}
+                </div>
+              )}
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 export function ScheduleRegion({
   events,
   calendarHref,
@@ -204,7 +249,6 @@ export function ScheduleRegion({
   /** Member display name and colour by id (#262). */
   people?: Map<string, BoardPerson>
 }) {
-  const locale = useDisplayLocale()
   const text = useTodayBoardText()
   const shown = events.slice(0, MAX_TODAY_EVENTS)
   const more = events.length - shown.length
@@ -221,29 +265,7 @@ export function ScheduleRegion({
       {shown.length === 0 ? (
         <p className={emptyTextClass}>{text('calendarEmpty')}</p>
       ) : (
-        <ul className="divide-y divide-[var(--surface-separator)]">
-          {shown.map((e) => {
-            const person = e.addedById ? people?.get(e.addedById) : undefined
-            return (
-              <li key={e.id} data-testid="today-event" className="flex gap-3 py-3 first:pt-0 2xl:gap-4 2xl:py-4">
-                <p className="w-[78px] min-w-[4.875em] shrink-0 pt-0.5 text-[16px] font-semibold tabular-nums text-label-primary md:w-[96px] md:min-w-[5em] md:text-[19px] 2xl:w-[120px] 2xl:text-[24px]">
-                  {eventTimeLabel(e, locale, text)}
-                </p>
-                <div className="min-w-0 flex-1">
-                  <p className={cn(itemTextClass, 'break-words font-medium')}>{e.title}</p>
-                  {(e.happeningNow || e.isTask || e.source || person) && (
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                      {e.happeningNow && !e.startedEarlier && <Tag>{text('now')}</Tag>}
-                      {e.isTask && <Tag>{text('task')}</Tag>}
-                      {person && <AddedByLabel person={person} />}
-                      {e.source && <SourceLabel source={e.source} />}
-                    </div>
-                  )}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        <ScheduleEventRows events={shown} people={people} />
       )}
       {more > 0 && <p className={cn(metaTextClass, 'mt-3')}>{text('moreLaterToday', { count: more })}</p>}
     </Region>
@@ -487,6 +509,64 @@ function doneLine(p: PersonChores, text: TodayBoardTranslator = defaultTodayBoar
   return waiting > 0 ? text('doneWaiting', { done: p.doneCount, waiting }) : text('done', { count: p.doneCount })
 }
 
+/** One canonical chore action row; the app adds a visible owner when rows are combined. */
+export function ChoreRow({
+  chore: c,
+  name,
+  onTick,
+  canTick,
+  showOwner = false,
+}: {
+  chore: BoardChore
+  name: string
+  onTick?: ((chore: BoardChore) => void) | null
+  canTick?: (chore: BoardChore) => boolean
+  showOwner?: boolean
+}) {
+  const text = useTodayBoardText()
+  const label = (
+    <span className="min-w-0 flex-1">
+      {/* Picture routines (#272): the chore's picture, when it has one. */}
+      {c.icon && (
+        <RoutineIcon
+          icon={c.icon}
+          className="mr-2 inline-block h-6 w-6 align-[-4px] text-label-secondary"
+        />
+      )}
+      {c.title}
+      {showOwner && <span className={cn(metaTextClass, 'block')}>{name}</span>}
+      {c.status === 'in_progress' && (
+        <span className={cn(metaTextClass, 'block')}>{text('inProgress')}</span>
+      )}
+      {c.actionAvailability?.state === 'paused' && (
+        <span className={cn(metaTextClass, 'block')} role="status">
+          {text('profileChorePaused')}
+        </span>
+      )}
+    </span>
+  )
+  return (
+    <li data-testid="board-chore" className={cn(itemTextClass, 'break-words')}>
+      {onTick && (canTick?.(c) ?? true) ? (
+        <button
+          type="button"
+          onClick={() => onTick(c)}
+          aria-label={text('markDone', { title: c.title, name })}
+          className={cn(rowButtonClass, 'text-left')}
+        >
+          <Circle
+            className="h-6 w-6 shrink-0 text-label-secondary 2xl:h-7 2xl:w-7"
+            aria-hidden="true"
+          />
+          {label}
+        </button>
+      ) : (
+        label
+      )}
+    </li>
+  )
+}
+
 export function ChoresRegion({
   people,
   choresHref,
@@ -534,48 +614,7 @@ export function ChoresRegion({
                     <p className={cn(metaTextClass, 'mt-1')}>{text('allDoneToday')}</p>
                   ) : (
                     <ul className="mt-1 space-y-1">
-                      {shown.map((c) => {
-                        const label = (
-                          <span className="min-w-0 flex-1">
-                            {/* Picture routines (#272): the chore's picture, when it has one. */}
-                            {c.icon && (
-                              <RoutineIcon
-                                icon={c.icon}
-                                className="mr-2 inline-block h-6 w-6 align-[-4px] text-label-secondary"
-                              />
-                            )}
-                            {c.title}
-                            {c.status === 'in_progress' && (
-                              <span className={cn(metaTextClass, 'block')}>{text('inProgress')}</span>
-                            )}
-                            {c.actionAvailability?.state === 'paused' && (
-                              <span className={cn(metaTextClass, 'block')} role="status">
-                                {text('profileChorePaused')}
-                              </span>
-                            )}
-                          </span>
-                        )
-                        return (
-                          <li key={c.id} data-testid="board-chore" className={cn(itemTextClass, 'break-words')}>
-                            {onTick && (canTick?.(c) ?? true) ? (
-                              <button
-                                type="button"
-                                onClick={() => onTick(c)}
-                                aria-label={text('markDone', { title: c.title, name })}
-                                className={cn(rowButtonClass, 'text-left')}
-                              >
-                                <Circle
-                                  className="h-6 w-6 shrink-0 text-label-secondary 2xl:h-7 2xl:w-7"
-                                  aria-hidden="true"
-                                />
-                                {label}
-                              </button>
-                            ) : (
-                              label
-                            )}
-                          </li>
-                        )
-                      })}
+                      {shown.map((c) => <ChoreRow key={c.id} chore={c} name={name} onTick={onTick} canTick={canTick} />)}
                       {more > 0 && <li className={metaTextClass}>{text('more', { count: more })}</li>}
                     </ul>
                   )}

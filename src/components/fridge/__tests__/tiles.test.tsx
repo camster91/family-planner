@@ -158,8 +158,8 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-describe('tile headings open their section (no "Open …" buttons)', () => {
-  it("links each heading, keeps a readable name, and drops the old buttons", async () => {
+describe('tile sections keep clear destinations (no "Open …" buttons)', () => {
+  it("keeps section links and the combined Next up heading readable", async () => {
     await renderBoard();
     expect(
       screen.queryByRole("link", {
@@ -181,9 +181,10 @@ describe('tile headings open their section (no "Open …" buttons)', () => {
     ).toHaveAttribute("href", "/dashboard/lists");
     expect(
       within(screen.getByTestId("region-today")).getByRole("heading", {
-        name: /Today/,
+        name: "Next up",
       }),
     ).toBeTruthy();
+    expect(within(screen.getByTestId("region-today")).getByRole("link", { name: "Calendar" })).toHaveAttribute("href", "/dashboard/calendar");
     expect(
       within(groceries()).getByRole("link", { name: "1 more to buy" }),
     ).toHaveAttribute("href", "/dashboard/lists/groceries");

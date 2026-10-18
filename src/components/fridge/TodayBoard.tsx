@@ -42,6 +42,7 @@ import {
 } from './regions'
 import { actionLinkClass, regionClass } from './styles'
 import TodayControls from './TodayControls'
+import { NextUpRegion } from './NextUpRegion'
 import { useBoardTiles, type BoardActions } from './board-actions'
 import { usePersonBoardActions } from './use-person-board-actions'
 
@@ -725,8 +726,8 @@ export default function TodayBoard({
         <SyncAnnouncer message={announcement} testId="board-sync-announce" />
 
         {view ? (
-          <div data-testid="board-grid" className={boardGridClass(fridgeMode, Boolean(useSoonSlot), showChores)}>
-            <ScheduleRegion events={view.today} calendarHref={data.links.calendar} people={view.people} />
+          <div data-testid="board-grid" className={boardGridClass(fridgeMode, Boolean(useSoonSlot), fridgeMode && showChores)}>
+            {fridgeMode ? <ScheduleRegion events={view.today} calendarHref={data.links.calendar} people={view.people} /> : <NextUpRegion events={view.today} people={view.people} chores={view.chores} showChores={showChores} calendarHref={data.links.calendar} choresHref={data.links.chores} onTick={tiles.tickChore} canTick={tiles.canTickChore} />}
             <DinnerRegion
               dinner={view.dinner}
               compactLandscape={fridgeMode}
@@ -735,7 +736,7 @@ export default function TodayBoard({
               featuresHref={data.links.features}
             />
             {/* A personal summary may already contain all today's chore rows. */}
-            {showChores && (
+            {fridgeMode && showChores && (
               <ChoresRegion
                 people={view.chores}
                 choresHref={data.links.chores}
