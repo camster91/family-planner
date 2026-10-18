@@ -5,6 +5,9 @@ content scrolls independently while Save/Delete actions remain in the fixed
 footer. The form remains mounted after a refused or failed save so the entered
 draft stays available for correction or retry. Save, delete and share-link
 regeneration use the existing mutation guard and cannot overlap.
+Sitter name and arrival/departure stay visible in the short form; phone, care,
+house and general notes stay in a localized optional-details disclosure and
+retain their values when an existing handoff is edited.
 
 The dashboard list treats a non-OK response or a malformed successful response
 as a recoverable load error. Retry is explicit and never invents a list. The

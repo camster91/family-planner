@@ -2,6 +2,7 @@ import { useTranslation } from '@/i18n'
 
 /** Handoff share and transient-load copy. Household names and notes stay verbatim. */
 export const handoffRecoveryEnglish = {
+  optionalDetails: 'Optional details',
   shareDescription: 'Send this link to {name}. It opens the handoff without signing in.',
   shareClose: 'Close handoff sharing',
   formClose: 'Close handoff form',
@@ -31,6 +32,7 @@ export type HandoffRecoveryMessage = keyof typeof handoffRecoveryEnglish
 export type HandoffRecoveryMessages = Record<HandoffRecoveryMessage, string>
 
 export const handoffRecoverySpanish: HandoffRecoveryMessages = {
+  optionalDetails: 'Detalles opcionales',
   shareDescription: 'Envía este enlace a {name}. Abre la entrega sin iniciar sesión.',
   shareClose: 'Cerrar uso compartido de la entrega',
   formClose: 'Cerrar formulario de entrega',

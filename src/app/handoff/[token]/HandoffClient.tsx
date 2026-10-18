@@ -206,37 +206,49 @@ export function HandoffClient({ token }: { token: string }) {
   const [notFound, setNotFound] = React.useState(false)
   const [loadError, setLoadError] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
+  const requestRef = React.useRef(0)
+  const controllerRef = React.useRef<AbortController | null>(null)
 
   const load = React.useCallback(() => {
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
+    const requestId = ++requestRef.current
+
     setLoading(true)
     setNotFound(false)
     setLoadError(false)
     setHandoff(null)
-    void fetch(`/api/handoff/share/${token}`)
-      .then((res) => {
+    void (async () => {
+      try {
+        const res = await fetch(`/api/handoff/share/${token}`, { signal: controller.signal })
+        if (controller.signal.aborted || requestId !== requestRef.current) return
         if (res.status === 404) {
           setNotFound(true)
           return null
         }
         if (!res.ok) throw new Error('Handoff share could not load')
-        return res.json()
-      })
-      .then((data) => {
-        if (data) {
-          const parsed = parseHandoffData(data)
-          if (!parsed) throw new Error('Malformed handoff share response')
-          setHandoff(parsed)
-        }
-        setLoading(false)
-      })
-      .catch(() => {
+        const data = await res.json()
+        const parsed = parseHandoffData(data)
+        if (!parsed) throw new Error('Malformed handoff share response')
+        if (controller.signal.aborted || requestId !== requestRef.current) return
+        setHandoff(parsed)
+      } catch {
+        if (controller.signal.aborted || requestId !== requestRef.current) return
         setLoadError(true)
+      } finally {
+        if (requestId !== requestRef.current) return
         setLoading(false)
-      })
+      }
+    })()
   }, [token])
 
   React.useEffect(() => {
     load()
+    return () => {
+      controllerRef.current?.abort()
+      requestRef.current += 1
+    }
   }, [load])
 
   if (loading) {

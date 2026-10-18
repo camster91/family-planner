@@ -22,6 +22,8 @@ const baseCopy = {
     'handoff.editHandoff': 'Edit handoff',
     'handoff.print': 'Print',
     'handoff.sitterName': 'Sitter name',
+    'handoff.sitterPhone': 'Sitter phone',
+    'handoff.houseNotes': 'House notes',
     'handoff.deleteHandoff': 'Delete handoff',
     'common.save': 'Save',
     'common.saving': 'Saving…',
@@ -34,6 +36,8 @@ const baseCopy = {
     'handoff.editHandoff': 'Editar entrega',
     'handoff.print': 'Imprimir',
     'handoff.sitterName': 'Nombre del cuidador',
+    'handoff.sitterPhone': 'Teléfono del cuidador',
+    'handoff.houseNotes': 'Notas de la casa',
     'handoff.deleteHandoff': 'Eliminar entrega',
     'common.save': 'Guardar',
     'common.saving': 'Guardando…',
@@ -257,6 +261,7 @@ describe('handoff share', () => {
 
   it('card actions are 44px and the edit form is a labelled dialog', async () => {
     const user = userEvent.setup()
+    handoff = { ...handoff, sitter_phone: '555-0100', house_notes: 'Alarm code' }
     renderPage()
     for (const name of ['Share with sitter', 'Print', 'Edit handoff']) {
       expect((await screen.findByRole('button', { name })).className).toMatch(/h-11 w-11/)
@@ -264,6 +269,11 @@ describe('handoff share', () => {
     await user.click(screen.getByRole('button', { name: 'Edit handoff' }))
     const dialog = screen.getByRole('dialog', { name: 'Edit handoff' })
     expect((within(dialog).getByLabelText('Sitter name') as HTMLInputElement).value).toBe('Sarah')
+    const optionalDetails = within(dialog).getByTestId('handoff-optional-details') as HTMLDetailsElement
+    expect(optionalDetails.open).toBe(false)
+    await user.click(within(optionalDetails).getByText('Optional details'))
+    expect((within(optionalDetails).getByLabelText('Sitter phone') as HTMLInputElement).value).toBe('555-0100')
+    expect((within(optionalDetails).getByLabelText('House notes') as HTMLTextAreaElement).value).toBe('Alarm code')
     expect(within(dialog).getByTestId('handoff-form-footer')).toBeTruthy()
     expect(within(dialog).getByRole('button', { name: 'Save' }).getAttribute('form')).toBe('handoff-edit-form')
     await user.click(within(dialog).getByRole('button', { name: 'Close handoff form' }))
@@ -295,6 +305,7 @@ describe('handoff share', () => {
 
     const saving = within(dialog).getByRole('button', { name: 'Saving…' }) as HTMLButtonElement
     expect(saving.disabled).toBe(true)
+    expect((sitter.closest('fieldset') as HTMLFieldSetElement).disabled).toBe(true)
     expect(sitter.value).toBe('Draft sitter')
     expect(calls.filter((call) => call.url === '/api/handoff/h1' && call.method === 'PATCH')).toHaveLength(1)
 

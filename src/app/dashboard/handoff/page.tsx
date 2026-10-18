@@ -237,6 +237,7 @@ function HandoffForm({
   showActions?: boolean
 }) {
   const [form, setForm] = React.useState<HandoffFormData>(initial ? handoffToForm(initial) : emptyForm())
+  const recoveryText = useHandoffRecoveryText()
 
   const set = (key: keyof HandoffFormData, value: string) => setForm((f) => ({ ...f, [key]: value }))
 
@@ -247,128 +248,137 @@ function HandoffForm({
 
   return (
     <form id={formId} onSubmit={handleSubmit}>
-      <div className="space-y-4">
-        {error && (
-          <div
-            role="alert"
-            className="bg-[var(--tint-rewards)]/20 border border-[var(--tint-rewards)]/30 rounded-xl px-4 py-3 text-subhead text-[var(--tint-rewards)]"
-          >
-            {error}
-          </div>
-        )}
-        <FormField label={t('handoff.sitterName')}>
-          {(id) => <Input id={id} value={form.sitter_name} onChange={(v) => set('sitter_name', v)} placeholder="e.g. Sarah" />}
-        </FormField>
-        <FormField label={t('handoff.sitterPhone')}>
-          {(id) => (
-            <Input
-              id={id}
-              value={form.sitter_phone}
-              onChange={(v) => set('sitter_phone', v)}
-              type="tel"
-              placeholder="(555) 123-4567"
-            />
+      <fieldset disabled={saving} className="m-0 min-w-0 border-0 p-0">
+        <div className="space-y-4">
+          {error && (
+            <div
+              role="alert"
+              className="bg-[var(--tint-rewards)]/20 border border-[var(--tint-rewards)]/30 rounded-xl px-4 py-3 text-subhead text-[var(--tint-rewards)]"
+            >
+              {error}
+            </div>
           )}
-        </FormField>
-        <FormField label={t('handoff.arrivalTime')}>
-          {(id) => (
-            <Input id={id} value={form.arrival_time} onChange={(v) => set('arrival_time', v)} type="datetime-local" />
-          )}
-        </FormField>
-        <FormField label={t('handoff.departureTime')}>
-          {(id) => (
-            <Input id={id} value={form.departure_time} onChange={(v) => set('departure_time', v)} type="datetime-local" />
-          )}
-        </FormField>
-        <FormField label={t('handoff.kidsBedtimes')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.kids_bedtimes}
-              onChange={(v) => set('kids_bedtimes', v)}
-              placeholder="e.g. Emma: 8pm, Max: 8:30pm"
-              rows={2}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.whereSnacks')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.where_snacks}
-              onChange={(v) => set('where_snacks', v)}
-              placeholder="e.g. Snacks in the pantry, fruit in the fridge"
-              rows={2}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.pickupAuthorized')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.pickup_authorized}
-              onChange={(v) => set('pickup_authorized', v)}
-              placeholder="e.g. Grandma Jane, Uncle Bob"
-              rows={2}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.codeWords')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.code_words}
-              onChange={(v) => set('code_words', v)}
-              placeholder="e.g. Code word for emergencies: PINEAPPLE"
-              rows={2}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.petCare')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.pet_care}
-              onChange={(v) => set('pet_care', v)}
-              placeholder="e.g. Dog: walk at 7pm, cat: no special care"
-              rows={2}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.emergencyNotes')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.emergency_notes}
-              onChange={(v) => set('emergency_notes', v)}
-              placeholder="Allergies, medical info, emergency contacts..."
-              rows={3}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.houseNotes')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.house_notes}
-              onChange={(v) => set('house_notes', v)}
-              placeholder="e.g. Thermostat, TV codes, alarm code..."
-              rows={3}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.generalNotes')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.general_notes}
-              onChange={(v) => set('general_notes', v)}
-              placeholder="Any other notes for the sitter..."
-              rows={3}
-            />
-          )}
-        </FormField>
-      </div>
+          <FormField label={t('handoff.sitterName')}>
+            {(id) => <Input id={id} value={form.sitter_name} onChange={(v) => set('sitter_name', v)} placeholder="e.g. Sarah" />}
+          </FormField>
+          <FormField label={t('handoff.arrivalTime')}>
+            {(id) => (
+              <Input id={id} value={form.arrival_time} onChange={(v) => set('arrival_time', v)} type="datetime-local" />
+            )}
+          </FormField>
+          <FormField label={t('handoff.departureTime')}>
+            {(id) => (
+              <Input id={id} value={form.departure_time} onChange={(v) => set('departure_time', v)} type="datetime-local" />
+            )}
+          </FormField>
+          <details className="rounded-xl border border-[var(--separator)] bg-[var(--surface-secondary)]" data-testid="handoff-optional-details">
+            <summary className="flex min-h-[44px] cursor-pointer items-center px-4 py-2 text-subhead font-medium text-label-primary">
+              {recoveryText('optionalDetails')}
+            </summary>
+            <div className="space-y-4 border-t border-[var(--separator)] px-4 py-4">
+              <FormField label={t('handoff.sitterPhone')}>
+                {(id) => (
+                  <Input
+                    id={id}
+                    value={form.sitter_phone}
+                    onChange={(v) => set('sitter_phone', v)}
+                    type="tel"
+                    placeholder="(555) 123-4567"
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.kidsBedtimes')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.kids_bedtimes}
+                    onChange={(v) => set('kids_bedtimes', v)}
+                    placeholder="e.g. Emma: 8pm, Max: 8:30pm"
+                    rows={2}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.whereSnacks')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.where_snacks}
+                    onChange={(v) => set('where_snacks', v)}
+                    placeholder="e.g. Snacks in the pantry, fruit in the fridge"
+                    rows={2}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.pickupAuthorized')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.pickup_authorized}
+                    onChange={(v) => set('pickup_authorized', v)}
+                    placeholder="e.g. Grandma Jane, Uncle Bob"
+                    rows={2}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.codeWords')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.code_words}
+                    onChange={(v) => set('code_words', v)}
+                    placeholder="e.g. Code word for emergencies: PINEAPPLE"
+                    rows={2}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.petCare')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.pet_care}
+                    onChange={(v) => set('pet_care', v)}
+                    placeholder="e.g. Dog: walk at 7pm, cat: no special care"
+                    rows={2}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.emergencyNotes')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.emergency_notes}
+                    onChange={(v) => set('emergency_notes', v)}
+                    placeholder="Allergies, medical info, emergency contacts..."
+                    rows={3}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.houseNotes')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.house_notes}
+                    onChange={(v) => set('house_notes', v)}
+                    placeholder="e.g. Thermostat, TV codes, alarm code..."
+                    rows={3}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.generalNotes')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.general_notes}
+                    onChange={(v) => set('general_notes', v)}
+                    placeholder="Any other notes for the sitter..."
+                    rows={3}
+                  />
+                )}
+              </FormField>
+            </div>
+          </details>
+        </div>
+      </fieldset>
       {showActions && (
         <HandoffFormActions
           mode={mode}
