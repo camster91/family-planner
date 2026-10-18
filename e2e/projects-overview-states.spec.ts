@@ -390,6 +390,7 @@ for (const locale of ["en", "es"] as const) {
       let projectId: string | undefined;
       let taskId: string | undefined;
       let firstCreateKey: string | undefined;
+      let committedProjectId: string | undefined;
       let firstTaskKey: string | undefined;
       const projectRequestKeys: string[] = [];
       const taskRequestKeys: string[] = [];
@@ -420,7 +421,10 @@ for (const locale of ["en", "es"] as const) {
             project?: { id?: unknown };
           } | null;
           if (typeof body?.project?.id === "string") {
-            ownedProjectIds.add(body.project.id);
+            committedProjectId = body.project.id;
+            ownedProjectIds.add(committedProjectId);
+          } else {
+            throw new Error("Project create response omitted its canonical id");
           }
           await route.abort();
           return;
@@ -432,6 +436,7 @@ for (const locale of ["en", "es"] as const) {
         await route.continue();
       });
 
+      let primaryError: unknown;
       try {
         await page.goto("/dashboard");
         const identity = await browserFetch(page, "/api/auth/me");
@@ -495,10 +500,13 @@ for (const locale of ["en", "es"] as const) {
 
         await createButton.click();
         expect(projectRequestKeys).toEqual([firstCreateKey, firstCreateKey]);
-        await expect(page).toHaveURL(/\/dashboard\/projects\/[^/]+$/);
-        projectId = new URL(page.url()).pathname.split("/").at(-1);
+        expect(committedProjectId).toBeTruthy();
+        await expect
+          .poll(() => new URL(page.url()).pathname)
+          .toBe(`/dashboard/projects/${committedProjectId}`);
+        projectId = committedProjectId;
         expect(projectId).toBeTruthy();
-        ownedProjectIds.add(projectId!);
+        expect(ownedProjectIds.has(projectId!)).toBe(true);
         await expect(
           page.getByRole("heading", { name: projectName, exact: true }),
         ).toBeVisible();
@@ -900,12 +908,15 @@ for (const locale of ["en", "es"] as const) {
           }),
           contentType: "application/json",
         });
+      } catch (error) {
+        primaryError = error;
+        throw error;
       } finally {
         await page.unrouteAll({ behavior: "ignoreErrors" });
         await childContext?.close().catch(() => undefined);
         await familyBContext?.close().catch(() => undefined);
         const cleanupErrors: unknown[] = [];
-        if (projectId) {
+        if (projectId && ownedProjectIds.has(projectId)) {
           try {
             const deleted = await browserSend(
               page,
@@ -930,7 +941,19 @@ for (const locale of ["en", "es"] as const) {
           }
         }
         await context.unrouteAll({ behavior: "ignoreErrors" });
-        if (cleanupErrors.length) throw cleanupErrors[0];
+        if (cleanupErrors.length) {
+          await info.attach("projects-cleanup-errors", {
+            body: cleanupErrors
+              .map((error) =>
+                error instanceof Error
+                  ? (error.stack ?? error.message)
+                  : String(error),
+              )
+              .join("\n\n"),
+            contentType: "text/plain",
+          });
+          if (!primaryError) throw cleanupErrors[0];
+        }
       }
       expect(blockedWrites).toEqual([]);
     });
@@ -966,6 +989,7 @@ for (const locale of ["en", "es"] as const) {
       );
       await configureLocale(page, locale);
 
+      let primaryError: unknown;
       try {
         await page.goto("/dashboard");
         const identity = await browserFetch(page, "/api/auth/me");
@@ -1128,10 +1152,13 @@ for (const locale of ["en", "es"] as const) {
 
         await back.click();
         await expect(page).toHaveURL(/\/dashboard\/projects$/);
+      } catch (error) {
+        primaryError = error;
+        throw error;
       } finally {
         await page.unrouteAll({ behavior: "ignoreErrors" });
         const cleanupErrors: unknown[] = [];
-        if (projectId) {
+        if (projectId && ownedProjectIds.has(projectId)) {
           try {
             const deleted = await browserSend(
               page,
@@ -1156,7 +1183,19 @@ for (const locale of ["en", "es"] as const) {
           }
         }
         await context.unrouteAll({ behavior: "ignoreErrors" });
-        if (cleanupErrors.length) throw cleanupErrors[0];
+        if (cleanupErrors.length) {
+          await info.attach("projects-cleanup-errors", {
+            body: cleanupErrors
+              .map((error) =>
+                error instanceof Error
+                  ? (error.stack ?? error.message)
+                  : String(error),
+              )
+              .join("\n\n"),
+            contentType: "text/plain",
+          });
+          if (!primaryError) throw cleanupErrors[0];
+        }
       }
       expect(blockedWrites).toEqual([]);
     });
