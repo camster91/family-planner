@@ -24,6 +24,7 @@ for (const role of ["parent", "teen"] as const) {
     page,
   }) => {
     await loginViaUi(page, FIXTURE_EMAILS.familyA[role]);
+      await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
     const writes: string[] = [];
     page.on("request", (request) => {
       if (!["GET", "HEAD", "OPTIONS"].includes(request.method()))
