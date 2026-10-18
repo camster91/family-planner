@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
+import { refusePairedDevice } from '@/lib/device-route'
+import { canEditOwnedRecord } from '@/lib/role-capabilities'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { nextAnnualOccurrence, toDateOnlyUTC } from '@/lib/dates'
@@ -9,9 +11,23 @@ import { createAnniversarySchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
+function anniversaryPermissions(
+  role: string | undefined | null,
+  userId: string,
+  createdBy: string | null | undefined,
+) {
+  return {
+    can_edit: canEditOwnedRecord(role, userId, createdBy),
+    can_delete: role === 'parent',
+  }
+}
+
 // GET - List all anniversaries for the user's family, sorted by upcoming date
 export async function GET(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
@@ -40,6 +56,7 @@ export async function GET(request: NextRequest) {
         notes: a.notes,
         person_id: a.person_id,
         created_by: a.created_by,
+        ...anniversaryPermissions(auth.user.role, auth.user.id, a.created_by),
         days_until: daysUntil,
         next_occurrence: nextOccurrence.toISOString(),
       }
@@ -55,6 +72,9 @@ export async function GET(request: NextRequest) {
 // POST - Create an anniversary
 export async function POST(request: NextRequest) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 

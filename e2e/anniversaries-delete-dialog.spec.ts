@@ -25,6 +25,8 @@ const DATE = {
   notes: PRIVATE_NOTES,
   person_id: null,
   created_by: "fixture-parent-a",
+  can_edit: true,
+  can_delete: true,
   days_until: 10,
   next_occurrence: "2099-04-10T00:00:00.000Z",
 };

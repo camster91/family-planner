@@ -9,6 +9,7 @@ jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null })
 import { GET, POST } from "../route";
 import { PATCH, DELETE } from "../[id]/route";
 import { db, req, params, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
+import { hashDeviceToken } from "@/lib/device-session";
 
 const newDate = { name: "Gran", type: "birthday", date: "2026-12-01" };
 
@@ -21,6 +22,96 @@ describe("anniversaries — two households", () => {
     expect((await PATCH(req({ body: { name: "x" } }), params({ id: "ann-a" }))).status).toBe(401);
     expect((await DELETE(req(), params({ id: "ann-a" }))).status).toBe(401);
     expect(db.writes).toHaveLength(0);
+  });
+
+  it("refuses a valid paired device before person auth on every handler", async () => {
+    process.env.SHARED_DEVICE_ENABLED = "1";
+    try {
+      const future = new Date(Date.now() + 60 * 60 * 1000);
+      db.rows("householdDevice").push({
+        id: "device-a",
+        device_id: "device-a",
+        family_id: "family-A",
+        revoked_at: null,
+      });
+      db.rows("deviceSession").push({
+        id: "device-session-a",
+        device_id: "device-a",
+        family_id: "family-A",
+        access_token_hash: hashDeviceToken("tablet-token"),
+        refresh_token_hash: "refresh-hash",
+        access_expires_at: future,
+        refresh_expires_at: future,
+        revoked_at: null,
+        rotated_at: null,
+      });
+
+      const requests = [
+        { request: req({ as: "parentA" }), run: (request: any) => GET(request) },
+        { request: req({ as: "parentA", method: "POST", body: newDate }), run: (request: any) => POST(request) },
+        {
+          request: req({ as: "parentA", method: "PATCH", body: { name: "blocked" } }),
+          run: (request: any) => PATCH(request, params({ id: "ann-a" })),
+        },
+        {
+          request: req({ as: "parentA", method: "DELETE" }),
+          run: (request: any) => DELETE(request, params({ id: "ann-a" })),
+        },
+      ];
+
+      for (const { request, run } of requests) {
+        request.cookies = {
+          get: (name: string) =>
+            name === "fp_device"
+              ? { value: "tablet-token" }
+              : name === "session_token"
+                ? { value: "session:parent-a" }
+                : undefined,
+        };
+        const response = await run(request);
+        expect(response.status).toBe(403);
+        expect((await response.json()).error.code).toBe("DEVICE_WRITE_NOT_ALLOWED");
+      }
+      expect(db.writes).toHaveLength(0);
+    } finally {
+      delete process.env.SHARED_DEVICE_ENABLED;
+    }
+  });
+
+  it("returns role-aware edit and delete permissions without exposing a foreign household", async () => {
+    db.rows("anniversary").push({
+      id: "ann-teen",
+      family_id: "family-A",
+      name: "Teen date",
+      type: "custom",
+      date: new Date("2026-12-03T00:00:00.000Z"),
+      notes: null,
+      person_id: "teen-a",
+      created_by: "teen-a",
+      created_at: new Date(),
+    });
+
+    const parentBody = await expectNoForeignData(await GET(req({ as: "parentA" })));
+    expect(parentBody.dates.find((d: any) => d.id === "ann-a")).toMatchObject({
+      can_edit: true,
+      can_delete: true,
+    });
+
+    const teenBody = await expectNoForeignData(await GET(req({ as: "teenA" })));
+    expect(teenBody.dates.find((d: any) => d.id === "ann-a")).toMatchObject({
+      can_edit: false,
+      can_delete: false,
+    });
+    expect(teenBody.dates.find((d: any) => d.id === "ann-teen")).toMatchObject({
+      can_edit: true,
+      can_delete: false,
+    });
+
+    const childBody = await expectNoForeignData(await GET(req({ as: "childA" })));
+    expect(childBody.dates.find((d: any) => d.id === "ann-teen")).toMatchObject({
+      can_edit: false,
+      can_delete: false,
+    });
   });
 
   it("lists only the caller's family", async () => {

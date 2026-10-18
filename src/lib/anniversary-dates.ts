@@ -1,22 +1,24 @@
-import { nextAnnualOccurrence } from '@/lib/dates'
+import { nextAnnualOccurrence } from "@/lib/dates";
 
 export interface FamilyDate {
-  id: string
-  name: string
-  type: 'birthday' | 'anniversary' | 'custom'
-  date: string
-  notes?: string | null
-  person_id?: string | null
-  days_until?: number
-  role?: string
+  id: string;
+  name: string;
+  type: "birthday" | "anniversary" | "custom";
+  date: string;
+  notes?: string | null;
+  person_id?: string | null;
+  days_until?: number;
+  can_edit?: boolean;
+  can_delete?: boolean;
+  role?: string;
 }
 
 export interface ApiDateItem extends FamilyDate {
-  days_until: number
-  next_occurrence: string
+  days_until: number;
+  next_occurrence: string;
 }
 
-export type DateItem = ApiDateItem & { daysUntil: number }
+export type DateItem = ApiDateItem & { daysUntil: number };
 
 /**
  * Group dates by type, soonest first, counting days from the viewer's local
@@ -25,18 +27,21 @@ export type DateItem = ApiDateItem & { daysUntil: number }
  */
 export function buildDateItems(
   dates: ApiDateItem[],
-  today: string
+  today: string,
 ): {
-  birthdays: DateItem[]
-  anniversaries: DateItem[]
-  others: DateItem[]
+  birthdays: DateItem[];
+  anniversaries: DateItem[];
+  others: DateItem[];
 } {
   const withDays = dates
-    .map((d) => ({ ...d, daysUntil: nextAnnualOccurrence(d.date, today)?.daysUntil ?? d.days_until }))
-    .sort((a, b) => a.daysUntil - b.daysUntil)
+    .map((d) => ({
+      ...d,
+      daysUntil: nextAnnualOccurrence(d.date, today)?.daysUntil ?? d.days_until,
+    }))
+    .sort((a, b) => a.daysUntil - b.daysUntil);
   return {
-    birthdays: withDays.filter((d) => d.type === 'birthday'),
-    anniversaries: withDays.filter((d) => d.type === 'anniversary'),
-    others: withDays.filter((d) => d.type === 'custom'),
-  }
+    birthdays: withDays.filter((d) => d.type === "birthday"),
+    anniversaries: withDays.filter((d) => d.type === "anniversary"),
+    others: withDays.filter((d) => d.type === "custom"),
+  };
 }

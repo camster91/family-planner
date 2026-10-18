@@ -1,3 +1,17 @@
+## Dates UI continuation — 2026-10-18
+
+The isolated `codex/dates-overview-499` slice starts from Family/Notes candidate
+`fb364200`. It adds explicit paired-device refusal before person auth on all four
+Anniversaries handlers and additive server-computed edit/delete permissions under
+the existing role policy. Its overview uses mixed chronological annual dates,
+a quieter later-date disclosure, localized calendar labels, one Add action,
+short accessible forms and read-only details. Initial affected API/page/date/
+dialog checks and independent source review pass. Fresh optimized build,
+real-role/synthetic-state six-size browser proof and hosted/release gates remain
+pending. The existing ambiguous-write and stale-refresh recovery audit is still
+open; reminder scheduling, profile/provider/native activation is not introduced.
+Full #499/#128 acceptance remains open.
+
 # Current State
 
 ## Integrated UI web release — 2026-10-18
@@ -11,9 +25,10 @@ Coolify webhook source deployment 558 (`xdnitf95hzyaeyzzxhtektkd`) finished at
 2026-10-18T06:15:35Z. Public version/readiness header, healthy serving image and
 container revision, startup migrations, liveness/readiness and anonymous private-
 route refusals were verified at that exact SHA. Default-off profile/assistant
-flags remain off. Exact-main build/image and browser checks are still running;
-Android passed. This serving-runtime evidence is separate from final exact-main
-or authenticated household/native/customer acceptance. Incorporated PRs #569–#573 are merged with their
+flags remain off. All three original exact-main build/image, Android and browser workflows now
+passed at f1d103a8, including every required viewport/opt-in aggregate. Public
+version was reread at that revision. This serving-runtime and exact-main evidence
+is separate from authenticated household/native/customer acceptance. Incorporated PRs #569–#573 are merged with their
 original heads/history retained. Retained rollback release is main `9d9e6de6`.
 
 Family PR #575 is retained for incorporation into the Notes continuation rather

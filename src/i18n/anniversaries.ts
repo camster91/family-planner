@@ -9,6 +9,19 @@ export const anniversariesEnglish = {
     "The date could not be removed. Check your connection and try again.",
   deleteClose: "Close date removal confirmation",
   deleting: "Removing…",
+  nextUp: "Next up",
+  moreDates: "More dates ({count})",
+  later: "Later in the year",
+  nothingSoon: "No family dates in the next 90 days.",
+  annualTitle: "Every year, together",
+  annual:
+    "These dates repeat every year. You can update them whenever plans change.",
+  householdVisibility:
+    "Shared with household members. Account and shared-device permissions still apply.",
+  namePlaceholder: "e.g. Emma Johnson",
+  optionalDetails: "Optional details",
+  close: "Close date details",
+  readOnly: "A parent or the person who added this date can edit it.",
 } as const;
 
 export type AnniversariesMessage = keyof typeof anniversariesEnglish;
@@ -22,6 +35,19 @@ export const anniversariesSpanish: Record<AnniversariesMessage, string> = {
     "No se pudo quitar la fecha. Revisa tu conexión e inténtalo de nuevo.",
   deleteClose: "Cerrar confirmación para quitar la fecha",
   deleting: "Quitando…",
+  nextUp: "Próximas fechas",
+  moreDates: "Más fechas ({count})",
+  later: "Más adelante en el año",
+  nothingSoon: "No hay fechas familiares en los próximos 90 días.",
+  annualTitle: "Cada año, juntos",
+  annual:
+    "Estas fechas se repiten cada año. Puedes actualizarlas cuando cambien los planes.",
+  householdVisibility:
+    "Se comparten con los miembros del hogar. Se aplican los permisos de cuenta y dispositivo compartido.",
+  namePlaceholder: "p. ej., Emma Johnson",
+  optionalDetails: "Detalles opcionales",
+  close: "Cerrar detalles de la fecha",
+  readOnly: "Un padre o la persona que agregó esta fecha puede editarla.",
 };
 
 export const anniversariesMessages = {

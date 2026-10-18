@@ -401,3 +401,21 @@ capture overlap: after scrolling, each launcher is >=44px, at least 8px above th
 tab bar and hit-testable. No shared-shell workaround was introduced. Final source
 `fa4948d7` passes 78 browser cases/15 unchanged scope skips, with source and visual
 signoff. Wider feature/private-note/expiry, hosted and release acceptance stay open.
+
+## Dates authority and overview continuation — 2026-10-18
+
+The Dates continuation retains `/dashboard/anniversaries`, canonical UTC date-only
+storage and viewer-local annual ordering. All four handlers explicitly refuse a
+live paired device before person authentication. Additive GET permission grants
+match existing parent/all versus teen-child/own-edit authority; delete stays
+parent-only. Missing grants open conservative read-only details. Required Name,
+Type and Date precede optional Notes in the shared form sheet; localized dates,
+wrapping mixed-type chronology and one Add action follow the approved direction.
+
+Initial affected checks and independent source review pass. Exact-source build,
+rendered six-size EN/ES state and actual role/isolation journeys remain pending.
+This checkpoint does not close the Dates recovery audit: stale refresh and unknown
+write outcomes still need a canonical-state recovery slice, and annual wording
+does not claim scheduled reminders. Full-feature and #499/#128 acceptance remain
+open. No schema, role-policy widening, profile/provider/scheduler activation or
+native/store change is included.

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { canEditOwnedRecord } from '@/lib/role-capabilities'
+import { refusePairedDevice } from '@/lib/device-route'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { updateAnniversarySchema } from '@/lib/validations'
@@ -15,6 +16,9 @@ type RouteContext = { params: Promise<{ id: string }> }
 // any `id` in the body is ignored.
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
@@ -96,6 +100,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 // DELETE - Remove an anniversary (id from the path segment)
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
+    const deviceRefusal = await refusePairedDevice(request)
+    if (deviceRefusal) return deviceRefusal
+
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 

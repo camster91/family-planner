@@ -18,6 +18,8 @@ const date = {
   type: "birthday" as const,
   date: "2099-04-10",
   notes: "Private note",
+  can_edit: true,
+  can_delete: true,
   days_until: 10,
   next_occurrence: "2099-04-10",
 };
@@ -33,13 +35,11 @@ function renderPage(locale: "en" | "es" = "en") {
 describe("/dashboard/anniversaries destructive removal", () => {
   it("opens a named alertdialog, focuses Cancel, preserves an edit draft, and does not write when cancelled", async () => {
     const user = userEvent.setup();
-    global.fetch = jest
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ dates: [date] }),
-      }) as unknown as typeof fetch;
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ dates: [date] }),
+    }) as unknown as typeof fetch;
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: /Grandma/ }));
@@ -199,12 +199,10 @@ describe("/dashboard/anniversaries destructive removal", () => {
   });
 
   it("localizes the page-level load recovery action", async () => {
-    global.fetch = jest
-      .fn()
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 503,
-      }) as unknown as typeof fetch;
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+    }) as unknown as typeof fetch;
     renderPage("es");
 
     expect(
@@ -287,5 +285,144 @@ describe("/dashboard/anniversaries destructive removal", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The date could not be removed. Try again.",
     );
+  });
+});
+
+describe("approved Dates overview", () => {
+  function mockDates(dates: unknown) {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ dates }),
+    }) as unknown as typeof fetch;
+  }
+
+  it("opens a read-only detail when there is no server edit grant", async () => {
+    const user = userEvent.setup();
+    mockDates([{ ...date, can_edit: false, can_delete: false }]);
+    renderPage();
+    const opener = await screen.findByRole("button", { name: /Grandma/ });
+    await user.click(opener);
+    const detail = screen.getByRole("dialog", { name: "Grandma" });
+    expect(detail).toHaveTextContent("Private note");
+    expect(within(detail).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(
+      within(detail).queryByRole("button", { name: "Save" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(detail).queryByRole("button", { name: "Delete" }),
+    ).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(opener).toHaveFocus());
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets an own-record editor save without exposing parent-only deletion", async () => {
+    const user = userEvent.setup();
+    mockDates([{ ...date, can_edit: true, can_delete: false }]);
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: /Grandma/ }));
+    const edit = screen.getByRole("dialog", { name: "Edit" });
+    expect(within(edit).getByRole("button", { name: "Save" })).toBeEnabled();
+    expect(
+      within(edit).queryByRole("button", { name: "Delete" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("treats missing legacy permission metadata as read-only", async () => {
+    const { can_edit, can_delete, ...legacy } = date;
+    mockDates([legacy]);
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: /Grandma/ }));
+    expect(screen.getByRole("dialog", { name: "Grandma" })).toHaveTextContent(
+      "Private note",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Save" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("uses Spanish dates and a localized short form with optional details", async () => {
+    const user = userEvent.setup();
+    mockDates([date]);
+    renderPage("es");
+    await user.click(await screen.findByRole("button", { name: /Grandma/ }));
+    const edit = screen.getByRole("dialog", { name: "Editar" });
+    expect(
+      within(edit).getByPlaceholderText("p. ej., Emma Johnson"),
+    ).toHaveValue("Grandma");
+    expect(within(edit).getByText("Detalles opcionales")).toBeInTheDocument();
+    expect(
+      within(edit).getByRole("button", { name: "Cerrar detalles de la fecha" }),
+    ).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: /Grandma/ })).toHaveTextContent(
+      /abril/,
+    );
+  });
+
+  it.each([
+    null,
+    {},
+    [{ ...date, id: null }],
+    [date, date],
+    [{ ...date, date: "2099-02-31" }],
+  ])(
+    "shows recovery rather than false empty data for malformed success %p",
+    async (dates) => {
+      mockDates(dates);
+      renderPage();
+      expect(
+        await screen.findByText("Could not load dates"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("No dates yet")).not.toBeInTheDocument();
+    },
+  );
+
+  it("combines all date types chronologically and folds later dates", async () => {
+    const now = new Date();
+    const calendar = (days: number) => {
+      const value = new Date(now);
+      value.setDate(now.getDate() + days);
+      return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+    };
+    mockDates([
+      { ...date, id: "later", name: "Later birthday", date: calendar(150) },
+      {
+        ...date,
+        id: "second",
+        name: "Second anniversary",
+        type: "anniversary",
+        date: calendar(2),
+      },
+      {
+        ...date,
+        id: "first",
+        name: "First custom",
+        type: "custom",
+        date: calendar(1),
+      },
+    ]);
+    renderPage();
+    const upcoming = await screen.findByRole("region", { name: "Next up" });
+    expect(
+      within(upcoming)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual([
+      expect.stringContaining("First custom"),
+      expect.stringContaining("Second anniversary"),
+    ]);
+    const later = screen.getByText("More dates (1)").closest("details");
+    expect(later).not.toHaveAttribute("open");
+    expect(later).toHaveTextContent("Later birthday");
+  });
+
+  it("has a single Add action in the empty state", async () => {
+    mockDates([]);
+    renderPage();
+    await screen.findByText("No dates yet");
+    expect(screen.getAllByRole("button", { name: "Add Date" })).toHaveLength(1);
   });
 });
