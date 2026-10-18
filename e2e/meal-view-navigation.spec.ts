@@ -1,9 +1,11 @@
 import AxeBuilder from "@axe-core/playwright";
-import { test, expect, loginViaUi } from "./support/test";
-import { FIXTURE_EMAILS } from "../src/lib/fixtures/dataset";
+import { test, expect } from "./support/test";
+import { authFile } from "./support/env";
 import { bulkCookingMessages } from "../src/i18n/bulk-cooking";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
+
+test.use({ storageState: authFile("parentA") });
 
 for (const locale of ["en", "es"] as const) {
   test(`${locale}: Plan, Explore and Prep share week context and keyboard navigation`, async ({
@@ -17,8 +19,6 @@ for (const locale of ["en", "es"] as const) {
         ? route.continue()
         : route.abort();
     });
-    await loginViaUi(page, FIXTURE_EMAILS.familyA.parent);
-    await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
     await page.addInitScript(
       ({ locale, localeKey, themeKey }) => {
         localStorage.setItem(localeKey, locale);

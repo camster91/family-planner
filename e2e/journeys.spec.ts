@@ -209,7 +209,11 @@ test.describe("Family A parent", () => {
     );
     const range = main.getByRole("region", { name: "Calendar range" });
     for (const title of ["School drop-off", FIXTURE_LONG_TEXT.eventTitle]) {
-      await expect(range.getByText(title, { exact: true })).toBeVisible();
+      // The overlap disclosure also names the event. Assert its actionable
+      // Agenda row, keeping the fixture-title visibility check unambiguous.
+      await expect(
+        range.getByRole("button").filter({ hasText: title }),
+      ).toBeVisible();
     }
 
     // A legacy year/month URL anchors the first day of that month, not Today
@@ -226,7 +230,11 @@ test.describe("Family A parent", () => {
       main.getByRole("button", { name: "Agenda", exact: true }),
     ).toHaveAttribute("aria-pressed", "true");
     for (const title of ["School drop-off", FIXTURE_LONG_TEXT.eventTitle]) {
-      await expect(range.getByText(title, { exact: true })).toBeVisible();
+      // The overlap disclosure also names the event. Assert its actionable
+      // Agenda row, keeping the fixture-title visibility check unambiguous.
+      await expect(
+        range.getByRole("button").filter({ hasText: title }),
+      ).toBeVisible();
     }
 
     // Review-first event import (#270) is off without a provider key (the E2E
