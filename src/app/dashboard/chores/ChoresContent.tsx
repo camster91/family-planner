@@ -168,12 +168,12 @@ function ReassignModal({
           >
             <div
               aria-hidden="true"
-              className="w-7 h-7 rounded-full bg-[var(--surface-fill-secondary)] flex items-center justify-center text-label-secondary text-footnote font-medium"
+              className={cn("w-7 h-7 shrink-0 rounded-full bg-[var(--surface-fill-secondary)] flex items-center justify-center text-footnote font-medium", selectedId === m.id ? "text-inherit" : "text-label-secondary")}
             >
               {m.name[0].toUpperCase()}
             </div>
-            <span className="text-body">{m.name}</span>
-            <span className={cn("ml-auto text-footnote capitalize", selectedId === m.id ? "text-inherit" : "text-label-tertiary")}>
+            <span className="min-w-0 flex-1 text-body [overflow-wrap:anywhere]">{m.name}</span>
+            <span className={cn("ml-auto max-w-[45%] shrink-0 text-right text-footnote [overflow-wrap:anywhere]", selectedId === m.id ? "text-inherit" : "text-label-tertiary")}>
               {m.role === "parent" ? profileText("roleParent") : m.role === "teen" ? profileText("roleTeen") : m.role === "child" ? profileText("roleChild") : m.role}
             </span>
           </button>

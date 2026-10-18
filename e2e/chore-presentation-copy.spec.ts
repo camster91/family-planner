@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "./support/test";
 import { authFile } from "./support/env";
+import { FIXTURE_LONG_TEXT } from "../src/lib/fixtures/dataset";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import { choreOverviewMessages } from "../src/i18n/chore-overview";
@@ -89,6 +90,34 @@ for (const locale of ["en", "es"] as const) {
     await child.click();
     await expect(child).toHaveAttribute("aria-pressed", "true");
     await expect(confirm).toBeEnabled();
+    // A long name must leave the role readable, rather than squeezing it into
+    // a clipped single-word column. Keep the full choice inside the scroll area.
+    const choices = dialog.getByRole("group", {
+      name: text.assignTo,
+      exact: true,
+    });
+    const longChoice = choices.getByRole("button", {
+      name: new RegExp(FIXTURE_LONG_TEXT.name),
+    });
+    await longChoice.scrollIntoViewIfNeeded();
+    await longChoice.click();
+    await expect(longChoice).toHaveAttribute("aria-pressed", "true");
+    await expect(child).toHaveAttribute("aria-pressed", "false");
+    const role = longChoice.getByText(profileSetupMessages[locale].roleChild, {
+      exact: true,
+    });
+    await expect(role).toBeVisible();
+    const roleBox = (await role.boundingBox())!;
+    const choiceBox = (await longChoice.boundingBox())!;
+    const choicesBox = (await choices.boundingBox())!;
+    expect(roleBox.x).toBeGreaterThanOrEqual(choiceBox.x);
+    expect(roleBox.x + roleBox.width).toBeLessThanOrEqual(
+      choiceBox.x + choiceBox.width,
+    );
+    expect(roleBox.y).toBeGreaterThanOrEqual(choicesBox.y);
+    expect(roleBox.y + roleBox.height).toBeLessThanOrEqual(
+      choicesBox.y + choicesBox.height,
+    );
     expect(
       (
         await new AxeBuilder({ page })
