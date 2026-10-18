@@ -14,7 +14,15 @@ interface RewardsPageProps {
   searchParams: Promise<{ tab?: string }>
 }
 
-async function RewardsContent({ userId, familyId }: { userId: string; familyId: string }) {
+async function RewardsContent({
+  userId,
+  familyId,
+  canViewAnalytics,
+}: {
+  userId: string;
+  familyId: string;
+  canViewAnalytics: boolean;
+}) {
   const sessionUser = await getServerUser()
   if (!sessionUser) return null
 
@@ -49,7 +57,13 @@ async function RewardsContent({ userId, familyId }: { userId: string; familyId: 
 
   return (
     <div className="space-y-8">
-      <RewardsBoard rewards={cards} userXp={userXp} isParent={isParent} currentUserId={userId} />
+      <RewardsBoard
+        rewards={cards}
+        userXp={userXp}
+        isParent={isParent}
+        currentUserId={userId}
+        canViewAnalytics={canViewAnalytics}
+      />
     </div>
   )
 }
@@ -106,6 +120,12 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
     return <FeatureOffState featureKey="rewards" canManage={sessionUser.role !== 'teen' && sessionUser.role !== 'child'} />
   }
 
+  // Analytics is a parent-only surface and is also dependent on Points &
+  // streaks. Compute this once on the server so the client cannot infer a
+  // role or feature grant from a stale family payload.
+  const canViewAnalytics = sessionUser.role === 'parent' &&
+    isFeatureEnabled(normalizeFeatures(user?.family?.features), 'analytics')
+
   return (
     <div className="pb-20">
       <LargeHeader
@@ -115,7 +135,7 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
       />
       <div className="mx-auto mt-6 w-full max-w-[1440px] px-4 sm:px-6 lg:px-8">
         <Suspense fallback={<RewardsSkeleton />}>
-          <RewardsContent userId={sessionUser.id} familyId={familyId} />
+          <RewardsContent userId={sessionUser.id} familyId={familyId} canViewAnalytics={canViewAnalytics} />
         </Suspense>
       </div>
     </div>

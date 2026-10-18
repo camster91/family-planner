@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -8,11 +8,13 @@ import { useTranslation } from "@/i18n";
 import { rewardCreateMessages } from "@/i18n/reward-create";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import {
-  latestRewardCreateDraft,
+  forgetLatestRewardCreateDraft,
   forgetRewardCreateIntent,
+  latestRewardCreateDraft,
   rememberRewardCreateDraft,
   rememberRewardCreateIntent,
   rewardCreateIntent,
+  rewardCreateOwnerKey,
   rewardCreateSignature,
   type RewardCreateDraft,
   type RewardCreateOwner,
@@ -44,14 +46,31 @@ type CreatePayload = {
   icon: string;
 };
 
-function isCreatedReward(value: unknown, payload: CreatePayload): boolean {
+function isCreatedReward(
+  value: unknown,
+  payload: CreatePayload,
+  owner?: RewardCreateOwner,
+): boolean {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const reward = (value as { reward?: unknown }).reward;
   if (!reward || typeof reward !== "object" || Array.isArray(reward)) return false;
-  const row = reward as { id?: unknown; name?: unknown; cost?: unknown; icon?: unknown; status?: unknown };
+  const row = reward as {
+    id?: unknown;
+    name?: unknown;
+    cost?: unknown;
+    icon?: unknown;
+    status?: unknown;
+    family_id?: unknown;
+    familyId?: unknown;
+    created_by?: unknown;
+    createdBy?: unknown;
+  };
+  const ownerMatches =
+    (!owner || [row.family_id, row.familyId].every((value) => value === undefined || value === null || value === owner.familyId)) &&
+    (!owner || [row.created_by, row.createdBy].every((value) => value === undefined || value === null || value === owner.userId));
   return typeof row.id === "string" && row.id.length > 0 &&
     row.name === payload.name && row.cost === payload.cost &&
-    row.icon === payload.icon && row.status === "available";
+    row.icon === payload.icon && row.status === "available" && ownerMatches;
 }
 
 class CreateRewardFailure extends Error {
@@ -60,27 +79,38 @@ class CreateRewardFailure extends Error {
   }
 }
 
-export default function CreateRewardForm({
-  inSheet = false,
-  onBusyChange,
-  canCreate = true,
-  owner,
-}: {
+type CreateRewardFormProps = {
   inSheet?: boolean;
   onBusyChange?: (busy: boolean) => void;
   canCreate?: boolean;
   owner?: RewardCreateOwner;
-} = {}) {
+};
+
+/**
+ * Keep each household's draft state in its own mounted boundary. The key is
+ * deterministic on both server and client; the browser-only draft cache is
+ * hydrated in an effect inside the keyed form below.
+ */
+export default function CreateRewardForm(props: CreateRewardFormProps = {}) {
+  return <CreateRewardFormInner key={rewardCreateOwnerKey(props.owner)} {...props} />;
+}
+
+function CreateRewardFormInner({
+  inSheet = false,
+  onBusyChange,
+  canCreate = true,
+  owner,
+}: CreateRewardFormProps) {
   const router = useRouter();
   const { locale } = useTranslation();
   const copy = rewardCreateMessages[locale];
-  const [initialDraft] = useState<RewardCreateDraft | null>(() => latestRewardCreateDraft(owner));
-  const [name, setName] = useState(initialDraft?.name ?? "");
-  const [description, setDescription] = useState(initialDraft?.description ?? "");
-  const [cost, setCost] = useState(initialDraft?.cost ?? 50);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [cost, setCost] = useState(50);
   const [icon, setIcon] = useState<(typeof ICON_OPTIONS)[number]>(
-    (initialDraft?.icon as (typeof ICON_OPTIONS)[number] | undefined) ?? "🎁",
+    "🎁",
   );
+  const [hydrated, setHydrated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uncertain, setUncertain] = useState(false);
@@ -88,6 +118,12 @@ export default function CreateRewardForm({
   const submittingRef = useRef(false);
   const requestKeys = useRef(new Map<string, string>());
   const confirmedRequests = useRef(new Set<string>());
+  const ownerUserId = owner?.userId;
+  const ownerFamilyId = owner?.familyId;
+  const scopedOwner = useMemo(
+    () => ownerUserId && ownerFamilyId ? { userId: ownerUserId, familyId: ownerFamilyId } : undefined,
+    [ownerUserId, ownerFamilyId],
+  );
   const directNavigation = usePendingFormNavigationController(
     loading && !inSheet,
   );
@@ -99,8 +135,25 @@ export default function CreateRewardForm({
   }, [loading, onBusyChange]);
 
   useEffect(() => {
-    rememberRewardCreateDraft(owner, { name, description, cost, icon });
-  }, [owner, name, description, cost, icon]);
+    // This effect is intentionally the first browser read. Rendering always
+    // starts from the same defaults as SSR, so a cached private draft cannot
+    // change the server/client HTML during hydration.
+    const draft = latestRewardCreateDraft(scopedOwner);
+    if (draft) {
+      setName(draft.name);
+      setDescription(draft.description);
+      setCost(draft.cost);
+      setIcon((draft.icon as (typeof ICON_OPTIONS)[number]) || "🎁");
+    }
+    setHydrated(true);
+  }, [scopedOwner]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    // This write is fenced behind post-mount hydration. It cannot write the
+    // previous owner's state into the new owner's scope during a key switch.
+    rememberRewardCreateDraft(scopedOwner, { name, description, cost, icon });
+  }, [hydrated, scopedOwner, name, description, cost, icon]);
 
   const submit = async () => {
     if (!name.trim() || submittingRef.current) return;
@@ -121,10 +174,10 @@ export default function CreateRewardForm({
       router.refresh();
       return;
     }
-    const storedIntent = rewardCreateIntent(owner, signature);
+    const storedIntent = rewardCreateIntent(scopedOwner, signature);
     const key = requestKeys.current.get(signature) ?? storedIntent?.key ?? newIdempotencyKey();
     requestKeys.current.set(signature, key);
-    rememberRewardCreateIntent(owner, signature, draft, key);
+    rememberRewardCreateIntent(scopedOwner, signature, draft, key);
 
     submittingRef.current = true;
     setLoading(true);
@@ -145,13 +198,13 @@ export default function CreateRewardForm({
         if (ambiguous) setUncertain(true);
         else {
           requestKeys.current.delete(signature);
-          forgetRewardCreateIntent(owner, signature);
+          forgetRewardCreateIntent(scopedOwner, signature);
         }
         throw new CreateRewardFailure(
           response.status === 403 ? "permissionError" : "createError",
         );
       }
-      if (!isCreatedReward(data, payload)) {
+      if (!isCreatedReward(data, payload, scopedOwner)) {
         submittingRef.current = false;
         setUncertain(true);
         setError(copy.recoveryTitle);
@@ -159,7 +212,8 @@ export default function CreateRewardForm({
       }
       confirmedRequests.current.add(signature);
       requestKeys.current.delete(signature);
-      forgetRewardCreateIntent(owner, signature);
+      forgetRewardCreateIntent(scopedOwner, signature);
+      forgetLatestRewardCreateDraft(scopedOwner, signature);
 
       if ((await navigation?.releaseBeforeNavigation()) === false) {
         // A pending-navigation guard can keep the user on this form. Allow a

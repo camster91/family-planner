@@ -95,11 +95,14 @@ export default function RewardsBoard({
   userXp,
   isParent,
   currentUserId,
+  canViewAnalytics,
 }: {
   rewards: RewardCard[]
   userXp: number
   isParent: boolean
   currentUserId: string
+  /** Effective server-side role + feature permission. */
+  canViewAnalytics: boolean
 }) {
   const router = useRouter()
   const { addToast } = useMaybeToast()
@@ -273,7 +276,7 @@ export default function RewardsBoard({
             <p className="text-title-2 text-label-primary font-bold tabular-nums">{localXp} {rewardsText('points')}</p>
           </div>
         </div>
-        <Link href="/dashboard/analytics" className="inline-flex min-h-[44px] items-center text-subhead text-rewards hover:text-rewards/80 font-medium">{rewardsText('leaderboard')}</Link>
+        {canViewAnalytics && <Link href="/dashboard/analytics" className="inline-flex min-h-[44px] items-center text-subhead text-rewards hover:text-rewards/80 font-medium">{rewardsText('leaderboard')}</Link>}
       </section>
 
       {claimable.length > 0 && (

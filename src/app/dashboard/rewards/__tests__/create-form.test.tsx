@@ -145,16 +145,74 @@ it("restores an unresolved owner-scoped draft and key after the sheet remounts",
   first.unmount();
 
   const other = render(<CreateRewardForm owner={{ userId: "owner-b", familyId: "family-b" }} />);
-  expect(screen.getByLabelText("Name")).toHaveValue("");
+  await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue(""));
   other.unmount();
 
   render(<CreateRewardForm owner={owner} />);
-  expect(screen.getByLabelText("Name")).toHaveValue("Extra game time");
+  await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Extra game time"));
   await user.click(screen.getByRole("button", { name: "Create Reward" }));
   await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/rewards"));
   expect((requests[0].headers as Record<string, string>)["Idempotency-Key"]).toBe(
     (requests[1].headers as Record<string, string>)["Idempotency-Key"],
   );
+});
+
+it("switches owner scopes while mounted without carrying the previous draft", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest.fn().mockResolvedValue(response(201, createdRewardFor("B's reward", 40, "🍕")));
+  const ownerA = { userId: "mounted-owner-a", familyId: "mounted-family-a" };
+  const ownerB = { userId: "mounted-owner-b", familyId: "mounted-family-b" };
+  const view = render(<CreateRewardForm owner={ownerA} />);
+
+  await user.type(screen.getByLabelText("Name"), "A's private draft");
+  view.rerender(<CreateRewardForm owner={ownerB} />);
+  await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue(""));
+  await user.type(screen.getByLabelText("Name"), "B's reward");
+  fireEvent.change(screen.getByLabelText("Cost in points"), { target: { value: "40" } });
+  await user.click(screen.getByRole("button", { name: "Choose reward icon 🍕" }));
+  await user.click(screen.getByRole("button", { name: "Create Reward" }));
+
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/rewards"));
+  expect(global.fetch).toHaveBeenCalledWith(
+    "/api/rewards",
+    expect.objectContaining({
+      body: JSON.stringify({ name: "B's reward", cost: 40, icon: "🍕" }),
+    }),
+  );
+  view.rerender(<CreateRewardForm owner={ownerA} />);
+  await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("A's private draft"));
+});
+
+it("clears only a validated successful draft before a fresh reopen", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest.fn().mockResolvedValue(response(201, createdRewardFor("Fresh reward")));
+  const owner = { userId: "success-owner", familyId: "success-family" };
+  const view = render(<CreateRewardForm owner={owner} />);
+  await user.type(screen.getByLabelText("Name"), "Fresh reward");
+  await user.click(screen.getByRole("button", { name: "Create Reward" }));
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/rewards"));
+  view.unmount();
+
+  render(<CreateRewardForm owner={owner} />);
+  await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue(""));
+  expect(screen.getByLabelText("Cost in points")).toHaveValue(50);
+});
+
+it("does not accept a successful DTO belonging to another owner", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest.fn().mockResolvedValue(response(201, {
+    reward: {
+      ...createdRewardFor("Private reward").reward,
+      family_id: "another-family",
+      created_by: "another-user",
+    },
+  }));
+  const owner = { userId: "dto-owner", familyId: "dto-family" };
+  render(<CreateRewardForm owner={owner} />);
+  await user.type(screen.getByLabelText("Name"), "Private reward");
+  await user.click(screen.getByRole("button", { name: "Create Reward" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("The reward may have been saved");
+  expect(push).not.toHaveBeenCalled();
 });
 
 it("keeps the create key for an in-progress response", async () => {

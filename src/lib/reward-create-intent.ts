@@ -22,6 +22,17 @@ type OwnerStore = {
   intents: Map<string, RewardCreateIntent>;
 };
 
+/**
+ * A deterministic key for the mounted form boundary. It is safe to compute
+ * during SSR because it does not inspect the browser cache. The cache itself
+ * remains browser-only below.
+ */
+export function rewardCreateOwnerKey(owner?: RewardCreateOwner): string {
+  return owner?.userId && owner.familyId
+    ? JSON.stringify([owner.userId, owner.familyId])
+    : "anonymous";
+}
+
 // This module is intentionally browser-only and memory-only. A missing owner
 // is never given a shared fallback scope, so SSR and anonymous/test renders
 // cannot reuse another household's private draft or request key.
@@ -91,4 +102,18 @@ export function forgetRewardCreateIntent(
   signature: string,
 ): void {
   getStore(owner)?.intents.delete(signature);
+}
+
+/**
+ * Clear only the draft that was just validated by the server. A later edit,
+ * another unresolved intent, or another household must remain recoverable.
+ */
+export function forgetLatestRewardCreateDraft(
+  owner: RewardCreateOwner | undefined,
+  signature: string,
+): void {
+  const store = getStore(owner);
+  if (store?.latestDraft && rewardCreateSignature(store.latestDraft) === signature) {
+    store.latestDraft = null;
+  }
 }

@@ -64,7 +64,7 @@ function mockFetch(answer: (url: string) => { status: number; body: unknown } | 
 function renderBoard(props: Partial<React.ComponentProps<typeof RewardsBoard>> = {}) {
   return render(
     <ToastProvider>
-      <RewardsBoard rewards={[MOVIE, ICE_CREAM]} userXp={80} isParent={false} currentUserId="kid_1" {...props} />
+      <RewardsBoard rewards={[MOVIE, ICE_CREAM]} userXp={80} isParent={false} currentUserId="kid_1" canViewAnalytics={false} {...props} />
     </ToastProvider>
   )
 }
@@ -102,6 +102,14 @@ describe('RewardsBoard', () => {
     unmount()
     renderBoard({ isParent: false })
     expect(screen.queryByRole('link', { name: 'Add reward' })).toBeNull()
+  })
+
+  it('shows the analytics link only when the server grants the effective permission', () => {
+    const { unmount } = renderBoard({ canViewAnalytics: true })
+    expect(screen.getByRole('link', { name: /Leaderboard/ }).getAttribute('href')).toBe('/dashboard/analytics')
+    unmount()
+    renderBoard({ canViewAnalytics: false })
+    expect(screen.queryByRole('link', { name: /Leaderboard/ })).toBeNull()
   })
 
   it('shows a gift instead of a stored word icon', () => {
