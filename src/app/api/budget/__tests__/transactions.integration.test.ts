@@ -6,10 +6,27 @@
  * database. The request object is a small transport seam; authentication,
  * authorization, row writes, and receipts use the real route and database.
  */
-jest.mock(
-  "next/server",
-  () => require("@/__tests__/helpers/two-household").nextServerMock,
-);
+jest.mock("next/server", () => {
+  const { nextServerMock } = require("@/__tests__/helpers/two-household");
+  const BaseResponse = nextServerMock.NextResponse;
+  class WireResponse extends BaseResponse {
+    constructor(
+      body?: unknown,
+      init?: { status?: number; headers?: Record<string, string> },
+    ) {
+      super(body, init);
+    }
+    static json(
+      data: unknown,
+      init?: { status?: number; headers?: Record<string, string> },
+    ) {
+      const wireBody =
+        data === undefined ? null : JSON.parse(JSON.stringify(data));
+      return new WireResponse(wireBody, init);
+    }
+  }
+  return { ...nextServerMock, NextResponse: WireResponse };
+});
 jest.mock("@/lib/session", () => ({
   verifySessionToken: async (token: string) => {
     if (!token?.startsWith("session:")) return null;
