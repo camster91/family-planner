@@ -16,6 +16,7 @@ import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { isValidIdempotencyKey } from "../src/lib/idempotency-key";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { rewardCreateMessages } from "../src/i18n/reward-create";
+import { rewardsEnglish, rewardsSpanish } from "../src/i18n/rewards";
 import { authFile } from "./support/env";
 import { ownFeatureAudit } from "./support/feature-audit";
 import { browserFetch, browserSend, expect, test } from "./support/test";
@@ -202,9 +203,10 @@ async function assertFeatureIdentity(page: Page) {
 
 async function openSurface(page: Page, surface: Surface, locale: Locale) {
   const copy = rewardCreateMessages[locale];
+  const boardCopy = locale === "es" ? rewardsSpanish : rewardsEnglish;
   if (surface === "sheet") {
     await page.goto("/dashboard/rewards");
-    await page.getByRole("link", { name: "Add reward", exact: true }).click();
+    await page.getByRole("link", { name: boardCopy.addReward, exact: true }).click();
     const dialog = page.getByRole("dialog", { name: copy.sheetTitle });
     await expect(dialog).toBeVisible();
     await expect(
