@@ -173,7 +173,7 @@ function ReassignModal({
               {m.name[0].toUpperCase()}
             </div>
             <span className="text-body">{m.name}</span>
-            <span className="ml-auto text-footnote text-label-tertiary capitalize">
+            <span className={cn("ml-auto text-footnote capitalize", selectedId === m.id ? "text-inherit" : "text-label-tertiary")}>
               {m.role === "parent" ? profileText("roleParent") : m.role === "teen" ? profileText("roleTeen") : m.role === "child" ? profileText("roleChild") : m.role}
             </span>
           </button>
