@@ -85,6 +85,7 @@ function renderHome(
   extra: Partial<React.ComponentProps<typeof KidHome>> = {},
   locale: "en" | "es" = "en",
 ) {
+  const { user: extraUser, ...rest } = extra;
   return render(
     <I18nProvider locale={locale}>
       <FeaturesProvider
@@ -92,11 +93,17 @@ function renderHome(
       >
         <ToastProvider>
           <KidHome
-            user={{ name: "Casey", role: "child" }}
+            user={{
+              id: "kid-1",
+              family_id: "family-1",
+              name: "Casey",
+              role: "child",
+              ...extraUser,
+            }}
             chores={chores.map(chore)}
             events={[]}
             rewards={[]}
-            {...extra}
+            {...rest}
           />
         </ToastProvider>
       </FeaturesProvider>
@@ -106,6 +113,17 @@ function renderHome(
 
 const section = (heading: string) =>
   screen.getByText(heading).closest("section") as HTMLElement;
+
+const claimedReward = (id: string, xp: number, extra: Record<string, unknown> = {}) => ({
+  reward: {
+    id,
+    status: "claimed",
+    claimed_by: "kid-1",
+    family_id: "family-1",
+    ...extra,
+  },
+  xp,
+});
 
 describe("KidHome missions by due day", () => {
   it("discloses a capped own-work preview rather than claiming everything is done", () => {
@@ -276,7 +294,7 @@ describe("KidHome reward claim", () => {
 
   it("updates the XP ring from the response, then drops the reward and refreshes", async () => {
     replies["/api/rewards/claim"] = [
-      { status: 200, body: { reward: { id: "r1", status: "claimed" }, xp: 30 } },
+      { status: 200, body: claimedReward("r1", 30) },
     ];
     renderHome([], {
       user: { name: "Casey", role: "child", xp: 80, level: 1 },
@@ -306,7 +324,7 @@ describe("KidHome reward claim", () => {
 
   it("uses localized celebration copy", async () => {
     replies["/api/rewards/claim"] = [
-      { status: 200, body: { reward: { id: "r1", status: "claimed" }, xp: 30 } },
+      { status: 200, body: claimedReward("r1", 30) },
     ];
     renderHome([], {
       user: { name: "Casey", role: "child", xp: 80, level: 1 },
@@ -349,9 +367,29 @@ describe("KidHome reward claim", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["missing claimant", { claimed_by: undefined }],
+    ["null claimant", { claimed_by: null }],
+    ["wrong claimant", { claimed_by: "another-kid" }],
+    ["wrong household", { family_id: "another-family" }],
+  ] as const)("keeps a reward visible when the claim response has a %s", async (_label, identity) => {
+    replies["/api/rewards/claim"] = [
+      { status: 200, body: claimedReward("r1", 30, identity) },
+    ];
+    renderHome([], {
+      user: { name: "Casey", role: "child", xp: 80, level: 1 },
+      rewards: [{ id: "r1", name: "Movie night", cost: 50, status: "available" }],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Claim" }));
+    expect(await screen.findByText("The connection dropped before we could confirm.")).toBeTruthy();
+    expect(screen.getByText("Movie night")).toBeTruthy();
+    expect(screen.queryByText("You got it!")).toBeNull();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it("offers an affordable reward before one the XP cannot cover", async () => {
     replies["/api/rewards/claim"] = [
-      { status: 200, body: { reward: { id: "r2", status: "claimed" }, xp: 10 } },
+      { status: 200, body: claimedReward("r2", 10) },
     ];
     renderHome([], {
       user: { name: "Casey", role: "child", xp: 30, level: 1 },

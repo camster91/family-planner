@@ -64,6 +64,7 @@ interface Reward {
 
 interface KidHomeProps {
   user: {
+    id?: string;
     name?: string;
     role?: UserRole;
     avatar_url?: string | null;
@@ -390,12 +391,24 @@ export default function KidHome({
     return key;
   };
 
-  const parseClaimResult = (value: unknown): { rewardId: string; xp: number } | null => {
+  const parseClaimResult = (value: unknown, expectedRewardId: string): { rewardId: string; xp: number } | null => {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null;
     const data = value as { reward?: unknown; xp?: unknown };
     if (!data.reward || typeof data.reward !== "object" || Array.isArray(data.reward)) return null;
-    const reward = data.reward as { id?: unknown; status?: unknown };
-    if (typeof reward.id !== "string" || reward.status !== "claimed" || typeof data.xp !== "number" || !Number.isFinite(data.xp) || data.xp < 0) return null;
+    const reward = data.reward as { id?: unknown; status?: unknown; claimed_by?: unknown; family_id?: unknown };
+    if (
+      typeof reward.id !== "string" ||
+      reward.id !== expectedRewardId ||
+      reward.status !== "claimed" ||
+      typeof user.id !== "string" ||
+      typeof reward.claimed_by !== "string" ||
+      reward.claimed_by !== user.id ||
+      (reward.family_id !== undefined &&
+        (typeof reward.family_id !== "string" || reward.family_id !== user.family_id)) ||
+      typeof data.xp !== "number" ||
+      !Number.isFinite(data.xp) ||
+      data.xp < 0
+    ) return null;
     return { rewardId: reward.id, xp: data.xp };
   };
 
@@ -413,8 +426,8 @@ export default function KidHome({
         // The claim spent XP: show the new balance now (the response carries
         // it), then drop the claimed reward and reload server data once the
         // celebration ends, so it is never offered again.
-        const data = parseClaimResult(await res.json().catch(() => null));
-        if (!data || data.rewardId !== rewardId) {
+        const data = parseClaimResult(await res.json().catch(() => null), rewardId);
+        if (!data) {
           addToast({
             type: "error",
             title: rewardsText("recoveryTitle"),
