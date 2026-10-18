@@ -185,7 +185,9 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                 <Link
                   key={tab.href}
                   href={tab.href}
-                  data-testid={tab.href === MORE_HREF ? "desktop-explore" : undefined}
+                  data-testid={
+                    tab.href === MORE_HREF ? "desktop-explore" : undefined
+                  }
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "flex min-h-[44px] min-w-[44px] items-center gap-1.5 px-2 lg:px-3 rounded-full text-[15px] transition-colors duration-200",
@@ -276,6 +278,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     {canSee("/dashboard/family/more") && (
                       <Link
                         href="/dashboard/family/more"
+                        data-testid="user-menu-explore"
                         className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
                         onClick={() => setAvatarOpen(false)}
                       >
