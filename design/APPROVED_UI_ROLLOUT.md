@@ -256,7 +256,26 @@ Mac backup-prune cases fail, with no backup script/test source changed. Types,
 touched lint and independent source/role/date review pass. New mounted cases
 cover raw names, selected weekdays, next dates, zero-write disclosure, dialog
 selection through locale change, exact reassignment/snooze IDs and date payloads,
-raw history failures and shared-sheet keyboard/focus state. New-source build,
-actual six-size action/reassignment/recurrence/budget journeys and original
-hosted gates remain pending. This is a local follow-up, not #571/#572 release
-acceptance or completion of Chores/the all-feature programme.
+raw history failures and shared-sheet keyboard/focus state.
+
+Rendered review found selected reassignment roles at only 1.28:1 contrast.
+Selected roles now inherit the selected foreground. Long names wrap in a bounded
+name column, while avatars and translated roles remain visible. No Axe rule or
+threshold changed. The contrast repair passed 69 browser checks across all six
+sizes, including real series lifecycle and inline completion/Undo. Final
+long-name polish at `98be796c` passed its build, 73 affected units and 51 browser
+checks (12 EN/ES dialogs, 36 original startup budgets, three setup cases), with
+zero failures/skips/retries. Final phone and desktop Spanish captures were
+visually reviewed; all 12 captures and hashes are retained in the local evidence
+folder `work/ui-plan-approved-2026-10-17/chore-presentation-local-qa`.
+
+Hosted #572 exposed two Spanish fallback-focus selectors still expecting
+English Today. Test-only `b986c40d` uses the typed localized label and retains
+focus assertions. The presentation follow-up also localizes its verification
+queue selector; independent review confirms all notes, exact retry payload,
+403/409, pending/network, duplicate-action, focus and privacy assertions remain.
+Its exact-source build and all 27 six-size EN/ES verification checks pass
+(24 recovery/pending journeys plus three setup cases).
+Original hosted gates and production acceptance remain pending. This local
+follow-up does not establish #571/#572 release acceptance or completion of
+Chores/the all-feature programme.
