@@ -92,7 +92,7 @@ const renderPage = () =>
 
 describe('sick days page errors', () => {
   it('a failed load says so instead of showing the empty state, and Try again reloads', async () => {
-    routes['/api/sick-days'] = () => ({ status: 500, body: { error: 'Internal server error' } })
+    routes['/api/sick-days'] = () => ({ status: 200, body: { sickDays: { malformed: true } } })
     const user = userEvent.setup()
     renderPage()
 
@@ -108,8 +108,11 @@ describe('sick days page errors', () => {
 
   it('an offline load shows the same message with no unhandled rejection', async () => {
     routes['/api/sick-days'] = () => 'network-error'
+    routes['/api/auth/me'] = () => 'network-error'
     renderPage()
-    expect((await screen.findByRole('alert')).textContent).toMatch(/sickDays.loadFailed/)
+    expect(await screen.findByText('sickDays.loadFailed')).toBeTruthy()
+    expect(await screen.findByText('sickDays.authLoadFailed')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'sickDays.startSickDay' })).toBeNull()
     await new Promise((r) => setTimeout(r, 0))
     expect(unhandled).toEqual([])
   })
@@ -118,6 +121,7 @@ describe('sick days page errors', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Sam')
+    await screen.findByRole('button', { name: 'sickDays.startSickDay' })
     routes['/api/sick-days'] = (method) =>
       method === 'POST' ? { status: 403, body: { error: 'You can only report yourself' } } : ok({ sickDays: [SICK_DAY] })
 
@@ -133,6 +137,7 @@ describe('sick days page errors', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Sam')
+    await screen.findByRole('button', { name: 'sickDays.startSickDay' })
     routes['/api/sick-days'] = (method) => (method === 'POST' ? 'network-error' : ok({ sickDays: [SICK_DAY] }))
 
     await user.click(screen.getByRole('button', { name: 'sickDays.startSickDay' }))
@@ -202,12 +207,14 @@ describe('sick days page errors', () => {
 
   it('keeps embedded medication data visible when the medication dependency fails', async () => {
     routes['/api/sick-days'] = () => ok({ sickDays: [{ ...SICK_DAY, medications: [MED] }] })
-    routes['/api/medications'] = () => ({ status: 503, body: { error: 'Medication service unavailable' } })
+    routes['/api/medications'] = () => ok({ medications: { malformed: true } })
+    routes['/api/family/members'] = () => ok({ members: { malformed: true } })
 
     const user = userEvent.setup()
     renderPage()
 
     expect(await screen.findByText('sickDays.medicationsLoadFailed')).toBeTruthy()
+    expect(await screen.findByText('sickDays.membersLoadFailed')).toBeTruthy()
     await user.click(await screen.findByText('Sam'))
     const detail = await screen.findByTestId('sick-day-detail')
     expect(within(detail).getByText('Syrup')).toBeTruthy()
@@ -225,7 +232,7 @@ describe('sick days page errors', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Sam')
-    await user.click(screen.getByRole('button', { name: 'sickDays.startSickDay' }))
+    await user.click(await screen.findByRole('button', { name: 'sickDays.startSickDay' }))
     const dialog = screen.getByRole('dialog', { name: 'sickDays.startSickDay' })
     await user.selectOptions(within(dialog).getByLabelText('sickDays.person'), 'kid1')
     await user.type(within(dialog).getByLabelText('sickDays.symptoms'), 'headache')
@@ -236,6 +243,8 @@ describe('sick days page errors', () => {
     expect(within(dialog).getByText('sickDays.pendingDescription')).toBeTruthy()
     expect(within(dialog).queryByRole('button', { name: 'sickDays.closeForm' })).toBeNull()
     expect(within(dialog).getByRole('button', { name: 'common.cancel' })).toHaveProperty('disabled', true)
+    expect((within(dialog).getByLabelText('sickDays.person') as HTMLSelectElement).matches(':disabled')).toBe(true)
+    expect((within(dialog).getByLabelText('sickDays.symptoms') as HTMLTextAreaElement).matches(':disabled')).toBe(true)
 
     resolveStart?.(ok({ sickDay: SICK_DAY }))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'sickDays.startSickDay' })).toBeNull())
@@ -245,7 +254,7 @@ describe('sick days page errors', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Sam')
-    await user.click(screen.getByRole('button', { name: 'sickDays.startSickDay' }))
+    await user.click(await screen.findByRole('button', { name: 'sickDays.startSickDay' }))
     let dialog = screen.getByRole('dialog', { name: 'sickDays.startSickDay' })
     await user.selectOptions(within(dialog).getByLabelText('sickDays.person'), 'kid1')
     await user.type(within(dialog).getByLabelText('sickDays.symptoms'), 'still coughing')

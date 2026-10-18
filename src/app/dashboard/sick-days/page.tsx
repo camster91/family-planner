@@ -51,6 +51,98 @@ interface FamilyMember {
   avatar_url?: string | null
 }
 
+type UserRole = 'parent' | 'teen' | 'child'
+
+type MedicationRecord = Omit<Medication, 'sick_day_id' | 'person_id'> & {
+  sick_day_id?: string | null
+  person_id?: string
+}
+
+type SickDayRecord = Omit<SickDay, 'medications'> & { medications: MedicationRecord[] }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string'
+}
+
+function isTemperatureEntry(value: unknown): value is TemperatureEntry {
+  return isRecord(value) && typeof value.value === 'number' && Number.isFinite(value.value) && typeof value.unit === 'string' && typeof value.at === 'string'
+}
+
+function isMedicationRecord(value: unknown): value is MedicationRecord {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.dosage === 'string' &&
+    typeof value.schedule === 'string' &&
+    isNullableString(value.next_dose_at) &&
+    isNullableString(value.last_dose_at) &&
+    typeof value.active === 'boolean' &&
+    isNullableString(value.notes) &&
+    (!('sick_day_id' in value) || isNullableString(value.sick_day_id)) &&
+    (!('person_id' in value) || typeof value.person_id === 'string')
+  )
+}
+
+function isMedication(value: unknown): value is Medication {
+  return isMedicationRecord(value) && typeof value.person_id === 'string' && isNullableString(value.sick_day_id)
+}
+
+function isSickDayRecord(value: unknown): value is SickDayRecord {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.person_id === 'string' &&
+    typeof value.person_name === 'string' &&
+    isNullableString(value.person_avatar) &&
+    typeof value.started_at === 'string' &&
+    isNullableString(value.ended_at) &&
+    isNullableString(value.symptoms) &&
+    typeof value.severity === 'string' &&
+    typeof value.status === 'string' &&
+    Array.isArray(value.temperature_log) &&
+    value.temperature_log.every(isTemperatureEntry) &&
+    isNullableString(value.notes) &&
+    Array.isArray(value.medications) &&
+    value.medications.every(isMedicationRecord)
+  )
+}
+
+function isFamilyMember(value: unknown): value is FamilyMember {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    (!('avatar_url' in value) || isNullableString(value.avatar_url))
+  )
+}
+
+function isUserRole(value: unknown): value is UserRole {
+  return value === 'parent' || value === 'teen' || value === 'child'
+}
+
+function parseArrayPayload<T>(payload: unknown, key: string, itemGuard: (value: unknown) => value is T): T[] {
+  if (!isRecord(payload) || !Array.isArray(payload[key]) || !payload[key].every(itemGuard)) {
+    throw new Error(`Invalid ${key} response`)
+  }
+  return payload[key]
+}
+
+function normalizeSickDays(records: SickDayRecord[]): SickDay[] {
+  return records.map((day) => ({
+    ...day,
+    medications: day.medications.map((medication) => ({
+      ...medication,
+      sick_day_id: medication.sick_day_id ?? day.id,
+      person_id: medication.person_id ?? day.person_id,
+    })),
+  }))
+}
+
 /**
  * A labelled field. The label is tied to the control with `htmlFor`/`id`, so
  * the control is passed as a render function that receives the id.
@@ -156,8 +248,14 @@ function SickDaysPageInner() {
   const savingRef = React.useRef(false)
   const pendingDoseIdsRef = React.useRef(new Set<string>())
   const [pendingDoseIds, setPendingDoseIds] = React.useState<Set<string>>(new Set())
-  const [userRole, setUserRole] = React.useState<string>('child')
+  // Authority starts unknown. No write control is offered until /api/auth/me
+  // returns a valid role and id for this session.
+  const [userRole, setUserRole] = React.useState<UserRole | null>(null)
   const [userId, setUserId] = React.useState<string | null>(null)
+  const [authLoading, setAuthLoading] = React.useState(true)
+  const [authLoadFailed, setAuthLoadFailed] = React.useState(false)
+  const loadSequenceRef = React.useRef(0)
+  const authSequenceRef = React.useRef(0)
 
   const startFormId = 'sick-day-start-form'
   const tempFormId = 'sick-day-temperature-form'
@@ -196,52 +294,116 @@ function SickDaysPageInner() {
   }, [])
 
   const load = React.useCallback(async () => {
+    const requestId = ++loadSequenceRef.current
     setLoading(true)
-    const [sickDaysResult, membersResult, medicationsResult] = await Promise.allSettled([
-      jsonOrThrow('/api/sick-days'),
-      jsonOrThrow('/api/family/members'),
-      jsonOrThrow('/api/medications'),
-    ])
+    try {
+      const [sickDaysResult, membersResult, medicationsResult] = await Promise.allSettled([
+        jsonOrThrow('/api/sick-days'),
+        jsonOrThrow('/api/family/members'),
+        jsonOrThrow('/api/medications'),
+      ])
 
-    if (sickDaysResult.status === 'rejected') {
-      setLoadFailed(true)
-      setLoading(false)
-      setLoadedOnce(true)
-      return
+      // A retry can begin before an older read settles. Only the newest
+      // request may replace visible records or finish the loading state.
+      if (requestId !== loadSequenceRef.current) return
+
+      if (sickDaysResult.status === 'rejected') {
+        setLoadFailed(true)
+        return
+      }
+
+      let nextSickDays: SickDay[]
+      try {
+        nextSickDays = normalizeSickDays(parseArrayPayload(sickDaysResult.value, 'sickDays', isSickDayRecord))
+      } catch {
+        setLoadFailed(true)
+        return
+      }
+
+      setLoadFailed(false)
+      if (membersResult.status === 'fulfilled') {
+        try {
+          setMembers(parseArrayPayload(membersResult.value, 'members', isFamilyMember))
+          setMembersLoadFailed(false)
+        } catch {
+          setMembersLoadFailed(true)
+        }
+      } else {
+        setMembersLoadFailed(true)
+      }
+
+      let medicationPayload: Medication[] | null = null
+      if (medicationsResult.status === 'fulfilled') {
+        try {
+          medicationPayload = parseArrayPayload(medicationsResult.value, 'medications', isMedication)
+          setMedicationsLoadFailed(false)
+        } catch {
+          setMedicationsLoadFailed(true)
+        }
+      } else {
+        setMedicationsLoadFailed(true)
+      }
+
+      // Keep medication records embedded in the sick-day response visible while
+      // the separate active-medication request is unavailable or malformed.
+      setSickDays(
+        nextSickDays.map((day) => ({
+          ...day,
+          medications: medicationPayload
+            ? medicationPayload.filter(
+                (m) => m.sick_day_id === day.id || (!m.sick_day_id && m.person_id === day.person_id)
+              )
+            : day.medications,
+        }))
+      )
+    } catch {
+      // Promise.allSettled normally contains request/JSON errors, but keep the
+      // page truthful if validation or a future parser change throws here.
+      if (requestId === loadSequenceRef.current) setLoadFailed(true)
+    } finally {
+      if (requestId === loadSequenceRef.current) {
+        setLoading(false)
+        setLoadedOnce(true)
+      }
     }
-
-    setLoadFailed(false)
-    if (membersResult.status === 'fulfilled') {
-      setMembers(membersResult.value.members || [])
-      setMembersLoadFailed(false)
-    } else {
-      setMembersLoadFailed(true)
-    }
-
-    const medicationPayload = medicationsResult.status === 'fulfilled'
-      ? (medicationsResult.value.medications || []) as Medication[]
-      : null
-    setMedicationsLoadFailed(medicationsResult.status === 'rejected')
-
-    // Keep medication records embedded in the sick-day response visible while
-    // the separate active-medication request is unavailable.
-    setSickDays(
-      ((sickDaysResult.value.sickDays || []) as SickDay[]).map((day) => ({
-        ...day,
-        medications: medicationPayload
-          ? medicationPayload.filter(
-              (m) => m.sick_day_id === day.id || (!m.sick_day_id && m.person_id === day.person_id)
-            )
-          : (day.medications || []).map((m) => ({
-              ...m,
-              sick_day_id: m.sick_day_id || day.id,
-              person_id: m.person_id || day.person_id,
-            })),
-      }))
-    )
-    setLoading(false)
-    setLoadedOnce(true)
   }, [jsonOrThrow])
+
+  const loadAuth = React.useCallback(async () => {
+    const requestId = ++authSequenceRef.current
+    setAuthLoading(true)
+    setAuthLoadFailed(false)
+    setUserRole(null)
+    setUserId(null)
+    try {
+      const response = await fetch('/api/auth/me', { cache: 'no-store' })
+      if (!response.ok) throw new Error(`/api/auth/me returned ${response.status}`)
+      const payload: unknown = await response.json()
+      const user = isRecord(payload) && isRecord(payload.user) ? payload.user : null
+      if (!user || typeof user.id !== 'string' || !user.id || !isUserRole(user.role)) {
+        throw new Error('Invalid /api/auth/me response')
+      }
+      if (requestId !== authSequenceRef.current) return
+      setUserId(user.id)
+      setUserRole(user.role)
+      setAuthLoadFailed(false)
+    } catch {
+      if (requestId === authSequenceRef.current) {
+        setUserRole(null)
+        setUserId(null)
+        setAuthLoadFailed(true)
+      }
+    } finally {
+      if (requestId === authSequenceRef.current) setAuthLoading(false)
+    }
+  }, [])
+
+  const authorityReady = !authLoading && !authLoadFailed && userRole !== null && userId !== null
+  const isParent = authorityReady && userRole === 'parent'
+  const reportableMembers = authorityReady
+    ? isParent
+      ? members
+      : members.filter((m) => m.id === userId)
+    : []
 
   // KidHome pattern: a refused or failed request says so in a toast instead
   // of doing nothing (or leaving an unhandled rejection when offline).
@@ -253,17 +415,13 @@ function SickDaysPageInner() {
   )
 
   React.useEffect(() => {
-    load()
-    // Get user role from me endpoint
-    fetch('/api/auth/me').then((r) => r.json()).then((d) => {
-      if (d.user?.role) setUserRole(d.user.role)
-      if (d.user?.id) setUserId(d.user.id)
-    }).catch(() => {})
-  }, [load])
+    void load()
+    void loadAuth()
+  }, [load, loadAuth])
 
   async function startSickDay(e: React.FormEvent) {
     e.preventDefault()
-    if (!startForm.person_id || !startForm.severity) return
+    if (!authorityReady || !startForm.person_id || !startForm.severity) return
     if (!beginMutation()) return
     try {
       const res = await fetch('/api/sick-days', {
@@ -287,7 +445,7 @@ function SickDaysPageInner() {
 
   async function addTemperature(e: React.FormEvent) {
     e.preventDefault()
-    if (!selectedSickDay || !tempForm.value) return
+    if (!authorityReady || !selectedSickDay || !tempForm.value) return
     if (!beginMutation()) return
     try {
       const res = await fetch(`/api/sick-days/${selectedSickDay.id}`, {
@@ -312,7 +470,7 @@ function SickDaysPageInner() {
   }
 
   async function endSickness() {
-    if (!selectedSickDay) return
+    if (!authorityReady || !selectedSickDay) return
     if (!beginMutation()) return
     try {
       const res = await fetch(`/api/sick-days/${selectedSickDay.id}`, {
@@ -335,7 +493,7 @@ function SickDaysPageInner() {
 
   async function addMedication(e: React.FormEvent) {
     e.preventDefault()
-    if (!medForm.person_id || !medForm.name || !medForm.dosage || !medForm.schedule) return
+    if (!authorityReady || !medForm.person_id || !medForm.name || !medForm.dosage || !medForm.schedule) return
     if (!beginMutation()) return
     try {
       const res = await fetch('/api/medications', {
@@ -371,7 +529,7 @@ function SickDaysPageInner() {
   }
 
   async function markDoseTaken(medId: string) {
-    if (savingRef.current || pendingDoseIdsRef.current.has(medId)) return
+    if (!authorityReady || savingRef.current || pendingDoseIdsRef.current.has(medId)) return
     pendingDoseIdsRef.current.add(medId)
     setPendingDoseIds(new Set(pendingDoseIdsRef.current))
     try {
@@ -402,7 +560,7 @@ function SickDaysPageInner() {
 
   async function setNextDose(med: Medication) {
     const hours = Number(nextDoseHours)
-    if (!med.last_dose_at || !Number.isFinite(hours) || hours < 1 || hours > 48) return
+    if (!authorityReady || !med.last_dose_at || !Number.isFinite(hours) || hours < 1 || hours > 48) return
     if (pendingDoseIdsRef.current.has(med.id) || !beginMutation()) return
     const nextAt = new Date(new Date(med.last_dose_at).getTime() + hours * 60 * 60 * 1000)
     try {
@@ -438,13 +596,10 @@ function SickDaysPageInner() {
     return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
   }
 
-  const isParent = userRole === 'parent'
   // D1 (#102): a teen or child sees only their own sick days and medications
   // (the API filters them), may report only themselves as sick, and may log a
   // dose of their own medication. Temperatures, ending a sick day and
   // prescriptions stay with parents.
-  const reportableMembers = isParent ? members : members.filter((m) => m.id === userId)
-
   if (loading && !loadedOnce) {
     return (
       <div className="space-y-6 max-w-2xl mx-auto">
@@ -466,15 +621,26 @@ function SickDaysPageInner() {
           <h1 className="text-large-title font-display">{t('sickDays.title')}</h1>
           <p className="text-subhead text-label-secondary mt-0.5">{t('sickDays.subtitle')}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowStartModal(true)}
-          className="btn-tinted"
-        >
-          <Plus className="w-4 h-4" />
-          <span>{t('sickDays.startSickDay')}</span>
-        </button>
+        {authorityReady && (
+          <button
+            type="button"
+            onClick={() => setShowStartModal(true)}
+            className="btn-tinted"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{t('sickDays.startSickDay')}</span>
+          </button>
+        )}
       </div>
+
+      {authLoadFailed && (
+        <div role="alert" className="card-apple p-4 text-center space-y-2">
+          <p className="text-footnote text-label-primary">{t('sickDays.authLoadFailed')}</p>
+          <button type="button" onClick={() => void loadAuth()} className="btn-plain min-h-[44px]">
+            {t('sickDays.tryAgain')}
+          </button>
+        </div>
+      )}
 
       {/* Active sickness list */}
       {loadFailed ? (
@@ -537,8 +703,8 @@ function SickDaysPageInner() {
 
       {/* Start sick day */}
       <Dialog
-        open={showStartModal}
-        onClose={saving ? undefined : () => setShowStartModal(false)}
+        open={showStartModal && authorityReady}
+        onClose={saving || !authorityReady ? undefined : () => setShowStartModal(false)}
         closeLabel={t('sickDays.closeForm')}
         title={t('sickDays.startSickDay')}
         description={saving ? t('sickDays.pendingDescription') : t('sickDays.draftDescription')}
@@ -548,14 +714,14 @@ function SickDaysPageInner() {
             <button type="button" onClick={() => setShowStartModal(false)} disabled={saving} className="btn-plain min-h-[44px] disabled:opacity-40">
               {t('common.cancel')}
             </button>
-            <button type="submit" form={startFormId} disabled={saving || !startForm.person_id} className="btn-filled">
+            <button type="submit" form={startFormId} disabled={saving || !authorityReady || !startForm.person_id} className="btn-filled">
               {saving ? t('common.saving') : t('common.save')}
             </button>
           </div>
         )}
       >
         <form id={startFormId} onSubmit={startSickDay} aria-busy={saving}>
-          <div className="space-y-4">
+          <fieldset disabled={saving || !authorityReady} className="space-y-4">
             <FormField label={t('sickDays.person')}>
               {(id) => (
                 <select
@@ -597,7 +763,7 @@ function SickDaysPageInner() {
                 />
               )}
             </FormField>
-          </div>
+          </fieldset>
         </form>
       </Dialog>
 
@@ -685,17 +851,19 @@ function SickDaysPageInner() {
                             </p>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => markDoseTaken(med.id)}
-                          disabled={saving || pendingDoseIds.has(med.id)}
-                          aria-busy={pendingDoseIds.has(med.id)}
-                          aria-label={`${t('sickDays.markDoseTaken')} ${med.name}`}
-                          className="btn-tinted min-h-[44px] shrink-0 text-subhead disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <Check className="w-4 h-4" aria-hidden="true" />
-                          {t('sickDays.markDoseTaken')}
-                        </button>
+                        {authorityReady && (
+                          <button
+                            type="button"
+                            onClick={() => markDoseTaken(med.id)}
+                            disabled={saving || pendingDoseIds.has(med.id)}
+                            aria-busy={pendingDoseIds.has(med.id)}
+                            aria-label={`${t('sickDays.markDoseTaken')} ${med.name}`}
+                            className="btn-tinted min-h-[44px] shrink-0 text-subhead disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <Check className="w-4 h-4" aria-hidden="true" />
+                            {t('sickDays.markDoseTaken')}
+                          </button>
+                        )}
                       </div>
                       {isParent && nextDoseFor === med.id && med.last_dose_at && (
                         <form
@@ -705,37 +873,39 @@ function SickDaysPageInner() {
                             setNextDose(med)
                           }}
                         >
-                          <div className="flex-1 min-w-[8rem]">
-                            <label htmlFor={`next-dose-${med.id}`} className="block text-caption-1 text-label-secondary mb-1">
-                              {t('sickDays.nextDoseInHours')}
-                            </label>
-                            <input
-                              id={`next-dose-${med.id}`}
-                              type="number"
-                              inputMode="decimal"
-                              min={1}
-                              max={48}
-                              step="0.5"
-                              value={nextDoseHours}
-                              onChange={(e) => setNextDoseHours(e.target.value)}
-                              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-elevated)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                            />
-                          </div>
-                          {/* .btn-tinted has no disabled look of its own. */}
-                          <button
-                            type="submit"
-                            disabled={saving || !nextDoseHours}
-                            className="btn-tinted min-h-[44px] text-subhead disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            {t('sickDays.setNextDose')}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setNextDoseFor(null)}
-                            className="btn-ghost min-h-[44px] text-subhead"
-                          >
-                            {t('sickDays.skipNextDose')}
-                          </button>
+                          <fieldset disabled={saving} className="contents">
+                            <div className="flex-1 min-w-[8rem]">
+                              <label htmlFor={`next-dose-${med.id}`} className="block text-caption-1 text-label-secondary mb-1">
+                                {t('sickDays.nextDoseInHours')}
+                              </label>
+                              <input
+                                id={`next-dose-${med.id}`}
+                                type="number"
+                                inputMode="decimal"
+                                min={1}
+                                max={48}
+                                step="0.5"
+                                value={nextDoseHours}
+                                onChange={(e) => setNextDoseHours(e.target.value)}
+                                className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-elevated)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                              />
+                            </div>
+                            {/* .btn-tinted has no disabled look of its own. */}
+                            <button
+                              type="submit"
+                              disabled={saving || !nextDoseHours}
+                              className="btn-tinted min-h-[44px] text-subhead disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              {t('sickDays.setNextDose')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setNextDoseFor(null)}
+                              className="btn-ghost min-h-[44px] text-subhead"
+                            >
+                              {t('sickDays.skipNextDose')}
+                            </button>
+                          </fieldset>
                         </form>
                       )}
                     </div>
@@ -764,8 +934,8 @@ function SickDaysPageInner() {
 
       {/* Add temperature */}
       <Dialog
-        open={showAddTempModal}
-        onClose={saving ? undefined : () => setShowAddTempModal(false)}
+        open={showAddTempModal && authorityReady}
+        onClose={saving || !authorityReady ? undefined : () => setShowAddTempModal(false)}
         closeLabel={t('sickDays.closeForm')}
         title={t('sickDays.addTemperature')}
         description={saving ? t('sickDays.pendingDescription') : t('sickDays.draftDescription')}
@@ -775,14 +945,14 @@ function SickDaysPageInner() {
             <button type="button" onClick={() => setShowAddTempModal(false)} disabled={saving} className="btn-plain min-h-[44px] disabled:opacity-40">
               {t('common.cancel')}
             </button>
-            <button type="submit" form={tempFormId} disabled={saving || !tempForm.value} className="btn-filled">
+            <button type="submit" form={tempFormId} disabled={saving || !authorityReady || !tempForm.value} className="btn-filled">
               {saving ? t('common.saving') : t('common.save')}
             </button>
           </div>
         )}
       >
         <form id={tempFormId} onSubmit={addTemperature} aria-busy={saving}>
-          <div className="flex gap-2">
+          <fieldset disabled={saving || !authorityReady} className="flex gap-2">
             <div className="flex-1">
               <FormField label={t('sickDays.temperature')}>
                 {(id) => (
@@ -811,14 +981,14 @@ function SickDaysPageInner() {
                 </select>
               )}
             </FormField>
-          </div>
+          </fieldset>
         </form>
       </Dialog>
 
       {/* Add medication */}
       <Dialog
-        open={showAddMedModal}
-        onClose={saving ? undefined : () => setShowAddMedModal(false)}
+        open={showAddMedModal && authorityReady}
+        onClose={saving || !authorityReady ? undefined : () => setShowAddMedModal(false)}
         closeLabel={t('sickDays.closeForm')}
         title={t('sickDays.addMedication')}
         description={saving ? t('sickDays.pendingDescription') : t('sickDays.draftDescription')}
@@ -828,14 +998,14 @@ function SickDaysPageInner() {
             <button type="button" onClick={() => setShowAddMedModal(false)} disabled={saving} className="btn-plain min-h-[44px] disabled:opacity-40">
               {t('common.cancel')}
             </button>
-            <button type="submit" form={medFormId} disabled={saving || !medForm.person_id || !medForm.name || !medForm.dosage || !medForm.schedule} className="btn-filled">
+            <button type="submit" form={medFormId} disabled={saving || !authorityReady || !medForm.person_id || !medForm.name || !medForm.dosage || !medForm.schedule} className="btn-filled">
               {saving ? t('common.saving') : t('common.save')}
             </button>
           </div>
         )}
       >
         <form id={medFormId} onSubmit={addMedication} aria-busy={saving}>
-          <div className="space-y-4">
+          <fieldset disabled={saving || !authorityReady} className="space-y-4">
             <FormField label={t('sickDays.person')}>
               {(id) => (
                 <select
@@ -888,7 +1058,7 @@ function SickDaysPageInner() {
                 />
               )}
             </FormField>
-          </div>
+          </fieldset>
         </form>
       </Dialog>
     </div>

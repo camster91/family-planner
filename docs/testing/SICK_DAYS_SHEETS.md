@@ -11,7 +11,9 @@ The page treats the three reads independently. A sick-day read failure keeps
 the page in an explicit retry state. Member or medication read failures remain
 visible as retryable dependency errors; when the medication read fails, the
 medication records already embedded in the sick-day response remain visible.
-No automatic clinical retry or schedule inference is added.
+Malformed successful payloads use the same truthful failure paths, and a
+sequence guard prevents an older retry from replacing a newer read. No
+automatic clinical retry or schedule inference is added.
 
 The new recovery, form, pending, severity, and schedule placeholder copy is
 present in both the English and Spanish `sickDays` message blocks in
@@ -21,7 +23,9 @@ of this slice.
 Role boundaries stay server-authoritative: parents manage temperatures,
 medication records, and recovery; teens and children see and dose only their
 own records and may report only themselves. The existing API isolation tests
-remain the contract evidence for those boundaries.
+remain the contract evidence for those boundaries. Until `/api/auth/me`
+returns a valid role and id, the page remains read-only and shows a retryable
+localized authority error when that request fails.
 
 Focused checks:
 

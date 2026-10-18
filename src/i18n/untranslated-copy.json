@@ -1330,21 +1330,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "Couldn&apos;t load sick days. Check your connection and try again.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "Try again",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "Twice daily",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/today/page.tsx",
     "text": "Create a household",
     "count": 1
