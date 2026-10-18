@@ -1,5 +1,17 @@
 # Current State
 
+## Subsequent child home localization candidate — 2026-10-18
+
+This isolated candidate normally combines reviewed child UI19ed11cb and
+browser QA18ba9828 over parent4381659b (draft PR581). It localizes child home
+and routines product copy, dates, errors, Undo and screen-reader labels while
+keeping household text and permissions unchanged. Author checks pass62 focused
+cases/types/lint, the exact stale copy inventory is reduced, and source review
+is clear. A24-case EN/ES/six-size browser suite is prepared but has not run.
+Integrated baseline/build/rendered review and parent acceptance remain required.
+This is not included in the current PR581 head or a production release.
+
+
 ## Combined Rewards/Budget rebuild checkpoint — 2026-10-18
 
 Source `59c1a92b` incorporates the inactive-reward and Spanish-copy repairs plus
