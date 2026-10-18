@@ -126,6 +126,9 @@ export default function CreateProjectForm({
       router.push(`/dashboard/projects/${projectId}`);
       router.refresh();
     } catch (error) {
+      if (error instanceof TypeError) {
+        ambiguousRequests.current.set(signature, key);
+      }
       addToast({
         type: "error",
         title: copy.createError,
