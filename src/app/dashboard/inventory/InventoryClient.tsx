@@ -218,6 +218,7 @@ export default function InventoryClient({
   const [refreshFailed, setRefreshFailed] = React.useState(false)
   const [editing, setEditing] = React.useState<{ mode: 'add' } | { mode: 'edit'; item: InventoryItemDto } | null>(null)
   const addItemRef = React.useRef<HTMLButtonElement>(null)
+  const focusAddAfterEdit = React.useRef(false)
   const [notice, setNotice] = React.useState<{ text: InventoryFeedback; error?: boolean } | null>(null)
   const [scanning, setScanning] = React.useState(false)
   const [busy, setBusy] = React.useState<string | null>(null)
@@ -225,6 +226,15 @@ export default function InventoryClient({
   const [whereFilter, setWhereFilter] = React.useState<InventoryLocation | 'all'>('all')
   const [categoryFilter, setCategoryFilter] = React.useState<InventoryCategory | 'all'>('all')
   const hasData = React.useRef(false)
+
+  // Run after the removed Dialog has restored its opener. A timer can fire
+  // before that cleanup and have its focus overwritten by the old row.
+  React.useEffect(() => {
+    if (!editing && focusAddAfterEdit.current) {
+      focusAddAfterEdit.current = false
+      addItemRef.current?.focus()
+    }
+  }, [editing])
 
   const load = React.useCallback(async () => {
     const q = todayQuery()
@@ -597,8 +607,8 @@ export default function InventoryClient({
           initial={editing.mode === 'edit' ? editing.item : undefined}
           onClose={() => setEditing(null)}
           onDone={(message) => {
+            focusAddAfterEdit.current = true
             void afterChange(message)
-            setTimeout(() => addItemRef.current?.focus(), 0)
           }}
           onAdjust={adjust}
         />

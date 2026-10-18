@@ -584,6 +584,9 @@ describe("/dashboard/inventory", () => {
     });
     expect(header(post, "Idempotency-Key")).toMatch(/^[0-9a-f-]{36}$/);
     expect(await screen.findByText("Added Yogurt.")).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: "Add item" })[0]).toHaveFocus(),
+    );
 
     await user.click(await screen.findByRole("button", { name: "Edit Peas" }));
     const edit = await screen.findByRole("dialog");
