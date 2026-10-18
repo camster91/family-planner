@@ -468,12 +468,23 @@ for (const locale of ["en", "es"] as const) {
         name: new RegExp(routineName),
       });
       await expect(seededStack).toHaveCount(1);
-      await expect(seededStack.locator("ol > li")).toHaveCount(3);
-      for (const title of routineStepTitles) {
-        await expect(
-          seededStack.getByText(title, { exact: true }),
-        ).toBeVisible();
-      }
+      const seededRows = seededStack.locator("ol > li");
+      await expect(seededRows).toHaveCount(3);
+      // The open parent row keeps its raw title; completed and verified rows
+      // render their canonical routine order before the raw household title.
+      await expect(
+        seededRows.nth(0).getByText(routineStepTitles[0], { exact: true }),
+      ).toBeVisible();
+      await expect(
+        seededRows
+          .nth(1)
+          .getByText(`2. ${routineStepTitles[1]}`, { exact: true }),
+      ).toBeVisible();
+      await expect(
+        seededRows
+          .nth(2)
+          .getByText(`3. ${routineStepTitles[2]}`, { exact: true }),
+      ).toBeVisible();
       await expect(
         page.getByText(copy(locale, "greeting", { name: "Casey" }), {
           exact: true,
