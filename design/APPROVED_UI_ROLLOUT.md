@@ -48,7 +48,7 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Shared personal navigation | Five parent tabs, searchable Explore, Family within Core | Candidate in progress; child/teen tabs retained |
 | Chores | Grouped series, selected weekdays, clear owner, contextual actions | Existing behavior retained; approved layout review pending |
 | Calendar | Readable week/agenda, duration and clear connection controls | Existing behavior retained; approved layout review pending |
-| Lists | Direct groceries, custom lists, simple create/edit | Existing behavior retained; form simplification next |
+| Lists | Direct groceries, custom lists, simple create/edit | Candidate compact overview and short create form; bounded source/runtime review passed, hosted acceptance and detail-context review pending |
 | Family | Add everyone, email-free profiles, clear account-link distinction | Existing behavior retained; approved layout review pending |
 | Meals | Week plan, recipes, several-dish prep, eaten/remaining/next prep | Existing behavior retained; approved layout review pending |
 | Inventory | Use soon, honest capture review, quantities and locations | Existing behavior retained; approved layout review pending |
@@ -82,3 +82,27 @@ Do not replace robust domain/recovery logic with a visual-only duplicate.
 Merge only after the applicable original checks pass. Verify the exact merged
 revision, deployment and runtime separately; do not close #499/#128 on a partial
 slice. Rollback should restore presentation without changing household data.
+
+## Bounded Lists overview checkpoint — 2026-10-17
+
+The overview candidate replaces tall type cards with wrapping 44px filters,
+keeps Shopping visible when used or explicitly selected, and offers one create
+action in empty active types. Existing household scope, child creation limits,
+legacy meal-plan readability, item counts and pending-tick recovery are retained.
+A failed list read now renders a localized Retry state rather than a false empty
+household. No schema/API/permission change is introduced.
+
+At application source `a7ac0f9c`, 23 affected tests, types, full lint and optimized
+build passed. Local fixture journeys passed rapid Grocery/To-do filtering and
+Back/Forward restoration, with no horizontal overflow and 44px filter targets at
+all six viewport sizes in EN/dark and ES/light. Independent delta review passed.
+An earlier runtime at `773d3469` exercised an actual isolated list-read failure
+and Retry after restoring the read; fixture list count remained seven. Local
+captures and source/version records are retained in the task's
+`work/ui-plan-approved-2026-10-17/` evidence folder. These checkpoints are not a
+hosted or production release claim. Browser assertions for the approved Explore
+navigation are subsequently updated without removing role/focus/offline gates;
+fresh exact-head hosted checks remain required.
+
+Lists detail back-context/localization and remaining feature rows are still
+pending. Do not mark Lists or the all-feature programme complete from this slice.
