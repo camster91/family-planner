@@ -597,7 +597,7 @@ export default function KidHome({
             <div className="flex items-center gap-1 mt-1">
               <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
               <span className="text-footnote text-label-secondary">
-                {chore.points} points
+                {chore.points} {rewardsText("points")}
               </span>
             </div>
           )}
