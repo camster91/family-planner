@@ -24,11 +24,17 @@ type WishlistItem = {
   requester: { id: string; name: string }
 }
 
-type RefreshNotice = 'saved' | 'deleted'
+type RefreshNotice = 'saved' | 'deleted' | 'status'
 type RefreshRecovery = {
   kind: RefreshNotice
   confirmed: WishlistItem | null
   deletedId?: string
+}
+
+type ServerErrorDetails = {
+  message: string | null
+  code: string | null
+  retryable: boolean | null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -73,57 +79,147 @@ function responseWishlistItems(value: unknown): WishlistItem[] | null {
   return value.items.every(isWishlistItem) ? value.items : null
 }
 
+function sameApproxPrice(a: string | null, b: string | null): boolean {
+  if (a === b) return true
+  if (a === null || b === null) return false
+  const aNumber = Number(a)
+  const bNumber = Number(b)
+  return Number.isFinite(aNumber) && Number.isFinite(bNumber) && aNumber === bNumber
+}
+
+function sameWishlistIdentity(a: WishlistItem, b: WishlistItem): boolean {
+  return (
+    a.id === b.id &&
+    a.requested_by === b.requested_by &&
+    a.created_at === b.created_at &&
+    a.requester.id === b.requester.id &&
+    a.requester.name === b.requester.name
+  )
+}
+
+function sameWishlistFields(a: WishlistItem, b: WishlistItem): boolean {
+  return (
+    a.title === b.title &&
+    a.link === b.link &&
+    a.description === b.description &&
+    sameApproxPrice(a.approx_price, b.approx_price)
+  )
+}
+
+function sameWishlistDraft(
+  item: WishlistItem,
+  draft: Pick<WishlistItem, 'title' | 'link' | 'description' | 'approx_price'>,
+): boolean {
+  return (
+    item.title === draft.title &&
+    item.link === draft.link &&
+    item.description === draft.description &&
+    sameApproxPrice(item.approx_price, draft.approx_price)
+  )
+}
+
 function matchesStatus(
   item: WishlistItem | undefined,
   id: string,
   status: string,
   deniedReason?: string,
+  expected?: WishlistItem,
 ): boolean {
   return Boolean(
     item &&
     item.id === id &&
     item.status === status &&
-    (status !== 'denied' || item.denied_reason === deniedReason),
+    (status !== 'denied' || item.denied_reason === deniedReason) &&
+    (!expected ||
+      (sameWishlistIdentity(item, expected) &&
+        sameWishlistFields(item, expected))),
   )
 }
 
 function responseMatchesStatus(
   value: unknown,
-  id: string,
+  expected: WishlistItem,
   status: string,
   deniedReason?: string,
 ): boolean {
   return matchesStatus(
     responseWishlistItem(value) ?? undefined,
-    id,
+    expected.id,
     status,
     deniedReason,
+    expected,
   )
 }
 
 function sameWishlistItem(a: WishlistItem, b: WishlistItem): boolean {
   return (
-    a.id === b.id &&
-    a.title === b.title &&
-    a.link === b.link &&
-    a.description === b.description &&
-    a.approx_price === b.approx_price &&
+    sameWishlistIdentity(a, b) &&
+    sameWishlistFields(a, b) &&
     a.status === b.status &&
-    a.denied_reason === b.denied_reason &&
-    a.requested_by === b.requested_by
+    a.denied_reason === b.denied_reason
   )
 }
 
-/** The server's `error` text, or null when the body has none. */
-async function serverError(res: Response): Promise<string | null> {
-  const data = await res.json().catch(() => null)
-  return data && typeof data.error === 'string' && data.error
-    ? data.error
-    : null
+function responseMatchesDraft(
+  value: unknown,
+  expected: WishlistItem,
+  draft: Pick<WishlistItem, 'title' | 'link' | 'description' | 'approx_price'>,
+): WishlistItem | null {
+  const item = responseWishlistItem(value)
+  if (!item || !sameWishlistIdentity(item, expected)) return null
+  return sameWishlistDraft(item, draft) ? item : null
 }
 
-function isDefinitiveRefusal(status: number): boolean {
-  return Number.isInteger(status) && status >= 400 && status < 500
+function responseMatchesCreatedItem(
+  value: unknown,
+  requesterId: string,
+  draft: Pick<WishlistItem, 'title' | 'link' | 'description' | 'approx_price'>,
+): WishlistItem | null {
+  const item = responseWishlistItem(value)
+  if (
+    !item ||
+    item.requested_by !== requesterId ||
+    item.requester.id !== requesterId
+  ) {
+    return null
+  }
+  return sameWishlistDraft(item, draft) ? item : null
+}
+
+async function serverErrorDetails(res: Response): Promise<ServerErrorDetails> {
+  const data = await res.json().catch(() => null)
+  if (!isRecord(data)) {
+    return { message: null, code: null, retryable: null }
+  }
+  const nested = isRecord(data.error) ? data.error : null
+  return {
+    message:
+      (nested && typeof nested.message === 'string' && nested.message) ||
+      (typeof data.error === 'string' && data.error) ||
+      null,
+    code:
+      (nested && typeof nested.code === 'string' && nested.code) ||
+      (typeof data.code === 'string' && data.code) ||
+      null,
+    retryable:
+      nested && typeof nested.retryable === 'boolean'
+        ? nested.retryable
+        : typeof data.retryable === 'boolean'
+          ? data.retryable
+          : null,
+  }
+}
+
+function isDefinitiveRefusal(
+  status: number,
+  details: ServerErrorDetails,
+): boolean {
+  if (!Number.isInteger(status) || status < 400 || status >= 500) return false
+  if (status === 429) return false
+  if (status === 409) {
+    return details.code !== 'IDEMPOTENCY_IN_PROGRESS' && details.retryable === false
+  }
+  return details.retryable !== true
 }
 
 function newMutationKey(): string {
@@ -371,17 +467,25 @@ function WishlistContent() {
         return
       }
       if (!res.ok) {
-        if (!isDefinitiveRefusal(res.status)) {
+        const details = await serverErrorDetails(res)
+        if (!isDefinitiveRefusal(res.status, details)) {
           setModalError(t('wishlist.writeUncertain'))
         } else {
           clearMutationKey('add')
           setModalError(
-            `${t('wishlist.errorSave')} ${(await serverError(res)) ?? t('common.tryAgain')}`,
+            `${t('wishlist.errorSave')} ${details.message ?? t('common.tryAgain')}`,
           )
         }
         return
       }
-      const confirmed = responseWishlistItem(await res.json().catch(() => null))
+      const confirmed = responseMatchesCreatedItem(
+        await res.json().catch(() => null),
+        userId,
+        JSON.parse(body) as Pick<
+          WishlistItem,
+          'title' | 'link' | 'description' | 'approx_price'
+        >,
+      )
       if (!confirmed) {
         setModalError(t('wishlist.writeUncertain'))
         return
@@ -421,11 +525,16 @@ function WishlistContent() {
   }
 
   const reconcileStatus = useCallback(
-    async (id: string, status: string, deniedReason?: string) => {
+    async (
+      id: string,
+      status: string,
+      deniedReason?: string,
+      expected?: WishlistItem,
+    ) => {
       const refreshed = await fetchItems({ showPageError: false })
       return Boolean(
         refreshed?.some((item) =>
-          matchesStatus(item, id, status, deniedReason),
+          matchesStatus(item, id, status, deniedReason, expected),
         ),
       )
     },
@@ -446,40 +555,70 @@ function WishlistContent() {
     if (!beginStatus(id)) return false
     const normalizedReason =
       status === 'denied' ? deniedReason?.trim() : undefined
+    const currentItem = items.find((item) => item.id === id)
+    const body = JSON.stringify({
+      status,
+      ...(normalizedReason ? { denied_reason: normalizedReason } : {}),
+    })
+    const scope = `status:${id}`
+    const mutationKey = getMutationKey(scope, body)
     try {
       let res: Response
       try {
         res = await fetch(`/api/wishlist/${id}/status`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            status,
-            ...(normalizedReason ? { denied_reason: normalizedReason } : {}),
-          }),
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': mutationKey,
+          },
+          body,
         })
       } catch {
-        const confirmed = await reconcileStatus(id, status, normalizedReason)
+        const confirmed = await reconcileStatus(
+          id,
+          status,
+          normalizedReason,
+          currentItem,
+        )
+        if (confirmed) clearMutationKey(scope)
         if (!confirmed)
           reportStatusError(t('wishlist.statusUncertain'), errorTarget)
         return confirmed
       }
       if (!res.ok) {
-        if (!isDefinitiveRefusal(res.status)) {
-          const confirmed = await reconcileStatus(id, status, normalizedReason)
+        const details = await serverErrorDetails(res)
+        if (!isDefinitiveRefusal(res.status, details)) {
+          const confirmed = await reconcileStatus(
+            id,
+            status,
+            normalizedReason,
+            currentItem,
+          )
+          if (confirmed) clearMutationKey(scope)
           if (!confirmed)
             reportStatusError(t('wishlist.statusUncertain'), errorTarget)
           return confirmed
         }
+        clearMutationKey(scope)
         reportStatusError(
-          (await serverError(res)) ?? t('common.tryAgain'),
+          details.message ?? t('common.tryAgain'),
           errorTarget,
         )
         return false
       }
 
       const payload = await res.json().catch(() => null)
-      if (!responseMatchesStatus(payload, id, status, normalizedReason)) {
-        const confirmed = await reconcileStatus(id, status, normalizedReason)
+      if (
+        !currentItem ||
+        !responseMatchesStatus(payload, currentItem, status, normalizedReason)
+      ) {
+        const confirmed = await reconcileStatus(
+          id,
+          status,
+          normalizedReason,
+          currentItem,
+        )
+        if (confirmed) clearMutationKey(scope)
         if (!confirmed)
           reportStatusError(t('wishlist.statusUncertain'), errorTarget)
         return confirmed
@@ -487,25 +626,11 @@ function WishlistContent() {
 
       const confirmedItem = responseWishlistItem(payload)
       if (!confirmedItem) return false
+      clearMutationKey(scope)
       setItems((current) =>
         current.map((item) => (item.id === id ? confirmedItem : item)),
       )
-      const refreshed = await fetchItems({ showPageError: false })
-      if (
-        !refreshed ||
-        !refreshed.some((item) =>
-          matchesStatus(item, id, status, normalizedReason),
-        )
-      ) {
-        setItems((current) =>
-          current.map((item) => (item.id === id ? confirmedItem : item)),
-        )
-        addToast({
-          type: 'error',
-          title: t('wishlist.errorStatus'),
-          message: t('wishlist.statusSavedRefreshFailed'),
-        })
-      }
+      await refreshAfterConfirmedWrite('status', confirmedItem)
       return true
     } finally {
       endStatus(id)
@@ -573,12 +698,13 @@ function WishlistContent() {
         return
       }
       if (!res.ok) {
-        if (!isDefinitiveRefusal(res.status))
+        const details = await serverErrorDetails(res)
+        if (!isDefinitiveRefusal(res.status, details))
           setModalError(t('wishlist.writeUncertain'))
         else {
           clearMutationKey(scope)
           setModalError(
-            `${t('wishlist.errorDelete')} ${(await serverError(res)) ?? t('common.tryAgain')}`,
+            `${t('wishlist.errorDelete')} ${details.message ?? t('common.tryAgain')}`,
           )
         }
         return
@@ -656,18 +782,23 @@ function WishlistContent() {
         return
       }
       if (!res.ok) {
-        if (!isDefinitiveRefusal(res.status))
+        const details = await serverErrorDetails(res)
+        if (!isDefinitiveRefusal(res.status, details))
           setModalError(t('wishlist.writeUncertain'))
         else {
           clearMutationKey(scope)
           setModalError(
-            `${t('wishlist.errorSave')} ${(await serverError(res)) ?? t('common.tryAgain')}`,
+            `${t('wishlist.errorSave')} ${details.message ?? t('common.tryAgain')}`,
           )
         }
         return
       }
-      const confirmed = responseWishlistItem(await res.json().catch(() => null))
-      if (!confirmed || confirmed.id !== editingItem.id) {
+      const confirmed = responseMatchesDraft(
+        await res.json().catch(() => null),
+        editingItem,
+        payload,
+      )
+      if (!confirmed) {
         setModalError(t('wishlist.writeUncertain'))
         return
       }
@@ -713,11 +844,12 @@ function WishlistContent() {
   const visibleItems = isParent
     ? items
     : items.filter((item) => item.requested_by === userId)
-  const groupedItems = visibleItems.reduce<Record<string, WishlistItem[]>>(
-    (acc, item) => {
-      const key = item.requester.name
-      if (!acc[key]) acc[key] = []
-      acc[key].push(item)
+  const groupedItems = visibleItems.reduce<
+    Record<string, { requester: WishlistItem['requester']; items: WishlistItem[] }>
+  >((acc, item) => {
+      const key = item.requester.id
+      if (!acc[key]) acc[key] = { requester: item.requester, items: [] }
+      acc[key].items.push(item)
       return acc
     },
     {},
@@ -778,12 +910,12 @@ function WishlistContent() {
     )
   }
 
-  const pageTitle =
-    userRole === 'child' ? t('wishlist.myIdeas') : t('wishlist.familyTitle')
-  const pageSubtitle =
-    userRole === 'child'
-      ? t('wishlist.myIdeasSubtitle')
-      : t('wishlist.familySubtitle')
+  const pageTitle = isParent
+    ? t('wishlist.familyTitle')
+    : t('wishlist.myIdeas')
+  const pageSubtitle = isParent
+    ? t('wishlist.familySubtitle')
+    : t('wishlist.myIdeasSubtitle')
 
   return (
     <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
@@ -844,7 +976,9 @@ function WishlistContent() {
               {t(
                 refreshNotice === 'deleted'
                   ? 'wishlist.deletedRefreshFailed'
-                  : 'wishlist.savedRefreshFailed',
+                  : refreshNotice === 'status'
+                    ? 'wishlist.statusSavedRefreshFailed'
+                    : 'wishlist.savedRefreshFailed',
               )}
             </span>
             <button
@@ -871,7 +1005,7 @@ function WishlistContent() {
             </h2>
             <p className="mt-1 max-w-md text-subhead text-label-secondary">
               {t(
-                userRole === 'child'
+                !isParent
                   ? 'wishlist.emptyMineSubtitle'
                   : 'wishlist.emptySubtitle',
               )}
@@ -879,19 +1013,20 @@ function WishlistContent() {
           </div>
         )}
 
-        {Object.entries(groupedItems).map(([requesterName, requesterItems]) => (
-          <section
-            key={requesterName}
-            aria-labelledby={`wishlist-${requesterName}`}
-          >
-            {isParent && (
-              <h2
-                id={`wishlist-${requesterName}`}
-                className="mb-3 ml-1 text-caption-1 font-semibold uppercase tracking-wide text-label-tertiary"
-              >
-                {t('wishlist.wishesFor', { name: requesterName })}
-              </h2>
-            )}
+        {Object.entries(groupedItems).map(
+          ([requesterId, { requester, items: requesterItems }]) => (
+            <section
+              key={requesterId}
+              aria-labelledby={`wishlist-${requesterId}`}
+            >
+              {isParent && (
+                <h2
+                  id={`wishlist-${requesterId}`}
+                  className="mb-3 ml-1 text-caption-1 font-semibold uppercase tracking-wide text-label-tertiary"
+                >
+                  {t('wishlist.wishesFor', { name: requester.name })}
+                </h2>
+              )}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {requesterItems.map((item) => {
                 const meta = statusMeta[item.status]
@@ -1023,8 +1158,9 @@ function WishlistContent() {
                 )
               })}
             </div>
-          </section>
-        ))}
+            </section>
+          ),
+        )}
       </div>
 
       <Dialog

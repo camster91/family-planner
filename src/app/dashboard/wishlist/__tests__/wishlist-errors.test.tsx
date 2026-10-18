@@ -497,16 +497,12 @@ it('reconciles a 5xx status response before allowing a retry', async () => {
   expect(screen.queryByRole('alert')).toBeNull()
 })
 
-it('keeps the canonical PATCH status and row fields when the follow-up GET fails', async () => {
+it('keeps the confirmed PATCH status and offers a GET-only retry when refresh fails', async () => {
   const secondItem = { ...ITEM, id: 'w2', title: 'Ball' }
   let wishlistGets = 0
-  const committed = {
-    ...ITEM,
-    status: 'received',
-    description: 'Canonical committed details',
-    link: 'https://example.test/canonical-bike',
-    approx_price: '42.00',
-  }
+  const committed = { ...ITEM, status: 'received' as const }
+  let statusCalls = 0
+  const statusKeys: string[] = []
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -520,16 +516,22 @@ it('keeps the canonical PATCH status and row fields when the follow-up GET fails
       }
       if (url === '/api/wishlist' && method === 'GET') {
         wishlistGets += 1
-        if (wishlistGets === 1) {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({ items: [ITEM, secondItem] }),
-          } as Response
-        }
-        throw new TypeError('Failed to fetch')
+        if (wishlistGets === 2) throw new TypeError('Failed to fetch')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            items: [wishlistGets >= 3 ? committed : ITEM, secondItem],
+          }),
+        } as Response
       }
       if (url === '/api/wishlist/w1/status' && method === 'PATCH') {
+        statusCalls += 1
+        statusKeys.push(
+          String(
+            init?.headers && new Headers(init.headers).get('Idempotency-Key'),
+          ),
+        )
         return {
           ok: true,
           status: 200,
@@ -549,18 +551,20 @@ it('keeps the canonical PATCH status and row fields when the follow-up GET fails
   await user.selectOptions(select, 'received')
 
   await waitFor(() => expect(select.value).toBe('received'))
-  expect(screen.getByText('Canonical committed details')).toBeTruthy()
-  expect(
-    screen
-      .getByRole('link', { name: 'https://example.test/canonical-bike' })
-      .getAttribute('href'),
-  ).toBe('https://example.test/canonical-bike')
-  expect(screen.getByText('wishlist.approxPriceValue')).toBeTruthy()
   expect(screen.getByText('Ball')).toBeTruthy()
   expect((await screen.findByRole('alert')).textContent).toContain(
     'wishlist.statusSavedRefreshFailed',
   )
   expect(wishlistGets).toBe(2)
+  expect(statusCalls).toBe(1)
+  expect(statusKeys[0]).toBeTruthy()
+
+  await user.click(screen.getByRole('button', { name: 'wishlist.retry' }))
+  await waitFor(() =>
+    expect(screen.queryByText('wishlist.statusSavedRefreshFailed')).toBeNull(),
+  )
+  expect(wishlistGets).toBe(3)
+  expect(statusCalls).toBe(1)
 })
 
 it('keeps a malformed status payload unresolved when reconciliation also fails', async () => {
@@ -700,7 +704,7 @@ it('keeps a confirmed add visible when refresh fails and retries only the GET', 
     ...ITEM,
     id: 'w-created',
     title: 'Tent',
-    link: 'https://example.test/tent',
+    link: null,
   }
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -811,6 +815,159 @@ it('reuses the same mutation key when an add is retried with the same draft', as
   expect(keys[0]).toBe(keys[1])
 })
 
+it('keeps an add intent across retryable 409 and 429 responses', async () => {
+  let attempts = 0
+  const keys: string[] = []
+  const created = { ...ITEM, id: 'w-retryable', title: 'Skates' }
+  global.fetch = jest.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (url === '/api/auth/me') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ user: { id: 'u1', role: 'parent' } }),
+        } as Response
+      }
+      if (url === '/api/wishlist' && method === 'GET') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: attempts >= 3 ? [ITEM, created] : [ITEM] }),
+        } as Response
+      }
+      if (url === '/api/wishlist' && method === 'POST') {
+        attempts += 1
+        keys.push(
+          String(
+            init?.headers && new Headers(init.headers).get('Idempotency-Key'),
+          ),
+        )
+        if (attempts === 1) {
+          return {
+            ok: false,
+            status: 409,
+            json: async () => ({
+              error: {
+                code: 'IDEMPOTENCY_IN_PROGRESS',
+                message: 'Still processing',
+                retryable: true,
+              },
+            }),
+          } as Response
+        }
+        if (attempts === 2) {
+          return {
+            ok: false,
+            status: 429,
+            json: async () => ({ error: 'Rate limited' }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ item: created }),
+        } as Response
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as Response
+    },
+  ) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  await user.click(screen.getByRole('button', { name: /wishlist.addWish/ }))
+  await user.type(screen.getByLabelText(/wishlist\.wishTitle/), 'Skates')
+  const save = screen.getByRole('button', { name: 'wishlist.save' })
+
+  await user.click(save)
+  expect((await screen.findByRole('alert')).textContent).toContain(
+    'wishlist.writeUncertain',
+  )
+  await user.click(save)
+  expect((await screen.findByRole('alert')).textContent).toContain(
+    'wishlist.writeUncertain',
+  )
+  await user.click(save)
+  await waitFor(() => expect(screen.getByText('Skates')).toBeTruthy())
+  expect(keys).toHaveLength(3)
+  expect(new Set(keys).size).toBe(1)
+})
+
+it('rejects a successful edit response with the wrong identity or edited fields', async () => {
+  let attempts = 0
+  const keys: string[] = []
+  global.fetch = jest.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (url === '/api/auth/me') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ user: { id: 'u1', role: 'parent' } }),
+        } as Response
+      }
+      if (url === '/api/wishlist' && method === 'GET') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [ITEM] }),
+        } as Response
+      }
+      if (url === '/api/wishlist/w1' && method === 'PATCH') {
+        attempts += 1
+        keys.push(
+          String(
+            init?.headers && new Headers(init.headers).get('Idempotency-Key'),
+          ),
+        )
+        if (attempts === 1) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              item: {
+                ...ITEM,
+                title: 'Wrong server item',
+                requested_by: 'other-user',
+                requester: { id: 'other-user', name: 'Other' },
+              },
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ item: { ...ITEM, title: 'Red bike' } }),
+        } as Response
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as Response
+    },
+  ) as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  await user.click(screen.getByRole('button', { name: 'wishlist.editItem' }))
+  const dialog = screen.getByRole('dialog')
+  const title = within(dialog).getByLabelText(/wishlist\.wishTitle/)
+  await user.clear(title)
+  await user.type(title, 'Red bike')
+  const save = within(dialog).getByRole('button', { name: 'wishlist.save' })
+
+  await user.click(save)
+  expect((await within(dialog).findByRole('alert')).textContent).toContain(
+    'wishlist.writeUncertain',
+  )
+  expect(screen.queryByText('Wrong server item')).toBeNull()
+  await user.click(save)
+  await waitFor(() => expect(screen.getByText('Red bike')).toBeTruthy())
+  expect(keys).toHaveLength(2)
+  expect(keys[0]).toBe(keys[1])
+})
+
 it('shows a child only their own ideas and keeps parent status controls private', async () => {
   const own = {
     ...ITEM,
@@ -847,6 +1004,88 @@ it('shows a child only their own ideas and keeps parent status controls private'
   expect(
     screen.getByRole('button', { name: 'wishlist.deleteItem' }),
   ).toBeTruthy()
+})
+
+it('groups parent ideas by requester id even when names are identical', async () => {
+  const first = {
+    ...ITEM,
+    id: 'w-first',
+    title: 'First idea',
+    requested_by: 'u-first',
+    requester: { id: 'u-first', name: 'Alex' },
+  }
+  const second = {
+    ...ITEM,
+    id: 'w-second',
+    title: 'Second idea',
+    requested_by: 'u-second',
+    requester: { id: 'u-second', name: 'Alex' },
+  }
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url === '/api/auth/me') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ user: { id: 'u1', role: 'parent' } }),
+      } as Response
+    }
+    if (url === '/api/wishlist') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ items: [first, second] }),
+      } as Response
+    }
+    return { ok: true, status: 200, json: async () => ({}) } as Response
+  }) as unknown as typeof fetch
+
+  renderPage()
+  await screen.findByText('First idea')
+  const regions = screen.getAllByRole('region')
+  expect(regions).toHaveLength(2)
+  expect(
+    new Set(regions.map((region) => region.getAttribute('aria-labelledby'))).size,
+  ).toBe(2)
+})
+
+it('uses the personal ideas heading for teen members', async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url === '/api/auth/me') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ user: { id: 'u-teen', role: 'teen' } }),
+      } as Response
+    }
+    if (url === '/api/wishlist') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [
+            {
+              ...ITEM,
+              id: 'w-teen',
+              requested_by: 'u-teen',
+              requester: { id: 'u-teen', name: 'Teen' },
+            },
+          ],
+        }),
+      } as Response
+    }
+    return { ok: true, status: 200, json: async () => ({}) } as Response
+  }) as unknown as typeof fetch
+
+  renderPage()
+  await screen.findByText('Bike')
+  expect(
+    screen.getByRole('heading', { level: 1, name: 'wishlist.myIdeas' }),
+  ).toBeTruthy()
+  expect(
+    screen.queryByRole('heading', { name: 'wishlist.familyTitle' }),
+  ).toBeNull()
 })
 
 it('editing: sends the existing wishlist fields through the short sheet', async () => {
