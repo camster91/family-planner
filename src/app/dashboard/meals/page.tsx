@@ -4,6 +4,7 @@ import * as React from "react";
 import styles from "./meals-board.module.css";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { MealViewNav } from "@/components/meals/MealViewNav";
 import { BulkCookingPanel } from "@/components/meals/BulkCookingPanel";
 import { useBulkCookingText } from "@/i18n/bulk-cooking";
 import { mealPrepListSchema, type MealPrepContext } from "@/lib/meal-batches";
@@ -402,14 +403,8 @@ function MealsPageInner() {
   const router = useRouter();
   // Keep the existing rolling week: today plus six days, not a locale-dependent
   // weekday boundary. URL dates are calendar days, never UTC instants.
-  const tBulk = useBulkCookingText();
   const bulkContext = React.useRef<MealPrepContext | null>(null);
   const view = searchParams.get("view") === "bulk" ? "bulk" : "week";
-  const changeView = (next: "bulk" | "week") => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (next === "week") params.delete("view"); else params.set("view", "bulk");
-    const query = params.toString(); router.push(`${pathname}${query ? `?${query}` : ""}`);
-  };
   const requestedStart = searchParams.get("start");
   const startKey = requestedStart ?? toDateOnlyLocal(new Date());
   const anchor = React.useMemo(() => supportedMealWeek(startKey), [startKey]);
@@ -661,7 +656,6 @@ function MealsPageInner() {
           <p className="text-subhead text-label-secondary mt-0.5">
             {t("meals.subtitle")}
           </p>
-          <Link href="/dashboard/meals/explore" className="inline-flex min-h-[44px] items-center gap-2 text-subhead text-[var(--accent-text)]"><BookOpen className="w-4 h-4" aria-hidden="true" />Explore recipes</Link>
           {inventoryOn && (
             <Link
               href="/dashboard/inventory"
@@ -685,10 +679,7 @@ function MealsPageInner() {
         )}
       </div>
 
-      <nav aria-label={tBulk("views")} className="flex flex-wrap gap-2">
-        <button type="button" className={cn(view === "week" ? "btn-filled" : "btn-tinted", "min-h-[44px]")} aria-pressed={view === "week"} onClick={() => changeView("week")}>{tBulk("week")}</button>
-        <button type="button" className={cn(view === "bulk" ? "btn-filled" : "btn-tinted", "min-h-[44px]")} aria-pressed={view === "bulk"} onClick={() => changeView("bulk")}>{tBulk("title")}</button>
-      </nav>
+      <MealViewNav active={view === "bulk" ? "prep" : "plan"} />
       {view === "bulk" && <BulkCookingPanel defaultDay={anchor ? startKey : toDateOnlyLocal(new Date())} refreshKey={meals} onMealsChanged={() => void fetchMeals()} onContext={(scope) => { bulkContext.current = scope; }} />}
       {/* Week section */}
       {view === "week" && <section aria-labelledby="meals-week-heading">

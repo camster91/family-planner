@@ -103,14 +103,14 @@ for (const locale of ["en", "es"] as const) {
       const headings =
         locale === "es"
           ? [
-              "Hoy , abrir calendario",
+              "A continuación",
               "Cena de esta noche , abrir comidas",
               "Tareas de hoy , abrir tareas",
               "Compras , abrir listas de compras",
               "Próximamente",
             ]
           : [
-              "Today , open calendar",
+              "Next up",
               "Dinner tonight , open meals",
               "Chores today , open chores",
               "Groceries , open grocery lists",
@@ -120,6 +120,13 @@ for (const locale of ["en", "es"] as const) {
         await expect(
           board.getByRole("heading", { name: heading, exact: true }),
         ).toBeVisible();
+      await expect(board.getByTestId("region-link-today")).toHaveAttribute(
+        "href",
+        "/dashboard/calendar",
+      );
+      await expect(board.getByTestId("region-link-today")).toHaveText(
+        locale === "es" ? "Calendario" : "Calendar",
+      );
       await expect(
         board.getByText("Dentist (Casey)", { exact: true }),
       ).toBeVisible();

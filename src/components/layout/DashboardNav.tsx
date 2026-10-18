@@ -31,6 +31,7 @@ import DeleteAccountDialog from "@/components/account/LazyDeleteAccountDialog";
 import { useFeatures } from "@/components/providers/features-provider";
 import {
   homeHrefFor,
+  MORE_HREF,
   isTabActive,
   kidFeatureNavItems,
   navItemDisplayName,
@@ -70,7 +71,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   // Hide links the role would only be redirected away from (src/lib/kid-access.ts).
   const canSee = (href: string) => canRoleAccessPath(user?.role, href);
   const { features } = useFeatures();
-  // Same tabs as the phone tab bar (#269): Today · Calendar · Meals · Lists · Family.
+  // The same five destinations are visible on phone and desktop.
   const primaryTabs = tabsFor(user?.role, features).map((tab) => {
     const key = navigationTabKey(tab.href);
     return key ? { ...tab, label: msg(key) } : tab;
@@ -184,6 +185,9 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                 <Link
                   key={tab.href}
                   href={tab.href}
+                  data-testid={
+                    tab.href === MORE_HREF ? "desktop-explore" : undefined
+                  }
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "flex min-h-[44px] min-w-[44px] items-center gap-1.5 px-2 lg:px-3 rounded-full text-[15px] transition-colors duration-200",
@@ -204,18 +208,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
               );
             })}
           </div>
-
-          {/* Spacer */}
-          {canSee("/dashboard/family/more") && (
-            <Link
-              href="/dashboard/family/more"
-              data-testid="desktop-explore"
-              className="hidden md:inline-flex min-h-[44px] items-center gap-1.5 px-3 rounded-full text-sm font-medium text-label-secondary hover:text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
-            >
-              <Compass className="w-4 h-4" aria-hidden="true" />
-              {msg("explore")}
-            </Link>
-          )}
 
           <div className="flex-1" />
 
@@ -286,6 +278,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     {canSee("/dashboard/family/more") && (
                       <Link
                         href="/dashboard/family/more"
+                        data-testid="user-menu-explore"
                         className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
                         onClick={() => setAvatarOpen(false)}
                       >

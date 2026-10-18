@@ -236,11 +236,7 @@ async function openPendingSurfaceFromExplore(page: Page, surface: string) {
     exact: true,
   });
   await menu.click();
-  await expect(
-    page
-      .locator("nav")
-      .getByRole("link", { name: navigationText("explore"), exact: true }),
-  ).toBeVisible();
+  await expect(page.getByTestId("user-menu-explore")).toBeVisible();
   await menu.click();
   const link = page.locator(`a[href="/dashboard/${surface}"]`);
   await expect(link).toBeVisible();

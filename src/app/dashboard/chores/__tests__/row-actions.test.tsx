@@ -255,8 +255,8 @@ describe('chore row actions', () => {
       </I18nProvider>
     )
 
-    await user.click(screen.getByRole('button', { name: 'More actions for “Take out trash”' }))
-    const sheet = screen.getAllByRole('dialog', { name: 'More actions for “Take out trash”' }).at(-1)
+    await user.click(screen.getByRole('button', { name: 'Más acciones para “Take out trash”' }))
+    const sheet = screen.getAllByRole('dialog', { name: 'Más acciones para “Take out trash”' }).at(-1)
     expect(sheet).toBeTruthy()
     expect(within(sheet!).getByRole('button', { name: 'Eliminar esta ocurrencia' })).toBeTruthy()
     expect(within(sheet!).getByRole('button', { name: 'Dejar de repetir' })).toBeTruthy()
@@ -265,11 +265,12 @@ describe('chore row actions', () => {
 
 
 it('the Routines view uses canonical completion and shows its updated status', async () => {
-  await userEvent.click(screen.getByRole('button', { name: 'Routines' }))
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'More chore views' }), 'routines')
   await userEvent.click(screen.getByRole('button', { name: 'Complete Feed the cat' }))
   expect(completeCalls()).toHaveLength(1)
   expect(JSON.parse(completeCalls()[0][1].body)).toEqual({ choreId: 'c1' })
   expect(await screen.findByText('Done · awaiting check')).toBeTruthy()
-  await userEvent.click(screen.getByRole('button', { name: 'Chore list' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Today' }))
+  expect(screen.queryByRole('checkbox', { name: 'Feed the cat' })).toBeNull()
   expect(screen.getByText('All clear!')).toBeTruthy()
 })

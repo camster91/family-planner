@@ -110,12 +110,20 @@ for (const locale of ["en", "es"] as const) {
         await expect(page.locator("html")).toHaveAttribute("lang", locale);
         const title = `Synthetic revised ${name} — household text {unchanged} 🗓️`;
         await page.getByLabel(locale === "es" ? "Título" : "Title").fill(title);
+        const details = page.getByTestId("event-details-section");
+        await expect(details).not.toHaveAttribute("open", "");
+        await details.locator("summary").click();
         await page
           .getByLabel(locale === "es" ? "Ubicación" : "Location")
           .fill("Synthetic fixture location");
         await page
           .getByLabel(locale === "es" ? "Descripción" : "Description")
           .fill("Synthetic fixture description");
+        await details.locator("summary").click();
+        await expect(details).not.toHaveAttribute("open", "");
+        await expect(details.locator("summary")).toContainText(
+          "Synthetic fixture location",
+        );
         await checkForm(page, info, `${locale}-${name}-edited`);
         const patch = page.waitForRequest(
           (request) =>

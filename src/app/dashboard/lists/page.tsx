@@ -28,6 +28,7 @@ export default async function ListsPage({
   if (!user?.family_id) return null;
 
   let lists: any[] = [];
+  let loadFailed = false;
   try {
     lists = await prisma!.list.findMany({
       where: { family_id: user.family_id },
@@ -39,6 +40,7 @@ export default async function ListsPage({
       orderBy: { updated_at: "desc" },
     });
   } catch (error) {
+    loadFailed = true;
     console.warn("Error fetching lists:", error);
   }
 
@@ -62,6 +64,7 @@ export default async function ListsPage({
         familyName={user.family?.name || "Family"}
         canCreate={canCreateList(sessionUser.role)}
         initialType={initialType}
+        loadFailed={loadFailed}
       />
       <PendingTickRecovery key={sessionUser.id} userId={sessionUser.id} />
     </>

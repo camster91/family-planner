@@ -1,11 +1,11 @@
 import { Suspense } from 'react'
 import { listVersion } from '@/lib/list-version'
-import { ArrowLeft, Trash2 } from 'lucide-react'
-import Link from 'next/link'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import ListDetailClient from './ListDetailClient'
 import DeleteListButton from './DeleteListButton'
+import ListsBackLink from './ListsBackLink'
+import { listTypeFilter } from '@/lib/list-type-filter'
 import { PersonGroceryAdd } from './PersonGroceryAdd'
 import type { ListType } from '@/types'
 import { canChangeListSectionSort, canDeleteListOrItem } from '@/lib/role-capabilities'
@@ -20,7 +20,11 @@ import { GROCERY_SECTIONS, type GrocerySectionId } from '@/lib/grocery-sections'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ListDetailPage({ params }: { params: Promise<{ listId: string }> }) {
+export default async function ListDetailPage({ params, searchParams }: {
+  params: Promise<{ listId: string }>
+  searchParams?: Promise<{ type?: string | string[] }>
+}) {
+  const returnFilter = listTypeFilter((await searchParams)?.type)
   const resolvedParams = await params
   const sessionUser = await getServerUser()
 
@@ -77,10 +81,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
   if (!list) {
     return (
       <div className="max-w-4xl mx-auto px-4 pb-20">
-        <Link href="/dashboard/lists" className="inline-flex items-center text-subhead text-[var(--accent)] mb-8">
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          Back
-        </Link>
+        <div className="mb-8"><ListsBackLink filter={returnFilter} /></div>
         <div className="card-apple p-8 text-center">
           <h1 className="text-title-3 text-label-primary">List not found</h1>
         </div>
@@ -111,11 +112,8 @@ export default async function ListDetailPage({ params }: { params: Promise<{ lis
     <div className="max-w-2xl mx-auto">
       {/* Nav */}
       <div className="flex items-center justify-between px-4 pt-4 mb-4">
-        <Link href="/dashboard/lists" className="inline-flex items-center gap-1 text-subhead text-[var(--accent)]">
-          <ArrowLeft className="w-4 h-4" />
-          <span>Lists</span>
-        </Link>
-        {canDelete && <DeleteListButton listId={list.id} listName={list.name} />}
+        <ListsBackLink filter={returnFilter} />
+        {canDelete && <DeleteListButton listId={list.id} listName={list.name} returnFilter={returnFilter} />}
       </div>
 
       {list.image_url && <div className="px-4 mb-4">

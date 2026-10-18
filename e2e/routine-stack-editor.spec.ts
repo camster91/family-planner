@@ -1,3 +1,4 @@
+import { choreOverviewMessages } from "../src/i18n/chore-overview";
 /**
  * Parent routine-stack editor coverage (#499).
  *
@@ -515,11 +516,20 @@ async function expectChoreListView(page: Page) {
   // editor again; otherwise the old route's execution context can disappear
   // while browserFetch is still evaluating in the page.
   await expect(page).toHaveURL(/\/dashboard\/chores$/);
-  const view = page.getByRole("group", { name: "Chore view" });
+  const view = page.getByRole("group", {
+    name: /^(Chore views|Vistas de tareas)$/,
+  });
   await expect(view).toBeVisible();
-  // Intercepted sheets preserve the selected Routines tab; direct routes may
-  // remount the default list. Both are the canonical mounted chore workspace.
-  await expect(view.locator('button[aria-pressed="true"]')).toHaveCount(1);
+  // Intercepted sheets can preserve dedicated Routines; direct routes may
+  // remount Today. Each has one explicit active presentation.
+  const more = page.getByRole("combobox", {
+    name: /^(More chore views|Más vistas de tareas)$/,
+  });
+  await expect(more).toBeVisible();
+  const isRoutines = (await more.inputValue()) === "routines";
+  await expect(view.locator('button[aria-pressed="true"]')).toHaveCount(
+    isRoutines ? 0 : 1,
+  );
 }
 
 async function makeDraft(page: Page, fixture: Fixture, locale: Locale) {
@@ -606,8 +616,11 @@ for (const locale of LOCALES) {
         await page.goto("/dashboard/chores");
         await runtimeIdentity(page, info, locale);
         await page
-          .getByRole("button", { name: "Routines", exact: true })
-          .click();
+          .getByRole("combobox", {
+            name: choreOverviewMessages[locale].more,
+            exact: true,
+          })
+          .selectOption("routines");
         await page
           .getByRole("link", { name: copy[locale].build, exact: true })
           .click();
@@ -845,8 +858,11 @@ for (const locale of LOCALES) {
           .click();
         await expectChoreListView(page);
         await page
-          .getByRole("button", { name: "Routines", exact: true })
-          .click();
+          .getByRole("combobox", {
+            name: choreOverviewMessages[locale].more,
+            exact: true,
+          })
+          .selectOption("routines");
         await page
           .getByRole("link", { name: copy[locale].build, exact: true })
           .click();

@@ -1,7 +1,7 @@
 /**
  * Bounded assistant Analytics discovery proof.
  *
- * This covers the parent More link, effective gamification dependency and the
+ * This covers the parent Explore tab, effective gamification dependency and the
  * assistant's role filter. Assistant responses are intercepted at the local
  * `/api/assistant` boundary with a synthetic proposal; no provider is enabled.
  * Feature PATCHes are intercepted before dispatch, so the disposable fixture
@@ -266,12 +266,14 @@ async function openAs(
 }
 
 async function goMore(page: Page): Promise<void> {
-  const family = page.locator('a[href="/dashboard/family"]:visible').first();
-  await expect(family).toBeVisible();
-  await family.click();
-  await expect(page).toHaveURL(/\/dashboard\/family\/?$/);
-  const more = page.locator('a[href="/dashboard/family/more"]:visible').first();
+  const nav =
+    page.viewportSize()!.width < 768
+      ? page.getByRole("navigation", { name: "Tabs", exact: true })
+      : page.getByTestId("top-tabs");
+  const more = nav.getByRole("link", { name: "Explore", exact: true });
+  await expect(more).toHaveCount(1);
   await expect(more).toBeVisible();
+  await expect(more).toHaveAttribute("href", "/dashboard/family/more");
   await more.click();
   await expect(page).toHaveURL(/\/dashboard\/family\/more\/?$/);
 }

@@ -2,8 +2,24 @@
 
 import { useTranslation } from "@/i18n";
 
-/** Parent-only routine editor copy. User-authored titles and member names stay verbatim. */
+/** Routine editor and shared presentation copy. User-authored titles and member names stay verbatim. */
 export const routineStackEnglish = {
+  stacksLabel: "Routine stacks",
+  focusNext: "Focus on the next step",
+  noRoutines:
+    "No routines in this range. Give related chores the same routine name and step numbers to stack them.",
+  doneAction: "Done",
+  checked: "Checked",
+  doneWaiting: "Done · awaiting check",
+  upNext: "Up next",
+  toDo: "To do",
+  completeStep: "Complete {title}",
+  editStep: "Edit {title}",
+  editAction: "Edit",
+  progress: "{done} of {total} done · {checked} checked",
+  allDoneWaiting: "All steps done · some awaiting check.",
+  allDoneChecked: "All steps done and checked.",
+  otherChores: "Other chores",
   title: "Routine",
   newTitle: "New routine",
   description: "Put several chores into one order for this occurrence.",
@@ -66,6 +82,22 @@ export type RoutineStackMessage = keyof typeof routineStackEnglish;
 export type RoutineStackMessages = Record<RoutineStackMessage, string>;
 
 export const routineStackSpanish: RoutineStackMessages = {
+  stacksLabel: "Rutinas paso a paso",
+  focusNext: "Enfocarse en el siguiente paso",
+  noRoutines:
+    "No hay rutinas en estas fechas. Usa el mismo nombre de rutina y números de paso para agrupar tareas relacionadas.",
+  doneAction: "Hecha",
+  checked: "Revisada",
+  doneWaiting: "Hecha · pendiente de revisión",
+  upNext: "Siguiente paso",
+  toDo: "Pendiente",
+  completeStep: "Completar {title}",
+  editStep: "Editar {title}",
+  editAction: "Editar",
+  progress: "{done} de {total} pasos hechos · {checked} revisados",
+  allDoneWaiting: "Todos los pasos están hechos · algunos esperan revisión.",
+  allDoneChecked: "Todos los pasos están hechos y revisados.",
+  otherChores: "Otras tareas",
   title: "Rutina",
   newTitle: "Nueva rutina",
   description: "Ordena varias tareas para esta ocurrencia.",

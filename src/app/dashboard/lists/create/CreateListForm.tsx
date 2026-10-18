@@ -3,11 +3,14 @@
 import { ListImagePicker } from "@/components/lists/ListImagePicker";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, ChevronLeft, ListChecks } from "lucide-react";
+import { Plus, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Glyph } from "@/components/ui/glyph";
-import { listTypeFilter } from "@/lib/list-type-filter";
+import {
+  listTypeFilter,
+  listsFilterHref,
+  type ListTypeKey as ListFilterKey,
+} from "@/lib/list-type-filter";
 import { useTranslation } from "@/i18n";
 import { listCreateMessages, type ListCreateMessage } from "@/i18n/list-create";
 import {
@@ -22,113 +25,19 @@ import {
 // 'meal_plan' is no longer offered for new lists (ADR-0007 O-8); meals live in /dashboard/meals.
 type ListTypeKey = "grocery" | "todo" | "wishlist" | "shopping" | "custom";
 
-interface TypeConfig {
-  nameKey: ListCreateMessage;
-  color: "lists" | "rewards" | "meals" | "family";
-  icon: React.ComponentType<{ className?: string }>;
-}
-
 class CreateListFailure extends Error {
   constructor(readonly messageKey: "permissionError" | "createError") {
     super(messageKey);
   }
 }
 
-const TYPE_CONFIG: Record<ListTypeKey, TypeConfig> = {
-  grocery: { nameKey: "typeGrocery", color: "lists", icon: ShoppingCartIcon },
-  todo: { nameKey: "typeTodo", color: "rewards", icon: CheckSquareIcon },
-  wishlist: { nameKey: "typeWishlist", color: "family", icon: HeartIcon },
-  shopping: { nameKey: "typeShopping", color: "lists", icon: ShoppingBagIcon },
-  custom: { nameKey: "typeCustom", color: "lists", icon: ListChecks },
+const TYPE_LABELS: Record<ListTypeKey, ListCreateMessage> = {
+  grocery: "typeGrocery",
+  todo: "typeTodo",
+  wishlist: "typeWishlist",
+  shopping: "typeShopping",
+  custom: "typeCustom",
 };
-
-const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  grocery: ShoppingCartIcon,
-  todo: CheckSquareIcon,
-  wishlist: HeartIcon,
-  shopping: ShoppingBagIcon,
-};
-
-// -----------------------------------------------------------------------
-// Inline SVG icons
-// -----------------------------------------------------------------------
-
-function ShoppingCartIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="9" cy="21" r="1" />
-      <circle cx="20" cy="21" r="1" />
-      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-    </svg>
-  );
-}
-
-function CheckSquareIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="9 11 12 14 22 4" />
-      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-    </svg>
-  );
-}
-
-function HeartIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06z" />
-    </svg>
-  );
-}
-
-function ShoppingBagIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <path d="M16 10a4 4 0 0 1-8 0" />
-    </svg>
-  );
-}
 
 // -----------------------------------------------------------------------
 // Component
@@ -138,10 +47,12 @@ export default function CreateListForm({
   inSheet = false,
   onBusyChange,
   canCreate = true,
+  initialType,
 }: {
   inSheet?: boolean;
   onBusyChange?: (busy: boolean) => void;
   canCreate?: boolean;
+  initialType?: ListFilterKey | null;
 } = {}) {
   const router = useRouter();
   const { locale } = useTranslation();
@@ -150,7 +61,12 @@ export default function CreateListForm({
   const [imageUploading, setImageUploading] = React.useState(false);
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const [type, setType] = React.useState<ListTypeKey>("grocery");
+  const [type, setType] = React.useState<ListTypeKey>(
+    initialType && initialType !== "meal_plan" ? initialType : "grocery",
+  );
+  const [returnFilter, setReturnFilter] = React.useState<ListFilterKey | null>(
+    initialType ?? null,
+  );
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
@@ -158,20 +74,20 @@ export default function CreateListForm({
   // the request or the success pause must not create a second list.
   const submittingRef = React.useRef(false);
   const busy = loading || !!success || imageUploading;
-  const directNavigation = usePendingFormNavigationController(
-    busy && !inSheet,
-  );
+  const directNavigation = usePendingFormNavigationController(busy && !inSheet);
   const sheetNavigation = usePendingFormNavigation();
   const navigation = inSheet ? sheetNavigation : directNavigation;
   React.useEffect(() => {
     onBusyChange?.(busy);
   }, [busy, onBusyChange]);
   React.useEffect(() => {
+    if (initialType !== undefined) return;
     const requested = listTypeFilter(
       new URLSearchParams(window.location.search).get("type"),
     );
+    setReturnFilter(requested);
     if (requested && requested !== "meal_plan") setType(requested);
-  }, []);
+  }, [initialType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,7 +119,9 @@ export default function CreateListForm({
       setTimeout(() => {
         void (async () => {
           if ((await navigation?.releaseBeforeNavigation()) === false) return;
-          router.push("/dashboard/lists");
+          // A filtered entry should show the newly created list, even if its
+          // type changed in the form. Unfiltered entry keeps All Lists.
+          router.push(listsFilterHref(returnFilter ? type : null));
           router.refresh();
         })();
       }, 1200);
@@ -234,7 +152,7 @@ export default function CreateListForm({
           {copy.refusalDescription}
         </p>
         <Link
-          href="/dashboard/lists"
+          href={listsFilterHref(returnFilter)}
           className="btn-tinted inline-flex mt-6 min-h-[44px] items-center justify-center px-5"
         >
           {copy.back}
@@ -260,7 +178,7 @@ export default function CreateListForm({
               </span>
             ) : (
               <Link
-                href="/dashboard/lists"
+                href={listsFilterHref(returnFilter)}
                 className="inline-flex min-h-[44px] items-center gap-1 text-subhead text-[var(--accent)]"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -322,67 +240,26 @@ export default function CreateListForm({
             />
           </div>
 
-          {/* Description */}
           <div>
             <label
-              htmlFor="description"
+              htmlFor="list-type"
               className="text-subhead text-label-secondary mb-2 block"
             >
-              {copy.description}{" "}
-              <span className="text-label-tertiary">{copy.optional}</span>
-            </label>
-            <textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={copy.descriptionPlaceholder}
-              rows={2}
-              className="input-apple resize-none"
-            />
-          </div>
-
-          {/* Type selector */}
-          <div>
-            <label className="text-subhead text-label-secondary mb-3 block">
               {copy.type}
             </label>
-            <div
-              className={
-                inSheet ? "grid grid-cols-3 gap-3" : "grid grid-cols-2 gap-3"
-              }
+            <select
+              id="list-type"
+              value={type}
+              onChange={(event) => setType(event.target.value as ListTypeKey)}
+              disabled={busy}
+              className="input-apple min-h-[44px]"
             >
-              {(Object.keys(TYPE_CONFIG) as ListTypeKey[]).map((t) => {
-                const cfg = TYPE_CONFIG[t];
-                const Icon = cfg.icon;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setType(t)}
-                    aria-pressed={type === t}
-                    disabled={busy}
-                    className={cn(
-                      "card-apple p-3 flex flex-col items-center gap-2 text-center transition-all",
-                      type === t
-                        ? "ring-2 ring-[var(--accent)]"
-                        : "active:scale-95",
-                    )}
-                  >
-                    <Glyph color={cfg.color} size="md">
-                      <Icon className="w-5 h-5 text-white" />
-                    </Glyph>
-                    <span className="text-caption-1 text-label-primary font-medium">
-                      {copy[cfg.nameKey]}
-                    </span>
-                    {type === t && (
-                      <span className="text-caption-2 text-[var(--accent)] font-medium">
-                        {copy.selected}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+              {(Object.keys(TYPE_LABELS) as ListTypeKey[]).map((key) => (
+                <option key={key} value={key}>
+                  {copy[TYPE_LABELS[key]]}
+                </option>
+              ))}
+            </select>
           </div>
 
           {type === "custom" && (
@@ -390,6 +267,34 @@ export default function CreateListForm({
               {copy.customGuidance}
             </p>
           )}
+
+          <details
+            data-testid="list-description-section"
+            className="rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)]"
+            onInvalidCapture={(event) => {
+              event.currentTarget.open = true;
+            }}
+          >
+            <summary className="min-h-[44px] cursor-pointer px-4 py-3 text-body text-label-primary [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]">
+              <span className="font-semibold">{copy.description}</span>{" "}
+              <span className="text-footnote text-label-secondary">
+                · {description.trim() ? copy.descriptionAdded : copy.optional}
+              </span>
+            </summary>
+            <div className="px-4 pb-4">
+              <label htmlFor="description" className="sr-only">
+                {copy.description}
+              </label>
+              <textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={copy.descriptionPlaceholder}
+                rows={2}
+                className="input-apple resize-none"
+              />
+            </div>
+          </details>
 
           <ListImagePicker
             value={imageUrl}

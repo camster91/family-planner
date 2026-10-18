@@ -7,9 +7,10 @@
 // closes on Escape and gives focus back.
 import '@testing-library/jest-dom'
 import * as React from 'react'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { LongPressRow } from '../long-press-row'
+import { I18nProvider, useTranslation } from '@/i18n'
 
 function setup(onEdit = jest.fn()) {
   render(
@@ -136,4 +137,24 @@ describe('LongPressRow', () => {
       jest.useRealTimers()
     }
   })
+})
+
+it('localizes the shared sheet while preserving its open state, custom label, actions and focus', async () => {
+  const run = jest.fn()
+  const user = userEvent.setup()
+  function LocaleSwitch() {
+    const { setLocale } = useTranslation()
+    return <button onClick={() => setLocale('en')}>Switch</button>
+  }
+  render(<I18nProvider locale="es"><LocaleSwitch /><LongPressRow showMenuButton menuLabel="Custom 原" itemName="Task 原" actions={[{ label: 'Action 原', onClick: run }]}><span>Task 原</span></LongPressRow></I18nProvider>)
+  const opener = screen.getByRole('button', { name: 'Custom 原 para Task 原' })
+  await user.click(opener)
+  const sheet = screen.getByRole('dialog', { name: 'Custom 原 para Task 原' })
+  expect(within(sheet).getByRole('button', { name: 'Action 原' })).toHaveFocus()
+  expect(within(sheet).getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Switch' }))
+  expect(screen.getByRole('dialog', { name: 'Custom 原 for Task 原' })).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Cancel' }))
+  await waitFor(() => expect(opener).toHaveFocus())
+  expect(run).not.toHaveBeenCalled()
 })

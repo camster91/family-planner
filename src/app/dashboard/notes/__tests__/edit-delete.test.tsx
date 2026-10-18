@@ -4,7 +4,7 @@
 // Notes (route inventory F-1): edit and delete go to /api/notes/[id]. They used
 // to PATCH/DELETE /api/notes, which only has GET and POST, so nothing changed.
 import * as React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 let mockLocale: 'en' | 'es' = 'en'
@@ -14,6 +14,8 @@ const mockT = (key: string) => {
       'notes.errorLoad': 'No se pudieron cargar las notas',
       'notes.retry': 'Reintentar',
       'notes.loading': 'Cargando notas...',
+      'notes.errorSave': 'No se pudo guardar la nota.',
+      'common.networkError': 'Comprueba la conexión.',
     }
     return spanish[key] ?? key
   }
@@ -21,7 +23,7 @@ const mockT = (key: string) => {
 }
 // The provider can give the page a new translation function when its locale
 // hydrates. The notes loader must remain stable across that render.
-jest.mock('@/i18n', () => ({ useTranslation: () => ({ t: (key: string) => mockT(key) }) }))
+jest.mock('@/i18n', () => ({ useTranslation: () => ({ locale: mockLocale, t: (key: string) => mockT(key) }) }))
 jest.mock('@/components/ui/feature-gate', () => ({
   FeatureOffState: () => null,
 }))
@@ -35,11 +37,15 @@ import NotesPage from '../page'
 type Call = { url: string; method: string; body: unknown }
 let calls: Call[] = []
 let notePermissions = { can_edit: true, can_delete: true }
+let noteBody = 'abc'
+let noteColor = 'yellow'
 // What a save/delete answers: a status + body, or a thrown network error.
 let mutationReply: () => Promise<Response>
 
 beforeEach(() => {
   calls = []
+  noteBody = 'abc'
+  noteColor = 'yellow'
   mockLocale = 'en'
   notePermissions = { can_edit: true, can_delete: true }
   mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ success: true }) }) as Response
@@ -55,8 +61,8 @@ beforeEach(() => {
           notes: [{
             id: 'n 1',
             title: 'Wifi code',
-            body: 'abc',
-            color: 'yellow',
+            body: noteBody,
+            color: noteColor,
             created_at: '2026-09-01T00:00:00Z',
             ...notePermissions,
           }],
@@ -271,4 +277,149 @@ describe('D9 ownership controls come from the API DTO', () => {
     expect(title.closest('[role="button"]')).toBeNull()
     expect(screen.queryByRole('button', { name: 'notes.delete' })).toBeNull()
   })
+})
+
+
+it('opens the complete read-only note without exposing edit or delete and restores focus', async () => {
+  notePermissions = { can_edit: false, can_delete: false }
+  noteBody = 'First line\n' + 'Long shared information '.repeat(60) + '\nLast line'
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  const opener = await screen.findByRole('button', { name: 'notes.readNote: Wifi code' })
+  await user.click(opener)
+  const dialog = screen.getByRole('dialog')
+  expect(dialog.textContent).toContain(noteBody)
+  expect(dialog.querySelector('input, textarea')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'notes.save' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'notes.delete' })).toBeNull()
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(document.activeElement).toBe(opener)
+  expect(calls.map((call) => call.method)).toEqual(['GET'])
+})
+
+it('uses one Add entrypoint and includes all five canonical colors', async () => {
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await screen.findByText('Wifi code')
+  expect(screen.getAllByRole('button', { name: 'notes.addNote' })).toHaveLength(1)
+  expect(screen.queryByRole('button', { name: 'notes.newNote' })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'notes.addNote' }))
+  for (const color of ['Yellow', 'Pink', 'Blue', 'Green', 'Purple']) {
+    expect(screen.getByRole('button', { name: 'notes.color' + color })).toBeTruthy()
+  }
+})
+
+it.each([{ notes: {} }, { notes: [{ id: 'unknown-color', title: 'Invalid', body: 'Body', color: 'not-a-canonical-color', created_at: '2026-09-01T00:00:00Z' }] }, { notes: Array(2).fill({ id: 'duplicate', title: 'Valid note', body: 'Body', color: 'yellow', created_at: '2026-09-01T00:00:00Z' }) }])('rejects malformed notes instead of fabricating an empty household', async (body) => {
+  const fetchOriginal = global.fetch
+  let attempt = 0
+  global.fetch = jest.fn(async (input, init) => {
+    if (attempt++ === 0) return { ok: true, status: 200, json: async () => body } as Response
+    return fetchOriginal(input, init)
+  }) as typeof fetch
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await screen.findByRole('button', { name: 'notes.retry' })
+  expect(screen.queryByText('notes.empty')).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'notes.retry' }))
+  await screen.findByText('Wifi code')
+})
+
+it('records a confirmed save when refresh fails and retries only the read', async () => {
+  const fetchOriginal = global.fetch
+  let reads = 0
+  global.fetch = jest.fn(async (input, init) => {
+    if (String(input) === '/api/notes' && !init?.method && ++reads === 2) return { ok: false, status: 503, json: async () => ({}) } as Response
+    return fetchOriginal(input, init)
+  }) as typeof fetch
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await user.click(await screen.findByText('Wifi code'))
+  await user.click(screen.getByRole('button', { name: 'notes.save' }))
+  await screen.findByText('notes.savedRefreshFailed')
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(calls.filter((call) => call.method === 'PATCH')).toHaveLength(1)
+  await user.click(screen.getByRole('button', { name: 'notes.retry' }))
+  await screen.findByText('Wifi code')
+  expect(calls.filter((call) => call.method === 'PATCH')).toHaveLength(1)
+  expect(screen.queryByText('notes.savedRefreshFailed')).toBeNull()
+})
+
+it('retranslates a retained network error without replaying the mutation or losing its draft', async () => {
+  mutationReply = async () => { throw new TypeError('offline') }
+  const user = userEvent.setup()
+  const { rerender } = render(<NotesPage />)
+  await user.click(await screen.findByText('Wifi code'))
+  await user.click(screen.getByRole('button', { name: 'notes.save' }))
+  await screen.findByRole('alert')
+  mockLocale = 'es'
+  rerender(<NotesPage />)
+  expect(screen.getByRole('alert').textContent).toBe('No se pudo guardar la nota. Comprueba la conexión.')
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Wifi code')
+  expect(calls.filter((call) => call.method === 'PATCH')).toHaveLength(1)
+})
+
+
+it.each([['green', 'Green'], ['purple', 'Purple']])('preserves canonical %s when editing an existing note', async (color, label) => {
+  noteColor = color
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await user.click(await screen.findByText('Wifi code'))
+  expect(screen.getByRole('button', { name: 'notes.color' + label }).getAttribute('aria-pressed')).toBe('true')
+  await user.click(screen.getByRole('button', { name: 'notes.save' }))
+  await waitFor(() => expect(calls.some((call) => call.method === 'PATCH')).toBe(true))
+  expect(calls.find((call) => call.method === 'PATCH')?.body).toMatchObject({ color })
+})
+
+
+it('keeps a successful save announcement outside the note cards', async () => {
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await user.click(await screen.findByText('Wifi code'))
+  await user.click(screen.getByRole('button', { name: 'notes.save' }))
+  await screen.findByText('notes.saved')
+  expect(screen.getAllByRole('status')).toHaveLength(1)
+  expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }))
+  expect(screen.getByTestId('note-card').querySelector('[role="status"]')).toBeNull()
+})
+
+it('offers household setup instead of a form after the canonical missing-family refusal', async () => {
+  global.fetch = jest.fn(async () => ({ ok: false, status: 400, json: async () => ({ error: 'You must belong to a family' }) } as Response)) as typeof fetch
+  render(<NotesPage />)
+  await screen.findByText('notes.chooseHousehold')
+  expect(screen.queryByRole('button', { name: 'notes.addNote' })).toBeNull()
+  expect(screen.getByRole('link', { name: 'notes.createHousehold' }).getAttribute('href')).toBe('/dashboard/family/create')
+  expect(screen.getByRole('link', { name: 'notes.joinHousehold' }).getAttribute('href')).toBe('/join')
+})
+
+
+it('closes an early Add draft if the pending initial load discovers no household', async () => {
+  let release!: (reply: Response) => void
+  const pending = new Promise<Response>((resolve) => { release = resolve })
+  global.fetch = jest.fn(() => pending) as typeof fetch
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await user.click(screen.getByRole('button', { name: 'notes.addNote' }))
+  await user.type(screen.getByLabelText('notes.noteTitle'), 'Unsaved household draft')
+  expect(screen.getByRole('dialog')).toBeTruthy()
+  expect((screen.getByRole('button', { name: 'notes.save' }) as HTMLButtonElement).disabled).toBe(true)
+  await act(async () => release({ ok: false, status: 400, json: async () => ({ error: 'You must belong to a family' }) } as Response))
+  await screen.findByText('notes.chooseHousehold')
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'notes.addNote' })).toBeNull()
+  expect(global.fetch).toHaveBeenCalledTimes(1)
+})
+
+
+it('returns Cancel to Add after dismissing an earlier success notice', async () => {
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await user.click(await screen.findByText('Wifi code'))
+  await user.click(screen.getByRole('button', { name: 'notes.save' }))
+  await screen.findByText('notes.saved')
+  const opener = screen.getByRole('button', { name: 'notes.addNote' })
+  await user.click(opener)
+  expect(screen.queryByText('notes.saved')).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'notes.cancel' }))
+  expect(document.activeElement).toBe(opener)
 })

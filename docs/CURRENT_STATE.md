@@ -1,19 +1,89 @@
 # Current State
 
-## Saved-change recovery candidate — 2026-10-14
+## Saved-change recovery candidate — PR #556 current-main integration — 2026-10-18
 
-Verified main is `4082e7db80ce2a1b690ffd013094d29febfe85bf` (PR #555),
-served by deployment 432 after exact-main CI, browser, recovery and runtime
-checks. Both bounded profile-routine releases are recorded in the
-[canonical #480 progress](https://github.com/camster91/family-planner/issues/480#issuecomment-6176025002).
-Production profile and recurrence gates remain off; broader #480 is open.
+PR #556 storage-recovery head `3470fca841c60dadb01f197e796b179e5c06276b`
+was originally based on released main `4082e7db80ce2a1b690ffd013094d29febfe85bf`.
+This checkout now contains a normal local merge with current main
+`768e417042f0c1f924ebd3a05e8650b24f778e10` for conflict resolution and
+revalidation only; it is not a public merge or release claim.
 
-The next bounded #473/#480 candidate protects unread pending changes from
-being treated as an empty queue. Personal and shared-device surfaces offer a
-deliberate storage-read retry and retain entered grocery drafts. Local and
-hosted verification are in progress; this candidate is not a release claim.
-Account linking, production activation and native hardware acceptance remain
-separate work. Older entries below preserve their original checkpoints.
+The candidate preserves unread queue bytes after a failed storage read, pauses
+replay and mutation until deliberate recovery, retains grocery drafts, fences
+sign-out/replacement cleanup, and resets the cached device queue after fresh
+pairing. It adds no schema, API, queue protocol, feature flag, provider,
+scheduler, native plugin or production activation. The original hosted checks
+for `3470fca8` passed; exact current-main checks, formal captures, and fresh
+backup/restore remain pending. #473, #480, native hardware and production
+activation remain open.
+
+## Integrated UI web release — 2026-10-18
+
+PR #574 is normally merged at `f1d103a8b68bff4e40b431070c824b239db3bb36`.
+Its tree is identical to accepted candidate `641f0714`; original build/image,
+Android, every browser viewport, Settings, inventory, profile routine and recovery
+workflow passed. A fresh protected backup restored all 71 public tables into an
+isolated database before merge, with the temporary database removed. The unchanged
+Coolify webhook source deployment 558 (`xdnitf95hzyaeyzzxhtektkd`) finished at
+2026-10-18T06:15:35Z. Public version/readiness header, healthy serving image and
+container revision, startup migrations, liveness/readiness and anonymous private-
+route refusals were verified at that exact SHA. Default-off profile/assistant
+flags remain off. Exact-main build/image and browser checks are still running;
+Android passed. This serving-runtime evidence is separate from final exact-main
+or authenticated household/native/customer acceptance. Incorporated PRs #569–#573 are merged with their
+original heads/history retained. Retained rollback release is main `9d9e6de6`.
+
+Family PR #575 is retained for incorporation into the Notes continuation rather
+than redundant merging. Local Notes application source `4b159067` follows the
+approved shared-board direction: full width, one Add action, honest household
+visibility, all five canonical colors, full read-only detail and explicit confirmed
+mutation/failed-refresh recovery. 42 affected tests, optimized build and source
+review pass. Application `fa4948d7` adds accessible loading, bounded previews, save/delete focus and expanded rendered
+confirmed-write/failed-refresh, offline draft, malformed/empty and early-household
+recovery. Original role/isolation/feature/shared-device journeys plus unchanged
+startup budgets pass: 78 cases, 15 inherited desktop-only scope skips.
+All six sizes include EN/light, ES/dark, Axe, reflow, 44px controls and read-only
+focus recovery. No schema/API, permissions, profile/provider/scheduler or native
+change is included. Full programme and hosted/release acceptance stay open.
+
+## Earlier approved UI candidate checkpoint — 2026-10-18
+
+GitHub main is verified at `9d9e6de6bce7f7bf7fe3b26e51f2118ce629d1de`
+([PR #568](https://github.com/camster91/family-planner/pull/568)). The earlier
+production evidence remains attached to that release; no new merge or deployment
+is claimed by this entry. #499 and parent #128 track the remaining all-feature
+acceptance, with bounded source/rendered evidence in `design/APPROVED_UI_ROLLOUT.md`.
+
+PR #571 has a fresh test-only repair after retained phone traces confirmed
+shared-client login 429s: `492206b0` isolates two real sign-in journeys without
+changing auth, rate limits or assertions. PR #572's `b986c40d` repairs two localized
+verification fallback-focus selectors. PR #573 contains readable localized Chores
+actions and long-name reassignment, with local six-size evidence. Their original
+hosted runs/protections remain authoritative; constituent heads/history are held
+until combined acceptance rather than redundantly merged.
+
+The next Inventory overview candidate on `codex/inventory-overview-499` adds
+full-width responsive composition and existing-location shortcuts. Source
+`32c72e0b` has 121 affected units, types/lint/build and 95 browser checks passing
+across six sizes, with ten inherited phone-only menu skips. It preserves safety,
+offline, canonical adjustment/Undo, scan forms and role/household controls. The
+combined branch incorporates the test-only login repair. Hosted, exact-main,
+recovery and production verification remain pending. No API/schema, profile
+capability, provider, scheduler, infrastructure or native/store activation is
+introduced. Historical checkpoints below retain their original dated scope.
+
+
+## Family overview candidate — 2026-10-18
+
+The local Family continuation builds on integrated Inventory candidate `641f0714`
+(PR #574). Application `695b6747` preserves the parent-only canonical account
+roster, adds responsive localized cards and recovery, rejects duplicate IDs, and
+shows create/join guidance when household membership is absent. 44 affected tests,
+78 rendered checks including existing startup budgets, types/full lint/build and
+independent source/visual review pass locally. Positive removal is synthetic;
+real child/cross-household refusals and unchanged roster readback are verified.
+No profile flags or API/schema change is included. Whole Family/profile-link,
+hosted acceptance and release remain pending under #499/#128.
 
 ## Recurring email-free profile candidate — 2026-10-14
 

@@ -520,7 +520,17 @@ test.describe("meals (parent)", () => {
 
   test("meal_plan is not offered for a new list", async ({ page }) => {
     await page.goto("/dashboard/lists/create");
-    await expect(page.getByRole("button", { name: /Grocery/ })).toBeVisible();
+    const type = page.getByRole("combobox", { name: "Type", exact: true });
+    await expect(type).toBeVisible();
+    await expect(type).toHaveValue("grocery");
+    await expect(type.getByRole("option")).toHaveText([
+      "Grocery",
+      "To-dos",
+      "Wishlist",
+      "Shopping",
+      "Custom",
+    ]);
+    await expect(type.locator('option[value="meal_plan"]')).toHaveCount(0);
     await expect(page.getByText("Meal plan", { exact: true })).toHaveCount(0);
   });
 

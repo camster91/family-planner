@@ -149,7 +149,9 @@ it("does not dismiss during an image upload and unlocks after upload failure", a
       }),
   );
   const { container } = render(<ListCreateSheet />);
-  await user.click(container.querySelector("summary")!);
+  await user.click(
+    container.querySelector("[data-testid=list-image-section] summary")!,
+  );
   await user.upload(
     screen.getByLabelText("Choose list image"),
     new File(["fixture"], "cover.jpg", { type: "image/jpeg" }),
@@ -443,30 +445,20 @@ it("drains a foreign Back that arrives after the sentinel was restored", async (
     window.dispatchEvent(new PopStateEvent("popstate", { state: baseState }));
     expect(historyForward).toHaveBeenCalledTimes(1);
 
-    window.history.replaceState(
-      sentinelState,
-      "",
-      "/dashboard/lists/create",
-    );
+    window.history.replaceState(sentinelState, "", "/dashboard/lists/create");
     window.dispatchEvent(
       new PopStateEvent("popstate", { state: sentinelState }),
     );
 
     window.history.replaceState(priorState, "", "/dashboard/previous");
-    window.dispatchEvent(
-      new PopStateEvent("popstate", { state: priorState }),
-    );
+    window.dispatchEvent(new PopStateEvent("popstate", { state: priorState }));
     expect(historyForward).toHaveBeenCalledTimes(2);
 
     window.history.replaceState(baseState, "", "/dashboard/lists/create");
     window.dispatchEvent(new PopStateEvent("popstate", { state: baseState }));
     expect(historyForward).toHaveBeenCalledTimes(3);
 
-    window.history.replaceState(
-      sentinelState,
-      "",
-      "/dashboard/lists/create",
-    );
+    window.history.replaceState(sentinelState, "", "/dashboard/lists/create");
     window.dispatchEvent(
       new PopStateEvent("popstate", { state: sentinelState }),
     );

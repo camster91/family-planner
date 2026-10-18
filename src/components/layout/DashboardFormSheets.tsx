@@ -8,6 +8,7 @@ import CreateChoreForm from "@/app/dashboard/chores/create/CreateChoreForm";
 import EditChoreForm from "@/app/dashboard/chores/edit/EditChoreForm";
 import { useTranslation } from "@/i18n";
 import { listCreateMessages } from "@/i18n/list-create";
+import type { ListTypeKey } from "@/lib/list-type-filter";
 import {
   PendingFormNavigationProvider,
   usePendingFormNavigationController,
@@ -67,7 +68,13 @@ export function FormSheet({
   );
 }
 
-export function ListCreateSheet({ canCreate = true }: { canCreate?: boolean }) {
+export function ListCreateSheet({
+  canCreate = true,
+  initialType,
+}: {
+  canCreate?: boolean;
+  initialType?: ListTypeKey | null;
+}) {
   const [busy, setBusy] = useState(false);
   const { locale } = useTranslation();
   const copy = listCreateMessages[locale];
@@ -78,7 +85,12 @@ export function ListCreateSheet({ canCreate = true }: { canCreate?: boolean }) {
       closeLabel={copy.closeLabel}
       description={busy ? copy.pendingDescription : copy.draftDescription}
     >
-      <CreateListForm canCreate={canCreate} inSheet onBusyChange={setBusy} />
+      <CreateListForm
+        canCreate={canCreate}
+        initialType={initialType}
+        inSheet
+        onBusyChange={setBusy}
+      />
     </FormSheet>
   );
 }

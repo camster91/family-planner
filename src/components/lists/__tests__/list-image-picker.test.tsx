@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
 import { useState } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ListImagePicker } from "../ListImagePicker";
 const url = "/api/files/chores/abcdef0123456789.jpg";
@@ -15,16 +15,14 @@ function Harness() {
     />
   );
 }
-it("shows the image action by default while keeping the section collapsible", async () => {
+it("starts folded and keeps image controls available on demand", async () => {
   const user = userEvent.setup();
   const { container } = render(<Harness />);
   const details = container.querySelector("details")!;
   const summary = details.querySelector("summary")!;
-  expect(details.open).toBe(true);
-  expect(screen.getByRole("button", { name: "Add image" })).toBeTruthy();
-  await user.click(summary);
   expect(details.open).toBe(false);
   await user.click(summary);
+  expect(details.open).toBe(true);
   expect(screen.getByRole("button", { name: "Add image" })).toBeTruthy();
 });
 it("uploads privately, previews and removes the image", async () => {
@@ -99,4 +97,33 @@ it("localizes image controls and does not expose upload response details", async
   expect(screen.getByRole("alert")).not.toHaveTextContent(
     "Private storage path",
   );
+});
+
+it("reopens an upload error after the parent folds the section", async () => {
+  let finish!: (response: Response) => void;
+  global.fetch = jest.fn(
+    () =>
+      new Promise<Response>((resolve) => {
+        finish = resolve;
+      }),
+  ) as unknown as typeof fetch;
+  const user = userEvent.setup();
+  const { container } = render(<Harness />);
+  const details = container.querySelector("details")!;
+  const summary = details.querySelector("summary")!;
+  await user.click(summary);
+  await user.upload(
+    screen.getByLabelText("Choose list image"),
+    new File(["fixture"], "cover.jpg", { type: "image/jpeg" }),
+  );
+  await user.click(summary);
+  expect(details.open).toBe(false);
+  await act(async () =>
+    finish({ ok: false, json: async () => ({}) } as Response),
+  );
+  expect(details.open).toBe(true);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Image upload failed. Try again.",
+  );
+  expect(screen.getByRole("button", { name: "Add image" })).toBeEnabled();
 });

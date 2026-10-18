@@ -83,7 +83,7 @@ describe('ChoresContent server render vs hydration', () => {
 
     expect(screen.queryByTestId('chores-pending')).toBeNull()
     expect(screen.getByText(/^1 to do( · \d+ to check)?$/)).toBeTruthy()
-    const today = screen.getByText('Today', { selector: 'p' }).closest('section') as HTMLElement
+    const today = screen.getByText('Now', { selector: 'p' }).closest('section') as HTMLElement
     expect(within(today).getByText('Water plants')).toBeTruthy()
     expect(within(today).getByText('Casey · Today')).toBeTruthy()
     expect(within(today).queryByText('Feed the cat')).toBeNull()
@@ -98,7 +98,7 @@ describe('ChoresContent server render vs hydration', () => {
       // jsdom cannot play the empty state's motion; that is not a mismatch.
       expect(hydrated.errors.filter((e) => !e.includes('HTMLMediaElement'))).toEqual([])
       const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
-      await user.click(screen.getByRole('button', { name: 'All' }))
+      await user.selectOptions(screen.getByRole('combobox', { name: 'More chore views' }), 'all')
       expect(screen.getByText('Casey · 5 Oct')).toBeTruthy()
       expect(screen.queryByText(/Oct 5/)).toBeNull()
     } finally {
@@ -242,16 +242,16 @@ describe('ChoresContent range filter', () => {
     const user = userEvent.setup()
     render(page([chore('c1', 'Feed the cat', dayOffset(0)), chore('c2', 'Water plants', dayOffset(3))]))
     expect(screen.getByRole('button', { name: 'Today' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByText('Today', { selector: 'p' })).toBeTruthy()
+    expect(screen.getByText('Now', { selector: 'p' })).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Week' }))
     expect(screen.getByRole('button', { name: 'Week' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByRole('button', { name: 'Today' }).getAttribute('aria-pressed')).toBe('false')
     const week = screen.getByText('This week', { selector: 'p' }).closest('section') as HTMLElement
     expect(within(week).getByText('Water plants')).toBeTruthy()
-    expect(screen.queryByText('Today', { selector: 'p' })).toBeNull()
+    expect(screen.queryByText('Now', { selector: 'p' })).toBeNull()
 
-    await user.click(screen.getByRole('button', { name: 'All' }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'More chore views' }), 'all')
     expect(screen.getByText('To do', { selector: 'p' })).toBeTruthy()
   })
 })

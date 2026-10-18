@@ -38,9 +38,9 @@ import { canRoleAccessPath, isKidRole } from "@/lib/kid-access";
 /**
  * Navigation model (#269, docs/product/NAVIGATION.md).
  *
- * One home, five tabs: Today · Calendar · Meals · Lists · Family, in the phone
+ * One home, five tabs: Today · Calendar · Meals · Lists · Explore, in the phone
  * tab bar and the desktop top bar alike. Chores live on Today. Everything else
- * is under Family → More, listed only while its feature is on.
+ * is in Explore, listed only while its feature is on. Existing URLs stay valid.
  *
  * Children get the tabs they can open (kid allowlist): Today (their kid home
  * at /dashboard) · Lists · Emergency. Teens also get Calendar and Meals
@@ -88,12 +88,11 @@ export const PRIMARY_TABS: readonly TabItem[] = [
     icon: ListChecks,
     featureKey: "lists",
   },
-  // Family holds Emergency, More and every feature page reached from More.
+  // Explore makes all enabled tools discoverable without a sixth header link.
   {
-    href: "/dashboard/family",
-    label: "Family",
-    icon: Users,
-    featureKey: "family",
+    href: MORE_HREF,
+    label: "Explore",
+    icon: LayoutGrid,
   },
 ];
 
@@ -163,14 +162,15 @@ function matchesPath(pathname: string, route: string): boolean {
 }
 
 /**
- * Whether `tab` is the current tab. Family also lights up on Emergency,
+ * Whether `tab` is the current tab. Explore also lights up on Family, Emergency,
  * Features and every page listed under More, since that is where they live.
  */
 export function isTabActive(tab: TabItem, pathname: string): boolean {
   if (matchesPath(pathname, tab.href)) return true;
   if (tab.alsoActiveOn?.some((r) => matchesPath(pathname, r))) return true;
-  if (tab.href === "/dashboard/family") {
+  if (tab.href === MORE_HREF) {
     return (
+      matchesPath(pathname, "/dashboard/family") ||
       matchesPath(pathname, "/dashboard/emergency") ||
       matchesPath(pathname, "/dashboard/features") ||
       MORE_FEATURE_KEYS.some((k) => {
@@ -182,12 +182,12 @@ export function isTabActive(tab: TabItem, pathname: string): boolean {
   return false;
 }
 
-// ─── More (Family → More) ────────────────────────────────────────────────
+// ─── Explore (existing More URL) ────────────────────────────────────────────────
 
 /**
  * Features listed under More, in this order, each only while it is on. The
- * five tab features are not here, and neither is Points & streaks (a setting;
- * its pages are Rewards and Analytics). Chores is listed first and always.
+ * four frequent-action tab features are not here, and neither is Points & streaks (a setting;
+ * its pages are Rewards and Analytics). Family is listed first when enabled; Chores is always included.
  */
 export const MORE_FEATURE_KEYS: readonly FeatureKey[] = [
   "emergency",
@@ -222,6 +222,7 @@ export type FeatureDisplayResolver = (key: FeatureKey) => {
 };
 
 const MORE_ICONS: Partial<Record<FeatureKey, LucideIcon>> = {
+  family: Users,
   chores: CheckSquare,
   emergency: Heart,
   inventory: Refrigerator,
@@ -257,13 +258,14 @@ function moreItem(
   };
 }
 
-/** Chores (always) plus every More feature that is on and that the role may open. */
+/** Family, chores and enabled Explore tools, filtered by the existing role gate. */
 export function moreItemsFor(
   role: string | null | undefined,
   features: FamilyFeatures,
   resolveDisplay?: FeatureDisplayResolver,
 ): MoreItem[] {
   const keys: FeatureKey[] = [
+    ...(isFeatureEnabled(features, "family") ? ["family" as const] : []),
     "chores",
     ...MORE_FEATURE_KEYS.filter((k) => isFeatureEnabled(features, k)),
   ];

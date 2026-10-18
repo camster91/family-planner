@@ -11,6 +11,7 @@ import type { BrowserContext, Page, Route, TestInfo } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import pg from "pg";
+import { choreOverviewMessages } from "../src/i18n/chore-overview";
 import { choreVerificationMessages } from "../src/i18n/chore-verification";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
@@ -224,10 +225,12 @@ function state(
   };
 }
 
-function queueFor(page: Page, sendBackLabel: string) {
-  const queue = page
-    .locator("section")
-    .filter({ has: page.getByText("To check", { exact: true }) });
+function queueFor(page: Page, sendBackLabel: string, locale: Locale) {
+  const queue = page.locator("section").filter({
+    has: page.getByText(choreOverviewMessages[locale].toCheck, {
+      exact: true,
+    }),
+  });
   return queue
     .getByRole("button", { name: sendBackLabel, exact: true })
     .locator("..")
@@ -315,6 +318,7 @@ for (const locale of LOCALES) {
         const row = queueFor(
           page,
           copy.sendBackAriaLabel.replace("{title}", fixture.title),
+          locale,
         );
         await expect(row).toBeVisible();
         const trigger = row.getByRole("button", {
@@ -381,7 +385,10 @@ for (const locale of LOCALES) {
           page.getByText(copy.sentBackTitle, { exact: true }),
         ).toBeVisible();
         await expect(
-          page.getByRole("button", { name: "Today", exact: true }),
+          page.getByRole("button", {
+            name: choreOverviewMessages[locale].today,
+            exact: true,
+          }),
         ).toBeFocused();
         expect(bodies).toEqual([
           {
@@ -461,6 +468,7 @@ for (const locale of LOCALES) {
         const row = queueFor(
           page,
           copy.sendBackAriaLabel.replace("{title}", fixture.title),
+          locale,
         );
         const trigger = row.getByRole("button", {
           name: copy.sendBackAriaLabel.replace("{title}", fixture.title),
@@ -525,7 +533,10 @@ for (const locale of LOCALES) {
         await pendingResponse;
         await expect(dialog).toHaveCount(0);
         await expect(
-          page.getByRole("button", { name: "Today", exact: true }),
+          page.getByRole("button", {
+            name: choreOverviewMessages[locale].today,
+            exact: true,
+          }),
         ).toBeFocused();
       } finally {
         releasePendingRequest();

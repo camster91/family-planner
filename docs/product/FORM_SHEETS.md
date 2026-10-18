@@ -8,8 +8,14 @@ The originating screen stays mounted behind a dimmed, inert background. Phones
 use a bottom sheet with rounded top corners and safe-area padding; larger
 screens use a centred rounded panel. The form scrolls within the viewport while
 its close control remains visible. Submit controls stick to the bottom of the
-scrolling form, and the sheet's list-type picker uses three compact columns.
-Existing optional chore sections stay folded.
+scrolling form, and New List uses a labeled native type picker instead of a large card grid.
+Existing optional chore sections stay folded. New List keeps name/type visible,
+with optional description and image sections folded. Collapsing preserves
+the draft and selected image; a failed upload reopens its section for retry.
+Calendar Title/Start/Duration stay visible. A folded Details section summarizes
+exact end, notes and location; all inputs remain mounted. Choosing exact end
+opens it, and invalid optional dates/times reopen it for correction. Existing
+all-day defaults and fetched timestamp precision stay unchanged.
 
 Close or Escape returns through router history and discards the unsaved draft.
 Browser Back also restores the prior screen; reopening starts a fresh draft.

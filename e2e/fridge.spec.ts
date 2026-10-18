@@ -488,7 +488,8 @@ test.describe("Today board: Family A parent", () => {
   });
 
   test("shows every region from real household data", async ({ page }) => {
-    await openBoard(page);
+    // The dedicated fridge surface retains its separate, per-person regions.
+    await openBoard(page, "/dashboard/today?mode=fridge");
 
     await expect(page.getByTestId("board-date")).toHaveText(
       "Monday, January 5",
@@ -571,6 +572,41 @@ test.describe("Today board: Family A parent", () => {
     await expect(days.nth(2)).toContainText("Thursday Jan 8");
     await expect(days.nth(2)).toContainText("Renew library cards");
 
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("combines app events and household chores without losing destinations or overflow", async ({
+    page,
+  }) => {
+    await openBoard(page);
+    const next = region(page, "today");
+    await expect(
+      next.getByRole("heading", { name: "Next up", exact: true }),
+    ).toBeVisible();
+    const events = next.getByTestId("today-event");
+    await expect(events).toHaveCount(3);
+    await expect(events.nth(0)).toContainText("Dentist (Casey)");
+    await expect(events.nth(1)).toContainText(IMPORTED_TITLE);
+    await expect(events.nth(1)).toContainText(`From ${SUBSCRIPTION_NAME}`);
+    await expect(events.nth(2)).toContainText("Soccer practice");
+    await expect(next).toContainText("1 more later today");
+    await expect(next).not.toContainText(FIXTURE_LONG_TEXT.eventTitle);
+    const chores = region(page, "chores");
+    await expect(chores.getByTestId("board-chore")).toHaveCount(3);
+    await expect(chores).toContainText("Casey");
+    await expect(chores).toContainText("Taylor");
+    await expect(chores).toContainText("Tidy bedroom");
+    await expect(chores).toContainText("Take out recycling");
+    await expect(chores).toContainText("Vacuum living room");
+    await expect(next.getByTestId("region-link-today")).toHaveAttribute(
+      "href",
+      "/dashboard/calendar",
+    );
+    await expect(chores.getByTestId("region-link-chores")).toHaveAttribute(
+      "href",
+      "/dashboard/chores",
+    );
+    await expectNoCanaries(page);
     await expectNoHorizontalOverflow(page);
   });
 
@@ -910,7 +946,7 @@ test.describe("Today board: Family A parent", () => {
         weather_label: WEATHER_PLACE.label,
       });
 
-      await openBoard(page, "/dashboard/today");
+      await openBoard(page, "/dashboard/today?mode=fridge");
       await expect(page.getByTestId("board-weather")).toContainText("-3°C");
       await expect(
         region(page, "chores")
@@ -1023,7 +1059,7 @@ test.describe("Today board: empty household", () => {
 
     await openBoard(page);
     await expect(region(page, "today")).toContainText(
-      "Nothing else on the calendar today.",
+      "No more events or household chores to show here.",
     );
     await expect(region(page, "dinner")).toContainText(
       "No dinner planned yet.",
@@ -1034,7 +1070,7 @@ test.describe("Today board: empty household", () => {
     await expect(region(page, "groceries")).toContainText(
       "The grocery list is clear.",
     );
-    await expect(region(page, "chores")).toContainText("No chores due today.");
+    await expect(region(page, "chores")).toHaveCount(0);
     // The parent gets a next step instead of only empty regions.
     await expect(page.getByTestId("get-started")).toBeVisible();
     await expect(
@@ -1046,5 +1082,22 @@ test.describe("Today board: empty household", () => {
 
     await expectNoHorizontalOverflow(page);
     await axeScan(page, testInfo, "/dashboard/today (empty)");
+    await openBoard(page, "/dashboard/today?mode=fridge");
+    await expect(region(page, "today")).toContainText(
+      "Nothing else on the calendar today.",
+    );
+    await expect(region(page, "chores")).toContainText("No chores due today.");
+    await expect(region(page, "dinner")).toContainText(
+      "No dinner planned yet.",
+    );
+    await expect(region(page, "groceries")).toContainText(
+      "The grocery list is clear.",
+    );
+    await expect(
+      region(page, "coming").getByText("Nothing on the calendar"),
+    ).toHaveCount(3);
+    await expectNoCanaries(page);
+    await expectNoHorizontalOverflow(page);
+    await axeScan(page, testInfo, "/dashboard/today?mode=fridge (empty)");
   });
 });
