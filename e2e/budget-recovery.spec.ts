@@ -408,10 +408,10 @@ async function installSyntheticTransport(
       try {
         await released;
         await route.fulfill({
-          status: 409,
+          status: 422,
           json: {
             error: {
-              code: "IDENTITY_CONFLICT",
+              code: "INVALID_TRANSACTION",
               message: "synthetic private financial implementation detail",
             },
           },
@@ -423,10 +423,10 @@ async function installSyntheticTransport(
       return;
     }
     await route.fulfill({
-      status: 409,
+      status: 422,
       json: {
         error: {
-          code: "IDENTITY_CONFLICT",
+          code: "INVALID_TRANSACTION",
           message: "synthetic private financial implementation detail",
         },
       },
@@ -589,7 +589,7 @@ for (const locale of ["en", "es"] as const) {
           .click();
         const saveError = recoveryDialog.getByRole("alert");
         await expect(saveError).toContainText(copy.saveFailed);
-        await expect(saveError).not.toContainText("IDENTITY_CONFLICT");
+        await expect(saveError).not.toContainText("INVALID_TRANSACTION");
         await expect(saveError).not.toContainText(
           "synthetic private financial implementation detail",
         );
