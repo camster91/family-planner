@@ -13,6 +13,7 @@ import {
   dateAt,
   dayKey,
   matchesSource,
+  overlappingEvents,
   planningHref,
   planningRange,
   segmentEvent,
@@ -215,7 +216,14 @@ export function CalendarPlanner({
     setView(nextView);
     router.replace(planningHref(key, nextView), { scroll: false });
   };
-  const filtered = data.filter((e) => matchesSource(e, filter));
+  const filtered = React.useMemo(
+    () => data.filter((e) => matchesSource(e, filter)),
+    [data, filter],
+  );
+  const overlaps = React.useMemo(
+    () => overlappingEvents(filtered, { start, end }),
+    [filtered, start, end],
+  );
   const hasVisible = days.some((day) =>
     filtered.some((e) => segmentEvent(e, day, local)),
   );
@@ -225,7 +233,13 @@ export function CalendarPlanner({
       <button
         type="button"
         className={styles.event}
-        data-calendar-kind={e.source_subscription_id || e.source ? "subscribed" : e.source_connection_id ? "connected" : "local"}
+        data-calendar-kind={
+          e.source_subscription_id || e.source
+            ? "subscribed"
+            : e.source_connection_id
+              ? "connected"
+              : "local"
+        }
         onClick={(ev) => {
           trigger.current = ev.currentTarget;
           setSelected(e);
@@ -347,7 +361,9 @@ export function CalendarPlanner({
                     : msg("providerUnavailableHelp")}
                 </p>
                 {calendarSyncAvailable && (
-                  <Link href="/dashboard/settings#calendar-sync">{msg("connectProvider")}</Link>
+                  <Link href="/dashboard/settings#calendar-sync">
+                    {msg("connectProvider")}
+                  </Link>
                 )}
                 <Link href="/dashboard/settings#calendar-subscriptions">
                   {msg("subscribeLink")}
@@ -415,6 +431,69 @@ export function CalendarPlanner({
             </nav>
             <p>{msg("showing", { source: label })}</p>
           </div>
+          {displayState === "ready" && overlaps.total > 0 && (
+            <details
+              className={styles.overlaps}
+              data-testid="calendar-overlaps"
+            >
+              <summary>
+                {msg("overlaps")}
+                <span>
+                  {msg(
+                    overlaps.total === 1 ? "overlapCountOne" : "overlapsCount",
+                    { count: overlaps.total.toLocaleString(locale) },
+                  )}
+                </span>
+              </summary>
+              <p>{msg("overlapsHelp")}</p>
+              {truncated && <p>{msg("partialHelp")}</p>}
+              <ol className={styles.overlapPairs}>
+                {overlaps.pairs.map((pair) => (
+                  <li key={JSON.stringify([pair.first.id, pair.second.id])}>
+                    <p>
+                      <time dateTime={pair.start}>
+                        {format(new Date(pair.start), {
+                          month: "short",
+                          day: "numeric",
+                        })}
+                        {" · "}
+                        {time(new Date(pair.start))}
+                      </time>
+                      {" – "}
+                      <time dateTime={pair.end}>
+                        {dayKey(new Date(pair.start), local) !==
+                          dayKey(new Date(pair.end), local) &&
+                          `${format(new Date(pair.end), { month: "short", day: "numeric" })} · `}
+                        {time(new Date(pair.end))}
+                      </time>
+                    </p>
+                    {[pair.first, pair.second].map((event) => (
+                      <button
+                        key={event.id}
+                        type="button"
+                        aria-label={msg("reviewEvent", { title: event.title })}
+                        onClick={(ev) => {
+                          trigger.current = ev.currentTarget;
+                          setSelected(event);
+                        }}
+                      >
+                        <strong>{event.title}</strong>
+                        <small>{sourceLabel(event)}</small>
+                      </button>
+                    ))}
+                  </li>
+                ))}
+              </ol>
+              {overlaps.total > overlaps.pairs.length && (
+                <p>
+                  {msg("overlapsShown", {
+                    shown: overlaps.pairs.length,
+                    count: overlaps.total,
+                  })}
+                </p>
+              )}
+            </details>
+          )}
           {clockChange && (
             <p role="status" className={styles.note}>
               {msg("clockChange")}
@@ -454,7 +533,13 @@ export function CalendarPlanner({
             </section>
           )}
           {displayState === "ready" && !hasVisible && (
-            <section className={view === "agenda" || clockChange ? styles.state : styles.emptyNotice}>
+            <section
+              className={
+                view === "agenda" || clockChange
+                  ? styles.state
+                  : styles.emptyNotice
+              }
+            >
               <h2>{filter === "all" ? msg("empty") : msg("emptySource")}</h2>
               <p>
                 {msg("showing", { source: label })}
@@ -525,11 +610,24 @@ export function CalendarPlanner({
                           key={dayKey(day, local)}
                         >
                           <h2
-                            aria-label={format(day, { weekday: "short", day: "numeric" })}
-                            aria-current={local && now !== null && dayKey(day, local) === dayKey(new Date(now), true) ? "date" : undefined}
+                            aria-label={format(day, {
+                              weekday: "short",
+                              day: "numeric",
+                            })}
+                            aria-current={
+                              local &&
+                              now !== null &&
+                              dayKey(day, local) === dayKey(new Date(now), true)
+                                ? "date"
+                                : undefined
+                            }
                           >
-                            <span className={styles.weekday}>{format(day, { weekday: "short" })}</span>
-                            <span className={styles.dayNumber}>{format(day, { day: "numeric" })}</span>
+                            <span className={styles.weekday}>
+                              {format(day, { weekday: "short" })}
+                            </span>
+                            <span className={styles.dayNumber}>
+                              {format(day, { day: "numeric" })}
+                            </span>
                           </h2>
                           <div
                             className={styles.dayGrid}

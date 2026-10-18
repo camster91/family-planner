@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import * as React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 jest.mock("../calendar-planner.module.css", () => ({}));
 import { CalendarPlanner } from "../CalendarPlanner";
 jest.mock("next/navigation", () => ({
@@ -84,9 +84,9 @@ it("allocates enough clock-column width for four overlapping 44px targets", asyn
           },
   })) as jest.Mock;
   render(<CalendarPlanner initialDate="2026-01-05" initialView="day" />);
-  await screen.findByRole("button", { name: /Overlap 0/ });
-  const grid = screen.getByLabelText("Timed calendar, all 24 hours")
-    .firstElementChild as HTMLElement;
+  const timeline = await screen.findByLabelText("Timed calendar, all 24 hours");
+  await within(timeline).findByRole("button", { name: /Overlap 0/ });
+  const grid = timeline.firstElementChild as HTMLElement;
   expect(grid.style.gridTemplateColumns).toContain("minmax(208px,1fr)");
 });
 it("labels a full continuing timed segment without inventing all-day or midnight duration", async () => {
