@@ -145,3 +145,20 @@ Reconciled against accepted main28ca4f2 on 2026-10-09. The replaced planning sec
 - Visual baselines include signed-out/parent Today, fridge/weather and shared-tablet states in `visual.spec.ts`, `fridge.spec.ts` and `device.spec.ts`. Canonical meal fixtures have landed; explicit per-test data remains useful for isolated visual states. Source-labelled screenshot galleries provide additional viewport/state evidence, while snapshot approval, full-app/zoom/native/human acceptance and remaining #139 children stay separate.
 
 Explicit manual dispatch with `update_snapshots: true` generates visual fixture candidates without the ordinary journey step. It still builds, migrates, seeds guarded fixtures, performs auth setup and runs every visual case. Review and adopt only intentional affected frames; artifacts never auto-commit. This manual run is not functional acceptance or release evidence. Normal PR/main events and manual dispatch with updates off retain the full journeys and strict terminal gate; release guards require exact-main push evidence.
+
+### Fresh-runner upload and saved-sort verification (2026-10-18)
+
+PR587's original desktop job117726627217 failed the real Messages attachment
+upload with EACCES: the unprivileged runner fell back to the production
+`/data/family-planner-uploads` directory. Playwright now explicitly gives its
+server a disposable writable upload root under that invocation's output
+folder. Production storage resolution and application code are unchanged.
+Phone/desktop real-upload acceptance remains required; tablet state-only
+success was not evidence that upload worked.
+
+The same job exposed an existing flaky aisle test that reloaded after the
+optimistic switch changed but before its PATCH completed. The existing case
+now observes the real successful PATCH before asserting persisted state on
+reload. All ordering assertions, role/privacy checks and six viewport
+projects remain unchanged. No timeout, retry, screenshot baseline or CI gate
+is weakened; fresh exact-source hosted execution is required.
