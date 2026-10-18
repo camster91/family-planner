@@ -281,6 +281,37 @@ describeWithDatabase("Budget transaction routes against PostgreSQL", () => {
     );
   });
 
+  it("converges overlapping same-key creates to one row and one receipt", async () => {
+    const key = "budget-create-concurrent-20261018";
+    const responses = await Promise.all([
+      POST(request(PARENT, BASE_BODY, key)),
+      POST(request(PARENT, BASE_BODY, key)),
+    ]);
+    expect(
+      responses.every(({ status }) => status === 201 || status === 409),
+    ).toBe(true);
+
+    const winner = responses.find(({ status }) => status === 201);
+    expect(winner).toBeDefined();
+    const winnerBody = await winner!.json();
+    const retry = await POST(request(PARENT, BASE_BODY, key));
+    expect(retry.status).toBe(201);
+    expect(await retry.json()).toEqual(winnerBody);
+    expect(await db.transaction.count({ where: { family_id: FAMILY } })).toBe(
+      1,
+    );
+    expect(
+      await db.idempotencyRecord.count({
+        where: {
+          family_id: FAMILY,
+          scope: `user:${PARENT}`,
+          key,
+          response_status: 201,
+        },
+      }),
+    ).toBe(1);
+  });
+
   it("returns the in-progress response without writing a transaction", async () => {
     const key = "budget-create-in-progress-20261018";
     await db.idempotencyRecord.create({
