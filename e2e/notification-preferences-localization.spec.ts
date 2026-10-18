@@ -119,6 +119,11 @@ for (const role of ["parent", "teen", "child"] as const)
             : route.abort();
         });
         if (role === "teen") {
+          // Keep this real sign-in journey independent of earlier tests' login
+          // traffic; the production 30/IP limit remains unchanged.
+          await page.setExtraHTTPHeaders({
+            "X-Forwarded-For": "198.51.100.242",
+          });
           await loginViaUi(page, FIXTURE_EMAILS.familyA.teen);
           await expect(page).toHaveURL(/\/dashboard(?:\/)?$/);
         } else await page.goto("/dashboard");
