@@ -12,6 +12,7 @@ import KidHome from "../KidHome";
 import { ToastProvider } from "@/components/ui/toast";
 import { FeaturesProvider } from "@/components/providers/features-provider";
 import { defaultFeatures } from "@/lib/features";
+import { isValidIdempotencyKey } from "@/lib/idempotency-key";
 
 const refresh = jest.fn();
 jest.mock("next/navigation", () => ({
@@ -21,6 +22,7 @@ jest.mock("next/navigation", () => ({
 type Reply = { status: number; body?: unknown };
 let replies: Record<string, Reply[]> = {};
 let calls: string[] = [];
+let requestInits: RequestInit[] = [];
 
 // jsdom has no media playback; keep the real chore UI and mock only that platform gap.
 beforeAll(() => {
@@ -36,10 +38,12 @@ beforeEach(() => {
     .setSystemTime(new Date(2026, 9, 6, 12));
   replies = {};
   calls = [];
+  requestInits = [];
   refresh.mockClear();
-  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push(url);
+    requestInits.push(init ?? {});
     const next = replies[url]?.shift() ?? {
       status: 200,
       body: { success: true },
@@ -293,6 +297,7 @@ describe("KidHome reward claim", () => {
     expect(screen.getByText("30")).toBeTruthy();
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(calls.filter((u) => u === "/api/rewards/claim")).toHaveLength(1);
+    expect(isValidIdempotencyKey((requestInits.find((init) => init.method === "POST" && String(init.body).includes("r1"))?.headers as Record<string, string>)["Idempotency-Key"])).toBe(true);
   });
 
   it("keeps the reward and balance when the claim fails", async () => {
@@ -306,9 +311,8 @@ describe("KidHome reward claim", () => {
       ],
     });
     await userEvent.click(screen.getByRole("button", { name: "Claim" }));
-    expect(
-      await screen.findByText("Reward is no longer available"),
-    ).toBeTruthy();
+    expect(await screen.findByText("We could not confirm that reward. Try again.")).toBeTruthy();
+    expect(screen.queryByText("Reward is no longer available")).toBeNull();
     expect(screen.getByText("80")).toBeTruthy();
     expect(screen.getByText("Movie night")).toBeTruthy();
     expect(refresh).not.toHaveBeenCalled();

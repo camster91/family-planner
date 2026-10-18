@@ -13,6 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 import CreateRewardForm from "../create/CreateRewardForm";
 import { RewardCreateSheet } from "@/components/rewards/RewardCreateSheet";
+import { isValidIdempotencyKey } from "@/lib/idempotency-key";
 
 const push = jest.fn();
 const refresh = jest.fn();
@@ -89,6 +90,8 @@ it("preserves the rewards payload, selected icon semantics, and destination", as
       }),
     }),
   );
+  const request = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+  expect(isValidIdempotencyKey((request.headers as Record<string, string>)["Idempotency-Key"])).toBe(true);
 });
 
 it("retries an uncertain create with the same idempotency key and keeps the draft", async () => {
@@ -111,6 +114,30 @@ it("retries an uncertain create with the same idempotency key and keeps the draf
   expect((requests[0].headers as Record<string, string>)["Idempotency-Key"]).toBe(
     (requests[1].headers as Record<string, string>)["Idempotency-Key"],
   );
+  expect(isValidIdempotencyKey((requests[0].headers as Record<string, string>)["Idempotency-Key"])).toBe(true);
+});
+
+it("keeps the create key for an in-progress response", async () => {
+  const user = userEvent.setup();
+  const requests: RequestInit[] = [];
+  global.fetch = jest.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    requests.push(init ?? {});
+    return requests.length === 1
+      ? response(409, { error: "A create is still in progress" })
+      : response(201, CREATED_REWARD);
+  }) as unknown as typeof fetch;
+
+  render(<CreateRewardForm />);
+  const name = screen.getByLabelText("Name");
+  await user.type(name, "Extra game time");
+  await user.click(screen.getByRole("button", { name: "Create Reward" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("couldn't create");
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/rewards"));
+  expect((requests[0].headers as Record<string, string>)["Idempotency-Key"]).toBe(
+    (requests[1].headers as Record<string, string>)["Idempotency-Key"],
+  );
+  expect(isValidIdempotencyKey((requests[0].headers as Record<string, string>)["Idempotency-Key"])).toBe(true);
 });
 
 it("keeps the direct Back control noninteractive while saving", async () => {

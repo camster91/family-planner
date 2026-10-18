@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "@/i18n";
 import { rewardCreateMessages } from "@/i18n/reward-create";
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import {
   usePendingFormNavigation,
   usePendingFormNavigationController,
@@ -79,8 +80,10 @@ export default function CreateRewardForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uncertain, setUncertain] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const submittingRef = useRef(false);
   const requestKeys = useRef(new Map<string, string>());
+  const confirmedRequests = useRef(new Set<string>());
   const directNavigation = usePendingFormNavigationController(
     loading && !inSheet,
   );
@@ -101,24 +104,32 @@ export default function CreateRewardForm({
       icon,
     };
     const signature = createRequestKey(payload);
-    const key = requestKeys.current.get(signature) ?? signature;
+    if (confirmedRequests.current.has(signature)) {
+      router.push("/dashboard/rewards");
+      router.refresh();
+      return;
+    }
+    const key = requestKeys.current.get(signature) ?? newIdempotencyKey();
     requestKeys.current.set(signature, key);
 
     submittingRef.current = true;
     setLoading(true);
     setError(null);
     setUncertain(false);
+    setConfirmed(false);
 
     try {
       const response = await fetch("/api/rewards", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+        headers: { "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: key },
         body: JSON.stringify(payload),
       });
 
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        requestKeys.current.delete(signature);
+        const ambiguous = response.status >= 500 || response.status === 409;
+        if (ambiguous) setUncertain(true);
+        else requestKeys.current.delete(signature);
         throw new CreateRewardFailure(
           response.status === 403 ? "permissionError" : "createError",
         );
@@ -129,12 +140,13 @@ export default function CreateRewardForm({
         setError(copy.recoveryTitle);
         return;
       }
-      requestKeys.current.delete(signature);
+      confirmedRequests.current.add(signature);
 
       if ((await navigation?.releaseBeforeNavigation()) === false) {
         // A pending-navigation guard can keep the user on this form. Allow a
-        // deliberate retry after that guard has resolved.
+        // GET-only return to the rewards shelf after the create is confirmed.
         submittingRef.current = false;
+        setConfirmed(true);
         return;
       }
       router.push("/dashboard/rewards");
@@ -221,6 +233,27 @@ export default function CreateRewardForm({
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5 px-4">
+        {confirmed && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-xl border border-[var(--success-tint)] bg-[var(--success-tint)]/40 p-4 text-success-text text-sm"
+          >
+            <p>{copy.confirmedTitle}</p>
+            <p className="mt-1 text-label-secondary">{copy.confirmedDescription}</p>
+            <button
+              type="button"
+              className="btn-plain mt-3 min-h-[44px]"
+              onClick={() => {
+                router.push("/dashboard/rewards");
+                router.refresh();
+              }}
+            >
+              {copy.checkRewards}
+            </button>
+          </div>
+        )}
+
         {error && (
           <div
             role="alert"

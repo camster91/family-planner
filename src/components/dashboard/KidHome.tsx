@@ -31,6 +31,7 @@ import KidRoutines from "./KidRoutines";
 import { useLocalNow } from "@/components/ui/use-hydrated";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { useRewardsText } from "@/i18n/rewards";
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import Link from "next/link";
 
 interface Chore {
@@ -384,10 +385,7 @@ export default function KidHome({
   const rewardClaimKey = (rewardId: string) => {
     const existing = rewardClaimKeys.current.get(rewardId);
     if (existing) return existing;
-    const random = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const key = `rewards:claim:${rewardId}:${random}`;
+    const key = newIdempotencyKey();
     rewardClaimKeys.current.set(rewardId, key);
     return key;
   };
@@ -408,7 +406,7 @@ export default function KidHome({
     try {
       const res = await fetch("/api/rewards/claim", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+        headers: { "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: key },
         body: JSON.stringify({ rewardId }),
       });
       if (res.ok) {
@@ -433,19 +431,19 @@ export default function KidHome({
           router.refresh();
         }, 2000);
       } else {
-        const data = await res.json().catch(() => ({}));
+        await res.json().catch(() => null);
         addToast({
           type: "error",
-          title: "Couldn't claim that",
-          message: data.error || "Please try again.",
+          title: rewardsText("claimErrorTitle"),
+          message: rewardsText("claimErrorDescription"),
         });
       }
     } catch {
       // Offline or the request failed: say so instead of an unhandled rejection.
       addToast({
         type: "error",
-        title: "Couldn't claim that",
-        message: "Check your connection and try again.",
+        title: rewardsText("connectionErrorTitle"),
+        message: rewardsText("connectionErrorDescription"),
       });
     } finally {
       setClaimingReward(false);

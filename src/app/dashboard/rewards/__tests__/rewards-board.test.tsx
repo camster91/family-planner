@@ -10,6 +10,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '@/components/ui/toast'
 import RewardsBoard, { type RewardCard } from '../RewardsBoard'
+import { isValidIdempotencyKey } from '@/lib/idempotency-key'
 
 const refresh = jest.fn()
 jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh, push: jest.fn() }) }))
@@ -46,13 +47,13 @@ const ICE_CREAM: RewardCard = {
 const CLAIMED_MOVIE = { reward: { ...MOVIE, status: 'claimed', claimedById: 'kid_1', claimedByName: 'Sam' }, xp: 30 }
 const GIVEN_ICE_CREAM = { reward: { ...ICE_CREAM, status: 'approved' } }
 
-type Call = { url: string; method: string; body: any }
+type Call = { url: string; method: string; body: any; headers?: Record<string, string> }
 
 function mockFetch(answer: (url: string) => { status: number; body: unknown } | 'throw') {
   const calls: Call[] = []
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
-    calls.push({ url, method: (init?.method ?? 'GET').toUpperCase(), body: init?.body ? JSON.parse(String(init.body)) : undefined })
+    calls.push({ url, method: (init?.method ?? 'GET').toUpperCase(), body: init?.body ? JSON.parse(String(init.body)) : undefined, headers: init?.headers as Record<string, string> | undefined })
     const a = answer(url)
     if (a === 'throw') throw new TypeError('Failed to fetch')
     return { ok: a.status >= 200 && a.status < 300, status: a.status, json: async () => a.body } as Response
@@ -74,6 +75,7 @@ describe('RewardsBoard', () => {
   it('keeps several rewards visible as separate choices', () => {
     renderBoard({ rewards: [MOVIE, { ...MOVIE, id: 'r_game', name: 'Game time', cost: 30 }] })
     expect(screen.getAllByTestId('claimable-reward')).toHaveLength(2)
+    expect(screen.queryAllByTestId('family-reward')).toHaveLength(0)
     expect(screen.getByRole('button', { name: 'Claim Game time' })).toBeTruthy()
   })
 
@@ -91,7 +93,7 @@ describe('RewardsBoard', () => {
     await user.click(await screen.findByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(refresh).toHaveBeenCalled())
     expect(requests[0].headers).toEqual(requests[1].headers)
-    expect((requests[0].headers as Record<string, string>)['Idempotency-Key']).toContain('rewards:claim:r_movie:')
+    expect(isValidIdempotencyKey((requests[0].headers as Record<string, string>)['Idempotency-Key'])).toBe(true)
   })
 
   it('lets a parent add another reward once some exist; a child sees no add button', () => {
@@ -118,9 +120,12 @@ describe('RewardsBoard', () => {
     expect(calls).toHaveLength(0)
     await user.click(within(dialog).getByRole('button', { name: 'Claim' }))
     await waitFor(() => expect(refresh).toHaveBeenCalled())
-    expect(calls).toEqual([{ url: '/api/rewards/claim', method: 'POST', body: { rewardId: 'r_movie' } }])
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toEqual(expect.objectContaining({ url: '/api/rewards/claim', method: 'POST', body: { rewardId: 'r_movie' } }))
+    expect(isValidIdempotencyKey((calls[0] as any).headers?.['Idempotency-Key'])).toBe(true)
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByText('Claimed Movie night')).toBeTruthy()
+    expect(screen.getByText('30 points')).toBeTruthy()
   })
 
   it("keeps the dialog open and shows the server's reason when a claim is refused", async () => {
@@ -132,6 +137,23 @@ describe('RewardsBoard', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Reward is no longer available')
     expect(screen.getByRole('dialog')).toBeTruthy()
     expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('retains a claim key through an ambiguous server failure and retries safely', async () => {
+    const user = userEvent.setup()
+    const requests: RequestInit[] = []
+    global.fetch = jest.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(init ?? {})
+      if (requests.length === 1) return { ok: false, status: 500, json: async () => ({ error: 'try later' }) } as Response
+      return { ok: true, status: 200, json: async () => CLAIMED_MOVIE } as Response
+    }) as unknown as typeof fetch
+    renderBoard({ rewards: [MOVIE] })
+    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
+    await user.click(await screen.findByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    expect(requests[0].headers).toEqual(requests[1].headers)
+    expect(isValidIdempotencyKey((requests[0].headers as Record<string, string>)['Idempotency-Key'])).toBe(true)
   })
 
   it('says to check the connection when a claim cannot reach the server', async () => {
@@ -167,7 +189,9 @@ describe('RewardsBoard', () => {
     expect(row.textContent).toContain('Claimed by Sam')
     await user.click(within(row).getByRole('button', { name: 'Mark Ice cream as given' }))
     await waitFor(() => expect(refresh).toHaveBeenCalled())
-    expect(calls).toEqual([{ url: '/api/rewards/approve', method: 'POST', body: { rewardId: 'r_ice' } }])
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toEqual(expect.objectContaining({ url: '/api/rewards/approve', method: 'POST', body: { rewardId: 'r_ice' } }))
+    expect(isValidIdempotencyKey((calls[0] as any).headers?.['Idempotency-Key'])).toBe(true)
     expect(screen.getByText('Ice cream marked as given')).toBeTruthy()
   })
 
