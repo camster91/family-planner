@@ -758,58 +758,48 @@ for (const locale of ["en", "es"] as const) {
           ownedTaskIds,
         );
         childContext = child.context;
-        await child.page.goto("/dashboard/projects");
-        await expect(
-          child.page.getByRole("heading", {
-            name: copy.overview.pageTitle,
-            exact: true,
-          }),
-        ).toBeVisible();
-        await expect(
-          child.page.getByRole("link", {
-            name: copy.overview.newProject,
-            exact: true,
-          }),
-        ).toHaveCount(0);
-        await child.page.goto(`/dashboard/projects/${projectId}`);
-        await expect(
-          child.page.getByRole("heading", {
-            name: projectName,
-            exact: true,
-          }),
-        ).toBeVisible();
-        const childActions = child.page.getByRole("button", {
-          name: copy.overview.actions,
-          exact: true,
-        });
-        await expect(childActions).toBeVisible();
-        await childActions.click();
-        const childMenu = child.page.getByRole("menu", {
-          name: copy.overview.projectActions,
-        });
-        await expect(
-          childMenu.getByText(copy.overview.noActions, { exact: true }),
-        ).toBeVisible();
-        await expect(
-          childMenu.getByRole("menuitem", {
-            name: copy.overview.markComplete,
-            exact: true,
-          }),
-        ).toHaveCount(0);
-        await child.page.keyboard.press("Escape");
-        await expect(childActions).toBeFocused();
-        await expect(
-          child.page.getByRole("button", {
-            name: copy.overview.addTask,
-            exact: true,
-          }),
-        ).toBeVisible();
+        // Child web routes follow the shared allowlist even though the
+        // canonical Projects API permits household-member task creation.
+        for (const path of [
+          "/dashboard/projects",
+          `/dashboard/projects/${projectId}`,
+        ]) {
+          await child.page.goto(path);
+          await expect(child.page).toHaveURL(/\/dashboard$/);
+          await expect(
+            child.page.getByRole("heading", { name: projectName, exact: true }),
+          ).toHaveCount(0);
+          await expect(
+            child.page.getByRole("heading", {
+              name: copy.overview.pageTitle,
+              exact: true,
+            }),
+          ).toHaveCount(0);
+          await expect(
+            child.page.getByRole("button", {
+              name: copy.overview.actions,
+              exact: true,
+            }),
+          ).toHaveCount(0);
+        }
+        const childStatusChange = await browserSend(
+          child.page,
+          "PATCH",
+          `/api/projects/${projectId}`,
+          { status: "completed" },
+        );
+        expect(childStatusChange.status, childStatusChange.body).toBe(403);
+        const unchangedProject = await browserFetch(
+          page,
+          `/api/projects/${projectId}`,
+        );
+        expect(unchangedProject.status, unchangedProject.body).toBe(200);
+        expect(JSON.parse(unchangedProject.body).project.status).toBe("active");
         await assertNoHorizontalOverflow(child.page);
         await assertA11y(child.page);
 
-        // A child can still use the canonical task-create API. The UI keeps
-        // parent-only status controls out of the menu; task creation remains a
-        // household-member operation by contract.
+        // A child can still use the canonical task-create API. Task creation
+        // remains a household-member operation by contract.
         const childTaskKey = randomUUID();
         idempotencyKeys.add(childTaskKey);
         const childTask = await sendWithKey(
