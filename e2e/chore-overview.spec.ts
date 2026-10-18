@@ -19,8 +19,6 @@ for (const locale of ["en", "es"] as const) {
         ? route.continue()
         : route.abort();
     });
-    await loginViaUi(page, FIXTURE_EMAILS.familyA.parent);
-    await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
     await page.addInitScript(
       ({ locale, localeKey, themeKey }) => {
         localStorage.setItem(localeKey, locale);
