@@ -13,7 +13,7 @@ import fs from "node:fs";
 import type { Locator, Page, TestInfo } from "@playwright/test";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
-import { LOCALE_STORAGE_KEY } from "../src/i18n";
+import { LOCALE_STORAGE_KEY, messages } from "../src/i18n";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import { authFile } from "./support/env";
 import { ownFeatureAudit } from "./support/feature-audit";
@@ -43,13 +43,12 @@ const COPY: Record<
     cancel: string;
     idle: string;
     received: string;
-    tryAgain: string;
     uncertain: string;
     statusError: string;
   }
 > = {
   en: {
-    title: "Wishlist",
+    title: messages.en.wishlist.familyTitle,
     deny: "Deny wish",
     reason: "Reason for denial",
     placeholder: "Tell the family why this wish is denied.",
@@ -57,13 +56,12 @@ const COPY: Record<
     cancel: "Cancel",
     idle: "Idle",
     received: "Received",
-    tryAgain: "Please try again.",
     uncertain:
       "We could not confirm the status change. The wishlist was refreshed; check the current status before trying again.",
-    statusError: "Couldn't change the status.",
+    statusError: messages.en.wishlist.errorStatus,
   },
   es: {
-    title: "Lista de deseos",
+    title: messages.es.wishlist.familyTitle,
     deny: "Denegar deseo",
     reason: "Razon de denegacion",
     placeholder: "Explica a la familia por que se deniega este deseo.",
@@ -71,10 +69,9 @@ const COPY: Record<
     cancel: "Cancelar",
     idle: "Pendiente",
     received: "Recibido",
-    tryAgain: "Intentalo de nuevo.",
     uncertain:
       "No pudimos confirmar el cambio de estado. Actualizamos los deseos; revisa el estado actual antes de intentarlo de nuevo.",
-    statusError: "No se pudo cambiar el estado.",
+    statusError: messages.es.wishlist.errorStatus,
   },
 };
 
@@ -482,14 +479,18 @@ for (const locale of ["en", "es"] as const) {
           await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
         }
         await expect(
-          page.getByRole("heading", { name: copy.title, level: 1 }),
+          page.getByRole("heading", {
+            name: copy.title,
+            level: 1,
+            exact: true,
+          }),
         ).toBeVisible();
         await runtimeIdentity(page, info, locale);
         expect(blockedWrites).toEqual([]);
 
         const statusFor = (title: string) =>
           page.getByRole("combobox", {
-            name: `Status for ${title}`,
+            name: messages[locale].wishlist.statusFor.replace("{title}", title),
             exact: true,
           });
         const pendingSelect = statusFor("Synthetic pending bicycle");
@@ -554,7 +555,9 @@ for (const locale of ["en", "es"] as const) {
         // the response is still the same fabricated 403.
         releaseDenialPatch?.();
         if (denialPatchComplete) await denialPatchComplete;
-        await expect(denialDialog.getByRole("alert")).toHaveText(copy.tryAgain);
+        await expect(denialDialog.getByRole("alert")).toHaveText(
+          copy.statusError,
+        );
         await denialDialog
           .getByRole("button", { name: copy.confirm, exact: true })
           .click();
