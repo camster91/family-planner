@@ -662,6 +662,9 @@ for (const locale of ["en", "es"] as const) {
       });
       expect(blockedWrites).toEqual([]);
     } finally {
+      releaseStart?.();
+      releaseDose?.();
+      await page.unrouteAll({ behavior: "wait" });
       try {
         const restoredResponse = await browserSend(
           page,
