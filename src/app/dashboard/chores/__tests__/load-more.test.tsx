@@ -73,7 +73,7 @@ function renderPage(historyCursor: string | null) {
 }
 
 async function openAllDone(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'All' }))
+  await user.selectOptions(screen.getByRole('combobox', { name: 'More chore views' }), 'all')
   await user.click(screen.getByRole('button', { name: /Done/ }))
 }
 

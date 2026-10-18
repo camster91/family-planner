@@ -241,7 +241,7 @@ it('identifies unstacked repeated chores by member and date and keeps each compl
 it('never merges unrelated series or standalone same-title chores and preserves member permissions', async () => {
   const chores = [step('one', 1, { title: 'Same', routine: null, recurrence_id: 'series-a' }), step('two', 1, { title: 'Same', routine: null, recurrence_id: 'series-b' }), step('three', 1, { title: 'Same', routine: null, assigned_to: 'someone-else' })]
   render(<I18nProvider locale="es"><RoutineStacks chores={chores} userRole="teen" currentUserId="adult" locale="es" collapseRepeats onComplete={jest.fn()} /></I18nProvider>)
-  expect(screen.getAllByRole('button', { name: 'Complete Same' })).toHaveLength(2)
+  expect(screen.getAllByRole('button', { name: 'Completar Same' })).toHaveLength(2)
   expect(screen.queryAllByRole('link')).toHaveLength(0)
   expect(document.querySelectorAll('details')).toHaveLength(0)
 })

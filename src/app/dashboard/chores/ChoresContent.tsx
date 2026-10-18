@@ -5,6 +5,8 @@ import { Plus, CheckSquare, ChevronDown, Flame } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RecurringChoreRows } from "@/components/chores/RecurringChoreRows";
+import { ChoreViewControls, type ChorePresentation } from "@/components/chores/ChoreViewControls";
+import { useChoreOverviewText } from "@/i18n/chore-overview";
 import { RoutineStacks } from "@/components/chores/RoutineStacks";
 import { RoutineIcon } from "@/components/chores/RoutineIcon";
 import { CheckboxRow } from "@/components/ui/checkbox-row";
@@ -61,14 +63,6 @@ function isActiveRepeatingChore(chore: Chore): boolean {
       frequency !== "once",
   );
 }
-
-// The open-chores heading names the range picked above, so a Week or All list
-// (chores due on many days) is not labelled "Today".
-const OPEN_HEADING: Record<FilterMode, string> = {
-  today: "Today",
-  week: "This week",
-  all: "To do",
-};
 
 interface ChoresContentProps {
   chores: (Chore & {
@@ -213,6 +207,14 @@ export default function ChoresContent({
 }: ChoresContentProps) {
   const [view, setView] = React.useState<"chores" | "routines">("chores");
   const [filter, setFilter] = React.useState<FilterMode>("today");
+  const [seriesMode, setSeriesMode] = React.useState(false);
+  const overviewText = useChoreOverviewText();
+  const presentation: ChorePresentation = view === "routines" ? "routines" : seriesMode ? "series" : filter;
+  const changePresentation = (next: ChorePresentation) => {
+    setSeriesMode(next === "series");
+    setView(next === "routines" ? "routines" : "chores");
+    if (next !== "routines") setFilter(next === "series" ? "all" : next);
+  };
   const [localChores, setLocalChores] = React.useState(chores);
   const [doneCollapsed, setDoneCollapsed] = React.useState(true);
   const { addToast } = useToast();
@@ -850,13 +852,18 @@ export default function ChoresContent({
     ? localChores.filter((c) => {
         if (filter === "today") return isDueToday(c.due_date, now);
         if (filter === "week") return isDueWithinDays(c.due_date, 7, now);
-        return true;
+        return !seriesMode || isActiveRepeatingChore(c);
       })
     : [];
 
+  const routineRows = filtered.filter(c => c.routine?.trim() || c.routine_stack_id);
+  const showInlineRoutines = view === "chores" && !seriesMode && filter !== "all" && routineRows.length > 0;
+  const routineIds = new Set(showInlineRoutines ? routineRows.map(c => c.id) : []);
+  const choreById = new Map(localChores.map(c => [c.id, c]));
   const todayChores = filtered.filter(
     (c) => c.status === "pending" || c.status === "in_progress",
   );
+  const listChores = todayChores.filter(c => !routineIds.has(c.id));
   // Done by a child and waiting for a parent's check (any date).
   const toCheckCount = localChores.filter(
     (c) => c.status === "completed",
@@ -994,51 +1001,16 @@ export default function ChoresContent({
     );
   };
 
-  const SegmentedControl = ({
-    value,
-    onChange,
-  }: {
-    value: FilterMode;
-    onChange: (v: FilterMode) => void;
-  }) => (
-    <div className="flex bg-[var(--surface-fill)] rounded-lg p-1 gap-1">
-      {(["today", "week", "all"] as FilterMode[]).map((opt) => (
-        <button
-          key={opt}
-          type="button"
-          ref={
-            opt === "today"
-              ? (node) => {
-                  verificationFallbackRef.current = node;
-                  deleteFallbackRef.current = node;
-                }
-              : undefined
-          }
-          onClick={() => onChange(opt)}
-          aria-pressed={value === opt}
-          className={cn(
-            // 44px tall; the picked one also gets a hairline ring so it reads in dark mode.
-            "flex-1 min-h-[44px] py-1.5 px-3 rounded-md text-sm font-medium transition-all duration-200",
-            value === opt
-              ? "bg-[var(--surface-elevated)] text-label-primary font-semibold shadow-sm ring-1 ring-[var(--surface-separator)]"
-              : "text-label-secondary hover:text-label-primary",
-          )}
-        >
-          {opt.charAt(0).toUpperCase() + opt.slice(1)}
-        </button>
-      ))}
-    </div>
-  );
-
   return (
     <div className="pb-20">
       <LargeHeader
-        title="Chores"
+        title={overviewText("title")}
         subtitle={
           now
             ? choresSubtitle(
                 todayChores.length,
                 userRole === "parent" ? toCheckCount : 0,
+                overviewText,
               )
             : undefined
         }
@@ -1046,34 +1018,19 @@ export default function ChoresContent({
           <Link
             href="/dashboard/chores/create"
             className="btn-filled shrink-0"
-            aria-label="Add chore"
+            aria-label={overviewText("add")}
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
+            <span>{overviewText("add")}</span>
           </Link>
         }
         className="px-4"
       />
 
       <div className="px-4 mb-4">
-        <SegmentedControl value={filter} onChange={setFilter} />
-        <div role="group" aria-label="Chore view" className="flex gap-2 mt-3">
-          {(["chores", "routines"] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={view === option}
-              onClick={() => setView(option)}
-              className={cn(
-                "min-h-[44px] px-4 rounded-lg text-body",
-                view === option
-                  ? "bg-[var(--accent-tint)] text-[var(--accent)]"
-                  : "text-label-secondary",
-              )}
-            >
-              {option === "chores" ? "Chore list" : "Routines"}
-            </button>
-          ))}
-        </div>
+        <ChoreViewControls value={presentation} range={filter}
+          onChange={changePresentation} onRangeChange={setFilter}
+          todayRef={node => { verificationFallbackRef.current = node; deleteFallbackRef.current = node; }} />
       </div>
 
       <div className="space-y-6 px-4">
@@ -1187,6 +1144,7 @@ export default function ChoresContent({
               </section>
             );
           })()}
+        <div className={cn(showInlineRoutines && listChores.length > 0 ? "grid gap-6 xl:grid-cols-2 items-start" : "space-y-6")}>
         {!now ? (
           <section
             aria-label="Chores"
@@ -1205,15 +1163,15 @@ export default function ChoresContent({
             collapseRepeats={filter !== "today"}
             onComplete={handleCompleteChore}
           />
-        ) : todayChores.length > 0 ? (
+        ) : listChores.length > 0 ? (
           <section>
-            <p className="section-header">{OPEN_HEADING[filter]}</p>
+            <p className="section-header">{overviewText(seriesMode ? "series" : filter === "today" ? "now" : filter === "week" ? "thisWeek" : "toDo")}</p>
             <div className="list-inset stagger">
               {filter === "today" ? (
-                todayChores.map(renderOpenChore)
+                listChores.map(renderOpenChore)
               ) : (
                 <RecurringChoreRows
-                  chores={todayChores}
+                  chores={listChores}
                   now={now}
                   locale={displayLocale}
                   renderRow={renderOpenChore}
@@ -1221,19 +1179,27 @@ export default function ChoresContent({
               )}
             </div>
           </section>
-        ) : (
+        ) : showInlineRoutines ? null : (
           <EmptyState
             icon={CheckSquare}
             glyphColor="chore"
             motion={MOTION.tea}
-            title="All clear!"
+            title={overviewText("empty")}
             description={
-              filter === "today"
-                ? "No chores due today."
-                : "No chores in this range."
+              overviewText(seriesMode ? "noSeries" : filter === "today" ? "emptyToday" : "emptyRange")
             }
           />
         )}
+        {now && showInlineRoutines && <details key={filter} open={filter === "today"} className="rounded-[var(--radius-xl)] border border-[var(--surface-separator)]">
+          <summary className="min-h-[44px] cursor-pointer px-4 py-3 text-headline text-label-primary">{overviewText("routinePanel")}</summary>
+          <div className="p-3 pt-0">
+            <RoutineStacks chores={routineRows} userRole={userRole} currentUserId={currentUserId} familyId={familyId}
+              locale={displayLocale} collapseRepeats={filter !== "today"} showBuilder={false}
+              onComplete={handleCompleteChore}
+              renderOpenRow={id => { const chore = choreById.get(id); return chore ? renderOpenChore(chore, 0) : null; }} />
+          </div>
+        </details>}
+        </div>
 
         {view === "chores" && doneChores.length > 0 && (
           <section>
@@ -1471,8 +1437,8 @@ export default function ChoresContent({
   );
 }
 
-function choresSubtitle(open: number, toCheck: number): string {
-  const parts = [`${open} to do`];
-  if (toCheck > 0) parts.push(`${toCheck} to check`);
+function choresSubtitle(open: number, toCheck: number, text: ReturnType<typeof useChoreOverviewText>): string {
+  const parts = [text("openCount", { count: open })];
+  if (toCheck > 0) parts.push(text("checkCount", { count: toCheck }));
   return parts.join(" · ");
 }

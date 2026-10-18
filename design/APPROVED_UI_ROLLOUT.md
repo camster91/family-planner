@@ -47,7 +47,7 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | --- | --- | --- |
 | Shared personal navigation | Five parent tabs, searchable Explore, Family within Core | PR #568 verified live at main9d9e6de6 after exact-main QA and protected restore; child/teen tabs retained |
 | Today (person home) | A capped Next up card, dinner and a quiet look ahead | PR #570 combines scoped events/chores; bounded rendered/source checks and 117 original browser checks passed; full hosted and wider acceptance pending |
-| Chores | Grouped series, selected weekdays, clear owner, contextual actions | Existing behavior retained; approved layout review pending |
+| Chores | Grouped series, selected weekdays, clear owner, contextual actions | Local Today/Week/Series overview with inline routine stacks; 101 focused units and independent source review pass; compiled/browser/hosted acceptance pending |
 | Calendar | Readable week/agenda, duration, clear connections and overlap review | Local timing-overlap advisory and one native source selector passed bounded review; mobile Week/workspace and full hosted acceptance pending |
 | Lists | Direct groceries, custom lists, simple create/edit | PR #570 compact overview, short create form and validated Back/create/delete context passed bounded review; full hosted acceptance and remaining detail-copy migration pending |
 | Family | Add everyone, email-free profiles, clear account-link distinction | Existing behavior retained; approved layout review pending |
@@ -195,3 +195,21 @@ setup error: the English-only login helper was invoked after setting Spanish.
 The test now signs in before selecting the localized Meals presentation, keeping
 all navigation, context, accessibility, no-write and canonical bulk assertions.
 This candidate does not complete Meals or the 22-feature programme.
+
+## Chores overview candidate — 2026-10-18
+
+Today and Week now include routine progress beside ordinary work, with each open
+routine occurrence rendered once. Today opens the routine disclosure; Week starts
+collapsed. Series keeps the existing canonical recurrence grouping and weekday
+labels. A compact More views selector retains All chores/history and the dedicated
+Routines workspace; the latter keeps its date-range selector. All does not expand
+inline routine cards. Parent rows retain their action sheets, completion/Undo and
+focus callbacks. Child/teen steps retain their own-step restrictions; email-free,
+paused and unavailable profile rows retain their existing read-only gates.
+
+The overview and routine presentation use typed EN/ES copy. No API, schema,
+provider, scheduler, offline protocol or profile activation changes are included.
+All 101 affected unit tests pass. Independent source review found and resolved
+the initial All-range expansion issue, with a retained regression. Exact-source
+compilation, six-size browser journeys and hosted gates remain pending. This
+bounded overview does not complete Chores or the all-feature programme.

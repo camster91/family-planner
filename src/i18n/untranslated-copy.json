@@ -161,16 +161,6 @@
   },
   {
     "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Add chore",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "All clear!",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
     "text": "Assign to",
     "count": 1
   },
@@ -181,18 +171,8 @@
   },
   {
     "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Chore list",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Chore view",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
     "text": "Chores",
-    "count": 2
+    "count": 1
   },
   {
     "file": "src/app/dashboard/chores/ChoresContent.tsx",
@@ -226,22 +206,7 @@
   },
   {
     "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "No chores due today.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "No chores in this range.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
     "text": "Reassign chore",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/chores/ChoresContent.tsx",
-    "text": "Routines",
     "count": 1
   },
   {
@@ -1232,11 +1197,6 @@
   {
     "file": "src/app/dashboard/meals/page.tsx",
     "text": "Current week",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Explore recipes",
     "count": 1
   },
   {
@@ -2847,101 +2807,6 @@
   {
     "file": "src/components/chores/RoutineIconPicker.tsx",
     "text": "1",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "· some awaiting check",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Add step",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "All steps done",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "and checked",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "checked",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Checked",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Complete",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Done",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "done ·",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Done · awaiting check",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Edit",
-    "count": 2
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Focus on the next step",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "No routines in this range. Give related chores the same routine name and step numbers to stack them.",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "of",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Other chores",
-    "count": 2
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Routine stacks",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "To do",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Unassigned",
-    "count": 1
-  },
-  {
-    "file": "src/components/chores/RoutineStacks.tsx",
-    "text": "Up next",
     "count": 1
   },
   {

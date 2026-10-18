@@ -80,7 +80,9 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
     ownedIds.splice(0, ownedIds.length, ...series.map((c) => c.id));
     expect(ownedIds).toHaveLength(4);
     await page.goto("/dashboard/chores");
-    await page.getByRole("button", { name: "Routines", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "More chore views", exact: true })
+      .selectOption("routines");
     const other = page.getByRole("region", {
       name: "Other chores",
       exact: true,
@@ -88,7 +90,9 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
     await expect(
       other.getByRole("button", { name: `Complete ${title}` }),
     ).toHaveCount(1);
-    await page.getByRole("button", { name: "All", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Routine range", exact: true })
+      .selectOption("all");
     const summary = other.locator("summary").filter({ hasText: title });
     await expect(summary).toBeVisible();
     // The fresh fixed-clock series has its template today plus three weekly copies.
