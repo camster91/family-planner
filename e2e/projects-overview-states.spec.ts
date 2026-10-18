@@ -22,6 +22,7 @@ import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import { projectCreateMessages } from "../src/i18n/project-create";
 import { projectOverviewMessages } from "../src/i18n/project-overview";
+import { formatDateOnly } from "../src/lib/dates";
 import { E2E_ANCHOR, authFile } from "./support/env";
 import { ownFeatureAudit } from "./support/feature-audit";
 import { browserFetch, browserSend, expect, test } from "./support/test";
@@ -36,6 +37,13 @@ const VIEWPORT_PROJECTS = new Set([
   "fridge-landscape-1280x800",
   "tablet-large-1920x1200",
   "desktop-1366x768",
+]);
+const FULL_WORKFLOW_PROJECTS = new Set(["phone-390x844", "desktop-1366x768"]);
+const RENDER_ONLY_PROJECTS = new Set([
+  "phone-430x932",
+  "tablet-portrait-800x1280",
+  "fridge-landscape-1280x800",
+  "tablet-large-1920x1200",
 ]);
 
 type Locale = "en" | "es";
@@ -355,7 +363,7 @@ for (const locale of ["en", "es"] as const) {
       colorScheme: locale === "es" ? "dark" : "light",
     });
 
-    test(`${locale}: parent creates, retries, assigns, completes and scopes a project`, async ({
+    test(`${locale}: parent creates, retries, assigns, archives, reactivates, completes and scopes a project`, async ({
       page,
       context,
       browser,
@@ -363,6 +371,10 @@ for (const locale of ["en", "es"] as const) {
     }, info) => {
       assertFixtureTargetAllowed(process.env);
       expect(VIEWPORT_PROJECTS.has(info.project.name)).toBe(true);
+      test.skip(
+        !FULL_WORKFLOW_PROJECTS.has(info.project.name),
+        "full create/retry/role workflow runs on representative phone and desktop projects",
+      );
       const blockedWrites: string[] = [];
       const ownedProjectIds = new Set<string>();
       const ownedTaskIds = new Set<string>();
@@ -625,6 +637,53 @@ for (const locale of ["en", "es"] as const) {
         await assertA11y(page);
         await captureState(page, info, locale, "projects-open-assigned-task");
 
+        const projectActions = page.getByRole("button", {
+          name: copy.overview.actions,
+          exact: true,
+        });
+        await projectActions.click();
+        const archiveMenu = page.getByRole("menu", {
+          name: copy.overview.projectActions,
+        });
+        await expect(
+          archiveMenu.getByRole("menuitem", {
+            name: copy.overview.archive,
+            exact: true,
+          }),
+        ).toBeVisible();
+        await archiveMenu
+          .getByRole("menuitem", {
+            name: copy.overview.archive,
+            exact: true,
+          })
+          .click();
+        await expect(
+          page.getByText(copy.overview.projectArchived, { exact: true }),
+        ).toBeVisible();
+        const archived = await browserFetch(page, `/api/projects/${projectId}`);
+        expect(archived.status, archived.body).toBe(200);
+        expect(JSON.parse(archived.body).project.status).toBe("archived");
+
+        await projectActions.click();
+        const reactivateMenu = page.getByRole("menu", {
+          name: copy.overview.projectActions,
+        });
+        await reactivateMenu
+          .getByRole("menuitem", {
+            name: copy.overview.reactivate,
+            exact: true,
+          })
+          .click();
+        await expect(
+          page.getByText(copy.overview.projectReactivated, { exact: true }),
+        ).toBeVisible();
+        const reactivated = await browserFetch(
+          page,
+          `/api/projects/${projectId}`,
+        );
+        expect(reactivated.status, reactivated.body).toBe(200);
+        expect(JSON.parse(reactivated.body).project.status).toBe("active");
+
         await page.goto("/dashboard/projects");
         const openSection = page.locator(
           "section[aria-labelledby='projects-active-heading']",
@@ -806,14 +865,12 @@ for (const locale of ["en", "es"] as const) {
           familyBPage,
           `/api/projects/${projectId}`,
         );
-        expect([403, 404], foreignDetail.body).toContain(foreignDetail.status);
+        expect(foreignDetail.status, foreignDetail.body).toBe(403);
         const familyBProjects = await browserFetch(
           familyBPage,
           "/api/projects",
         );
-        expect([403, 404], familyBProjects.body).toContain(
-          familyBProjects.status,
-        );
+        expect(familyBProjects.status, familyBProjects.body).toBe(200);
         expect(familyBProjects.body).not.toContain(projectName);
 
         await info.attach("projects-transport-and-role-proof", {
@@ -835,6 +892,229 @@ for (const locale of ["en", "es"] as const) {
         await page.unrouteAll({ behavior: "ignoreErrors" });
         await childContext?.close().catch(() => undefined);
         await familyBContext?.close().catch(() => undefined);
+        const cleanupErrors: unknown[] = [];
+        if (projectId) {
+          try {
+            const deleted = await browserSend(
+              page,
+              "DELETE",
+              `/api/projects/${projectId}`,
+            );
+            expect(deleted.status, deleted.body).toBe(200);
+          } catch (error) {
+            cleanupErrors.push(error);
+          }
+        }
+        try {
+          await removeOwnedRows([...ownedProjectIds], [...idempotencyKeys]);
+        } catch (error) {
+          cleanupErrors.push(error);
+        }
+        if (featureSetup) {
+          try {
+            await restoreProjects(page, featureSetup);
+          } catch (error) {
+            cleanupErrors.push(error);
+          }
+        }
+        await context.unrouteAll({ behavior: "ignoreErrors" });
+        if (cleanupErrors.length) throw cleanupErrors[0];
+      }
+      expect(blockedWrites).toEqual([]);
+    });
+
+    test(`${locale}: renders scoped project states across the remaining viewports`, async ({
+      page,
+      context,
+    }, info) => {
+      assertFixtureTargetAllowed(process.env);
+      expect(VIEWPORT_PROJECTS.has(info.project.name)).toBe(true);
+      test.skip(
+        !RENDER_ONLY_PROJECTS.has(info.project.name),
+        "bounded render-state coverage uses the four remaining responsive projects",
+      );
+
+      const blockedWrites: string[] = [];
+      const ownedProjectIds = new Set<string>();
+      const ownedTaskIds = new Set<string>();
+      const idempotencyKeys = new Set<string>();
+      const copy = copyFor(locale);
+      const runId = randomUUID();
+      const projectName = `E2E render project ${locale} ${runId} — café family garden goals that wrap cleanly on small screens`;
+      const projectDescription = `Raw family note ${runId}: café, naïve, façade — keep this user content exactly as entered and readable across devices.`;
+      const openTaskTitle = `Open assigned task ${runId} — gather tools and label every garden box before the weekend`;
+      let featureSetup: FeatureSetup | undefined;
+      let projectId: string | undefined;
+
+      await installLoopbackGuard(
+        context,
+        blockedWrites,
+        ownedProjectIds,
+        ownedTaskIds,
+      );
+      await configureLocale(page, locale);
+
+      try {
+        await page.goto("/dashboard");
+        const identity = await browserFetch(page, "/api/auth/me");
+        expect(identity.status, identity.body).toBe(200);
+        expect(JSON.parse(identity.body).user).toMatchObject({
+          id: A.parent,
+          family_id: A.family,
+          role: "parent",
+        });
+        featureSetup = await enableProjects(page);
+
+        await page.goto("/dashboard/projects");
+        await expect(
+          page.getByRole("heading", { name: copy.overview.pageTitle }),
+        ).toBeVisible();
+        await expect(
+          page.getByText(copy.overview.noProjectsTitle, { exact: true }),
+        ).toBeVisible();
+        const newProject = page.getByRole("link", {
+          name: copy.overview.newProject,
+          exact: true,
+        });
+        await expect(newProject).toBeVisible();
+        await assertHitTarget(page, newProject);
+        await assertNoHorizontalOverflow(page);
+        await assertA11y(page);
+        await captureState(
+          page,
+          info,
+          locale,
+          "projects-render-empty-overview",
+        );
+
+        const projectKey = randomUUID();
+        idempotencyKeys.add(projectKey);
+        const created = await sendWithKey(
+          page,
+          "POST",
+          "/api/projects",
+          {
+            name: projectName,
+            description: projectDescription,
+            color: "#3B82F6",
+          },
+          projectKey,
+        );
+        expect(created.status, created.body).toBe(201);
+        const createdProject = JSON.parse(created.body).project as {
+          id?: string;
+          family_id?: string;
+          created_by?: string;
+          name?: string;
+          description?: string | null;
+          status?: string;
+        };
+        expect(createdProject).toMatchObject({
+          family_id: A.family,
+          created_by: A.parent,
+          name: projectName,
+          description: projectDescription,
+          status: "active",
+        });
+        expect(typeof createdProject.id).toBe("string");
+        projectId = createdProject.id;
+        ownedProjectIds.add(projectId!);
+
+        const openTaskKey = randomUUID();
+        const openTask = await sendWithKey(
+          page,
+          "POST",
+          `/api/projects/${projectId}/tasks`,
+          {
+            title: openTaskTitle,
+            assigned_to: A.teen,
+            due_date: "2026-01-08",
+          },
+          openTaskKey,
+        );
+        idempotencyKeys.add(openTaskKey);
+        expect(openTask.status, openTask.body).toBe(201);
+        const createdOpenTask = JSON.parse(openTask.body).task as {
+          id?: string;
+          title?: string;
+        };
+        expect(createdOpenTask).toMatchObject({ title: openTaskTitle });
+        expect(typeof createdOpenTask.id).toBe("string");
+        ownedTaskIds.add(createdOpenTask.id!);
+
+        await page.goto("/dashboard/projects");
+        const activeSection = page.locator(
+          "section[aria-labelledby='projects-active-heading']",
+        );
+        await expect(activeSection).toBeVisible();
+        const projectCard = activeSection.getByRole("button", {
+          name: new RegExp(projectName),
+        });
+        await expect(projectCard).toBeVisible();
+        await assertHitTarget(page, projectCard);
+        await assertNoHorizontalOverflow(page);
+        await assertA11y(page);
+        await captureState(page, info, locale, "projects-render-open-overview");
+
+        await projectCard.click();
+        await expect(
+          page.getByRole("heading", { name: projectName }),
+        ).toBeVisible();
+        await expect(
+          page.getByText(projectDescription, { exact: true }),
+        ).toBeVisible();
+        await expect(
+          page.getByText(openTaskTitle, { exact: true }),
+        ).toBeVisible();
+        await expect(
+          page.getByText(
+            copy.overview.taskAssignedTo.replace("{name}", "Taylor Fixture-A"),
+            { exact: false },
+          ),
+        ).toBeVisible();
+        const dueDateLabel = formatDateOnly(
+          "2026-01-08",
+          { weekday: "short", month: "short", day: "numeric" },
+          locale === "es" ? "es-ES" : "en-US",
+        );
+        await expect(
+          page.getByText(
+            copy.overview.taskDue.replace("{date}", dueDateLabel),
+            { exact: false },
+          ),
+        ).toBeVisible();
+        const back = page.getByRole("link", {
+          name: copy.overview.backToProjects,
+          exact: true,
+        });
+        await assertHitTarget(page, back);
+        const actions = page.getByRole("button", {
+          name: copy.overview.actions,
+          exact: true,
+        });
+        await assertHitTarget(page, actions);
+        await assertNoHorizontalOverflow(page);
+        await assertA11y(page);
+        await captureState(page, info, locale, "projects-render-open-detail");
+
+        const taskCheckbox = page
+          .getByRole("checkbox")
+          .filter({ hasText: openTaskTitle })
+          .first();
+        await assertHitTarget(page, taskCheckbox);
+        await taskCheckbox.click();
+        await expect(taskCheckbox).toHaveAttribute("aria-checked", "true");
+        await expect(
+          page.getByText(copy.overview.doneTasks, { exact: true }),
+        ).toBeVisible();
+        await assertNoHorizontalOverflow(page);
+        await assertA11y(page);
+        await captureState(page, info, locale, "projects-render-done-detail");
+
+        await back.click();
+        await expect(page).toHaveURL(/\/dashboard\/projects$/);
+      } finally {
+        await page.unrouteAll({ behavior: "ignoreErrors" });
         const cleanupErrors: unknown[] = [];
         if (projectId) {
           try {
