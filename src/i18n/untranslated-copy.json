@@ -1415,21 +1415,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/rewards/page.tsx",
-    "text": "Create or join a family to start earning and claiming rewards.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/page.tsx",
-    "text": "No family set up",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/rewards/page.tsx",
-    "text": "Rewards",
-    "count": 2
-  },
-  {
     "file": "src/app/dashboard/search/SearchClient.tsx",
     "text": "&rdquo;.",
     "count": 1

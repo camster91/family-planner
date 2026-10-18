@@ -1,12 +1,10 @@
 import { Suspense } from 'react'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { LargeHeader } from '@/components/ui/large-header'
-import { EmptyState } from '@/components/ui/empty-state'
 import { FeatureOffState } from '@/components/ui/feature-gate'
 import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
-import { Gift } from 'lucide-react'
 import RewardsBoard, { type RewardCard } from './RewardsBoard'
+import { RewardsNoFamilyState, RewardsPageHeader } from '@/components/rewards/RewardsPageHeader'
 
 export const dynamic = 'force-dynamic'
 
@@ -101,14 +99,9 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
   if (!familyId) {
     return (
       <div className="space-y-6">
-        <LargeHeader title="Rewards" subtitle="Use the points you earn to claim rewards" className="px-4" />
+        <RewardsPageHeader className="px-4" />
         <div className="px-4">
-          <EmptyState
-            icon={Gift}
-            glyphColor="rewards"
-            title="No family set up"
-            description="Create or join a family to start earning and claiming rewards."
-          />
+          <RewardsNoFamilyState />
         </div>
       </div>
     )
@@ -128,9 +121,8 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
 
   return (
     <div className="pb-20">
-      <LargeHeader
-        title="Rewards"
-        subtitle={user?.family?.name ? `${user.family.name} family` : undefined}
+      <RewardsPageHeader
+        familyName={user?.family?.name}
         className="w-full px-4 sm:px-6 lg:px-8"
       />
       <div className="mx-auto mt-6 w-full max-w-[1440px] px-4 sm:px-6 lg:px-8">

@@ -98,9 +98,18 @@ describe('RewardsBoard', () => {
 
   it('lets a parent add another reward once some exist; a child sees no add button', () => {
     const { unmount } = renderBoard({ isParent: true })
-    expect(screen.getByRole('link', { name: 'Add reward' }).getAttribute('href')).toBe('/dashboard/rewards/create')
+    const addReward = screen.getByRole('link', { name: 'Add reward' })
+    expect(addReward.getAttribute('href')).toBe('/dashboard/rewards/create')
+    const balance = screen.getByRole('region', { name: 'Your points' })
+    expect(Boolean(addReward.compareDocumentPosition(balance) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
     unmount()
     renderBoard({ isParent: false })
+    expect(screen.queryByRole('link', { name: 'Add reward' })).toBeNull()
+  })
+
+  it('keeps the empty parent create action when no rewards exist', () => {
+    renderBoard({ rewards: [], isParent: true })
+    expect(screen.getByRole('link', { name: 'Create Reward' }).getAttribute('href')).toBe('/dashboard/rewards/create')
     expect(screen.queryByRole('link', { name: 'Add reward' })).toBeNull()
   })
 
