@@ -87,6 +87,7 @@ const tabKeys: Readonly<Record<string, NavigationMessage>> = {
   "/dashboard/meals": "meals",
   "/dashboard/lists": "lists",
   "/dashboard/family": "family",
+  "/dashboard/family/more": "explore",
   "/dashboard/emergency": "emergency",
 };
 /** Identity comes from the canonical href, never the English display label. */

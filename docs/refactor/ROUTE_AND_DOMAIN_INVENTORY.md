@@ -26,6 +26,15 @@ Cameron's latest direction: align UI/UX across **all features**, including all-f
 
 Execution owner: Codex; product owner: Cameron. Track the current all-feature continuation in #499 (preserving closed #143 acceptance/history), foundation/component work in #152, adaptive journey acceptance in #133 and rendered evidence in #139. Preserve the existing [cross-device sequence](../product/CROSS_DEVICE_ROADMAP.md); this is its coverage contract, not a parallel roadmap. Significant flow changes use the existing [editable design file](../../design/README.md) before implementation.
 
+### Approved navigation update — 2026-10-17
+
+The current parent navigation is Today, Calendar, Meals, Lists and Explore.
+Explore retains `/dashboard/family/more`, with Family first in Core; child/teen
+Emergency tabs and route permissions are unchanged. The historical generated
+IA rows below retain their inspected-source wording. For the current parent
+entry points use [navigation](../product/NAVIGATION.md) and the approved
+[implementation ledger](../../design/APPROVED_UI_ROLLOUT.md).
+
 ### One interaction system
 
 - Stable primary destinations, grouped feature discovery, consistent active/back context. Turning on a feature must not add a permanent top-level tab or an automatic Today tile. Favorites and personal layout remain separate from household availability and permissions.

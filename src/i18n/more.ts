@@ -1,7 +1,7 @@
 import { useTranslation } from "@/i18n";
 
 export const moreEnglish = {
-  title: "More",
+  title: "Explore",
   searchLabel: "Search enabled features",
   searchPlaceholder: "Search features",
   clearSearch: "Clear feature search",
@@ -19,7 +19,7 @@ export type MoreMessage = keyof typeof moreEnglish;
 export type MoreMessages = Record<MoreMessage, string>;
 
 export const moreSpanish: MoreMessages = {
-  title: "Más",
+  title: "Explorar",
   searchLabel: "Buscar funciones activadas",
   searchPlaceholder: "Buscar funciones",
   clearSearch: "Borrar búsqueda de funciones",

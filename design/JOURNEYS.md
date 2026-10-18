@@ -7,14 +7,14 @@ Status: review source grounded in `e0c7dac`, 2026-10-07; #151 remains open. All 
 | Mode                  | Frequent destinations / intent                                                                        | Private boundary                                                                                                                              |
 | --------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | Shared fridge tablet  | Device Today: schedule, chores, dinner, grocery summary; calm/night presentation                      | Device DTO/route allowlist. Parent elevation grants setup only, never a personal dashboard session.                                           |
-| Parent companion      | Today, Calendar, Meals, Lists, Family; personal user menu for Settings                                | Parent finances, messages, accounts and medical/private records stay in this personal session.                                                |
+| Parent companion      | Today, Calendar, Meals, Lists, Explore; personal user menu for Settings                                | Parent finances, messages, accounts and medical/private records stay in this personal session.                                                |
 | Teen                  | Own missions, Calendar, Meals, Lists, Emergency; personal Help, notifications and restricted Settings | No family administration, event edit or private parent destinations. Individual API capabilities still apply.                                 |
 | Child                 | Own missions, Lists, Emergency; other permitted personal pages through their existing links           | Child-specific APIs shape records; no administrative controls. Child emergency access is intentional and separate from paired-device privacy. |
-| Parent administration | Family → More / Features, user menu → Settings, Devices, Imports, Activity                            | Parent person session, role/household/feature checks. No equivalent unrestricted route under tablet elevation.                                |
+| Parent administration | Explore → Family / Features, user menu → Settings, Devices, Imports, Activity                            | Parent person session, role/household/feature checks. No equivalent unrestricted route under tablet elevation.                                |
 
 At 390×844 compact width, personal bottom navigation keeps frequent destinations within reach. From the actual `md` breakpoint (768px), the personal shell uses a top bar; 800×1280 keeps a distinct board layout rather than enlarging phone tiles. At 1280×800 the dedicated `/device/today` has shared tiles and no personal dashboard navigation. The review maps document these audiences; viewport-specific composition and one-handed/distance review still need explicit design frames and rendered acceptance. This table does not claim those checks passed.
 
-Frequent entry targets: Calendar → Add event (2 decisions); Lists → grocery list → Add (3); Meals → day/slot → add (3); Today → All chores → Add (3). These count navigation choices, not typing, required consent or save actions. Optional modules live under feature-gated Family → More, not additional primary tabs; off features do not appear. Existing installed links and redirects stay compatible.
+Frequent entry targets: Calendar → Add event (2 decisions); Lists → grocery list → Add (3); Meals → day/slot → add (3); Today → All chores → Add (3). These count navigation choices, not typing, required consent or save actions. Optional modules live under feature-gated Explore, not additional primary tabs; off features do not appear. Existing installed links and redirects stay compatible.
 
 ## Back and deep links
 
@@ -57,51 +57,51 @@ Generated from the 61 `src/app/**/page.tsx` files. The personal path gate column
 | ------------------------------- | ---------------------------------------------- | ------------------------------ | -------------------------------------------------------- |
 | `/`                             | Public introduction                            | Not a personal dashboard route | Retain                                                   |
 | `/dashboard`                    | Role home: parent Today redirect; kid missions | parent, teen, child            | Retain                                                   |
-| `/dashboard/allowance`          | Family → More (feature-gated)                  | parent, teen, child            | Retain                                                   |
-| `/dashboard/analytics`          | Family → More (feature-gated)                  | parent                         | Retain                                                   |
-| `/dashboard/anniversaries`      | Family → More (feature-gated)                  | parent                         | Retain                                                   |
-| `/dashboard/budget`             | Family → More (feature-gated)                  | parent                         | Retain                                                   |
+| `/dashboard/allowance`          | Explore (feature-gated)                  | parent, teen, child            | Retain                                                   |
+| `/dashboard/analytics`          | Explore (feature-gated)                  | parent                         | Retain                                                   |
+| `/dashboard/anniversaries`      | Explore (feature-gated)                  | parent                         | Retain                                                   |
+| `/dashboard/budget`             | Explore (feature-gated)                  | parent                         | Retain                                                   |
 | `/dashboard/calendar`           | Calendar tab                                   | parent, teen                   | Retain                                                   |
 | `/dashboard/calendar/create`    | Calendar tab                                   | parent, teen                   | Retain                                                   |
 | `/dashboard/calendar/edit`      | Calendar tab                                   | parent                         | Retain                                                   |
 | `/dashboard/chores`             | Today → All chores                             | parent                         | Retain                                                   |
 | `/dashboard/chores/create`      | Today → All chores                             | parent                         | Retain                                                   |
 | `/dashboard/chores/edit`        | Today → All chores                             | parent                         | Retain                                                   |
-| `/dashboard/emergency`          | Family → More (feature-gated)                  | parent, teen, child            | Retain                                                   |
-| `/dashboard/family`             | Family tab                                     | parent                         | Retain                                                   |
-| `/dashboard/family/create`      | Family tab                                     | parent                         | Retain                                                   |
-| `/dashboard/family/invite`      | Family tab                                     | parent                         | Retain                                                   |
-| `/dashboard/family/more`        | Family tab                                     | parent                         | Retain                                                   |
-| `/dashboard/family/settings`    | Family tab                                     | parent                         | Retain                                                   |
-| `/dashboard/features`           | Family → Features                              | parent                         | Retain                                                   |
-| `/dashboard/handoff`            | Family → More (feature-gated)                  | parent, teen, child            | Retain                                                   |
+| `/dashboard/emergency`          | Explore (feature-gated)                  | parent, teen, child            | Retain                                                   |
+| `/dashboard/family`             | Explore → Family                                     | parent                         | Retain                                                   |
+| `/dashboard/family/create`      | Explore → Family                                     | parent                         | Retain                                                   |
+| `/dashboard/family/invite`      | Explore → Family                                     | parent                         | Retain                                                   |
+| `/dashboard/family/more`        | Explore tab                                     | parent                         | Retain                                                   |
+| `/dashboard/family/settings`    | Explore → Family                                     | parent                         | Retain                                                   |
+| `/dashboard/features`           | Explore → Features                              | parent                         | Retain                                                   |
+| `/dashboard/handoff`            | Explore (feature-gated)                  | parent, teen, child            | Retain                                                   |
 | `/dashboard/help`               | User menu → Help                               | parent, teen                   | Retain                                                   |
-| `/dashboard/inventory`          | Family → More (feature-gated)                  | parent, teen, child            | Retain                                                   |
+| `/dashboard/inventory`          | Explore (feature-gated)                  | parent, teen, child            | Retain                                                   |
 | `/dashboard/lists`              | Lists tab                                      | parent, teen, child            | Retain                                                   |
 | `/dashboard/lists/[listId]`     | Lists tab                                      | parent, teen, child            | Retain                                                   |
 | `/dashboard/lists/create`       | Lists tab                                      | parent, teen, child            | Retain                                                   |
 | `/dashboard/lists/type/[type]`  | Lists → type filter                            | parent, teen, child            | Compatibility redirect to ?type=; retain installed links |
-| `/dashboard/locations`          | Family → More (feature-gated)                  | parent                         | Retain                                                   |
+| `/dashboard/locations`          | Explore (feature-gated)                  | parent                         | Retain                                                   |
 | `/dashboard/meals`              | Meals tab                                      | parent, teen                   | Retain                                                   |
 | `/dashboard/meals/recipes/[id]` | Meals tab                                      | parent, teen                   | Retain                                                   |
-| `/dashboard/messages`           | Family → More (feature-gated)                  | parent                         | Retain                                                   |
-| `/dashboard/notes`              | Family → More (feature-gated)                  | parent                         | Retain                                                   |
+| `/dashboard/messages`           | Explore (feature-gated)                  | parent                         | Retain                                                   |
+| `/dashboard/notes`              | Explore (feature-gated)                  | parent                         | Retain                                                   |
 | `/dashboard/notifications`      | Notifications bell                             | parent, teen                   | Retain                                                   |
-| `/dashboard/pickups`            | Family → More (feature-gated)                  | parent                         | Retain                                                   |
-| `/dashboard/projects`           | Family → More (feature-gated)                  | parent                         | Retain                                                   |
-| `/dashboard/projects/[id]`      | Family → More (feature-gated)                  | parent                         | Retain                                                   |
-| `/dashboard/projects/create`    | Family → More (feature-gated)                  | parent                         | Retain                                                   |
-| `/dashboard/rewards`            | Family → More (feature-gated)                  | parent                         | Retain                                                   |
-| `/dashboard/rewards/create`     | Family → More (feature-gated)                  | parent                         | Retain                                                   |
+| `/dashboard/pickups`            | Explore (feature-gated)                  | parent                         | Retain                                                   |
+| `/dashboard/projects`           | Explore (feature-gated)                  | parent                         | Retain                                                   |
+| `/dashboard/projects/[id]`      | Explore (feature-gated)                  | parent                         | Retain                                                   |
+| `/dashboard/projects/create`    | Explore (feature-gated)                  | parent                         | Retain                                                   |
+| `/dashboard/rewards`            | Explore (feature-gated)                  | parent                         | Retain                                                   |
+| `/dashboard/rewards/create`     | Explore (feature-gated)                  | parent                         | Retain                                                   |
 | `/dashboard/search`             | Search / command palette                       | parent                         | Retain                                                   |
 | `/dashboard/settings`           | User menu → Settings                           | parent, teen                   | Retain                                                   |
 | `/dashboard/settings/activity`  | User menu → Settings                           | parent                         | Retain                                                   |
 | `/dashboard/settings/devices`   | User menu → Settings                           | parent                         | Retain                                                   |
 | `/dashboard/settings/imports`   | User menu → Settings                           | parent                         | Retain                                                   |
-| `/dashboard/sick-days`          | Family → More (feature-gated)                  | parent, teen, child            | Retain                                                   |
+| `/dashboard/sick-days`          | Explore (feature-gated)                  | parent, teen, child            | Retain                                                   |
 | `/dashboard/today`              | Today / board                                  | parent, teen, child            | Retain                                                   |
-| `/dashboard/travel`             | Family → More (feature-gated)                  | parent                         | Retain                                                   |
-| `/dashboard/wishlist`           | Family → More (feature-gated)                  | parent, teen, child            | Retain                                                   |
+| `/dashboard/travel`             | Explore (feature-gated)                  | parent                         | Retain                                                   |
+| `/dashboard/wishlist`           | Explore (feature-gated)                  | parent, teen, child            | Retain                                                   |
 | `/dev/design-system`            | Development fixture gallery                    | Not a personal dashboard route | Retain                                                   |
 | `/device`                       | Shared-device pairing / Today / removed        | Not a personal dashboard route | Retain                                                   |
 | `/device/pair`                  | Shared-device pairing / Today / removed        | Not a personal dashboard route | Retain                                                   |

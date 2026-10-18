@@ -4,7 +4,8 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { X, ChevronRight, Search } from "lucide-react";
 import { SearchField } from "@/components/ui/search-field";
-import { navItemDisplayName, navItems } from "@/lib/nav-items";
+import { MORE_HREF, navItemDisplayName, navItems } from "@/lib/nav-items";
+import { useMoreText } from "@/i18n/more";
 import { useFeatures } from "@/components/providers/features-provider";
 import { cn } from "@/lib/utils";
 import { isFeatureEnabled } from "@/lib/features";
@@ -28,6 +29,7 @@ export default function CommandPalette({
   const router = useRouter();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const { features } = useFeatures();
+  const more = useMoreText();
   const featureDisplay = useFeatureDisplayCopy();
   const featureTitles = React.useMemo<Partial<Record<FeatureKey, string>>>(
     () =>
@@ -72,7 +74,7 @@ export default function CommandPalette({
     if (item.featureKey && !isFeatureEnabled(features, item.featureKey)) {
       return false;
     }
-    return navItemDisplayName(item, featureTitles)
+    return `${item.href === MORE_HREF ? more("title") : navItemDisplayName(item, featureTitles)} ${item.name}`
       .toLowerCase()
       .includes(query.toLowerCase());
   });
@@ -205,7 +207,7 @@ export default function CommandPalette({
                     <Icon className="w-4 h-4 text-label-secondary" />
                   </div>
                   <span className="text-body text-label-primary flex-1">
-                    {navItemDisplayName(item, featureTitles)}
+                    {item.href === MORE_HREF ? more("title") : navItemDisplayName(item, featureTitles)}
                   </span>
                   <ChevronRight className="w-4 h-4 text-label-tertiary shrink-0" />
                 </button>
