@@ -416,6 +416,16 @@ async function createWish(
   expect(response.status()).toBe(201);
   const item = parseItem(await response.text());
   await expect(dialog).toHaveCount(0);
+  // The confirmed row can render before the create handler releases its
+  // submitting lock. Audit the settled surface, not a changing disabled paint.
+  await expect(
+    page.getByRole("button", { name: copy.addWish, exact: true }),
+  ).toBeEnabled();
+  const status = page.getByRole("combobox", {
+    name: copy.statusFor(item.title),
+    exact: true,
+  });
+  if (await status.count()) await expect(status).toBeEnabled();
   return item;
 }
 
