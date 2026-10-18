@@ -16,6 +16,7 @@ import { useTranslation } from '@/i18n'
 import { profileSetupMessages } from '@/i18n/profile-setup'
 import { useFamilyOverviewText, type FamilyFeedback } from '@/i18n/family-overview'
 import { ProfileSetupPanel } from '@/components/family/ProfileSetupPanel'
+import ProfileAccountLinkManager from '@/components/family/ProfileAccountLinkManager'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 
 /**
@@ -171,7 +172,7 @@ export default function FamilyPage() {
       </div>}
 
       {userRole === 'parent' && hasHousehold && !loading && !loadError && (
-        <div><ProfileSetupPanel /></div>
+        <div className="flex flex-wrap gap-3"><ProfileSetupPanel /><ProfileAccountLinkManager /></div>
       )}
 
       {/* Members list */}

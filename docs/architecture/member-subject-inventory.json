@@ -16,6 +16,14 @@
     "decision": "Dormant canonical chore subject. Required legacy User owner retained; fixture reconciliation only. Explicit erasure clears identifying subject and sets a sticky tombstone; archive retains it. No profile-only activation."
   },
   {
+    "relation": "ChoreAssignment.assigneeMember",
+    "fields": ["assigned_member_id", "family_id"],
+    "references": ["id", "family_id"],
+    "onDelete": "NoAction",
+    "onUpdate": "NoAction",
+    "decision": "Dormant canonical assignment subject. Preserve completion actors, approvers, XP and legacy owner during backfill/archive. Explicit erasure clears identifying subject and sets a sticky tombstone; never transfer earned credit."
+  },
+  {
     "relation": "DeviceAuditEvent.subject_member",
     "fields": ["subject_member_id", "family_id"],
     "references": ["id", "family_id"],
@@ -24,12 +32,12 @@
     "decision": "Dormant shared-device audit subject attribution. Keep the existing device/user actor contract and add a separate same-household member subject; explicit account erasure clears only this identifying subject and sets a sticky tombstone while retaining the security row. No profile-only activation."
   },
   {
-    "relation": "ChoreAssignment.assigneeMember",
-    "fields": ["assigned_member_id", "family_id"],
+    "relation": "HouseholdMemberAccountLink.member",
+    "fields": ["member_id", "family_id"],
     "references": ["id", "family_id"],
-    "onDelete": "NoAction",
+    "onDelete": "Cascade",
     "onUpdate": "NoAction",
-    "decision": "Dormant canonical assignment subject. Preserve completion actors, approvers, XP and legacy owner during backfill/archive. Explicit erasure clears identifying subject and sets a sticky tombstone; never transfer earned credit."
+    "decision": "Existing dormant owner-verified account link contract. Never create a link through backfill, selected profile, matching name or email."
   },
   {
     "relation": "HouseholdMemberLegacyMapping.member",
@@ -40,11 +48,11 @@
     "decision": "Existing deterministic compatibility mapping, not authentication or an active verified link. Explicit erasure removes mapping; no reconstruction of erased subjects."
   },
   {
-    "relation": "HouseholdMemberAccountLink.member",
+    "relation": "HouseholdProfileLinkChallenge.member",
     "fields": ["member_id", "family_id"],
     "references": ["id", "family_id"],
     "onDelete": "Cascade",
     "onUpdate": "NoAction",
-    "decision": "Existing dormant owner-verified account link contract. Never create a link through backfill, selected profile, matching name or email."
+    "decision": "Private expiring owner proof scoped to an existing stable same-household profile. No authority or completed identity is inferred from a challenge. Profile erasure cascades credential metadata; archive, revision changes, removal and incompatible links prevent confirmation. Never copy token hashes into shared DTOs or reconstruct erased subjects."
   }
 ]

@@ -1,5 +1,27 @@
 # Current State
 
+## Verified profile-to-account linking source candidate — 2026-10-18
+
+Local #557 now includes additive challenge schema/migration, expiring one-use
+parent issuance, signed-in verified-email owner/password confirmation, explicit
+parent approval and revision-bound revocation. Sorted account locks precede
+household locking and all identities/roles/session generations are rechecked.
+The final transaction preserves the existing profile ID and fills canonical
+chore/assignment aliases alongside the verified link and compatibility mapping.
+It does not change history, completion actors, points, XP or account authority.
+
+Parent management uses short EN/ES sheets. The exact child/teen claim route
+keeps proof in memory, strips the URL fragment and requires reopening the
+original private link after refresh. Provider mail and casual unlink/reactivation
+are absent; existing account invitation and reviewed removal/erasure remain
+the authorities. Relation inventories and the issue ledger include the domain.
+
+`HOUSEHOLD_PROFILE_LINK_ENABLED` is new and off; it also requires all existing
+profile setup/chore/rollback opt-ins. No flag was enabled, database migrated,
+Prisma client generated, test/build/type/lint/browser run, push, merge or deploy
+performed for this slice. Deferred acceptance and compatibility limits are in
+`docs/architecture/PROFILE_ACCOUNT_LINKING.md`. #557 and the goal remain open.
+
 ## Parent Devices localization candidate — 2026-10-18
 
 Local #445 source now uses typed EN/ES management, pairing, audit, status,

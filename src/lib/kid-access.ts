@@ -108,7 +108,7 @@ export function isTeenExtraPath(pathname: string): boolean {
 export function isKidAllowedPath(pathname: string): boolean {
   return KID_ALLOWED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(prefix + '/')
-  )
+  ) || stripTrailingSlash(pathname) === '/dashboard/profile-link'
 }
 
 export function isDashboardRoot(pathname: string): boolean {
