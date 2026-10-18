@@ -13,7 +13,7 @@ import { genericErrorText, useDeviceClient, type DeviceMe } from './use-device-c
 import { useDeviceBoardActions } from './use-device-board-actions'
 import { useDeviceBoardSnapshot } from './use-device-board-snapshot'
 import { useTodayBoardText } from '@/i18n/today-board'
-import { clearRewardCreateIntents } from '@/lib/reward-create-intent'
+import { clearRewardCreateIntents } from '@/lib/reward-create-intent-store'
 import {
   dangerButtonClass,
   errorTextClass,

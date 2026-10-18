@@ -16,7 +16,7 @@ import {
 import { downloadMyData } from "@/lib/data-export-client";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
-import { clearRewardCreateIntents } from "@/lib/reward-create-intent";
+import { clearRewardCreateIntents } from "@/lib/reward-create-intent-store";
 import {
   ACCOUNT_DELETE_PHRASE,
   confirmationMatches,

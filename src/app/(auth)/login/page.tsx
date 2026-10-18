@@ -14,7 +14,7 @@ import {
 
 import { clearAllPersonQueues } from "@/lib/offline-queue-browser";
 import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
-import { clearRewardCreateIntents } from "@/lib/reward-create-intent";
+import { clearRewardCreateIntents } from "@/lib/reward-create-intent-store";
 import { loginNoticeFor, safeRedirectPath } from "@/lib/safe-redirect";
 
 export default function LoginPage() {

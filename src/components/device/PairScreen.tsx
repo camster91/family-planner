@@ -5,7 +5,7 @@ import { Loader2, TabletSmartphone } from 'lucide-react'
 import { App } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { DeviceApiError, formatCodeInput, isCompleteCode, PAIRING_POLL_MS } from '@/lib/device-client'
-import { clearRewardCreateIntents } from '@/lib/reward-create-intent'
+import { clearRewardCreateIntents } from '@/lib/reward-create-intent-store'
 import { formatCountdown, genericErrorText, useDeviceClient, waitText } from './use-device-client'
 import {
   errorTextClass,
