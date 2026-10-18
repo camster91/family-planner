@@ -289,7 +289,7 @@ export default function ListsClient({
                     return (
                       <ListRow
                         key={list.id}
-                        href={`/dashboard/lists/${list.id}`}
+                        href={`/dashboard/lists/${encodeURIComponent(list.id)}${typeFilter ? `?type=${typeFilter}` : ""}`}
                         icon={Icon}
                         glyphColor={cfg.color}
                         title={list.name}

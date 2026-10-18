@@ -142,6 +142,9 @@ describe("/dashboard/lists ?type=", () => {
       "Showing to-dos lists only",
     );
     expect(screen.getByText("Chores to fix")).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: /Chores to fix/ }).getAttribute("href"),
+    ).toBe("/dashboard/lists/l2?type=todo");
     expect(screen.queryByText("Weekly shop")).toBeNull();
     expect(
       screen.getByRole("button", { name: /To-dos/, pressed: true }),
@@ -158,6 +161,9 @@ describe("/dashboard/lists ?type=", () => {
     });
     expect(screen.getByText("Weekly shop")).toBeTruthy();
     expect(screen.queryByRole("status")).toBeNull();
+    expect(
+      screen.getByRole("link", { name: /Chores to fix/ }).getAttribute("href"),
+    ).toBe("/dashboard/lists/l2");
   });
 
   it("a type card filters in place (no navigation to the old page) and toggles off", async () => {
