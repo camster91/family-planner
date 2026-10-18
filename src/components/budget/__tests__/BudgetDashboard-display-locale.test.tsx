@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react'
 import BudgetDashboard from '../BudgetDashboard'
 import { toDateOnlyLocal } from '@/lib/dates'
 import { serverRenderThenHydrate } from '@/components/ui/__tests__/ssr-hydration'
+import { I18nProvider } from '@/i18n'
 
 jest.mock('../TransactionForm', () => ({ __esModule: true, default: () => null }))
 
@@ -42,4 +43,23 @@ it('hydrates an en-GB device without mismatch before applying its regional money
     jest.useRealTimers()
     languages.mockRestore()
   }
+})
+
+it('localizes Spanish date labels and type fallbacks while preserving empty user content', () => {
+  const today = toDateOnlyLocal(new Date())
+  render(
+    <I18nProvider locale="es">
+      <BudgetDashboard userId="parent" initialData={{
+        month: today.slice(0, 7),
+        total_income: 0, total_expenses: 12, balance: -12, budget_limit: null,
+        category_breakdown: [], recent_transactions: [{
+          id: 'tx-es', amount: 12, type: 'expense', description: null, date: `${today}T00:00:00.000Z`,
+          is_recurring: false, recurring_interval: null, category: null,
+          user: { id: 'parent', name: 'Casa', avatar_url: null },
+        }], monthly_trend: [],
+      }} />
+    </I18nProvider>
+  )
+  expect(screen.getByText('Gasto')).toBeTruthy()
+  expect(screen.getByText('Hoy')).toBeTruthy()
 })

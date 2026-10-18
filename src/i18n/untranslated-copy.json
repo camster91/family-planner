@@ -156,7 +156,7 @@
   },
   {
     "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "· expires",
+    "text": "\u00b7 expires",
     "count": 1
   },
   {
@@ -191,7 +191,7 @@
   },
   {
     "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "For another phone in the room. This code does not choose a role — they join as a child or teen.",
+    "text": "For another phone in the room. This code does not choose a role \u2014 they join as a child or teen.",
     "count": 1
   },
   {
@@ -226,12 +226,12 @@
   },
   {
     "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Loading…",
+    "text": "Loading\u2026",
     "count": 2
   },
   {
     "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Making a new code…",
+    "text": "Making a new code\u2026",
     "count": 1
   },
   {
@@ -266,12 +266,12 @@
   },
   {
     "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Sending…",
+    "text": "Sending\u2026",
     "count": 1
   },
   {
     "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Shared the code with the wrong person, or posted it somewhere? Get a new one. The old code stops working right away. People who already joined stay — remove them on the Family page.",
+    "text": "Shared the code with the wrong person, or posted it somewhere? Get a new one. The old code stops working right away. People who already joined stay \u2014 remove them on the Family page.",
     "count": 1
   },
   {
@@ -306,7 +306,7 @@
   },
   {
     "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Delete…",
+    "text": "Delete\u2026",
     "count": 1
   },
   {
@@ -321,7 +321,7 @@
   },
   {
     "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Loading…",
+    "text": "Loading\u2026",
     "count": 1
   },
   {
@@ -341,7 +341,7 @@
   },
   {
     "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Saving…",
+    "text": "Saving\u2026",
     "count": 1
   },
   {
@@ -446,7 +446,7 @@
   },
   {
     "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Making…",
+    "text": "Making\u2026",
     "count": 2
   },
   {
@@ -461,7 +461,7 @@
   },
   {
     "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Share…",
+    "text": "Share\u2026",
     "count": 1
   },
   {
@@ -516,7 +516,7 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "→ Privacy &amp; data → Data Export. Each family member downloads their own copy.",
+    "text": "\u2192 Privacy &amp; data \u2192 Data Export. Each family member downloads their own copy.",
     "count": 1
   },
   {
@@ -606,7 +606,7 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Family → Invite",
+    "text": "Family \u2192 Invite",
     "count": 1
   },
   {
@@ -636,12 +636,12 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "If you ever see another family’s information, stop and tell us straight away. Please do not share screenshots of it.",
+    "text": "If you ever see another family\u2019s information, stop and tell us straight away. Please do not share screenshots of it.",
     "count": 1
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "In Settings → Privacy &amp; data, choose Delete Account. If you are the only parent, you can delete the whole household. With two parents, each parent deletes their own account first, and the last one can then delete the household. Deleted data stays in our backups for up to about five weeks, then it is gone.",
+    "text": "In Settings \u2192 Privacy &amp; data, choose Delete Account. If you are the only parent, you can delete the whole household. With two parents, each parent deletes their own account first, and the last one can then delete the household. Deleted data stays in our backups for up to about five weeks, then it is gone.",
     "count": 1
   },
   {
@@ -676,12 +676,12 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "On the Invite page, open “In person instead” to see your family code. The other person signs in with their own account, opens",
+    "text": "On the Invite page, open \u201cIn person instead\u201d to see your family code. The other person signs in with their own account, opens",
     "count": 1
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Plan the week’s dinners on",
+    "text": "Plan the week\u2019s dinners on",
     "count": 1
   },
   {
@@ -696,7 +696,7 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Read how we handle your family’s information in our",
+    "text": "Read how we handle your family\u2019s information in our",
     "count": 1
   },
   {
@@ -716,7 +716,7 @@
   },
   {
     "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "to get a reset link by email. The link works for one hour. If you know your password and want a new one, use Settings → Your account → Change Password.",
+    "text": "to get a reset link by email. The link works for one hour. If you know your password and want a new one, use Settings \u2192 Your account \u2192 Change Password.",
     "count": 1
   },
   {
@@ -826,7 +826,7 @@
   },
   {
     "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Add an item…",
+    "text": "Add an item\u2026",
     "count": 1
   },
   {
@@ -836,7 +836,7 @@
   },
   {
     "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Couldn’t save changes on this device. Keep this page open until they sync, or they will be lost.",
+    "text": "Couldn\u2019t save changes on this device. Keep this page open until they sync, or they will be lost.",
     "count": 1
   },
   {
@@ -951,12 +951,12 @@
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Leave blank if not set. Otherwise, enter 1–100.",
+    "text": "Leave blank if not set. Otherwise, enter 1\u2013100.",
     "count": 1
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Loading household cooks…",
+    "text": "Loading household cooks\u2026",
     "count": 1
   },
   {
@@ -1041,7 +1041,7 @@
   },
   {
     "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Couldn’t load this recipe",
+    "text": "Couldn\u2019t load this recipe",
     "count": 1
   },
   {
@@ -1086,7 +1086,7 @@
   },
   {
     "file": "src/app/dashboard/messages/page.tsx",
-    "text": "Loading earlier messages…",
+    "text": "Loading earlier messages\u2026",
     "count": 1
   },
   {
@@ -1121,7 +1121,7 @@
   },
   {
     "file": "src/app/dashboard/messages/page.tsx",
-    "text": "Sending message…",
+    "text": "Sending message\u2026",
     "count": 1
   },
   {
@@ -1186,7 +1186,7 @@
   },
   {
     "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Loading…",
+    "text": "Loading\u2026",
     "count": 1
   },
   {
@@ -1226,7 +1226,7 @@
   },
   {
     "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Saving…",
+    "text": "Saving\u2026",
     "count": 1
   },
   {
@@ -1361,7 +1361,7 @@
   },
   {
     "file": "src/app/dashboard/projects/[id]/SendToCalendarButton.tsx",
-    "text": "Sending…",
+    "text": "Sending\u2026",
     "count": 1
   },
   {
@@ -1461,7 +1461,7 @@
   },
   {
     "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "Searching…",
+    "text": "Searching\u2026",
     "count": 1
   },
   {
@@ -1486,7 +1486,7 @@
   },
   {
     "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "Loading…",
+    "text": "Loading\u2026",
     "count": 1
   },
   {
@@ -1641,12 +1641,12 @@
   },
   {
     "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "°C",
+    "text": "\u00b0C",
     "count": 1
   },
   {
     "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "°F",
+    "text": "\u00b0F",
     "count": 1
   },
   {
@@ -1731,7 +1731,7 @@
   },
   {
     "file": "src/app/join/page.tsx",
-    "text": "Capitals, spaces and dashes don’t matter.",
+    "text": "Capitals, spaces and dashes don\u2019t matter.",
     "count": 1
   },
   {
@@ -1826,12 +1826,12 @@
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": ": Settings → Data Export (GET",
+    "text": ": Settings \u2192 Data Export (GET",
     "count": 1
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": ": Settings → Delete Account. You confirm with your password. Your account, sign-ins, messages, notifications and your own chores are deleted; things you added for the household (events, lists, meals, notes, photos you uploaded) stay with the household under another parent.",
+    "text": ": Settings \u2192 Delete Account. You confirm with your password. Your account, sign-ins, messages, notifications and your own chores are deleted; things you added for the household (events, lists, meals, notes, photos you uploaded) stay with the household under another parent.",
     "count": 1
   },
   {
@@ -1856,7 +1856,7 @@
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": "← Back to home",
+    "text": "\u2190 Back to home",
     "count": 1
   },
   {
@@ -1971,7 +1971,7 @@
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": "If you turn on the optional morning summary (Settings → Notifications; it is off unless you turn it on), we also send you one short email a day, to a verified address only, with your own chores for the day, today&apos;s family events and tonight&apos;s dinner. Every summary email tells you how to turn it off.",
+    "text": "If you turn on the optional morning summary (Settings \u2192 Notifications; it is off unless you turn it on), we also send you one short email a day, to a verified address only, with your own chores for the day, today&apos;s family events and tonight&apos;s dinner. Every summary email tells you how to turn it off.",
     "count": 1
   },
   {
@@ -2076,7 +2076,7 @@
   },
   {
     "file": "src/app/terms/page.tsx",
-    "text": "← Back to home",
+    "text": "\u2190 Back to home",
     "count": 1
   },
   {
@@ -2190,198 +2190,8 @@
     "count": 1
   },
   {
-    "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "Add transaction",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "Add Transaction",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "Add your first transaction to start tracking.",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "Budget",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "Expense",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "Expenses",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "Income",
-    "count": 2
-  },
-  {
-    "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "limit",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "No transactions",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "of",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "Over budget by",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/BudgetDashboard.tsx",
-    "text": "spent this month",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "(optional)",
-    "count": 1
-  },
-  {
     "file": "src/components/budget/TransactionForm.tsx",
     "text": "0.00",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Add Transaction",
-    "count": 2
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Amount",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Any additional notes...",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Biweekly",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Cancel",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Category",
-    "count": 2
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Date",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Delete",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Delete this transaction? This can&apos;t be undone.",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Delete transaction",
-    "count": 2
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Deleting…",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Description",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "e.g., Groceries, Salary...",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Edit Transaction",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Expense",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Income",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Keep",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Monthly",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Notes",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Recurring",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Repeats",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Save Changes",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Select a category",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Type",
-    "count": 1
-  },
-  {
-    "file": "src/components/budget/TransactionForm.tsx",
-    "text": "Weekly",
     "count": 1
   },
   {
@@ -2581,12 +2391,12 @@
   },
   {
     "file": "src/components/device/DevicesManager.tsx",
-    "text": "· Paired",
+    "text": "\u00b7 Paired",
     "count": 1
   },
   {
     "file": "src/components/device/DevicesManager.tsx",
-    "text": "· Version",
+    "text": "\u00b7 Version",
     "count": 1
   },
   {
@@ -3176,7 +2986,7 @@
   },
   {
     "file": "src/components/fridge/ambient-cover.tsx",
-    "text": "Next ·",
+    "text": "Next \u00b7",
     "count": 1
   },
   {
@@ -3211,7 +3021,7 @@
   },
   {
     "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "Celsius (°C)",
+    "text": "Celsius (\u00b0C)",
     "count": 1
   },
   {
@@ -3241,7 +3051,7 @@
   },
   {
     "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "Fahrenheit (°F)",
+    "text": "Fahrenheit (\u00b0F)",
     "count": 1
   },
   {
@@ -3281,7 +3091,7 @@
   },
   {
     "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "Loading board settings…",
+    "text": "Loading board settings\u2026",
     "count": 1
   },
   {
@@ -3391,7 +3201,7 @@
   },
   {
     "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "Uploading…",
+    "text": "Uploading\u2026",
     "count": 1
   },
   {
@@ -3406,7 +3216,7 @@
   },
   {
     "file": "src/components/fridge/weather-tile.tsx",
-    "text": "· L",
+    "text": "\u00b7 L",
     "count": 1
   },
   {
@@ -3421,7 +3231,7 @@
   },
   {
     "file": "src/components/layout/CommandPalette.tsx",
-    "text": "⌘K",
+    "text": "\u2318K",
     "count": 1
   },
   {
@@ -3466,7 +3276,7 @@
   },
   {
     "file": "src/components/layout/CommandPalette.tsx",
-    "text": "Search or type a command…",
+    "text": "Search or type a command\u2026",
     "count": 1
   },
   {
@@ -3541,7 +3351,7 @@
   },
   {
     "file": "src/components/meals/AddToGroceriesButton.tsx",
-    "text": "Loading ingredients…",
+    "text": "Loading ingredients\u2026",
     "count": 1
   },
   {
@@ -3616,7 +3426,7 @@
   },
   {
     "file": "src/components/meals/RecipeDetail.tsx",
-    "text": "Original recipe ·",
+    "text": "Original recipe \u00b7",
     "count": 1
   },
   {
@@ -3661,7 +3471,7 @@
   },
   {
     "file": "src/components/projects/AddProjectTaskForm.tsx",
-    "text": "Adding…",
+    "text": "Adding\u2026",
     "count": 1
   },
   {

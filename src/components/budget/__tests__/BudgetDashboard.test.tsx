@@ -12,10 +12,18 @@ import type { BudgetPageData } from '@/app/dashboard/budget/page'
 
 jest.mock('../TransactionForm', () => ({
   __esModule: true,
-  default: ({ onSuccess }: { onSuccess: () => void }) => (
-    <button type="button" data-testid="mock-transaction-success" onClick={onSuccess}>
-      Mock transaction saved
-    </button>
+  default: ({ onSuccess, onDeleted }: {
+    onSuccess: (transaction?: unknown) => void
+    onDeleted?: (transactionId?: string) => void
+  }) => (
+    <>
+      <button type="button" data-testid="mock-transaction-success" onClick={() => onSuccess(MOCK_SAVED_TRANSACTION)}>
+        Mock transaction saved
+      </button>
+      <button type="button" data-testid="mock-transaction-delete" onClick={() => onDeleted?.('tx-1')}>
+        Mock transaction deleted
+      </button>
+    </>
   ),
 }))
 
@@ -54,6 +62,11 @@ function transaction(overrides: Partial<BudgetPageData['recent_transactions'][nu
   }
 }
 
+const MOCK_SAVED_TRANSACTION = transaction({
+  id: 'tx-saved',
+  description: 'Confirmed saved row',
+})
+
 let fetchMock: jest.Mock
 
 beforeEach(() => {
@@ -82,6 +95,27 @@ it('shows only the total spent when no category has a limit', () => {
   expect(screen.queryByText(/limit/)).toBeNull()
   expect(screen.queryByText(/%$/)).toBeNull()
   expect(screen.queryByText(/Over budget/)).toBeNull()
+})
+
+it('renders canonical category spending with a bounded progress summary', () => {
+  render(
+    <BudgetDashboard
+      initialData={pageData({
+        category_breakdown: [
+          { category_id: 'cat-food', name: 'Groceries', icon: '🛒', color: '#4ade80', budget_limit: 450, total: 312, percentage: 72 },
+          { category_id: 'cat-fun', name: 'Activities', icon: '🎟️', color: '#c084fc', budget_limit: null, total: 120, percentage: 28 },
+        ],
+      })}
+      userId="u1"
+    />
+  )
+
+  expect(screen.getByRole('heading', { name: 'Spending by category' })).toBeTruthy()
+  expect(screen.getByText('Groceries')).toBeTruthy()
+  expect(screen.getByText('$312.00 of $450.00 limit')).toBeTruthy()
+  expect(screen.getByText('Activities')).toBeTruthy()
+  expect(screen.getByText('28% of expenses')).toBeTruthy()
+  expect(screen.getByRole('progressbar', { name: 'Groceries' }).getAttribute('aria-valuenow')).toBe('69')
 })
 
 it('refreshes the viewer’s local month', async () => {
@@ -146,6 +180,104 @@ it('keeps saved rows when a successful refresh has invalid JSON or shape', async
   expect(screen.getByText('Still here')).toBeTruthy()
 })
 
+it('rejects impossible stats ranges without replacing known good data', async () => {
+  const stale = pageData({ recent_transactions: [transaction()] })
+  fetchMock = jest.fn().mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => pageData({
+      category_breakdown: [{
+        category_id: 'cat-food', name: 'Food', icon: 'F', color: '#f00',
+        budget_limit: 100, total: 10, percentage: 101,
+      }],
+    }),
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={stale} userId="u1" />)
+  await user.click(screen.getByRole('button', { name: 'Refresh budget' }))
+
+  expect((await screen.findByRole('alert')).textContent).toContain('Showing saved rows')
+  expect(screen.getByText('Still here')).toBeTruthy()
+})
+
+it('keeps the confirmed saved row and marks stale totals until a GET catches up', async () => {
+  fetchMock = jest.fn().mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => pageData({ recent_transactions: [] }),
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={pageData({ recent_transactions: [] })} userId="u1" />)
+  await user.click(screen.getAllByRole('button', { name: 'Add expense' })[0]!)
+  await user.click(screen.getByTestId('mock-transaction-success'))
+
+  expect(await screen.findByText('Confirmed saved row')).toBeTruthy()
+  expect((await screen.findByRole('alert')).textContent).toContain('Transaction saved')
+  expect(screen.getByRole('button', { name: 'Retry budget refresh' })).toBeTruthy()
+})
+
+it('keeps a confirmed save notice when stats returns 503 and retries only GET', async () => {
+  fetchMock = jest
+    .fn()
+    .mockResolvedValueOnce({ ok: false, status: 503 })
+    .mockResolvedValueOnce({ ok: true, status: 200, json: async () => pageData({ recent_transactions: [MOCK_SAVED_TRANSACTION] }) })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={pageData({ recent_transactions: [] })} userId="u1" />)
+  await user.click(screen.getAllByRole('button', { name: 'Add expense' })[0]!)
+  await user.click(screen.getByTestId('mock-transaction-success'))
+
+  expect(await screen.findByText('Confirmed saved row')).toBeTruthy()
+  expect((await screen.findByRole('alert')).textContent).toContain('Transaction saved')
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  await user.click(screen.getByRole('button', { name: 'Retry budget refresh' }))
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+  expect(fetchMock.mock.calls.map(([, init]) => init?.method ?? 'GET')).toEqual(['GET', 'GET'])
+})
+
+it('keeps a confirmed deletion out of stale stats rows and marks the summary', async () => {
+  fetchMock = jest.fn().mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => pageData({ recent_transactions: [transaction()] }),
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={pageData({ recent_transactions: [transaction()] })} userId="u1" />)
+  await user.click(screen.getByRole('button', { name: /Still here/ }))
+  await user.click(screen.getByTestId('mock-transaction-delete'))
+
+  expect(screen.queryByText('Still here')).toBeNull()
+  expect((await screen.findByRole('alert')).textContent).toContain('Transaction deleted')
+  expect(screen.getByRole('button', { name: 'Retry budget refresh' })).toBeTruthy()
+})
+
+it('keeps a confirmed deletion notice when stats returns 503 and retries only GET', async () => {
+  fetchMock = jest
+    .fn()
+    .mockResolvedValueOnce({ ok: false, status: 503 })
+    .mockResolvedValueOnce({ ok: true, status: 200, json: async () => pageData({ recent_transactions: [] }) })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const user = userEvent.setup()
+  render(<BudgetDashboard initialData={pageData({ recent_transactions: [transaction()] })} userId="u1" />)
+  await user.click(screen.getByRole('button', { name: /Still here/ }))
+  await user.click(screen.getByTestId('mock-transaction-delete'))
+
+  expect(screen.queryByText('Still here')).toBeNull()
+  expect((await screen.findByRole('alert')).textContent).toContain('Transaction deleted')
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  await user.click(screen.getByRole('button', { name: 'Retry budget refresh' }))
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+  expect(fetchMock.mock.calls.map(([, init]) => init?.method ?? 'GET')).toEqual(['GET', 'GET'])
+})
+
 it('allows only one budget refresh while the current request is pending', async () => {
   let resolveRefresh: (value: { ok: boolean; json: () => Promise<BudgetPageData> }) => void = () => {}
   fetchMock = jest.fn(
@@ -179,7 +311,7 @@ it('queues a fresh refresh when a save finishes during an older refresh', async 
   const user = userEvent.setup()
   render(<BudgetDashboard initialData={pageData()} userId="u1" />)
   await user.click(screen.getByRole('button', { name: 'Refresh budget' }))
-  await user.click(screen.getByRole('button', { name: 'Add transaction' }))
+  await user.click(screen.getAllByRole('button', { name: 'Add expense' })[0])
   await user.click(screen.getByTestId('mock-transaction-success'))
   expect(fetchMock).toHaveBeenCalledTimes(1)
 

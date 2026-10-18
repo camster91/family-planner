@@ -47,7 +47,7 @@ function pageData(overrides: Partial<BudgetPageData> = {}): BudgetPageData {
   }
 }
 
-let calls: { url: string; method: string; body?: unknown }[]
+let calls: { url: string; method: string; body?: unknown; headers?: HeadersInit }[]
 let stats: BudgetPageData
 
 beforeEach(() => {
@@ -57,7 +57,7 @@ beforeEach(() => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
     const body = init?.body ? JSON.parse(String(init.body)) : undefined
-    calls.push({ url, method, body })
+    calls.push({ url, method, body, headers: init?.headers })
     const ok = (json: unknown) => ({ ok: true, status: 200, json: async () => json }) as Response
     if (url.startsWith('/api/budget/categories')) return ok({ categories: [] })
     if (url.startsWith('/api/budget/stats')) return ok(stats)
@@ -88,14 +88,14 @@ it('a row opens the edit form, saving sends PATCH and reloads the totals', async
   renderDashboard()
 
   await user.click(screen.getByRole('button', { name: /Groceries/ }))
-  const dialog = screen.getByRole('dialog', { name: 'Edit Transaction' })
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
   const amount = within(dialog).getByLabelText('Amount') as HTMLInputElement
   expect(amount.value).toBe('42.5')
   expect((within(dialog).getByLabelText(/Notes/) as HTMLTextAreaElement).value).toBe('Weekly shop')
 
   await user.clear(amount)
   await user.type(amount, '50')
-  await user.click(within(dialog).getByRole('button', { name: 'Save Changes' }))
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
 
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   const patch = calls.find((c) => c.method === 'PATCH')
@@ -110,7 +110,7 @@ it('deletes only after a second tap, then reloads and says so', async () => {
   renderDashboard()
 
   await user.click(screen.getByRole('button', { name: /Groceries/ }))
-  const dialog = screen.getByRole('dialog', { name: 'Edit Transaction' })
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
   await user.click(within(dialog).getByRole('button', { name: /Delete transaction/ }))
   expect(calls.some((c) => c.method === 'DELETE')).toBe(false)
 
@@ -122,6 +122,7 @@ it('deletes only after a second tap, then reloads and says so', async () => {
 
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(calls.filter((c) => c.method === 'DELETE').map((c) => c.url)).toEqual(['/api/budget/transactions/t1'])
+  expect((calls.find((c) => c.method === 'DELETE')?.headers as Record<string, string>)['Idempotency-Key']).toMatch(/^[0-9a-f-]{36}$/)
   expect(await screen.findByText('Transaction deleted')).toBeTruthy()
   expect(await screen.findByText('No transactions')).toBeTruthy()
 })
@@ -129,8 +130,8 @@ it('deletes only after a second tap, then reloads and says so', async () => {
 it('the add form is a labelled dialog with a named close button', async () => {
   const user = userEvent.setup()
   renderDashboard()
-  await user.click(screen.getByRole('button', { name: 'Add transaction' }))
-  const dialog = screen.getByRole('dialog', { name: 'Add Transaction' })
+  await user.click(screen.getByRole('button', { name: 'Add expense' }))
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
   for (const label of ['Amount', 'Description', 'Date', /Notes/]) {
     expect(within(dialog).getByLabelText(label)).toBeTruthy()
   }
@@ -160,4 +161,14 @@ it('teens and children see rows but cannot open the edit form (the API is parent
   )
   expect(screen.getByText('Groceries')).toBeTruthy()
   expect(screen.queryByRole('button', { name: /Groceries/ })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Add expense' })).toBeNull()
+})
+
+it('does not show empty-state or summary add actions to viewers without edit rights', () => {
+  render(
+    <ToastProvider>
+      <BudgetDashboard initialData={pageData({ recent_transactions: [] })} userId="u1" canEdit={false} />
+    </ToastProvider>
+  )
+  expect(screen.queryByRole('button', { name: 'Add expense' })).toBeNull()
 })
