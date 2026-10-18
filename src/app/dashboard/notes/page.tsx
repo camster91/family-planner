@@ -133,6 +133,12 @@ function NotesPageInner() {
       if (res.status === 400) {
         setNotes([])
         setViewingNote(null)
+        setModalState(null)
+        setSelectedNote(null)
+        setFormTitle('')
+        setFormBody('')
+        setFormColor('yellow')
+        setModalError(null)
         setNotice(null)
         setError('household')
         return false
@@ -197,7 +203,7 @@ function NotesPageInner() {
   }
 
   const handleSave = async () => {
-    if (!formTitle.trim()) return
+    if (saving || loading || !formTitle.trim()) return
 
     setSaving(true)
     setModalError(null)
@@ -236,7 +242,7 @@ function NotesPageInner() {
   }
 
   const handleDelete = async () => {
-    if (!selectedNote) return
+    if (saving || loading || !selectedNote) return
 
     setSaving(true)
     setModalError(null)
@@ -486,7 +492,7 @@ function NotesPageInner() {
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={saving || !formTitle.trim()}
+                  disabled={saving || loading || !formTitle.trim()}
                   className="btn-primary"
                 >
                   {saving ? t('common.saving') : t('notes.save')}

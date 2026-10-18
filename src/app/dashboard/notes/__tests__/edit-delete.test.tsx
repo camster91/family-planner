@@ -4,7 +4,7 @@
 // Notes (route inventory F-1): edit and delete go to /api/notes/[id]. They used
 // to PATCH/DELETE /api/notes, which only has GET and POST, so nothing changed.
 import * as React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 let mockLocale: 'en' | 'es' = 'en'
@@ -389,4 +389,22 @@ it('offers household setup instead of a form after the canonical missing-family 
   expect(screen.queryByRole('button', { name: 'notes.addNote' })).toBeNull()
   expect(screen.getByRole('link', { name: 'notes.createHousehold' }).getAttribute('href')).toBe('/dashboard/family/create')
   expect(screen.getByRole('link', { name: 'notes.joinHousehold' }).getAttribute('href')).toBe('/join')
+})
+
+
+it('closes an early Add draft if the pending initial load discovers no household', async () => {
+  let release!: (reply: Response) => void
+  const pending = new Promise<Response>((resolve) => { release = resolve })
+  global.fetch = jest.fn(() => pending) as typeof fetch
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await user.click(screen.getByRole('button', { name: 'notes.addNote' }))
+  await user.type(screen.getByLabelText('notes.noteTitle'), 'Unsaved household draft')
+  expect(screen.getByRole('dialog')).toBeTruthy()
+  expect((screen.getByRole('button', { name: 'notes.save' }) as HTMLButtonElement).disabled).toBe(true)
+  await act(async () => release({ ok: false, status: 400, json: async () => ({ error: 'You must belong to a family' }) } as Response))
+  await screen.findByText('notes.chooseHousehold')
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'notes.addNote' })).toBeNull()
+  expect(global.fetch).toHaveBeenCalledTimes(1)
 })
