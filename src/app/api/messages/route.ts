@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
+import { authenticateWithFamily } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
 import { sendMessageSchema, markMessagesReadSchema } from '@/lib/validations'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import { authorizeMessageActorInTx, createMessageEffect, MESSAGE_INCLUDE, toMessageResponse } from '@/lib/message-mutations'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,11 +46,7 @@ export async function GET(request: NextRequest) {
 
     const messages = await prisma!.message.findMany({
       where,
-      include: {
-        sender: {
-          select: { id: true, name: true, avatar_url: true, role: true },
-        },
-      },
+      include: MESSAGE_INCLUDE,
       orderBy: { created_at: 'desc' },
       take: limit,
     })
@@ -65,7 +63,7 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json({
-      messages: messages.reverse(), // Return in chronological order
+      messages: messages.reverse().map(toMessageResponse), // Return in chronological order
       members,
       userId: auth.user.id,
     })
@@ -87,7 +85,10 @@ export async function POST(request: NextRequest) {
     const gate = await featureGate(auth.user.family_id, 'messages')
     if (gate) return gate
 
-    let body: any
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return keyError
+
+    let body: unknown
     try {
       body = await request.json()
     } catch {
@@ -98,24 +99,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const { content, type } = parsed.data
-
-    const message = await prisma!.message.create({
-      data: {
-        family_id: auth.user.family_id,
-        sender_id: auth.user.id,
-        content,
-        type,
-        read_by: [auth.user.id],
+    const response = await withIdempotency(
+      prisma!,
+      key,
+      { scope: `user:${auth.user.id}`, familyId: auth.user.family_id, userId: auth.user.id, action: 'message.create' },
+      parsed.data,
+      ({ recordId }) => createMessageEffect(
+        prisma!,
+        { id: auth.user.id, familyId: auth.user.family_id },
+        parsed.data,
+        recordId,
+      ),
+      {
+        beforeReplay: () => prisma!.$transaction(async (tx) =>
+          authorizeMessageActorInTx(tx, { id: auth.user.id, familyId: auth.user.family_id }),
+        ),
       },
-      include: {
-        sender: {
-          select: { id: true, name: true, avatar_url: true, role: true },
-        },
-      },
-    })
-
-    return NextResponse.json({ message })
+    )
+    response.headers.set('Cache-Control', 'private, no-store')
+    return response
   } catch (error) {
     logRouteError('POST /api/messages', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

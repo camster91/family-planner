@@ -172,6 +172,12 @@ function legacyPhotoPaths(root: string, photoUrl: string): string[] {
   return out
 }
 
+/** Message files have their own namespace and ownership rows. */
+function messageAttachmentPath(root: string, filename: string): string | null {
+  if (!/^[a-f0-9]{32}\.(jpg|png|webp|heic)$/i.test(filename)) return null
+  return resolveUnder(root, 'messages', filename)
+}
+
 async function removeFiles(targets: FileTarget[], deps: DeletionDeps): Promise<FileCleanup> {
   const remove = deps.removeFile ?? defaultRemoveFile
   let filesRemoved = 0
@@ -453,6 +459,14 @@ async function handOverAndDetach(
 ): Promise<FileTarget[]> {
   const to = successorId
   const inFamily = { family_id: familyId }
+  const messageFiles = await tx.messageAttachment.findMany({
+    where: { message: { sender_id: userId } },
+    select: { filename: true },
+  })
+  const files: FileTarget[] = messageFiles
+    .map((row: { filename: string }) => messageAttachmentPath(root, row.filename))
+    .filter((file: string | null): file is string => Boolean(file))
+    .map((file: string) => ({ path: file }))
 
   // Sessions and credentials first: nothing issued to this member stays live.
   await tx.user.update({
@@ -547,7 +561,6 @@ async function handOverAndDetach(
   // cannot be decided atomically, and removing a photo another member is
   // attaching at that moment would break their chore. Retention exception in
   // docs/product/ACCOUNT_DELETION.md.
-  const files: FileTarget[] = []
   await tx.upload.updateMany({ where: { uploaded_by: userId }, data: { uploaded_by: null } })
   return files
 }
@@ -667,6 +680,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'importJob', scope: { kind: 'family' }, why: 'import jobs' },
   { model: 'financialArchiveRecord', scope: { kind: 'family' }, why: 'archived finance records' },
   { model: 'message', scope: { kind: 'family' }, why: 'messages' },
+  { model: 'messageAttachment', scope: { kind: 'family' }, why: 'message attachments' },
   { model: 'notification', scope: { kind: 'members', column: 'user_id' }, why: 'notifications' },
   { model: 'pinnedNote', scope: { kind: 'family' }, why: 'notes' },
   { model: 'anniversary', scope: { kind: 'family' }, why: 'anniversaries' },
@@ -747,8 +761,9 @@ export async function deleteHousehold(
 
       // 3. Files to remove after commit: every Upload of the household, and
       // legacy photo files referenced only by this household.
-      const [uploads, choresWithPhotos, assignmentsWithPhotos] = await Promise.all([
+      const [uploads, messageAttachments, choresWithPhotos, assignmentsWithPhotos] = await Promise.all([
         tx.upload.findMany({ where: { family_id: familyId }, select: { filename: true } }),
+        tx.messageAttachment.findMany({ where: { family_id: familyId }, select: { filename: true } }),
         tx.chore.findMany({ where: { family_id: familyId, photo_url: { not: null } }, select: { photo_url: true } }),
         tx.choreAssignment.findMany({
           where: { family_id: familyId, photo_url: { not: null } },
@@ -760,6 +775,10 @@ export async function deleteHousehold(
       for (const u of uploads) {
         owned.add(u.filename)
         const p = resolveUnder(root, 'chores', u.filename)
+        if (p) files.push({ path: p })
+      }
+      for (const attachment of messageAttachments) {
+        const p = messageAttachmentPath(root, attachment.filename)
         if (p) files.push({ path: p })
       }
       const legacyUrls = [

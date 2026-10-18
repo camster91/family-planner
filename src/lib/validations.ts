@@ -160,6 +160,12 @@ export const createEmailInviteSchema = z.object({
 export const sendMessageSchema = z.object({
   content: z.string().trim().min(1).max(5000),
   type: z.enum(['text', 'image', 'voice', 'announcement']).default('text'),
+  // Optional family pickup context. The route resolves this to a safe
+  // projection; clients never submit or receive pickup location/notes here.
+  pickup_id: z.string().trim().min(1).max(100).nullable().optional(),
+  // Attachments are uploaded through /api/messages/attachments first. The
+  // message write claims these household-owned draft ids atomically.
+  attachment_ids: z.array(z.string().trim().min(1).max(100)).max(8).default([]),
 })
 
 // Rewards

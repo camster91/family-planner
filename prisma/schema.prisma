@@ -71,6 +71,7 @@ model User {
   routine_stacks_created        RoutineStack[]     @relation("RoutineStackCreator")
   created_events                Event[]            @relation("CreatedEvents")
   sent_messages                 Message[]          @relation("SentMessages")
+  message_attachments_uploaded  MessageAttachment[] @relation("MessageAttachmentUploader")
   notifications                 Notification[]
   created_lists                 List[]             @relation("CreatedLists")
   list_items_added              ListItem[]         @relation("AddedItems")
@@ -238,6 +239,7 @@ model Family {
   calendar_event_links   CalendarEventLink[]
   calendar_oauth_states  CalendarOAuthState[]
   uploads            Upload[]
+  message_attachments MessageAttachment[]
   // Shared device (#157, #240)
   devices             HouseholdDevice[]
   device_pairings     DevicePairing[]
@@ -918,16 +920,44 @@ model Message {
   type        String   @default("text") // 'text', 'image', 'voice', 'announcement'
   attachments String[] @default([]) // Array of file URLs
   read_by     String[] @default([]) // Array of user_ids who have read the message
+  pickup_id   String?
   created_at  DateTime @default(now())
 
   // Relations
   family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
   sender User   @relation("SentMessages", fields: [sender_id], references: [id], onDelete: Cascade)
+  pickup Pickup? @relation("PickupMessages", fields: [pickup_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  attachments_records MessageAttachment[] @relation("MessageAttachments")
 
   @@index([family_id])
   @@index([sender_id])
   @@index([created_at])
   @@index([family_id, created_at])
+  @@index([pickup_id])
+}
+
+// A message attachment is separate from the chore-photo Upload contract. It
+// is household-owned, stored in the messages namespace, and attachable to one
+// message. A null message_id is a short-lived draft upload cleaned by the
+// message-specific housekeeping helper.
+model MessageAttachment {
+  id           String    @id @default(cuid())
+  family_id    String
+  uploaded_by  String?
+  message_id   String?
+  filename     String    @unique
+  content_type String
+  size_bytes   Int
+  created_at   DateTime  @default(now())
+
+  family   Family  @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  uploader User?   @relation("MessageAttachmentUploader", fields: [uploaded_by], references: [id], onDelete: SetNull)
+  message  Message? @relation("MessageAttachments", fields: [message_id], references: [id], onDelete: Cascade)
+
+  @@index([family_id])
+  @@index([message_id])
+  @@index([uploaded_by])
+  @@index([family_id, message_id, created_at])
 }
 
 model Notification {
@@ -1378,6 +1408,7 @@ model Pickup {
   family   Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   assignee User?  @relation("AssignedPickups", fields: [assigned_to], references: [id], onDelete: SetNull, onUpdate: NoAction)
   creator  User   @relation("CreatedPickups", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  messages Message[] @relation("PickupMessages")
 
   @@index([family_id])
   @@index([family_id, pickup_time])
