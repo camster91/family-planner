@@ -518,6 +518,11 @@ function AnniversariesPageInner() {
   );
   const nextUp = ordered.filter((d) => d.daysUntil <= 90);
   const moreDates = ordered.filter((d) => d.daysUntil > 90);
+  const refreshRecoveryMessage =
+    refreshNotice === "savedRefreshFailed" ||
+    refreshNotice === "deletedRefreshFailed"
+      ? anniversariesText(refreshNotice)
+      : null;
 
   const handleSave = async (data: DateFormData) => {
     if (mutationRef.current || (editItem && editItem.can_edit !== true)) return;
@@ -757,7 +762,7 @@ function AnniversariesPageInner() {
         </button>
       </div>
 
-      {refreshNotice && (
+      {refreshNotice && !refreshRecoveryMessage && (
         <p role="status" className="card-apple px-4 py-3 text-subhead">
           {anniversariesText(refreshNotice)}
         </p>
@@ -766,10 +771,10 @@ function AnniversariesPageInner() {
       {refreshError && (
         <div
           role="alert"
-          className="card-apple flex flex-wrap items-center justify-between gap-3 p-4"
+          className="card-apple flex flex-wrap items-center gap-3 p-4"
         >
-          <p className="text-subhead text-danger-text">
-            {t("dates.errorLoad")}
+          <p className="min-w-0 flex-1 text-subhead text-danger-text">
+            {refreshRecoveryMessage ?? t("dates.errorLoad")}
           </p>
           <button
             ref={retryDatesRef}

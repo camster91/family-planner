@@ -221,7 +221,11 @@ describe("/dashboard/anniversaries destructive removal", () => {
     });
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));
 
-    expect(await screen.findByText("Could not load dates")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Date removed. The list could not be refreshed; try again to check it.",
+      ),
+    ).toBeInTheDocument();
     await new Promise((resolve) => window.requestAnimationFrame(resolve));
     const retry = screen.getByRole("button", { name: "Try again" });
     expect(retry).toHaveFocus();
@@ -235,6 +239,8 @@ describe("/dashboard/anniversaries destructive removal", () => {
         "Date removed. The list could not be refreshed; try again to check it.",
       ),
     ).toBeInTheDocument();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.queryByText("Could not load dates")).not.toBeInTheDocument();
     await user.click(retry);
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(4));
     expect(
@@ -770,6 +776,8 @@ describe("/dashboard/anniversaries recovery", () => {
         "Date saved. The list could not be refreshed; try again to check it.",
       ),
     ).toBeInTheDocument();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.queryByText("Could not load dates")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: "Edit" }),
     ).not.toBeInTheDocument();

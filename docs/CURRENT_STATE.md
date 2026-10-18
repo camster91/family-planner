@@ -17,8 +17,9 @@ findings were repaired. At application/test head `30dd3937`, optimized build,
 types, 103 affected unit checks and nine real PostgreSQL route checks pass.
 The complete six-size EN/light and ES/dark browser matrix passes 89 checks with
 10 declared desktop-only scopes skipped elsewhere, zero failures/retries, and
-64 captures. Supplemental notice captures and fresh hosted/release acceptance
-remain pending. The initial new-test selector/refresh-phase failures are retained.
+64 captures. Supplemental notice captures pass 15 cases at `de7b5f63`; their visual review
+identified redundant recovery cards. A subsequent compact single-card polish
+passes 27 mounted cases/types and requires fresh rendered and hosted acceptance. The initial new-test selector/refresh-phase failures are retained.
 
 A full local unit run observed 5777 passes, 396 established opt-in skips and five
 failures: two stale D9 navigation expectation lists have since been corrected
@@ -27,20 +28,25 @@ Original full Linux CI is required before merge. The new real-database route
 suite is included in the unchanged database-backed CI gate. Production is a
 separate verification state; wider #499/#128 acceptance remains open.
 
-## Family and Notes merged release — 2026-10-18
+## Family and Notes production verified — 2026-10-18
 
-PR #576 is normally merged at `768e417042f0c1f924ebd3a05e8650b24f778e10`,
-with a whole tree identical to accepted candidate `fb364200`. Every original
-candidate build/image, Android and browser workflow passed. A fresh protected
-backup restored all 71 public tables before merge and its temporary database
-was removed. Incorporated Family #575 is merged with original head/history
-retained. Fresh exact-main build/image 39106390604 and browser 39106390559 are
-running; Android 39106390593 passed. Production promotion/runtime verification
-is pending. The inspected existing Coolify queue has no deployment for this SHA;
-a guarded exact-main dispatch is prepared, not executed. Existing auto-deploy
-settings and default-off profile/assistant capabilities are unchanged. Latest
-serving-runtime proof is still #574 main `f1d103a8`, retained as rollback. No
-production household, native/store/provider/voice or customer acceptance is inferred.
+PR #576 is normally merged and production verified at main
+`768e417042f0c1f924ebd3a05e8650b24f778e10`, with a whole tree identical to accepted
+candidate `fb364200`. Every original candidate and exact-main build/image,
+Android and browser workflow passed, including all viewport, Settings,
+inventory, password-recovery and email-free profile jobs. A fresh protected
+backup restored all 71 public tables, with temporary restore database removed.
+Incorporated Family #575 is merged with original head/history retained.
+
+Guarded native Coolify dispatch through unchanged application 11 produced
+source-build deployment 559 (`zcuqofb8acudxij5m4z2e7ws`), finished at
+2026-10-18T07:44:00Z. Healthy serving container `c83057090fdc`, image revision and
+runtime commit match 768e4170; schema/post-feature migrations and startup passed.
+Public version/readiness header, readiness/liveness and anonymous private-route
+login refusals passed. Default-off profile/assistant flags remain off, including
+both accepted truthy forms. Retained rollback is `f1d103a8`. Authenticated
+production household, native/store/provider/voice and customer acceptance remain
+separate. See #499 comment6247282820 for the persisted release record.
 
 ## Dates overview candidate — 2026-10-18
 
