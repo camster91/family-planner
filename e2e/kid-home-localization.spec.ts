@@ -271,12 +271,11 @@ test.afterAll(async () => {
   await withDb(cleanup);
 });
 
-test.beforeEach(async ({ page, baseURL }, info) => {
+test.beforeEach(async ({}, info) => {
   test.skip(
     !PROJECTS.has(info.project.name),
     "Child localization runs across the six configured viewport projects",
   );
-  await configureContext(page, "en", baseURL);
 });
 
 for (const locale of ["en", "es"] as const) {
@@ -285,23 +284,13 @@ for (const locale of ["en", "es"] as const) {
       storageState: authFile("childA"),
       timezoneId: "America/Toronto",
     });
+    test.beforeEach(async ({ page, baseURL }) => {
+      await configureContext(page, locale, baseURL);
+    });
 
     test(`${locale}: localized routine states keep household text and targets usable`, async ({
       page,
     }, info) => {
-      // The init script is installed by beforeEach, and this second init script
-      // lets each locale describe the same real fixture without mutating data.
-      await page.addInitScript(
-        ({ language, localeKey, themeKey }) => {
-          localStorage.setItem(localeKey, language);
-          localStorage.setItem(themeKey, language === "es" ? "dark" : "light");
-        },
-        {
-          language: locale,
-          localeKey: LOCALE_STORAGE_KEY,
-          themeKey: THEME_STORAGE_KEY,
-        },
-      );
       const writes: string[] = [];
       page.on("request", (request) => {
         if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method())) {
@@ -427,21 +416,13 @@ for (const locale of ["en", "es"] as const) {
       storageState: authFile("parentA"),
       timezoneId: "America/Toronto",
     });
+    test.beforeEach(async ({ page, baseURL }) => {
+      await configureContext(page, locale, baseURL);
+    });
 
     test(`${locale}: parent sees routine rows without child-only home copy`, async ({
       page,
     }, info) => {
-      await page.addInitScript(
-        ({ language, localeKey, themeKey }) => {
-          localStorage.setItem(localeKey, language);
-          localStorage.setItem(themeKey, language === "es" ? "dark" : "light");
-        },
-        {
-          language: locale,
-          localeKey: LOCALE_STORAGE_KEY,
-          themeKey: THEME_STORAGE_KEY,
-        },
-      );
       const response = await page.goto("/dashboard/chores");
       expect(response?.status()).toBe(200);
       await expect(page.locator("html")).toHaveAttribute("lang", locale);
