@@ -9,14 +9,7 @@ import { ownFeatureAudit } from "./support/feature-audit";
 import { authFile } from "./support/env";
 import { browserFetch, browserSend, expect, test } from "./support/test";
 
-const PROJECTS = [
-  "phone-390x844",
-  "phone-430x932",
-  "tablet-portrait-800x1280",
-  "fridge-landscape-1280x800",
-  "tablet-large-1920x1200",
-  "desktop-1366x768",
-] as const;
+const PROJECTS = ["phone-390x844", "desktop-1366x768"] as const;
 
 test.use({ storageState: authFile("parentA") });
 
@@ -137,7 +130,7 @@ for (const locale of ["en", "es"] as const) {
   }, info) => {
     test.skip(
       !PROJECTS.includes(info.project.name as (typeof PROJECTS)[number]),
-      "Handoff recovery runs at the six representative responsive sizes",
+      "Handoff transport recovery runs on phone and desktop; deletion layout retains all six sizes",
     );
     assertFixtureTargetAllowed(process.env);
     expect(["localhost", "127.0.0.1", "[::1]"]).toContain(

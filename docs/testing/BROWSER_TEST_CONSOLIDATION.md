@@ -35,3 +35,24 @@ keyboard behavior. The all-size overview/empty/child journeys remain the
 responsive regression net. If a future UI change affects the recovery form or
 transport contract, expand its scoped project selection in the same change
 and record the corresponding rendered evidence before updating this map.
+
+## Additional transport consolidation — 2026-10-18
+
+Cameron requested further test reduction. Dates (`anniversaries-recovery.spec.ts`)
+and Babysitter Handoff (`handoff-recovery.spec.ts`) now run their EN/light and
+ES/dark recovery journeys on the smallest phone and keyboard desktop only.
+Each file changes from 12 active viewport cases to 4: together, 24 → 8,
+removing 16 repeated browser executions (67% of these two suites).
+
+All recovery assertions, source/runtime guards, fixture cleanup, privacy checks,
+and Axe checks remain unchanged. Dates overview and deletion, and Handoff
+deletion still cover all six configured sizes. Mounted recovery, role/isolation,
+and API tests remain intact. Together with the earlier audited group, this
+removes 94 of 156 audited repeated executions (60%); it does not claim that
+60% of the repository's entire test suite was deleted.
+
+Verification: Playwright collection passes (27 declared cases including setup;
+8 recovery cases are selected at execution). All 68 focused mounted/copy/privacy
+checks across six suites pass, as do scoped lint, formatting and diff checks.
+Hosted execution remains a release gate.
+No application code, required CI job, retries, timeout, or pass criterion changes.

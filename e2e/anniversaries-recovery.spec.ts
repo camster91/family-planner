@@ -71,6 +71,10 @@ for (const locale of ["en", "es"] as const) {
       context,
       baseURL,
     }, info) => {
+      test.skip(
+        !["phone-390x844", "desktop-1366x768"].includes(info.project.name),
+        "Dates transport recovery runs on phone and desktop; overview and deletion retain all six sizes",
+      );
       assertFixtureTargetAllowed(process.env);
       expect(["localhost", "127.0.0.1", "[::1]"]).toContain(
         new URL(baseURL!).hostname,
