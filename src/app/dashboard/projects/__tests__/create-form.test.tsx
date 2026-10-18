@@ -143,6 +143,120 @@ it("retries an in-progress create with the same idempotency key", async () => {
   expect(secondKey).toBe(firstKey);
 });
 
+it("reuses the network-failed key when the user returns to the original draft", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+
+  render(<CreateProjectForm />);
+  const name = screen.getByLabelText(/Project Name/);
+  await user.type(name, "Original garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(1));
+  const firstKey = (
+    (global.fetch as jest.Mock).mock.calls[0][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  await user.clear(name);
+  await user.type(name, "Updated garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(2));
+  const changedDraftKey = (
+    (global.fetch as jest.Mock).mock.calls[1][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  await user.clear(name);
+  await user.type(name, "Original garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(3));
+  const returnedDraftKey = (
+    (global.fetch as jest.Mock).mock.calls[2][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  expect(changedDraftKey).not.toBe(firstKey);
+  expect(returnedDraftKey).toBe(firstKey);
+});
+
+it("retries a server failure with the same idempotency key", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest
+    .fn()
+    .mockResolvedValue(response(503, { error: "Please try again." }));
+
+  render(<CreateProjectForm />);
+  const name = screen.getByLabelText(/Project Name/);
+  await user.type(name, "Shared garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(1));
+  const firstKey = (
+    (global.fetch as jest.Mock).mock.calls[0][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  (global.fetch as jest.Mock).mockResolvedValue(
+    response(201, { project: { id: "project-retry-503" } }),
+  );
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() =>
+    expect(push).toHaveBeenCalledWith("/dashboard/projects/project-retry-503"),
+  );
+  const secondKey = (
+    (global.fetch as jest.Mock).mock.calls[1][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+  expect(secondKey).toBe(firstKey);
+});
+
+it("starts a new idempotency key after a definitive refusal", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest
+    .fn()
+    .mockResolvedValue(
+      response(403, { error: "Only parents can create projects" }),
+    );
+
+  render(<CreateProjectForm />);
+  const name = screen.getByLabelText(/Project Name/);
+  await user.type(name, "Shared garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(1));
+  const firstKey = (
+    (global.fetch as jest.Mock).mock.calls[0][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  (global.fetch as jest.Mock).mockResolvedValue(
+    response(201, { project: { id: "project-after-refusal" } }),
+  );
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() =>
+    expect(push).toHaveBeenCalledWith(
+      "/dashboard/projects/project-after-refusal",
+    ),
+  );
+  const secondKey = (
+    (global.fetch as jest.Mock).mock.calls[1][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+  expect(secondKey).not.toBe(firstKey);
+});
+
 it.each([undefined, null, 42, {}, "   "])(
   "keeps the draft and refuses a successful response without a non-empty string id (%s)",
   async (id) => {

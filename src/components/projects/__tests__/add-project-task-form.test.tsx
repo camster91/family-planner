@@ -234,6 +234,83 @@ it("a network failure keeps the text and asks to try again", async () => {
   );
 });
 
+it("reuses the network-failed key when the user returns to the original task draft", async () => {
+  reply = "network";
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  const title = screen.getByLabelText("Task");
+
+  await user.type(title, "Original task");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await screen.findByRole("alert");
+  const firstKey = (calls[0].headers as Record<string, string>)[
+    "Idempotency-Key"
+  ];
+
+  await user.clear(title);
+  await user.type(title, "Updated task");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await waitFor(() => expect(calls).toHaveLength(2));
+  const changedDraftKey = (calls[1].headers as Record<string, string>)[
+    "Idempotency-Key"
+  ];
+
+  await user.clear(title);
+  await user.type(title, "Original task");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await waitFor(() => expect(calls).toHaveLength(3));
+  const returnedDraftKey = (calls[2].headers as Record<string, string>)[
+    "Idempotency-Key"
+  ];
+
+  expect(changedDraftKey).not.toBe(firstKey);
+  expect(returnedDraftKey).toBe(firstKey);
+});
+
+it("retries a server failure with the same idempotency key", async () => {
+  reply = { status: 503, body: { error: "Please try again." } };
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "Paint fence");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await screen.findByRole("alert");
+  const firstKey = (calls[0].headers as Record<string, string>)[
+    "Idempotency-Key"
+  ];
+
+  reply = { status: 201, body: { task: { id: "t10", title: "Paint fence" } } };
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+  expect((calls[1].headers as Record<string, string>)["Idempotency-Key"]).toBe(
+    firstKey,
+  );
+});
+
+it("starts a new idempotency key after a definitive refusal", async () => {
+  reply = {
+    status: 403,
+    body: { error: "Only parents can add tasks" },
+  };
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "Paint fence");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await screen.findByRole("alert");
+  const firstKey = (calls[0].headers as Record<string, string>)[
+    "Idempotency-Key"
+  ];
+
+  reply = { status: 201, body: { task: { id: "t11", title: "Paint fence" } } };
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+  expect(
+    (calls[1].headers as Record<string, string>)["Idempotency-Key"],
+  ).not.toBe(firstKey);
+});
+
 it("offline: says so, disables the save and sends nothing", async () => {
   const user = userEvent.setup();
   renderForm();
