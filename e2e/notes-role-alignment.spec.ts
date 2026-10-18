@@ -416,6 +416,19 @@ for (const locale of ["en", "es"] as const) {
             () => document.documentElement.scrollWidth - innerWidth,
           ),
         ).toBeLessThanOrEqual(0);
+        for (const preview of await page
+          .getByTestId("note-card")
+          .locator("p")
+          .all()) {
+          const geometry = await preview.evaluate((node) => ({
+            height: node.clientHeight,
+            lineHeight: Number.parseFloat(getComputedStyle(node).lineHeight),
+          }));
+          expect(
+            geometry.height,
+            "A preview must fit three lines rather than clipping inside its card",
+          ).toBeLessThanOrEqual(geometry.lineHeight * 3 + 1);
+        }
         expect(
           (
             await new AxeBuilder({ page })
@@ -429,6 +442,40 @@ for (const locale of ["en", "es"] as const) {
           fullPage: true,
           animations: "disabled",
         });
+
+        if (info.project.use.viewport!.width < 768) {
+          await page.evaluate(() =>
+            window.scrollTo(0, document.documentElement.scrollHeight),
+          );
+          const bar = await page.locator("nav.tab-bar").boundingBox();
+          expect(bar).not.toBeNull();
+          for (const launcher of await page
+            .locator("[data-person-assistant] > button")
+            .all()) {
+            await launcher.focus();
+            const box = await launcher.boundingBox();
+            expect(box!.y).toBeGreaterThanOrEqual(64);
+            expect(box!.y + box!.height).toBeLessThanOrEqual(bar!.y - 8);
+            expect(box!.width).toBeGreaterThanOrEqual(44);
+            expect(box!.height).toBeGreaterThanOrEqual(44);
+            expect(
+              await launcher.evaluate((button) => {
+                const rect = button.getBoundingClientRect();
+                return button.contains(
+                  document.elementFromPoint(
+                    rect.x + rect.width / 2,
+                    rect.y + rect.height / 2,
+                  ),
+                );
+              }),
+            ).toBe(true);
+          }
+          await page.screenshot({
+            path: info.outputPath(`notes-footer-${who}-${locale}.png`),
+            fullPage: false,
+            animations: "disabled",
+          });
+        }
 
         const own = body.notes.find((note) => note.id === NOTE_IDS[role]);
         const parent = body.notes.find((note) => note.id === NOTE_IDS.parent);

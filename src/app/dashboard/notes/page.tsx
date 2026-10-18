@@ -371,7 +371,7 @@ function NotesPageInner() {
                       {note.title}
                     </h2>
                   </div>
-                  <p className="text-subhead text-label-secondary line-clamp-3 flex-1 whitespace-pre-wrap [overflow-wrap:anywhere]">
+                  <p className="text-subhead text-label-secondary line-clamp-3 whitespace-pre-wrap [overflow-wrap:anywhere]">
                     {note.body}
                   </p>
                   {!canEdit && <button type="button" aria-label={`${t('notes.readNote')}: ${note.title}`} onClick={() => setViewingNote(note)} className="btn-plain mt-3 min-h-[44px] min-w-[44px] self-start">{t('notes.readNote')}</button>}
