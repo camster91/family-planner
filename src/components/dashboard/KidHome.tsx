@@ -12,6 +12,7 @@ import { ProgressRing } from "@/components/ui/progress-ring";
 import { ListRow } from "@/components/ui/list-row";
 import { cn } from "@/lib/utils";
 import { xpForNextLevel } from "@/lib/gamification";
+import { useDisplayPreferences } from "@/components/providers/display-preferences-provider";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
 import type { UserRole } from "@/types";
 import {
@@ -34,6 +35,7 @@ import { useRewardsText } from "@/i18n/rewards";
 import { useKidHomeText } from "@/i18n/kid-home";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import Link from "next/link";
+import { QuietDisplayControl } from "@/components/account/QuietDisplayControl";
 
 interface Chore {
   id: string;
@@ -176,7 +178,8 @@ export default function KidHome({
   const displayLocale = useDisplayLocale();
   const kidHomeText = useKidHomeText();
   const rewardsText = useRewardsText();
-  const pointsUnit = (count: number) => rewardsText(count === 1 ? "point" : "points");
+  const pointsUnit = (count: number) =>
+    rewardsText(count === 1 ? "point" : "points");
   const [celebratingReward, setCelebratingReward] = useState<string | null>(
     null,
   );
@@ -185,7 +188,9 @@ export default function KidHome({
   const rewardsEnabled = useFeatureEnabled("rewards");
   // Points & streaks (#248). When off the server also omits xp/level and the
   // chores' points, so this only decides what to draw.
-  const gamification = useFeatureEnabled("gamification");
+  const { quiet } = useDisplayPreferences();
+  const gamificationEnabled = useFeatureEnabled("gamification");
+  const gamification = gamificationEnabled && !quiet;
   const [showToday, setShowToday] = useState(false);
   const [showEarlier, setShowEarlier] = useState(false);
   const [showCatchup, setShowCatchup] = useState(false);
@@ -416,11 +421,25 @@ export default function KidHome({
     return key;
   };
 
-  const parseClaimResult = (value: unknown, expectedRewardId: string): { rewardId: string; xp: number } | null => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const parseClaimResult = (
+    value: unknown,
+    expectedRewardId: string,
+  ): { rewardId: string; xp: number } | null => {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return null;
     const data = value as { reward?: unknown; xp?: unknown };
-    if (!data.reward || typeof data.reward !== "object" || Array.isArray(data.reward)) return null;
-    const reward = data.reward as { id?: unknown; status?: unknown; claimed_by?: unknown; family_id?: unknown };
+    if (
+      !data.reward ||
+      typeof data.reward !== "object" ||
+      Array.isArray(data.reward)
+    )
+      return null;
+    const reward = data.reward as {
+      id?: unknown;
+      status?: unknown;
+      claimed_by?: unknown;
+      family_id?: unknown;
+    };
     if (
       typeof reward.id !== "string" ||
       reward.id !== expectedRewardId ||
@@ -429,11 +448,13 @@ export default function KidHome({
       typeof reward.claimed_by !== "string" ||
       reward.claimed_by !== user.id ||
       (reward.family_id !== undefined &&
-        (typeof reward.family_id !== "string" || reward.family_id !== user.family_id)) ||
+        (typeof reward.family_id !== "string" ||
+          reward.family_id !== user.family_id)) ||
       typeof data.xp !== "number" ||
       !Number.isFinite(data.xp) ||
       data.xp < 0
-    ) return null;
+    )
+      return null;
     return { rewardId: reward.id, xp: data.xp };
   };
 
@@ -447,14 +468,20 @@ export default function KidHome({
     try {
       const res = await fetch("/api/rewards/claim", {
         method: "POST",
-        headers: { "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: key },
+        headers: {
+          "Content-Type": "application/json",
+          [IDEMPOTENCY_HEADER]: key,
+        },
         body: JSON.stringify({ rewardId }),
       });
       if (res.ok) {
         // The claim spent XP: show the new balance now (the response carries
         // it), then drop the claimed reward and reload server data once the
         // celebration ends, so it is never offered again.
-        const data = parseClaimResult(await res.json().catch(() => null), rewardId);
+        const data = parseClaimResult(
+          await res.json().catch(() => null),
+          rewardId,
+        );
         if (!data) {
           addToast({
             id: rewardClaimNoticeId(rewardId),
@@ -553,9 +580,7 @@ export default function KidHome({
     // Undo over confirm (#269): a mis-tap is one tap to reverse.
     const title = (chores ?? []).find((c) => c.id === choreId)?.title;
     showUndo({
-      title: title
-        ? kidHomeText("doneToast", { title })
-        : kidHomeText("done"),
+      title: title ? kidHomeText("doneToast", { title }) : kidHomeText("done"),
       message: kidHomeText("parentWillCheck"),
       onUndo: async () => {
         const result = await setChoreDone(choreId, false);
@@ -672,6 +697,8 @@ export default function KidHome({
         </h1>
         <Avatar name={user?.name ?? "?"} src={user?.avatar_url} size="lg" />
       </header>
+
+      {gamificationEnabled && <QuietDisplayControl compact />}
 
       <div ref={contentRef} className="space-y-5 md:space-y-6">
         {workPreviewLimited && (
@@ -823,7 +850,7 @@ export default function KidHome({
         {/* Just ticked the last one (O-42): a short celebration, then the
             plain "All done" card. Inline, so nothing is blocked; the brand
             motion shows its still under reduced motion, data saver or dark. */}
-        {finishedHere && celebration === "burst" && (
+        {finishedHere && celebration === "burst" && !quiet && (
           <div
             ref={celebrationRef}
             className="card-apple relative p-6 text-center animate-spring-up scroll-mt-20 scroll-mb-44 md:scroll-mb-4"
@@ -852,15 +879,17 @@ export default function KidHome({
           </div>
         )}
 
-        {finishedHere && celebration === "settled" && (
+        {finishedHere && (celebration === "settled" || quiet) && (
           <div
             className="card-apple p-6 text-center"
             data-testid="kid-all-done"
           >
-            <BrandMotion
-              motion={MOTION.celebrate}
-              className="mx-auto mb-3 h-auto w-[160px] rounded-[var(--radius-lg)] md:w-[192px]"
-            />
+            {!quiet && (
+              <BrandMotion
+                motion={MOTION.celebrate}
+                className="mx-auto mb-3 h-auto w-[160px] rounded-[var(--radius-lg)] md:w-[192px]"
+              />
+            )}
             <p className="text-title-3 text-label-primary">
               {kidHomeText("allDoneForToday")}
             </p>
@@ -877,10 +906,12 @@ export default function KidHome({
           todayChores.length === 0 &&
           routines.length === 0 && (
             <div className="card-apple p-6 text-center">
-              <BrandMotion
-                motion={MOTION.celebrate}
-                className="mx-auto mb-3 h-auto w-[160px] rounded-[var(--radius-lg)] md:w-[192px]"
-              />
+              {!quiet && (
+                <BrandMotion
+                  motion={MOTION.celebrate}
+                  className="mx-auto mb-3 h-auto w-[160px] rounded-[var(--radius-lg)] md:w-[192px]"
+                />
+              )}
               {earlierChores.length > 0 || catchupChores.length > 0 ? (
                 // Not "all done" while older chores are still waiting above.
                 <>
@@ -984,10 +1015,15 @@ export default function KidHome({
                   trailing={
                     <span className="text-footnote text-label-tertiary">
                       {now &&
-                        formatRelativeDate(event.start_time, now, displayLocale, {
-                          today: kidHomeText("today"),
-                          tomorrow: kidHomeText("tomorrow"),
-                        })}
+                        formatRelativeDate(
+                          event.start_time,
+                          now,
+                          displayLocale,
+                          {
+                            today: kidHomeText("today"),
+                            tomorrow: kidHomeText("tomorrow"),
+                          },
+                        )}
                     </span>
                   }
                   className={cn(i === todayEvents.length - 1 && "border-b-0")}
@@ -1003,31 +1039,89 @@ export default function KidHome({
           <section aria-labelledby="kid-rewards-heading">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <p id="kid-rewards-heading" className="section-header">{rewardsText("claimable")}</p>
-                <p className="text-footnote text-label-secondary">{rewardsText("claimableHint")}</p>
+                <p id="kid-rewards-heading" className="section-header">
+                  {rewardsText("claimable")}
+                </p>
+                <p className="text-footnote text-label-secondary">
+                  {rewardsText("claimableHint")}
+                </p>
               </div>
-              <Link href="/dashboard/rewards" className="min-h-[44px] inline-flex items-center text-footnote text-rewards">{rewardsText("allFamily")}</Link>
+              <Link
+                href="/dashboard/rewards"
+                className="min-h-[44px] inline-flex items-center text-footnote text-rewards"
+              >
+                {rewardsText("allFamily")}
+              </Link>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {availableRewards.map((reward) => {
                 const celebratingThis = celebratingReward === reward.id;
                 const canClaim = celebratingThis || reward.cost <= userXp;
-                return <article key={reward.id} className="card-apple p-4 min-w-0">
-                  <div className="flex items-center gap-3">
-                    <div className={cn("w-12 h-12 rounded-full bg-tint-rewards flex items-center justify-center shrink-0 transition-transform duration-300", celebratingThis && "scale-125")}>
-                      <Gift className="w-6 h-6 text-white" />
+                return (
+                  <article key={reward.id} className="card-apple p-4 min-w-0">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          "w-12 h-12 rounded-full bg-tint-rewards flex items-center justify-center shrink-0 transition-transform duration-300",
+                          celebratingThis && !quiet && "scale-125",
+                        )}
+                      >
+                        <Gift className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-body text-label-primary font-medium [overflow-wrap:anywhere]">
+                          {reward.name}
+                        </p>
+                        {reward.description && (
+                          <p className="text-footnote text-label-secondary [overflow-wrap:anywhere] mt-0.5">
+                            {reward.description}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-1 mt-1">
+                          <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
+                          <span className="text-footnote text-label-secondary">
+                            {reward.cost} {pointsUnit(reward.cost)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-body text-label-primary font-medium [overflow-wrap:anywhere]">{reward.name}</p>
-                      {reward.description && <p className="text-footnote text-label-secondary [overflow-wrap:anywhere] mt-0.5">{reward.description}</p>}
-                      <div className="flex items-center gap-1 mt-1"><Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" /><span className="text-footnote text-label-secondary">{reward.cost} {pointsUnit(reward.cost)}</span></div>
-                    </div>
-                  </div>
-                  <button type="button" onClick={() => handleClaimReward(reward.id)} disabled={claimingReward || celebratingThis || !canClaim} className={cn("btn-primary mt-3 w-full min-h-[44px] px-4 py-2 text-body transition-all duration-200", celebratingThis ? "bg-success animate-check-pop" : !canClaim ? "bg-muted text-label-tertiary cursor-not-allowed" : claimingReward ? "opacity-50" : "")}>
-                    {celebratingThis ? rewardsText("claimedCelebration") : canClaim ? rewardsText("claim") : rewardsText("needMore", { points: reward.cost - userXp, unit: pointsUnit(reward.cost - userXp) })}
-                  </button>
-                  {celebratingThis && <div className="mt-3 flex items-center justify-center gap-1 animate-spring-up"><span className="text-xl">🎉</span><span className="text-title-3 text-success-text font-semibold">{rewardsText("gotIt")}</span><span className="text-xl">🎉</span></div>}
-                </article>
+                    <button
+                      type="button"
+                      onClick={() => handleClaimReward(reward.id)}
+                      disabled={claimingReward || celebratingThis || !canClaim}
+                      className={cn(
+                        "btn-primary mt-3 w-full min-h-[44px] px-4 py-2 text-body transition-all duration-200",
+                        celebratingThis
+                          ? quiet
+                            ? "bg-success"
+                            : "bg-success animate-check-pop"
+                          : !canClaim
+                            ? "bg-muted text-label-tertiary cursor-not-allowed"
+                            : claimingReward
+                              ? "opacity-50"
+                              : "",
+                      )}
+                    >
+                      {celebratingThis
+                        ? rewardsText("claimedCelebration")
+                        : canClaim
+                          ? rewardsText("claim")
+                          : rewardsText("needMore", {
+                              points: reward.cost - userXp,
+                              unit: pointsUnit(reward.cost - userXp),
+                            })}
+                    </button>
+                    {celebratingThis && !quiet && (
+                      <div className="mt-3 flex items-center justify-center gap-1 animate-spring-up">
+                        <span className="text-xl">🎉</span>
+                        <span className="text-title-3 text-success-text font-semibold">
+                          {rewardsText("gotIt")}
+                        </span>
+                        <span className="text-xl">🎉</span>
+                      </div>
+                    )}
+                  </article>
+                );
               })}
             </div>
           </section>

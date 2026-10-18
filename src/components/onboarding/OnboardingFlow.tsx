@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
@@ -49,7 +49,11 @@ function isConfirmedInviteResponse(
 ): boolean {
   if (!payload || typeof payload !== "object") return false;
   const response = payload as { success?: unknown; invite?: unknown };
-  if (response.success !== true || !response.invite || typeof response.invite !== "object") {
+  if (
+    response.success !== true ||
+    !response.invite ||
+    typeof response.invite !== "object"
+  ) {
     return false;
   }
   const invite = response.invite as {
@@ -66,7 +70,10 @@ function isConfirmedInviteResponse(
   );
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<T | null> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
@@ -136,6 +143,7 @@ export default function OnboardingFlow({
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<InviteRole>("child");
   const [sendingInvite, setSendingInvite] = useState(false);
+  const sendingInviteRef = useRef(false);
   const [inviteError, setInviteError] = useState("");
   const [rosterRefresh, setRosterRefresh] =
     useState<RosterRefreshState>("fresh");
@@ -244,17 +252,17 @@ export default function OnboardingFlow({
         payload && typeof payload === "object"
           ? (payload as { user?: { family_id?: unknown } }).user
           : null;
-      if (
-        response.ok &&
-        user &&
-        isNonEmptyString(user.family_id)
-      ) {
+      if (response.ok && user && isNonEmptyString(user.family_id)) {
         setNotice(text("reconcileFound"));
         setStep(3);
         setMemberCount(1);
         return "found";
       }
-      if (response.ok && user && (user.family_id === null || user.family_id === undefined)) {
+      if (
+        response.ok &&
+        user &&
+        (user.family_id === null || user.family_id === undefined)
+      ) {
         return "absent";
       }
     } catch {
@@ -332,7 +340,8 @@ export default function OnboardingFlow({
   async function sendInvite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const email = inviteEmail.trim();
-    if (!email || sendingInvite) return;
+    if (!email || sendingInviteRef.current) return;
+    sendingInviteRef.current = true;
     setSendingInvite(true);
     setInviteError("");
     setNotice("");
@@ -367,6 +376,7 @@ export default function OnboardingFlow({
       // retain the email and let the parent choose whether to try again.
       setInviteError(text("inviteError"));
     } finally {
+      sendingInviteRef.current = false;
       setSendingInvite(false);
     }
   }
@@ -527,7 +537,10 @@ export default function OnboardingFlow({
               </p>
             )}
             {rosterRefresh === "stale" && (
-              <div className="mt-2 flex flex-col items-center gap-2 text-sm text-muted-foreground" role="status">
+              <div
+                className="mt-2 flex flex-col items-center gap-2 text-sm text-muted-foreground"
+                role="status"
+              >
                 <span>{text("rosterStale")}</span>
                 <button
                   type="button"
@@ -639,9 +652,24 @@ export default function OnboardingFlow({
         description={text("accountInviteDescription")}
         closeLabel={text("close")}
         variant="form"
+        footer={
+          <button
+            type="submit"
+            form="onboarding-account-invite-form"
+            disabled={sendingInvite || !inviteEmail.trim()}
+            className="btn-filled min-h-[44px] w-full"
+          >
+            <Mail className="mr-2 h-4 w-4" aria-hidden="true" />
+            {sendingInvite ? text("sendingInvite") : text("sendInvite")}
+          </button>
+        }
         testId="onboarding-account-invite"
       >
-        <form onSubmit={sendInvite} className="space-y-4">
+        <form
+          id="onboarding-account-invite-form"
+          onSubmit={sendInvite}
+          className="space-y-4"
+        >
           {inviteError && (
             <p
               role="alert"
@@ -684,14 +712,6 @@ export default function OnboardingFlow({
               <option value="parent">{text("roleParent")}</option>
             </select>
           </div>
-          <button
-            type="submit"
-            disabled={sendingInvite || !inviteEmail.trim()}
-            className="btn-filled min-h-[44px] w-full"
-          >
-            <Mail className="mr-2 h-4 w-4" aria-hidden="true" />
-            {sendingInvite ? text("sendingInvite") : text("sendInvite")}
-          </button>
         </form>
       </Dialog>
     </div>

@@ -1,75 +1,89 @@
-'use client'
+"use client";
 
-import { useTranslation } from '@/i18n'
-import { QueueStorageRecovery } from '@/components/ui/queue-storage-recovery'
+import { useTranslation } from "@/i18n";
+import {
+  useListDetailText,
+  englishListDetailText,
+  type ListDetailText,
+} from "@/i18n/list-detail";
+import { QueueStorageRecovery } from "@/components/ui/queue-storage-recovery";
 
-import * as React from 'react'
-import { useRouter } from 'next/navigation'
-import { useListVersionSync } from './use-list-version-sync'
-import { SyncNotice as ReadSyncNotice, SyncAnnouncer, useNow } from '@/components/fridge/sync-status'
-import { EditGroceryDialog, type EditableGrocery } from './EditGroceryDialog'
-import { Plus, CheckSquare, CloudOff, AlertTriangle } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { CheckboxRow } from '@/components/ui/checkbox-row'
-import { SwipeRow } from '@/components/ui/swipe-row'
-import { Glyph } from '@/components/ui/glyph'
-import { ProgressRing } from '@/components/ui/progress-ring'
-import { InsetList, SectionHeader } from '@/components/ui/list-row'
-import { EmptyState } from '@/components/ui/empty-state'
-import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
-import type { ListType } from '@/types'
-import type { CheckedQueuedOperation } from '@/lib/offline-queue'
-import { useListItemSync, type SyncNotice } from './use-list-item-sync'
-import { buildGrocerySections, groceryDetailText, isGroceryListType, storeSectionOf } from '@/lib/grocery-display'
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { useListVersionSync } from "./use-list-version-sync";
+import {
+  SyncNotice as ReadSyncNotice,
+  SyncAnnouncer,
+  useNow,
+} from "@/components/fridge/sync-status";
+import { EditGroceryDialog, type EditableGrocery } from "./EditGroceryDialog";
+import { Plus, CheckSquare, CloudOff, AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CheckboxRow } from "@/components/ui/checkbox-row";
+import { SwipeRow } from "@/components/ui/swipe-row";
+import { Glyph } from "@/components/ui/glyph";
+import { ProgressRing } from "@/components/ui/progress-ring";
+import { InsetList, SectionHeader } from "@/components/ui/list-row";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ILLUSTRATIONS } from "@/lib/brand-illustrations";
+import type { ListType } from "@/types";
+import type { CheckedQueuedOperation } from "@/lib/offline-queue";
+import { useListItemSync, type SyncNotice } from "./use-list-item-sync";
+import {
+  buildGrocerySections,
+  rowAmountText,
+  isGroceryListType,
+  storeSectionOf,
+} from "@/lib/grocery-display";
 import {
   GROCERY_SECTIONS,
   isGrocerySection,
   sectionNameKey,
   type GrocerySectionId,
-} from '@/lib/grocery-sections'
-import { MoveToSectionDialog, type MoveTarget } from './MoveToSectionDialog'
-import { useToast, useUndoToast } from '@/components/ui/toast'
-import { PersonGroceryAdd } from './PersonGroceryAdd'
-import { useStoreSectionText } from '@/i18n/store-sections'
+} from "@/lib/grocery-sections";
+import { MoveToSectionDialog, type MoveTarget } from "./MoveToSectionDialog";
+import { useToast, useUndoToast } from "@/components/ui/toast";
+import { PersonGroceryAdd } from "./PersonGroceryAdd";
+import { useStoreSectionText } from "@/i18n/store-sections";
 
 // -----------------------------------------------------------------------
 // Types
 // -----------------------------------------------------------------------
 
 interface Item {
-  id: string
-  content: string
-  checked: boolean
-  updated_at?: string
+  id: string;
+  content: string;
+  checked: boolean;
+  updated_at?: string;
   /** Local recovery for a queued tick whose canonical row was removed. */
-  removedElsewhere?: boolean
-  quantity: number
-  category: string | null
-  added_by: { name: string }
-  checked_by?: { name: string }
-  checked_at?: string
+  removedElsewhere?: boolean;
+  quantity: number;
+  category: string | null;
+  added_by: { name: string };
+  checked_by?: { name: string };
+  checked_at?: string;
   // Grocery fields (ADR-0007, #252); null on generic lists.
-  amount?: number | null
-  unit?: string | null
-  ingredient_id?: string | null
-  ingredient_name?: string | null
-  recipe_title?: string | null
+  amount?: number | null;
+  unit?: string | null;
+  ingredient_id?: string | null;
+  ingredient_name?: string | null;
+  recipe_title?: string | null;
   /** Resolved store section (#273); grocery/shopping lists only. */
-  section?: string | null
+  section?: string | null;
 }
 
 /** Store-section sorting for grocery/shopping lists (#273), delivered with the page. */
 export interface SectionSortProps {
   /** `List.sort_by_section`. */
-  enabled: boolean
+  enabled: boolean;
   /** Section ids in display order (learned walking order or the fixed order). */
-  order: GrocerySectionId[]
+  order: GrocerySectionId[];
   /** True when `order` was learned from the household's shopping trips. */
-  learned: boolean
+  learned: boolean;
   /** Household overrides for the names on this list: `{ name_key: section }`. */
-  overrides: Record<string, GrocerySectionId>
+  overrides: Record<string, GrocerySectionId>;
   /** Parent and teen may switch sorting on or off. */
-  canChange: boolean
+  canChange: boolean;
 }
 
 const DEFAULT_SECTION_SORT: SectionSortProps = {
@@ -78,39 +92,40 @@ const DEFAULT_SECTION_SORT: SectionSortProps = {
   learned: false,
   overrides: {},
   canChange: false,
-}
+};
 
 /** A row returned by POST /api/lists/items/create, shaped like the page's items. */
 function toItem(raw: Record<string, unknown>): Item {
   return {
     id: String(raw.id),
-    content: String(raw.content ?? ''),
+    content: String(raw.content ?? ""),
     checked: raw.checked === true,
-    updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : undefined,
-    quantity: typeof raw.quantity === 'number' ? raw.quantity : 1,
-    category: typeof raw.category === 'string' ? raw.category : null,
-    added_by: { name: 'You' },
-    amount: typeof raw.amount === 'number' ? raw.amount : null,
-    unit: typeof raw.unit === 'string' ? raw.unit : null,
-    ingredient_id: typeof raw.ingredient_id === 'string' ? raw.ingredient_id : null,
+    updated_at: typeof raw.updated_at === "string" ? raw.updated_at : undefined,
+    quantity: typeof raw.quantity === "number" ? raw.quantity : 1,
+    category: typeof raw.category === "string" ? raw.category : null,
+    added_by: { name: "You" },
+    amount: typeof raw.amount === "number" ? raw.amount : null,
+    unit: typeof raw.unit === "string" ? raw.unit : null,
+    ingredient_id:
+      typeof raw.ingredient_id === "string" ? raw.ingredient_id : null,
     ingredient_name: null,
     recipe_title: null,
-    section: typeof raw.section === 'string' ? raw.section : null,
-  }
+    section: typeof raw.section === "string" ? raw.section : null,
+  };
 }
 
 interface ListDetailClientProps {
-  version?: string
-  generatedAt?: string
-  listId: string
-  listName: string
-  listType: ListType
-  items: Item[]
-  userId: string
+  version?: string;
+  generatedAt?: string;
+  listId: string;
+  listName: string;
+  listType: ListType;
+  items: Item[];
+  userId: string;
   /** D9 (#102): deleting an item is parent-only. */
-  canDeleteItems?: boolean
+  canDeleteItems?: boolean;
   /** Store sections (#273); only used on grocery/shopping lists. */
-  sectionSort?: SectionSortProps
+  sectionSort?: SectionSortProps;
 }
 
 // -----------------------------------------------------------------------
@@ -128,169 +143,222 @@ export default function ListDetailClient({
   canDeleteItems = true,
   sectionSort = DEFAULT_SECTION_SORT,
 }: ListDetailClientProps) {
-  const storeText = useStoreSectionText()
-  const router = useRouter()
-  const readSync = useListVersionSync({ listId, version, generatedAt, refresh: () => router.refresh() })
-  const now = useNow(60_000)
-  const [editTarget, setEditTarget] = React.useState<EditableGrocery | null>(null)
-  const [listItems, setListItems] = React.useState<Item[]>(initialItems)
-  const localDeletes = React.useRef(new Set<string>())
-  const pendingDeletes = React.useRef(new Set<string>())
-  const [newItemText, setNewItemText] = React.useState('')
-  const [loading, setLoading] = React.useState(false)
+  const storeText = useStoreSectionText();
+  const text = useListDetailText();
+  const router = useRouter();
+  const readSync = useListVersionSync({
+    listId,
+    version,
+    generatedAt,
+    refresh: () => router.refresh(),
+  });
+  const now = useNow(60_000);
+  const [editTarget, setEditTarget] = React.useState<EditableGrocery | null>(
+    null,
+  );
+  const [listItems, setListItems] = React.useState<Item[]>(initialItems);
+  const localDeletes = React.useRef(new Set<string>());
+  const pendingDeletes = React.useRef(new Set<string>());
+  const [newItemText, setNewItemText] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const addingRef = React.useRef(false);
+  const sortingRef = React.useRef(false);
+  const movingRef = React.useRef(false);
   // Why the last "Add" failed; the typed text stays in the field.
-  const [addError, setAddError] = React.useState<string | null>(null)
-  const [recentlySynced, setRecentlySynced] = React.useState<Set<string>>(() => new Set())
-  const { addToast } = useToast()
-  const showUndo = useUndoToast()
+  const [addError, setAddError] = React.useState<string | null>(null);
+  const [recentlySynced, setRecentlySynced] = React.useState<Set<string>>(
+    () => new Set(),
+  );
+  const { addToast } = useToast();
+  const showUndo = useUndoToast();
 
   // Store sections (#273). Grouping is computed here from row data and the
   // overrides delivered with the page, so it needs no request (offline ticks).
-  const isGrocery = isGroceryListType(listType)
-  const [sortBySection, setSortBySection] = React.useState(sectionSort.enabled)
-  const [sortPending, setSortPending] = React.useState(false)
-  const [sortError, setSortError] = React.useState<string | null>(null)
-  const [overrides, setOverrides] = React.useState<Record<string, GrocerySectionId>>(sectionSort.overrides)
-  const [moveTarget, setMoveTarget] = React.useState<MoveTarget | null>(null)
-  const [movePending, setMovePending] = React.useState(false)
-  const [moveError, setMoveError] = React.useState<string | null>(null)
-  const storeSort = isGrocery && sortBySection
+  const isGrocery = isGroceryListType(listType);
+  const [sortBySection, setSortBySection] = React.useState(sectionSort.enabled);
+  const [sortPending, setSortPending] = React.useState(false);
+  const [sortError, setSortError] = React.useState<string | null>(null);
+  const [overrides, setOverrides] = React.useState<
+    Record<string, GrocerySectionId>
+  >(sectionSort.overrides);
+  const [moveTarget, setMoveTarget] = React.useState<MoveTarget | null>(null);
+  const [movePending, setMovePending] = React.useState(false);
+  const [moveError, setMoveError] = React.useState<string | null>(null);
+  const storeSort = isGrocery && sortBySection;
 
   // Tick/untick goes through the offline queue (#162, OFFLINE_SYNC.md): the
   // item shows the queued state with a visible sync status until the server
   // confirms it; the server state changes only on confirmation.
   const sync = useListItemSync(userId, (itemId, checked, body) => {
-    const serverItem = (body as { item?: { checked?: unknown; checked_at?: unknown } } | null)?.item
-    const confirmed = typeof serverItem?.checked === 'boolean' ? serverItem.checked : checked
-    setListItems(prev => prev.map(i => i.id === itemId
-      ? {
-          ...i,
-          checked: confirmed,
-          checked_at: confirmed && typeof serverItem?.checked_at === 'string' ? serverItem.checked_at : undefined,
-          checked_by: confirmed ? i.checked_by : undefined,
-        }
-      : i))
-    router.refresh()
-    setRecentlySynced(prev => new Set(prev).add(itemId))
+    const serverItem = (
+      body as { item?: { checked?: unknown; checked_at?: unknown } } | null
+    )?.item;
+    const confirmed =
+      typeof serverItem?.checked === "boolean" ? serverItem.checked : checked;
+    setListItems((prev) =>
+      prev.map((i) =>
+        i.id === itemId
+          ? {
+              ...i,
+              checked: confirmed,
+              checked_at:
+                confirmed && typeof serverItem?.checked_at === "string"
+                  ? serverItem.checked_at
+                  : undefined,
+              checked_by: confirmed ? i.checked_by : undefined,
+            }
+          : i,
+      ),
+    );
+    router.refresh();
+    setRecentlySynced((prev) => new Set(prev).add(itemId));
     window.setTimeout(() => {
-      setRecentlySynced(prev => {
-        const next = new Set(prev)
-        next.delete(itemId)
-        return next
-      })
-    }, 3000)
-  })
+      setRecentlySynced((prev) => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }, 3000);
+  });
 
   React.useEffect(() => {
-    const queuedIds = new Set(sync.operations.map(op => op.payload.itemId))
-    const canonical = initialItems.filter(item => !localDeletes.current.has(item.id))
-    const canonicalIds = new Set(initialItems.map(item => item.id))
-    setListItems(previous => [
+    const queuedIds = new Set(sync.operations.map((op) => op.payload.itemId));
+    const canonical = initialItems.filter(
+      (item) => !localDeletes.current.has(item.id),
+    );
+    const canonicalIds = new Set(initialItems.map((item) => item.id));
+    setListItems((previous) => [
       ...canonical,
-      ...previous.filter(item => !canonicalIds.has(item.id) && queuedIds.has(item.id) && !localDeletes.current.has(item.id))
-        .map(item => ({ ...item, removedElsewhere: true })),
-    ])
+      ...previous
+        .filter(
+          (item) =>
+            !canonicalIds.has(item.id) &&
+            queuedIds.has(item.id) &&
+            !localDeletes.current.has(item.id),
+        )
+        .map((item) => ({ ...item, removedElsewhere: true })),
+    ]);
     for (const id of localDeletes.current) {
-      if (!pendingDeletes.current.has(id) && !canonicalIds.has(id)) localDeletes.current.delete(id)
+      if (!pendingDeletes.current.has(id) && !canonicalIds.has(id))
+        localDeletes.current.delete(id);
     }
-  }, [initialItems, sync.operations])
+  }, [initialItems, sync.operations]);
 
   React.useEffect(() => {
-    setSortBySection(sectionSort.enabled)
-    setOverrides(sectionSort.overrides)
-  }, [sectionSort.enabled, sectionSort.overrides])
+    setSortBySection(sectionSort.enabled);
+    setOverrides(sectionSort.overrides);
+  }, [sectionSort.enabled, sectionSort.overrides]);
 
-  const displayChecked = (item: Item) => sync.stateFor(item.id)?.payload.checked ?? item.checked
+  const displayChecked = (item: Item) =>
+    sync.stateFor(item.id)?.payload.checked ?? item.checked;
 
   // Progress
-  const total = listItems.filter(item => !item.removedElsewhere).length
-  const done = listItems.filter(item => !item.removedElsewhere && displayChecked(item)).length
-  const progress = total > 0 ? done / total : 0
+  const total = listItems.filter((item) => !item.removedElsewhere).length;
+  const done = listItems.filter(
+    (item) => !item.removedElsewhere && displayChecked(item),
+  ).length;
+  const progress = total > 0 ? done / total : 0;
 
   // Sections by store section in the household's order (#273), or by category
   // when sorting is off or the list is not a grocery list. Open rows for the
   // same ingredient are shown together within a section (ADR-0007 O-3).
   // Checked rows stay in their section at their list position.
-  const sectionOf = (item: Item) => storeSectionOf(item, overrides)
+  const sectionOf = (item: Item) => storeSectionOf(item, overrides);
   const sections = storeSort
     ? buildGrocerySections(listItems, displayChecked, {
         sectionOf,
         order: sectionSort.order,
         label: (key) => (isGrocerySection(key) ? storeText(key) : key),
       })
-    : buildGrocerySections(listItems, displayChecked)
+    : buildGrocerySections(listItems, displayChecked, {
+        label: (key) => (key === "Other" ? text("other") : key),
+      });
 
   const handleSortChange = async (next: boolean) => {
-    if (sortPending) return
-    setSortPending(true)
-    setSortError(null)
-    setSortBySection(next)
+    if (sortingRef.current) return;
+    sortingRef.current = true;
+    setSortPending(true);
+    setSortError(null);
+    setSortBySection(next);
     try {
-      const res = await fetch('/api/lists/section-sort', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/lists/section-sort", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ listId, sortBySection: next }),
-      })
-      if (!res.ok) throw new Error(String(res.status))
+      });
+      if (!res.ok) throw new Error(String(res.status));
     } catch {
-      setSortBySection(!next)
-      setSortError('Couldn’t change the sorting. Check your connection and try again.')
+      setSortBySection(!next);
+      setSortError(text("sortFailed"));
     } finally {
-      setSortPending(false)
+      sortingRef.current = false;
+      setSortPending(false);
     }
-  }
+  };
 
   const openMove = (item: Item) => {
-    const key = sectionNameKey(item.content)
-    setMoveError(null)
-    setMoveTarget({ itemId: item.id, content: item.content, current: sectionOf(item), chosen: key in overrides })
-  }
+    const key = sectionNameKey(item.content);
+    setMoveError(null);
+    setMoveTarget({
+      itemId: item.id,
+      content: item.content,
+      current: sectionOf(item),
+      chosen: key in overrides,
+    });
+  };
 
   const handleMove = async (section: GrocerySectionId | null) => {
-    if (!moveTarget || movePending) return
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      setMoveError('You’re offline. Moving an item needs a connection.')
-      return
+    if (!moveTarget || movingRef.current) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      setMoveError(text("moveOffline"));
+      return;
     }
-    setMovePending(true)
-    setMoveError(null)
+    movingRef.current = true;
+    setMovePending(true);
+    setMoveError(null);
     try {
-      const res = await fetch('/api/lists/items/section', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/lists/items/section", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ itemId: moveTarget.itemId, section }),
-      })
+      });
       const body = (await res.json().catch(() => null)) as {
-        nameKey?: string
-        override?: string | null
-        sections?: Record<string, string>
-      } | null
-      if (!res.ok || !body?.nameKey) throw new Error(String(res.status))
-      const moved = body.sections ?? {}
-      setListItems((prev) => prev.map((i) => (typeof moved[i.id] === 'string' ? { ...i, section: moved[i.id] } : i)))
+        nameKey?: string;
+        override?: string | null;
+        sections?: Record<string, string>;
+      } | null;
+      if (!res.ok || !body?.nameKey) throw new Error(String(res.status));
+      const moved = body.sections ?? {};
+      setListItems((prev) =>
+        prev.map((i) =>
+          typeof moved[i.id] === "string" ? { ...i, section: moved[i.id] } : i,
+        ),
+      );
       setOverrides((prev) => {
-        const next = { ...prev }
-        if (isGrocerySection(body.override)) next[body.nameKey!] = body.override
-        else delete next[body.nameKey!]
-        return next
-      })
-      setMoveTarget(null)
+        const next = { ...prev };
+        if (isGrocerySection(body.override))
+          next[body.nameKey!] = body.override;
+        else delete next[body.nameKey!];
+        return next;
+      });
+      setMoveTarget(null);
     } catch {
-      setMoveError('Couldn’t move this item. Try again.')
+      setMoveError(text("moveFailed"));
     } finally {
-      setMovePending(false)
+      movingRef.current = false;
+      setMovePending(false);
     }
-  }
+  };
 
   const handleToggle = (itemId: string, checked: boolean) => {
-    setRecentlySynced(prev => {
-      if (!prev.has(itemId)) return prev
-      const next = new Set(prev)
-      next.delete(itemId)
-      return next
-    })
-    void sync.setChecked(itemId, checked)
-  }
+    setRecentlySynced((prev) => {
+      if (!prev.has(itemId)) return prev;
+      const next = new Set(prev);
+      next.delete(itemId);
+      return next;
+    });
+    void sync.setChecked(itemId, checked);
+  };
 
   // Undo over confirm (#269): the item goes at once and Undo puts it back by
   // re-creating it (same text, quantity, category, amount, unit and
@@ -300,121 +368,170 @@ export default function ListDetailClient({
   // queued offline (#162), not the possibly stale server value.
   const restoreItem = async (item: Item, wasChecked: boolean) => {
     try {
-      const res = await fetch('/api/lists/items/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/lists/items/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           listId,
           content: item.content,
           quantity: item.quantity || 1,
           ...(item.category ? { category: item.category } : {}),
-          ...(typeof item.amount === 'number' ? { amount: item.amount } : {}),
+          ...(typeof item.amount === "number" ? { amount: item.amount } : {}),
           ...(item.unit ? { unit: item.unit } : {}),
           ...(item.ingredient_id ? { ingredient_id: item.ingredient_id } : {}),
         }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data.item) throw new Error(typeof data.error === 'string' ? data.error : 'Please try again.')
-      const restored: Item = { ...toItem(data.item), ingredient_name: item.ingredient_name ?? null, added_by: item.added_by }
-      setListItems(prev => [...prev, restored])
-      if (wasChecked) void sync.setChecked(restored.id, true)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.item)
+        throw new Error(
+          typeof data.error === "string" ? data.error : text("tryAgain"),
+        );
+      const restored: Item = {
+        ...toItem(data.item),
+        ingredient_name: item.ingredient_name ?? null,
+        added_by: item.added_by,
+      };
+      setListItems((prev) => [...prev, restored]);
+      if (wasChecked) void sync.setChecked(restored.id, true);
     } catch (err) {
       addToast({
-        type: 'error',
-        title: `Couldn't put back “${item.content}”`,
-        message: err instanceof Error ? err.message : 'Please try again.',
-      })
+        type: "error",
+        title: text("restoreFailed", { item: item.content }),
+        message: err instanceof Error ? err.message : text("tryAgain"),
+      });
     }
-  }
+  };
 
   const handleDeleteItem = async (itemId: string) => {
-    const item = listItems.find(i => i.id === itemId)
-    if (!item) return
-    const wasChecked = displayChecked(item)
-    const queued = sync.stateFor(itemId)
-    localDeletes.current.add(itemId)
-    pendingDeletes.current.add(itemId)
-    setListItems(prev => prev.filter(i => i.id !== itemId))
-    let ok = false
+    const item = listItems.find((i) => i.id === itemId);
+    if (!item) return;
+    const wasChecked = displayChecked(item);
+    const queued = sync.stateFor(itemId);
+    localDeletes.current.add(itemId);
+    pendingDeletes.current.add(itemId);
+    setListItems((prev) => prev.filter((i) => i.id !== itemId));
+    let ok = false;
     try {
-      const res = await fetch(`/api/lists/items/${encodeURIComponent(itemId)}`, { method: 'DELETE' })
-      ok = res.ok
+      const res = await fetch(
+        `/api/lists/items/${encodeURIComponent(itemId)}`,
+        { method: "DELETE" },
+      );
+      ok = res.ok;
     } catch {
-      ok = false
+      ok = false;
     }
-    pendingDeletes.current.delete(itemId)
+    pendingDeletes.current.delete(itemId);
     if (!ok) {
-      localDeletes.current.delete(itemId)
-      setListItems(prev => (prev.some(i => i.id === itemId) ? prev : [...prev, item]))
-      addToast({ type: 'error', title: `Couldn't delete “${item.content}”`, message: 'Check your connection and try again.' })
-      return
+      localDeletes.current.delete(itemId);
+      setListItems((prev) =>
+        prev.some((i) => i.id === itemId) ? prev : [...prev, item],
+      );
+      addToast({
+        type: "error",
+        title: text("deleteFailed", { item: item.content }),
+        message: text("connection"),
+      });
+      return;
     }
     // A tick still queued for the deleted row can never apply; drop it so it
     // does not linger as a failed change. Undo re-applies it to the new row.
-    if (queued) void sync.discard(queued.id)
-    showUndo({ title: `Deleted “${item.content}”`, onUndo: () => void restoreItem(item, wasChecked) })
-  }
+    if (queued) void sync.discard(queued.id);
+    showUndo({
+      title: text("deleted", { item: item.content }),
+      onUndo: () => void restoreItem(item, wasChecked),
+    });
+  };
 
   const handleAdd = async () => {
-    const trimmed = newItemText.trim()
-    if (!trimmed || loading) return
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      setAddError(`You're offline. “${trimmed}” wasn't added. Try again when you're back online.`)
-      return
+    const trimmed = newItemText.trim();
+    if (!trimmed || addingRef.current) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      setAddError(text("addOffline", { item: trimmed }));
+      return;
     }
-    setLoading(true)
-    setAddError(null)
+    addingRef.current = true;
+    setLoading(true);
+    setAddError(null);
     try {
-      let res: Response
+      let res: Response;
       try {
-        res = await fetch('/api/lists/items/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        res = await fetch("/api/lists/items/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ listId, content: trimmed }),
-        })
+        });
       } catch {
-        const offline = typeof navigator !== 'undefined' && navigator.onLine === false
+        const offline =
+          typeof navigator !== "undefined" && navigator.onLine === false;
         setAddError(
           offline
-            ? `You're offline. “${trimmed}” wasn't added. Try again when you're back online.`
-            : `Couldn't add “${trimmed}”. Check your connection and try again.`
-        )
-        return
+            ? text("addOffline", { item: trimmed })
+            : text("addFailed", { item: trimmed }),
+        );
+        return;
       }
-      const data = await res.json().catch(() => ({}))
+      const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.item) {
-        const reason = typeof data?.error === 'string' && data.error ? data.error : 'Please try again.'
-        setAddError(`Couldn't add “${trimmed}”. ${reason}`)
-        return
+        const reason =
+          typeof data?.error === "string" && data.error
+            ? data.error
+            : text("tryAgain");
+        setAddError(text("addReason", { item: trimmed, reason }));
+        return;
       }
-      setListItems(prev => [...prev, toItem(data.item)])
-      setNewItemText('')
+      setListItems((prev) => [...prev, toItem(data.item)]);
+      setNewItemText("");
     } finally {
-      setLoading(false)
+      addingRef.current = false;
+      setLoading(false);
     }
-  }
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleAdd()
-  }
+    if (e.key === "Enter") handleAdd();
+  };
 
-  const editItem = editTarget ? listItems.find(item => item.id === editTarget.id) : undefined
-  const currentEdit: EditableGrocery | null = editItem?.updated_at && !editItem.removedElsewhere
-    ? { id: editItem.id, content: editItem.content, quantity: editItem.quantity, updated_at: editItem.updated_at }
-    : null
+  const editItem = editTarget
+    ? listItems.find((item) => item.id === editTarget.id)
+    : undefined;
+  const currentEdit: EditableGrocery | null =
+    editItem?.updated_at && !editItem.removedElsewhere
+      ? {
+          id: editItem.id,
+          content: editItem.content,
+          quantity: editItem.quantity,
+          updated_at: editItem.updated_at,
+        }
+      : null;
 
   const renderRow = (item: Item, isLast: boolean) => {
-    const op = sync.stateFor(item.id)
-    const checked = displayChecked(item)
-    const syncState = op?.state ?? (recentlySynced.has(item.id) ? 'synced' : undefined)
-    const status = syncStatusText(op, recentlySynced.has(item.id))
-    const detail = groceryDetailText(item)
-    const checkedBy = checked && item.checked_by ? `✓ ${item.checked_by.name}` : undefined
-    const subtitle = item.removedElsewhere ? 'Removed from the list. Discard this pending change.' : status ?? ([detail, checkedBy].filter(Boolean).join(' · ') || undefined)
+    const op = sync.stateFor(item.id);
+    const checked = displayChecked(item);
+    const syncState =
+      op?.state ?? (recentlySynced.has(item.id) ? "synced" : undefined);
+    const status = syncStatusText(op, recentlySynced.has(item.id), text);
+    const detail = [
+      rowAmountText(item),
+      item.recipe_title?.trim()
+        ? text("from", { recipe: item.recipe_title.trim() })
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const checkedBy =
+      checked && item.checked_by ? `✓ ${item.checked_by.name}` : undefined;
+    const subtitle = item.removedElsewhere
+      ? text("removed")
+      : (status ??
+        ([detail, checkedBy].filter(Boolean).join(" · ") || undefined));
     return (
       <SwipeRow
         key={item.id}
-        onSwipeLeft={canDeleteItems && !item.removedElsewhere ? () => handleDeleteItem(item.id) : undefined}
+        onSwipeLeft={
+          canDeleteItems && !item.removedElsewhere
+            ? () => handleDeleteItem(item.id)
+            : undefined
+        }
       >
         <div
           data-item-id={item.id}
@@ -432,83 +549,107 @@ export default function ListDetailClient({
                 title={item.content}
                 subtitle={subtitle}
                 wrap
-                className={cn(isLast && !needsAction(op) && 'border-b-0')}
+                className={cn(isLast && !needsAction(op) && "border-b-0")}
               />
             </div>
             {isGrocery && item.updated_at && !item.removedElsewhere && (
               <button
                 type="button"
                 disabled={Boolean(op)}
-                onClick={() => setEditTarget({ id: item.id, content: item.content, quantity: item.quantity, updated_at: item.updated_at! })}
-                aria-label={`Edit ${item.content}`}
+                onClick={() =>
+                  setEditTarget({
+                    id: item.id,
+                    content: item.content,
+                    quantity: item.quantity,
+                    updated_at: item.updated_at!,
+                  })
+                }
+                aria-label={text("editLabel", { item: item.content })}
                 aria-haspopup="dialog"
                 className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
               >
-                Edit
+                {text("edit")}
               </button>
             )}
             {storeSort && !checked && !item.removedElsewhere && (
               <button
                 type="button"
                 onClick={() => openMove(item)}
-                aria-label={storeText('moveItem', { item: item.content })}
+                aria-label={storeText("moveItem", { item: item.content })}
                 aria-haspopup="dialog"
                 data-testid="move-section"
                 className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
               >
-                {storeText('move')}
+                {storeText("move")}
               </button>
             )}
           </div>
           {op && needsAction(op) && (
             <div
               role="group"
-              aria-label={`Sync options for ${item.content}`}
-              className={cn('flex flex-wrap gap-2 px-4 pb-3', isLast && 'border-b-0')}
+              aria-label={text("syncOptions", { item: item.content })}
+              className={cn(
+                "flex flex-wrap gap-2 px-4 pb-3",
+                isLast && "border-b-0",
+              )}
             >
               <button
                 type="button"
                 onClick={() => void sync.retry(op.id)}
                 className="btn-tinted min-h-[44px] px-4"
-                aria-label={`Retry syncing ${item.content}`}
+                aria-label={text("retrySync", { item: item.content })}
               >
-                Retry
+                {text("retry")}
               </button>
               <button
                 type="button"
                 onClick={() => void sync.discard(op.id)}
                 className="min-h-[44px] px-4 text-subhead text-label-secondary underline-offset-2 hover:underline"
-                aria-label={`Discard change to ${item.content}`}
+                aria-label={text("discardLabel", { item: item.content })}
               >
-                Discard
+                {text("discard")}
               </button>
             </div>
           )}
         </div>
       </SwipeRow>
-    )
-  }
+    );
+  };
 
   return (
     <div className="space-y-5 px-4 pb-20">
-      <SyncAnnouncer message={readSync.announcement} testId="list-change-announcement" />
+      <SyncAnnouncer
+        message={readSync.announcement}
+        testId="list-change-announcement"
+      />
       {version && now !== null && (
-        <ReadSyncNotice lastSyncAt={readSync.lastSyncAt} now={now} online={readSync.online} what="list" canGoStale={readSync.failing} appBanner />
+        <ReadSyncNotice
+          lastSyncAt={readSync.lastSyncAt}
+          now={now}
+          online={readSync.online}
+          what="list"
+          canGoStale={readSync.failing}
+          appBanner
+        />
       )}
-      {readSync.terminal && <p role="status" className="text-subhead text-label-secondary">List access changed. Refresh or sign in again to continue.</p>}
+      {readSync.terminal && (
+        <p role="status" className="text-subhead text-label-secondary">
+          {text("accessChanged")}
+        </p>
+      )}
       {/* Progress header */}
       <div className="flex items-center gap-4 card-apple p-4">
-        <ProgressRing
-          progress={progress}
-          size={56}
-          strokeWidth={5}
-        >
-          <span className="text-body font-semibold text-label-primary leading-none">{done}</span>
+        <ProgressRing progress={progress} size={56} strokeWidth={5}>
+          <span className="text-body font-semibold text-label-primary leading-none">
+            {done}
+          </span>
         </ProgressRing>
         <div className="flex-1 min-w-0">
-          <h1 className="text-body text-label-primary font-medium truncate">{listName}</h1>
+          <h1 className="text-body text-label-primary font-medium [overflow-wrap:anywhere]">
+            {listName}
+          </h1>
           <p className="text-footnote text-label-secondary mt-0.5">
-            {total > 0 ? `${done} of ${total} done` : 'No items yet'}
+            {total > 0 ? text("progress", { done, total }) : text("noItems")}
           </p>
         </div>
         <Glyph color="lists" size="md">
@@ -543,27 +684,37 @@ export default function ListDetailClient({
           <section
             key={section.key}
             aria-label={storeSort ? section.category : undefined}
-            data-testid={storeSort ? 'store-section' : undefined}
+            data-testid={storeSort ? "store-section" : undefined}
             data-section={storeSort ? section.key : undefined}
           >
             <SectionHeader>{section.category}</SectionHeader>
             <InsetList>
               {section.entries.map((entry, i) => {
-                const isLastEntry = i === section.entries.length - 1
-                if (entry.kind === 'item') return renderRow(entry.item, isLastEntry)
+                const isLastEntry = i === section.entries.length - 1;
+                if (entry.kind === "item")
+                  return renderRow(entry.item, isLastEntry);
                 return (
                   <div
                     key={`ingredient-${entry.ingredientId}`}
                     role="group"
-                    aria-label={`${entry.name}, ${entry.items.length} entries`}
+                    aria-label={text("group", {
+                      item: entry.name,
+                      count: entry.items.length,
+                    })}
                     data-testid="ingredient-group"
                   >
                     <p className="px-4 pt-2.5 pb-1 text-footnote font-semibold text-label-secondary break-words">
-                      {entry.name} · {entry.items.length} entries
+                      {entry.name} ·{" "}
+                      {text("entries", { count: entry.items.length })}
                     </p>
-                    {entry.items.map((item, j) => renderRow(item, isLastEntry && j === entry.items.length - 1))}
+                    {entry.items.map((item, j) =>
+                      renderRow(
+                        item,
+                        isLastEntry && j === entry.items.length - 1,
+                      ),
+                    )}
                   </div>
-                )
+                );
               })}
             </InsetList>
           </section>
@@ -572,9 +723,11 @@ export default function ListDetailClient({
         <EmptyState
           icon={CheckSquare}
           glyphColor="lists"
-          illustration={isGrocery ? ILLUSTRATIONS.groceriesClear : ILLUSTRATIONS.listsEmpty}
-          title="No items yet"
-          description="Add items using the field below."
+          illustration={
+            isGrocery ? ILLUSTRATIONS.groceriesClear : ILLUSTRATIONS.listsEmpty
+          }
+          title={text("noItems")}
+          description={text("emptyHelp")}
         />
       )}
 
@@ -596,43 +749,52 @@ export default function ListDetailClient({
       />
 
       {/* Add item field */}
-      <PersonGroceryAdd userId={userId} listId={listId} allowNew={isGrocery} showCompatibilityNotice={false} />
+      <PersonGroceryAdd
+        userId={userId}
+        listId={listId}
+        allowNew={isGrocery}
+        showCompatibilityNotice={false}
+      />
       {!isGrocery && (
-      <div className="card-apple px-4 py-3">
-        <div className="flex items-center gap-3">
-          <Plus className="w-5 h-5 text-label-tertiary shrink-0" />
-          <input
-            type="text"
-            value={newItemText}
-            onChange={(e) => setNewItemText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Add an item…"
-            aria-label="Add an item"
-            aria-invalid={addError ? true : undefined}
-            aria-describedby={addError ? 'list-add-error' : undefined}
-            disabled={loading}
-            className="flex-1 bg-transparent text-body text-label-primary placeholder:text-label-tertiary outline-none"
-          />
-          {newItemText.trim() && (
-            <button
-              onClick={handleAdd}
+        <div className="card-apple px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Plus className="w-5 h-5 text-label-tertiary shrink-0" />
+            <input
+              type="text"
+              value={newItemText}
+              onChange={(e) => setNewItemText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={text("addPlaceholder")}
+              aria-label={text("addLabel")}
+              aria-invalid={addError ? true : undefined}
+              aria-describedby={addError ? "list-add-error" : undefined}
               disabled={loading}
-              type="button"
-              className="min-h-[44px] min-w-[44px] px-2 -mr-2 text-[var(--accent)] text-subhead font-medium active:scale-95 transition-transform disabled:opacity-50"
+              className="min-w-0 flex-1 bg-transparent text-body text-label-primary placeholder:text-label-tertiary outline-none"
+            />
+            {newItemText.trim() && (
+              <button
+                onClick={handleAdd}
+                disabled={loading}
+                type="button"
+                className="min-h-[44px] min-w-[44px] px-2 -mr-2 text-[var(--accent)] text-subhead font-medium active:scale-95 transition-transform disabled:opacity-50"
+              >
+                {text("add")}
+              </button>
+            )}
+          </div>
+          {addError && (
+            <p
+              id="list-add-error"
+              role="alert"
+              className="pt-2 text-footnote text-[var(--danger-text)]"
             >
-              Add
-            </button>
+              {addError}
+            </p>
           )}
         </div>
-        {addError && (
-          <p id="list-add-error" role="alert" className="pt-2 text-footnote text-[var(--danger-text)]">
-            {addError}
-          </p>
-        )}
-      </div>
       )}
     </div>
-  )
+  );
 }
 
 // -----------------------------------------------------------------------
@@ -648,19 +810,19 @@ function SectionSortControl({
   error,
   onChange,
 }: {
-  enabled: boolean
-  learned: boolean
-  canChange: boolean
-  pending: boolean
-  error: string | null
-  onChange: (next: boolean) => void
+  enabled: boolean;
+  learned: boolean;
+  canChange: boolean;
+  pending: boolean;
+  error: string | null;
+  onChange: (next: boolean) => void;
 }) {
-  const storeText = useStoreSectionText()
+  const storeText = useStoreSectionText();
   const hint = enabled
     ? learned
-      ? storeText('learned')
-      : storeText('grouped')
-    : storeText('added')
+      ? storeText("learned")
+      : storeText("grouped")
+    : storeText("added");
   return (
     <div className="card-apple px-4 py-2" data-testid="section-sort">
       {canChange ? (
@@ -672,22 +834,29 @@ function SectionSortControl({
           onClick={() => onChange(!enabled)}
           className="flex min-h-[44px] w-full items-center justify-between gap-3 text-left disabled:opacity-60 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
         >
-          <span className="text-body text-label-primary">{storeText('sort')}</span>
+          <span className="text-body text-label-primary">
+            {storeText("sort")}
+          </span>
           <span className="inline-flex shrink-0 items-center gap-2">
-            <span className="text-subhead text-label-secondary" aria-hidden="true">
-              {storeText(enabled ? 'on' : 'off')}
+            <span
+              className="text-subhead text-label-secondary"
+              aria-hidden="true"
+            >
+              {storeText(enabled ? "on" : "off")}
             </span>
             <span
               aria-hidden="true"
               className={cn(
-                'relative inline-flex h-[31px] w-[51px] rounded-full transition-colors',
-                enabled ? 'bg-[var(--success)]' : 'bg-[var(--surface-fill-secondary)]'
+                "relative inline-flex h-[31px] w-[51px] rounded-full transition-colors",
+                enabled
+                  ? "bg-[var(--success)]"
+                  : "bg-[var(--surface-fill-secondary)]",
               )}
             >
               <span
                 className={cn(
-                  'absolute top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[var(--shadow-sm)] motion-safe:transition-transform',
-                  enabled ? 'translate-x-[22px]' : 'translate-x-[2px]'
+                  "absolute top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[var(--shadow-sm)] motion-safe:transition-transform",
+                  enabled ? "translate-x-[22px]" : "translate-x-[2px]",
                 )}
               />
             </span>
@@ -695,7 +864,7 @@ function SectionSortControl({
         </button>
       ) : (
         <p className="flex min-h-[44px] items-center text-body text-label-primary">
-          {storeText(enabled ? 'sortOn' : 'sortOff')}
+          {storeText(enabled ? "sortOn" : "sortOff")}
         </p>
       )}
       <p className="pb-1 text-footnote text-label-secondary">{hint}</p>
@@ -705,7 +874,7 @@ function SectionSortControl({
         </p>
       )}
     </div>
-  )
+  );
 }
 
 // -----------------------------------------------------------------------
@@ -715,33 +884,41 @@ function SectionSortControl({
 // -----------------------------------------------------------------------
 
 function needsAction(op: CheckedQueuedOperation | undefined): boolean {
-  return op?.state === 'failed' || op?.state === 'conflict'
+  return op?.state === "failed" || op?.state === "conflict";
 }
 
-export function syncStatusText(op: CheckedQueuedOperation | undefined, recentlySynced: boolean): string | undefined {
-  if (!op) return recentlySynced ? 'Synced' : undefined
+export function syncStatusText(
+  op: CheckedQueuedOperation | undefined,
+  recentlySynced: boolean,
+  text: ListDetailText = englishListDetailText,
+): string | undefined {
+  if (!op) return recentlySynced ? text("synced") : undefined;
   switch (op.state) {
-    case 'pending':
-      return 'Waiting to sync'
-    case 'syncing':
-      return 'Syncing…'
-    case 'failed':
-      if (op.lastError === 'EXPIRED') return 'Not synced: this change is too old'
-      if (op.lastError === 'FORBIDDEN') return 'Not synced: you can no longer change this item'
-      return 'Couldn’t sync this change'
-    case 'conflict':
-      return op.lastError === 'NOT_FOUND' ? 'Not synced: this item was removed' : 'Not synced: changed elsewhere'
+    case "pending":
+      return text("waiting");
+    case "syncing":
+      return text("syncing");
+    case "failed":
+      if (op.lastError === "EXPIRED") return text("expired");
+      if (op.lastError === "FORBIDDEN") return text("forbidden");
+      return text("syncFailed");
+    case "conflict":
+      return op.lastError === "NOT_FOUND" ? text("missing") : text("conflict");
     default:
-      return undefined
+      return undefined;
   }
 }
 
 /** The list's own offline detail (the banner above already says offline). */
-export function listOfflineDetail(durable: boolean, pendingCount: number): string {
-  const ticks = durable
-    ? 'You can still tick items. Ticks are saved on this device and sync when you reconnect.'
-    : 'You can still tick items. Ticks sync when you reconnect.'
-  return pendingCount > 0 ? `${ticks} ${pendingCount} waiting to sync.` : ticks
+export function listOfflineDetail(
+  durable: boolean,
+  pendingCount: number,
+  text: ListDetailText = englishListDetailText,
+): string {
+  const ticks = durable ? text("offlineDurable") : text("offlineVisit");
+  return pendingCount > 0
+    ? `${ticks} ${text("pending", { count: pendingCount })}`
+    : ticks;
 }
 
 export function SyncBanner({
@@ -752,48 +929,67 @@ export function SyncBanner({
   notice,
   onDismiss,
 }: {
-  storageBlocked?: boolean
-  online: boolean
-  durable: boolean
-  pendingCount: number
-  notice: SyncNotice
-  onDismiss: () => void
+  storageBlocked?: boolean;
+  online: boolean;
+  durable: boolean;
+  pendingCount: number;
+  notice: SyncNotice;
+  onDismiss: () => void;
 }) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
+  const text = useListDetailText();
   const noticeText: Record<Exclude<SyncNotice, null>, string> = {
-    'compatible-client': t('groceries.compatibleClient'),
-    'queue-full': 'Too many changes are waiting to sync. Reconnect, then try again.',
-    'signed-out': 'You were signed out, so changes made offline were not saved.',
-    dropped: 'Some changes saved on this device could not be kept.',
-  }
+    "compatible-client": t("groceries.compatibleClient"),
+    "queue-full": text("queueFull"),
+    "signed-out": text("signedOut"),
+    dropped: text("dropped"),
+  };
   return (
     <div role="status" aria-live="polite" className="space-y-2 empty:hidden">
       {/* The app-wide OfflineBanner says "You're offline"; this only adds what
           the list does offline (ticks queue, #162) and how many are waiting. */}
       {!online && !storageBlocked && (
-        <div className="card-apple flex items-start gap-3 p-4" data-testid="list-offline-detail">
-          <CloudOff className="w-5 h-5 text-label-secondary shrink-0 mt-0.5" aria-hidden="true" />
+        <div
+          className="card-apple flex items-start gap-3 p-4"
+          data-testid="list-offline-detail"
+        >
+          <CloudOff
+            className="w-5 h-5 text-label-secondary shrink-0 mt-0.5"
+            aria-hidden="true"
+          />
           <p className="text-subhead text-label-primary">
-            {listOfflineDetail(durable, pendingCount)}
+            {listOfflineDetail(durable, pendingCount, text)}
           </p>
         </div>
       )}
       {!storageBlocked && !durable && pendingCount > 0 && (
-        <div className="card-apple flex items-start gap-3 p-4" data-testid="not-durable-banner">
-          <AlertTriangle className="w-5 h-5 text-label-secondary shrink-0 mt-0.5" aria-hidden="true" />
+        <div
+          className="card-apple flex items-start gap-3 p-4"
+          data-testid="not-durable-banner"
+        >
+          <AlertTriangle
+            className="w-5 h-5 text-label-secondary shrink-0 mt-0.5"
+            aria-hidden="true"
+          />
           <p className="text-subhead text-label-primary">
-            Couldn’t save changes on this device. Keep this page open until they sync, or they will be lost.
+            {text("notDurable")}
           </p>
         </div>
       )}
       {notice && (
         <div className="card-apple flex items-start justify-between gap-3 p-4">
-          <p className="text-subhead text-label-primary">{noticeText[notice]}</p>
-          <button type="button" onClick={onDismiss} className="min-h-[44px] px-3 text-subhead text-[var(--accent)]">
-            Dismiss
+          <p className="text-subhead text-label-primary">
+            {noticeText[notice]}
+          </p>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="min-h-[44px] px-3 text-subhead text-[var(--accent)]"
+          >
+            {text("dismiss")}
           </button>
         </div>
       )}
     </div>
-  )
+  );
 }

@@ -1,5 +1,39 @@
 # Current State
 
+## Implementation-first direction — 2026-10-18
+
+Cameron explicitly requested finishing the remaining UI code before further QA.
+The local follow-up now includes:
+
+- Separate account invitation and email-free profile choices on Family/Add family;
+  short profile/invitation sheets with fixed primary actions, retained entries,
+  immediate submit guards and canonical response handling. Invites do not link
+  existing profiles; no account-link API or production profile flag is enabled.
+- A per-viewer quiet display preference stored on this device, reachable from
+  Settings and child Home. Home/Chores hide optional points/streak decoration;
+  completion and claim feedback remain truthful, and canonical earned values,
+  household features, notification quiet hours and reward costs are unchanged.
+- Account / Family / Privacy settings views that retain mounted drafts and
+  reveal deep-linked calendar/provider sections; shorter household settings
+  with explicit load/refusal states and existing BoardSettings/deletion controls.
+- Collapsible mobile calendar sources/connections and a Week scrolling hint;
+  existing range, timezone, overlap and provider contracts are retained.
+- English/Spanish notification, search, Help and list-detail presentation;
+  wrapping notification/list text, truthful malformed-response recovery,
+  existing snooze/Undo/offline queue behavior and immediate action guards.
+- Expandable Help topics, shared header reflow and pending-safe device rename
+  and removal dialogs. Auth, role navigation and sanitized fridge board reuse
+  their existing canonical implementations.
+
+This is an implementation checkpoint, **not QA or release acceptance**. No new
+unit/integration tests, lint/type gates, optimized builds, browser journeys,
+visual reviews or hosted CI were started for this batch. Formatting was applied
+to edited code. QA remains for afterward, including old tests whose selectors
+or expectations describe the previous layouts. No checks/protections are
+removed. No new merge, push, deployment, provider activation, production flag or
+household-data mutation is included. Native/store and account-link backend work
+remain separate from this presentation batch.
+
 ## Care and coordination UI candidate — 2026-10-18
 
 Production is verified PR587 at `afb15426d9fdb63a7f4f6c437d2c23e20d55dab9`,

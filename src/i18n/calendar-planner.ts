@@ -18,6 +18,10 @@ export const calendarPlannerEnglish = {
   agenda: "Agenda",
   add: "Add event",
   calendars: "Calendars",
+  showCalendars: "Show calendars and connections",
+  hideCalendars: "Hide calendars and connections",
+  scrollWeek:
+    "Swipe sideways for more days. Choose Agenda for a single-column view.",
   addConnection: "Add connection",
   connectProvider: "Connect Google or Outlook",
   providerUnavailableHelp:
@@ -108,6 +112,10 @@ export const calendarPlannerSpanish: Record<CalendarPlannerMessage, string> = {
   agenda: "Agenda",
   add: "Añadir evento",
   calendars: "Calendarios",
+  showCalendars: "Mostrar calendarios y conexiones",
+  hideCalendars: "Ocultar calendarios y conexiones",
+  scrollWeek:
+    "Desliza hacia los lados para ver más días. Elige Agenda para una sola columna.",
   addConnection: "Añadir conexión",
   connectProvider: "Conectar Google u Outlook",
   providerUnavailableHelp:

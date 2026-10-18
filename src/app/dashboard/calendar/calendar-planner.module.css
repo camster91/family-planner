@@ -487,3 +487,40 @@
     padding: 20px;
   }
 }
+
+/* On phones the schedule leads. Calendar filters remain one tap away. */
+.sourceToggle,
+.mobileWeekHint {
+  display: none;
+}
+.gridScroll {
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+}
+@media (max-width: 899px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .planner .sourceToggle {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    text-align: start;
+  }
+  .sourceOptions[data-expanded="false"] {
+    display: none;
+  }
+  .sourceOptions {
+    padding-top: 12px;
+  }
+}
+@media (max-width: 639px) {
+  .mobileWeekHint {
+    display: block;
+    margin: 8px 0;
+    color: var(--label-secondary);
+    font-size: 12px;
+  }
+}

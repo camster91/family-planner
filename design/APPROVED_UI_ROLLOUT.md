@@ -5,6 +5,25 @@ set the implementation goal: all 22 web features/supporting screens, verified
 QA, merge and deployment. Canonical work remains #499 / #128, with #132 for
 navigation and #455 for contextual forms. No competing roadmap is introduced.
 
+## Implementation-first checkpoint — 2026-10-18
+
+Cameron requested writing the outstanding UI before further QA. Local source
+now adds Family invitation/profile choice sheets and explicit account/profile
+separation, device-persisted personal quiet view, shorter Settings/household
+views, mobile calendar controls, localized list/search/notification/help states,
+shared header reflow and pending-safe tablet dialogs. The prior local Sick days,
+Handoff and Travel implementations remain included. Existing approved Auth,
+Meals, Locations and sanitized shared-fridge implementations are retained.
+
+The implementation pass is prepared for later QA; it is not a verified whole-app
+or release claim. The evidence-oriented ledger below deliberately retains its
+prior acceptance status. Account linking needs its separate canonical backend
+contract; the UI does not pretend an email invitation performs that operation.
+Real AI/provider activation and native/hardware/store work are not part of this
+UI checkpoint. See `docs/CURRENT_STATE.md` for exact local scope and deferred
+checks. Do not launch more QA rounds until implementation-first work is handed
+back for QA or Cameron changes the sequencing.
+
 ## Design reference and scope
 
 - [Editable review board](https://www.figma.com/design/s0qsOr91Au0OJ70SCZEWb4?node-id=84-7)

@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { OfflineBanner } from "@/components/ui/offline-banner";
 import CommandPaletteHost from "@/components/layout/CommandPaletteHost";
+import { DisplayPreferencesProvider } from "@/components/providers/display-preferences-provider";
 import { FeaturesProvider } from "@/components/providers/features-provider";
 import { defaultFeatures, normalizeFeatures } from "@/lib/feature-flags";
 import { canRoleAccessPath, isKidRole } from "@/lib/kid-access";
@@ -123,49 +124,57 @@ export default async function DashboardLayout({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(initialFeatures) }}
       />
 
-      <FeaturesProvider initial={initialFeatures} canManage={role === "parent"}>
-        <div data-dashboard-background>
-          {/* Skip-to-content link for keyboard users (WCAG 2.4.1) */}
-          <a
-            href="#main-content"
-            className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-full focus:bg-[var(--tint-family)] focus:text-white focus:text-subhead focus:font-semibold focus:shadow-[var(--shadow-lg)]"
-          >
-            Skip to main content
-          </a>
+      <DisplayPreferencesProvider
+        key={sessionUser.id}
+        viewerId={sessionUser.id}
+      >
+        <FeaturesProvider
+          initial={initialFeatures}
+          canManage={role === "parent"}
+        >
+          <div data-dashboard-background>
+            {/* Skip-to-content link for keyboard users (WCAG 2.4.1) */}
+            <a
+              href="#main-content"
+              className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-full focus:bg-[var(--tint-family)] focus:text-white focus:text-subhead focus:font-semibold focus:shadow-[var(--shadow-lg)]"
+            >
+              Skip to main content
+            </a>
 
-          {/* Apple HIG top bar nav */}
-          <DashboardNav user={navUser} />
+            {/* Apple HIG top bar nav */}
+            <DashboardNav user={navUser} />
 
-          {/* Main content — padded for top bar height + TabBar safe area on mobile */}
-          <main
-            id="main-content"
-            className="pt-16 pb-[max(5rem,var(--phone-tab-bar-height,0px))] md:pb-8"
-            aria-label={`${PRODUCT_BRAND.name} dashboard`}
-          >
-            {/* "You're offline" (O-41): sticky under the top bar, above the tab bar's area. */}
-            <OfflineBanner className="top-16" />
-            <div className="w-full px-4 sm:px-6 lg:px-8 py-5 md:py-6">
-              <ErrorBoundary>{children}</ErrorBoundary>
-            </div>
-          </main>
+            {/* Main content — padded for top bar height + TabBar safe area on mobile */}
+            <main
+              id="main-content"
+              className="pt-16 pb-[max(5rem,var(--phone-tab-bar-height,0px))] md:pb-8"
+              aria-label={`${PRODUCT_BRAND.name} dashboard`}
+            >
+              {/* "You're offline" (O-41): sticky under the top bar, above the tab bar's area. */}
+              <OfflineBanner className="top-16" />
+              <div className="w-full px-4 sm:px-6 lg:px-8 py-5 md:py-6">
+                <ErrorBoundary>{children}</ErrorBoundary>
+              </div>
+            </main>
 
-          {/* Mobile-only bottom tab bar */}
-          <TabBar user={navUser} />
+            {/* Mobile-only bottom tab bar */}
+            <TabBar user={navUser} />
 
-          {/* Cmd+K global search palette */}
-          <CommandPaletteHost role={role} />
-        </div>
-        {navUser && (
-          <Suspense fallback={null}>
-            <AssistantHost
-              key={`${profile?.id}:${profile?.family_id}`}
-              role={role}
-              todayContextEnabled={isAssistantTodayEnabled()}
-            />
-          </Suspense>
-        )}
-        {forms}
-      </FeaturesProvider>
+            {/* Cmd+K global search palette */}
+            <CommandPaletteHost role={role} />
+          </div>
+          {navUser && (
+            <Suspense fallback={null}>
+              <AssistantHost
+                key={`${profile?.id}:${profile?.family_id}`}
+                role={role}
+                todayContextEnabled={isAssistantTodayEnabled()}
+              />
+            </Suspense>
+          )}
+          {forms}
+        </FeaturesProvider>
+      </DisplayPreferencesProvider>
     </div>
   );
 }

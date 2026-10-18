@@ -62,6 +62,7 @@ export function CalendarPlanner({
     locale = useDisplayLocale();
   const now = useNow(15000),
     online = useOnline();
+  const [sourcesExpanded, setSourcesExpanded] = React.useState(false);
   const [loadedAt, setLoadedAt] = React.useState<number | null>(null);
   const [local, setLocal] = React.useState(false),
     [date, setDate] = React.useState(initialDate),
@@ -326,55 +327,70 @@ export function CalendarPlanner({
       </header>
       <div className={styles.layout}>
         <aside className={styles.sources}>
-          <label htmlFor="calendar-source">{msg("calendars")}</label>
-          <select
-            id="calendar-source"
-            aria-label={msg("source")}
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+          <button
+            type="button"
+            className={styles.sourceToggle}
+            aria-expanded={sourcesExpanded}
+            aria-controls="calendar-source-options"
+            onClick={() => setSourcesExpanded((open) => !open)}
           >
-            {options.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          {canEditEvents && (
-            <details className={styles.connectionMenu}>
-              <summary>{msg("addConnection")}</summary>
-              <div>
-                <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
-                  {calendarSyncAvailable
-                    ? msg("connectionHelp")
-                    : msg("providerUnavailableHelp")}
-                </p>
-                {calendarSyncAvailable && (
-                  <Link href="/dashboard/settings#calendar-sync">
-                    {msg("connectProvider")}
+            {msg(sourcesExpanded ? "hideCalendars" : "showCalendars")}
+          </button>
+          <div
+            id="calendar-source-options"
+            className={styles.sourceOptions}
+            data-expanded={sourcesExpanded}
+          >
+            <label htmlFor="calendar-source">{msg("calendars")}</label>
+            <select
+              id="calendar-source"
+              aria-label={msg("source")}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            >
+              {options.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            {canEditEvents && (
+              <details className={styles.connectionMenu}>
+                <summary>{msg("addConnection")}</summary>
+                <div>
+                  <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
+                    {calendarSyncAvailable
+                      ? msg("connectionHelp")
+                      : msg("providerUnavailableHelp")}
+                  </p>
+                  {calendarSyncAvailable && (
+                    <Link href="/dashboard/settings#calendar-sync">
+                      {msg("connectProvider")}
+                    </Link>
+                  )}
+                  <Link href="/dashboard/settings#calendar-subscriptions">
+                    {msg("subscribeLink")}
                   </Link>
-                )}
-                <Link href="/dashboard/settings#calendar-subscriptions">
-                  {msg("subscribeLink")}
-                </Link>
-                <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
-                  {msg("subscriptionHelp")}
-                </p>
-              </div>
-            </details>
-          )}
-          {sourceState === "loading" && (
-            <p role="status">{msg("loadingSources")}</p>
-          )}
-          {sourceState === "error" && (
-            <p role="alert">
-              {msg("sourcesFailed")}{" "}
-              <button onClick={() => setRetry((n) => n + 1)}>
-                {msg("retrySources")}
-              </button>
-            </p>
-          )}
-          <p>{msg("sourceHelp")}</p>
-          <p>{canEditEvents ? msg("parentHelp") : msg("memberHelp")}</p>
+                  <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
+                    {msg("subscriptionHelp")}
+                  </p>
+                </div>
+              </details>
+            )}
+            {sourceState === "loading" && (
+              <p role="status">{msg("loadingSources")}</p>
+            )}
+            {sourceState === "error" && (
+              <p role="alert">
+                {msg("sourcesFailed")}{" "}
+                <button onClick={() => setRetry((n) => n + 1)}>
+                  {msg("retrySources")}
+                </button>
+              </p>
+            )}
+            <p>{msg("sourceHelp")}</p>
+            <p>{canEditEvents ? msg("parentHelp") : msg("memberHelp")}</p>
+          </div>
         </aside>
         <section className={styles.main} aria-label={msg("range")}>
           {displayState === "ready" && now !== null && loadedAt !== null && (
@@ -578,8 +594,21 @@ export function CalendarPlanner({
                   </div>
                 ) : (
                   <>
+                    {view === "week" && (
+                      <p
+                        className={styles.mobileWeekHint}
+                        id="calendar-week-scroll-help"
+                      >
+                        {msg("scrollWeek")}
+                      </p>
+                    )}
                     <div
                       ref={gridViewport}
+                      aria-describedby={
+                        view === "week"
+                          ? "calendar-week-scroll-help"
+                          : undefined
+                      }
                       className={styles.gridScroll}
                       tabIndex={0}
                       aria-label={msg("timed")}

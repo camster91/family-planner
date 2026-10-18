@@ -31,6 +31,7 @@ const AI_URL_EXAMPLE =
   "https://generativelanguage.googleapis.com/v1beta/openai";
 const AI_MODEL_EXAMPLE = "gemini-2.0-flash";
 const LEGACY_APP_NAME = "Family Planner";
+import { QuietDisplayControl } from "@/components/account/QuietDisplayControl";
 import NotificationPreferences from "@/components/account/NotificationPreferences";
 import BetaMetricsSwitch from "@/components/account/BetaMetricsSwitch";
 import SettingsDisclosure from "./SettingsDisclosure";
@@ -70,13 +71,20 @@ function SettingsGroup({
   id,
   title,
   children,
+  active,
 }: {
   id: string;
   title: string;
   children: React.ReactNode;
+  active: boolean;
 }) {
   return (
-    <section aria-labelledby={id} className="space-y-4">
+    <section
+      hidden={!active}
+      data-settings-group={id}
+      aria-labelledby={id}
+      className="space-y-4"
+    >
       <h2 id={id} className="px-1 text-xl font-semibold text-foreground">
         {title}
       </h2>
@@ -147,6 +155,42 @@ export default function SettingsClient({
 }) {
   const copy = useSettingsCopy();
   const isParent = viewerRole === "parent";
+  const [loading, setLoading] = useState(true);
+  const [activeSection, setActiveSection] = useState("settings-account");
+  useEffect(() => {
+    const selectAnchor = () => {
+      const target = document.getElementById(window.location.hash.slice(1));
+      const group = target?.closest<HTMLElement>("[data-settings-group]")
+        ?.dataset.settingsGroup;
+      if (group && (group !== "settings-family" || isParent))
+        setActiveSection(group);
+      else if (
+        isParent &&
+        new URLSearchParams(window.location.search).get("setup") === "ai"
+      )
+        setActiveSection("settings-family");
+    };
+    selectAnchor();
+    window.addEventListener("hashchange", selectAnchor);
+    return () => window.removeEventListener("hashchange", selectAnchor);
+  }, [isParent, loading]);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const target = document.getElementById(window.location.hash.slice(1));
+      if (
+        target?.closest<HTMLElement>("[data-settings-group]")?.dataset
+          .settingsGroup !== activeSection
+      )
+        return;
+      let parent: HTMLElement | null = target;
+      while (parent) {
+        if (parent instanceof HTMLDetailsElement) parent.open = true;
+        parent = parent.parentElement;
+      }
+      target?.scrollIntoView({ block: "start" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeSection, loading]);
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -175,7 +219,6 @@ export default function SettingsClient({
   };
   // Mount household sections only after the first profile load; otherwise the
   // transient loading return unmounts them and loses one-shot OAuth feedback.
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -460,7 +503,7 @@ export default function SettingsClient({
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-10">
+    <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <h1 className="text-large-title text-label-primary">{copy("title")}</h1>
         <p className="mt-2 text-muted-foreground">
@@ -480,8 +523,44 @@ export default function SettingsClient({
         </div>
       )}
 
+      <nav aria-label={copy("title")} className="flex flex-wrap gap-2">
+        {(["account", ...(isParent ? ["family"] : []), "privacy"] as const).map(
+          (section) => {
+            const id = `settings-${section}`;
+            return (
+              <button
+                type="button"
+                key={section}
+                aria-pressed={activeSection === id}
+                onClick={() => {
+                  setActiveSection(id);
+                  window.history.replaceState(
+                    window.history.state,
+                    "",
+                    `${window.location.pathname}${window.location.search}#${id}`,
+                  );
+                }}
+                className={`min-h-[44px] rounded-full px-5 py-2 text-subhead font-semibold ${activeSection === id ? "bg-[var(--accent-fill)] text-[var(--on-accent)]" : "bg-[var(--surface-fill)] text-label-primary"}`}
+              >
+                {copy(
+                  section === "account"
+                    ? "account"
+                    : section === "family"
+                      ? "family"
+                      : "privacyData",
+                )}
+              </button>
+            );
+          },
+        )}
+      </nav>
+
       {/* 1. Your account: personal to whoever is signed in (parent or teen). */}
-      <SettingsGroup id="settings-account" title={copy("account")}>
+      <SettingsGroup
+        id="settings-account"
+        title={copy("account")}
+        active={activeSection === "settings-account"}
+      >
         <div className="card">
           <CardHeader icon={User} tone="blue" title={copy("profile")} />
 
@@ -632,12 +711,17 @@ export default function SettingsClient({
           {/* Saved on your account (#286), so it follows you to every device. */}
           <NotificationPreferences />
         </div>
+        <QuietDisplayControl />
       </SettingsGroup>
 
       {/* 2. Family: household-level, parents only. Not rendered for a teen and
           none of its data is fetched (the APIs refuse teens regardless). */}
       {isParent && (
-        <SettingsGroup id="settings-family" title={copy("family")}>
+        <SettingsGroup
+          id="settings-family"
+          title={copy("family")}
+          active={activeSection === "settings-family"}
+        >
           <div className="card">
             <div className="-mx-3 space-y-1">
               <Link href="/dashboard/family/settings" className={rowClass}>
@@ -947,7 +1031,11 @@ export default function SettingsClient({
       )}
 
       {/* 3. Privacy & data: a teen sees only their own export and deletion. */}
-      <SettingsGroup id="settings-privacy" title={copy("privacyData")}>
+      <SettingsGroup
+        id="settings-privacy"
+        title={copy("privacyData")}
+        active={activeSection === "settings-privacy"}
+      >
         <div className="card">
           <div className="-mx-3 space-y-1">
             <button

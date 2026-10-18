@@ -1,207 +1,199 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { Users, AlertTriangle, Trash2 } from 'lucide-react'
-import Link from 'next/link'
-import { LargeHeader } from '@/components/ui/large-header'
-import { Glyph } from '@/components/ui/glyph'
-import { cn } from '@/lib/utils'
-import BoardSettings from '@/components/fridge/BoardSettings'
-import DeleteAccountDialog from '@/components/account/DeleteAccountDialog'
+import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
+import { LargeHeader } from "@/components/ui/large-header";
+import BoardSettings from "@/components/fridge/BoardSettings";
+import DeleteAccountDialog from "@/components/account/DeleteAccountDialog";
+import SettingsDisclosure from "@/app/dashboard/settings/SettingsDisclosure";
+import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
+import { useFamilySettingsText } from "@/i18n/family-settings";
 
+type State = "loading" | "ready" | "error" | "empty" | "forbidden";
 export default function FamilySettingsPage() {
-  const [familyName, setFamilyName] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [userRole, setUserRole] = useState('')
-  const [familyId, setFamilyId] = useState('')
-
+  const text = useFamilySettingsText();
+  const [familyName, setFamilyName] = useState("");
+  const [familyId, setFamilyId] = useState("");
+  const [state, setState] = useState<State>("loading");
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const loadSequence = useRef(0);
+  const [error, setError] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  usePendingFormNavigationController(saving);
+  const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
+    setState("loading");
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const body = await res.json();
+      if (sequence !== loadSequence.current) return;
+      if (
+        !res.ok ||
+        !body?.user ||
+        !["parent", "teen", "child"].includes(body.user.role)
+      )
+        throw new Error();
+      if (body.user.role !== "parent") {
+        setState("forbidden");
+        return;
+      }
+      if (body.user.family_id === null) {
+        setState("empty");
+        return;
+      }
+      if (
+        typeof body.user.family_id !== "string" ||
+        !body.user.family_id ||
+        typeof body.user.family?.name !== "string"
+      )
+        throw new Error();
+      setFamilyId(body.user.family_id);
+      setFamilyName(body.user.family.name);
+      setState("ready");
+    } catch {
+      if (sequence === loadSequence.current) setState("error");
+    }
+  }, []);
   useEffect(() => {
-    loadFamilyData()
-  }, [])
-
-  const loadFamilyData = async () => {
-    setLoading(true)
+    void load();
+    return () => {
+      loadSequence.current += 1;
+    };
+  }, [load]);
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const name = familyName.trim();
+    if (savingRef.current || state !== "ready" || !familyId || !name) return;
+    savingRef.current = true;
+    setSaving(true);
+    setError(false);
+    setSaved(false);
     try {
-      const meRes = await fetch('/api/auth/me')
-      const meData = await meRes.json()
-      if (!meRes.ok || !meData.user) return
-
-      const user = meData.user
-      setUserRole(user.role || '')
-      setFamilyId(user.family_id || '')
-
-      if (!user.family_id) return
-
-      if (user.family) {
-        setFamilyName(user.family.name || '')
-      }
-    } catch (err) {
-      console.error('Error loading family data:', err)
+      const res = await fetch("/api/family", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ familyId, name }),
+      });
+      const body = await res.json();
+      if (!res.ok || body?.family?.id !== familyId || body.family.name !== name)
+        throw new Error();
+      setFamilyName(body.family.name);
+      setSaved(true);
+    } catch {
+      setError(true);
     } finally {
-      setLoading(false)
+      savingRef.current = false;
+      setSaving(false);
     }
-  }
-
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    setError(null)
-    setSuccess(null)
-
-    try {
-      if (!familyId) {
-        setError('No family found')
-        return
-      }
-
-      const res = await fetch('/api/family', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ familyId, name: familyName }),
-      })
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error || 'Failed to update settings')
-        return
-      }
-
-      setSuccess('Family name saved.')
-    } catch (err) {
-      setError('An unexpected error occurred')
-      console.error(err)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="pb-20">
-        <LargeHeader title="Settings" className="px-4" />
-        <div className="px-4 flex items-center justify-center py-20">
-          <div className="text-subhead text-label-secondary">Loading…</div>
-        </div>
-      </div>
-    )
-  }
-
-  if (!familyId) {
-    return (
-      <div className="pb-20">
-        <LargeHeader title="Settings" className="px-4" />
-        <div className="px-4">
-          <div className="card-apple p-8 text-center">
-            <Users className="w-12 h-12 text-label-tertiary mx-auto mb-4" />
-            <h2 className="text-title-3 text-label-primary mb-2">No Family Found</h2>
-            <p className="text-subhead text-label-secondary mb-6">
-              You don&apos;t belong to a family yet.
-            </p>
-            <div className="flex gap-3 justify-center">
-              <Link href="/dashboard/family/create" className="btn-primary">Create Family</Link>
-              <Link href="/join" className="btn-secondary">Join Family</Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
+  };
   return (
-    <div className="pb-20">
-      <LargeHeader
-        title="Settings"
-        trailing={
-          <Glyph color="family" size="md">
-            <Users className="w-4 h-4" />
-          </Glyph>
-        }
-        className="px-4"
-      />
-
-      <div className="px-4 space-y-4">
-        {/* Settings form */}
-        <form onSubmit={handleSaveSettings}>
-          <div className="card-apple overflow-hidden">
-            {error && (
-              <div role="alert" className="mx-4 mt-4 bg-[var(--danger-tint)] border border-[var(--danger-tint)] text-danger-text px-4 py-3 rounded-xl text-subhead">
-                {error}
-              </div>
-            )}
-            {success && (
-              <div role="status" className="mx-4 mt-4 bg-[var(--success-tint)] border border-[var(--success-tint)] text-success-text px-4 py-3 rounded-xl text-subhead">
-                {success}
-              </div>
-            )}
-
-            <div className="p-4 space-y-4">
-              <div>
-                <label htmlFor="familyName" className="block text-subhead font-medium text-label-primary mb-2">
-                  Family Name
-                </label>
-                <input
-                  id="familyName"
-                  type="text"
-                  required
-                  value={familyName}
-                  onChange={(e) => setFamilyName(e.target.value)}
-                  className="input-apple w-full"
-                  placeholder="The Smith Family"
-                />
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-[var(--surface-separator)]">
-              <button
-                type="submit"
-                disabled={saving || !familyName.trim()}
-                className="btn-primary w-full"
-              >
-                {saving ? 'Saving…' : 'Save Changes'}
-              </button>
-            </div>
-          </div>
-        </form>
-
-        {/* Today board: member colours and opt-in weather (#262). Parents only; the API enforces it too. */}
-        {userRole === 'parent' && <BoardSettings />}
-
-        {/* Danger zone */}
-        <div className="card-apple overflow-hidden border border-[var(--danger-tint)]">
-          <div className="p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <AlertTriangle className="w-5 h-5 text-danger-text" />
-              <h2 className="text-title-3 text-label-primary font-semibold">Danger Zone</h2>
-            </div>
-
-            {/* Account and household deletion (docs/product/ACCOUNT_DELETION.md).
-                One dialog decides what this member may delete: their own
-                account, or, for the only parent, the whole household. It asks
-                for the password and a typed confirmation in the page. */}
-            <div className="flex items-center justify-between gap-3 p-3 bg-[var(--danger-tint)] border border-[var(--danger-tint)] rounded-xl">
-              <div>
-                <p className="text-subhead font-medium text-label-primary">Delete account or household</p>
-                <p className="text-caption-1 text-label-secondary mt-0.5">
-                  Permanently delete your account. The only parent can delete the whole household.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowDeleteDialog(true)}
-                className="btn-secondary shrink-0 min-h-[44px] border-[var(--danger)] text-danger-text hover:bg-[var(--danger-tint)]"
-              >
-                <Trash2 className="w-4 h-4" aria-hidden="true" />
-                <span>Delete…</span>
-              </button>
-            </div>
-          </div>
+    <div className="mx-auto max-w-5xl space-y-5 pb-20">
+      <LargeHeader title={text("title")} />
+      {state === "loading" && <p role="status">{text("loading")}</p>}
+      {state === "error" && (
+        <div className="card-apple space-y-3 p-5" role="alert">
+          <p>{text("loadFailed")}</p>
+          <button
+            type="button"
+            className="btn-tinted min-h-[44px]"
+            onClick={() => void load()}
+          >
+            {text("retry")}
+          </button>
         </div>
-        <DeleteAccountDialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} />
-      </div>
+      )}
+      {state === "forbidden" && <p role="status">{text("parentOnly")}</p>}
+      {state === "empty" && (
+        <section className="card-apple space-y-3 p-5">
+          <h2 className="text-title-3">{text("noFamily")}</h2>
+          <p className="text-subhead text-label-secondary">
+            {text("noFamilyHelp")}
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/dashboard/family/create"
+              className="btn-filled min-h-[44px]"
+            >
+              {text("create")}
+            </Link>
+            <Link href="/join" className="btn-tinted min-h-[44px]">
+              {text("join")}
+            </Link>
+          </div>
+        </section>
+      )}
+      {state === "ready" && (
+        <>
+          <form
+            onSubmit={save}
+            className="card-apple space-y-4 p-5"
+            aria-busy={saving}
+          >
+            {error && (
+              <p role="alert" className="text-[var(--danger-text)]">
+                {text("failed")}
+              </p>
+            )}
+            {saved && (
+              <p role="status" className="text-success-text">
+                {text("saved")}
+              </p>
+            )}
+            <div>
+              <label htmlFor="familyName" className="label-apple">
+                {text("familyName")}
+              </label>
+              <input
+                id="familyName"
+                required
+                maxLength={100}
+                value={familyName}
+                disabled={saving}
+                onChange={(event) => {
+                  setFamilyName(event.target.value);
+                  setSaved(false);
+                }}
+                className="input-apple"
+                placeholder={text("placeholder")}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={saving || !familyName.trim()}
+              className="btn-filled min-h-[44px]"
+            >
+              {text(saving ? "saving" : "save")}
+            </button>
+          </form>
+          <SettingsDisclosure
+            id="household-board"
+            title={text("board")}
+            description={text("boardHelp")}
+          >
+            <BoardSettings />
+          </SettingsDisclosure>
+          <SettingsDisclosure
+            id="household-deletion"
+            title={text("deletion")}
+            description={text("deletionHelp")}
+          >
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => setShowDeleteDialog(true)}
+              className="btn-secondary min-h-[44px] text-[var(--danger-text)]"
+            >
+              {text("delete")}
+            </button>
+          </SettingsDisclosure>
+          <DeleteAccountDialog
+            open={showDeleteDialog}
+            onClose={() => setShowDeleteDialog(false)}
+          />
+        </>
+      )}
     </div>
-  )
+  );
 }

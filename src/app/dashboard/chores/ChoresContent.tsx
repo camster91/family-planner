@@ -26,6 +26,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { useLocalNow } from "@/components/ui/use-hydrated";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { cn } from "@/lib/utils";
+import { useDisplayPreferences } from "@/components/providers/display-preferences-provider";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { useChoreVerificationText } from "@/i18n/chore-verification";
@@ -231,7 +232,9 @@ export default function ChoresContent({
   );
   // Points & streaks (#248). When off, the page's server component already
   // omits each chore's points and streak; this only decides what to draw.
-  const gamification = useFeatureEnabled("gamification");
+  const { quiet } = useDisplayPreferences();
+  const gamificationEnabled = useFeatureEnabled("gamification");
+  const gamification = gamificationEnabled && !quiet;
   const [reassignTarget, setReassignTarget] = React.useState<string | null>(
     null,
   );

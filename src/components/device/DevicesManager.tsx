@@ -456,6 +456,7 @@ function RenameDeviceDialog({
   const [label, setLabel] = React.useState('')
   const [error, setError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
+  const busyRef = React.useRef(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
@@ -466,15 +467,16 @@ function RenameDeviceDialog({
   }, [device])
 
   return (
-    <Dialog open={device !== null} onClose={onClose} title="Rename tablet" initialFocusRef={inputRef} testId="rename-device">
+    <Dialog open={device !== null} onClose={busy ? undefined : () => { if (!busyRef.current) onClose() }} variant="form" title="Rename tablet" initialFocusRef={inputRef} testId="rename-device">
       <form
         className="space-y-5"
         noValidate
         onSubmit={async (e) => {
           e.preventDefault()
-          if (!device) return
+          if (!device || busyRef.current) return
           const trimmed = label.trim()
           if (!trimmed || trimmed.length > 40) return setError('Use 1 to 40 characters.')
+          busyRef.current = true
           setBusy(true)
           setError(null)
           try {
@@ -488,6 +490,7 @@ function RenameDeviceDialog({
           } catch {
             setError(`Could not reach ${PRODUCT_BRAND.name}. Try again.`)
           } finally {
+            busyRef.current = false
             setBusy(false)
           }
         }}
@@ -499,6 +502,7 @@ function RenameDeviceDialog({
           <input
             ref={inputRef}
             id="rename-device-label"
+            disabled={busy}
             value={label}
             maxLength={40}
             onChange={(e) => setLabel(e.target.value)}
@@ -515,7 +519,7 @@ function RenameDeviceDialog({
           <button type="submit" disabled={busy} className={primaryButtonClass}>
             Save name
           </button>
-          <button type="button" onClick={onClose} className={neutralButtonClass}>
+          <button type="button" disabled={busy} onClick={() => { if (!busyRef.current) onClose() }} className={neutralButtonClass}>
             Cancel
           </button>
         </div>
@@ -542,6 +546,7 @@ function RemoveDeviceDialog({
   const [reason, setReason] = React.useState<string>('')
   const [error, setError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
+  const busyRef = React.useRef(false)
 
   React.useEffect(() => {
     if (device) {
@@ -553,7 +558,8 @@ function RemoveDeviceDialog({
   return (
     <Dialog
       open={device !== null}
-      onClose={onClose}
+      onClose={busy ? undefined : () => { if (!busyRef.current) onClose() }}
+      role="alertdialog"
       title={device ? `Remove ${device.label}?` : 'Remove tablet?'}
       description="It stops showing your family's information the next time it connects. To use it again, pair it again."
       testId="remove-device"
@@ -562,7 +568,8 @@ function RemoveDeviceDialog({
         className="space-y-5"
         onSubmit={async (e) => {
           e.preventDefault()
-          if (!device) return
+          if (!device || busyRef.current) return
+          busyRef.current = true
           setBusy(true)
           setError(null)
           try {
@@ -576,11 +583,12 @@ function RemoveDeviceDialog({
           } catch {
             setError(`Could not reach ${PRODUCT_BRAND.name}. Try again.`)
           } finally {
+            busyRef.current = false
             setBusy(false)
           }
         }}
       >
-        <fieldset>
+        <fieldset disabled={busy}>
           <legend className={labelClass}>Reason (optional)</legend>
           <div className="space-y-1">
             {REASONS.map((r) => (
@@ -607,7 +615,7 @@ function RemoveDeviceDialog({
           <button type="submit" disabled={busy} className={dangerButtonClass}>
             Remove tablet
           </button>
-          <button type="button" onClick={onClose} className={neutralButtonClass}>
+          <button type="button" disabled={busy} onClick={() => { if (!busyRef.current) onClose() }} className={neutralButtonClass}>
             Cancel
           </button>
         </div>
