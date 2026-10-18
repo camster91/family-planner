@@ -26,6 +26,14 @@ export const messagesEnglish = {
   readUpdating: 'Updating read status…',
   readError: "Couldn't update read status.",
   retryRead: 'Mark as read',
+  linkPickup: 'Link a pickup',
+  noPickup: 'No pickup linked',
+  pickupContext: 'Pickup',
+  pickupDateLabel: 'Pickup time: {date}',
+  addPhoto: 'Add a photo',
+  removePhoto: 'Remove photo',
+  photoAttachment: 'Attached photo',
+  photoUploadFailed: "Couldn't add that photo. Try again.",
 } as const
 
 export type MessagesMessage = keyof typeof messagesEnglish
@@ -55,6 +63,14 @@ export const messagesSpanish: Record<MessagesMessage, string> = {
   readUpdating: 'Actualizando el estado de lectura…',
   readError: 'No se pudo actualizar el estado de lectura.',
   retryRead: 'Marcar como leído',
+  linkPickup: 'Vincular una recogida',
+  noPickup: 'Sin recogida vinculada',
+  pickupContext: 'Recogida',
+  pickupDateLabel: 'Hora de recogida: {date}',
+  addPhoto: 'Añadir una foto',
+  removePhoto: 'Quitar foto',
+  photoAttachment: 'Foto adjunta',
+  photoUploadFailed: 'No se pudo añadir esa foto. Inténtalo de nuevo.',
 }
 
 export const messagesMessages = {

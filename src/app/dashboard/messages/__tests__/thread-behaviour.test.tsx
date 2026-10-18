@@ -17,7 +17,15 @@ jest.mock('@/components/ui/feature-gate', () => ({
 
 import MessagesPage from '../page'
 
-type Msg = { id: string; created_at: string; content: string; sender_id: string; sender: { id: string; name: string } }
+type Msg = {
+  id: string
+  created_at: string
+  content: string
+  sender_id: string
+  sender: { id: string; name: string }
+  pickup?: { id: string; title: string; pickup_time: string; completed: boolean; assignee: { id: string; name: string } | null }
+  attachments?: string[]
+}
 
 function msg(n: number, sender = 'u2'): Msg {
   return {
@@ -228,6 +236,75 @@ describe('localized presentation', () => {
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
     expect(screen.getAllByLabelText(/Enviado/)).toHaveLength(3)
     expect(screen.getAllByText('Sam')).toHaveLength(3)
+  })
+
+  it('renders the safe pickup context and message photos without exposing pickup details', async () => {
+    latest = [{
+      ...msg(3),
+      pickup: {
+        id: 'pickup-1',
+        title: 'School pickup',
+        pickup_time: '2026-09-01T15:30:00.000Z',
+        completed: false,
+        assignee: { id: 'u2', name: 'Sam' },
+      },
+      attachments: ['/api/messages/attachments/attachment-1'],
+    }]
+    render(<MessagesPage />)
+    await screen.findByText('Message 3')
+
+    const pickupLink = screen.getByRole('link', { name: 'Pickup: School pickup' })
+    expect(pickupLink).toHaveAttribute('href', '/dashboard/pickups')
+    expect(pickupLink).toHaveTextContent('School pickup')
+    expect(pickupLink).not.toHaveTextContent('location')
+    expect(screen.getByRole('img', { name: 'Attached photo' })).toHaveAttribute(
+      'src',
+      '/api/messages/attachments/attachment-1',
+    )
+  })
+})
+
+describe('pickup links and photos', () => {
+  it('uploads selected photos and sends their IDs with an optional pickup link', async () => {
+    const user = userEvent.setup()
+    const photo = new File(['image bytes'], 'family.png', { type: 'image/png' })
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method ?? 'GET').toUpperCase()
+      calls.push({ url, method, headers: new Headers(init?.headers), body: typeof init?.body === 'string' ? init.body : undefined })
+      if (url === '/api/pickups') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ pickups: [{ id: 'pickup-1', title: 'School pickup', pickup_time: '2026-09-01T15:30:00.000Z', completed: false }] }),
+        } as Response
+      }
+      if (url === '/api/messages/attachments') {
+        expect(init?.body).toBeInstanceOf(FormData)
+        expect((init?.body as FormData).get('file')).toBe(photo)
+        return { ok: true, status: 201, json: async () => ({ attachment: { id: 'attachment-1' } }) } as Response
+      }
+      if (method === 'POST') {
+        const body = JSON.parse(String(init?.body))
+        expect(body).toEqual({ content: 'Dinner tonight', type: 'text', pickup_id: 'pickup-1', attachment_ids: ['attachment-1'] })
+        return { ok: true, status: 200, json: async () => ({ message: { ...msg(99, 'u1'), content: 'Dinner tonight', pickup: { id: 'pickup-1', title: 'School pickup', pickup_time: '2026-09-01T15:30:00.000Z', completed: false, assignee: null }, attachments: ['/api/messages/attachments/attachment-1'] } }) } as Response
+      }
+      return { ok: true, status: 200, json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }) } as Response
+    }) as unknown as typeof fetch
+
+    render(<MessagesPage />)
+    await screen.findByText('Message 3')
+    await user.click(screen.getByRole('button', { name: 'Link a pickup' }))
+    const pickupSelect = await screen.findByRole('combobox', { name: 'Link a pickup' })
+    await user.selectOptions(pickupSelect, 'pickup-1')
+    const photoInput = screen.getAllByLabelText('Add a photo').find((element) => element.tagName === 'INPUT')!
+    await user.upload(photoInput, photo)
+    expect(await screen.findByText('family.png')).toBeInTheDocument()
+    await user.type(screen.getByRole('textbox', { name: 'Message text' }), 'Dinner tonight')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+
+    expect(await screen.findByText('Dinner tonight')).toBeInTheDocument()
+    expect(calls.some((call) => call.url === '/api/messages/attachments' && call.method === 'POST')).toBe(true)
   })
 })
 
