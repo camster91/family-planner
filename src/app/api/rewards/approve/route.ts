@@ -5,6 +5,8 @@ import { notificationServiceServer } from '@/lib/notifications-server'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import { approveReward, authorizeRewardReplay, type RewardActor } from '@/lib/reward-mutations'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,44 +36,48 @@ export async function POST(request: NextRequest) {
     if (!rewardId || typeof rewardId !== 'string') {
       return NextResponse.json({ error: 'rewardId is required' }, { status: 400 })
     }
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return keyError
 
     const reward = await prisma!.reward.findUnique({
       where: { id: rewardId },
       include: { claimer: { select: { id: true, name: true } } },
     })
 
-    if (!reward) {
-      return NextResponse.json({ error: 'Reward not found' }, { status: 404 })
-    }
+    if (!reward) return NextResponse.json({ error: 'Reward not found' }, { status: 404 })
 
     const familyError = requireFamilyMatch(reward.family_id, auth.user.family_id)
     if (familyError) return familyError
 
-    if (reward.status !== 'claimed') {
+    // Let keyed retries reach the stored receipt after the first approval has
+    // transitioned the row to redeemed; the helper guards fresh approvals.
+    if (reward.status !== 'claimed' && !key) {
       return NextResponse.json({ error: 'Reward must be claimed before approval' }, { status: 400 })
     }
 
-    const updated = await prisma!.reward.update({
-      where: { id: rewardId },
-      data: {
-        status: 'redeemed',
-        approved: true,
-        approved_by: auth.user.id,
-        approved_at: new Date(),
-        redeemed_at: new Date(),
+    const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role }
+    let applied = false
+    let claimerId: string | null | undefined
+    const response = await withIdempotency(
+      prisma!,
+      key,
+      { scope: `user:${actor.userId}`, familyId: actor.familyId, userId: actor.userId, action: 'reward.approve' },
+      { rewardId },
+      async ({ recordId }) => {
+        const mutation = await approveReward(prisma!, { rewardId }, actor, recordId)
+        applied = mutation.applied
+        claimerId = mutation.claimerId
+        return mutation.result
       },
-      include: {
-        creator: { select: { id: true, name: true } },
-        claimer: { select: { id: true, name: true } },
-      },
-    })
+      { beforeReplay: () => authorizeRewardReplay(prisma!, actor, true) },
+    )
 
-    // Notify the child
-    if (reward.claimer) {
+    // Notify the child only for the fresh conditional transition.
+    if (applied && claimerId) {
       try {
         await notificationServiceServer.sendNotification({
           familyId: auth.user.family_id,
-          userId: reward.claimer.id,
+          userId: claimerId,
           title: 'Reward Approved!',
           message: `Your parent approved "${reward.name}". Enjoy your reward!`,
           type: 'reward',
@@ -81,7 +87,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ reward: updated })
+    return response
   } catch (error) {
     logRouteError('POST /api/rewards/approve', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

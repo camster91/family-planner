@@ -13,7 +13,11 @@ import { POST as approve } from "../approve/route";
 import { db, req, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 
 describe("rewards — two households", () => {
-  beforeEach(() => db.reset());
+  beforeEach(() => {
+    db.reset();
+    db.find("family", "family-A")!.features = { gamification: true, rewards: true };
+    db.find("family", "family-B")!.features = { gamification: true, rewards: true };
+  });
 
   it("returns 401 to an unauthenticated caller on every handler", async () => {
     const statuses = [
