@@ -49,6 +49,7 @@ async function RewardsContent({
     icon: r.icon,
     cost: r.cost,
     status: r.status,
+    active: r.is_active,
     claimedById: r.claimed_by,
     claimedByName: r.claimer?.name ?? null,
   }))

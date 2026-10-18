@@ -152,6 +152,7 @@ export default function KidHome({
 }: KidHomeProps) {
   const displayLocale = useDisplayLocale();
   const rewardsText = useRewardsText();
+  const pointsUnit = (count: number) => rewardsText(count === 1 ? "point" : "points");
   const [celebratingReward, setCelebratingReward] = useState<string | null>(
     null,
   );
@@ -610,7 +611,7 @@ export default function KidHome({
             <div className="flex items-center gap-1 mt-1">
               <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
               <span className="text-footnote text-label-secondary">
-                {chore.points} {rewardsText("points")}
+                {chore.points} {pointsUnit(chore.points)}
               </span>
             </div>
           )}
@@ -959,11 +960,11 @@ export default function KidHome({
                     <div className="flex-1 min-w-0">
                       <p className="text-body text-label-primary font-medium [overflow-wrap:anywhere]">{reward.name}</p>
                       {reward.description && <p className="text-footnote text-label-secondary [overflow-wrap:anywhere] mt-0.5">{reward.description}</p>}
-                      <div className="flex items-center gap-1 mt-1"><Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" /><span className="text-footnote text-label-secondary">{reward.cost} {rewardsText("points")}</span></div>
+                      <div className="flex items-center gap-1 mt-1"><Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" /><span className="text-footnote text-label-secondary">{reward.cost} {pointsUnit(reward.cost)}</span></div>
                     </div>
                   </div>
                   <button type="button" onClick={() => handleClaimReward(reward.id)} disabled={claimingReward || celebratingThis || !canClaim} className={cn("btn-primary mt-3 w-full min-h-[44px] px-4 py-2 text-body transition-all duration-200", celebratingThis ? "bg-success animate-check-pop" : !canClaim ? "bg-muted text-label-tertiary cursor-not-allowed" : claimingReward ? "opacity-50" : "")}>
-                    {celebratingThis ? rewardsText("claimedCelebration") : canClaim ? rewardsText("claim") : rewardsText("needMore", { points: reward.cost - userXp })}
+                    {celebratingThis ? rewardsText("claimedCelebration") : canClaim ? rewardsText("claim") : rewardsText("needMore", { points: reward.cost - userXp, unit: pointsUnit(reward.cost - userXp) })}
                   </button>
                   {celebratingThis && <div className="mt-3 flex items-center justify-center gap-1 animate-spring-up"><span className="text-xl">🎉</span><span className="text-title-3 text-success-text font-semibold">{rewardsText("gotIt")}</span><span className="text-xl">🎉</span></div>}
                 </article>

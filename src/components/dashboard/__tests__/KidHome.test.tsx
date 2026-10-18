@@ -71,6 +71,7 @@ type C = {
   title: string;
   status?: string;
   due_date: string;
+  points?: number;
 };
 const chore = (c: C) => ({
   status: "pending",
@@ -423,5 +424,31 @@ describe("KidHome reward claim", () => {
     expect(button.className).toMatch(/min-h-\[44px\]/);
     await userEvent.click(button);
     expect(calls).not.toContain("/api/rewards/claim");
+  });
+
+  it('uses singular Spanish point units across a chore and the reward shelf', () => {
+    renderHome(
+      [{ id: "small-chore", title: "Put away one book", due_date: day(0), points: 1 }],
+      {
+        user: { name: "Casey", role: "child", xp: 49, level: 1 },
+        rewards: [{ id: "r1", name: "Sticker", cost: 1, status: "available" }],
+      },
+      "es",
+    );
+    expect(screen.getAllByText("1 punto").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('localizes one missing point in the child reward action without leaving a token', () => {
+    renderHome(
+      [],
+      {
+        user: { name: "Casey", role: "child", xp: 49, level: 1 },
+        rewards: [{ id: "r1", name: "Movie night", cost: 50, status: "available" }],
+      },
+      "es",
+    );
+    const button = screen.getByRole("button", { name: "Necesitas 1 punto más" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(screen.queryByText("{unit}")).toBeNull();
   });
 });
