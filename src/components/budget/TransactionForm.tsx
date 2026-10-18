@@ -71,6 +71,14 @@ function isCategory(value: unknown): value is Category {
   )
 }
 
+// The budget API trims optional text before writing it and treats an empty
+// result as null. Build the request from that canonical value so an accepted
+// response still validates when the draft included surrounding whitespace.
+function canonicalOptionalText(value: string): string | null {
+  const trimmed = value.trim()
+  return trimmed || null
+}
+
 function parseCategoriesResponse(value: unknown): Category[] | null {
   if (!isRecord(value) || !Array.isArray(value.categories) || !value.categories.every(isCategory)) return null
   return value.categories
@@ -311,8 +319,8 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
       amount: numericAmount,
       type,
       category_id: categoryId || null,
-      description: description || null,
-      notes: notes || null,
+      description: canonicalOptionalText(description),
+      notes: canonicalOptionalText(notes),
       date,
       is_recurring: isRecurring,
       recurring_interval: isRecurring ? recurringInterval : null,
