@@ -55,12 +55,12 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | Inventory | Use soon, honest capture review, quantities and locations | Local full-width overview and shared location shortcuts; 121 affected units, exact build and six-size browser 95 passes/10 inherited scope skips; incorporated #574 hosted candidate checks pass; capture-review/wider acceptance pending |
 | Notes | Short shared notes and clear visibility | Local shared board/read-only detail and canonical color/recovery alignment: 42 affected tests, 78 browser passes/15 inherited scope skips; Family/Notes #576 candidate hosted acceptance passed and main `768e4170` is merged and production verified; wider acceptance pending |
 | Anniversaries | Upcoming dates without duplicate noise | Local chronological annual overview, short sheets and role-aware detail/discovery: 128 affected tests and 77 six-size browser passes/10 desktop-only scope skips; source/visual review pass, recovery follow-up passes 103 affected units, nine PostgreSQL cases and 89 six-size browser checks/10 declared scopes at 30dd3937; supplemental visual, hosted and release acceptance pending |
-| Gamification | Optional quiet progress, meaningful dependencies | Existing behavior retained; approved layout review pending |
+| Gamification | Optional quiet progress, meaningful dependencies | Parent Progress overview adapted locally with optional points/streak presentation; child/teen home and persisted quiet-mode acceptance remain pending |
 | Rewards | Clear costs and role-appropriate actions | Existing behavior retained; approved layout review pending |
 | Budget | Private summaries and contextual details | Existing behavior retained; approved layout review pending |
 | Projects | Next steps, owner and detail context | Existing behavior retained; approved layout review pending |
 | Messages | Private conversation linked to work | Existing behavior retained; approved layout review pending |
-| Analytics | Useful private trends, dependency-aware | Existing behavior retained; approved layout review pending |
+| Analytics | Useful private trends, dependency-aware | Local parent Progress workspace uses canonical analytics API; 7 mounted/UI and 29 API/isolation/gamification tests pass, six-size EN/light and ES/dark 15-case browser matrix passes; original hosted/release and broader acceptance pending |
 | Wishlist | Capture and compare family ideas | Existing behavior retained; approved layout review pending |
 | Emergency | Fast authorized access, private medical/contact fields | Existing behavior retained; approved layout review pending |
 | Locations | Saved places with private addresses protected | Existing behavior retained; approved layout review pending |
@@ -436,3 +436,33 @@ Independent review of all 52 captures withdraws the initial apparent 390px clipp
 the expanded list is scrollable, and its final row is fully reachable above the
 fixed bar. There is no remaining material visual blocker. Source/UI recovery,
 hosted and release acceptance are still separate gates.
+
+## Bounded Progress overview checkpoint — 2026-10-18
+
+The approved Progress study (Figma `84:204`, gallery `gamification`) is adapted
+to the parent-only `/dashboard/analytics` workspace. It summarizes weekly
+completion, optional points/streaks, semantic seven-day trends and member
+contributions using the existing canonical API. Long names wrap and error/empty
+states remain distinct. Malformed successful responses show Retry rather than
+false zero activity. Scoped EN/ES copy uses existing semantic theme tokens.
+The pure presentation parser stays outside the Next page exports.
+
+At application source `20eef6ac`, optimized build, full lint, typecheck, seven
+mounted UI cases and eight localization guards pass. API/isolation/gamification
+checks pass 29 cases, including parent/teen/child reads through the real helpers,
+feature refusal, paired-device refusal and two-household scoping. The page remains
+parent-only; this does not widen child/teen routes or parent controls.
+
+The first browser run caught a test selector matching Next's hidden route
+announcer as well as the real error card. The corrected selector scopes to main
+without weakening malformed/error/empty assertions. The full six-size EN/light
+and ES/dark matrix then passed 15 cases, zero failures/retries, at the same
+compiled application with that test-only delta. 36 populated/error/retry captures
+are retained locally. A full stable-source local unit run passed 5756 cases with
+387 established opt-in skips and the three retained Mac backup-prune failures.
+Earlier disk-full and selector failure reports are retained; they are not passes.
+
+This is a bounded parent Analytics/Progress adaptation. Persisted quiet mode,
+child/teen home gamification, full feature/state acceptance and original hosted
+release gates remain open. No API/schema, role-policy, scheduler/provider/profile
+activation or native/store change is included.

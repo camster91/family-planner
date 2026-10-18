@@ -9,7 +9,7 @@ jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null })
 jest.mock("@/lib/gamification-visibility", () => ({ isGamificationOn: jest.fn() }));
 
 import { GET } from "../route";
-import { db, req, FAMILY_A } from "@/__tests__/helpers/two-household";
+import { db, req, FAMILY_A, type UserKey } from "@/__tests__/helpers/two-household";
 import { isGamificationOn } from "@/lib/gamification-visibility";
 
 const NOW = new Date("2026-10-01T15:00:00Z");
@@ -23,8 +23,8 @@ function chore(id: string, over: Record<string, unknown>) {
   });
 }
 
-async function analytics() {
-  const res = await GET(req({ as: "parentA", path: "/api/analytics", query: { tz: "UTC" } }));
+async function analytics(as: UserKey = "parentA") {
+  const res = await GET(req({ as, path: "/api/analytics", query: { tz: "UTC" } }));
   return { status: res.status, body: await res.json() };
 }
 
@@ -74,6 +74,43 @@ describe("GET /api/analytics — members and weekly completion", () => {
     const xps = body.members.map((m: { xp: number }) => m.xp);
     expect([...xps].sort((a, b) => b - a)).toEqual(xps);
   });
+
+  it.each<UserKey>(["teenA", "childA"])(
+    "returns the same family-scoped progress payload for %s when Points & streaks is on",
+    async (who) => {
+      (isGamificationOn as jest.Mock).mockResolvedValue(true);
+      const { status, body } = await analytics(who);
+
+      expect(status).toBe(200);
+      expect(body.gamification).toBe(true);
+      expect(body.members.map((m: { id: string }) => m.id).sort()).toEqual([
+        "child-a",
+        "parent-a",
+        "teen-a",
+      ]);
+      expect(body.memberParticipation.map((m: { id: string }) => m.id).sort()).toEqual([
+        "child-a",
+        "parent-a",
+        "teen-a",
+      ]);
+      for (const member of body.members) {
+        expect(member).toEqual(
+          expect.objectContaining({
+            id: expect.any(String),
+            name: expect.any(String),
+            role: expect.any(String),
+            completedChores: expect.any(Number),
+            totalChores: expect.any(Number),
+            xp: expect.any(Number),
+            level: expect.any(Number),
+            streak: expect.any(Number),
+            best_streak: expect.any(Number),
+          }),
+        );
+      }
+      expect(JSON.stringify(body)).not.toContain("FOREIGN");
+    },
+  );
 
   it("never lists another household's members", async () => {
     (isGamificationOn as jest.Mock).mockResolvedValue(true);
