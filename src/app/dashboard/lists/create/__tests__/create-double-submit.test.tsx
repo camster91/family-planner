@@ -277,3 +277,12 @@ it.each([
     ).toMatchObject({ name: "QA creation context", type: selected });
   },
 );
+
+it("uses validated server context on first render even when the browser URL differs", () => {
+  render(<CreateListForm initialType="custom" />);
+  expect(screen.getByLabelText("Type")).toHaveValue("custom");
+  expect(screen.getByRole("link", { name: "Lists" })).toHaveAttribute(
+    "href",
+    "/dashboard/lists?type=custom",
+  );
+});

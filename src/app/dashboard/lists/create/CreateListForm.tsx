@@ -47,10 +47,12 @@ export default function CreateListForm({
   inSheet = false,
   onBusyChange,
   canCreate = true,
+  initialType,
 }: {
   inSheet?: boolean;
   onBusyChange?: (busy: boolean) => void;
   canCreate?: boolean;
+  initialType?: ListFilterKey | null;
 } = {}) {
   const router = useRouter();
   const { locale } = useTranslation();
@@ -59,9 +61,11 @@ export default function CreateListForm({
   const [imageUploading, setImageUploading] = React.useState(false);
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const [type, setType] = React.useState<ListTypeKey>("grocery");
+  const [type, setType] = React.useState<ListTypeKey>(
+    initialType && initialType !== "meal_plan" ? initialType : "grocery",
+  );
   const [returnFilter, setReturnFilter] = React.useState<ListFilterKey | null>(
-    null,
+    initialType ?? null,
   );
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -77,12 +81,13 @@ export default function CreateListForm({
     onBusyChange?.(busy);
   }, [busy, onBusyChange]);
   React.useEffect(() => {
+    if (initialType !== undefined) return;
     const requested = listTypeFilter(
       new URLSearchParams(window.location.search).get("type"),
     );
     setReturnFilter(requested);
     if (requested && requested !== "meal_plan") setType(requested);
-  }, []);
+  }, [initialType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
