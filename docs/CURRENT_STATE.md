@@ -21,10 +21,13 @@ The complete six-size EN/light and ES/dark browser matrix passes 89 checks with
 identified redundant recovery cards. A subsequent compact single-card polish
 passes 27 mounted cases/types and requires fresh rendered and hosted acceptance. The initial new-test selector/refresh-phase failures are retained.
 
-A full local unit run observed 5777 passes, 396 established opt-in skips and five
-failures: two stale D9 navigation expectation lists have since been corrected
-and pass the focused checks; three existing Mac backup-prune failures remain.
-Original full Linux CI is required before merge. The new real-database route
+The latest full local unit run at `80994cbc` observes 5779 passes, 396 established
+opt-in skips and only three existing Mac backup-prune failures. The stale D9
+navigation expectation lists are corrected. Its polished browser run passes
+77 cases; 12 older delete-dialog cases expected the removed generic error card.
+Those expectations now require the specific confirmed-delete recovery message,
+single alert, generic-error absence and the retained focused Retry. A fresh
+complete browser run and original full Linux CI are required before merge. The new real-database route
 suite is included in the unchanged database-backed CI gate. Production is a
 separate verification state; wider #499/#128 acceptance remains open.
 

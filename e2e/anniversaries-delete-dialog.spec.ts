@@ -420,15 +420,24 @@ for (const locale of ["en", "es"] as const) {
             exact: true,
           })
           .click();
+        const refreshRecovery = page.getByRole("main").getByRole("alert");
+        await expect(refreshRecovery).toHaveCount(1);
+        await expect(refreshRecovery).toHaveText(
+          locale === "es"
+            ? "Fecha quitada. No se pudo actualizar la lista; inténtalo de nuevo para comprobarla."
+            : "Date removed. The list could not be refreshed; try again to check it.",
+        );
         await expect(
-          page.getByText(
-            locale === "es"
-              ? "No se pudieron cargar las fechas"
-              : "Could not load dates",
-          ),
-        ).toBeVisible();
+          page
+            .getByRole("main")
+            .getByText(
+              locale === "es"
+                ? "No se pudieron cargar las fechas"
+                : "Could not load dates",
+            ),
+        ).toHaveCount(0);
         await expect(
-          page.getByRole("button", {
+          refreshRecovery.getByRole("button", {
             name: locale === "es" ? "Intentar de nuevo" : "Try again",
             exact: true,
           }),
