@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Car } from "lucide-react";
+import { Plus, Car, Trash2 } from "lucide-react";
+import { useFeatures } from "@/components/providers/features-provider";
 import { LargeHeader } from "@/components/ui/large-header";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { Avatar } from "@/components/ui/avatar";
@@ -99,6 +100,16 @@ function PickupsPageInner() {
   const [members, setMembers] = React.useState<FamilyMember[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState(false);
+  const [membersError, setMembersError] = React.useState(false);
+  // The layout derives this presentation capability from the current role.
+  // DELETE still verifies parent authority on the server.
+  const { canManage: isParent } = useFeatures();
+  const [deletingPickup, setDeletingPickup] = React.useState<Pickup | null>(
+    null,
+  );
+  const [deleting, setDeleting] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState(false);
+  const deleteInFlightRef = React.useRef(false);
   const [adding, setAdding] = React.useState(false);
   const [closing, setClosing] = React.useState(false);
   const [draft, setDraft] = React.useState({ ...EMPTY_DRAFT });
@@ -374,20 +385,26 @@ function PickupsPageInner() {
     setLoadError(false);
     try {
       const [pickupResponse, membersResponse] = await Promise.all([
-        fetch("/api/pickups", { cache: "no-store" }),
+        fetch("/api/pickups", { cache: "no-store" }).catch(() => null),
         fetch("/api/family/members", { cache: "no-store" }).catch(() => null),
       ]);
-      if (!pickupResponse.ok) throw new Error("pickups load failed");
-      const pickupData = await pickupResponse.json();
       const memberData = membersResponse?.ok
-        ? await membersResponse.json().catch(() => ({ members: [] }))
-        : { members: [] };
-      setPickups(Array.isArray(pickupData?.pickups) ? pickupData.pickups : []);
-      setMembers(Array.isArray(memberData?.members) ? memberData.members : []);
+        ? await membersResponse.json().catch(() => null)
+        : null;
+      const membersAvailable = Array.isArray(memberData?.members);
+      setMembersError(!membersAvailable);
+      if (membersAvailable) setMembers(memberData.members);
+      if (!pickupResponse?.ok) throw new Error("pickups load failed");
+      const pickupData = await pickupResponse.json();
+      if (!Array.isArray(pickupData?.pickups))
+        throw new Error("Invalid pickups response");
+      setPickups(pickupData.pickups);
+      return true;
     } catch {
       // Keep existing rows visible during a refresh; an empty list is only
       // truthful after a successful response.
       setLoadError(true);
+      return false;
     } finally {
       loadInFlightRef.current = false;
       setLoading(false);
@@ -400,7 +417,15 @@ function PickupsPageInner() {
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
-    if (!draft.title.trim() || !draft.pickup_time || saving || closing) return;
+    if (
+      !draft.title.trim() ||
+      !draft.pickup_time ||
+      saving ||
+      closing ||
+      membersError ||
+      loading
+    )
+      return;
     setSaving(true);
     try {
       const res = await fetch("/api/pickups", {
@@ -467,6 +492,40 @@ function PickupsPageInner() {
       });
     }
   }
+
+  async function removePickup() {
+    if (!isParent || !deletingPickup || deleteInFlightRef.current) return;
+    deleteInFlightRef.current = true;
+    setDeleting(true);
+    setDeleteError(false);
+    const id = deletingPickup.id;
+    try {
+      const response = await fetch(`/api/pickups/${id}`, { method: "DELETE" });
+      const result = response.ok
+        ? await response.json().catch(() => null)
+        : null;
+      if (!response.ok || result?.ok !== true) {
+        setDeleteError(true);
+        return;
+      }
+      setPickups((current) => current.filter((pickup) => pickup.id !== id));
+      setDeletingPickup(null);
+      // The row's opener no longer exists after confirmed deletion.
+      setTimeout(() => addButtonRef.current?.focus(), 0);
+    } catch {
+      setDeleteError(true);
+    } finally {
+      deleteInFlightRef.current = false;
+      setDeleting(false);
+    }
+  }
+
+  const openDelete = isParent
+    ? (pickup: Pickup) => {
+        setDeleteError(false);
+        setDeletingPickup(pickup);
+      }
+    : undefined;
 
   const formatTime = React.useCallback(
     (iso: string) => {
@@ -579,6 +638,8 @@ function PickupsPageInner() {
                       disabled={!!pendingToggles[pickup.id]}
                       last={index === upcoming.length - 1}
                       formatTime={formatTime}
+                      onDelete={openDelete}
+                      deleteLabel={text("deletePickup")}
                     />
                   ))}
                 </InsetList>
@@ -596,6 +657,8 @@ function PickupsPageInner() {
                       disabled={!!pendingToggles[pickup.id]}
                       last={index === past.length - 1}
                       formatTime={formatTime}
+                      onDelete={openDelete}
+                      deleteLabel={text("deletePickup")}
                     />
                   ))}
                 </InsetList>
@@ -604,6 +667,56 @@ function PickupsPageInner() {
           </div>
         ) : null}
       </div>
+      <Dialog
+        open={!!deletingPickup}
+        role="alertdialog"
+        title={text("deletePickup")}
+        description={text("deleteDescription")}
+        closeLabel={text("closeDelete")}
+        onClose={deleting ? undefined : () => setDeletingPickup(null)}
+      >
+        <p className="break-words text-body font-semibold">
+          {deletingPickup?.title}
+        </p>
+        {deleteError && (
+          <p role="alert" className="mt-3 text-body text-danger-text">
+            {text("deleteFailed")}
+          </p>
+        )}
+        {deleteError && (
+          <button
+            type="button"
+            className="btn-tinted mt-3 min-h-11"
+            disabled={loading}
+            onClick={() => {
+              void load().then((loaded) => {
+                if (loaded) setDeletingPickup(null);
+              });
+            }}
+          >
+            {text("refreshPickups")}
+          </button>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={deleting}
+            className="btn-plain min-h-11"
+            onClick={() => setDeletingPickup(null)}
+          >
+            {text("cancel")}
+          </button>
+          <button
+            type="button"
+            disabled={deleting}
+            aria-busy={deleting}
+            className="min-h-11 rounded-full bg-danger-fill px-4 text-body font-semibold text-white"
+            onClick={() => void removePickup()}
+          >
+            {text(deleting ? "deleting" : "deletePickup")}
+          </button>
+        </div>
+      </Dialog>
       <Dialog
         open={adding}
         title={text("newPickup")}
@@ -691,14 +804,32 @@ function PickupsPageInner() {
                 }))
               }
               className="input-apple"
+              disabled={membersError || loading}
             >
-              <option value="">{text("anyone")}</option>
+              <option value="">
+                {text(membersError ? "membersUnavailable" : "anyone")}
+              </option>
               {members.map((member) => (
                 <option key={member.id} value={member.id}>
                   {member.name}
                 </option>
               ))}
             </select>
+            {membersError && (
+              <div className="mt-2" role="alert">
+                <p className="text-footnote text-danger-text">
+                  {text("membersUnavailable")}
+                </p>
+                <button
+                  type="button"
+                  className="btn-tinted mt-2 min-h-11"
+                  disabled={loading}
+                  onClick={() => void load()}
+                >
+                  {text(loading ? "refreshing" : "retryMembers")}
+                </button>
+              </div>
+            )}
           </div>
           <div>
             <label htmlFor={`${formId}-notes`} className="label-apple">
@@ -729,7 +860,7 @@ function PickupsPageInner() {
             </button>
             <button
               type="submit"
-              disabled={saving || closing}
+              disabled={saving || closing || membersError || loading}
               aria-busy={saving}
               className="btn-filled min-h-[44px] min-w-[44px]"
             >
@@ -748,19 +879,24 @@ function PickupRow({
   disabled,
   last,
   formatTime,
+  onDelete,
+  deleteLabel,
 }: {
   pickup: Pickup;
   onToggle: (id: string, completed: boolean) => void;
   disabled: boolean;
   last: boolean;
   formatTime: (iso: string) => string;
+  onDelete?: (pickup: Pickup) => void;
+  deleteLabel: string;
 }) {
   return (
     <div
-      className={last ? "" : "border-b border-[var(--surface-separator)]"}
+      className={`flex min-w-0 items-center ${last ? "" : "border-b border-[var(--surface-separator)]"}`}
       aria-busy={disabled}
     >
       <CheckboxRow
+        className="min-w-0 flex-1"
         checked={pickup.completed}
         onChange={(completed) => onToggle(pickup.id, completed)}
         disabled={disabled}
@@ -782,6 +918,17 @@ function PickupRow({
         }
         meta={pickup.assignee_name || undefined}
       />
+      {onDelete && (
+        <button
+          type="button"
+          disabled={disabled}
+          className="mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-danger-text hover:bg-[var(--surface-fill)]"
+          aria-label={`${deleteLabel}: ${pickup.title}`}
+          onClick={() => onDelete(pickup)}
+        >
+          <Trash2 size={18} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }

@@ -35,6 +35,17 @@ export const pickupsEnglish = {
   updateFailed: "Couldn't update the pickup",
   tryAgain: "Please try again.",
   networkError: "Check your connection and try again.",
+  membersUnavailable:
+    "Family members couldn't be loaded. Your draft is still here.",
+  retryMembers: "Reload family members",
+  deletePickup: "Delete pickup",
+  closeDelete: "Close delete confirmation",
+  deleteDescription:
+    "Remove this pickup from the family plan? This cannot be undone.",
+  deleting: "Deleting…",
+  refreshPickups: "Refresh pickups",
+  deleteFailed:
+    "We couldn't confirm deletion. Refresh pickups to check before trying again.",
 } as const;
 
 export type PickupMessage = keyof typeof pickupsEnglish;
@@ -74,6 +85,17 @@ export const pickupsSpanish: PickupMessages = {
   updateFailed: "No se pudo actualizar la recogida",
   tryAgain: "Inténtalo de nuevo.",
   networkError: "Revisa tu conexión e inténtalo de nuevo.",
+  membersUnavailable:
+    "No se pudieron cargar los familiares. Tu borrador sigue aquí.",
+  retryMembers: "Volver a cargar familiares",
+  deletePickup: "Eliminar recogida",
+  closeDelete: "Cerrar confirmación de eliminación",
+  deleteDescription:
+    "¿Eliminar esta recogida del plan familiar? No se puede deshacer.",
+  deleting: "Eliminando…",
+  refreshPickups: "Actualizar recogidas",
+  deleteFailed:
+    "No pudimos confirmar la eliminación. Actualiza las recogidas antes de volver a intentarlo.",
 };
 
 export const pickupsMessages = {
