@@ -20,3 +20,5 @@ Deletion uses a shared confirmation dialog, an immediate exclusive mutation lock
 Optimized exact-head build, rendered EN/ES sheet/print/preview behavior, responsive accessibility review and original hosted gates remain pending. Local mounted checks do not establish browser or production acceptance. Existing inventory browser pending-write coverage remains unchanged. No merge or deployment is claimed for this slice.
 
 Profile association through `person_id` remains a separate canonical-data decision; this change does not invent a profile mapping for legacy free-text cards.
+
+A bounded browser spec now collects four active EN/ES phone/desktop journeys (eight declared viewport skips plus three existing setup cases). It checks optional-section keyboard access, blank-name refusal, failed-save raw draft retention, accessibility/overflow and captures form/preview/print with runtime identity. Collection is verified; execution is pending. Successful E2E shards now retain selected feature screenshots and Emergency runtime receipts for seven days, without changing thresholds or required checks.
