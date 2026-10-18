@@ -47,7 +47,7 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 | --- | --- | --- |
 | Shared personal navigation | Five parent tabs, searchable Explore, Family within Core | PR #568 verified live at main9d9e6de6 after exact-main QA and protected restore; child/teen tabs retained |
 | Today (person home) | A capped Next up card, dinner and a quiet look ahead | PR #570 combines scoped events/chores; bounded rendered/source checks and 117 original browser checks passed; full hosted and wider acceptance pending |
-| Chores | Grouped series, selected weekdays, clear owner, contextual actions | Local Today/Week/Series overview with inline routine stacks; 101 focused units and independent source review pass; compiled/browser/hosted acceptance pending |
+| Chores | Grouped series, selected weekdays, clear owner, contextual actions | Local Today/Week/Series overview with inline routine stacks; 101 focused units and independent review pass; local six-size overview/completion/Undo/budget checks pass; hosted acceptance pending |
 | Calendar | Readable week/agenda, duration, clear connections and overlap review | Local timing-overlap advisory and one native source selector passed bounded review; mobile Week/workspace and full hosted acceptance pending |
 | Lists | Direct groceries, custom lists, simple create/edit | PR #570 compact overview, short create form and validated Back/create/delete context passed bounded review; full hosted acceptance and remaining detail-copy migration pending |
 | Family | Add everyone, email-free profiles, clear account-link distinction | Existing behavior retained; approved layout review pending |
@@ -213,3 +213,26 @@ All 101 affected unit tests pass. Independent source review found and resolved
 the initial All-range expansion issue, with a retained regression. Exact-source
 compilation, six-size browser journeys and hosted gates remain pending. This
 bounded overview does not complete Chores or the all-feature programme.
+
+### Chores rendered checkpoint
+
+At `ba599508`, all 93 six-size EN/ES overview, routine editor, weekly schedule
+and canonical series lifecycle browser cases passed, with no skips or retries.
+A further populated inline routine probe found a real phone min-content overflow
+that made the focus checkbox difficult to tap. The grid now has an explicit
+zero-minimum single column on small screens, and the routine disclosure can
+shrink. The retained regression uses a valid long routine name and asserts
+reflow before focusing, plus exact complete/Undo request IDs and database state.
+
+At `1520ab5a`, the optimized build and all 57 final browser cases pass: 12 EN/ES
+overview cases, six populated completion/Undo/focus cases, the 36 original route
+JavaScript budgets and three existing sign-in setup cases. Original byte limits
+are unchanged. The preceding 101 focused units and 102 domain/component units
+pass (counts overlap); four affected mounted layout/role tests pass after the
+grid fix. Full lint and types pass. Reports, original failed probe, capture
+hashes and local build/source proof are retained in the task evidence folder.
+
+Hosted, production, shared-device/installed-client and wider Chores acceptance
+remain pending. Inherited relative-date/history/action copy still needs full
+localization; this checkpoint does not claim the entire screen is localized.
+The other feature coverage rows and #499/#128 remain open.
