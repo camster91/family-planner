@@ -445,7 +445,10 @@ for (const locale of ["en", "es"] as const) {
 
         await page.goto("/dashboard/projects");
         await expect(
-          page.getByRole("heading", { name: copy.overview.pageTitle }),
+          page.getByRole("heading", {
+            name: copy.overview.pageTitle,
+            exact: true,
+          }),
         ).toBeVisible();
         const newProject = page.getByRole("link", {
           name: copy.overview.newProject,
@@ -462,7 +465,10 @@ for (const locale of ["en", "es"] as const) {
           has: page.getByRole("button", { name: copy.create.create }),
         });
         await expect(
-          page.getByRole("heading", { name: copy.create.title }),
+          page.getByRole("heading", {
+            name: copy.create.title,
+            exact: true,
+          }),
         ).toBeVisible();
         const nameField = createForm.getByLabel(new RegExp(copy.create.name));
         const descriptionField = createForm.getByLabel(
@@ -494,7 +500,7 @@ for (const locale of ["en", "es"] as const) {
         expect(projectId).toBeTruthy();
         ownedProjectIds.add(projectId!);
         await expect(
-          page.getByRole("heading", { name: projectName }),
+          page.getByRole("heading", { name: projectName, exact: true }),
         ).toBeVisible();
         await expect(
           page.getByText(copy.overview.noTasks, { exact: true }),
@@ -725,7 +731,10 @@ for (const locale of ["en", "es"] as const) {
         childContext = child.context;
         await child.page.goto("/dashboard/projects");
         await expect(
-          child.page.getByRole("heading", { name: copy.overview.pageTitle }),
+          child.page.getByRole("heading", {
+            name: copy.overview.pageTitle,
+            exact: true,
+          }),
         ).toBeVisible();
         await expect(
           child.page.getByRole("link", {
@@ -735,7 +744,10 @@ for (const locale of ["en", "es"] as const) {
         ).toHaveCount(0);
         await child.page.goto(`/dashboard/projects/${projectId}`);
         await expect(
-          child.page.getByRole("heading", { name: projectName }),
+          child.page.getByRole("heading", {
+            name: projectName,
+            exact: true,
+          }),
         ).toBeVisible();
         const childActions = child.page.getByRole("button", {
           name: copy.overview.actions,
@@ -967,7 +979,10 @@ for (const locale of ["en", "es"] as const) {
 
         await page.goto("/dashboard/projects");
         await expect(
-          page.getByRole("heading", { name: copy.overview.pageTitle }),
+          page.getByRole("heading", {
+            name: copy.overview.pageTitle,
+            exact: true,
+          }),
         ).toBeVisible();
         await expect(
           page.getByText(copy.overview.noProjectsTitle, { exact: true }),
@@ -1058,7 +1073,7 @@ for (const locale of ["en", "es"] as const) {
 
         await projectCard.click();
         await expect(
-          page.getByRole("heading", { name: projectName }),
+          page.getByRole("heading", { name: projectName, exact: true }),
         ).toBeVisible();
         await expect(
           page.getByText(projectDescription, { exact: true }),
