@@ -425,6 +425,28 @@ for (const locale of ["en", "es"] as const) {
       try {
         await visitDates(opened.page, locale);
         await assertRuntimeIdentity(opened.page, info, locale);
+        if (role !== "parent") {
+          const menu = opened.page.getByRole("button", {
+            name: locale === "es" ? "Menú de usuario" : "User menu",
+            exact: true,
+          });
+          await menu.click();
+          const datesLink = opened.page
+            .getByTestId("kid-feature-menu-group")
+            .getByRole("link", {
+              name:
+                locale === "es"
+                  ? "Cumpleaños y aniversarios"
+                  : "Birthdays & anniversaries",
+              exact: true,
+            });
+          await expect(datesLink).toBeVisible();
+          await expect(datesLink).toHaveAttribute(
+            "href",
+            "/dashboard/anniversaries",
+          );
+          await menu.click();
+        }
         const body = await datesBody(opened.page);
         expect(body.dates.map((date) => date.id)).not.toContain(
           DATE_IDS.foreign,

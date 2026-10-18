@@ -326,6 +326,13 @@ export const kidFeatureNavItems: readonly NavItem[] = [
     featureDisplay: true,
   },
   {
+    name: "Dates",
+    href: "/dashboard/anniversaries",
+    icon: Cake,
+    featureKey: "anniversaries",
+    featureDisplay: true,
+  },
+  {
     name: "Wishlist",
     href: "/dashboard/wishlist",
     icon: Heart,
@@ -449,10 +456,15 @@ export const navItems: NavItem[] = [
     featureKey: "pickups",
     featureDisplay: true,
   },
-  // Notes and Pickups are already present above. Keep the other bounded kid
+  // Notes, Dates and Pickups are already present above. Keep the other bounded kid
   // discovery entries in the shared command catalog without duplicate hrefs.
   ...kidFeatureNavItems.filter(
-    (item) => item.href !== "/dashboard/notes" && item.href !== "/dashboard/pickups",
+    (item) =>
+      ![
+        "/dashboard/notes",
+        "/dashboard/anniversaries",
+        "/dashboard/pickups",
+      ].includes(item.href),
   ),
   {
     name: "Travel",

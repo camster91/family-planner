@@ -9,7 +9,9 @@ short accessible forms and read-only details. Initial affected API/page/date/
 dialog checks and independent source review pass. Rendered role testing exposed
 a stale route allowlist that redirected teens/children despite canonical D9
 authority; the bounded repair adds only the Dates person route and retains all
-Settings/device/finance refusals. Fresh optimized build,
+Settings/device/finance refusals. Enabled Dates also appears in the existing
+localized teen/child feature menu, while feature-off and parent-menu rules stay
+unchanged. Fresh optimized build,
 real-role/synthetic-state six-size browser proof and hosted/release gates remain
 pending. The existing ambiguous-write and stale-refresh recovery audit is still
 open; reminder scheduling, profile/provider/native activation is not introduced.
