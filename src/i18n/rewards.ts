@@ -3,6 +3,10 @@ import { useTranslation } from './index'
 
 /** Copy for the rewards shelf and its small, recoverable mutations. */
 export const rewardsEnglish = {
+  pageTitle: 'Rewards',
+  pageSubtitle: 'Use the points you earn to claim rewards',
+  noFamilyTitle: 'No family set up',
+  noFamilyDescription: 'Create or join a family to start earning and claiming rewards.',
   yourPoints: 'Your points',
   points: 'points',
   leaderboard: 'Leaderboard →',
@@ -49,6 +53,10 @@ export const rewardsEnglish = {
 } as const
 
 export const rewardsSpanish: Record<keyof typeof rewardsEnglish, string> = {
+  pageTitle: 'Recompensas',
+  pageSubtitle: 'Usa los puntos que ganas para reclamar recompensas',
+  noFamilyTitle: 'Aún no hay una familia',
+  noFamilyDescription: 'Crea una familia o únete a una para empezar a ganar y reclamar recompensas.',
   yourPoints: 'Tus puntos',
   points: 'puntos',
   leaderboard: 'Clasificación →',
