@@ -6,7 +6,9 @@ PR #556 storage-recovery head `3470fca841c60dadb01f197e796b179e5c06276b`
 was originally based on released main `4082e7db80ce2a1b690ffd013094d29febfe85bf`.
 This checkout now contains a normal local merge with current main
 `768e417042f0c1f924ebd3a05e8650b24f778e10` for conflict resolution and
-revalidation only; it is not a public merge or release claim.
+revalidation only; it is not a public merge or release claim. The bounded
+fallback-write repair is `391844c903c9fcbfcbc9b6ec3dee2690c7f939ce`; its
+independent source review is clear.
 
 The candidate preserves unread queue bytes after a failed storage read, pauses
 replay and mutation until deliberate recovery, retains grocery drafts, fences
@@ -16,6 +18,17 @@ scheduler, native plugin or production activation. The original hosted checks
 for `3470fca8` passed; exact current-main checks, formal captures, and fresh
 backup/restore remain pending. #473, #480, native hardware and production
 activation remain open.
+
+Focused queue, purge, recovery UI and Today checks pass: 9 suites and 186
+tests, with typecheck and full ESLint also passing. The full Jest gate remains
+red on this macOS checkout: 501 suites passed, 2 failed and 55 were skipped
+(5,771 tests passed, 17 failed and 387 were skipped). The failures are the
+unrelated `backup-prune` and `recovery-rehearsal-guard` shell-harness suites:
+the former depends on GNU `date -d`, while the latter uses Bash `${name,,}`;
+the host provides BSD `date` and Bash 3.2. No queue or Today suite failed.
+Current-main build, browser/hosted checks, formal captures, fresh backup/restore,
+public merge/deploy and native hardware/customer acceptance remain unrun for
+this local candidate.
 
 ## Integrated UI web release — 2026-10-18
 
