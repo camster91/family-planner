@@ -975,7 +975,7 @@ function WishlistContent() {
               {t('wishlist.totalLabel')}
             </p>
             <p className="mt-1 text-title-2 font-semibold text-label-primary">
-              {t('wishlist.totalSummary', { count: visibleItems.length })}
+              {t(visibleItems.length === 1 ? 'wishlist.totalSummaryOne' : 'wishlist.totalSummary', { count: visibleItems.length })}
             </p>
           </div>
           <div className="card-apple p-4">
@@ -983,7 +983,7 @@ function WishlistContent() {
               {t('wishlist.readyLabel')}
             </p>
             <p className="mt-1 text-title-2 font-semibold text-label-primary">
-              {t('wishlist.readySummary', { count: readyCount })}
+              {t(readyCount === 1 ? 'wishlist.readySummaryOne' : 'wishlist.readySummary', { count: readyCount })}
             </p>
           </div>
         </div>
