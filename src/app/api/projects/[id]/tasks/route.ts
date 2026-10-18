@@ -5,6 +5,8 @@ import { createProjectTaskSchema } from '@/lib/validations'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import { authorizeProjectReplay, createProjectTaskWithReceipt, projectAction } from '@/lib/project-mutations'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,76 +111,39 @@ export async function POST(request: NextRequest, context: RouteContext) {
       )
     }
 
-    // Household-scoped lookup: another household's project is the same 404
-    // as a missing one (#289).
-    const project = await prisma!.project.findFirst({
-      where: { id: projectId, family_id: auth.user.family_id },
-      select: { status: true },
-    })
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return keyError
 
-    if (!project) {
-      return NextResponse.json(
-        { error: 'Project not found' },
-        { status: 404 }
-      )
-    }
-
-    // Prevent adding tasks to completed or archived projects
-    if (project.status !== 'active') {
-      return NextResponse.json(
-        { error: 'Cannot add tasks to a completed or archived project' },
-        { status: 400 }
-      )
-    }
-
-    const { title, description, assigned_to, due_date } = parsed.data
-
-    // An assignee must be a member of the caller's household; a member of
-    // another household is the same 404 as an unknown id (#289).
-    if (assigned_to) {
-      const assignee = await prisma!.user.findFirst({
-        where: { id: assigned_to, family_id: auth.user.family_id },
-        select: { id: true },
-      })
-
-      if (!assignee) {
-        return NextResponse.json(
-          { error: 'Assigned user not found' },
-          { status: 404 }
-        )
-      }
-    }
-
-    // Determine the next position for the task
-    const maxPosition = await prisma!.projectTask.aggregate({
-      where: { project_id: projectId },
-      _max: { position: true },
-    })
-    const nextPosition = (maxPosition._max.position ?? -1) + 1
-
-    const task = await prisma!.projectTask.create({
-      data: {
-        project_id: projectId,
-        title,
-        description: description || null,
-        assigned_to: assigned_to || null,
-        due_date: due_date ? new Date(due_date) : null,
-        position: nextPosition,
+    const response = await withIdempotency(
+      prisma!,
+      key,
+      {
+        scope: `user:${auth.user.id}`,
+        familyId: auth.user.family_id,
+        userId: auth.user.id,
+        action: projectAction('task.create', projectId),
       },
-      include: {
-        assignee: {
-          select: { id: true, name: true, avatar_url: true },
-        },
+      parsed.data,
+      ({ recordId }) =>
+        createProjectTaskWithReceipt(
+          prisma!,
+          projectId,
+          parsed.data,
+          { familyId: auth.user.family_id, userId: auth.user.id },
+          recordId,
+        ),
+      {
+        beforeReplay: () =>
+          authorizeProjectReplay(
+            prisma!,
+            'task.create',
+            { familyId: auth.user.family_id, userId: auth.user.id },
+            projectId,
+          ),
       },
-    })
-
-    // Update the project's updated_at timestamp
-    await prisma!.project.update({
-      where: { id: projectId },
-      data: { updated_at: new Date() },
-    })
-
-    return NextResponse.json({ task }, { status: 201 })
+    )
+    response.headers.set('Cache-Control', 'private, no-store')
+    return response
   } catch (error) {
     logRouteError('POST /api/projects/[id]/tasks', error, getRequestId(request))
     return NextResponse.json(
