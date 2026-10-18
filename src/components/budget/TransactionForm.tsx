@@ -71,6 +71,14 @@ function isCategory(value: unknown): value is Category {
   )
 }
 
+// The budget API trims optional text before writing it and treats an empty
+// result as null. Build the request from that canonical value so an accepted
+// response still validates when the draft included surrounding whitespace.
+function canonicalOptionalText(value: string): string | null {
+  const trimmed = value.trim()
+  return trimmed || null
+}
+
 function parseCategoriesResponse(value: unknown): Category[] | null {
   if (!isRecord(value) || !Array.isArray(value.categories) || !value.categories.every(isCategory)) return null
   return value.categories
@@ -198,6 +206,7 @@ function mutationErrorMessage(
 export default function TransactionForm({ onClose, onSuccess, onDeleted, initialData }: TransactionFormProps) {
   const isEditing = !!initialData
   const text = useBudgetText()
+  const formId = useId()
   const ids = {
     amount: useId(),
     category: useId(),
@@ -288,6 +297,17 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
   // The Dialog focuses its first control (Close) on open; a new transaction
   // starts in Amount instead.
   const amountRef = useRef<HTMLInputElement>(null)
+  const errorRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const errorElement = errorRef.current
+    const scrollIntoView = errorElement?.scrollIntoView
+    if (error && errorElement && typeof scrollIntoView === 'function') {
+      // Keep the focused field or action unchanged while revealing the new
+      // message inside the form's scrolling body above the fixed footer.
+      scrollIntoView.call(errorElement, { block: 'nearest' })
+    }
+  }, [error])
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
@@ -311,8 +331,8 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
       amount: numericAmount,
       type,
       category_id: categoryId || null,
-      description: description || null,
-      notes: notes || null,
+      description: canonicalOptionalText(description),
+      notes: canonicalOptionalText(notes),
       date,
       is_recurring: isRecurring,
       recurring_interval: isRecurring ? recurringInterval : null,
@@ -437,8 +457,29 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
       title={isEditing ? text('transactionEditTitle') : text('transactionAddTitle')}
       testId="transaction-form"
       initialFocusRef={isEditing ? undefined : amountRef}
+      variant="form"
+      footer={(
+        <div className="flex gap-3">
+          <button type="button" onClick={busy ? undefined : onClose} disabled={busy} className="btn-ghost min-h-[44px] flex-1 disabled:opacity-40">
+            {text('transactionCancel')}
+          </button>
+          <button
+            type="submit"
+            form={formId}
+            disabled={busy}
+            className={cn(
+              'flex-1 min-h-[44px] px-4 py-2.5 text-subhead font-semibold text-white rounded-xl transition-all flex items-center justify-center gap-2',
+              type === 'income' ? 'bg-tint-lists hover:opacity-90' : 'bg-accent-fill hover:bg-accent-fill-hover',
+              busy && 'opacity-70 cursor-not-allowed'
+            )}
+          >
+            {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
+            {isSubmitting ? text('transactionSaving') : isEditing ? text('transactionSave') : text('addTransaction')}
+          </button>
+        </div>
+      )}
     >
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form id={formId} onSubmit={handleSubmit} className="space-y-5">
         {/* Type Toggle */}
         <div className="flex gap-2" role="group" aria-label={text('transactionType')}>
           <button
@@ -648,7 +689,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
 
         {/* Error */}
         {error && (
-          <div role="alert" className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5">
+          <div ref={errorRef} role="alert" className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5">
             <p className="text-subhead text-rose-700">{error}</p>
             {mutationRecovery && (
               <button
@@ -662,25 +703,6 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
             )}
           </div>
         )}
-
-        {/* Actions */}
-        <div className="flex gap-3 pt-2">
-          <button type="button" onClick={busy ? undefined : onClose} disabled={busy} className="btn-ghost min-h-[44px] flex-1 disabled:opacity-40">
-            {text('transactionCancel')}
-          </button>
-          <button
-            type="submit"
-            disabled={busy}
-            className={cn(
-              'flex-1 min-h-[44px] px-4 py-2.5 text-subhead font-semibold text-white rounded-xl transition-all flex items-center justify-center gap-2',
-              type === 'income' ? 'bg-tint-lists hover:opacity-90' : 'bg-accent-fill hover:bg-accent-fill-hover',
-              busy && 'opacity-70 cursor-not-allowed'
-            )}
-          >
-            {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
-            {isSubmitting ? text('transactionSaving') : isEditing ? text('transactionSave') : text('addTransaction')}
-          </button>
-        </div>
 
         {/* Delete (edit only): a second tap confirms, inside the dialog. */}
         {isEditing && (

@@ -7,18 +7,20 @@ import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 import CreateProjectForm from "../create/CreateProjectForm";
 import { ProjectCreateSheet } from "@/components/projects/ProjectCreateSheet";
+import { isValidIdempotencyKey } from "@/lib/idempotency-key";
 
 const push = jest.fn();
 const refresh = jest.fn();
 const back = jest.fn();
 const addToast = jest.fn();
+const removeToast = jest.fn();
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh, back }),
 }));
 
 jest.mock("@/components/ui/toast", () => ({
-  useToast: () => ({ addToast }),
+  useToast: () => ({ addToast, removeToast }),
 }));
 
 function response(status: number, body: unknown): Response {
@@ -34,6 +36,7 @@ beforeEach(() => {
   refresh.mockReset();
   back.mockReset();
   addToast.mockReset();
+  removeToast.mockReset();
   global.fetch = jest.fn();
 });
 
@@ -65,6 +68,9 @@ it("keeps the direct form destination and sends the selected project fields", as
       }),
     }),
   );
+  const headers = (global.fetch as jest.Mock).mock.calls[0][1]
+    .headers as Record<string, string>;
+  expect(isValidIdempotencyKey(headers["Idempotency-Key"])).toBe(true);
   expect(screen.getByRole("button", { name: "Color: Blue" })).toHaveClass(
     "h-11",
     "w-11",
@@ -100,6 +106,164 @@ it("retains the draft after a refused create so the user can retry", async () =>
   expect(push).not.toHaveBeenCalled();
 });
 
+it("retries an in-progress create with the same idempotency key", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest.fn().mockResolvedValue(
+    response(409, {
+      error: {
+        code: "IDEMPOTENCY_IN_PROGRESS",
+        message: "Please retry this project request.",
+      },
+    }),
+  );
+
+  render(<CreateProjectForm />);
+  const name = screen.getByLabelText(/Project Name/);
+  await user.type(name, "Shared garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(1));
+  const firstKey = (
+    (global.fetch as jest.Mock).mock.calls[0][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  (global.fetch as jest.Mock).mockResolvedValue(
+    response(201, { project: { id: "project-retry" } }),
+  );
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() =>
+    expect(push).toHaveBeenCalledWith("/dashboard/projects/project-retry"),
+  );
+  const secondKey = (
+    (global.fetch as jest.Mock).mock.calls[1][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+  expect(secondKey).toBe(firstKey);
+});
+
+it("reuses the network-failed key when the user returns to the original draft", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+
+  render(<CreateProjectForm />);
+  const name = screen.getByLabelText(/Project Name/);
+  await user.type(name, "Original garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(1));
+  expect(addToast).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message: "Couldn't create the project. Check your connection and try again.",
+    }),
+  );
+  const firstKey = (
+    (global.fetch as jest.Mock).mock.calls[0][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  await user.clear(name);
+  await user.type(name, "Updated garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(2));
+  const changedDraftKey = (
+    (global.fetch as jest.Mock).mock.calls[1][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  await user.clear(name);
+  await user.type(name, "Original garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(3));
+  const returnedDraftKey = (
+    (global.fetch as jest.Mock).mock.calls[2][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  expect(changedDraftKey).not.toBe(firstKey);
+  expect(returnedDraftKey).toBe(firstKey);
+});
+
+it("retries a server failure with the same idempotency key", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest
+    .fn()
+    .mockResolvedValue(response(503, { error: "Please try again." }));
+
+  render(<CreateProjectForm />);
+  const name = screen.getByLabelText(/Project Name/);
+  await user.type(name, "Shared garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(1));
+  const firstKey = (
+    (global.fetch as jest.Mock).mock.calls[0][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  (global.fetch as jest.Mock).mockResolvedValue(
+    response(201, { project: { id: "project-retry-503" } }),
+  );
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() =>
+    expect(push).toHaveBeenCalledWith("/dashboard/projects/project-retry-503"),
+  );
+  const secondKey = (
+    (global.fetch as jest.Mock).mock.calls[1][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+  expect(secondKey).toBe(firstKey);
+});
+
+it("starts a new idempotency key after a definitive refusal", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest
+    .fn()
+    .mockResolvedValue(
+      response(403, { error: "Only parents can create projects" }),
+    );
+
+  render(<CreateProjectForm />);
+  const name = screen.getByLabelText(/Project Name/);
+  await user.type(name, "Shared garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(1));
+  const firstKey = (
+    (global.fetch as jest.Mock).mock.calls[0][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  (global.fetch as jest.Mock).mockResolvedValue(
+    response(201, { project: { id: "project-after-refusal" } }),
+  );
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() =>
+    expect(push).toHaveBeenCalledWith(
+      "/dashboard/projects/project-after-refusal",
+    ),
+  );
+  const secondKey = (
+    (global.fetch as jest.Mock).mock.calls[1][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+  expect(secondKey).not.toBe(firstKey);
+});
+
 it.each([undefined, null, 42, {}, "   "])(
   "keeps the draft and refuses a successful response without a non-empty string id (%s)",
   async (id) => {
@@ -131,6 +295,43 @@ it.each([undefined, null, 42, {}, "   "])(
   },
 );
 
+it("retries a malformed create success with the same idempotency key", async () => {
+  const user = userEvent.setup();
+  global.fetch = jest.fn().mockResolvedValue(response(201, { project: {} }));
+
+  render(<CreateProjectForm />);
+  const name = screen.getByLabelText(/Project Name/);
+  await user.type(name, "Shared garden");
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() => expect(addToast).toHaveBeenCalledTimes(1));
+  const noticeId = addToast.mock.calls[0][0].id;
+  expect(noticeId).toEqual(expect.any(String));
+  expect(removeToast).not.toHaveBeenCalled();
+  const firstKey = (
+    (global.fetch as jest.Mock).mock.calls[0][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+
+  (global.fetch as jest.Mock).mockResolvedValue(
+    response(201, { project: { id: "project-retry" } }),
+  );
+  await user.click(screen.getByRole("button", { name: "Create Project" }));
+  await waitFor(() =>
+    expect(push).toHaveBeenCalledWith("/dashboard/projects/project-retry"),
+  );
+  const secondKey = (
+    (global.fetch as jest.Mock).mock.calls[1][1].headers as Record<
+      string,
+      string
+    >
+  )["Idempotency-Key"];
+  expect(secondKey).toBe(firstKey);
+  expect(removeToast).toHaveBeenCalledTimes(1);
+  expect(removeToast).toHaveBeenCalledWith(noticeId);
+});
+
 it("localizes project create labels and refusal feedback in Spanish", async () => {
   const user = userEvent.setup();
   global.fetch = jest
@@ -158,6 +359,7 @@ it("localizes project create labels and refusal feedback in Spanish", async () =
       expect.objectContaining({
         type: "error",
         title: "No se pudo crear el proyecto",
+        message: "Inténtalo de nuevo.",
       }),
     ),
   );
@@ -248,5 +450,7 @@ it("replaces the direct Back link while a request is pending", async () => {
     "true",
   );
 
-  await act(async () => release(response(201, { project: { id: "project-3" } })));
+  await act(async () =>
+    release(response(201, { project: { id: "project-3" } })),
+  );
 });

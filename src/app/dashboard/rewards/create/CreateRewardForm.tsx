@@ -175,9 +175,15 @@ function CreateRewardFormInner({
       return;
     }
     const storedIntent = rewardCreateIntent(scopedOwner, signature);
-    const key = requestKeys.current.get(signature) ?? storedIntent?.key ?? newIdempotencyKey();
+    const existingKey = requestKeys.current.get(signature) ?? storedIntent?.key;
+    const key = existingKey ?? newIdempotencyKey();
+    const remembered = rememberRewardCreateIntent(scopedOwner, signature, draft, key);
+    if (scopedOwner && !existingKey && !remembered) {
+      setUncertain(false);
+      setError(copy.capacityError);
+      return;
+    }
     requestKeys.current.set(signature, key);
-    rememberRewardCreateIntent(scopedOwner, signature, draft, key);
 
     submittingRef.current = true;
     setLoading(true);

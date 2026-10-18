@@ -3,217 +3,407 @@
  */
 // "Add task" on an existing project (route inventory F-5, #289): the in-app
 // caller of POST /api/projects/[id]/tasks.
-import * as React from 'react'
-import '@testing-library/jest-dom'
-import { act, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { AddProjectTaskForm } from '../AddProjectTaskForm'
-import { ToastProvider } from '@/components/ui/toast'
+import * as React from "react";
+import "@testing-library/jest-dom";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { AddProjectTaskForm } from "../AddProjectTaskForm";
+import { ToastProvider } from "@/components/ui/toast";
+import { isValidIdempotencyKey } from "@/lib/idempotency-key";
 
-const mockRefresh = jest.fn()
-jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mockRefresh }) }))
+const mockRefresh = jest.fn();
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: mockRefresh }),
+}));
 
-type Call = { url: string; method: string; body: any }
-let calls: Call[] = []
-let reply: { status: number; body: unknown } | 'network' = { status: 201, body: {} }
+type Call = { url: string; method: string; body: any; headers?: HeadersInit };
+let calls: Call[] = [];
+let reply: { status: number; body: unknown } | "network" = {
+  status: 201,
+  body: {},
+};
 
 function setOnline(value: boolean) {
-  Object.defineProperty(window.navigator, 'onLine', { configurable: true, get: () => value })
+  Object.defineProperty(window.navigator, "onLine", {
+    configurable: true,
+    get: () => value,
+  });
 }
 
 beforeEach(() => {
-  calls = []
-  mockRefresh.mockClear()
-  setOnline(true)
-  reply = { status: 201, body: { task: { id: 't9', title: 'Paint fence' } } }
-  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    calls.push({
-      url: String(input),
-      method: (init?.method ?? 'GET').toUpperCase(),
-      body: init?.body ? JSON.parse(String(init.body)) : undefined,
-    })
-    if (reply === 'network') throw new TypeError('Failed to fetch')
-    const { status, body } = reply
-    return { ok: status < 300, status, json: async () => body } as Response
-  }) as unknown as typeof fetch
-})
+  calls = [];
+  mockRefresh.mockClear();
+  setOnline(true);
+  reply = { status: 201, body: { task: { id: "t9", title: "Paint fence" } } };
+  global.fetch = jest.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({
+        url: String(input),
+        method: (init?.method ?? "GET").toUpperCase(),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+        headers: init?.headers,
+      });
+      if (reply === "network") throw new TypeError("Failed to fetch");
+      const { status, body } = reply;
+      return { ok: status < 300, status, json: async () => body } as Response;
+    },
+  ) as unknown as typeof fetch;
+});
 
 const members = [
-  { id: 'u-parent', name: 'Pat' },
-  { id: 'u-kid', name: 'Sam' },
-]
+  { id: "u-parent", name: "Pat" },
+  { id: "u-kid", name: "Sam" },
+];
 
 function renderForm() {
   render(
     <ToastProvider>
       <AddProjectTaskForm projectId="proj 1" familyMembers={members} />
-    </ToastProvider>
-  )
+    </ToastProvider>,
+  );
 }
 
 async function openForm(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'Add task' }))
-  return screen.getByRole('form', { name: 'Add task' })
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  return screen.getByRole("form", { name: "Add task" });
 }
 
 it('starts as one 44px "Add task" button and opens a labelled form with focus in the title', async () => {
-  const user = userEvent.setup()
-  renderForm()
-  const opener = screen.getByRole('button', { name: 'Add task' })
-  expect(opener.className).toContain('min-h-[44px]')
-  await openForm(user)
+  const user = userEvent.setup();
+  renderForm();
+  const opener = screen.getByRole("button", { name: "Add task" });
+  expect(opener.className).toContain("min-h-[44px]");
+  await openForm(user);
 
-  const title = screen.getByLabelText('Task')
-  expect(document.activeElement).toBe(title)
-  expect(title.className).toContain('min-h-[44px]')
-  expect(screen.getByLabelText(/Due date/).className).toContain('min-h-[44px]')
-  const who = screen.getByLabelText(/Who's doing it/) as HTMLSelectElement
-  expect(who.className).toContain('min-h-[44px]')
-  expect(Array.from(who.options).map((o) => o.textContent)).toEqual(['Anyone', 'Pat', 'Sam'])
-  for (const name of ['Add task', 'Done']) {
-    const button = screen.getByRole('button', { name })
-    expect(button.className).toContain('min-h-[44px]')
-    expect(button.className).toContain('min-w-[44px]')
+  const title = screen.getByLabelText("Task");
+  expect(document.activeElement).toBe(title);
+  expect(title.className).toContain("min-h-[44px]");
+  expect(screen.getByLabelText(/Due date/).className).toContain("min-h-[44px]");
+  const who = screen.getByLabelText(/Who's doing it/) as HTMLSelectElement;
+  expect(who.className).toContain("min-h-[44px]");
+  expect(Array.from(who.options).map((o) => o.textContent)).toEqual([
+    "Anyone",
+    "Pat",
+    "Sam",
+  ]);
+  for (const name of ["Add task", "Done"]) {
+    const button = screen.getByRole("button", { name });
+    expect(button.className).toContain("min-h-[44px]");
+    expect(button.className).toContain("min-w-[44px]");
   }
-})
+});
 
-it('posts the task to the project, clears the form, confirms and refreshes', async () => {
-  const user = userEvent.setup()
-  renderForm()
-  await openForm(user)
-  await user.type(screen.getByLabelText('Task'), '  Paint fence  ')
-  await user.type(screen.getByLabelText(/Due date/), '2026-10-03')
-  await user.selectOptions(screen.getByLabelText(/Who's doing it/), 'u-kid')
-  await user.click(screen.getByRole('button', { name: 'Add task' }))
+it("posts the task to the project, clears the form, confirms and refreshes", async () => {
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "  Paint fence  ");
+  await user.type(screen.getByLabelText(/Due date/), "2026-10-03");
+  await user.selectOptions(screen.getByLabelText(/Who's doing it/), "u-kid");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
 
-  await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1))
-  expect(calls).toEqual([
-    {
-      url: '/api/projects/proj%201/tasks',
-      method: 'POST',
-      body: { title: 'Paint fence', due_date: '2026-10-03', assigned_to: 'u-kid' },
+  await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+  expect(calls).toHaveLength(1);
+  expect(calls[0]).toEqual(
+    expect.objectContaining({
+      url: "/api/projects/proj%201/tasks",
+      method: "POST",
+      body: {
+        title: "Paint fence",
+        due_date: "2026-10-03",
+        assigned_to: "u-kid",
+      },
+    }),
+  );
+  expect(
+    isValidIdempotencyKey(
+      (calls[0].headers as Record<string, string>)["Idempotency-Key"],
+    ),
+  ).toBe(true);
+  expect((screen.getByLabelText("Task") as HTMLInputElement).value).toBe("");
+  expect(await screen.findByText("Task added")).toBeTruthy();
+  expect(screen.queryByText(/Couldn't add the task/)).toBeNull();
+  expect(screen.getByLabelText("Task")).toHaveFocus();
+});
+
+it("sends only the title when nothing else is chosen", async () => {
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "Buy paint");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await waitFor(() => expect(calls).toHaveLength(1));
+  expect(calls[0].body).toEqual({ title: "Buy paint" });
+});
+
+it("an empty title is not sent and says why", async () => {
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "   ");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  expect(screen.getByRole("alert").textContent).toBe("Give the task a name.");
+  expect(screen.getByLabelText("Task").getAttribute("aria-invalid")).toBe(
+    "true",
+  );
+  expect(calls).toHaveLength(0);
+});
+
+it("a refused save keeps what was typed and shows safe recovery copy", async () => {
+  reply = {
+    status: 400,
+    body: { error: "Cannot add tasks to a completed or archived project" },
+  };
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "Paint fence");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+
+  const alert = await screen.findByRole("alert");
+  expect(alert.textContent).toBe("Couldn't add the task. Please try again.");
+  expect(alert.textContent).not.toContain(
+    "Cannot add tasks to a completed or archived project",
+  );
+  expect((screen.getByLabelText("Task") as HTMLInputElement).value).toBe(
+    "Paint fence",
+  );
+  expect(mockRefresh).not.toHaveBeenCalled();
+});
+
+it("retries an in-progress response with the same idempotency key", async () => {
+  reply = {
+    status: 409,
+    body: {
+      error: {
+        code: "IDEMPOTENCY_IN_PROGRESS",
+        message: "Please retry this project request.",
+      },
     },
-  ])
-  expect((screen.getByLabelText('Task') as HTMLInputElement).value).toBe('')
-  expect(await screen.findByText('Task added')).toBeTruthy()
-  expect(screen.queryByText(/Couldn't add the task/)).toBeNull()
-})
+  };
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "Paint fence");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await screen.findByRole("alert");
+  const firstKey = (calls[0].headers as Record<string, string>)[
+    "Idempotency-Key"
+  ];
 
-it('sends only the title when nothing else is chosen', async () => {
-  const user = userEvent.setup()
-  renderForm()
-  await openForm(user)
-  await user.type(screen.getByLabelText('Task'), 'Buy paint')
-  await user.click(screen.getByRole('button', { name: 'Add task' }))
-  await waitFor(() => expect(calls).toHaveLength(1))
-  expect(calls[0].body).toEqual({ title: 'Buy paint' })
-})
+  reply = { status: 201, body: { task: { id: "t9", title: "Paint fence" } } };
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await waitFor(() => expect(calls).toHaveLength(2));
+  expect((calls[1].headers as Record<string, string>)["Idempotency-Key"]).toBe(
+    firstKey,
+  );
+  expect(mockRefresh).toHaveBeenCalledTimes(1);
+});
 
-it('an empty title is not sent and says why', async () => {
-  const user = userEvent.setup()
-  renderForm()
-  await openForm(user)
-  await user.type(screen.getByLabelText('Task'), '   ')
-  await user.click(screen.getByRole('button', { name: 'Add task' }))
-  expect(screen.getByRole('alert').textContent).toBe('Give the task a name.')
-  expect(screen.getByLabelText('Task').getAttribute('aria-invalid')).toBe('true')
-  expect(calls).toHaveLength(0)
-})
+it.each([
+  { task: { id: "t9" } },
+  { task: { id: " ", title: "Paint fence" } },
+  { task: { id: "t9", title: " " } },
+])(
+  "retains the draft and retry key for malformed task success %j",
+  async (body) => {
+    reply = { status: 201, body };
+    const user = userEvent.setup();
+    renderForm();
+    await openForm(user);
+    await user.type(screen.getByLabelText("Task"), "Paint fence");
+    await user.click(screen.getByRole("button", { name: "Add task" }));
+    await screen.findByRole("alert");
+    expect(screen.getByLabelText("Task")).toHaveValue("Paint fence");
+    expect(mockRefresh).not.toHaveBeenCalled();
+    const firstKey = (calls[0].headers as Record<string, string>)[
+      "Idempotency-Key"
+    ];
 
-it("a refused save keeps what was typed and shows the server's reason", async () => {
-  reply = { status: 400, body: { error: 'Cannot add tasks to a completed or archived project' } }
-  const user = userEvent.setup()
-  renderForm()
-  await openForm(user)
-  await user.type(screen.getByLabelText('Task'), 'Paint fence')
-  await user.click(screen.getByRole('button', { name: 'Add task' }))
+    reply = { status: 201, body: { task: { id: "t9", title: "Paint fence" } } };
+    await user.click(screen.getByRole("button", { name: "Add task" }));
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(
+      (calls[1].headers as Record<string, string>)["Idempotency-Key"],
+    ).toBe(firstKey);
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+  },
+);
 
-  const alert = await screen.findByRole('alert')
-  expect(alert.textContent).toBe("Couldn't add the task. Cannot add tasks to a completed or archived project")
-  expect((screen.getByLabelText('Task') as HTMLInputElement).value).toBe('Paint fence')
-  expect(mockRefresh).not.toHaveBeenCalled()
-})
+it("a network failure keeps the text and asks to try again", async () => {
+  reply = "network";
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "Paint fence");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    "Couldn't add the task. Check your connection and try again.",
+  );
+  expect(screen.getByRole("alert").textContent).not.toContain("Failed to fetch");
+  expect((screen.getByLabelText("Task") as HTMLInputElement).value).toBe(
+    "Paint fence",
+  );
+});
 
-it('a network failure keeps the text and asks to try again', async () => {
-  reply = 'network'
-  const user = userEvent.setup()
-  renderForm()
-  await openForm(user)
-  await user.type(screen.getByLabelText('Task'), 'Paint fence')
-  await user.click(screen.getByRole('button', { name: 'Add task' }))
-  expect((await screen.findByRole('alert')).textContent).toContain("Couldn't add the task.")
-  expect((screen.getByLabelText('Task') as HTMLInputElement).value).toBe('Paint fence')
-})
+it("reuses the network-failed key when the user returns to the original task draft", async () => {
+  reply = "network";
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  const title = screen.getByLabelText("Task");
 
-it('offline: says so, disables the save and sends nothing', async () => {
-  const user = userEvent.setup()
-  renderForm()
-  await openForm(user)
+  await user.type(title, "Original task");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await screen.findByRole("alert");
+  const firstKey = (calls[0].headers as Record<string, string>)[
+    "Idempotency-Key"
+  ];
+
+  await user.clear(title);
+  await user.type(title, "Updated task");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await waitFor(() => expect(calls).toHaveLength(2));
+  const changedDraftKey = (calls[1].headers as Record<string, string>)[
+    "Idempotency-Key"
+  ];
+
+  await user.clear(title);
+  await user.type(title, "Original task");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await waitFor(() => expect(calls).toHaveLength(3));
+  const returnedDraftKey = (calls[2].headers as Record<string, string>)[
+    "Idempotency-Key"
+  ];
+
+  expect(changedDraftKey).not.toBe(firstKey);
+  expect(returnedDraftKey).toBe(firstKey);
+});
+
+it("retries a server failure with the same idempotency key", async () => {
+  reply = { status: 503, body: { error: "Please try again." } };
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "Paint fence");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await screen.findByRole("alert");
+  const firstKey = (calls[0].headers as Record<string, string>)[
+    "Idempotency-Key"
+  ];
+
+  reply = { status: 201, body: { task: { id: "t10", title: "Paint fence" } } };
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+  expect((calls[1].headers as Record<string, string>)["Idempotency-Key"]).toBe(
+    firstKey,
+  );
+});
+
+it("starts a new idempotency key after a definitive refusal", async () => {
+  reply = {
+    status: 403,
+    body: { error: "Only parents can add tasks" },
+  };
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "Paint fence");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await screen.findByRole("alert");
+  const firstKey = (calls[0].headers as Record<string, string>)[
+    "Idempotency-Key"
+  ];
+
+  reply = { status: 201, body: { task: { id: "t11", title: "Paint fence" } } };
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+  expect(
+    (calls[1].headers as Record<string, string>)["Idempotency-Key"],
+  ).not.toBe(firstKey);
+});
+
+it("offline: says so, disables the save and sends nothing", async () => {
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
   act(() => {
-    setOnline(false)
-    window.dispatchEvent(new Event('offline'))
-  })
-  expect(screen.getByRole('status').textContent).toContain("You're offline")
-  await user.type(screen.getByLabelText('Task'), 'Paint fence')
-  const save = screen.getByRole('button', { name: 'Add task' }) as HTMLButtonElement
-  expect(save.disabled).toBe(true)
-  await user.type(screen.getByLabelText('Task'), '{Enter}')
-  expect(calls).toHaveLength(0)
+    setOnline(false);
+    window.dispatchEvent(new Event("offline"));
+  });
+  expect(screen.getByRole("status").textContent).toContain("You're offline");
+  await user.type(screen.getByLabelText("Task"), "Paint fence");
+  const save = screen.getByRole("button", {
+    name: "Add task",
+  }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  await user.type(screen.getByLabelText("Task"), "{Enter}");
+  expect(calls).toHaveLength(0);
 
   act(() => {
-    setOnline(true)
-    window.dispatchEvent(new Event('online'))
-  })
-  expect(screen.queryByText(/You're offline/)).toBeNull()
-  expect(save.disabled).toBe(false)
-})
+    setOnline(true);
+    window.dispatchEvent(new Event("online"));
+  });
+  expect(screen.queryByText(/You're offline/)).toBeNull();
+  expect(save.disabled).toBe(false);
+});
 
 it('Done discards the whole draft, sends nothing and returns focus to "Add task"', async () => {
-  const user = userEvent.setup()
-  renderForm()
-  await openForm(user)
-  await user.type(screen.getByLabelText('Task'), 'Abandoned task')
-  await user.type(screen.getByLabelText(/Due date/), '2026-10-12')
-  await user.selectOptions(screen.getByLabelText(/Who's doing it/), 'u-kid')
-  await user.click(screen.getByRole('button', { name: 'Done' }))
-  const opener = screen.getByRole('button', { name: 'Add task' })
-  expect(screen.queryByRole('form')).toBeNull()
-  await waitFor(() => expect(document.activeElement).toBe(opener))
-  await openForm(user)
-  expect(screen.getByLabelText('Task')).toHaveValue('')
-  expect(screen.getByLabelText(/Due date/)).toHaveValue('')
-  expect(screen.getByLabelText(/Who's doing it/)).toHaveValue('')
-  expect(calls).toHaveLength(0)
-})
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "Abandoned task");
+  await user.type(screen.getByLabelText(/Due date/), "2026-10-12");
+  await user.selectOptions(screen.getByLabelText(/Who's doing it/), "u-kid");
+  await user.click(screen.getByRole("button", { name: "Done" }));
+  const opener = screen.getByRole("button", { name: "Add task" });
+  expect(screen.queryByRole("form")).toBeNull();
+  await waitFor(() => expect(document.activeElement).toBe(opener));
+  await openForm(user);
+  expect(screen.getByLabelText("Task")).toHaveValue("");
+  expect(screen.getByLabelText(/Due date/)).toHaveValue("");
+  expect(screen.getByLabelText(/Who's doing it/)).toHaveValue("");
+  expect(calls).toHaveLength(0);
+});
 
-it('keeps the form open while saving so a late failure cannot lose the draft', async () => {
-  let resolveSave!: (response: Response) => void
-  global.fetch = jest.fn(() => new Promise<Response>((resolve) => { resolveSave = resolve }))
-  const user = userEvent.setup()
-  renderForm()
-  await openForm(user)
-  await user.type(screen.getByLabelText('Task'), 'Paint fence')
-  await user.type(screen.getByLabelText(/Due date/), '2026-10-12')
-  await user.selectOptions(screen.getByLabelText(/Who's doing it/), 'u-kid')
-  await user.click(screen.getByRole('button', { name: 'Add task' }))
-  expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled()
-  await user.click(screen.getByRole('button', { name: 'Done' }))
-  expect(screen.getByRole('form', { name: 'Add task' })).toBeTruthy()
-  await act(async () => resolveSave({ ok: false, json: async () => ({ error: 'Please try again.' }) } as Response))
-  expect(await screen.findByRole('alert')).toBeTruthy()
-  expect(screen.getByLabelText('Task')).toHaveValue('Paint fence')
-  expect(screen.getByLabelText(/Due date/)).toHaveValue('2026-10-12')
-  expect(screen.getByLabelText(/Who's doing it/)).toHaveValue('u-kid')
-  expect(screen.getByRole('button', { name: 'Done' })).toBeEnabled()
-})
+it("keeps the form open while saving so a late failure cannot lose the draft", async () => {
+  let resolveSave!: (response: Response) => void;
+  global.fetch = jest.fn(
+    () =>
+      new Promise<Response>((resolve) => {
+        resolveSave = resolve;
+      }),
+  );
+  const user = userEvent.setup();
+  renderForm();
+  await openForm(user);
+  await user.type(screen.getByLabelText("Task"), "Paint fence");
+  await user.type(screen.getByLabelText(/Due date/), "2026-10-12");
+  await user.selectOptions(screen.getByLabelText(/Who's doing it/), "u-kid");
+  await user.click(screen.getByRole("button", { name: "Add task" }));
+  expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Done" }));
+  expect(screen.getByRole("form", { name: "Add task" })).toBeTruthy();
+  await act(async () =>
+    resolveSave({
+      ok: false,
+      json: async () => ({ error: "Please try again." }),
+    } as Response),
+  );
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect(screen.getByLabelText("Task")).toHaveValue("Paint fence");
+  expect(screen.getByLabelText(/Due date/)).toHaveValue("2026-10-12");
+  expect(screen.getByLabelText(/Who's doing it/)).toHaveValue("u-kid");
+  expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+});
 
-it('without household members there is no assignee picker', async () => {
-  const user = userEvent.setup()
+it("without household members there is no assignee picker", async () => {
+  const user = userEvent.setup();
   render(
     <ToastProvider>
       <AddProjectTaskForm projectId="p1" />
-    </ToastProvider>
-  )
-  await openForm(user)
-  expect(screen.queryByLabelText(/Who's doing it/)).toBeNull()
-})
+    </ToastProvider>,
+  );
+  await openForm(user);
+  expect(screen.queryByLabelText(/Who's doing it/)).toBeNull();
+});

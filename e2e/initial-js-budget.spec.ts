@@ -31,10 +31,20 @@ function useSoonChunkName() {
 }
 
 test.use({ storageState: authFile("parentA") });
+
+// Script bytes and the hydrated menu interaction are not viewport-specific.
+// Keep the smallest phone and the support desktop to cover the two runtime
+// families while avoiding four identical route/asset measurements per route.
+const PROJECTS = new Set(["phone-390x844", "desktop-1366x768"]);
+
 for (const [route, budget] of Object.entries(CORE_JS_BUDGETS)) {
   test(`${route} cold initial JavaScript stays within ${budget} gzip bytes`, async ({
     page,
   }, info) => {
+    test.skip(
+      !PROJECTS.has(info.project.name),
+      "Cold JavaScript budgets run on the smallest phone and support desktop; route coverage remains complete.",
+    );
     const scripts: ScriptAsset[] = [];
     const pending: Promise<void>[] = [];
     const failures: string[] = [];
