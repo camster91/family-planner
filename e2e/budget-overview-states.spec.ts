@@ -493,7 +493,8 @@ for (const locale of ["en", "es"] as const) {
         await expect(
           page.getByText(DESCRIPTION, { exact: true }),
         ).toBeVisible();
-        await expect(page.getByRole("alert")).toContainText(
+        const refreshNotice = page.locator("#main-content").getByRole("alert");
+        await expect(refreshNotice).toContainText(
           copy.transactionSavedRefreshFailed,
         );
         expect(statsFailures).toBe(1);
@@ -503,7 +504,7 @@ for (const locale of ["en", "es"] as const) {
         await page
           .getByRole("button", { name: copy.retryRefresh, exact: true })
           .click();
-        await expect(page.getByRole("alert")).toHaveCount(0);
+        await expect(refreshNotice).toHaveCount(0);
         await expect(
           page.getByText(DESCRIPTION, { exact: true }),
         ).toBeVisible();
@@ -619,14 +620,14 @@ for (const locale of ["en", "es"] as const) {
         await expect(page.getByText(DESCRIPTION, { exact: true })).toHaveCount(
           0,
         );
-        await expect(page.getByRole("alert")).toContainText(
+        await expect(refreshNotice).toContainText(
           copy.transactionDeletedRefreshFailed,
         );
         expect(statsFailures).toBe(2);
         await page
           .getByRole("button", { name: copy.retryRefresh, exact: true })
           .click();
-        await expect(page.getByRole("alert")).toHaveCount(0);
+        await expect(refreshNotice).toHaveCount(0);
         await expect(
           page.getByText(copy.noTransactions, { exact: true }),
         ).toBeVisible();
