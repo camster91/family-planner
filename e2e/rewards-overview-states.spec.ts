@@ -567,11 +567,11 @@ for (const locale of ["en", "es"] as const) {
           locale,
         );
         childContext = child.context;
+        await child.page.goto("/dashboard");
         const childMe = await browserFetch(child.page, "/api/auth/me");
         expect(childMe.status, childMe.body).toBe(200);
         childXpBefore = (JSON.parse(childMe.body).user as { xp?: unknown })
           .xp as number;
-        await child.page.goto("/dashboard");
         await expect(
           child.page.getByText(names[0], { exact: true }),
         ).toBeVisible();
