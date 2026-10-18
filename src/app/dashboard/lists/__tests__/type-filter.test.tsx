@@ -12,12 +12,13 @@ const mockRedirect = jest.fn((url: string) => {
 });
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
+const mockRefresh = jest.fn();
 jest.mock("next/navigation", () => ({
   redirect: (url: string) => mockRedirect(url),
   useRouter: () => ({
     replace: mockReplace,
     push: mockPush,
-    refresh: jest.fn(),
+    refresh: mockRefresh,
   }),
 }));
 
@@ -371,11 +372,115 @@ describe("localized list overview (#411)", () => {
   });
 });
 
+it("filters custom lists without renaming household content", async () => {
+  render(
+    <ListsClient
+      lists={[
+        ...lists,
+        {
+          id: "custom1",
+          name: "Camping packing",
+          type: "custom",
+          creator: { name: "Pat" },
+          checked_count: 1,
+          total_count: 5,
+        },
+      ]}
+      familyName="Our Family"
+      initialType="custom"
+    />,
+  );
+  expect(screen.getByText("Custom Lists")).toBeTruthy();
+  expect(screen.getByText("Camping packing")).toBeTruthy();
+  expect(screen.queryByText("Weekly shop")).toBeNull();
+  expect(
+    screen.getByRole("link", { name: "Add list" }).getAttribute("href"),
+  ).toBe("/dashboard/lists/create?type=custom");
+});
 
-it('filters custom lists without renaming household content', async () => {
-  render(<ListsClient lists={[...lists, { id: 'custom1', name: 'Camping packing', type: 'custom', creator: { name: 'Pat' }, checked_count: 1, total_count: 5 }]} familyName="Our Family" initialType="custom" />)
-  expect(screen.getByText('Custom Lists')).toBeTruthy()
-  expect(screen.getByText('Camping packing')).toBeTruthy()
-  expect(screen.queryByText('Weekly shop')).toBeNull()
-  expect(screen.getByRole('link', { name: 'Add list' }).getAttribute('href')).toBe('/dashboard/lists/create?type=custom')
-})
+it("shows a scoped list-read failure with retry instead of a false empty state", async () => {
+  mockServerUser.mockResolvedValue({ id: "u1", role: "parent" });
+  mockPrisma.user.findUnique.mockResolvedValue({
+    family_id: "fam-a",
+    family: { name: "Home" },
+  });
+  mockPrisma.list.findMany.mockRejectedValue(
+    new Error("Private database detail"),
+  );
+  const warning = jest.spyOn(console, "warn").mockImplementation(() => {});
+  try {
+    const result = await ListsPage({
+      searchParams: Promise.resolve({ type: "todo" }),
+    });
+    const client = React.Children.toArray(result?.props.children).find(
+      (child) => React.isValidElement(child) && child.type === ListsClient,
+    ) as React.ReactElement<React.ComponentProps<typeof ListsClient>>;
+    const user = userEvent.setup();
+    const view = render(client);
+    expect(screen.getByRole("alert").textContent).toContain(
+      "We couldn’t load your lists",
+    );
+    expect(screen.getByRole("alert").textContent).not.toContain(
+      "Private database detail",
+    );
+    expect(screen.queryByRole("heading", { name: "No lists yet" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Add list" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockPrisma.list.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { family_id: "fam-a" } }),
+    );
+    view.rerender(
+      <I18nProvider>
+        <ListsClient {...client.props} lists={lists} loadFailed={false} />
+      </I18nProvider>,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe(
+      "Showing to-dos lists only",
+    );
+    expect(screen.queryByRole("link", { name: /Weekly shop/ })).toBeNull();
+  } finally {
+    warning.mockRestore();
+  }
+});
+
+it("localizes the read failure without exposing child creation controls", () => {
+  rtlRender(
+    <I18nProvider locale="es">
+      <ListsClient
+        lists={[]}
+        familyName="Fixture family"
+        canCreate={false}
+        loadFailed
+      />
+    </I18nProvider>,
+  );
+  expect(screen.getByRole("alert").textContent).toContain(
+    "No se pudieron cargar tus listas",
+  );
+  expect(screen.getByRole("button", { name: "Reintentar" })).toBeTruthy();
+  expect(
+    screen.queryByRole("heading", { name: "Aún no hay listas" }),
+  ).toBeNull();
+  expect(screen.queryByRole("link", { name: "Añadir lista" })).toBeNull();
+});
+
+it("keeps mounted filters aligned with incoming URL state", () => {
+  const view = render(
+    <ListsClient lists={lists} familyName="Home" initialType="grocery" />,
+  );
+  expect(screen.getByRole("link", { name: /Weekly shop/ })).toBeTruthy();
+  view.rerender(
+    <I18nProvider>
+      <ListsClient lists={lists} familyName="Home" initialType="todo" />
+    </I18nProvider>,
+  );
+  expect(screen.queryByRole("link", { name: /Weekly shop/ })).toBeNull();
+  expect(screen.getByRole("link", { name: /Chores to fix/ })).toBeTruthy();
+  expect(screen.getByRole("status").textContent).toBe(
+    "Showing to-dos lists only",
+  );
+  expect(mockReplace).not.toHaveBeenCalled();
+});
