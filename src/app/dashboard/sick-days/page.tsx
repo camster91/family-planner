@@ -839,7 +839,7 @@ function SickDaysPageInner() {
                     <div key={med.id} className="bg-[var(--surface-secondary)] rounded-lg px-3 py-2">
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-subhead text-label-primary font-medium">{med.name}</p>
+                          <p className="text-subhead text-label-primary font-medium break-words">{med.name}</p>
                           <p className="text-caption-1 text-label-secondary">
                             {med.dosage} · {med.schedule}
                           </p>
