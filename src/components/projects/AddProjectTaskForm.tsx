@@ -157,7 +157,7 @@ export function AddProjectTaskForm({
         ambiguousRequests.current.set(signature, key);
       setError(
         err instanceof TypeError
-          ? text("taskUpdateNetworkError")
+          ? `${text("taskAddError")} ${text("taskUpdateNetworkError")}`
           : text("taskAddFallback"),
       );
     } finally {
