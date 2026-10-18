@@ -103,7 +103,9 @@ export function AddProjectTaskForm({
         !res.ok ||
         !data?.task ||
         typeof data.task.id !== "string" ||
-        typeof data.task.title !== "string"
+        data.task.id.trim().length === 0 ||
+        typeof data.task.title !== "string" ||
+        data.task.title.trim().length === 0
       ) {
         const code =
           data?.error && typeof data.error === "object"
