@@ -1,5 +1,21 @@
 # Current State
 
+## Gated Android local voice draft source — 2026-10-18
+
+The #563 source now includes a first-party `LocalVoice` Capacitor plugin using
+Android’s on-device recognizer only (API 31+ and actual service/model readiness).
+The EN/ES input is wired to the personal assistant draft and shared-tablet grocery
+draft. An explicit tap requests microphone permission; one utterance is bounded
+to 20 seconds and cancellation/hidden app/context replacement drop late results.
+Typing changed while listening is retained. The foreground wake-phrase experiment
+extracts a draft only, never authenticates, sends chat or executes an action.
+
+`NEXT_PUBLIC_LOCAL_VOICE_PREVIEW=0` by default. The manifest/plugin change needs a
+rebuilt binary, permission/privacy review and real-device acceptance; no native
+sync, build, test, activation or release was performed. Existing scoped #465 and
+#466 foundations and #473 source contract were reconciled in the issue ledger.
+Source/remaining platform plan: `docs/architecture/LOCAL_VOICE.md`.
+
 ## Explicit legacy saved-change bridge source — 2026-10-18
 
 The #564 candidate now includes short EN/ES keep/discard review sheets for

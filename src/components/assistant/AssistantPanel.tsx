@@ -31,6 +31,7 @@ import {
 } from "@/i18n/assistant";
 import AppGuide from "./AppGuide";
 import { useVoiceDraft } from "./use-voice-draft";
+import { LocalVoiceDraft } from "./LocalVoiceDraft";
 
 type Message = { role: "user" | "assistant"; content: string };
 type ChatRequest = {
@@ -1130,7 +1131,16 @@ export default function AssistantPanel({
                 <button
                   disabled={busy || !voice.supported}
                   type="button"
-                  onClick={voice.start}
+                  onClick={() => {
+                    if (voice.listening) {
+                      voice.stop();
+                      return;
+                    }
+                    window.dispatchEvent(
+                      new Event("herewoven:voice-input-start"),
+                    );
+                    voice.start();
+                  }}
                   aria-pressed={voice.listening}
                   className={`${target} bg-surface-fill inline-flex items-center gap-2`}
                 >
@@ -1157,6 +1167,13 @@ export default function AssistantPanel({
                   {msg("clearChat")}
                 </button>
               </div>
+              <LocalVoiceDraft
+                enabled={panelOpen && tab === "chat" && canChat && !busy}
+                contextKey={`${role}:${pathname}`}
+                value={text}
+                onDraft={setText}
+                beforeListen={voice.stop}
+              />
               <p className="text-xs text-label-secondary">
                 {voice.supported
                   ? msg("voiceGuidance")

@@ -48,7 +48,21 @@ export function useVoiceDraft(
     if (!enabled) stop();
     return stop;
   }, [enabled, stop]);
+  React.useEffect(() => {
+    const hide = () => {
+      if (document.visibilityState !== "visible") stop();
+    };
+    document.addEventListener("visibilitychange", hide);
+    window.addEventListener("pagehide", stop);
+    window.addEventListener("herewoven:voice-input-start", stop);
+    return () => {
+      document.removeEventListener("visibilitychange", hide);
+      window.removeEventListener("pagehide", stop);
+      window.removeEventListener("herewoven:voice-input-start", stop);
+    };
+  }, [stop]);
   const start = () => {
+    if (!enabled || document.visibilityState !== "visible") return;
     if (recognition.current) {
       stop();
       return;
@@ -65,6 +79,8 @@ export function useVoiceDraft(
     r.continuous = false;
     r.interimResults = false;
     r.onresult = (e) => {
+      if (recognition.current !== r || document.visibilityState !== "visible")
+        return;
       const text = Array.from(e.results)
         .map((row) => row[0]?.transcript ?? "")
         .join(" ")

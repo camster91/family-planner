@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <queries>
+        <intent><action android:name="android.speech.RecognitionService" /></intent>
+    </queries>
+
     <application
         android:allowBackup="false"
         android:fullBackupContent="false"
@@ -41,4 +45,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Requested only by the explicit foreground local voice preview. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 </manifest>

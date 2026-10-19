@@ -6,6 +6,7 @@ import type { GroceryMessage } from "@/i18n/grocery-controls";
 import { Dialog } from "@/components/ui/dialog";
 import { QueueStorageRecovery } from "@/components/ui/queue-storage-recovery";
 import { RecoveredQueueChanges } from "@/components/ui/recovered-queue-changes";
+import { LocalVoiceDraft } from "@/components/assistant/LocalVoiceDraft";
 import type { DeviceClient } from "@/lib/device-client";
 import { getDeviceQueue } from "@/lib/offline-queue-browser";
 import {
@@ -359,6 +360,13 @@ export function DeviceGroceryAdd({
                 autoComplete="off"
                 className={inputClass}
                 onChange={(e) => setContent(e.target.value)}
+              />
+              <LocalVoiceDraft
+                enabled={open && !busy && Boolean(actorId)}
+                contextKey={`${actorId}:${listId}`}
+                value={content}
+                maxLength={200}
+                onDraft={setContent}
               />
             </div>
             {!online && <p role="status">{t("groceries.deviceOfflineHint")}</p>}
