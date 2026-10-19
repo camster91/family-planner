@@ -146,6 +146,7 @@ const batchDto = z.object({
   total_servings: z.number().int().min(1).max(50),
   reserve_storage: z.enum(["fridge", "freezer"]),
   recipe_id: id.nullable(),
+  recipe_snapshot_at: z.string().datetime().nullable().optional(),
   cook_id: id.nullable(),
   meals: z.array(mealDto).max(50),
   consumption: z.array(consumptionDto).max(50),

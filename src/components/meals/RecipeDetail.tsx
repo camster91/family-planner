@@ -1,3 +1,4 @@
+"use client";
 /**
  * Recipe detail (ADR-0007, #252): title, times, servings, ingredients,
  * description and instructions from `GET /api/recipes/[id]`.
@@ -10,6 +11,7 @@ import { Clock, Users } from "lucide-react";
 import { formatAmount } from "@/lib/grocery-display";
 import { publicRecipeUrl } from "@/lib/recipe-discovery";
 import { formatMinutes } from "@/lib/meal-slots";
+import { useTranslation } from "@/i18n";
 
 export interface RecipeDetailData {
   id: string;
@@ -39,6 +41,8 @@ export function RecipeDetail({
   recipe: RecipeDetailData;
   actions?: React.ReactNode;
 }) {
+  const { locale } = useTranslation();
+  const es = locale === "es";
   const sourceMatch = /^Source: (https:\/\/[^\n]+)\n/.exec(
     recipe.description ?? "",
   );
@@ -53,11 +57,15 @@ export function RecipeDetail({
       : recipe.description;
   const prep = formatMinutes(recipe.prep_time);
   const cook = formatMinutes(recipe.cook_time);
-  const facts: Array<{ label: string; value: string }> = [];
-  if (prep) facts.push({ label: "Prep", value: prep });
-  if (cook) facts.push({ label: "Cook", value: cook });
+  const facts: Array<{ label: string; value: string; servings?: boolean }> = [];
+  if (prep) facts.push({ label: es ? "Preparación" : "Prep", value: prep });
+  if (cook) facts.push({ label: es ? "Cocción" : "Cook", value: cook });
   if (recipe.servings)
-    facts.push({ label: "Serves", value: String(recipe.servings) });
+    facts.push({
+      label: es ? "Porciones" : "Serves",
+      value: String(recipe.servings),
+      servings: true,
+    });
 
   return (
     <article
@@ -84,14 +92,15 @@ export function RecipeDetail({
             rel="noopener noreferrer"
             className="inline-flex min-h-[44px] items-center text-[var(--accent-text)] break-all"
           >
-            Original recipe · {new URL(sourceUrl).hostname} ↗
+            {es ? "Receta original" : "Original recipe"} ·{" "}
+            {new URL(sourceUrl).hostname} ↗
           </a>
         )}
         {facts.length > 0 && (
           <dl className="flex flex-wrap gap-x-5 gap-y-1 text-subhead text-label-secondary">
             {facts.map((f) => (
               <div key={f.label} className="flex items-center gap-1.5">
-                {f.label === "Serves" ? (
+                {f.servings ? (
                   <Users className="w-4 h-4" aria-hidden="true" />
                 ) : (
                   <Clock className="w-4 h-4" aria-hidden="true" />
@@ -108,11 +117,13 @@ export function RecipeDetail({
 
       <section aria-labelledby="recipe-ingredients">
         <h2 id="recipe-ingredients" className="section-header">
-          Ingredients
+          {es ? "Ingredientes" : "Ingredients"}
         </h2>
         {recipe.ingredients.length === 0 ? (
           <p className="card-apple p-4 text-subhead text-label-secondary">
-            No ingredients listed for this recipe.
+            {es
+              ? "Esta receta no tiene ingredientes registrados."
+              : "No ingredients listed for this recipe."}
           </p>
         ) : (
           <ul
@@ -149,7 +160,7 @@ export function RecipeDetail({
       {recipe.instructions && (
         <section aria-labelledby="recipe-instructions">
           <h2 id="recipe-instructions" className="section-header">
-            Method
+            {es ? "Pasos" : "Method"}
           </h2>
           <p className="card-apple p-4 text-body text-label-primary break-words whitespace-pre-line">
             {recipe.instructions}

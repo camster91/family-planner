@@ -234,6 +234,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true, position: true, name: true, total_servings: true,
               reserve_storage: true, recipe_id: true, cook_id: true,
+              recipe_snapshot: true, recipe_snapshot_at: true,
               consumption: {
                 where: { family_id: familyId! },
                 select: {

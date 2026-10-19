@@ -1,4 +1,8 @@
 import crypto from "node:crypto";
+import {
+  capturePrepRecipeHistory,
+  RecipeHistoryUnavailable,
+} from "@/lib/meal-recipe-history";
 import type { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
@@ -25,6 +29,8 @@ import {
 
 type Actor = { userId: string; familyId: string; tokenVersion: number };
 const errorMessages: Record<string, string> = {
+  RECIPE_HISTORY_UNAVAILABLE:
+    "The current recipe details could not be recorded. Your prep plan is kept. Review the linked recipes before marking it prepared.",
   BATCH_FULL:
     "Those portions are already planned or eaten. Reload the latest prep session.",
   STATE_CHANGED: "This plan changed elsewhere. Reload the latest prep session.",
@@ -238,11 +244,25 @@ export async function persistMealPrepInTx(
     });
     if (!session) return batchFailure(404, "SESSION_UNAVAILABLE");
     if (input.action === "prepared") {
-      if (!session.prepared_at)
+      if (!session.prepared_at) {
+        const preparedAt = new Date();
+        try {
+          await capturePrepRecipeHistory(
+            tx,
+            actor.familyId,
+            session.id,
+            preparedAt,
+          );
+        } catch (error) {
+          if (error instanceof RecipeHistoryUnavailable)
+            return batchFailure(409, "RECIPE_HISTORY_UNAVAILABLE");
+          throw error;
+        }
         await tx.mealPrepSession.update({
           where: { id: session.id },
-          data: { prepared_at: new Date() },
+          data: { prepared_at: preparedAt },
         });
+      }
     } else {
       const current = session.next_prep_on
         ? toDateOnlyUTC(session.next_prep_on)

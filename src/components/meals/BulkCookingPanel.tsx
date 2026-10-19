@@ -11,6 +11,7 @@ import {
 import { parseDateOnly, toDateOnlyUTC } from "@/lib/dates";
 import { AddToGroceriesButton } from "./AddToGroceriesButton";
 import { MealPrepEditor } from "./MealPrepEditor";
+import { PreparedRecipe } from "./PreparedRecipe";
 import {
   MealPrepActionSheet,
   type PrepActionKind,
@@ -224,7 +225,9 @@ export function BulkCookingPanel({
         </button>
       </div>
       {forbidden ? (
-        <p className="text-subhead text-label-secondary">{tBulk("forbidden")}</p>
+        <p className="text-subhead text-label-secondary">
+          {tBulk("forbidden")}
+        </p>
       ) : error ? (
         <div role="alert" className="space-y-2">
           <p className="text-subhead text-[var(--danger-text)]">
@@ -327,7 +330,11 @@ export function BulkCookingPanel({
                     <button
                       type="button"
                       className="btn-tinted min-h-[44px]"
-                      disabled={mutationsBlocked || !current.prepared_at || counts.remaining <= 0}
+                      disabled={
+                        mutationsBlocked ||
+                        !current.prepared_at ||
+                        counts.remaining <= 0
+                      }
                       onClick={() =>
                         setModal({
                           kind: "eaten",
@@ -356,6 +363,10 @@ export function BulkCookingPanel({
                       </button>
                     )}
                   </div>
+                  {current.prepared_at &&
+                    (batch.recipe_id || batch.recipe_snapshot_at) && (
+                      <PreparedRecipe batchId={batch.id} />
+                    )}
                   {batch.recipe_id && !current.prepared_at && (
                     <AddToGroceriesButton
                       recipeId={batch.recipe_id}

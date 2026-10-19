@@ -146,3 +146,45 @@ Rollback retains additive tables/columns and source data. Revert only UI/routes
 when pausing the feature; do not drop collections or provenance to run an older
 server. New strict payload fields are refused by older strict readers before
 mutation. Final deployment compatibility still requires the integrated gates.
+
+
+## Prepared recipe evidence source candidate — 2026-10-19 (#460)
+
+A linked prep dish now records a versioned canonical recipe snapshot when its
+session is first marked prepared: title, description, instructions, source,
+revision, base servings/times and ingredient amounts/units/notes. The snapshot
+contains no account, creator or model context. Current household authorization
+and recipe locks precede capture. All session recipes are validated before
+writes; snapshot/prepared state and the existing mutation receipt commit or
+roll back together. Capture is bounded to eight dishes, 100 ingredient lines per
+recipe and 512 KiB per record. Invalid legacy details refuse preparation with the
+plan retained, rather than silently omitting history or truncating instructions.
+
+Recipe edits, ingredient replacement and recipe deletion cannot rewrite stored
+cooked evidence. Repeated prepared requests never recapture. Existing prepared
+sessions remain NULL/unrecorded; no backfill claims today's recipe was used in
+an earlier cook. Manual dishes retain their canonical dish/portion records
+without a fabricated recipe. Eaten, Undo, allocation and next-prep quantities
+keep their existing path; this adds no stock consumption or grocery mutation.
+Planned dishes use the current recipe until prepared. The existing
+BATCH_ALREADY_PREPARED grocery refusal remains in force for cooked batches.
+
+The short read-only Recipe used sheet fetches one batch's history on demand,
+with bounded waiting, cancellation and stale-response guards. It reports missing
+history honestly and renders authored recipe text with EN/ES interface labels.
+`GET /api/meals/bulk/[id]/recipe` uses existing fresh verified parent/teen,
+session/household/meals authority and private/no-store responses. It refuses
+unknown versions/partial records without rewriting stored data. Prep lists send
+only the capture timestamp; household export includes the full evidence. The
+existing owned MealBatch erasure lifecycle removes snapshots with their batch.
+
+The expand-only `migration-zzz-recipe-prep-history.sql` follows the bulk-cooking
+migration. Rollback retains its nullable columns and JSON evidence; older
+servers may create unrecorded sessions, never backfilled as historical truth.
+Disposable-DB/contract test source covers frozen content, canonical deletion,
+repeat preparation, all-dish refusal and legacy unrecorded sessions. These tests
+are not executed. Later integrated QA must apply the schema/generate a private
+client, exercise authority/role/device and concurrent write/recovery paths,
+check eaten/Undo/next-prep quantities and inspect EN/ES rendering. No migration,
+generation, checks/build/browser QA, provider call, push, merge or deployment.
+Full #460 acceptance and broader discovery/reuse reconciliation remain open.

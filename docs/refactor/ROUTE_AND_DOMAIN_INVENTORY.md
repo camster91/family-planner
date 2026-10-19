@@ -422,3 +422,17 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
   source/favorite/revision fields. Composite household FKs, export and family
   erasure inventory included. No shared-device API or separate AI recipe store.
 - Source candidate only: additive migration/generation and all QA deferred.
+
+
+### Prepared recipe history additive source candidate (#460, 2026-10-19)
+
+- `/api/meals/bulk/[id]/recipe` GET: current verified personal parent/teen,
+  household/session generation and meals checks, private/no-store. Paired
+  identities refused by the existing authentication boundary.
+- Nullable MealBatch recipe_snapshot/recipe_snapshot_at capture canonical
+  recipe details at first prep completion, in the same receipt transaction.
+  Explicit no-record state for legacy sessions; no current-content backfill.
+- Full evidence is fetched only on demand and included in household export;
+  prep lists contain only timestamp metadata. Existing batch/family erasure
+  covers it. No new shared-device route, provider call or offline action.
+- Source candidate only; additive migration/generation and all QA deferred.

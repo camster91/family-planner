@@ -72,6 +72,8 @@ export const bulkCookingEnglish = {
   undoEaten: "Undo eaten entry",
   preparedGroceries:
     "This dish is already prepared. Plan next prep to buy its ingredients again.",
+  recipeHistoryUnavailable:
+    "We could not record the recipe details. Your prep plan is kept. Review the linked recipes before marking it prepared.",
   needPrepared: "Mark the session prepared before recording eaten portions.",
   groceries: "Groceries for this dish",
   fromBatch: "From bulk cook",
@@ -80,7 +82,8 @@ export const bulkCookingEnglish = {
   retry: "Retry save",
   reload: "Reload latest",
   loadError: "We couldn’t load prep sessions. Try again.",
-  reloadBeforeSave: "Reload prep sessions before saving. Your draft is still here.",
+  reloadBeforeSave:
+    "Reload prep sessions before saving. Your draft is still here.",
   more: "Load more prep sessions",
   unknown:
     "We couldn’t confirm the save. Keep this draft unchanged and retry to check the same request.",
@@ -175,6 +178,8 @@ export const bulkCookingSpanish: Messages = {
   undoEaten: "Deshacer consumo",
   preparedGroceries:
     "Este plato ya está preparado. Planea la próxima preparación para comprar sus ingredientes de nuevo.",
+  recipeHistoryUnavailable:
+    "No pudimos registrar los detalles de las recetas. Tu plan se conserva. Revisa las recetas antes de marcar la sesión como preparada.",
   needPrepared: "Marca la sesión preparada antes de registrar el consumo.",
   groceries: "Ingredientes de este plato",
   fromBatch: "De cocina por lotes",

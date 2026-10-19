@@ -1,5 +1,24 @@
 # Current State
 
+## Prepared recipe history source — 2026-10-19
+
+The #460 reuse candidate captures a bounded canonical recipe snapshot when a
+prep session is first marked prepared. All linked recipes must be readable and
+valid before any snapshot is written; snapshots, prepared state and the existing
+receipt share one transaction. Later recipe edits/deletion and repeated prepared
+requests cannot rewrite this evidence. Already-prepared legacy sessions remain
+explicitly unrecorded. Planned dishes keep using the current canonical recipe;
+prepared dishes keep their existing grocery refusal and portion accounting.
+
+A read-only EN/ES Recipe used sheet loads history on demand through current
+verified parent/teen household authority. Full snapshots stay out of prep-list
+responses and shared-device surfaces; household export includes them. Recipe
+detail labels and capture failures have EN/ES text. An additive migration and
+focused contract/disposable-DB test source are authored, not run. No Prisma
+client generation, migration, QA, build, push, merge or deployment occurred.
+Broader #460 discovery/reuse reconciliation and the implementation-first goal
+remain unfinished. See `docs/product/RECIPE_DISCOVERY.md`.
+
 ## Recipe duplicates, favorites and collections source — 2026-10-18
 
 The #460 follow-up adds durable source identity and household-locked duplicate

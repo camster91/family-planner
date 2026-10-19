@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
               total_servings: true,
               reserve_storage: true,
               recipe_id: true,
+              recipe_snapshot_at: true,
               cook_id: true,
               meals: {
                 where,

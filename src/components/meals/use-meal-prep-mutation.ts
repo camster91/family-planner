@@ -126,13 +126,15 @@ export function useMealPrepMutation(
             ? tBulk("changed")
             : errorCode === "PREP_NOT_READY"
               ? tBulk("needPrepared")
-              : errorCode === "BEFORE_PREPARATION"
-                ? tBulk("beforePrep")
-                : errorCode === "COOK_UNAVAILABLE"
-                  ? tBulk("cookError")
-                  : errorCode.endsWith("UNAVAILABLE")
-                    ? tBulk("unavailable")
-                    : tBulk("invalid");
+              : errorCode === "RECIPE_HISTORY_UNAVAILABLE"
+                ? tBulk("recipeHistoryUnavailable")
+                : errorCode === "BEFORE_PREPARATION"
+                  ? tBulk("beforePrep")
+                  : errorCode === "COOK_UNAVAILABLE"
+                    ? tBulk("cookError")
+                    : errorCode.endsWith("UNAVAILABLE")
+                      ? tBulk("unavailable")
+                      : tBulk("invalid");
   return {
     save,
     busy,
