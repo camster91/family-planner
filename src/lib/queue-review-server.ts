@@ -75,6 +75,7 @@ export async function reviewQueueTargets(
             itemName: item.content,
             checked: item.checked,
             actorName: actor?.name ?? null,
+            actorId: actor?.id ?? null,
           };
       } else {
         const list = lists.find((list) => list.id === entry.listId);
@@ -86,6 +87,7 @@ export async function reviewQueueTargets(
             itemName: null,
             checked: null,
             actorName: actor?.name ?? null,
+            actorId: actor?.id ?? null,
           };
       }
     }

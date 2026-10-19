@@ -4,6 +4,7 @@ export const QUEUE_OWNER_CONTRACT = "herewoven.queue-owner.v1";
 export const QUEUE_OWNER_HEADER = "X-Queue-Owner";
 export const QUEUE_RETIREMENT_HEADER = "X-Queue-Retirement";
 export const QUEUE_REVIEW_REQUIRED = "QUEUE_REVIEW_REQUIRED";
+export const ORIGINAL_DEVICE_REQUIRED = "ORIGINAL_DEVICE_REQUIRED";
 export const queueOwnerSchema = z
   .object({
     kind: z.enum(["person", "device"]),
@@ -60,6 +61,10 @@ export const ownedQueueEnvelope = z.discriminatedUnion("state", [
       owner: queueOwnerSchema,
       runtime: z.string().min(16).max(128),
       queue: z.string().min(1),
+      reviewIds: z
+        .array(z.string().regex(/^[A-Za-z0-9_-]{16,128}$/))
+        .max(50)
+        .optional(),
     })
     .strict(),
   z

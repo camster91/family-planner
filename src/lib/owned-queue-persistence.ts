@@ -44,9 +44,22 @@ export function withOwnedQueueLease<T>(
     ? null
     : (navigator.locks ?? null),
 ): Promise<T> {
+  return withQueueLease(
+    `herewoven-owned-queue:${owner.kind}:${owner.scope}`,
+    run,
+    locks,
+  );
+}
+export function withQueueLease<T>(
+  name: string,
+  run: () => Promise<T>,
+  locks: Pick<LockManager, "request"> | null = typeof navigator === "undefined"
+    ? null
+    : (navigator.locks ?? null),
+): Promise<T> {
   if (!locks) return Promise.reject(new OwnedQueueLeaseError());
   return locks.request(
-    `herewoven-owned-queue:${owner.kind}:${owner.scope}`,
+    name,
     { mode: "exclusive", ifAvailable: true },
     async (lock) => {
       if (!lock) throw new OwnedQueueLeaseError();

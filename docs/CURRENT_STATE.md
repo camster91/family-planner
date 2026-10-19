@@ -1,5 +1,20 @@
 # Current State
 
+## Explicit legacy saved-change bridge source — 2026-10-18
+
+The #564 candidate now includes short EN/ES keep/discard review sheets for
+recognized v1 work. Current canonical target/actor checks precede old text
+display; verified owned copies precede old-copy retirement. Lost acknowledgements
+require the same decision, changed owners retain the source, unknown fields and
+unread/divergent copies pause, and capacity never evicts work. Unknown-origin
+tablet adds remain locked rather than changing their idempotency namespace.
+Recovered failure records retain durable review holds beyond normal retention.
+
+Focused fault-test source is added but unexecuted. Previous-client rollback,
+real cross-context locks and native acceptance remain deferred with all other
+QA. Flags stay off; no migration, push, merge or deploy occurred. Details:
+`docs/architecture/QUEUE_OWNER_RECOVERY.md`. The goal and issue stay open.
+
 ## Scoped queue cleanup, locking and named review source — 2026-10-18
 
 The next #564 local pass moves owned journals into separate person/device

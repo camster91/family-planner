@@ -113,30 +113,40 @@ pauses rather than guessing support. Cold-offline startup behavior therefore
 still needs the complete native/bootstrap integration, not an availability
 claim from these sources alone.
 
-## Required coding before freezing the candidate
+## Explicit legacy bridge source
 
-These are remaining implementation work, not requests for Cameron to unblock:
+`legacy-queue-migration.ts` and the EN/ES `LegacyQueueRecovery` sheet now
+provide an explicit bridge for fully recognized v1 snapshots. Canonical target
+and actor IDs are checked before showing saved food text. Every recognized row
+requires Keep for review or explicit Discard; Leave keeps the source untouched.
+Unknown fields, unread copies, divergent snapshots and missing current targets
+cannot be guessed into a new queue. The existing 50-item capacity never evicts
+an existing item to make room.
 
-1. **Legacy and rollback recovery.** An unowned v1 snapshot is currently
-   retained as `UPDATE_REQUIRED`, not silently adopted. Implement deliberate
-   migration/review using canonical current-household target checks before
-   displaying or replaying its content. Preserve original keys/bodies and
-   unavailable/foreign-target work without exposing old-household details.
-   Finish reader continuity when the write opt-in is turned off and confirm
-   the actual previous-client preservation contract before any v2 persistence
-   is allowed in release. Do not just change the public manifest to claim it.
-   The canonical target-review service and named sheets are now available as
-   the read/review foundation. Person v1 records retain the stable User
-   idempotency namespace. An unowned legacy device grocery add cannot simply
-   be rebound to a new pairing: that changes the idempotency scope and can
-   duplicate a previously committed create. Preserve/lock such unknown-origin
-   creates rather than renewing a key or guessing a device from local labels.
-2. Finish scoped fault/concurrency test source and then include it in the one
-   later QA run. No check is currently claimed passing.
+The bridge holds a legacy namespace lease followed by the current owner lease,
+rechecks ownership, copies the original keys/bodies/timestamps into verified
+owned storage, and only then retires the old copies. Uncertain copying locks the
+exact decision for explicit retry; it does not authorize a different merge or
+an overwrite of unfamiliar new work. A context change after copying preserves
+the old source. Copied work is held for individual review without automatic
+network replay. Legacy device creates stay locked as
+`ORIGINAL_DEVICE_REQUIRED`: the unknown original pairing's idempotency scope
+cannot safely be rebound. People must inspect the canonical list before making
+a separate new add.
 
-Principal-qualified cleanup, actual cross-context leases and named shared
-review are now **coded candidates**, not tested acceptance. All original race,
-physical-native, rollback and privacy criteria below remain open for QA.
+Persistent review IDs also retain recovered failed records beyond the normal
+failure retention period until deliberate review/discard. Recognized legacy
+retirement witnesses are readable when the write gate is off; an active newer
+journal still pauses the older writer. The adopted server proof boundary must
+remain enabled through rollback. Unknown/future records remain untouched.
+
+Focused fault-test source now covers original intent retention, lost write
+acknowledgements and exact-decision retry, changed owners before and after copy,
+unread/divergent old copies, unknown payload fields, unsafe tablet creates and
+recovered failure retention. These tests have **not run**. Actual Web Locks,
+previous-client compatibility, native lifecycle and the full acceptance matrix
+below remain for the consolidated QA pass. No minimum-client/public capability
+claim or rollout opt-in has been changed.
 
 ## Consolidated acceptance after source completion
 

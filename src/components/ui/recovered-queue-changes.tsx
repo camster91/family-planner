@@ -14,6 +14,7 @@ import {
   queueReviewResponse,
   reviewEntry,
   reviewFingerprint,
+  matchingReviewTarget,
   type QueueReviewTarget,
   type QueueReviewEntry,
 } from "@/lib/queue-review-contract";
@@ -29,7 +30,8 @@ function unsafeCreate(op: QueuedOperation) {
     !("itemId" in op.payload) &&
     (Date.now() - op.createdAt > QUEUE_MAX_AGE_MS ||
       op.lastError === "EXPIRED" ||
-      op.lastError === "IDEMPOTENCY_KEY_REUSED")
+      op.lastError === "IDEMPOTENCY_KEY_REUSED" ||
+      op.lastError === "ORIGINAL_DEVICE_REQUIRED")
   );
 }
 function needsReview(op: QueuedOperation) {
@@ -149,7 +151,11 @@ export function RecoveredQueueChanges({
         const next: Record<string, Reviewed> = {};
         for (const row of parsed.data.rows) {
           const expected = entries.find((entry) => entry.id === row.id);
-          if (!expected || row.fingerprint !== reviewFingerprint(expected))
+          if (
+            !expected ||
+            row.fingerprint !== reviewFingerprint(expected) ||
+            !matchingReviewTarget(expected, row.target)
+          )
             throw new Error("Review changed");
           next[row.id] = {
             fingerprint: row.fingerprint,

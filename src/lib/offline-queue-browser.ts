@@ -29,6 +29,7 @@ import {
   ownedQueueLocation,
   retireOwnedQueueRecords,
   withOwnedQueueLease,
+  withQueueLease,
 } from "@/lib/owned-queue-persistence";
 
 const queues = new Map<string, OfflineQueue>();
@@ -171,6 +172,18 @@ export function getPersonQueue(userId: string): OfflineQueue {
     namespace: { kind: "person", userId },
     ownedCandidates,
     withLease: withOwnedQueueLease,
+    withLegacyLease: (run) =>
+      withQueueLease(`herewoven-legacy-queue:person:${userId}`, run),
+    reviewLegacy: async (entries) => {
+      const response = await fetch("/api/queue/review", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries }),
+      });
+      if (!response.ok) throw new Error("Older change review unavailable");
+      return response.json();
+    },
     runtime: newIdempotencyKey(),
     resolveOwner: async () => {
       const response = await fetch("/api/queue/owner", {
@@ -260,6 +273,13 @@ export function getDeviceQueue(client: DeviceClient): OfflineQueue {
     namespace: { kind: "device" },
     ownedCandidates,
     withLease: withOwnedQueueLease,
+    withLegacyLease: (run) =>
+      withQueueLease("herewoven-legacy-queue:device", run),
+    reviewLegacy: (entries) =>
+      client.request("/api/device/queue-review", {
+        method: "POST",
+        body: { entries },
+      }),
     runtime: newIdempotencyKey(),
     resolveOwner: () => client.request("/api/device/queue-owner"),
   });

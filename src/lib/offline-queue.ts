@@ -21,6 +21,7 @@
  * Browser wiring: src/lib/offline-queue-browser.ts.
  */
 import { DEVICE_IDB_NAME, DEVICE_QUEUE_KEY } from '@/lib/device-client'
+import type { LegacyQueueDecision, LegacyQueuePreview } from '@/lib/legacy-queue-contract'
 
 // ---------------------------------------------------------------------------
 // Policy. Product policy numbers, documented in OFFLINE_SYNC.md; change them
@@ -228,6 +229,11 @@ export interface QueueStore {
   failureReason?: () => 'UNAVAILABLE' | 'OWNER_CHANGED' | 'UPDATE_REQUIRED' | 'DIVERGENT' | null
   matchesOwner?: (owner: unknown) => boolean
   usesOwnerRecovery?: () => boolean
+  holdsReview?: (id: string) => boolean
+  resolveReview?: (id: string) => void
+  legacyRecoveryAvailable?: () => boolean
+  previewLegacy?: () => Promise<LegacyQueuePreview>
+  migrateLegacy?: (decision: LegacyQueueDecision) => Promise<void>
 }
 
 export interface SendRequest {
@@ -549,7 +555,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
       // A recovered active journal cannot prove whether its former runtime
       // retired it unsuccessfully. Retain it for deliberate per-item review;
       // do not age/drop it before the person has seen the recovery state.
-      if (op.lastError === 'QUEUE_REVIEW_REQUIRED') { kept.push(op); continue }
+      if (op.lastError === 'QUEUE_REVIEW_REQUIRED' || op.lastError === 'ORIGINAL_DEVICE_REQUIRED' || deps.store.holdsReview?.(op.id)) { kept.push(op); continue }
       const age = now - op.createdAt
       if ((op.state === 'failed' || op.state === 'conflict') && age > QUEUE_RETENTION_MS) {
         dropped++
@@ -632,6 +638,30 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
       })()
     }
     await storageReadRetry
+  }
+
+  async function previewLegacy(): Promise<LegacyQueuePreview> {
+    await ready
+    const generation = persistenceGeneration
+    await waitForPersistenceLane()
+    if (disposed || purging || generation !== persistenceGeneration || !deps.store.previewLegacy) throw new QueueError('STORAGE_UNAVAILABLE')
+    return deps.store.previewLegacy()
+  }
+
+  async function migrateLegacy(decision: LegacyQueueDecision): Promise<void> {
+    await ready
+    if (disposed || purging || !deps.store.migrateLegacy) throw new QueueError('STORAGE_UNAVAILABLE')
+    const generation = persistenceGeneration
+    let failure: unknown
+    const result = await enqueuePersistenceMutation(generation, async () => {
+      if (disposed || purging || generation !== persistenceGeneration) throw new QueueError('STORAGE_UNAVAILABLE')
+      try { await deps.store.migrateLegacy!(decision) } catch (error) { failure = error; throw error }
+    }, { force: true })
+    storageReadError = true
+    emit({ type: 'change' })
+    if (result !== 'success') throw failure ?? new QueueError('STORAGE_UNAVAILABLE')
+    await retryStorageRead()
+    if (storageReadError) throw new QueueError('STORAGE_UNAVAILABLE')
   }
 
   function snapshot(): QueuedOperation[] {
@@ -828,6 +858,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     assertStorageReadable()
     const op = ops.find((o) => o.id === id)
     if (!op || (op.state !== 'failed' && op.state !== 'conflict')) return
+    if (op.action === 'device.list-item.add' && op.lastError === 'ORIGINAL_DEVICE_REQUIRED') return
     const now = deps.now()
     // The same key is kept so a response lost earlier is still replayed; a key
     // the server rejected as reused needs a fresh one.
@@ -841,6 +872,7 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
       emit({ type: 'change' })
       return
     }
+    deps.store.resolveReview?.(op.id)
     if (op.lastError === 'IDEMPOTENCY_KEY_REUSED') op.id = deps.newKey()
     if (op.lastError === 'EXPIRED') op.createdAt = now
     op.state = 'pending'
@@ -856,6 +888,8 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     await ready
     assertStorageReadable()
     const before = ops.length
+    const selected = ops.find(op => op.id === id)
+    if (selected && selected.state !== 'syncing') deps.store.resolveReview?.(selected.id)
     ops = ops.filter((o) => o.id !== id || o.state === 'syncing')
     if (ops.length === before) return
     await persist()
@@ -924,6 +958,9 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     matchesOwner: (owner: unknown) => deps.store.matchesOwner?.(owner) ?? false,
     usesOwnerRecovery: () => deps.store.usesOwnerRecovery?.() ?? false,
     retryStorageRead,
+    legacyRecoveryAvailable: () => deps.store.legacyRecoveryAvailable?.() ?? false,
+    previewLegacy,
+    migrateLegacy,
     /** False while queued changes exist only in memory because storage refused the last write. */
     isDurable: () => durable && !storageReadError,
     list: snapshot,

@@ -6,6 +6,9 @@ import {
   serializeQueue,
   QueueStorageError,
   QUEUEABLE_ACTIONS,
+  QUEUE_MAX_OPS,
+  QueueError,
+  type QueuedOperation,
   type QueueStore,
   type SendRequest,
   type SendFn,
@@ -14,12 +17,18 @@ import {
 import { canonicalBodySignature } from "@/lib/request-signature";
 import { rememberQueueOwner } from "@/lib/owned-queue-persistence";
 import {
+  createLegacyMigration,
+  LegacyQueueError,
+} from "@/lib/legacy-queue-migration";
+import type { QueueReviewEntry } from "@/lib/queue-review-contract";
+import {
   ownedQueueEnvelope,
   queueOwnerResponse,
   queueOwnerSchema,
   RETIRED_QUEUE_ENVELOPE,
   sameQueueOwner,
   QUEUE_REVIEW_REQUIRED,
+  ORIGINAL_DEVICE_REQUIRED,
   type QueueOwner,
   type QueueOwnerResponse,
 } from "@/lib/queue-owner-contract";
@@ -48,6 +57,8 @@ type Options = {
   resolveOwner: () => Promise<unknown>;
   ownedCandidates?: (owner: QueueOwner) => QueueStore[];
   withLease?: <T>(owner: QueueOwner, run: () => Promise<T>) => Promise<T>;
+  withLegacyLease?: <T>(run: () => Promise<T>) => Promise<T>;
+  reviewLegacy?: (entries: QueueReviewEntry[]) => Promise<unknown>;
 };
 /**
  * All reads/writes run through the queue's shared namespace lane. Unknown
@@ -69,6 +80,29 @@ export function ownerQueueStore(options: Options) {
   let retirementAttempt: string | null = null;
   let current = -1;
   let candidates = options.candidates;
+  let reviewHeld = new Set<string>();
+  let legacyDetected = false;
+  let migrationCopy: {
+    request: string;
+    baseline: Array<string | null>;
+    previousAttempt: string | null;
+    text: string;
+  } | null = null;
+
+  function makeEnvelope(queue: string, owner: QueueOwner) {
+    const ids = new Set(
+      parseStoredQueue(queue, options.namespace.kind).ops.map((op) => op.id),
+    );
+    return JSON.stringify({
+      v: 2,
+      envelope: "herewoven.queue-store.v2",
+      state: "active",
+      owner,
+      runtime: options.runtime,
+      queue,
+      reviewIds: [...reviewHeld].filter((id) => ids.has(id)),
+    });
+  }
 
   function fail(reason: QueueOwnerStorageError["reason"]): never {
     failure = reason;
@@ -203,16 +237,29 @@ export function ownerQueueStore(options: Options) {
       options.namespace.kind,
     );
     if (contents.dropped) return fail("UPDATE_REQUIRED");
+    reviewHeld = new Set(
+      parsed.data.runtime === options.runtime
+        ? (parsed.data.reviewIds ?? [])
+        : contents.ops.map((op) => op.id),
+    );
     return { saved: parsed.data, ops: contents.ops };
   }
   async function assertLegacyEmpty() {
     if (!options.ownedCandidates) return;
     const raw = await legacy.read();
-    if (raw === null) return;
+    if (raw === null || raw === RETIRED_QUEUE_ENVELOPE) {
+      legacyDetected = false;
+      return;
+    }
     if (requiresCompatibleQueueClient(raw, options.namespace.kind))
       return fail("UPDATE_REQUIRED");
     const parsed = parseStoredQueue(raw, options.namespace.kind);
-    if (parsed.dropped || parsed.ops.length) return fail("UPDATE_REQUIRED");
+    if (parsed.dropped) return fail("UPDATE_REQUIRED");
+    if (parsed.ops.length) {
+      legacyDetected = true;
+      return fail("UPDATE_REQUIRED");
+    }
+    legacyDetected = false;
   }
   async function assertRollbackReadable(result: QueueOwnerResponse) {
     if (!options.ownedCandidates || !result.owner) return;
@@ -234,10 +281,121 @@ export function ownerQueueStore(options: Options) {
       return fail("UNAVAILABLE");
     }
   }
+  async function currentMigrationOwner() {
+    const owner = await resolve();
+    const current = await resolve(true);
+    if (
+      !owner.enabled ||
+      !current.enabled ||
+      !sameQueueOwner(owner.owner, current.owner)
+    )
+      return fail("OWNER_CHANGED");
+    return current.owner;
+  }
+  function hold(op: QueuedOperation): QueuedOperation {
+    return op.state === "pending" || op.state === "syncing"
+      ? { ...op, state: "conflict", lastError: QUEUE_REVIEW_REQUIRED }
+      : op;
+  }
+  function sameIntent(a: QueuedOperation, b: QueuedOperation) {
+    return (
+      canonicalBodySignature([a.id, a.action, a.v, a.createdAt, a.payload]) ===
+      canonicalBodySignature([b.id, b.action, b.v, b.createdAt, b.payload])
+    );
+  }
+  const migration =
+    options.ownedCandidates && options.withLegacyLease && options.reviewLegacy
+      ? createLegacyMigration({
+          stores: options.candidates,
+          namespace: options.namespace.kind,
+          runtime: options.runtime,
+          getOwner: currentMigrationOwner,
+          reviewTargets: options.reviewLegacy,
+          lease: (run) => options.withLegacyLease!(() => withLease(run)),
+          copyStarted: () => migrationCopy !== null,
+          copied: () => {
+            migrationCopy = null;
+            legacyDetected = false;
+          },
+          async copy(request, owner, incoming) {
+            if (retirementRequested) await store.remove();
+            if (migrationCopy && migrationCopy.request !== request)
+              return fail("DIVERGENT");
+            if (!migrationCopy) {
+              const values = await probe();
+              const previousAttempt = pendingWrite;
+              if (previousAttempt !== null)
+                assertKnownCopies(values, expected, previousAttempt);
+              const raw = previousAttempt ?? consistent(values);
+              const original = raw === null ? null : active(raw, owner);
+              const merged = (original?.ops ?? []).map(hold);
+              for (const op of incoming) {
+                const found = merged.find((saved) => saved.id === op.id);
+                if (found) {
+                  if (!sameIntent(found, op)) return fail("DIVERGENT");
+                  continue;
+                }
+                merged.push(
+                  op.action === "device.list-item.add"
+                    ? {
+                        ...op,
+                        state: "failed",
+                        lastError: ORIGINAL_DEVICE_REQUIRED,
+                      }
+                    : hold(op),
+                );
+              }
+              if (merged.length > QUEUE_MAX_OPS)
+                throw new QueueError("QUEUE_FULL");
+              reviewHeld = new Set(merged.map((op) => op.id));
+              migrationCopy = {
+                request,
+                baseline: values,
+                previousAttempt,
+                text: merged.length
+                  ? makeEnvelope(serializeQueue(merged), owner)
+                  : RETIRED_QUEUE_ENVELOPE,
+              };
+            }
+            const attempt = migrationCopy;
+            const values = await probe();
+            if (
+              values.some(
+                (value, index) =>
+                  value !== null &&
+                  value !== attempt.baseline[index] &&
+                  value !== attempt.previousAttempt &&
+                  value !== attempt.text,
+              )
+            )
+              return fail("DIVERGENT");
+            await writeAll(attempt.text);
+            pendingWrite = null;
+          },
+        })
+      : null;
   const store: QueueStore = {
     persistenceLane: options.persistenceLane,
     failureReason: () => failure,
     usesOwnerRecovery: () => negotiated?.enabled === true,
+    legacyRecoveryAvailable: () => legacyDetected && migration !== null,
+    previewLegacy: async () => {
+      if (!migration) return fail("UPDATE_REQUIRED");
+      return migration.preview();
+    },
+    migrateLegacy: async (decision) => {
+      if (!migration) return fail("UPDATE_REQUIRED");
+      try {
+        await migration.migrate(decision);
+      } catch (error) {
+        if (error instanceof LegacyQueueError) return fail(error.reason);
+        throw error;
+      }
+    },
+    holdsReview: (id) => reviewHeld.has(id),
+    resolveReview: (id) => {
+      reviewHeld.delete(id);
+    },
     matchesOwner: (value) => {
       const owner = queueOwnerSchema.safeParse(value);
       return Boolean(
@@ -258,7 +416,6 @@ export function ownerQueueStore(options: Options) {
         }
         return value;
       }
-      await assertLegacyEmpty();
       if (retirementRequested) {
         // Only an explicit core storage-read retry reaches this branch. It
         // completes the previously requested retirement, never reloads bytes
@@ -271,7 +428,6 @@ export function ownerQueueStore(options: Options) {
         );
         await writeAll(RETIRED_QUEUE_ENVELOPE);
         retirementRequested = false;
-        return null;
       }
       if (pendingWrite !== null) {
         // Preserve the exact unconfirmed write across an explicit storage
@@ -281,6 +437,7 @@ export function ownerQueueStore(options: Options) {
         await writeAll(attempted);
         pendingWrite = null;
       }
+      await assertLegacyEmpty();
       const values = await probe();
       const value = consistent(values);
       current = values.findIndex((saved) => saved !== null);
@@ -293,12 +450,16 @@ export function ownerQueueStore(options: Options) {
       expected = values;
       failure = null;
       if (!contents) return null;
-      if (contents.saved.runtime === options.runtime)
+      if (
+        contents.saved.runtime === options.runtime &&
+        !contents.ops.some((op) => reviewHeld.has(op.id))
+      )
         return contents.saved.queue;
       // Never auto-replay an old active snapshot after process death. Its owner
       // is still canonical, but its unrecorded cleanup intent cannot be known.
       const reviewed = contents.ops.map((op) =>
-        op.state === "pending" || op.state === "syncing"
+        reviewHeld.has(op.id) &&
+        (op.state === "pending" || op.state === "syncing")
           ? {
               ...op,
               state: "conflict" as const,
@@ -324,14 +485,7 @@ export function ownerQueueStore(options: Options) {
         parseStoredQueue(queue, options.namespace.kind).dropped
       )
         return fail("UPDATE_REQUIRED");
-      pendingWrite = JSON.stringify({
-        v: 2,
-        envelope: "herewoven.queue-store.v2",
-        state: "active",
-        owner: result.owner,
-        runtime: options.runtime,
-        queue,
-      });
+      pendingWrite = makeEnvelope(queue, result.owner);
       await writeAll(pendingWrite);
       pendingWrite = null;
     },
@@ -376,7 +530,9 @@ export function ownerQueueStore(options: Options) {
       if (
         !op ||
         op.state !== "pending" ||
-        op.lastError === QUEUE_REVIEW_REQUIRED
+        op.lastError === QUEUE_REVIEW_REQUIRED ||
+        op.lastError === ORIGINAL_DEVICE_REQUIRED ||
+        reviewHeld.has(op.id)
       )
         return fail("UNAVAILABLE");
       // The v1 reader normalizes syncing -> pending. Compare the complete
@@ -423,14 +579,7 @@ export function ownerQueueStore(options: Options) {
           parseStoredQueue(value, options.namespace.kind).dropped
         )
           return fail("UPDATE_REQUIRED");
-        const attempted = JSON.stringify({
-          v: 2,
-          envelope: "herewoven.queue-store.v2",
-          state: "active",
-          owner: result.owner,
-          runtime: options.runtime,
-          queue: value,
-        });
+        const attempted = makeEnvelope(value, result.owner);
         if (pendingWrite !== null && pendingWrite !== attempted)
           return fail("DIVERGENT");
         // Capture exact intent before lease acquisition too. A busy lease is a

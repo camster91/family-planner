@@ -2,6 +2,11 @@
  * Item content is user-entered and must only be interpolated, never translated.
  * These keys describe display state, not persisted operation or API codes. */
 export const groceryEnglish = {
+  deviceUnverifiedTitle: "Waiting grocery add",
+  deviceTargetUnverified:
+    "This saved add's list cannot be confirmed here. Use Review saved changes to check it.",
+  originalDeviceRequired:
+    "The original tablet for this add could not be confirmed. It stays saved but cannot be retried. Check the list before discarding it.",
   recoveredReview:
     "Review this saved change before retrying. It may have been cleared in an earlier session.",
   tickReviewOnList:
@@ -152,6 +157,11 @@ export const groceryEnglish = {
 
 export type GroceryMessage = keyof typeof groceryEnglish;
 export const grocerySpanish: Record<GroceryMessage, string> = {
+  deviceUnverifiedTitle: "Añadido de compra en espera",
+  deviceTargetUnverified:
+    "No se puede confirmar aquí la lista de este añadido. Usa Revisar cambios guardados para comprobarla.",
+  originalDeviceRequired:
+    "No se pudo confirmar la tableta original de este añadido. Se conserva, pero no se puede reintentar. Revisa la lista antes de descartarlo.",
   recoveredReview:
     "Revisa este cambio guardado antes de volver a intentarlo. Es posible que se borrara en una sesión anterior.",
   tickReviewOnList:

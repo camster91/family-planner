@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { OfflineQueue } from "@/lib/offline-queue";
 import { useTranslation } from "@/i18n";
+import { LegacyQueueRecovery } from "@/components/ui/legacy-queue-recovery";
 
 /** A deliberate read retry, never a replacement or discard of unread work. */
 export function QueueStorageRecovery({
@@ -25,6 +26,11 @@ export function QueueStorageRecovery({
     () => queue?.storageFailureReason?.() ?? null,
     () => null,
   );
+  const legacyAvailable = React.useSyncExternalStore(
+    subscribe,
+    () => queue?.legacyRecoveryAvailable?.() ?? false,
+    () => false,
+  );
   const [busy, setBusy] = React.useState(false);
   const generation = React.useRef(0);
   const retrying = React.useRef(false);
@@ -38,7 +44,7 @@ export function QueueStorageRecovery({
     };
   }, [queue]);
 
-  if (!queue || !blocked) return null;
+  if (!queue || (!blocked && !legacyAvailable)) return null;
 
   const retry = async () => {
     if (retrying.current) return;
@@ -62,24 +68,29 @@ export function QueueStorageRecovery({
       className="card-apple space-y-3 p-4"
       data-testid="queue-storage-recovery"
     >
-      <p role="status" className="text-subhead text-label-primary">
-        {t(
-          reason === "OWNER_CHANGED"
-            ? "groceries.storageOwnerChanged"
-            : reason === "UPDATE_REQUIRED"
-              ? "groceries.storageVersionRequired"
-              : "groceries.storageUnavailable",
-        )}
-      </p>
-      <button
-        type="button"
-        className="btn-secondary min-h-11 max-w-full whitespace-normal text-left"
-        disabled={busy}
-        aria-busy={busy}
-        onClick={() => void retry()}
-      >
-        {t(busy ? "groceries.storageRetrying" : "groceries.storageRetry")}
-      </button>
+      {blocked && (
+        <p role="status" className="text-subhead text-label-primary">
+          {t(
+            reason === "OWNER_CHANGED"
+              ? "groceries.storageOwnerChanged"
+              : reason === "UPDATE_REQUIRED"
+                ? "groceries.storageVersionRequired"
+                : "groceries.storageUnavailable",
+          )}
+        </p>
+      )}
+      {blocked && (
+        <button
+          type="button"
+          className="btn-secondary min-h-11 max-w-full whitespace-normal text-left"
+          disabled={busy}
+          aria-busy={busy}
+          onClick={() => void retry()}
+        >
+          {t(busy ? "groceries.storageRetrying" : "groceries.storageRetry")}
+        </button>
+      )}
+      {legacyAvailable && <LegacyQueueRecovery queue={queue} />}
     </section>
   );
 }

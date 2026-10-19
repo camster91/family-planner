@@ -54,6 +54,7 @@ export const queueReviewTarget = z
     itemName: z.string().nullable(),
     checked: z.boolean().nullable(),
     actorName: z.string().nullable(),
+    actorId: id.nullable(),
   })
   .strict();
 export const queueReviewResponse = z
@@ -90,3 +91,24 @@ export function reviewEntry(op: QueuedOperation): QueueReviewEntry {
 }
 export const reviewFingerprint = (entry: QueueReviewEntry) =>
   canonicalBodySignature(entry);
+
+export function matchingReviewTarget(
+  entry: QueueReviewEntry,
+  target: QueueReviewTarget | null,
+) {
+  if (target === null) return true;
+  if (
+    "actingMemberId" in entry
+      ? target.actorId !== entry.actingMemberId || target.actorName === null
+      : target.actorId !== null || target.actorName !== null
+  )
+    return false;
+  return "itemId" in entry
+    ? target.itemId === entry.itemId &&
+        target.itemName !== null &&
+        target.checked !== null
+    : target.listId === entry.listId &&
+        target.itemId === null &&
+        target.itemName === null &&
+        target.checked === null;
+}
