@@ -19,6 +19,11 @@ type RecipeSearchResult = { title: string; url: string };
 export default function RecipeExplorePage() {
   const text = useRecipeExploreText();
   const [query, setQuery] = React.useState("");
+  const [savedQuery, setSavedQuery] = React.useState("");
+  const [ingredient, setIngredient] = React.useState("");
+  const [maxPrep, setMaxPrep] = React.useState("");
+  const [minServings, setMinServings] = React.useState("");
+  const [libraryFilters, setLibraryFilters] = React.useState("");
   const [source, setSource] = React.useState<string>(recipeSources[0].name);
   const [resultLimit, setResultLimit] = React.useState(6);
   const [results, setResults] = React.useState<RecipeSearchResult[]>([]);
@@ -52,10 +57,17 @@ export default function RecipeExplorePage() {
       libraryController.current = abort;
       setLoadingLibrary(true);
       setLibraryError("");
+      if (next === 0) {
+        setRecipes([]);
+        setOffset(0);
+      }
       try {
-        const response = await fetch(`/api/recipes?limit=100&offset=${next}`, {
-          signal: abort.signal,
-        });
+        const response = await fetch(
+          `/api/recipes?limit=100&offset=${next}${libraryFilters ? `&${libraryFilters}` : ""}`,
+          {
+            signal: abort.signal,
+          },
+        );
         const data = (await response.json().catch(() => null)) as {
           recipes?: SavedRecipe[];
           nextOffset?: number | null;
@@ -79,7 +91,7 @@ export default function RecipeExplorePage() {
         }
       }
     },
-    [text],
+    [text, libraryFilters],
   );
 
   React.useEffect(() => {
@@ -91,11 +103,17 @@ export default function RecipeExplorePage() {
           setCanSave(["parent", "teen"].includes(data?.user?.role));
       })
       .catch(() => undefined);
-    void loadLibrary(0);
     return () => {
       abort.abort();
       controller.current?.abort();
       searchController.current?.abort();
+      libraryController.current?.abort();
+      libraryBusy.current = false;
+    };
+  }, []);
+  React.useEffect(() => {
+    void loadLibrary(0);
+    return () => {
       libraryController.current?.abort();
       libraryBusy.current = false;
     };
@@ -179,11 +197,7 @@ export default function RecipeExplorePage() {
     }
   };
 
-  const visible = recipes.filter((recipe) =>
-    `${recipe.title} ${recipe.description || ""}`
-      .toLowerCase()
-      .includes(query.toLowerCase()),
-  );
+  const visible = recipes;
   const existing = preview
     ? recipes.find((recipe) =>
         recipe.description?.startsWith(`Source: ${preview.source}\n`),
@@ -376,6 +390,98 @@ export default function RecipeExplorePage() {
           <h2 id="saved-title" className="text-title-2 mb-3">
             {text("recipeBox")}
           </h2>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const filters = new URLSearchParams();
+              if (savedQuery.trim()) filters.set("q", savedQuery.trim());
+              if (ingredient.trim())
+                filters.set("ingredient", ingredient.trim());
+              if (maxPrep) filters.set("maxPrep", maxPrep);
+              if (minServings) filters.set("minServings", minServings);
+              const next = filters.toString();
+              if (next === libraryFilters) void loadLibrary(0);
+              else setLibraryFilters(next);
+            }}
+            className="space-y-3 mb-4"
+          >
+            <label htmlFor="saved-recipe-search" className="label-apple">
+              {text("searchSaved")}
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <input
+                id="saved-recipe-search"
+                className="input-apple min-w-0 flex-1 basis-48"
+                maxLength={120}
+                value={savedQuery}
+                onChange={(event) => setSavedQuery(event.target.value)}
+              />
+              <button
+                className="btn-tinted min-h-[44px]"
+                disabled={loadingLibrary}
+              >
+                {text("searchSaved")}
+              </button>
+              {libraryFilters && (
+                <button
+                  type="button"
+                  className="btn-plain min-h-[44px]"
+                  onClick={() => {
+                    setSavedQuery("");
+                    setIngredient("");
+                    setMaxPrep("");
+                    setMinServings("");
+                    setLibraryFilters("");
+                  }}
+                >
+                  {text("clearSavedFilters")}
+                </button>
+              )}
+            </div>
+            <details>
+              <summary className="min-h-[44px] content-center cursor-pointer">
+                {text("savedFilters")}
+              </summary>
+              <div className="grid gap-3 sm:grid-cols-3 mt-2">
+                <label className="space-y-1">
+                  {text("ingredientFilter")}
+                  <input
+                    className="input-apple"
+                    maxLength={100}
+                    value={ingredient}
+                    onChange={(event) => setIngredient(event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1">
+                  {text("maxPrepFilter")}
+                  <input
+                    className="input-apple"
+                    type="number"
+                    min={1}
+                    max={1440}
+                    step={1}
+                    value={maxPrep}
+                    onChange={(event) => setMaxPrep(event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1">
+                  {text("servingsFilter")}
+                  <input
+                    className="input-apple"
+                    type="number"
+                    min={1}
+                    max={100}
+                    step={1}
+                    value={minServings}
+                    onChange={(event) => setMinServings(event.target.value)}
+                  />
+                </label>
+              </div>
+              <p className="text-footnote text-label-secondary mt-2">
+                {text("savedFiltersHint")}
+              </p>
+            </details>
+          </form>
           {libraryError && (
             <div role="alert">
               <p>{libraryError}</p>
@@ -391,7 +497,7 @@ export default function RecipeExplorePage() {
           {loadingLibrary && <p role="status">{text("libraryLoading")}</p>}
           {!loadingLibrary && !libraryError && visible.length === 0 && (
             <p className="text-label-secondary">
-              {query ? text("noSavedSearch") : text("noSaved")}
+              {libraryFilters ? text("noSavedSearch") : text("noSaved")}
             </p>
           )}
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

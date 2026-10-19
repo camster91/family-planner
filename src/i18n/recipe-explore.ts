@@ -3,6 +3,14 @@ import { useTranslation } from "@/i18n";
 
 /** Explore-page controls and safe recovery copy. Recipe/source content stays verbatim. */
 export const recipeExploreEnglish = {
+  searchSaved: "Search saved recipes",
+  clearSavedFilters: "Clear filters",
+  savedFilters: "More filters",
+  ingredientFilter: "Contains ingredient",
+  maxPrepFilter: "Prep at most (minutes)",
+  servingsFilter: "Serves at least",
+  savedFiltersHint:
+    "Searches your whole household recipe box. Ingredient matching uses reviewed ingredient rows; unknown prep times are excluded when a prep limit is set.",
   backToMeals: "← Meals",
   title: "Explore recipes",
   subtitle:
@@ -60,6 +68,14 @@ export const recipeExploreEnglish = {
 export type RecipeExploreMessage = keyof typeof recipeExploreEnglish;
 
 export const recipeExploreSpanish: Record<RecipeExploreMessage, string> = {
+  searchSaved: "Buscar recetas guardadas",
+  clearSavedFilters: "Borrar filtros",
+  savedFilters: "Más filtros",
+  ingredientFilter: "Contiene ingrediente",
+  maxPrepFilter: "Preparación máxima (minutos)",
+  servingsFilter: "Porciones mínimas",
+  savedFiltersHint:
+    "Busca en todas las recetas del hogar. Los ingredientes se comparan con filas revisadas; los tiempos desconocidos se excluyen al establecer un límite.",
   backToMeals: "← Comidas",
   title: "Explorar recetas",
   subtitle:

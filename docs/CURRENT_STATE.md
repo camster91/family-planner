@@ -1,5 +1,21 @@
 # Current State
 
+## Full saved-recipe search and exact-create recovery source — 2026-10-18
+
+The #460 candidate now searches the whole household recipe box on the server,
+with EN/ES title/description, reviewed ingredient, known prep-time and serving
+filters, separate from online publisher search. Recipe create and its compact
+ID receipt commit together under User/household/receipt locks; current role,
+family, meals and session generation are rechecked. Detail is projected fresh,
+not replayed from an old content snapshot. Deleted recipes cannot be recreated
+by replay. Tagged create payloads make old strict routes refuse before mutation.
+
+An uncertain editor create retains its exact key/body, locks fields and offers
+a bounded explicit confirmation retry. Test source is added but not executed.
+No schema change, QA, migration, provider activation, push, merge or deployment
+occurred. Curation, source deduplication and remaining reuse/history work stay
+in #460; see `docs/product/RECIPE_DISCOVERY.md`. The full goal remains active.
+
 ## Gated Android local voice draft source — 2026-10-18
 
 The #563 source now includes a first-party `LocalVoice` Capacitor plugin using

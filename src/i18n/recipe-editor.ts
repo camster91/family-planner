@@ -3,6 +3,11 @@ import { useTranslation } from "@/i18n";
 
 /** Recipe-editor controls and recovery copy. Recipe content stays verbatim. */
 export const recipeEditorEnglish = {
+  uncertainCreate:
+    "The recipe may have been saved. Check the same save to confirm it without creating a second recipe. These fields stay locked until confirmed; closing keeps the server result unchanged.",
+  retryCreate: "Check the same save",
+  expiredCreate:
+    "This save is too old to retry safely. Close and check your recipe box before making a separate new recipe.",
   newRecipe: "New recipe",
   recipeDetails: "Recipe details",
   recipeName: "Recipe name",
@@ -41,6 +46,11 @@ export const recipeEditorEnglish = {
 export type RecipeEditorMessage = keyof typeof recipeEditorEnglish;
 
 export const recipeEditorSpanish: Record<RecipeEditorMessage, string> = {
+  uncertainCreate:
+    "La receta puede haberse guardado. Comprueba el mismo guardado para confirmarlo sin crear otra receta. Los campos quedan bloqueados hasta confirmarlo; cerrar no cambia el resultado del servidor.",
+  retryCreate: "Comprobar el mismo guardado",
+  expiredCreate:
+    "Este guardado es demasiado antiguo para repetirlo con seguridad. Cierra y revisa las recetas guardadas antes de crear otra receta.",
   newRecipe: "Nueva receta",
   recipeDetails: "Detalles de la receta",
   recipeName: "Nombre de la receta",

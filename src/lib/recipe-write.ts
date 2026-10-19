@@ -1,0 +1,162 @@
+/** Recipe creation and a compact durable receipt commit together (#460). */
+import type { Prisma, PrismaClient } from "@prisma/client";
+import type { z } from "zod";
+import { lockHousehold, lockUser } from "@/lib/household-lock";
+import { isFeatureEnabled, normalizeFeatures } from "@/lib/features";
+import {
+  RECIPE_DETAIL_SELECT,
+  RECIPE_SUMMARY_SELECT,
+  canEditRecipe,
+  resolveIngredientLines,
+  type createRecipeSchema,
+} from "@/lib/recipes";
+import { hashIdempotentRequest, type EffectResult } from "@/lib/idempotency";
+
+type Db = Pick<PrismaClient, "$transaction">;
+type Actor = { userId: string; familyId: string; tokenVersion: number };
+type Input = z.infer<typeof createRecipeSchema>;
+export const RECIPE_CREATE_ACTION = "recipe.create";
+const failure = (status: number, code: string): EffectResult => ({
+  status,
+  body: { error: { code } },
+});
+
+async function authority(
+  tx: Prisma.TransactionClient,
+  actor: Actor,
+): Promise<EffectResult | null> {
+  await lockUser(tx, actor.userId);
+  await lockHousehold(tx, actor.familyId);
+  const user = await tx.user.findUnique({
+    where: { id: actor.userId },
+    select: { family_id: true, role: true, token_version: true },
+  });
+  if (!user || user.token_version !== actor.tokenVersion)
+    return failure(401, "UNAUTHORIZED");
+  if (user.family_id !== actor.familyId || !canEditRecipe(user.role))
+    return failure(403, "FORBIDDEN");
+  const family = await tx.family.findUnique({
+    where: { id: actor.familyId },
+    select: { features: true },
+  });
+  if (!family || !isFeatureEnabled(normalizeFeatures(family.features), "meals"))
+    return failure(403, "FEATURE_DISABLED");
+  return null;
+}
+export async function authorizeRecipeCreation(db: Db, actor: Actor) {
+  return db.$transaction((tx) => authority(tx, actor));
+}
+export async function createRecipeWithReceipt(
+  db: Db,
+  actor: Actor,
+  input: Input,
+  recordId: string | null,
+): Promise<EffectResult> {
+  return db.$transaction(async (tx) => {
+    const refused = await authority(tx, actor);
+    if (refused) return refused;
+    if (recordId) {
+      await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
+      const receipt = await tx.idempotencyRecord.findFirst({
+        where: {
+          id: recordId,
+          scope: `user:${actor.userId}`,
+          family_id: actor.familyId,
+          user_id: actor.userId,
+          action: RECIPE_CREATE_ACTION,
+          request_hash: hashIdempotentRequest(RECIPE_CREATE_ACTION, input),
+        },
+        select: { response_status: true, response_body: true },
+      });
+      if (!receipt) return failure(409, "IDEMPOTENCY_IN_PROGRESS");
+      if (receipt.response_status !== null)
+        return { status: receipt.response_status, body: receipt.response_body };
+    }
+    const lines = await resolveIngredientLines(
+      tx,
+      actor.familyId,
+      input.ingredients ?? [],
+    );
+    const recipe = await tx.recipe.create({
+      data: {
+        family_id: actor.familyId,
+        created_by: actor.userId,
+        title: input.title,
+        description: input.description ?? null,
+        instructions: input.instructions ?? null,
+        prep_time: input.prep_time ?? null,
+        cook_time: input.cook_time ?? null,
+        servings: input.servings ?? 2,
+      },
+      select: { id: true },
+    });
+    if (lines.length)
+      await tx.recipeIngredient.createMany({
+        data: lines.map((line) => ({ ...line, recipe_id: recipe.id })),
+      });
+    // A pointer, not a stale recipe snapshot. Hydrate under current authority
+    // after commit; a long instruction/ingredient body cannot truncate this receipt.
+    const body = { recipeId: recipe.id };
+    if (recordId)
+      await tx.idempotencyRecord.update({
+        where: { id: recordId },
+        data: { response_status: 201, response_body: body },
+      });
+    return { status: 201, body };
+  });
+}
+export async function readCreatedRecipe(
+  db: Db,
+  actor: Actor,
+  recipeId: string,
+): Promise<EffectResult> {
+  return db.$transaction(async (tx) => {
+    const refused = await authority(tx, actor);
+    if (refused) return refused;
+    // Sequential flat reads preserve the existing pg-adapter transaction
+    // contract; nested Prisma relation reads can start parallel tx queries.
+    // Existing PATCH takes the recipe row before replacing ingredients.
+    // Hold it through projection so those separate reads represent one version.
+    await tx.$queryRaw`SELECT "id" FROM "Recipe" WHERE "id" = ${recipeId} AND "family_id" = ${actor.familyId} FOR SHARE`;
+    const recipe = await tx.recipe.findFirst({
+      where: { id: recipeId, family_id: actor.familyId },
+      select: { ...RECIPE_SUMMARY_SELECT, instructions: true },
+    });
+    if (!recipe) return failure(409, "RECIPE_NO_LONGER_AVAILABLE");
+    const lines = await tx.recipeIngredient.findMany({
+      where: { recipe_id: recipeId },
+      orderBy: RECIPE_DETAIL_SELECT.ingredients.orderBy,
+      select: {
+        id: true,
+        amount: true,
+        unit: true,
+        note: true,
+        ingredient_id: true,
+      },
+    });
+    const ingredients = await tx.ingredient.findMany({
+      where: {
+        id: { in: lines.map((line) => line.ingredient_id) },
+        family_id: actor.familyId,
+      },
+      select: { id: true, name: true, unit: true },
+    });
+    const byId = new Map(
+      ingredients.map((ingredient) => [ingredient.id, ingredient]),
+    );
+    if (lines.some((line) => !byId.has(line.ingredient_id)))
+      return failure(409, "RECIPE_NO_LONGER_AVAILABLE");
+    return {
+      status: 200,
+      body: {
+        recipe: {
+          ...recipe,
+          ingredients: lines.map(({ ingredient_id, ...line }) => ({
+            ...line,
+            ingredient: byId.get(ingredient_id)!,
+          })),
+        },
+      },
+    };
+  });
+}

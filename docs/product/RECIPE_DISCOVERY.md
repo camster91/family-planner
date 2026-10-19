@@ -13,3 +13,55 @@ POST /api/recipes/discover authenticates/gates/throttles and permits only the fi
 TheMealDB was evaluated but not activated: its test key is for development/education and public app-store release requires supporter membership (https://www.themealdb.com/api.php). No paid provider or new credentials.
 
 Local checks and static mounted previews are not release, physical-device or authenticated production proof. Rollback removes Explore entry/new route/preview parser and optional initialDraft editor prop.
+
+## Full saved search and exact-create recovery source — 2026-10-18
+
+The next #460 candidate replaces loaded-page filtering with canonical server
+search over all household recipes. Saved-library query is separate from online
+publisher query. Filters include title/description, a reviewed ingredient-name
+substring, maximum known prep minutes and minimum base servings. Null prep time
+is excluded with a limit; raw imported ingredient lines are not guessed into
+structured ingredient matches. Limits and strings are validated before querying,
+all clauses retain the household predicate, and matching pages keep title/ID
+order. EN/ES controls use a short collapsed advanced section. Provider absence
+does not affect saved search. Collections/favorites are still remaining work.
+
+New RecipeEditor creates send an explicit
+`creation_protocol: herewoven.recipe-create.v1` body marker plus a stable key.
+The current strict schema accepts only this known marker and the route requires
+a key for it. Prior strict readers reject the new body before creating records;
+a retry must not silently enter a key-ignorant old create route during rollback.
+Legacy unmarked callers remain supported, with no promise that an old client's
+unkeyed create gains exact retry safety. This does not add creation to the
+offline action allowlist or advertise a new native/member protocol.
+
+`recipe-write.ts` takes User then household then receipt locks, rechecks current
+account/session generation, family, parent/teen role and meals eligibility, and
+commits Recipe + resolved RecipeIngredient rows + the receipt atomically. The
+receipt contains only the stable recipe ID, avoiding the generic receipt size
+cap for long directions. Completed responses hydrate current canonical detail
+under renewed authority with sequential flat reads and a recipe shared-row lock.
+No cached old recipe content is replayed across a role/family/generation change;
+a subsequently deleted recipe returns an unavailable conflict, never recreation.
+
+The editor retains the exact create key/body in memory after uncertain outcomes,
+locks its fields and offers **Check the same save**. Explicit retry sends that
+same tagged body/key, never renews them, and stops after a bounded 24-hour window
+or a backward clock jump. A 30-second transport timeout is uncertain, not proof
+of failure. Closing loses that in-memory recovery handle and directs the user
+to inspect the recipe box before any separate new create. PATCH uncertainty
+retains its prior no-blind-retry policy; optimistic edit revisions remain a
+separate follow-up before stronger concurrent-edit claims.
+
+Focused unexecuted test source covers concurrent transactional creates, long
+methods/small receipts, receipt-failure rollback, deletion after response loss,
+revoked generations, same-body/key UI retry and search scope/filter rejection.
+No tests, native/web builds, type/lint checks, browser QA, migration, provider
+call, push, merge or deployment occurred. Later consolidated QA must also
+exercise old strict-server refusal, two-household direct negatives, pagination
+and search races, EN/ES, post-commit detail failure and all original journeys.
+
+Remaining #460 code: durable source/deduplication and explicit copy/update
+choices, favorite/collection curation, broader discovery constraints, portion
+variation and cooked-history policy reconciliation. Optional model parsing
+remains governed by #567's unresolved provider eligibility/privacy decision.

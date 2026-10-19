@@ -64,6 +64,9 @@ const ingredients = z.array(ingredientLine).max(RECIPE_MAX_INGREDIENTS);
 
 export const createRecipeSchema = z
   .object({
+    // Old strict readers refuse this payload before creating anything. A new
+    // client must not retry a keyed create against an older key-ignorant route.
+    creation_protocol: z.literal("herewoven.recipe-create.v1").optional(),
     title: z.string().trim().min(1).max(200),
     description: optionalText(2000),
     instructions: optionalText(20000),

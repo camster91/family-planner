@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { useRecipeEditorText } from "@/i18n/recipe-editor";
 import type { RecipeOption } from "./RecipePicker";
 import type { RecipeDetailData } from "./RecipeDetail";
@@ -101,7 +102,14 @@ export function RecipeEditor({
   const [error, setError] = React.useState<string | null>(null);
   const [uncertain, setUncertain] = React.useState(false);
   const uncertainRef = React.useRef(false);
-  const uncertainMessage = text("uncertain");
+  const creationAttempt = React.useRef<{
+    key: string;
+    body: string;
+    startedAt: number;
+  } | null>(null);
+  const uncertainMessage = text(
+    initialRecipe ? "uncertain" : "uncertainCreate",
+  );
   const markUncertain = () => {
     uncertainRef.current = true;
     setUncertain(true);
@@ -127,6 +135,120 @@ export function RecipeEditor({
 
   const removeLine = (key: number) =>
     setLines((prev) => prev.filter((l) => l.key !== key));
+
+  async function writeRecipe(body: Record<string, unknown>) {
+    if (!initialRecipe && !creationAttempt.current)
+      creationAttempt.current = {
+        key: newIdempotencyKey(),
+        body: JSON.stringify({
+          ...body,
+          creation_protocol: "herewoven.recipe-create.v1",
+        }),
+        startedAt: Date.now(),
+      };
+    const attempt = creationAttempt.current;
+    // Never reuse a create key after the server receipt's retention window.
+    if (
+      attempt &&
+      (Date.now() < attempt.startedAt ||
+        Date.now() - attempt.startedAt >= 24 * 60 * 60 * 1000)
+    ) {
+      markUncertain();
+      setError(text("expiredCreate"));
+      return;
+    }
+    const res = await fetch(
+      initialRecipe
+        ? `/api/recipes/${encodeURIComponent(initialRecipe.id)}`
+        : "/api/recipes",
+      {
+        method: initialRecipe ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(attempt ? { [IDEMPOTENCY_HEADER]: attempt.key } : {}),
+        },
+        body: attempt?.body ?? JSON.stringify(body),
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+    const data = (await res.json().catch(() => null)) as {
+      recipe?: RecipeDetailData;
+    } | null;
+    if (!res.ok) {
+      if (res.status >= 500 || res.status === 409 || uncertainRef.current)
+        markUncertain();
+      else {
+        creationAttempt.current = null;
+        setError(text("rejected"));
+      }
+      return;
+    }
+    if (
+      !data?.recipe ||
+      typeof data.recipe.id !== "string" ||
+      !data.recipe.id ||
+      typeof data.recipe.title !== "string"
+    ) {
+      markUncertain();
+      return;
+    }
+    const r = data.recipe;
+    if (
+      initialRecipe &&
+      (r.id !== initialRecipe.id ||
+        !Array.isArray(r.ingredients) ||
+        r.ingredients.some(
+          (line) =>
+            !line?.ingredient || typeof line.ingredient.name !== "string",
+        ) ||
+        [
+          "description",
+          "instructions",
+          "prep_time",
+          "cook_time",
+          "servings",
+        ].some((field) => !(field in r)))
+    ) {
+      markUncertain();
+      return;
+    }
+    creationAttempt.current = null;
+    uncertainRef.current = false;
+    setUncertain(false);
+    if (initialRecipe) onSaved?.(r);
+    else
+      onCreated?.({
+        id: r.id,
+        title: r.title,
+        prep_time: r.prep_time,
+        cook_time: r.cook_time,
+        servings: r.servings,
+      });
+  }
+
+  async function retryCreation() {
+    if (
+      initialRecipe ||
+      !creationAttempt.current ||
+      mutationPending.current ||
+      disabled ||
+      isMutationPending?.()
+    )
+      return;
+    mutationPending.current = true;
+    setSaving(true);
+    onSavingChange?.(true);
+    setError(null);
+    try {
+      await writeRecipe({});
+    } catch {
+      markUncertain();
+    } finally {
+      mutationPending.current = false;
+      setSaving(false);
+      onSavingChange?.(false);
+    }
+  }
 
   const submit = async () => {
     if (
@@ -281,62 +403,7 @@ export function RecipeEditor({
         onSaved?.(initialRecipe);
         return;
       }
-      const res = await fetch(
-        initialRecipe
-          ? `/api/recipes/${encodeURIComponent(initialRecipe.id)}`
-          : "/api/recipes",
-        {
-          method: initialRecipe ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
-      const data = (await res.json().catch(() => null)) as {
-        recipe?: RecipeDetailData;
-      } | null;
-      if (!res.ok) {
-        if (res.status >= 500) markUncertain();
-        else setError(text("rejected"));
-        return;
-      }
-      if (
-        !data?.recipe ||
-        typeof data.recipe.id !== "string" ||
-        !data.recipe.id ||
-        typeof data.recipe.title !== "string"
-      ) {
-        markUncertain();
-        return;
-      }
-      const r = data.recipe;
-      if (
-        initialRecipe &&
-        (r.id !== initialRecipe.id ||
-          !Array.isArray(r.ingredients) ||
-          r.ingredients.some(
-            (line) =>
-              !line?.ingredient || typeof line.ingredient.name !== "string",
-          ) ||
-          [
-            "description",
-            "instructions",
-            "prep_time",
-            "cook_time",
-            "servings",
-          ].some((field) => !(field in r)))
-      ) {
-        markUncertain();
-        return;
-      }
-      if (initialRecipe) onSaved?.(r);
-      else
-        onCreated?.({
-          id: r.id,
-          title: r.title,
-          prep_time: r.prep_time,
-          cook_time: r.cook_time,
-          servings: r.servings,
-        });
+      await writeRecipe(body);
     } catch {
       markUncertain();
     } finally {
@@ -364,230 +431,246 @@ export function RecipeEditor({
         {initialRecipe ? text("recipeDetails") : text("newRecipe")}
       </legend>
 
-      <div>
-        <label
-          htmlFor={`${baseId}-title`}
-          className="text-subhead text-label-secondary mb-1 block"
-        >
-          {text("recipeName")}
-        </label>
-        <input
-          ref={titleRef}
-          id={`${baseId}-title`}
-          type="text"
-          value={title}
-          maxLength={200}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={onKeyDown}
-          className="w-full input-apple min-h-[44px]"
-        />
-      </div>
-
-      <div>
-        <label
-          htmlFor={`${baseId}-servings`}
-          className="text-subhead text-label-secondary mb-1 block"
-        >
-          {text("baseServings")}
-        </label>
-        <input
-          id={`${baseId}-servings`}
-          type="number"
-          min={1}
-          max={100}
-          step={1}
-          value={servings}
-          onChange={(e) => setServings(e.target.value)}
-          onKeyDown={onKeyDown}
-          className="w-full input-apple min-h-[44px]"
-        />
-        <p className="text-footnote text-label-secondary">
-          {text("servingsHint")}
-        </p>
-      </div>
-      <div>
-        <label
-          htmlFor={`${baseId}-description`}
-          className="text-subhead text-label-secondary mb-1 block"
-        >
-          {text("description")}
-        </label>
-        <textarea
-          id={`${baseId}-description`}
-          maxLength={2000}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full input-apple min-h-[88px]"
-        />
-      </div>
-      <div>
-        <label
-          htmlFor={`${baseId}-instructions`}
-          className="text-subhead text-label-secondary mb-1 block"
-        >
-          {text("method")}
-        </label>
-        <textarea
-          id={`${baseId}-instructions`}
-          maxLength={20000}
-          rows={5}
-          value={instructions}
-          onChange={(e) => setInstructions(e.target.value)}
-          className="w-full input-apple min-h-[88px]"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
+      <fieldset disabled={uncertain && !initialRecipe} className="space-y-3">
         <div>
           <label
-            htmlFor={`${baseId}-prep`}
+            htmlFor={`${baseId}-title`}
             className="text-subhead text-label-secondary mb-1 block"
           >
-            {text("prepMinutes")}
+            {text("recipeName")}
           </label>
           <input
-            id={`${baseId}-prep`}
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={1440}
-            value={prep}
-            onChange={(e) => setPrep(e.target.value)}
+            ref={titleRef}
+            id={`${baseId}-title`}
+            type="text"
+            value={title}
+            maxLength={200}
+            onChange={(e) => setTitle(e.target.value)}
             onKeyDown={onKeyDown}
             className="w-full input-apple min-h-[44px]"
           />
         </div>
+
         <div>
           <label
-            htmlFor={`${baseId}-cook`}
+            htmlFor={`${baseId}-servings`}
             className="text-subhead text-label-secondary mb-1 block"
           >
-            {text("cookMinutes")}
+            {text("baseServings")}
           </label>
           <input
-            id={`${baseId}-cook`}
+            id={`${baseId}-servings`}
             type="number"
-            inputMode="numeric"
-            min={0}
-            max={1440}
-            value={cook}
-            onChange={(e) => setCook(e.target.value)}
+            min={1}
+            max={100}
+            step={1}
+            value={servings}
+            onChange={(e) => setServings(e.target.value)}
             onKeyDown={onKeyDown}
             className="w-full input-apple min-h-[44px]"
           />
+          <p className="text-footnote text-label-secondary">
+            {text("servingsHint")}
+          </p>
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-subhead text-label-secondary">
-          {text("ingredientsOptional")}
-        </p>
-        <p className="text-footnote text-label-secondary">
-          {text("ingredientsOrderHint")}
-        </p>
-        {lines.map((line, i) => (
-          <div
-            key={line.key}
-            role="group"
-            aria-label={text("ingredientGroup", { number: i + 1 })}
-            className="flex flex-wrap items-end gap-2"
+        <div>
+          <label
+            htmlFor={`${baseId}-description`}
+            className="text-subhead text-label-secondary mb-1 block"
           >
-            <div className="w-16 shrink-0">
-              <label
-                htmlFor={`${baseId}-amt-${line.key}`}
-                className="text-caption-1 text-label-secondary block"
-              >
-                {text("amount")}
-              </label>
-              <input
-                id={`${baseId}-amt-${line.key}`}
-                type="text"
-                inputMode="decimal"
-                value={line.amount}
-                onChange={(e) =>
-                  updateLine(line.key, { amount: e.target.value })
-                }
-                onKeyDown={onKeyDown}
-                className="w-full input-apple min-h-[44px]"
-              />
-            </div>
-            <div className="w-16 shrink-0">
-              <label
-                htmlFor={`${baseId}-unit-${line.key}`}
-                className="text-caption-1 text-label-secondary block"
-              >
-                {text("unit")}
-              </label>
-              <input
-                id={`${baseId}-unit-${line.key}`}
-                type="text"
-                maxLength={32}
-                value={line.unit}
-                onChange={(e) => updateLine(line.key, { unit: e.target.value })}
-                onKeyDown={onKeyDown}
-                className="w-full input-apple min-h-[44px]"
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              <label
-                htmlFor={`${baseId}-name-${line.key}`}
-                className="text-caption-1 text-label-secondary block"
-              >
-                {text("ingredient")}
-              </label>
-              <input
-                id={`${baseId}-name-${line.key}`}
-                type="text"
-                maxLength={200}
-                value={line.name}
-                onChange={(e) => updateLine(line.key, { name: e.target.value })}
-                onKeyDown={onKeyDown}
-                className="w-full input-apple min-h-[44px]"
-              />
-            </div>
-            <div className="w-full">
-              <label
-                htmlFor={`${baseId}-note-${line.key}`}
-                className="text-caption-1 text-label-secondary block"
-              >
-                {text("ingredientNote")}
-              </label>
-              <input
-                id={`${baseId}-note-${line.key}`}
-                type="text"
-                maxLength={200}
-                value={line.note}
-                onChange={(e) => updateLine(line.key, { note: e.target.value })}
-                onKeyDown={onKeyDown}
-                className="w-full input-apple min-h-[44px]"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => removeLine(line.key)}
-              aria-label={text("removeIngredient", { number: i + 1 })}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-label-secondary active:bg-[var(--surface-fill)]"
+            {text("description")}
+          </label>
+          <textarea
+            id={`${baseId}-description`}
+            maxLength={2000}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full input-apple min-h-[88px]"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor={`${baseId}-instructions`}
+            className="text-subhead text-label-secondary mb-1 block"
+          >
+            {text("method")}
+          </label>
+          <textarea
+            id={`${baseId}-instructions`}
+            maxLength={20000}
+            rows={5}
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+            className="w-full input-apple min-h-[88px]"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label
+              htmlFor={`${baseId}-prep`}
+              className="text-subhead text-label-secondary mb-1 block"
             >
-              <Trash2 className="w-4 h-4" aria-hidden="true" />
-            </button>
+              {text("prepMinutes")}
+            </label>
+            <input
+              id={`${baseId}-prep`}
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={1440}
+              value={prep}
+              onChange={(e) => setPrep(e.target.value)}
+              onKeyDown={onKeyDown}
+              className="w-full input-apple min-h-[44px]"
+            />
           </div>
-        ))}
-        <button
-          type="button"
-          onClick={addLine}
-          className="inline-flex min-h-[44px] items-center gap-1 px-1 text-subhead text-[var(--accent-text)]"
-        >
-          <Plus className="w-4 h-4" aria-hidden="true" />
-          {text("addIngredient")}
-        </button>
-      </div>
+          <div>
+            <label
+              htmlFor={`${baseId}-cook`}
+              className="text-subhead text-label-secondary mb-1 block"
+            >
+              {text("cookMinutes")}
+            </label>
+            <input
+              id={`${baseId}-cook`}
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={1440}
+              value={cook}
+              onChange={(e) => setCook(e.target.value)}
+              onKeyDown={onKeyDown}
+              className="w-full input-apple min-h-[44px]"
+            />
+          </div>
+        </div>
 
+        <div className="space-y-2">
+          <p className="text-subhead text-label-secondary">
+            {text("ingredientsOptional")}
+          </p>
+          <p className="text-footnote text-label-secondary">
+            {text("ingredientsOrderHint")}
+          </p>
+          {lines.map((line, i) => (
+            <div
+              key={line.key}
+              role="group"
+              aria-label={text("ingredientGroup", { number: i + 1 })}
+              className="flex flex-wrap items-end gap-2"
+            >
+              <div className="w-16 shrink-0">
+                <label
+                  htmlFor={`${baseId}-amt-${line.key}`}
+                  className="text-caption-1 text-label-secondary block"
+                >
+                  {text("amount")}
+                </label>
+                <input
+                  id={`${baseId}-amt-${line.key}`}
+                  type="text"
+                  inputMode="decimal"
+                  value={line.amount}
+                  onChange={(e) =>
+                    updateLine(line.key, { amount: e.target.value })
+                  }
+                  onKeyDown={onKeyDown}
+                  className="w-full input-apple min-h-[44px]"
+                />
+              </div>
+              <div className="w-16 shrink-0">
+                <label
+                  htmlFor={`${baseId}-unit-${line.key}`}
+                  className="text-caption-1 text-label-secondary block"
+                >
+                  {text("unit")}
+                </label>
+                <input
+                  id={`${baseId}-unit-${line.key}`}
+                  type="text"
+                  maxLength={32}
+                  value={line.unit}
+                  onChange={(e) =>
+                    updateLine(line.key, { unit: e.target.value })
+                  }
+                  onKeyDown={onKeyDown}
+                  className="w-full input-apple min-h-[44px]"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <label
+                  htmlFor={`${baseId}-name-${line.key}`}
+                  className="text-caption-1 text-label-secondary block"
+                >
+                  {text("ingredient")}
+                </label>
+                <input
+                  id={`${baseId}-name-${line.key}`}
+                  type="text"
+                  maxLength={200}
+                  value={line.name}
+                  onChange={(e) =>
+                    updateLine(line.key, { name: e.target.value })
+                  }
+                  onKeyDown={onKeyDown}
+                  className="w-full input-apple min-h-[44px]"
+                />
+              </div>
+              <div className="w-full">
+                <label
+                  htmlFor={`${baseId}-note-${line.key}`}
+                  className="text-caption-1 text-label-secondary block"
+                >
+                  {text("ingredientNote")}
+                </label>
+                <input
+                  id={`${baseId}-note-${line.key}`}
+                  type="text"
+                  maxLength={200}
+                  value={line.note}
+                  onChange={(e) =>
+                    updateLine(line.key, { note: e.target.value })
+                  }
+                  onKeyDown={onKeyDown}
+                  className="w-full input-apple min-h-[44px]"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeLine(line.key)}
+                aria-label={text("removeIngredient", { number: i + 1 })}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-label-secondary active:bg-[var(--surface-fill)]"
+              >
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addLine}
+            className="inline-flex min-h-[44px] items-center gap-1 px-1 text-subhead text-[var(--accent-text)]"
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            {text("addIngredient")}
+          </button>
+        </div>
+      </fieldset>
       {error && (
         <p role="alert" className="text-footnote text-[var(--danger-text)]">
           {error}
         </p>
       )}
 
+      {uncertain && !initialRecipe && (
+        <button
+          type="button"
+          className="btn-tinted min-h-[44px]"
+          onClick={() => void retryCreation()}
+        >
+          {text("retryCreate")}
+        </button>
+      )}
       <div className="flex gap-2">
         <button
           type="button"
