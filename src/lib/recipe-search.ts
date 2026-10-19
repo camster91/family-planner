@@ -8,6 +8,11 @@ export const recipeSearchSchema = z.object({
   ingredient: z.string().trim().max(100).optional(),
   maxPrep: number(1440),
   minServings: number(100),
+  favorite: z.enum(["1"]).optional(),
+  collection: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{1,128}$/)
+    .optional(),
 });
 export type RecipeSearch = z.infer<typeof recipeSearchSchema>;
 /** Full household library search, independent of publisher/AI availability. */
@@ -19,6 +24,14 @@ export function recipeSearchWhere(
   const ingredient = input.ingredient?.normalize("NFC");
   return {
     family_id: familyId,
+    ...(input.favorite ? { favorite: true } : {}),
+    ...(input.collection
+      ? {
+          collection_entries: {
+            some: { collection_id: input.collection, family_id: familyId },
+          },
+        }
+      : {}),
     ...(q
       ? {
           OR: [

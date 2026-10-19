@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { legacyRecipeSource } from "@/lib/recipe-curation-contract";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { useRecipeEditorText } from "@/i18n/recipe-editor";
 import type { RecipeOption } from "./RecipePicker";
@@ -42,6 +44,8 @@ export function RecipeEditor({
   onCreated?: (recipe: RecipeOption) => void;
   initialRecipe?: RecipeDetailData;
   initialDraft?: {
+    source_url?: string;
+    source_copy?: boolean;
     servings?: number | null;
     title: string;
     description: string;
@@ -97,6 +101,15 @@ export function RecipeEditor({
       : [{ key: 0, name: "", amount: "1", unit: "", note: "" }],
   );
   const originalLines = React.useRef(lines);
+  const sourceUrl =
+    initialDraft?.source_url ?? legacyRecipeSource(initialDraft?.description);
+  const [sourceCopy, setSourceCopy] = React.useState(
+    initialDraft?.source_copy ?? false,
+  );
+  const [duplicate, setDuplicate] = React.useState<{
+    id: string;
+    title: string;
+  } | null>(null);
   const [saving, setSaving] = React.useState(false);
   const mutationPending = React.useRef(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -142,6 +155,9 @@ export function RecipeEditor({
         key: newIdempotencyKey(),
         body: JSON.stringify({
           ...body,
+          ...(sourceUrl
+            ? { source_url: sourceUrl, source_copy: sourceCopy }
+            : {}),
           creation_protocol: "herewoven.recipe-create.v1",
         }),
         startedAt: Date.now(),
@@ -173,8 +189,37 @@ export function RecipeEditor({
     );
     const data = (await res.json().catch(() => null)) as {
       recipe?: RecipeDetailData;
+      error?: { code?: string };
+      existingRecipe?: { id?: unknown; title?: unknown };
     } | null;
     if (!res.ok) {
+      if (
+        data?.error?.code === "RECIPE_SOURCE_EXISTS" &&
+        typeof data.existingRecipe?.id === "string" &&
+        /^[A-Za-z0-9_-]{1,128}$/.test(data.existingRecipe.id) &&
+        typeof data.existingRecipe.title === "string"
+      ) {
+        creationAttempt.current = null;
+        uncertainRef.current = false;
+        setUncertain(false);
+        setDuplicate({
+          id: data.existingRecipe.id,
+          title: data.existingRecipe.title,
+        });
+        setError(text("sourceExists"));
+        return;
+      }
+      if (data?.error?.code === "RECIPE_SOURCE_CHECK_UNAVAILABLE") {
+        creationAttempt.current = null;
+        uncertainRef.current = false;
+        setUncertain(false);
+        setError(text("sourceCheckUnavailable"));
+        return;
+      }
+      if (initialRecipe && data?.error?.code === "REVISION_CONFLICT") {
+        setError(text("revisionConflict"));
+        return;
+      }
       if (res.status >= 500 || res.status === 409 || uncertainRef.current)
         markUncertain();
       else {
@@ -403,6 +448,10 @@ export function RecipeEditor({
         onSaved?.(initialRecipe);
         return;
       }
+      if (initialRecipe && initialRecipe.revision !== undefined)
+        body.base_revision = initialRecipe.revision;
+      if (initialRecipe?.updated_at)
+        body.base_updated_at = initialRecipe.updated_at;
       await writeRecipe(body);
     } catch {
       markUncertain();
@@ -432,6 +481,26 @@ export function RecipeEditor({
       </legend>
 
       <fieldset disabled={uncertain && !initialRecipe} className="space-y-3">
+        {!initialRecipe && sourceUrl && (
+          <div className="space-y-2">
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-[44px] items-center break-all"
+            >
+              {text("sourceLink")}
+            </a>
+            <label className="flex min-h-[44px] items-center gap-3">
+              <input
+                type="checkbox"
+                checked={sourceCopy}
+                onChange={(event) => setSourceCopy(event.target.checked)}
+              />
+              {text("sourceCopy")}
+            </label>
+          </div>
+        )}
         <div>
           <label
             htmlFor={`${baseId}-title`}
@@ -662,6 +731,17 @@ export function RecipeEditor({
         </p>
       )}
 
+      {duplicate && (
+        <Link
+          className="btn-tinted min-h-[44px] inline-flex items-center"
+          href={`/dashboard/meals/recipes/${encodeURIComponent(duplicate.id)}`}
+          onClick={(event) => {
+            if (mutationPending.current) event.preventDefault();
+          }}
+        >
+          {text("openExisting", { title: duplicate.title })}
+        </Link>
+      )}
       {uncertain && !initialRecipe && (
         <button
           type="button"

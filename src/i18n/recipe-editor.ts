@@ -3,6 +3,15 @@ import { useTranslation } from "@/i18n";
 
 /** Recipe-editor controls and recovery copy. Recipe content stays verbatim. */
 export const recipeEditorEnglish = {
+  sourceLink: "Original source ↗",
+  sourceCopy: "Save a separate copy of this source",
+  sourceExists:
+    "This source is already saved. Open it to view or edit, or choose a separate copy.",
+  openExisting: "Open saved recipe: {title}",
+  sourceCheckUnavailable:
+    "We could not finish checking older imports. Keep this draft; check your recipe box, or deliberately choose a separate copy.",
+  revisionConflict:
+    "This recipe changed elsewhere. Your edits are kept here. Close and reload the saved recipe before applying them again.",
   uncertainCreate:
     "The recipe may have been saved. Check the same save to confirm it without creating a second recipe. These fields stay locked until confirmed; closing keeps the server result unchanged.",
   retryCreate: "Check the same save",
@@ -46,6 +55,15 @@ export const recipeEditorEnglish = {
 export type RecipeEditorMessage = keyof typeof recipeEditorEnglish;
 
 export const recipeEditorSpanish: Record<RecipeEditorMessage, string> = {
+  sourceLink: "Fuente original ↗",
+  sourceCopy: "Guardar una copia separada de esta fuente",
+  sourceExists:
+    "Esta fuente ya está guardada. Ábrela para ver o editar, o elige una copia separada.",
+  openExisting: "Abrir receta guardada: {title}",
+  sourceCheckUnavailable:
+    "No pudimos terminar de comprobar las importaciones antiguas. Conserva el borrador y revisa tus recetas, o elige una copia separada.",
+  revisionConflict:
+    "La receta cambió en otro lugar. Tus cambios se conservan aquí. Cierra y vuelve a cargar la receta antes de aplicarlos de nuevo.",
   uncertainCreate:
     "La receta puede haberse guardado. Comprueba el mismo guardado para confirmarlo sin crear otra receta. Los campos quedan bloqueados hasta confirmarlo; cerrar no cambia el resultado del servidor.",
   retryCreate: "Comprobar el mismo guardado",

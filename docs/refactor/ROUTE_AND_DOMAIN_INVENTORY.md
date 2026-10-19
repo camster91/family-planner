@@ -411,3 +411,14 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
 | `/api/wishlist/[id]`                            | PATCH, DELETE            | PATCH: requester or P ; DELETE: requester or P                                                                             | no                                 | wishlist                                                           | —                                     | —                                                                                     |
 | `/api/wishlist/[id]/status`                     | PATCH                    | PATCH: P                                                                                                                   | no                                 | wishlist                                                           | —                                     | —                                                                                     |
 | `/api/wishlist`                                 | GET, POST                | GET: all ; POST: all                                                                                                       | no                                 | wishlist                                                           | —                                     | —                                                                                     |
+
+### Recipe curation additive source candidate (#460, 2026-10-18)
+
+- `/api/recipes/collections` GET (all personal recipe-reading roles), POST
+  create/rename/delete (parent/teen), private/no-store, meals gate.
+- `/api/recipes/[id]/curation` GET/PATCH, same role boundaries; current User and
+  household locking plus revision-bound favorite/membership update.
+- Canonical `RecipeCollection`, `RecipeCollectionEntry` and additive Recipe
+  source/favorite/revision fields. Composite household FKs, export and family
+  erasure inventory included. No shared-device API or separate AI recipe store.
+- Source candidate only: additive migration/generation and all QA deferred.

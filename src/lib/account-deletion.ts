@@ -673,6 +673,8 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'mealBatch', scope: { kind: 'family' }, why: 'prep dishes' },
   { model: 'mealPrepSession', scope: { kind: 'family' }, why: 'prep sessions' },
   { model: 'familyMeal', scope: { kind: 'family' }, why: 'meals' },
+  { model: 'recipeCollectionEntry', scope: { kind: 'family' }, why: 'recipe collection memberships' },
+  { model: 'recipeCollection', scope: { kind: 'family' }, why: 'household recipe collections' },
   { model: 'recipeIngredient', scope: { kind: 'parent', relation: 'recipe' }, why: 'recipe ingredients' },
   { model: 'recipe', scope: { kind: 'family' }, why: 'recipes' },
   { model: 'ingredient', scope: { kind: 'family' }, why: 'ingredients' },

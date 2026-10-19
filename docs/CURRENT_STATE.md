@@ -1,5 +1,23 @@
 # Current State
 
+## Recipe duplicates, favorites and collections source — 2026-10-18
+
+The #460 follow-up adds durable source identity and household-locked duplicate
+checks, Open saved/Edit and deliberate separate-copy choices, household favorites
+and named collection create/rename/confirmed-delete. Recipe/collection membership
+is protected by composite household FKs. Curation is revision-bound, exact-state
+retry converges, and uncertain UI writes preserve choices until explicit refresh.
+EN/ES library filters and rounded management/organization sheets are wired.
+Content edits use revision plus updated-at comparison, preserving concurrent and
+older-server changes instead of blindly replacing newer content. Export/erasure
+inventories include collections and memberships.
+
+An additive SQL migration and Prisma schema are authored, not applied/generated.
+Focused test source is authored, not run. No QA, build, provider activation,
+push, merge or deployment occurred. Requested curation code is a local candidate;
+full #460 reuse/history and broader discovery reconciliation remain. See
+`docs/product/RECIPE_DISCOVERY.md`. The implementation-first goal stays active.
+
 ## Full saved-recipe search and exact-create recovery source — 2026-10-18
 
 The #460 candidate now searches the whole household recipe box on the server,

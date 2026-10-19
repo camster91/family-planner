@@ -20,6 +20,7 @@ import {
 } from "@/components/meals/RecipeDetail";
 import { AddToGroceriesButton } from "@/components/meals/AddToGroceriesButton";
 import { RecipeDetailEdit } from "@/components/meals/RecipeDetailEdit";
+import { RecipeCuration } from "@/components/meals/RecipeCuration";
 
 type Load =
   | { state: "loading" }
@@ -164,6 +165,14 @@ function RecipePageInner() {
                   }
                 }}
               />
+              {(role === "parent" || role === "teen") && (
+                <RecipeCuration
+                  id={load.recipe.id}
+                  title={load.recipe.title}
+                  favorite={load.recipe.favorite}
+                  onChanged={() => void fetchRecipe()}
+                />
+              )}
               {load.recipe.ingredients.length > 0 && (
                 <AddToGroceriesButton recipeId={load.recipe.id} />
               )}

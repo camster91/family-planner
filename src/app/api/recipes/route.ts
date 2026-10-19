@@ -66,7 +66,14 @@ export async function GET(request: NextRequest) {
 
     const search = recipeSearchSchema.safeParse(
       Object.fromEntries(
-        ["q", "ingredient", "maxPrep", "minServings"].flatMap((key) =>
+        [
+          "q",
+          "ingredient",
+          "maxPrep",
+          "minServings",
+          "favorite",
+          "collection",
+        ].flatMap((key) =>
           searchParams.has(key) ? [[key, searchParams.get(key)]] : [],
         ),
       ),

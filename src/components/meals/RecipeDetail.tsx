@@ -5,55 +5,93 @@
  * Presentational only; the route page loads the data and owns loading, error
  * and not-found states. Long titles and ingredient names wrap (no truncation).
  */
-import * as React from 'react'
-import { Clock, Users } from 'lucide-react'
-import { formatAmount } from '@/lib/grocery-display'
-import { publicRecipeUrl } from '@/lib/recipe-discovery'
-import { formatMinutes } from '@/lib/meal-slots'
+import * as React from "react";
+import { Clock, Users } from "lucide-react";
+import { formatAmount } from "@/lib/grocery-display";
+import { publicRecipeUrl } from "@/lib/recipe-discovery";
+import { formatMinutes } from "@/lib/meal-slots";
 
 export interface RecipeDetailData {
-  id: string
-  title: string
-  description: string | null
-  instructions: string | null
-  prep_time: number | null
-  cook_time: number | null
-  servings: number | null
+  id: string;
+  title: string;
+  source_url?: string | null;
+  favorite?: boolean;
+  revision?: number;
+  updated_at?: string;
+  description: string | null;
+  instructions: string | null;
+  prep_time: number | null;
+  cook_time: number | null;
+  servings: number | null;
   ingredients: Array<{
-    id: string
-    amount: number
-    unit: string | null
-    note: string | null
-    ingredient: { id: string; name: string; unit: string | null }
-  }>
+    id: string;
+    amount: number;
+    unit: string | null;
+    note: string | null;
+    ingredient: { id: string; name: string; unit: string | null };
+  }>;
 }
 
-export function RecipeDetail({ recipe, actions }: { recipe: RecipeDetailData; actions?: React.ReactNode }) {
-  const sourceMatch = /^Source: (https:\/\/[^\n]+)\n/.exec(recipe.description ?? '')
-  const sourceUrl = sourceMatch ? publicRecipeUrl(sourceMatch[1]) : null
-  const description = sourceUrl ? recipe.description?.slice(sourceMatch![0].length) : recipe.description
-  const prep = formatMinutes(recipe.prep_time)
-  const cook = formatMinutes(recipe.cook_time)
-  const facts: Array<{ label: string; value: string }> = []
-  if (prep) facts.push({ label: 'Prep', value: prep })
-  if (cook) facts.push({ label: 'Cook', value: cook })
-  if (recipe.servings) facts.push({ label: 'Serves', value: String(recipe.servings) })
+export function RecipeDetail({
+  recipe,
+  actions,
+}: {
+  recipe: RecipeDetailData;
+  actions?: React.ReactNode;
+}) {
+  const sourceMatch = /^Source: (https:\/\/[^\n]+)\n/.exec(
+    recipe.description ?? "",
+  );
+  const sourceUrl = recipe.source_url
+    ? publicRecipeUrl(recipe.source_url)
+    : sourceMatch
+      ? publicRecipeUrl(sourceMatch[1])
+      : null;
+  const description =
+    sourceMatch && sourceUrl
+      ? recipe.description?.slice(sourceMatch[0].length)
+      : recipe.description;
+  const prep = formatMinutes(recipe.prep_time);
+  const cook = formatMinutes(recipe.cook_time);
+  const facts: Array<{ label: string; value: string }> = [];
+  if (prep) facts.push({ label: "Prep", value: prep });
+  if (cook) facts.push({ label: "Cook", value: cook });
+  if (recipe.servings)
+    facts.push({ label: "Serves", value: String(recipe.servings) });
 
   return (
-    <article className="space-y-5" data-testid="recipe-detail" aria-labelledby="recipe-title">
+    <article
+      className="space-y-5"
+      data-testid="recipe-detail"
+      aria-labelledby="recipe-title"
+    >
       <header className="space-y-2">
-        <h1 id="recipe-title" className="text-large-title font-display break-words">
+        <h1
+          id="recipe-title"
+          className="text-large-title font-display break-words"
+        >
           {recipe.title}
         </h1>
         {description && (
-          <p className="text-body text-label-secondary break-words whitespace-pre-line">{description}</p>
+          <p className="text-body text-label-secondary break-words whitespace-pre-line">
+            {description}
+          </p>
         )}
-        {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center text-[var(--accent-text)] break-all">Original recipe · {new URL(sourceUrl).hostname} ↗</a>}
+        {sourceUrl && (
+          <a
+            href={sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-[44px] items-center text-[var(--accent-text)] break-all"
+          >
+            Original recipe · {new URL(sourceUrl).hostname} ↗
+          </a>
+        )}
         {facts.length > 0 && (
           <dl className="flex flex-wrap gap-x-5 gap-y-1 text-subhead text-label-secondary">
             {facts.map((f) => (
               <div key={f.label} className="flex items-center gap-1.5">
-                {f.label === 'Serves' ? (
+                {f.label === "Serves" ? (
                   <Users className="w-4 h-4" aria-hidden="true" />
                 ) : (
                   <Clock className="w-4 h-4" aria-hidden="true" />
@@ -73,20 +111,36 @@ export function RecipeDetail({ recipe, actions }: { recipe: RecipeDetailData; ac
           Ingredients
         </h2>
         {recipe.ingredients.length === 0 ? (
-          <p className="card-apple p-4 text-subhead text-label-secondary">No ingredients listed for this recipe.</p>
+          <p className="card-apple p-4 text-subhead text-label-secondary">
+            No ingredients listed for this recipe.
+          </p>
         ) : (
-          <ul className="card-apple divide-y divide-[var(--surface-separator)]" data-testid="recipe-ingredients">
+          <ul
+            className="card-apple divide-y divide-[var(--surface-separator)]"
+            data-testid="recipe-ingredients"
+          >
             {recipe.ingredients.map((line) => {
-              const amount = formatAmount(line.amount, line.unit)
+              const amount = formatAmount(line.amount, line.unit);
               return (
-                <li key={line.id} className="flex min-h-[44px] items-baseline gap-3 px-4 py-2.5">
+                <li
+                  key={line.id}
+                  className="flex min-h-[44px] items-baseline gap-3 px-4 py-2.5"
+                >
                   <span className="min-w-0 flex-1 break-words text-body text-label-primary">
                     {line.ingredient.name}
-                    {line.note && <span className="text-label-secondary">, {line.note}</span>}
+                    {line.note && (
+                      <span className="text-label-secondary">
+                        , {line.note}
+                      </span>
+                    )}
                   </span>
-                  {amount && <span className="shrink-0 text-subhead tabular-nums text-label-secondary">{amount}</span>}
+                  {amount && (
+                    <span className="shrink-0 text-subhead tabular-nums text-label-secondary">
+                      {amount}
+                    </span>
+                  )}
                 </li>
-              )
+              );
             })}
           </ul>
         )}
@@ -103,5 +157,5 @@ export function RecipeDetail({ recipe, actions }: { recipe: RecipeDetailData; ac
         </section>
       )}
     </article>
-  )
+  );
 }

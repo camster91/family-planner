@@ -178,7 +178,7 @@ export async function GET(request: NextRequest) {
       }),
       prisma!.recipe.findMany({
         where: { family: { members: { some: { id: userId } } } },
-        include: { ingredients: { include: { ingredient: true } } },
+        include: { ingredients: { include: { ingredient: true } }, collection_entries: { select: { collection_id: true } } },
       }),
       prisma!.mealPlan.findMany({
         where: { family: { members: { some: { id: userId } } } },
@@ -495,6 +495,12 @@ export async function GET(request: NextRequest) {
         : none,
     ])
 
+    const recipeCollections = familyId ? await prisma!.recipeCollection.findMany({
+      where: { family_id: familyId, family: { members: { some: { id: userId } } } },
+      select: { id: true, name: true, revision: true, created_at: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    }) : []
+
     const exportData = {
       exportedAt: new Date().toISOString(),
       user,
@@ -515,6 +521,7 @@ export async function GET(request: NextRequest) {
       meals,
       mealPrepSessions,
       recipes,
+      recipeCollections,
       inventory,
       inventoryAdjustments,
       grocerySectionPreferences,

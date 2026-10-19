@@ -6,6 +6,12 @@ import { FeatureGate } from "@/components/ui/feature-gate";
 import { Dialog } from "@/components/ui/dialog";
 import { MealViewNav } from "@/components/meals/MealViewNav";
 import { RecipeEditor } from "@/components/meals/RecipeEditor";
+import { RecipeCuration } from "@/components/meals/RecipeCuration";
+import { RecipeCollections } from "@/components/meals/RecipeCollections";
+import {
+  canonicalRecipeSource,
+  legacyRecipeSource,
+} from "@/lib/recipe-curation-contract";
 import { useRecipeExploreText } from "@/i18n/recipe-explore";
 import {
   publicRecipeUrl,
@@ -13,12 +19,20 @@ import {
   type OnlineRecipe,
 } from "@/lib/recipe-discovery";
 
-type SavedRecipe = { id: string; title: string; description: string | null };
+type SavedRecipe = {
+  id: string;
+  title: string;
+  description: string | null;
+  source_url?: string | null;
+  favorite?: boolean;
+};
 type RecipeSearchResult = { title: string; url: string };
 
 export default function RecipeExplorePage() {
   const text = useRecipeExploreText();
   const [query, setQuery] = React.useState("");
+  const [favoritesOnly, setFavoritesOnly] = React.useState(false);
+  const [collectionId, setCollectionId] = React.useState("");
   const [savedQuery, setSavedQuery] = React.useState("");
   const [ingredient, setIngredient] = React.useState("");
   const [maxPrep, setMaxPrep] = React.useState("");
@@ -41,6 +55,7 @@ export default function RecipeExplorePage() {
   const [error, setError] = React.useState("");
   const [preview, setPreview] = React.useState<OnlineRecipe | null>(null);
   const [editor, setEditor] = React.useState(false);
+  const [copyImport, setCopyImport] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [embedded, setEmbedded] = React.useState(false);
   const [savedId, setSavedId] = React.useState<string | null>(null);
@@ -149,6 +164,7 @@ export default function RecipeExplorePage() {
       if (!abort.signal.aborted) {
         setPreview(data.recipe);
         setEditor(false);
+        setCopyImport(false);
         setEmbedded(false);
         setSavedId(null);
       }
@@ -199,8 +215,12 @@ export default function RecipeExplorePage() {
 
   const visible = recipes;
   const existing = preview
-    ? recipes.find((recipe) =>
-        recipe.description?.startsWith(`Source: ${preview.source}\n`),
+    ? recipes.find(
+        (recipe) =>
+          (recipe.source_url
+            ? canonicalRecipeSource(recipe.source_url)
+            : legacyRecipeSource(recipe.description)) ===
+          canonicalRecipeSource(preview.source),
       )
     : undefined;
 
@@ -394,6 +414,8 @@ export default function RecipeExplorePage() {
             onSubmit={(event) => {
               event.preventDefault();
               const filters = new URLSearchParams();
+              if (favoritesOnly) filters.set("favorite", "1");
+              if (collectionId) filters.set("collection", collectionId);
               if (savedQuery.trim()) filters.set("q", savedQuery.trim());
               if (ingredient.trim())
                 filters.set("ingredient", ingredient.trim());
@@ -427,6 +449,8 @@ export default function RecipeExplorePage() {
                   type="button"
                   className="btn-plain min-h-[44px]"
                   onClick={() => {
+                    setFavoritesOnly(false);
+                    setCollectionId("");
                     setSavedQuery("");
                     setIngredient("");
                     setMaxPrep("");
@@ -482,6 +506,34 @@ export default function RecipeExplorePage() {
               </p>
             </details>
           </form>
+          <div className="grid gap-3 sm:grid-cols-2 mb-4">
+            <label className="flex min-h-[44px] items-center gap-3">
+              <input
+                type="checkbox"
+                checked={favoritesOnly}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setFavoritesOnly(checked);
+                  const filters = new URLSearchParams(libraryFilters);
+                  if (checked) filters.set("favorite", "1");
+                  else filters.delete("favorite");
+                  setLibraryFilters(filters.toString());
+                }}
+              />
+              {text("favoritesOnly")}
+            </label>
+            <RecipeCollections
+              value={collectionId}
+              canEdit={canSave}
+              onSelect={(id) => {
+                setCollectionId(id);
+                const filters = new URLSearchParams(libraryFilters);
+                if (id) filters.set("collection", id);
+                else filters.delete("collection");
+                setLibraryFilters(filters.toString());
+              }}
+            />
+          </div>
           {libraryError && (
             <div role="alert">
               <p>{libraryError}</p>
@@ -507,11 +559,20 @@ export default function RecipeExplorePage() {
                   href={`/dashboard/meals/recipes/${recipe.id}`}
                   className="inline-flex min-h-[44px] items-center text-headline break-words"
                 >
+                  {recipe.favorite ? "★ " : ""}
                   {recipe.title}
                 </Link>
                 <p className="text-footnote text-label-secondary">
                   {text("readyToUse")}
                 </p>
+                {canSave && (
+                  <RecipeCuration
+                    id={recipe.id}
+                    title={recipe.title}
+                    favorite={recipe.favorite}
+                    onChanged={() => void loadLibrary(0)}
+                  />
+                )}
               </li>
             ))}
           </ul>
@@ -547,6 +608,8 @@ export default function RecipeExplorePage() {
                 </p>
                 <RecipeEditor
                   initialDraft={{
+                    source_url: preview.source,
+                    source_copy: copyImport,
                     servings: preview.servings,
                     title: preview.title,
                     description: `Source: ${preview.source}\n${preview.description}`,
@@ -592,16 +655,31 @@ export default function RecipeExplorePage() {
                     {embedded ? text("recipeReader") : text("viewOriginalHere")}
                   </button>
                   {savedId || existing ? (
-                    <Link
-                      href={`/dashboard/meals/recipes/${savedId || existing?.id}`}
-                      className="btn-filled min-h-[44px]"
-                    >
-                      {text("openSavedRecipe")}
-                    </Link>
+                    <>
+                      <Link
+                        href={`/dashboard/meals/recipes/${savedId || existing?.id}`}
+                        className="btn-filled min-h-[44px]"
+                      >
+                        {text("openSavedRecipe")}
+                      </Link>
+                      <button
+                        type="button"
+                        className="btn-tinted min-h-[44px]"
+                        onClick={() => {
+                          setCopyImport(true);
+                          setEditor(true);
+                        }}
+                      >
+                        {text("reviewCopy")}
+                      </button>
+                    </>
                   ) : (
                     <button
                       className="btn-filled min-h-[44px]"
-                      onClick={() => setEditor(true)}
+                      onClick={() => {
+                        setCopyImport(false);
+                        setEditor(true);
+                      }}
                     >
                       {text("reviewAndSave")}
                     </button>

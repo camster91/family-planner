@@ -11,6 +11,11 @@ import {
   type createRecipeSchema,
 } from "@/lib/recipes";
 import { hashIdempotentRequest, type EffectResult } from "@/lib/idempotency";
+import { createHash } from "node:crypto";
+import {
+  canonicalRecipeSource,
+  legacyRecipeSource,
+} from "@/lib/recipe-curation-contract";
 
 type Db = Pick<PrismaClient, "$transaction">;
 type Actor = { userId: string; familyId: string; tokenVersion: number };
@@ -21,7 +26,7 @@ const failure = (status: number, code: string): EffectResult => ({
   body: { error: { code } },
 });
 
-async function authority(
+export async function recipeWriteAuthority(
   tx: Prisma.TransactionClient,
   actor: Actor,
 ): Promise<EffectResult | null> {
@@ -44,7 +49,7 @@ async function authority(
   return null;
 }
 export async function authorizeRecipeCreation(db: Db, actor: Actor) {
-  return db.$transaction((tx) => authority(tx, actor));
+  return db.$transaction((tx) => recipeWriteAuthority(tx, actor));
 }
 export async function createRecipeWithReceipt(
   db: Db,
@@ -53,7 +58,7 @@ export async function createRecipeWithReceipt(
   recordId: string | null,
 ): Promise<EffectResult> {
   return db.$transaction(async (tx) => {
-    const refused = await authority(tx, actor);
+    const refused = await recipeWriteAuthority(tx, actor);
     if (refused) return refused;
     if (recordId) {
       await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
@@ -72,6 +77,21 @@ export async function createRecipeWithReceipt(
       if (receipt.response_status !== null)
         return { status: receipt.response_status, body: receipt.response_body };
     }
+    const source = input.source_url ?? legacyRecipeSource(input.description);
+    const sourceKey = source ? recipeSourceKey(source) : null;
+    if (source && !input.source_copy) {
+      const duplicate = await findRecipeSource(tx, actor.familyId, source);
+      if (duplicate === "incomplete")
+        return failure(409, "RECIPE_SOURCE_CHECK_UNAVAILABLE");
+      if (duplicate)
+        return {
+          status: 409,
+          body: {
+            error: { code: "RECIPE_SOURCE_EXISTS" },
+            existingRecipe: duplicate,
+          },
+        };
+    }
     const lines = await resolveIngredientLines(
       tx,
       actor.familyId,
@@ -87,6 +107,8 @@ export async function createRecipeWithReceipt(
         prep_time: input.prep_time ?? null,
         cook_time: input.cook_time ?? null,
         servings: input.servings ?? 2,
+        source_url: source,
+        source_key: sourceKey,
       },
       select: { id: true },
     });
@@ -111,7 +133,7 @@ export async function readCreatedRecipe(
   recipeId: string,
 ): Promise<EffectResult> {
   return db.$transaction(async (tx) => {
-    const refused = await authority(tx, actor);
+    const refused = await recipeWriteAuthority(tx, actor);
     if (refused) return refused;
     // Sequential flat reads preserve the existing pg-adapter transaction
     // contract; nested Prisma relation reads can start parallel tx queries.
@@ -159,4 +181,38 @@ export async function readCreatedRecipe(
       },
     };
   });
+}
+
+export function recipeSourceKey(source: string) {
+  return createHash("sha256").update(source).digest("hex");
+}
+/** Preserve old imported descriptions, but do not pretend an unbounded legacy scan is complete. */
+async function findRecipeSource(
+  tx: Prisma.TransactionClient,
+  familyId: string,
+  raw: string,
+): Promise<{ id: string; title: string } | "incomplete" | null> {
+  const source = canonicalRecipeSource(raw);
+  if (!source) return null;
+  const known = await tx.recipe.findFirst({
+    where: { family_id: familyId, source_key: recipeSourceKey(source) },
+    orderBy: [{ created_at: "asc" }, { id: "asc" }],
+    select: { id: true, title: true },
+  });
+  if (known) return known;
+  const legacy = await tx.recipe.findMany({
+    where: {
+      family_id: familyId,
+      source_key: null,
+      description: { startsWith: "Source: https://" },
+    },
+    orderBy: { id: "asc" },
+    take: 2001,
+    select: { id: true, title: true, description: true },
+  });
+  const match = legacy.find(
+    (recipe) => legacyRecipeSource(recipe.description) === source,
+  );
+  if (match) return { id: match.id, title: match.title };
+  return legacy.length > 2000 ? "incomplete" : null;
 }

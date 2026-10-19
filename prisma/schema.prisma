@@ -237,6 +237,7 @@ model Family {
   family_goals       FamilyGoal[]
   push_subscriptions PushSubscription[]
   recipes            Recipe[]
+  recipe_collections RecipeCollection[]
   ingredients        Ingredient[]
   meal_plans         MealPlan[]
   shopping_lists     ShoppingList[]
@@ -619,6 +620,10 @@ model Recipe {
   cook_time    Int?
   servings     Int      @default(2)
   image_url    String?
+  source_url   String?
+  source_key   String?  @db.VarChar(64)
+  favorite     Boolean  @default(false)
+  revision     Int      @default(0)
   created_by   String
   created_at   DateTime @default(now())
   updated_at   DateTime @default(now()) @updatedAt
@@ -631,8 +636,34 @@ model Recipe {
   meal_batches MealBatch[]
   meals        FamilyMeal[]
   list_items   ListItem[]
+  collection_entries RecipeCollectionEntry[]
 
+  @@unique([id, family_id], map: "Recipe_id_family_key")
   @@index([family_id, title], map: "Recipe_family_title_idx")
+  @@index([family_id, source_key], map: "Recipe_family_source_idx")
+}
+
+model RecipeCollection {
+  id         String @id @default(cuid())
+  family_id  String
+  name       String
+  name_key   String
+  revision   Int @default(0)
+  created_at DateTime @default(now())
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  entries RecipeCollectionEntry[]
+  @@unique([id, family_id], map: "RecipeCollection_id_family_key")
+  @@unique([family_id, name_key], map: "RecipeCollection_family_name_key")
+}
+
+model RecipeCollectionEntry {
+  recipe_id String
+  collection_id String
+  family_id String
+  recipe Recipe @relation(fields: [recipe_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  collection RecipeCollection @relation(fields: [collection_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  @@id([recipe_id, collection_id])
+  @@index([collection_id, family_id])
 }
 
 model Ingredient {

@@ -17,6 +17,7 @@
 import { z } from "zod";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { normalizeName } from "@/lib/backfill/meals-groceries";
+import { recipeSourceField } from "@/lib/recipe-curation-contract";
 
 export const RECIPE_MAX_INGREDIENTS = 100;
 
@@ -67,6 +68,8 @@ export const createRecipeSchema = z
     // Old strict readers refuse this payload before creating anything. A new
     // client must not retry a keyed create against an older key-ignorant route.
     creation_protocol: z.literal("herewoven.recipe-create.v1").optional(),
+    source_url: recipeSourceField.nullable().optional(),
+    source_copy: z.boolean().optional(),
     title: z.string().trim().min(1).max(200),
     description: optionalText(2000),
     instructions: optionalText(20000),
@@ -79,6 +82,8 @@ export const createRecipeSchema = z
 
 export const updateRecipeSchema = z
   .object({
+    base_revision: z.number().int().nonnegative().optional(),
+    base_updated_at: z.string().datetime().optional(),
     title: z.string().trim().min(1).max(200).optional(),
     description: optionalText(2000),
     instructions: optionalText(20000),
@@ -99,6 +104,9 @@ export const RECIPE_SUMMARY_SELECT = {
   cook_time: true,
   servings: true,
   image_url: true,
+  source_url: true,
+  favorite: true,
+  revision: true,
   created_by: true,
   created_at: true,
   updated_at: true,

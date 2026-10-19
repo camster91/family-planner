@@ -65,3 +65,84 @@ Remaining #460 code: durable source/deduplication and explicit copy/update
 choices, favorite/collection curation, broader discovery constraints, portion
 variation and cooked-history policy reconciliation. Optional model parsing
 remains governed by #567's unresolved provider eligibility/privacy decision.
+
+## Source identity, favorites and named collections candidate — 2026-10-18
+
+This local #460 follow-up implements the requested curation code. The additive
+`migration-recipes-curation.sql` adds original-source URL/key, household favorite
+and recipe revision, plus `RecipeCollection` and `RecipeCollectionEntry`.
+Composite household FKs prevent foreign recipe/collection memberships even if
+an application caller is wrong. The migration, generated client and all QA are
+**not run** in this implementation-first pass.
+
+### Duplicate and edit behavior
+
+Source identity normalizes HTTPS URLs, fragments, tracking parameters and query
+ordering without merging different path case or recipe-specific query values.
+New imports retain durable source provenance separately from editable family
+description/method. Same-source creation is checked under the household lock;
+it returns the existing same-household recipe rather than overwriting it.
+Old description-only imports are recognized by the exact supported Source
+prefix and the same normalizer. More than 2,000 unclassified older imports stop
+the default check if no match was found; they do not establish absence. No
+network request or speculative database backfill occurs during this lookup.
+
+The reader and editor offer Open saved (including its normal Edit path) or a
+visible, deliberate separate-copy choice. The copy is another canonical Recipe
+with a new identity and the same original provenance; it is never a background
+reimport or an automatic replacement. Manual recipes sharing a title are not
+merged: a title is not source identity. Existing exact-create receipt recovery
+continues to bind the original body/key, including source/copy intent. Unknown
+write outcomes keep the draft locked rather than converting it into a copy.
+
+New content edits send the loaded revision and updated-at timestamp. Current
+User/session/role/household/feature checks and a row lock precede the comparison
+and ingredient replacement. A stale edit is refused with its local text kept.
+The timestamp also detects older servers that touched content without knowing
+the additive revision. Unmarked old callers remain supported; arbitrary mixed
+old-server writes are not claimed revision-aware. All forward/rollback and
+current/previous-client combinations still belong to later QA. Recipe edits
+never change linked meal name snapshots, create new meal IDs, consume stock or
+change already-eaten portions. Detailed ingredient/cooked-history reconciliation
+remains tracked separately within the full recipe reuse work.
+
+### Household curation
+
+Favorites are shared household choices, not an inferred personal preference.
+Named collections are household-owned and normalized by name. Parent/teen can
+create, rename or explicitly confirm deletion; child can read/filter, consistent
+with the recipe role contract. Same-name create returns the existing collection;
+rename/delete require its current revision. Deleting a collection removes only
+group memberships, keeping Recipe records, favorites, planned meals and prep.
+Up to 100 named collections and eight memberships per recipe are supported.
+
+The EN/ES Organize sheet reads current recipe state and collection names only
+when opened. Favorite and memberships save atomically against a recipe revision.
+An exact already-applied state is a no-op. Stale/uncertain results require an
+explicit refresh and review; refreshed metadata does not silently replace the
+draft choices, issue another write or claim an earlier request succeeded.
+Pending close/navigation and retained-handler guards remain in force. Missing
+collections stay visible as unavailable choices until explicitly removed.
+
+Explore has server-backed Favorites and Collection filters alongside saved
+search. Collection management uses a short rounded sheet with create/rename and
+confirmed delete, retaining its name draft on failure. Readable canonical detail
+shows stored original source with the old-prefix fallback. Household export
+includes collection names, memberships and new recipe metadata, including empty
+collections; erasure inventories explicitly include memberships/collections.
+No collection is created in a second AI-owned store or exposed on paired APIs.
+
+Focused unexecuted test source covers same-source concurrency, family edits,
+deliberate copies, old Source prefixes, revision conflicts, exact-state retry,
+collection deletion, application and composite-FK isolation, child write denial,
+URL/selection bounds and UI refresh-after-uncertain behavior. Consolidated QA
+must generate the client/apply the migration to a disposable database, run the
+full affected tests/checks and inspect the actual EN/ES/role/device journeys.
+No migration, test/type/lint/build/browser run, provider call, push, merge or
+deployment occurred. These three requested features are coded candidates, not
+verified release acceptance.
+
+Rollback retains additive tables/columns and source data. Revert only UI/routes
+when pausing the feature; do not drop collections or provenance to run an older
+server. New strict payload fields are refused by older strict readers before
+mutation. Final deployment compatibility still requires the integrated gates.

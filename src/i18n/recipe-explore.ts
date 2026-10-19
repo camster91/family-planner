@@ -3,6 +3,8 @@ import { useTranslation } from "@/i18n";
 
 /** Explore-page controls and safe recovery copy. Recipe/source content stays verbatim. */
 export const recipeExploreEnglish = {
+  favoritesOnly: "Household favorites",
+  reviewCopy: "Review a separate copy",
   searchSaved: "Search saved recipes",
   clearSavedFilters: "Clear filters",
   savedFilters: "More filters",
@@ -68,6 +70,8 @@ export const recipeExploreEnglish = {
 export type RecipeExploreMessage = keyof typeof recipeExploreEnglish;
 
 export const recipeExploreSpanish: Record<RecipeExploreMessage, string> = {
+  favoritesOnly: "Favoritas del hogar",
+  reviewCopy: "Revisar una copia separada",
   searchSaved: "Buscar recetas guardadas",
   clearSavedFilters: "Borrar filtros",
   savedFilters: "Más filtros",
