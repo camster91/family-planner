@@ -5,6 +5,7 @@ import { useTranslation } from "@/i18n";
 import type { GroceryMessage } from "@/i18n/grocery-controls";
 import { Dialog } from "@/components/ui/dialog";
 import { QueueStorageRecovery } from "@/components/ui/queue-storage-recovery";
+import { RecoveredQueueChanges } from "@/components/ui/recovered-queue-changes";
 import type { DeviceClient } from "@/lib/device-client";
 import { getDeviceQueue } from "@/lib/offline-queue-browser";
 import {
@@ -216,6 +217,7 @@ export function DeviceGroceryAdd({
   return (
     <>
       {!open && storageRecovery}
+      <RecoveredQueueChanges queue={queue} deviceClient={client} />
       <button
         type="button"
         disabled={busy}

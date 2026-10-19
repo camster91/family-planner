@@ -17,12 +17,16 @@ export async function GET(request: NextRequest) {
     error.headers.set("Cache-Control", headers["Cache-Control"]);
     return error;
   }
+  const owner = personQueueOwner(request, auth.payload);
   if (!isQueueOwnerRecoveryEnabled())
     return NextResponse.json(
-      { contract: QUEUE_OWNER_CONTRACT, enabled: false },
+      {
+        contract: QUEUE_OWNER_CONTRACT,
+        enabled: false,
+        ...(owner ? { owner } : {}),
+      },
       { headers },
     );
-  const owner = personQueueOwner(request, auth.payload);
   if (!owner)
     return apiError(
       409,

@@ -18,7 +18,18 @@ import {
   type StorageLike,
 } from "@/lib/offline-queue";
 import { ownerQueueStore } from "@/lib/queue-owner-store";
-import { QUEUE_OWNER_HEADER } from "@/lib/queue-owner-contract";
+import {
+  QUEUE_OWNER_HEADER,
+  queueRetirementSchema,
+  type QueueOwner,
+  type QueueRetirement,
+} from "@/lib/queue-owner-contract";
+import {
+  captureQueueRetirements,
+  ownedQueueLocation,
+  retireOwnedQueueRecords,
+  withOwnedQueueLease,
+} from "@/lib/owned-queue-persistence";
 
 const queues = new Map<string, OfflineQueue>();
 let listenersAttached = false;
@@ -37,6 +48,75 @@ function safeIndexedDb(): IDBFactory | null {
   } catch {
     return null;
   }
+}
+
+function ownedCandidates(owner: QueueOwner) {
+  return queueStoreCandidates(ownedQueueLocation(owner), {
+    indexedDB: safeIndexedDb(),
+    localStorage: safeLocalStorage(),
+  }).candidates;
+}
+
+/** Only a validated server generation receipt can expand a captured scope purge. */
+export async function retirePersonQueueGeneration(
+  receipt: unknown,
+  userId: string,
+): Promise<boolean> {
+  const parsed = queueRetirementSchema.safeParse(receipt);
+  if (
+    !parsed.success ||
+    parsed.data.mode !== "generation" ||
+    parsed.data.ownerId !== userId
+  )
+    return false;
+  return retireOwnedQueueRecords(parsed.data, {
+    storage: safeLocalStorage(),
+    indexedDB: safeIndexedDb(),
+  });
+}
+/** Only consume this receipt after the server confirmed account erasure. */
+export async function retireErasedAccountQueues(
+  receipt: unknown,
+): Promise<boolean> {
+  const values = Array.isArray(receipt) ? receipt : [receipt];
+  if (!values.length || values.length > 2) return false;
+  const parsed = values.map((value) => queueRetirementSchema.safeParse(value));
+  if (
+    parsed.some(
+      (row) =>
+        !row.success ||
+        !(
+          row.data.mode === "household" ||
+          (row.data.mode === "generation" &&
+            row.data.throughGeneration === Number.MAX_SAFE_INTEGER)
+        ),
+    )
+  )
+    return false;
+  const results = await Promise.allSettled(
+    parsed.map((row) =>
+      row.success
+        ? retireOwnedQueueRecords(row.data, {
+            storage: safeLocalStorage(),
+            indexedDB: safeIndexedDb(),
+          })
+        : Promise.resolve(false),
+    ),
+  );
+  return results.every(
+    (result) => result.status === "fulfilled" && result.value,
+  );
+}
+
+async function retireCaptured(retirements: QueueRetirement[]) {
+  await Promise.allSettled(
+    retirements.map((retirement) =>
+      retireOwnedQueueRecords(retirement, {
+        storage: safeLocalStorage(),
+        indexedDB: safeIndexedDb(),
+      }),
+    ),
+  );
 }
 
 const send: SendFn = async ({
@@ -89,6 +169,8 @@ export function getPersonQueue(userId: string): OfflineQueue {
       localStorage: safeLocalStorage(),
     }),
     namespace: { kind: "person", userId },
+    ownedCandidates,
+    withLease: withOwnedQueueLease,
     runtime: newIdempotencyKey(),
     resolveOwner: async () => {
       const response = await fetch("/api/queue/owner", {
@@ -176,6 +258,8 @@ export function getDeviceQueue(client: DeviceClient): OfflineQueue {
       localStorage: safeLocalStorage(),
     }),
     namespace: { kind: "device" },
+    ownedCandidates,
+    withLease: withOwnedQueueLease,
     runtime: newIdempotencyKey(),
     resolveOwner: () => client.request("/api/device/queue-owner"),
   });
@@ -241,6 +325,7 @@ export function clearAllPersonQueues(): Promise<void> {
 }
 
 async function clearAll(): Promise<void> {
+  const retirements = captureQueueRetirements("person");
   const personQueues = Array.from(queues.entries()).filter(
     ([name]) => name !== DEVICE_QUEUE,
   );
@@ -254,5 +339,6 @@ async function clearAll(): Promise<void> {
   await Promise.all([
     ...personQueues.map(([, queue]) => queue.clear().catch(() => {})),
     clearPersonQueues({ storages: storage ? [storage] : [], deleteIndexedDb }),
+    retireCaptured(retirements),
   ]);
 }

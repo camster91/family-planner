@@ -15,8 +15,14 @@ export function isQueueOwnerRecoveryEnabled() {
     process.env[QUEUE_OWNER_ROLLBACK_ENV] === "1"
   );
 }
+/** Keep the adopted safety boundary during a write pause/rollback. */
+export function requiresQueueOwnerProof() {
+  return process.env[QUEUE_OWNER_ROLLBACK_ENV] === "1";
+}
 const scope = (parts: unknown[]) =>
   createHash("sha256").update(JSON.stringify(parts)).digest("hex");
+export const queueHouseholdScope = (familyId: string) =>
+  scope(["queue-owner.household.v1", familyId]);
 /** A hash is continuity metadata only; every action still authenticates normally. */
 export function personQueueOwner(
   request: NextRequest,
@@ -27,6 +33,8 @@ export function personQueueOwner(
   return {
     kind: "person",
     ownerId: payload.userId,
+    generation: payload.tv ?? 0,
+    householdScope: queueHouseholdScope(payload.family_id),
     scope: scope([
       "queue-owner.person.v1",
       token,
@@ -41,6 +49,8 @@ export function deviceQueueOwner(actor: DeviceActor): QueueOwner {
   return {
     kind: "device",
     ownerId: actor.deviceId,
+    generation: 0,
+    householdScope: queueHouseholdScope(actor.familyId),
     scope: scope(["queue-owner.device.v1", actor.deviceId, actor.familyId]),
   };
 }
@@ -50,7 +60,7 @@ export function queueOwnerMatches(
   owner: QueueOwner | null,
 ) {
   return (
-    !isQueueOwnerRecoveryEnabled() ||
+    !requiresQueueOwnerProof() ||
     (owner !== null && request.headers.get(QUEUE_OWNER_HEADER) === owner.scope)
   );
 }

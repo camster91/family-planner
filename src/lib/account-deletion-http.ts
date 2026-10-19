@@ -11,6 +11,8 @@ import { checkRateLimit } from '@/lib/rate-limit-db'
 import { withIdempotency, type EffectResult, type IdempotencyDb } from '@/lib/idempotency'
 import { AccountDeletionError } from '@/lib/account-deletion'
 import { confirmationMatches, type AccountDeletionCode } from '@/lib/account-deletion-shared'
+import { QUEUE_RETIREMENT_HEADER } from '@/lib/queue-owner-contract'
+import { queueHouseholdScope } from '@/lib/queue-owner-server'
 
 /** Password attempts per member per window, across both deletion routes. */
 const ATTEMPTS = 5
@@ -113,6 +115,12 @@ export async function runDeletion(
         })()
   response.headers.set('Cache-Control', 'private, no-store')
   if (response.status >= 200 && response.status < 300) {
+    // A permanently erased User ID is never reassigned by registration.
+    // This only retires that actor's journals, not another account's data.
+    response.headers.set(QUEUE_RETIREMENT_HEADER, JSON.stringify([
+      { mode: 'generation', ownerId: opts.userId, throughGeneration: Number.MAX_SAFE_INTEGER },
+      ...(opts.action === 'household.delete' && opts.familyId ? [{ mode: 'household', householdScope: queueHouseholdScope(opts.familyId) }] : []),
+    ]))
     // Attributes match the ones set at login, or the browser keeps the old cookie.
     response.cookies.set('session_token', '', {
       httpOnly: true,

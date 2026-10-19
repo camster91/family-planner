@@ -21,7 +21,11 @@ export async function GET(request: NextRequest) {
             enabled: true,
             owner: deviceQueueOwner(auth.actor),
           }
-        : { contract: QUEUE_OWNER_CONTRACT, enabled: false },
+        : {
+            contract: QUEUE_OWNER_CONTRACT,
+            enabled: false,
+            owner: deviceQueueOwner(auth.actor),
+          },
     );
   } catch (error) {
     return deviceInternalError(

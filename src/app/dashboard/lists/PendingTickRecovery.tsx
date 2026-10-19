@@ -5,6 +5,7 @@ import { useTranslation } from "@/i18n";
 import type { GroceryMessage } from "@/i18n/grocery-controls";
 import { Dialog } from "@/components/ui/dialog";
 import { QueueStorageRecovery } from "@/components/ui/queue-storage-recovery";
+import { RecoveredQueueChanges } from "@/components/ui/recovered-queue-changes";
 import { getPersonQueue } from "@/lib/offline-queue-browser";
 import {
   isCheckedOperation,
@@ -23,6 +24,10 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<GroceryMessage | null>(null);
   const queueRef = React.useRef<OfflineQueue | null>(null);
+  const [recoveryQueue, setRecoveryQueue] = React.useState<{
+    userId: string;
+    queue: OfflineQueue;
+  } | null>(null);
   const busyRef = React.useRef(false);
   const generation = React.useRef(0);
 
@@ -34,6 +39,7 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
     setMessage(null);
     const queue = getPersonQueue(userId);
     queueRef.current = queue;
+    setRecoveryQueue({ userId, queue });
     let active = true;
     const current = ++generation.current;
     const update = () => {
@@ -101,6 +107,35 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
     const current = queue.list().find((op) => op.id === id);
     return Boolean(current && current.state !== "syncing");
   };
+
+  const namedQueue =
+    recoveryQueue?.userId === userId ? recoveryQueue.queue : null;
+  if (namedQueue?.usesOwnerRecovery?.())
+    return (
+      <section
+        className="card-apple p-5 space-y-3"
+        aria-labelledby="pending-ticks-heading"
+      >
+        <h2
+          id="pending-ticks-heading"
+          className="text-title-3 text-label-primary"
+        >
+          {t("groceries.tickSection")}
+        </h2>
+        <button
+          className="btn-secondary min-h-11"
+          onClick={() => setOpen(true)}
+        >
+          {t("groceries.reviewTicks")}
+        </button>
+        <RecoveredQueueChanges
+          queue={namedQueue}
+          open={open}
+          onOpenChange={setOpen}
+          showLauncher={false}
+        />
+      </section>
+    );
 
   return (
     <section

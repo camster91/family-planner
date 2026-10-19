@@ -226,6 +226,8 @@ export interface QueueStore {
   persistenceLane?: object
   /** Content-free recovery reason; optional for custom/legacy stores. */
   failureReason?: () => 'UNAVAILABLE' | 'OWNER_CHANGED' | 'UPDATE_REQUIRED' | 'DIVERGENT' | null
+  matchesOwner?: (owner: unknown) => boolean
+  usesOwnerRecovery?: () => boolean
 }
 
 export interface SendRequest {
@@ -919,6 +921,8 @@ export function createOfflineQueue(deps: OfflineQueueDeps) {
     /** True when the initial or explicit storage read failed; all queue mutations are paused. */
     hasStorageReadError: () => storageReadError,
     storageFailureReason: () => deps.store.failureReason?.() ?? null,
+    matchesOwner: (owner: unknown) => deps.store.matchesOwner?.(owner) ?? false,
+    usesOwnerRecovery: () => deps.store.usesOwnerRecovery?.() ?? false,
     retryStorageRead,
     /** False while queued changes exist only in memory because storage refused the last write. */
     isDurable: () => durable && !storageReadError,

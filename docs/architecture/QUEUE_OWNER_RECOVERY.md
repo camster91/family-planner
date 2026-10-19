@@ -28,6 +28,29 @@ not claim that a hash or a surviving snapshot proves absence of a failed purge.
   the actual session token plus resolved current context; no raw token is
   returned. Device proof survives normal access-token refresh, but changes with
   pairing identity/household. These are continuity identifiers, never authority.
+- `owned-queue-persistence.ts`: owned journals now live in `fp-owned-person`
+  and `fp-owned-device`, with kind/scope-qualified localStorage keys. Legacy
+  namespace/database deletion cannot erase a replacement journal. Captured
+  scope retirement, server-revoked generation cutoffs and confirmed household
+  erasure recheck each current record and its derived key before replacing only
+  matching old data with a retirement witness. Unknown future records remain
+  untouched; a cleanup result covers classified matching records, not proof
+  that every possible local trace was erased.
+- Non-waiting exclusive Web Locks cover owned journal reads, writes, retirement
+  and the checked send. The in-page persistence lane remains separate. Missing
+  or contended locking pauses rather than assuming cross-context exclusion.
+  Exact write/retirement intent is captured **before** lease acquisition, so a
+  failed lease cannot make explicit recovery load an older snapshot in its
+  place. An in-flight terminal device request gives its own pending retirement
+  one event-driven attempt after its send lease is released; no retry timer.
+- Sign-out uses an atomic `token_version` compare-and-increment. Its private
+  receipt retires only that account's generations at/below the revoked cutoff,
+  including unloaded journals. A late cleanup cannot target a later generation
+  or another account. Confirmed account/household deletion supplies a bounded
+  private retirement receipt for the erased actor and, when applicable, the
+  erased household fingerprint across person/device journals. The deletion UI
+  attempts bounded local cleanup before its redirect/callback; absent lost-ack
+  receipts do not authorize guessed deletion of unclassified records.
 - `auth.ts`: optional `sid` nonce is fresh on every token issuance. Existing
   token-version, signature, expiry and database role/household checks remain.
   This distinguishes two sign-ins even in the same JWT timestamp second.
@@ -62,10 +85,30 @@ not claim that a hash or a surviving snapshot proves absence of a failed purge.
   recovered ticks to their actual list for review instead of allowing blind
   retry by an index. Device failure handling retains ownership/storage-uncertain
   actions rather than silently discarding them.
+- `queue-review-contract.ts`, `queue-review-server.ts` and the two private
+  `queue/review` routes resolve current canonical names for at most 50 targets.
+  Requests contain only target/actor IDs and desired tick state, never saved
+  food text. Feature, household, namespace, device-write and real-account
+  subject boundaries are retained; missing/foreign targets return the same
+  null descriptor. Bodies are stream-bounded, rate limited and no-store.
+- `RecoveredQueueChanges` supplies EN/ES short review/discard sheets for both
+  personal lists and shared tablets. It validates the response owner and every
+  operation fingerprint before showing canonical names or enabling retry.
+  Saved add text is hidden until its current target list is validated. Tick
+  review shows the actual item/list, original member and desired/current state;
+  unavailable targets stay kept without retry. Local discard requires explicit
+  confirmation and no success is claimed after uncertain persistence. Old
+  personal recovery remains available for the inactive v1 mode. Copy changes
+  do not refetch names or replace an operation.
 
 `QUEUE_OWNER_RECOVERY_ENABLED=1` **and**
 `QUEUE_OWNER_RECOVERY_ROLLBACK_READY=1` are required. Neither was set. A negative
-negotiation uses the existing v1 fallback adapter; an unavailable negotiation
+negotiation preserves the v1 adapter but probes the current owned namespace and
+pauses if newer owned work is present or cannot be read. Once adopted, the
+rollback-ready boundary continues requiring owner proof on keyed queued routes
+even when new writing is paused: turning only the write flag off cannot silently
+allow old queued requests. Keep the adopted reader/proof boundary through a
+rollback; do not reset it while owned work remains. An unavailable negotiation
 pauses rather than guessing support. Cold-offline startup behavior therefore
 still needs the complete native/bootstrap integration, not an availability
 claim from these sources alone.
@@ -74,20 +117,7 @@ claim from these sources alone.
 
 These are remaining implementation work, not requests for Cameron to unblock:
 
-1. **Principal-qualified persistence and cleanup.** The current browser
-   candidate still wraps the existing physical namespace. Move owned journals
-   into principal/generation-qualified storage, and make lifecycle cleanup
-   retire only captured old keys. Existing broad `clearPersonQueues` database
-   deletion and the device wipe must not race a replacement into deleting new
-   work. Enumerate/snapshot owned cleanup safely, preserve witnesses on failure
-   and cover unloaded stores. Do not enable the gate while this is incomplete.
-2. **Cross-runtime serialization.** The existing persistence lane orders
-   in-page wrappers; read/compare/write is not an atomic cross-tab lease.
-   Integrate an actual browser/native ownership lease or equivalent canonical
-   exclusion before granting concurrent journal mutations. Unsupported or
-   unavailable lease capability must remain an explicit paused state, not an
-   assumed lock. Keep exact-operation recovery and no retry spin.
-3. **Legacy and rollback recovery.** An unowned v1 snapshot is currently
+1. **Legacy and rollback recovery.** An unowned v1 snapshot is currently
    retained as `UPDATE_REQUIRED`, not silently adopted. Implement deliberate
    migration/review using canonical current-household target checks before
    displaying or replaying its content. Preserve original keys/bodies and
@@ -95,13 +125,18 @@ These are remaining implementation work, not requests for Cameron to unblock:
    Finish reader continuity when the write opt-in is turned off and confirm
    the actual previous-client preservation contract before any v2 persistence
    is allowed in release. Do not just change the public manifest to claim it.
-4. **Shared-tablet recovered tick controls.** Grocery-add review is visible,
-   but recovered tablet ticks still need a named canonical-item review surface
-   that respects paired read/write permission, selected real account subject,
-   feature gates and missing/foreign targets. Do not auto-convert account IDs
-   to profile IDs or add a profile action to the queue allowlist.
-5. Finish scoped fault/concurrency test source and then include it in the one
+   The canonical target-review service and named sheets are now available as
+   the read/review foundation. Person v1 records retain the stable User
+   idempotency namespace. An unowned legacy device grocery add cannot simply
+   be rebound to a new pairing: that changes the idempotency scope and can
+   duplicate a previously committed create. Preserve/lock such unknown-origin
+   creates rather than renewing a key or guessing a device from local labels.
+2. Finish scoped fault/concurrency test source and then include it in the one
    later QA run. No check is currently claimed passing.
+
+Principal-qualified cleanup, actual cross-context leases and named shared
+review are now **coded candidates**, not tested acceptance. All original race,
+physical-native, rollback and privacy criteria below remain open for QA.
 
 ## Consolidated acceptance after source completion
 

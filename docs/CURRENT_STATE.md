@@ -1,5 +1,29 @@
 # Current State
 
+## Scoped queue cleanup, locking and named review source — 2026-10-18
+
+The next #564 local pass moves owned journals into separate person/device
+databases and scope-qualified keys. Legacy database wipes cannot target those
+new journals. Cleanup matches captured old scopes, authoritative revoked User
+generation cutoffs, old pairing IDs or confirmed account/household erasure;
+it never broadly deletes an owned database. Sign-out now compares the current
+session generation atomically before revoking it and returning a private
+cleanup receipt. Future login generations/other accounts are excluded.
+
+Owned operations use actual non-waiting exclusive Web Locks. A failed lease
+retains exact write/retirement intent. Both personal and paired routes now
+support bounded canonical target review, and shared EN/ES sheets display
+current item/list/member names and desired/current tick state before retry.
+Foreign, missing or unavailable targets stay kept without exposing old content.
+
+This is still source in progress: deliberate legacy-v1/rollback recovery and
+fault/concurrency test source remain before candidate freeze. Unknown-origin
+legacy device creates must retain their original idempotency scope; they cannot
+be blindly rebound to a new pairing. No tests/type/lint/build/browser/hosted QA,
+push, merge, deployment, database migration or real account/device mutation was
+performed. No rollout gate was enabled. Full source/remaining criteria remain
+in `docs/architecture/QUEUE_OWNER_RECOVERY.md`; the goal and #564 remain open.
+
 ## Queue owner/retirement core source in progress — 2026-10-18
 
 Local #564 adds private owner negotiation, per-issuance person-session nonce,

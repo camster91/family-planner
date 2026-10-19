@@ -12,9 +12,11 @@ import {
   type QueueNamespace,
 } from "@/lib/offline-queue";
 import { canonicalBodySignature } from "@/lib/request-signature";
+import { rememberQueueOwner } from "@/lib/owned-queue-persistence";
 import {
   ownedQueueEnvelope,
   queueOwnerResponse,
+  queueOwnerSchema,
   RETIRED_QUEUE_ENVELOPE,
   sameQueueOwner,
   QUEUE_REVIEW_REQUIRED,
@@ -44,6 +46,8 @@ type Options = {
   namespace: QueueNamespace;
   runtime: string;
   resolveOwner: () => Promise<unknown>;
+  ownedCandidates?: (owner: QueueOwner) => QueueStore[];
+  withLease?: <T>(owner: QueueOwner, run: () => Promise<T>) => Promise<T>;
 };
 /**
  * All reads/writes run through the queue's shared namespace lane. Unknown
@@ -64,6 +68,7 @@ export function ownerQueueStore(options: Options) {
   let retirementBase: Array<string | null> | null = null;
   let retirementAttempt: string | null = null;
   let current = -1;
+  let candidates = options.candidates;
 
   function fail(reason: QueueOwnerStorageError["reason"]): never {
     failure = reason;
@@ -77,13 +82,20 @@ export function ownerQueueStore(options: Options) {
       if (!parsed.success) return fail("UNAVAILABLE");
       const result = parsed.data;
       if (
-        result.enabled &&
+        result.owner &&
         (result.owner.kind !== options.namespace.kind ||
           (options.namespace.kind === "person" &&
             result.owner.ownerId !== options.namespace.userId))
       )
         return fail("OWNER_CHANGED");
-      if (!fresh) negotiated = result;
+      if (!fresh) {
+        negotiated = result;
+        if (result.owner) {
+          rememberQueueOwner(result.owner);
+          if (options.ownedCandidates)
+            candidates = options.ownedCandidates(result.owner);
+        }
+      }
       return result;
     })().catch((error) => {
       if (error instanceof QueueOwnerStorageError) throw error;
@@ -98,11 +110,11 @@ export function ownerQueueStore(options: Options) {
     }
   }
   async function probe() {
-    if (!options.candidates.length) return fail("UNAVAILABLE");
+    if (!candidates.length) return fail("UNAVAILABLE");
     // Probe all, including known failed stores. An unread retirement witness
     // must not be treated as absent because another candidate has old work.
     const values = await Promise.allSettled(
-      options.candidates.map((store) => store.read()),
+      candidates.map((store) => store.read()),
     );
     if (values.some((value) => value.status === "rejected"))
       return fail("UNAVAILABLE");
@@ -125,22 +137,22 @@ export function ownerQueueStore(options: Options) {
     // One verified journal remains; every other store must be read back empty.
     const order =
       current < 0
-        ? options.candidates.map((_, index) => index)
+        ? candidates.map((_, index) => index)
         : [
             current,
-            ...options.candidates
+            ...candidates
               .map((_, index) => index)
               .filter((index) => index !== current),
           ];
     for (const index of order) {
       try {
-        await options.candidates[index].write(value);
+        await candidates[index].write(value);
       } catch {
         continue;
       }
       current = index;
       const cleanup = await Promise.allSettled(
-        options.candidates.map((store, other) =>
+        candidates.map((store, other) =>
           other === index ? Promise.resolve() : store.remove(),
         ),
       );
@@ -193,12 +205,51 @@ export function ownerQueueStore(options: Options) {
     if (contents.dropped) return fail("UPDATE_REQUIRED");
     return { saved: parsed.data, ops: contents.ops };
   }
+  async function assertLegacyEmpty() {
+    if (!options.ownedCandidates) return;
+    const raw = await legacy.read();
+    if (raw === null) return;
+    if (requiresCompatibleQueueClient(raw, options.namespace.kind))
+      return fail("UPDATE_REQUIRED");
+    const parsed = parseStoredQueue(raw, options.namespace.kind);
+    if (parsed.dropped || parsed.ops.length) return fail("UPDATE_REQUIRED");
+  }
+  async function assertRollbackReadable(result: QueueOwnerResponse) {
+    if (!options.ownedCandidates || !result.owner) return;
+    for (const value of await probe()) {
+      if (value === null) continue;
+      const parsed = envelope(value);
+      if (!parsed.success || parsed.data.state !== "retired")
+        return fail("UPDATE_REQUIRED");
+    }
+  }
+  async function withLease<T>(run: () => Promise<T>) {
+    const result = await resolve();
+    if (!result.enabled) return run();
+    if (!options.withLease) return fail("UNAVAILABLE");
+    try {
+      return await options.withLease(result.owner, run);
+    } catch (error) {
+      if (error instanceof QueueOwnerStorageError) throw error;
+      return fail("UNAVAILABLE");
+    }
+  }
   const store: QueueStore = {
     persistenceLane: options.persistenceLane,
     failureReason: () => failure,
+    usesOwnerRecovery: () => negotiated?.enabled === true,
+    matchesOwner: (value) => {
+      const owner = queueOwnerSchema.safeParse(value);
+      return Boolean(
+        owner.success &&
+        negotiated?.owner &&
+        sameQueueOwner(owner.data, negotiated.owner),
+      );
+    },
     async read() {
       const result = await resolve();
       if (!result.enabled) {
+        await assertRollbackReadable(result);
         const value = await legacy.read();
         if (value !== null) {
           const parsed = envelope(value);
@@ -207,6 +258,7 @@ export function ownerQueueStore(options: Options) {
         }
         return value;
       }
+      await assertLegacyEmpty();
       if (retirementRequested) {
         // Only an explicit core storage-read retry reaches this branch. It
         // completes the previously requested retirement, never reloads bytes
@@ -259,9 +311,11 @@ export function ownerQueueStore(options: Options) {
     async write(queue) {
       const result = await resolve();
       if (!result.enabled) {
+        await assertRollbackReadable(result);
         await legacy.write(queue);
         return;
       }
+      await assertLegacyEmpty();
       if (retirementRequested || !expected) return fail("UNAVAILABLE");
       const values = await probe();
       if (!sameSnapshot(values, expected)) return fail("DIVERGENT");
@@ -301,8 +355,12 @@ export function ownerQueueStore(options: Options) {
   };
   async function send(request: SendRequest, delegate: SendFn) {
     const result = await resolve();
-    if (!result.enabled) return delegate(request);
+    if (!result.enabled) {
+      await assertRollbackReadable(result);
+      return delegate(request);
+    }
     try {
+      await assertLegacyEmpty();
       const current = await resolve(true);
       if (!current.enabled || !sameQueueOwner(current.owner, result.owner))
         return fail("OWNER_CHANGED");
@@ -353,5 +411,76 @@ export function ownerQueueStore(options: Options) {
       };
     }
   }
-  return { store, send, failureReason: () => failure };
+  const guardedStore: QueueStore = {
+    ...store,
+    read: () => withLease(() => store.read()),
+    async write(value) {
+      const result = await resolve();
+      if (result.enabled) {
+        if (retirementRequested) return fail("UNAVAILABLE");
+        if (
+          requiresCompatibleQueueClient(value, options.namespace.kind) ||
+          parseStoredQueue(value, options.namespace.kind).dropped
+        )
+          return fail("UPDATE_REQUIRED");
+        const attempted = JSON.stringify({
+          v: 2,
+          envelope: "herewoven.queue-store.v2",
+          state: "active",
+          owner: result.owner,
+          runtime: options.runtime,
+          queue: value,
+        });
+        if (pendingWrite !== null && pendingWrite !== attempted)
+          return fail("DIVERGENT");
+        // Capture exact intent before lease acquisition too. A busy lease is a
+        // failed persistence attempt, not permission to reload older bytes.
+        pendingWrite = attempted;
+      }
+      return withLease(() => store.write(value));
+    },
+    async remove() {
+      const result = await resolve();
+      if (result.enabled && !retirementRequested) {
+        retirementBase = expected;
+        retirementAttempt = pendingWrite;
+        retirementRequested = true;
+        pendingWrite = null;
+      }
+      return withLease(() => store.remove());
+    },
+  };
+  return {
+    store: guardedStore,
+    async send(request: SendRequest, delegate: SendFn) {
+      try {
+        return await withLease(() => send(request, delegate));
+      } catch (error) {
+        if (!(error instanceof QueueOwnerStorageError)) throw error;
+        return {
+          status: 409,
+          body: {
+            error: {
+              code:
+                error.reason === "OWNER_CHANGED"
+                  ? "QUEUE_OWNER_CHANGED"
+                  : "QUEUE_STORAGE_UNCERTAIN",
+            },
+          },
+        };
+      } finally {
+        // A terminal device response can request retirement while this send
+        // owns the lease. Give that exact retirement one event-driven attempt
+        // after releasing the send lease; no timer or background retry loop.
+        if (retirementRequested) {
+          try {
+            await withLease(() => store.remove());
+          } catch {
+            /* witness remains uncertain; never replay */
+          }
+        }
+      }
+    },
+    failureReason: () => failure,
+  };
 }

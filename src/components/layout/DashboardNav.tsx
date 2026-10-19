@@ -143,7 +143,23 @@ export default function DashboardNav({ user }: DashboardNavProps) {
       // Queue loading/clearing is best-effort; it must not skip server logout.
     }
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (response.ok && user?.id) {
+        try {
+          const body: unknown = await response.json();
+          if (body && typeof body === "object" && "retirement" in body) {
+            const { retirePersonQueueGeneration } =
+              await import("@/lib/offline-queue-browser");
+            // Includes unloaded old journals. A delayed receipt cannot target
+            // a later login's higher generation or a different account.
+            void retirePersonQueueGeneration(body.retirement, user.id).catch(
+              () => {},
+            );
+          }
+        } catch {
+          /* Cookie sign-out succeeded; uncertain local cleanup never grants replay. */
+        }
+      }
     } catch {
       // Offline or the request failed: still leave the signed-in UI. The
       // middleware sends a still-valid session straight back from /login.
