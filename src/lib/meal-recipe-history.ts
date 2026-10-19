@@ -28,6 +28,7 @@ async function captureRecipe(
   if (!recipe) throw new RecipeHistoryUnavailable();
   const lines = await tx.recipeIngredient.findMany({
     where: { recipe_id: recipe.id },
+    take: 101,
     orderBy: RECIPE_DETAIL_SELECT.ingredients.orderBy,
     select: {
       id: true,
@@ -37,6 +38,7 @@ async function captureRecipe(
       ingredient_id: true,
     },
   });
+  if (lines.length > 100) throw new RecipeHistoryUnavailable();
   const ingredients = await tx.ingredient.findMany({
     where: {
       id: { in: lines.map((line) => line.ingredient_id) },

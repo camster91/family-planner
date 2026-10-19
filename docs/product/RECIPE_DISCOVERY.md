@@ -182,7 +182,10 @@ The expand-only `migration-zzz-recipe-prep-history.sql` follows the bulk-cooking
 migration. Rollback retains its nullable columns and JSON evidence; older
 servers may create unrecorded sessions, never backfilled as historical truth.
 Disposable-DB/contract test source covers frozen content, canonical deletion,
-repeat preparation, all-dish refusal and legacy unrecorded sessions. These tests
+repeat preparation, all-dish refusal and legacy unrecorded sessions. UI test
+source covers recorded/missing/future evidence and late responses after a batch
+change. Ingredient capture reads at most 101 lines and refuses over-limit legacy
+recipes before loading their ingredient detail. These tests
 are not executed. Later integrated QA must apply the schema/generate a private
 client, exercise authority/role/device and concurrent write/recovery paths,
 check eaten/Undo/next-prep quantities and inspect EN/ES rendering. No migration,
