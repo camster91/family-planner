@@ -1,5 +1,15 @@
 # Current State
 
+## Manual food-create intake source — 2026-10-19
+
+Add item now uses canonical keyed intake with original household context, strict
+reviewed fields and no legacy POST fallback. Unknown saves retain body/key and
+lock fields/navigation through later refusal; Check same save confirms the same
+operation. Removed originals are explicit. Existing edit/adjustment paths retain
+their contracts. EN/ES copy and focused source fixtures are updated, not run.
+No QA/build, schema operation, push, merge or deployment occurred. Remaining
+capture work is focused photo/receipt and stock/offline/native reconciliation.
+
 ## Barcode food review and private recognition source — 2026-10-19
 
 Personal inventory now has typed/local-camera barcode capture and a compact

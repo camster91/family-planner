@@ -48,6 +48,7 @@ import { useOnline } from '@/components/ui/use-online'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 import { BarcodeFoodDialog } from '@/components/inventory/BarcodeFoodDialog'
+import { makeInventoryIntakeIntent, postInventoryIntake, readInventoryIntakeContext, type IntakeContext, type IntakeIntent } from '@/lib/inventory-intake-client'
 import { ScanFridgeDialog } from './ScanFridgeDialog'
 import { Dialog } from '@/components/ui/dialog'
 import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
@@ -610,6 +611,7 @@ export default function InventoryClient({
       {editing && (
         <ItemModal
           mode={editing.mode}
+          initialContext={intakeContext}
           initial={editing.mode === 'edit' ? editing.item : undefined}
           onClose={() => setEditing(null)}
           onDone={(message) => {
@@ -1135,12 +1137,14 @@ function HistorySection({
 function ItemModal({
   mode,
   initial,
+  initialContext,
   onClose,
   onDone,
   onAdjust,
 }: {
   mode: 'add' | 'edit'
   initial?: InventoryItemDto
+  initialContext?: IntakeContext
   onClose: () => void
   onDone: (message: InventoryFeedback) => void
   onAdjust: (
@@ -1171,6 +1175,23 @@ function ItemModal({
   const [showDetails, setShowDetails] = React.useState(
     Boolean(initial?.category || initial?.purchased_on || initial?.opened_on),
   )
+  // Freeze the actor/family captured when the sheet opened; never rebase a save.
+  const [context, setContext] = React.useState<IntakeContext | null>(initialContext ?? null)
+  const createAttempt = React.useRef<IntakeIntent | null>(null)
+  const [uncertain, setUncertain] = React.useState(false)
+  const locked = saving || uncertain
+  React.useEffect(() => {
+    if (mode !== 'add' || initialContext) return
+    let active = true
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 10000)
+    void readInventoryIntakeContext(controller.signal).then((value) => {
+      if (active) setContext(value)
+    }).catch(() => {
+      if (active) setError(feedback('intakeContextFailed'))
+    }).finally(() => clearTimeout(timer))
+    return () => { active = false; clearTimeout(timer); controller.abort() }
+  }, [mode, initialContext])
   const saveKey = useChangeKey()
   const adjustKey = useChangeKey()
   const deleteKey = useChangeKey()
@@ -1178,10 +1199,10 @@ function ItemModal({
   // Keep browser Back on this route while the item mutation is in flight.
   // The local close path below also guards Escape/backdrop/close-button
   // dismissal so an in-flight draft cannot be discarded.
-  usePendingFormNavigationController(saving)
+  const navigation = usePendingFormNavigationController(locked)
 
   const guardedClose = React.useCallback(() => {
-    if (mutationRef.current) return
+    if (mutationRef.current || createAttempt.current) return
     onClose()
   }, [onClose])
 
@@ -1213,20 +1234,54 @@ function ItemModal({
       purchased_on: purchasedOn || null,
       opened_on: openedOn || null,
     }
+    if (mode === 'add') {
+      if (!context) { setError(feedback('intakeContextFailed')); return }
+      if (!createAttempt.current) {
+        try { createAttempt.current = makeInventoryIntakeIntent(body, context) }
+        catch { setError(feedback('intakeInvalid')); return }
+      }
+      mutationRef.current = true
+      setSaving(true)
+      setError(null)
+      try {
+        const wasUncertain = uncertain
+        const result = await postInventoryIntake(createAttempt.current)
+        if (result.kind === 'confirmed') {
+          createAttempt.current = null
+          setUncertain(false)
+          await navigation.releaseBeforeNavigation()
+          onDone(feedback('addedName', { name: trimmed }))
+        } else if (result.kind === 'removed') {
+          createAttempt.current = null
+          setUncertain(false)
+          setError(feedback('intakeRemoved'))
+          await navigation.releaseBeforeNavigation()
+        } else if (result.kind === 'unknown' || wasUncertain) {
+          setUncertain(true)
+          setError(feedback('intakeUnknown'))
+        } else {
+          createAttempt.current = null
+          setError(feedback('intakeRefused'))
+          await navigation.releaseBeforeNavigation()
+        }
+      } finally {
+        mutationRef.current = false
+        setSaving(false)
+      }
+      return
+    }
     mutationRef.current = true
     setSaving(true)
     setError(null)
     try {
-      const url =
-        mode === 'edit' && initial
-          ? `/api/inventory/${encodeURIComponent(initial.id)}?${todayQuery()}`
-          : `/api/inventory?${todayQuery()}`
-      const res = await postJson(url, body, saveKey(body), mode === 'edit' ? 'PATCH' : 'POST')
+      if (!initial) return
+      const url = `/api/inventory/${encodeURIComponent(initial.id)}?${todayQuery()}`
+      const res = await postJson(url, body, saveKey(body), 'PATCH')
       if (!res.ok) {
         setError(await errorMessage(res, feedback('saveFailed')))
         return
       }
-      onDone(feedback(mode === 'edit' ? 'savedName' : 'addedName', { name: trimmed }))
+      onDone(feedback('savedName', { name: trimmed }))
     } catch {
       setError(feedback('saveNetwork'))
     } finally {
@@ -1313,7 +1368,7 @@ function ItemModal({
       title={mode === 'add' ? copy('addItem') : copy('editName', { name: initial?.name ?? copy('itemFallback') })}
       closeLabel={copy('close')}
       initialFocusRef={nameRef}
-      onClose={saving ? undefined : guardedClose}
+      onClose={locked ? undefined : guardedClose}
       footer={
         <div className="flex gap-2">
           {mode === 'edit' && (
@@ -1332,7 +1387,7 @@ function ItemModal({
             </button>
           )}
           <button type="submit" form={titleId} className="btn-tinted flex-1 min-h-[44px]" disabled={saving}>
-            {copy(saving ? 'saving' : 'save')}
+            {copy(saving ? 'saving' : uncertain ? 'intakeRetry' : 'save')}
           </button>
         </div>
       }
@@ -1392,7 +1447,7 @@ function ItemModal({
       )}
 
       <form id={titleId} onSubmit={submit} className="space-y-4" noValidate>
-        <fieldset disabled={saving} className="space-y-4">
+        <fieldset disabled={locked} className="space-y-4">
           <div>
             <label htmlFor={`${titleId}-name`} className="text-subhead text-label-secondary mb-1 block">
               {copy('name')}

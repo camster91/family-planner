@@ -84,7 +84,7 @@ function mount({
           })
         );
       if (url.includes("/undo?")) return json(200, {});
-      return create?.() ?? json(201, { item });
+      return create?.() ?? json(201, { itemId: item.id });
     }
     if (url.includes("/use-soon?"))
       return json(200, {
@@ -108,7 +108,15 @@ function mount({
     <I18nProvider locale="en">
       <Switch />
       <ToastProvider>
-        <InventoryClient canWrite canOpenRecipes={false} canScan />
+        <InventoryClient
+          canWrite
+          canOpenRecipes={false}
+          canScan
+          intakeContext={{
+            userId: "fixture-parent",
+            familyId: "fixture-family",
+          }}
+        />
       </ToastProvider>
     </I18nProvider>,
   );
@@ -174,7 +182,7 @@ it("preserves modal drafts/private values/date keys while translating visible va
   expect(calls.filter((c) => c.method !== "GET")).toEqual([]);
 });
 it.each(["fallback", "network", "raw"] as const)(
-  "renders late %s in current language and keeps the same retry key/body",
+  "renders late %s in current language and preserves uncertain create ownership",
   async (outcome) => {
     const p = deferred();
     let attempt = 0;
@@ -212,22 +220,22 @@ it.each(["fallback", "network", "raw"] as const)(
           ),
     );
     expect(within(modal).getByRole("alert")).toHaveTextContent(
-      outcome === "raw"
-        ? "Raw refusal {name} 李"
-        : outcome === "network"
-          ? "No pudimos guardar. Revisa tu conexión e inténtalo de nuevo."
-          : "No pudimos guardar. Inténtalo de nuevo.",
+      outcome === "network"
+        ? "Guardado sin confirmar. Tus datos están bloqueados. Comprueba el mismo guardado antes de salir o volver a añadirlo."
+        : "Guardado rechazado. Revisa tu cuenta, hogar y acceso al inventario. Se conserva el borrador.",
     );
     expect(within(modal).getByLabelText("Nombre")).toHaveValue(name);
-    fireEvent.click(within(modal).getByRole("button", { name: "Guardar" }));
+    fireEvent.click(
+      within(modal).getByRole("button", {
+        name: outcome === "network" ? "Comprobar mismo guardado" : "Guardar",
+      }),
+    );
     await settle();
     const writes = calls.filter((c) => c.method !== "GET");
     expect(writes).toHaveLength(2);
-    expect(writes[0]).toEqual(writes[1]);
-    expect(writes[0].url).toBe(
-      "/api/inventory?today=" + encodeURIComponent(toDateOnlyLocal(new Date())),
-    );
-    expect(writes[0].body).toEqual({
+    if (outcome === "network") expect(writes[0]).toEqual(writes[1]);
+    expect(writes[0].url).toBe("/api/inventory/intake");
+    expect((writes[0].body as { item: unknown }).item).toEqual({
       name,
       unit,
       amount: 1.5,

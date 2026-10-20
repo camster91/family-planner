@@ -287,8 +287,8 @@ function setup({
           alreadyUndone: false,
         });
       }
-      if (url.startsWith("/api/inventory?") && method === "POST")
-        return json(201, { item: { id: "new" } });
+      if (url === "/api/inventory/intake" && method === "POST")
+        return json(201, { itemId: "new" });
       if (url.startsWith("/api/inventory/") && method === "PATCH") {
         return writeStatus === 200
           ? json(200, { item: { id: "x" } })
@@ -346,7 +346,11 @@ function setup({
   global.fetch = fetchMock as unknown as typeof fetch;
   render(
     <ToastProvider>
-      <InventoryClient canWrite={canWrite} canOpenRecipes={canWrite} />
+      <InventoryClient
+        canWrite={canWrite}
+        canOpenRecipes={canWrite}
+        intakeContext={{ userId: "fixture-parent", familyId: "fixture-family" }}
+      />
     </ToastProvider>,
   );
   return { calls };
@@ -382,7 +386,7 @@ describe("/dashboard/inventory", () => {
         resolve({
           ok: true,
           status: 201,
-          json: async () => ({ item: { id: "new" } }),
+          json: async () => ({ itemId: "new" }),
         } as Response);
     });
     setup();
@@ -412,6 +416,44 @@ describe("/dashboard/inventory", () => {
     await waitFor(() =>
       expect(screen.queryByTestId("inventory-modal")).toBeNull(),
     );
+  });
+
+  it("keeps an unknown manual create immutable through later refusal", async () => {
+    const user = userEvent.setup();
+    setup();
+    const normalFetch = global.fetch;
+    const writes: RequestInit[] = [];
+    global.fetch = jest.fn(async (input, init) => {
+      if (
+        String(input) === "/api/inventory/intake" &&
+        init?.method === "POST"
+      ) {
+        writes.push(init);
+        if (writes.length === 1) throw new Error("response lost");
+        return {
+          ok: false,
+          status: 403,
+          json: async () => ({ error: { code: "INTAKE_FORBIDDEN" } }),
+        } as Response;
+      }
+      return normalFetch(input, init);
+    });
+    await screen.findAllByTestId("inventory-item");
+    await user.click(screen.getAllByRole("button", { name: "Add item" })[0]);
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Name"), "Recovery beans");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await within(dialog).findByRole("button", { name: "Check same save" });
+    expect(within(dialog).getByLabelText("Name")).toBeDisabled();
+    await user.keyboard("{Escape}");
+    expect(screen.getByTestId("inventory-modal")).toBeTruthy();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Check same save" }),
+    );
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect(writes[1].body).toBe(writes[0].body);
+    expect(writes[1].headers).toEqual(writes[0].headers);
+    expect(within(dialog).getByLabelText("Name")).toBeDisabled();
   });
 
   it("groups items by location with written expiry labels, and sends the viewer day", async () => {
@@ -570,8 +612,13 @@ describe("/dashboard/inventory", () => {
       expect(calls.some((c) => c.method === "POST")).toBe(true),
     );
     const post = calls.find((c) => c.method === "POST")!;
-    expect(post.url).toContain(`/api/inventory?today=${today}`);
-    expect(post.body).toEqual({
+    expect(post.url).toBe("/api/inventory/intake");
+    expect(post.body).toMatchObject({
+      protocol: "herewoven.inventory-intake.v1",
+      expected_user_id: "fixture-parent",
+      expected_family_id: "fixture-family",
+    });
+    expect((post.body as { item: unknown }).item).toEqual({
       name: "Yogurt",
       location: "freezer",
       amount: 2,
@@ -585,7 +632,9 @@ describe("/dashboard/inventory", () => {
     expect(header(post, "Idempotency-Key")).toMatch(/^[0-9a-f-]{36}$/);
     expect(await screen.findByText("Added Yogurt.")).toBeTruthy();
     await waitFor(() =>
-      expect(screen.getAllByRole("button", { name: "Add item" })[0]).toHaveFocus(),
+      expect(
+        screen.getAllByRole("button", { name: "Add item" })[0],
+      ).toHaveFocus(),
     );
 
     await user.click(await screen.findByRole("button", { name: "Edit Peas" }));

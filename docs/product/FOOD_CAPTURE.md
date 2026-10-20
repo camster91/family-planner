@@ -13,7 +13,7 @@ eligibility, native camera acceptance and rollout remain explicit dependencies.
 | Canonical reviewed save | New GET/POST `/api/inventory/intake` with current person/household/session/role/inventory authority; same-family Ingredient resolution | Source candidate; disposable-DB/API/role/isolation QA deferred |
 | Exact response recovery | Canonical InventoryItem + compact itemId receipt commit atomically, live replay checks existence, issued-at bounds abandoned intent after receipt expiry | Source tests written, not run; no deleted-row recreation |
 | Photo suggestion review | Existing parent-only provider-gated scan now sends reviewed rows to intake and keeps exact request/values after unknown outcomes | EN/ES state, partial save and lifecycle source updated; mounted/native QA pending |
-| Manual item form | Existing legacy POST/PATCH paths retained | Migrate new creates to the same intake contract, preserve edit/adjustment semantics and recovery |
+| Manual item form | New creates use the same intake contract and immutable unknown-save recovery; edit/adjustment semantics retained | Source fixtures updated, not run; legacy POST remains only for older callers |
 | Barcode identification | Check-digit/leading-zero normalization, explicit eight-digit format, deliberate local camera and typed fallback, one-item review tray | Source only; permission, lifecycle, accessibility and real camera/native acceptance deferred |
 | Public product lookup | Fixed-host bounded Open Food Facts v3 adapter with explicit lookup/apply and attribution; all deployment gates off | Data reuse/attribution approval, coverage, cost/usage and consolidated QA required before activation; no provider calls performed |
 | Private product corrections | FoodProduct recognition metadata and immutable stock snapshots, atomic revision-checked opt-in corrections; export/erasure wired | Additive migration/client generation and disposable-DB/isolation acceptance deferred; never a second stock store |
@@ -144,7 +144,18 @@ camera, runtime, DB, QA, push, merge or deployment action occurred.
   secure-context/capability checks and permission fallback do not establish native
   or target-browser support.
 
-Remaining implementation: migrate manual creates to intake; focused package/date
-photo and receipt review; stock lifecycle reconciliation and offline/native
+Remaining implementation: focused package/date photo and receipt review; stock lifecycle reconciliation and offline/native
 compatibility. Provider eligibility/activation, native hardware acceptance and
 consolidated QA remain separate dependencies, not completed issue criteria.
+
+## Manual create recovery source — 2026-10-19
+
+Personal Add item now creates through the same intake endpoint; no fallback to
+legacy POST is possible. The sheet freezes its original server context, with a
+bounded read only for standalone callers. Unknown outcomes lock fields/Close/Back,
+keep the exact body/key across later refusal and show Check same save. A confirmed
+save releases ownership before refreshing. A known removed original is explicit
+and never recreated by replay. Definite first refusal keeps an editable draft;
+a corrected deliberate save may start a new key. EN/ES recovery copy and existing
+manual/localization fixtures are updated; tests remain unrun. PATCH, adjustments
+and remove keep their existing contracts and still need lifecycle reconciliation.

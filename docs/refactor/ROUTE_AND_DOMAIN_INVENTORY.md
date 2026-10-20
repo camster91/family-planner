@@ -494,3 +494,10 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
   parent/teen library, household deletion and personal stock metadata are wired.
   Shared Use soon selects unchanged minimal fields. Additive schema/migration is
   authored only; no client generation, migration or QA has run.
+
+### Manual inventory create intake (#125, 2026-10-19; source only)
+
+- Personal Add item uses dedicated intake v1 and immutable uncertain-save ownership
+  with original actor/family; no legacy POST fallback. Standalone context waiting
+  is bounded. Edit/adjustment/delete contracts are unchanged.
+- Source tests and EN/ES state are updated; consolidated QA remains deferred.

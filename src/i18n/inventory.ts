@@ -128,6 +128,16 @@ export const inventoryEnglish = {
   undoNetwork:
     "Could not put {name} back. Check your connection and try again.",
   undoSuccess: "Put {name} back.",
+  intakeContextFailed:
+    "Could not confirm your account and household. Keep your draft and reopen Add item when connected.",
+  intakeInvalid: "Review the name, amount and dates before saving.",
+  intakeUnknown:
+    "Save not confirmed. Your details are locked. Check the same save before leaving or adding it again.",
+  intakeRefused:
+    "Save refused. Check your account, household and inventory access. Your draft is kept.",
+  intakeRemoved:
+    "The original item was saved and then removed. This check did not add it again. Review before starting a new save.",
+  intakeRetry: "Check same save",
   saveFailed: "Could not save. Try again.",
   saveNetwork: "Could not save. Check your connection and try again.",
   searchInventory: "Search the inventory",
@@ -333,6 +343,16 @@ export const inventorySpanish: Record<InventoryMessage, string> = {
   undoNetwork:
     "No pudimos reponer {name}. Revisa tu conexión e inténtalo de nuevo.",
   undoSuccess: "Se repuso {name}.",
+  intakeContextFailed:
+    "No pudimos confirmar tu cuenta y hogar. Conserva el borrador y vuelve a abrir Añadir alimento cuando tengas conexión.",
+  intakeInvalid: "Revisa el nombre, la cantidad y las fechas antes de guardar.",
+  intakeUnknown:
+    "Guardado sin confirmar. Tus datos están bloqueados. Comprueba el mismo guardado antes de salir o volver a añadirlo.",
+  intakeRefused:
+    "Guardado rechazado. Revisa tu cuenta, hogar y acceso al inventario. Se conserva el borrador.",
+  intakeRemoved:
+    "El alimento original se guardó y luego se eliminó. Esta comprobación no lo añadió de nuevo. Revisa antes de otro guardado.",
+  intakeRetry: "Comprobar mismo guardado",
   saveFailed: "No pudimos guardar. Inténtalo de nuevo.",
   saveNetwork: "No pudimos guardar. Revisa tu conexión e inténtalo de nuevo.",
   searchInventory: "Buscar en el inventario",
