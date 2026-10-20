@@ -148,6 +148,7 @@ export async function routineScheduleSubjectInTx(
   subject: RoutineStepSeriesConfig["content"]["subject"],
   repeating: boolean,
 ) {
+  if (subject.kind === "erased") refuse(409, "ROUTINE_SUBJECT_UNAVAILABLE");
   if (subject.kind === "profile") {
     if (
       actor.memberProtocol !== 2 ||
@@ -684,6 +685,8 @@ export async function readRoutineSchedule(
             return {
               template_id: step.template_id,
               ...rest,
+              subject:
+                content.subject.kind === "erased" ? null : content.subject,
               ...(capabilities.pointsEnabled ? { points } : {}),
             };
           }),

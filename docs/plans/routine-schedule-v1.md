@@ -590,3 +590,21 @@ unrun; runtime/rendered/device/lifecycle/rollback acceptance is still unproven.
 Next source reconciliation: household/profile lifecycle and erasure, reassignment,
 rollback compatibility and remaining navigation/async presentation edges. Keep the
 full issue goal active and defer consolidated QA until the candidate code is done.
+
+
+### Identity-link and future-subject erasure — 2026-10-20
+
+Verified same-person link now updates exact known future aliases transactionally
+and invalidates root/stack prepared versions. Erasure discovers account-only
+historical future aliases, locks those households in existing stable order and
+redacts known subject IDs independent of gates. Root metadata can be redacted
+without migrated stack storage. Unknown protocols remain unsupported rather than
+being normalized. Stored subject tombstones are not valid command targets;
+private parent reads show unavailable assignment and require explicit replacement.
+Historical erased subjects/credit are not reconstructed by future reassignment.
+
+Authored cases remain unrun. Outstanding deletion edge: a root historically owned
+by a departing account can already carry a separately assigned future definition.
+Its replacement control identity/stack references must survive deletion without
+retaining that account's personal rows. Implement this handover next, then finish
+profile archive, rollback and navigation reconciliation before consolidated QA.

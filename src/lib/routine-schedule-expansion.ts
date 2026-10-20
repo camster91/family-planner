@@ -58,11 +58,7 @@ export async function expandRoutineScheduleInTx(
   raw: unknown,
   today: string,
 ): Promise<number> {
-  if (
-    !isRoutineScheduleExpansionEnabled() ||
-    root.member_subject_erased ||
-    root.recurrence_id !== root.id
-  )
+  if (!isRoutineScheduleExpansionEnabled() || root.recurrence_id !== root.id)
     return 0;
   const parsed = routineStepSeriesConfig.safeParse(raw);
   // Unknown versions hold, rather than falling back to historical root fields.
@@ -95,6 +91,7 @@ export async function expandRoutineScheduleInTx(
     order = index + 1;
   }
   const subject = definition.content.subject;
+  if (subject.kind === "erased") return 0;
   const assignee =
     subject.kind === "profile"
       ? await eligibleProfileChoreAssigneeInTx(

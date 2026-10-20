@@ -2,6 +2,7 @@
 import { z } from "zod";
 import {
   routineCommandScope,
+  routineScheduleSubject,
   routineSharedSchedule,
   routineScheduledStepDraft,
 } from "@/lib/routine-schedule";
@@ -68,6 +69,7 @@ export const routineIndependentState = z
     schedule: routineSharedSchedule,
     content: routineIndependentContent.extend({
       points: z.number().int().min(0).max(1000).optional(),
+      subject: routineScheduleSubject.nullable(),
     }),
     pointsEnabled: z.boolean(),
   })

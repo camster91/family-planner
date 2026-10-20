@@ -213,6 +213,27 @@ describe("scheduled routine canonical expansion source", () => {
     );
     expect(calls.chore.createMany).not.toHaveBeenCalled();
   });
+  it("uses a separately renewed future assignment without relinking erased historical root identity", async () => {
+    const { tx, calls } = fixture();
+    const historical = { ...root, member_subject_erased: true };
+    expect(
+      await expandRoutineScheduleInTx(
+        tx,
+        historical,
+        definition(),
+        "2026-10-20",
+      ),
+    ).toBe(8);
+    expect(account).toHaveBeenCalledWith(tx, root.family_id, "fixture-parent", {
+      requireCanonical: true,
+    });
+    expect(calls.chore.createMany.mock.calls[0][0].data[0]).toMatchObject({
+      assigned_to: "fixture-parent",
+      assigned_member_id: "fixture-member",
+      member_subject_erased: false,
+    });
+    expect(historical.member_subject_erased).toBe(true);
+  });
   it("holds unknown, paused, stopped, erased, non-root and rollout-paused definitions", async () => {
     const { tx, calls } = fixture();
     for (const value of [
@@ -227,7 +248,10 @@ describe("scheduled routine canonical expansion source", () => {
       await expandRoutineScheduleInTx(
         tx,
         { ...root, member_subject_erased: true },
-        definition(),
+        {
+          ...definition(),
+          content: { ...definition().content, subject: { kind: "erased" } },
+        },
         "2026-10-20",
       ),
     ).toBe(0);

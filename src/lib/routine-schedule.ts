@@ -57,6 +57,11 @@ export const routineScheduleSubject = z.discriminatedUnion("kind", [
     .strict(),
   z.object({ kind: z.literal("profile"), member_id: id }).strict(),
 ]);
+/** Erasure is a stored tombstone only; it is never accepted as a new assignment. */
+export const routineStoredSubject = z.union([
+  routineScheduleSubject,
+  z.object({ kind: z.literal("erased") }).strict(),
+]);
 const stepContent = {
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().max(1000).nullable(),
@@ -96,7 +101,9 @@ export const routineStepSeriesConfig = z
     effective_on: day,
     anchor: z.string().trim().max(200).nullable(),
     schedule: routineSharedSchedule,
-    content: z.object(stepContent).strict(),
+    content: z
+      .object({ ...stepContent, subject: routineStoredSubject })
+      .strict(),
   })
   .strict()
   .refine(

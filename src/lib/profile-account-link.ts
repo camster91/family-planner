@@ -1,3 +1,4 @@
+import { rewriteRoutineSubjectsInTx } from "@/lib/routine-subject-lifecycle";
 /** #557 dormant two-party owner verification. Never call from shared-device auth. */
 import { createHash } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -188,6 +189,11 @@ async function attachSubjects(
       member_subject_erased: false,
     },
     data: { assigned_member_id: profile.id },
+  });
+  await rewriteRoutineSubjectsInTx(tx, profile.family_id, {
+    kind: "link",
+    userId: account.id,
+    memberId: profile.id,
   });
   await tx.householdMember.update({
     where: { id: profile.id },

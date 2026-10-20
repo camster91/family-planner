@@ -1,3 +1,4 @@
+import { rewriteRoutineSubjectsInTx } from "../routine-subject-lifecycle";
 import {
   saveIndependentRoutineStep,
   readIndependentRoutineStep,
@@ -26,6 +27,7 @@ import {
 import { hashIdempotentRequest, IDEMPOTENCY_TTL_MS } from "@/lib/idempotency";
 import {
   persistRoutineSchedule,
+  routineScheduleAuthority,
   readRoutineSchedule,
   ROUTINE_SCHEDULE_ACTION,
   ROUTINE_SCHEDULE_READY_ENV,
@@ -677,6 +679,98 @@ suite("canonical scheduled routine commands", () => {
       version: 2,
       config: { state: "active", steps: [{ template_id: kept }] },
     });
+  });
+  it("redacts copied future identity while writes pause, invalidates stale versions and preserves occurrence history", async () => {
+    const created = await create(),
+      target = created.proof.roots[0];
+    const before = await prisma!.chore.findUniqueOrThrow({
+      where: { id: target },
+    });
+    await prisma!
+      .$executeRaw`UPDATE "Chore" SET "routine_series_config" = jsonb_set("routine_series_config", '{content,subject}', ${JSON.stringify({ kind: "account", user_id: teen, member_id: null })}::jsonb) WHERE "id" = ${target} AND "family_id" = ${familyId}`;
+    process.env[ROUTINE_SCHEDULE_WRITE_ENV] = "0";
+    try {
+      await prisma!.$transaction(async (tx) => {
+        await routineScheduleAuthority(tx, actor);
+        expect(
+          await rewriteRoutineSubjectsInTx(tx, familyId, {
+            kind: "erase",
+            userId: teen,
+            memberIds: [],
+          }),
+        ).toContain(target);
+      });
+    } finally {
+      process.env[ROUTINE_SCHEDULE_WRITE_ENV] = "1";
+    }
+    expect(
+      await prisma!.chore.findUnique({ where: { id: target } }),
+    ).toMatchObject({
+      assigned_to: before.assigned_to,
+      title: before.title,
+      due_date: before.due_date,
+      status: before.status,
+      points: before.points,
+    });
+    const state = await readRoutineSchedule(
+      prisma!,
+      actor,
+      created.proof.stackId,
+    );
+    expect(state.body).toMatchObject({
+      version: 2,
+      steps: expect.arrayContaining([
+        expect.objectContaining({ template_id: target, subject: null }),
+      ]),
+    });
+    expect(JSON.stringify(state.body)).not.toContain(teen);
+    const {
+      label: _label,
+      anchor: _anchor,
+      schedule: _schedule,
+      steps: _steps,
+      ...base
+    } = created.body as Extract<RoutineScheduleCommand, { action: "create" }>;
+    const stale = routineScheduleCommand.parse({
+      ...base,
+      action: "pause",
+      stack_id: created.proof.stackId,
+      expected_version: 1,
+      scope: "future-after-today",
+    });
+    expect(
+      (
+        await saveRoutineSchedule(
+          prisma!,
+          actor,
+          stale,
+          crypto.randomUUID(),
+          now,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await saveRoutineSchedule(
+          prisma!,
+          actor,
+          { ...stale, expected_version: 2 },
+          crypto.randomUUID(),
+          now,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await saveRoutineSchedule(
+          prisma!,
+          actor,
+          { ...stale, action: "resume", expected_version: 3 },
+          crypto.randomUUID(),
+          now,
+        )
+      ).status,
+    ).toBe(409);
   });
   it("pause preserves root snapshots and all evidence/today rows, pruning only untouched future copies without reordering steps", async () => {
     const { proof } = await create(),

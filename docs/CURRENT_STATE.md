@@ -1,5 +1,39 @@
 # Current State
 
+## Routine identity-link and erasure integration source — 2026-10-20
+
+Verified same-person profile/account linking now rewrites matching supported
+future definition subjects in the existing transaction, preserving occurrence
+snapshots and credit. Exact profile/account IDs establish that link, never names.
+Changed roots advance their revision and affected stacks advance version and
+fingerprint, invalidating stale prepared edits without changing schedules/state.
+Unknown future protocols are not adopted or linked.
+
+Account erasure now discovers and locks historical households containing
+account-only future aliases as well as profile provenance households. It redacts
+the known private subject slot by exact user/member IDs before profile deletion,
+including accounts with no canonical profile. This does not depend on rollout
+flags. A storage probe is inert before the additive column exists; partial stack
+storage cannot prevent root redaction. Unknown protocols retain their unsupported
+state while the known identifying slot is cleared. Normal erased history and
+existing deletion policy remain separate from these private future definitions.
+
+Stored erased-subject tombstones have no identifying IDs and are never accepted
+as new command assignments. Private parent state projects them as unavailable
+(null) subjects so explicit replacement is required. Expansion holds tombstoned
+future work. An erased historic root is not itself a new future subject: only a
+separately reviewed current definition with freshly renewed valid assignee can
+create new copies; the historical erased marker is not relinked. Pause/stop remain
+possible without an eligible subject; resume/edit need valid fresh assignments.
+
+Authored pure/source and guarded DB cases cover exact link/erase, unknown protocol
+redaction, pre-migration/partial storage, scoped writes, revision/version holds,
+read omission, write-paused erasure, preserved root history and explicit future
+assignment. All remain unrun; no QA/build/schema/client/native/CI/release action.
+Next: account-deletion root handover where a historical root is removed but its
+future definition has already been assigned to someone else; profile/archive and
+rollback/navigation reconciliation still remain. This is not issue completion.
+
 ## Independent-step manager/editor and durable draft source — 2026-10-20
 
 Independent-step management is now source-wired through a private parent page,

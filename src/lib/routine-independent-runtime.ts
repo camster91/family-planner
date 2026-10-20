@@ -72,12 +72,7 @@ async function rootInTx(tx: Tx, familyId: string, rootId: string) {
     SELECT "id", "recurrence_id", "due_date", "member_subject_erased", "routine_series_config"
     FROM "Chore" WHERE "id" = ${rootId} AND "family_id" = ${familyId} FOR UPDATE`;
   const row = rows[0];
-  if (
-    rows.length !== 1 ||
-    !row ||
-    row.recurrence_id !== row.id ||
-    row.member_subject_erased
-  )
+  if (rows.length !== 1 || !row || row.recurrence_id !== row.id)
     refuse(404, "ROUTINE_ROOT_UNAVAILABLE");
   const parsed = routineStepSeriesConfig.safeParse(row.routine_series_config);
   if (!parsed.success) refuse(409, "ROUTINE_SCHEDULE_UNSUPPORTED");
@@ -318,6 +313,10 @@ export async function readIndependentRoutineStep(
           pointsEnabled: capabilities.pointsEnabled,
           content: {
             ...content,
+            subject:
+              definition.content.subject.kind === "erased"
+                ? null
+                : definition.content.subject,
             ...(capabilities.pointsEnabled ? { points } : {}),
           },
         }),
@@ -346,7 +345,7 @@ export async function readIndependentRoutineCatalog(
       >`
         SELECT "id", "title", "routine_series_config" FROM "Chore"
         WHERE "family_id" = ${actor.familyId} AND "recurrence_id" = "id"
-          AND "member_subject_erased" = false AND "routine_series_config" IS NOT NULL
+          AND "routine_series_config" IS NOT NULL
           AND "routine_series_config"->>'stack_id' IS NULL AND "id" > ${cursor ?? ""}
         ORDER BY "id" ASC LIMIT 21`;
       const page = rows.slice(0, 20);
@@ -429,7 +428,6 @@ export async function reviewIndependentRoutineStep(
       const current =
         rows.length === 1 &&
         row.recurrence_id === row.id &&
-        !row.member_subject_erased &&
         parsed.success &&
         parsed.data.stack_id === null
           ? parsed.data

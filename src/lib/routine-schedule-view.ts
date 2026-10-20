@@ -23,6 +23,7 @@ export const routineScheduleState = z
       .array(
         routineScheduledStep.extend({
           points: z.number().int().min(0).max(1000).optional(),
+          subject: routineScheduleSubject.nullable(),
         }),
       )
       .min(1)
