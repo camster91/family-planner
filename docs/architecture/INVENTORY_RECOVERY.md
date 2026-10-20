@@ -7,6 +7,15 @@ with mounted-memory behavior.
 
 ## Contract and privacy
 
+Restock extension (2026-10-20): the same private entry contract now includes
+`restock` with the original strict inventory-restock envelope. This is a pending
+online grocery creation, not a newly queueable offline action. Canonical recovered
+review binds its original named list, source/version, purchase values and receipt;
+current stock/list/duplicate authority is checked before an explicit retry.
+Restock adds use the same provider stage/send/confirmed-dismiss and fixed sender.
+Old readers must quarantine unknown kinds and retain bytes; keep compatible
+readers/proof through rollback. UI/source tests are authored, not run.
+
 `inventory-recovery-contract.ts` defines a strict, versioned journal of at most
 20 exact normalized intake/change requests, each limited to 8 KiB, with a total
 200 KiB journal cap. It contains only request kind, original key and serialized

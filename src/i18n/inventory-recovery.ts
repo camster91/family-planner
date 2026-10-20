@@ -1,4 +1,10 @@
 export const inventoryRecoveryEnglish = {
+  list: "Grocery list",
+  restockAlready:
+    "This request did not add another row: an open replacement was already on the selected list.",
+  openList: "Open list",
+  restock: "Add replacement",
+  similar: "Allow a separate similar row",
   paused:
     "Saving is paused on this server. You can still review and dismiss saved recovery entries. No stock changes will be sent.",
   purchased: "Purchased",
@@ -71,6 +77,12 @@ export const inventoryRecoveryEnglish = {
   offline: "Connect to review or send saved changes.",
 };
 export const inventoryRecoverySpanish: typeof inventoryRecoveryEnglish = {
+  list: "Lista de compras",
+  restockAlready:
+    "Esta solicitud no añadió otra fila: ya había un reemplazo abierto en la lista elegida.",
+  openList: "Abrir lista",
+  restock: "Añadir reemplazo",
+  similar: "Permitir otra fila similar",
   paused:
     "El guardado está en pausa en este servidor. Puedes revisar y descartar las recuperaciones guardadas. No se enviarán cambios de inventario.",
   purchased: "Compra",

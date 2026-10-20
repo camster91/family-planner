@@ -1,5 +1,29 @@
 # Current State
 
+## Inventory restock UI and saved-request source — 2026-10-20
+
+Item editing and consume/discard history now open the rounded replacement sheet.
+It preserves unsaved stock fields, requires a named list and independent purchase
+amount, reviews possible duplicates, refuses indistinguishable list choices and
+keeps exact body/key through unknown adds. Current list/source/version review is
+scope-bound; draft names travel in a private POST body rather than URL queries.
+Confirmed results distinguish created/already-open/original-removed and offer
+list links plus the existing owned ten-minute Undo rule.
+
+The adopted inventory journal/sender/recovered review now includes restock adds.
+Recovered review binds the original list, purchase values and matching receipt;
+it cannot pick a new default or recreate a removed list row. Source tests cover
+same-request retry, target binding, hidden scope, explicit duplicate choice and
+canonical restock recovery; none ran. Undo response uncertainty is kept in the
+open sheet with same-request retry and explicit close-without-confirmation;
+it is not a new durable/offline Undo queue or native acceptance claim.
+
+No QA/typecheck/lint/build/browser/native, schema/provider/account action, push,
+merge or deployment. Activation flags stay off. Remaining #125 code work:
+integrated recipe/prep stock-lot/quantity review. Later consolidated acceptance
+still includes two households, roles, storage/rollback, nested focus/Back and
+physical lifecycle. `architecture/INVENTORY_RESTOCK.md`.
+
 ## Inventory replacement restock backend source — 2026-10-20
 
 Added private reviewed inventory-to-grocery APIs and a canonical transaction

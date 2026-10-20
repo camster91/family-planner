@@ -11,6 +11,10 @@ import {
 } from "../InventoryRecovery";
 import { browserInventoryRecovery } from "@/lib/inventory-recovery-browser";
 import { postInventoryIntake } from "@/lib/inventory-intake-client";
+import {
+  postInventoryRestock,
+  makeRestockIntent,
+} from "@/lib/inventory-restock-client";
 import type { InventoryRecoveryEntry } from "@/lib/inventory-recovery-contract";
 jest.mock("@/lib/inventory-recovery-browser", () => ({
   browserInventoryRecovery: jest.fn(),
@@ -18,6 +22,10 @@ jest.mock("@/lib/inventory-recovery-browser", () => ({
 jest.mock("@/lib/inventory-intake-client", () => ({
   ...jest.requireActual("@/lib/inventory-intake-client"),
   postInventoryIntake: jest.fn(),
+}));
+jest.mock("@/lib/inventory-restock-client", () => ({
+  ...jest.requireActual("@/lib/inventory-restock-client"),
+  postInventoryRestock: jest.fn(),
 }));
 const original = { userId: "fixture-parent", familyId: "fixture-family" };
 const entry: InventoryRecoveryEntry = {
@@ -48,11 +56,34 @@ const reviewed = {
 };
 let controller: ReturnType<typeof browserInventoryRecovery>;
 const changed = jest.fn();
+const restock = {
+  kind: "restock" as const,
+  ...makeRestockIntent(
+    {
+      item_id: "fixture-stock",
+      expected_version: "2026-10-20T12:00:00.000Z",
+      list_id: "fixture-list",
+      content: "Fixture replacement",
+      amount: 3,
+      unit: "cans",
+      allow_similar: false,
+    },
+    original,
+    "original_restock_key_01",
+  ),
+};
 function WriteButtons() {
   const writes = useInventoryWrites(),
     [outcome, setOutcome] = React.useState("");
   return (
     <>
+      <button
+        onClick={() =>
+          void writes.restock(restock).then((result) => setOutcome(result.kind))
+        }
+      >
+        Send restock
+      </button>
       <button
         onClick={() =>
           void writes.intake(entry).then((result) => setOutcome(result.kind))
@@ -202,6 +233,33 @@ it("local dismissal requires confirmation and never sends a stock mutation", asy
   await waitFor(() =>
     expect(controller.dismiss).toHaveBeenCalledWith(entry.key),
   );
+  expect(postInventoryIntake).not.toHaveBeenCalled();
+});
+it("stages restocking in the same owned journal and sends only its fixed restock route", async () => {
+  jest
+    .mocked(controller.send)
+    .mockImplementationOnce(async (_key, _review, send) =>
+      send(restock, "a".repeat(64)),
+    );
+  jest
+    .mocked(postInventoryRestock)
+    .mockResolvedValue({
+      kind: "confirmed",
+      receipt: {
+        itemId: "fixture-grocery-row",
+        listId: "fixture-list",
+        requestId: "fixture-receipt",
+        created: true,
+        undoExpiresAt: "2026-10-20T12:10:00.000Z",
+      },
+    });
+  mount();
+  await waitFor(() => expect(controller.initialize).toHaveBeenCalled());
+  fireEvent.click(screen.getByText("Send restock"));
+  await screen.findByText("confirmed");
+  expect(controller.stage).toHaveBeenCalledWith(restock);
+  expect(postInventoryRestock).toHaveBeenCalledWith(restock, "a".repeat(64));
+  expect(controller.dismiss).toHaveBeenCalledWith(restock.key);
   expect(postInventoryIntake).not.toHaveBeenCalled();
 });
 it("allows private review and confirmed local dismissal while new writes are paused", async () => {

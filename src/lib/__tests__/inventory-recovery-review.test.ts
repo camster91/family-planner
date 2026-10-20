@@ -40,6 +40,9 @@ const item = {
   updated_at: new Date(now),
 };
 const tx = {
+  family: { findUnique: jest.fn() },
+  list: { findFirst: jest.fn() },
+  listItem: { findFirst: jest.fn(), findMany: jest.fn() },
   idempotencyRecord: { findUnique: jest.fn() },
   inventoryItem: { findFirst: jest.fn() },
   inventoryAdjustment: { findFirst: jest.fn() },
@@ -75,6 +78,72 @@ beforeEach(() => {
   tx.inventoryItem.findFirst.mockResolvedValue(item);
   tx.inventoryAdjustment.findFirst.mockResolvedValue(null);
   tx.ingredient.findFirst.mockResolvedValue(null);
+});
+it("recovers restocking only against the original named list and exact receipt, never a new default", async () => {
+  const { restockInput, INVENTORY_RESTOCK_ACTION } =
+    await import("../inventory-restock-contract");
+  const body = restockInput.parse({
+    protocol: "herewoven.inventory-restock.v1",
+    expected_user_id: actor.userId,
+    expected_family_id: actor.familyId,
+    issued_at: new Date(now).toISOString(),
+    item_id: item.id,
+    expected_version: item.updated_at.toISOString(),
+    list_id: "fixture-list",
+    content: "Replacement beans",
+    amount: 3,
+    unit: "cans",
+    allow_similar: false,
+  });
+  const saved: InventoryRecoveryEntry = {
+    kind: "restock",
+    key: entry.key,
+    body: JSON.stringify(body),
+  };
+  tx.family.findUnique.mockResolvedValue({
+    features: { inventory: true, lists: true },
+  });
+  tx.list.findFirst.mockResolvedValue({
+    id: "fixture-list",
+    name: "Original groceries",
+  });
+  tx.listItem.findFirst.mockResolvedValue(null);
+  tx.listItem.findMany.mockResolvedValue([]);
+  expect(await review(saved)).toMatchObject({
+    body: {
+      state: "ready",
+      targetList: { id: "fixture-list", name: "Original groceries" },
+      entry: saved,
+    },
+  });
+  const proof = {
+    itemId: "fixture-grocery-row",
+    listId: "fixture-list",
+    requestId: "fixture-restock-receipt",
+    created: true,
+    undoExpiresAt: new Date(now + 600000).toISOString(),
+  };
+  tx.idempotencyRecord.findUnique.mockResolvedValue({
+    id: proof.requestId,
+    family_id: actor.familyId,
+    user_id: actor.userId,
+    action: INVENTORY_RESTOCK_ACTION,
+    request_hash: hashIdempotentRequest(INVENTORY_RESTOCK_ACTION, body),
+    response_status: 201,
+    response_body: proof,
+    expires_at: new Date(now + 86400000),
+  });
+  tx.listItem.findFirst.mockResolvedValue({
+    id: proof.itemId,
+    content: "Current replacement beans",
+  });
+  expect(await review(saved)).toMatchObject({
+    body: { state: "committed", receipt: proof },
+  });
+  tx.listItem.findFirst.mockResolvedValue(null);
+  expect(await review(saved)).toMatchObject({
+    body: { state: "removed", canRetry: false, receipt: proof },
+  });
 });
 it("binds a missing-receipt intake review to the exact request without creating stock or a receipt", async () => {
   const result = await review();

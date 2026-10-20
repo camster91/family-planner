@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { inventoryRecoveryEntry } from "@/lib/inventory-recovery-contract";
 import { inventoryIntakeReceipt } from "@/lib/inventory-intake-contract";
+import { restockInput, restockReceipt } from "@/lib/inventory-restock-contract";
 import {
   inventoryChangeInput,
   inventoryChangeReceipt,
@@ -41,8 +42,15 @@ export const inventoryRecoveryReview = z
       .strict()
       .nullable(),
     receipt: z
-      .union([inventoryIntakeReceipt, inventoryChangeReceipt])
+      .union([inventoryIntakeReceipt, inventoryChangeReceipt, restockReceipt])
       .nullable(),
+    targetList: z
+      .object({
+        id: z.string().min(1).max(128),
+        name: z.string().min(1).max(200),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -60,8 +68,20 @@ export const inventoryRecoveryReview = z
       });
     if (value.receipt) {
       let valid = false;
-      if (value.entry.kind === "intake") valid = !("kind" in value.receipt);
-      else {
+      if (value.entry.kind === "intake")
+        valid = inventoryIntakeReceipt.safeParse(value.receipt).success;
+      else if (value.entry.kind === "restock") {
+        try {
+          const input = restockInput.safeParse(JSON.parse(value.entry.body));
+          valid =
+            input.success &&
+            restockReceipt.safeParse(value.receipt).success &&
+            "listId" in value.receipt &&
+            value.receipt.listId === input.data.list_id;
+        } catch {
+          /* Invalid input remains a validation failure. */
+        }
+      } else {
         try {
           const parsed = inventoryChangeInput.safeParse(
             JSON.parse(value.entry.body),
@@ -86,5 +106,28 @@ export const inventoryRecoveryReview = z
           message: "Inventory receipt differs from original intent",
         });
     }
+    if (value.entry.kind === "restock") {
+      try {
+        const input = restockInput.safeParse(JSON.parse(value.entry.body));
+        if (
+          !input.success ||
+          (value.canRetry && !value.targetList) ||
+          (value.targetList && value.targetList.id !== input.data.list_id)
+        )
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Restock target differs from original intent",
+          });
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid restock intent",
+        });
+      }
+    } else if (value.targetList)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Unexpected list target",
+      });
   });
 export type InventoryRecoveryReview = z.infer<typeof inventoryRecoveryReview>;

@@ -1,5 +1,14 @@
 # API household-isolation audit (issue #102)
 
+2026-10-20 restock integration source: the new body-based read-only review POST
+shares common paired-first auth, canonical inventory+lists authority, size/rate
+bounds and scope echo. Draft names are not put into URLs by modern clients.
+Restock recovered review binds original list/source/version/duplicate policy and
+receipt/current list-item ownership; foreign ingredient links refuse. Lists and
+private names are shown only after canonical inspection. Common paired and
+client/sender/recovered-review/UI cases are authored, not run; no isolation,
+browser, native or rollback acceptance is claimed.
+
 2026-10-20 restock source: GET/POST inventory/restock and POST restock/undo use
 paired-first auth, canonical current parent/teen inventory+lists authority and
 original actor/household binding. Item/list/ingredient/receipt references are

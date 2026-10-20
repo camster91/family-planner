@@ -1,5 +1,16 @@
 # Route and domain inventory (#148)
 
+### Restock UI/owned request extension — 2026-10-20
+
+New read-only body-based POST `/api/inventory/restock/review` avoids private draft
+names in URLs, with common auth, read-scope echo and canonical restock review.
+InventoryRestockSheet is wired from item editing/history; explicit target/amount/
+duplicate policy, exact retry/result/list-link/Undo controls are authored. Existing
+inventory entry/recovered-review/provider contracts add the fixed `restock` kind;
+no new schema, offline queue action or provider/native activation. Unknown Undo
+is open-sheet retry/manual acknowledgement, not another durable operation. Source
+tests are authored only; cooking stock review remains implementation work.
+
 ### Inventory restock backend source — 2026-10-20
 
 New GET/POST `/api/inventory/restock` and POST `/api/inventory/restock/undo` use

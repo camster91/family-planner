@@ -29,6 +29,14 @@ Shared-device snapshot behavior is implemented in `device-board-cache.ts` and `u
 Cache only allowlisted shared-surface data needed for a recent dashboard/detail view. Show the user when data is cached/stale and when it was last synced.
 
 ## Offline mutation allowlist
+
+2026-10-20 restock extension: adopted personal inventory journals may retain
+exact pending online replacement-add requests using kind `restock`. This does
+not add an offline queue action: target/source/duplicate review and every send
+still require current authority and an explicit user action. Canonical recovered
+review binds the original list and receipt; newer kinds must remain held by old
+readers. Restock Undo has open-sheet unknown recovery/manual acknowledgement,
+not persisted automatic replay. All lifecycle/rollback acceptance is deferred.
 Only explicitly reviewed, low-risk actions may queue offline. Initial candidates:
 - grocery check/uncheck;
 - grocery quick add;

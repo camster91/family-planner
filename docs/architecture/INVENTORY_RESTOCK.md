@@ -1,7 +1,7 @@
 # Reviewed inventory replacement restocking — #125
 
-2026-10-20: backend source foundation, **not UI/recovery integrated, not QA
-accepted or released**. The full target remains an explicit replacement review
+2026-10-20: backend plus UI/recovered-add source candidate, **not QA accepted or
+released; adopted journal activation stays off**. The full target remains an explicit replacement review
 from active/used/discarded stock and its history, with list/quantity choice,
 duplicate-safe provenance, exact request recovery and owned Undo.
 
@@ -58,12 +58,47 @@ its route and accepted semantics are unchanged.
 
 ## Remaining implementation and later acceptance
 
-- Wire named list/quantity/duplicate review into inventory/history and show
-  created vs already-present vs original-removed outcomes with list links/Undo.
-- Extend the existing inventory owned journal, canonical recovered review and
-  sender to cover this exact request. Unknown outcomes must retain original
-  body/key; no separate auto-draining offline queue or legacy write fallback.
-- Author EN/ES UI and lifecycle/error recovery. Execute two-household/role,
+### Inventory/history and saved-request source integration
+
+`InventoryRestockSheet` opens from stock editing and consume/discard history
+when inventory write/list capabilities are available. It retains unsaved stock
+edit fields behind the sheet. Initial purchase amount is blank; no stock amount
+or package-size guess is copied. List selection is explicit, type-labelled and
+indistinguishable duplicate names/types cannot be selected until renamed. Target
+comparison is a deliberate review; changing item text/list invalidates it.
+
+Modern clients use body-bounded POST `/api/inventory/restock/review` (4 KiB,
+shared 90/user/minute read budget) instead of putting private draft names into a
+query string. Original read scope is verified before private JSON. The older GET
+review remains compatible but the new UI does not use its content query.
+
+Add outcomes keep original key/body on unknown, freeze editable values, and
+distinguish created/already-open/removed/no-effect/refused. Explicit quantity/unit
+and duplicate permission are shown before sending. List links open a separate
+tab so checking the canonical target does not discard an uncertain form.
+
+The existing adopted inventory journal now recognizes `restock`, uses its fixed
+POST sender, and requires canonical recovered review of the original list/source/
+version/duplicate policy and receipt. Purchase values are displayed separately
+from current inventory, and an already-open no-op is not presented as another
+created row. Unknown older readers must preserve/quarantine the unfamiliar entry;
+do not roll back to a writer that drops it. Public/offline action manifests remain
+unchanged, and all adoption/provider/native gates remain unactivated.
+
+Undo reuses original request ID, actor/household and original ten-minute window.
+Unknown Undo is retained in the open sheet for explicit same-request retry. A
+separate acknowledgement can close without claiming success or cancelling the
+server request. It is not persisted as a new offline/durable Undo operation;
+after process death, check the canonical list rather than reconstructing an add.
+Do not claim this source establishes native lifecycle or restart Undo acceptance.
+
+Client/review/sender/UI source cases cover body/key retention, original target,
+scope-before-JSON, ambiguous/similar choices and removed-row recovery. They have
+not run. Remaining acceptance:
+
+- Verify named list/quantity/duplicate review, exact journal recovery, unknown
+  Undo/manual acknowledgement, nested modals, focus/Back and EN/ES controls.
+- Execute two-household/role,
   duplicate-key/concurrent different-key, failed transaction, deleted target,
   stale source, receipt expiry and checked-row Undo cases during consolidated QA.
   Integration/common paired-context test source is authored, not run.

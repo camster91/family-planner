@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { inventoryIntakeInput } from "@/lib/inventory-intake-contract";
 import { inventoryChangeInput } from "@/lib/inventory-change-contract";
+import { restockInput } from "@/lib/inventory-restock-contract";
 import { queueOwnerSchema } from "@/lib/queue-owner-contract";
 
 export const INVENTORY_RECOVERY_CONTRACT = "herewoven.inventory-recovery.v1";
@@ -26,7 +27,7 @@ export const inventoryRecoveryContext = z
 export type InventoryRecoveryContext = z.infer<typeof inventoryRecoveryContext>;
 export const inventoryRecoveryEntry = z
   .object({
-    kind: z.enum(["intake", "change"]),
+    kind: z.enum(["intake", "change", "restock"]),
     key: z.string().regex(/^[A-Za-z0-9_-]{16,128}$/),
     body: z.string().min(1).max(8192),
   })
@@ -37,7 +38,9 @@ export const inventoryRecoveryEntry = z
       const result =
         entry.kind === "intake"
           ? inventoryIntakeInput.safeParse(parsed)
-          : inventoryChangeInput.safeParse(parsed);
+          : entry.kind === "restock"
+            ? restockInput.safeParse(parsed)
+            : inventoryChangeInput.safeParse(parsed);
       if (!result.success || new Blob([entry.body]).size > 8192)
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

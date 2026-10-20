@@ -7,6 +7,15 @@ import {
 } from "@/lib/inventory-intake";
 import { INVENTORY_CHANGE_ACTION } from "@/lib/inventory-change";
 import {
+  restockInput,
+  restockReceipt,
+  INVENTORY_RESTOCK_ACTION,
+} from "@/lib/inventory-restock-contract";
+import {
+  restockAuthority,
+  compareInventoryRestock,
+} from "@/lib/inventory-restock";
+import {
   inventoryIntakeInput,
   inventoryIntakeReceipt,
 } from "@/lib/inventory-intake-contract";
@@ -54,17 +63,37 @@ export async function reviewInventoryRecovery(
   const input =
     entry.kind === "intake"
       ? inventoryIntakeInput.parse(JSON.parse(entry.body))
-      : inventoryChangeInput.parse(JSON.parse(entry.body));
+      : entry.kind === "restock"
+        ? restockInput.parse(JSON.parse(entry.body))
+        : inventoryChangeInput.parse(JSON.parse(entry.body));
   if (
     input.expected_user_id !== actor.userId ||
     input.expected_family_id !== actor.familyId
   )
     return fail(403, "AUTH_CONTEXT_CHANGED");
   const action =
-    entry.kind === "intake" ? INVENTORY_INTAKE_ACTION : INVENTORY_CHANGE_ACTION;
+    entry.kind === "intake"
+      ? INVENTORY_INTAKE_ACTION
+      : entry.kind === "restock"
+        ? INVENTORY_RESTOCK_ACTION
+        : INVENTORY_CHANGE_ACTION;
   return db.$transaction(async (tx) => {
-    const refusal = await inventoryIntakeAuthority(tx, actor);
+    const refusal =
+      entry.kind === "restock"
+        ? await restockAuthority(tx, actor)
+        : await inventoryIntakeAuthority(tx, actor);
     if (refusal) return refusal;
+    const restock = entry.kind === "restock" ? restockInput.parse(input) : null;
+    const targetList = restock
+      ? await tx.list.findFirst({
+          where: {
+            id: restock.list_id,
+            family_id: actor.familyId,
+            type: { in: ["grocery", "shopping"] },
+          },
+          select: { id: true, name: true },
+        })
+      : null;
     const reply = (
       state: InventoryRecoveryReview["state"],
       item: {
@@ -86,6 +115,7 @@ export async function reviewInventoryRecovery(
         canRetry: state === "ready",
         name,
         receipt,
+        ...(targetList ? { targetList } : {}),
         current: item
           ? {
               amount: item.amount,
@@ -103,6 +133,7 @@ export async function reviewInventoryRecovery(
     const receipt = await tx.idempotencyRecord.findUnique({
       where: { scope_key: { scope: `user:${actor.userId}`, key: entry.key } },
       select: {
+        id: true,
         family_id: true,
         user_id: true,
         action: true,
@@ -122,7 +153,38 @@ export async function reviewInventoryRecovery(
       return reply("conflict");
     // A retained successful proof may confirm history after intent expiry, but
     // an expired receipt must not authorize retry: the write route may prune it.
-    if (receipt?.response_status === (entry.kind === "intake" ? 201 : 200)) {
+    if (receipt?.response_status === (entry.kind === "change" ? 200 : 201)) {
+      if (restock) {
+        const proof = restockReceipt.safeParse(receipt.response_body);
+        if (
+          !proof.success ||
+          proof.data.requestId !== receipt.id ||
+          proof.data.listId !== restock.list_id
+        )
+          return reply("unavailable");
+        const row = targetList
+          ? await tx.listItem.findFirst({
+              where: {
+                id: proof.data.itemId,
+                list_id: proof.data.listId,
+                list: { family_id: actor.familyId },
+                ...(proof.data.created
+                  ? {
+                      source_request_id: proof.data.requestId,
+                      added_by: actor.userId,
+                    }
+                  : {}),
+              },
+              select: { id: true, content: true },
+            })
+          : null;
+        return reply(
+          row ? "committed" : "removed",
+          null,
+          proof.data,
+          row && row.content.length <= 200 ? row.content : null,
+        );
+      }
       if (entry.kind === "intake") {
         const proof = inventoryIntakeReceipt.safeParse(receipt.response_body);
         if (!proof.success) return reply("unavailable");
@@ -175,6 +237,39 @@ export async function reviewInventoryRecovery(
       return reply(
         receipt.response_status === null ? "pending" : "unavailable",
       );
+    if (restock) {
+      if (!targetList) return reply("unavailable");
+      const item = await tx.inventoryItem.findFirst({
+        where: { id: restock.item_id, family_id: actor.familyId },
+        select: { id: true, updated_at: true, ingredient_id: true },
+      });
+      if (!item) return reply("unavailable");
+      if (item.updated_at.toISOString() !== restock.expected_version)
+        return reply("conflict");
+      if (
+        item.ingredient_id &&
+        !(await tx.ingredient.findFirst({
+          where: { id: item.ingredient_id, family_id: actor.familyId },
+          select: { id: true },
+        }))
+      )
+        return reply("unavailable");
+      const comparison = await compareInventoryRestock(
+        tx,
+        actor.familyId,
+        restock.list_id,
+        item.id,
+        restock.content,
+        item.ingredient_id,
+      );
+      if (
+        !comparison.existingSourceItemId &&
+        !restock.allow_similar &&
+        (comparison.similar.length || comparison.comparisonIncomplete)
+      )
+        return reply("conflict");
+      return reply("ready", null, null, restock.content);
+    }
     if (entry.kind === "intake") {
       const intake = inventoryIntakeInput.parse(input);
       if (intake.item.ingredient_id) {

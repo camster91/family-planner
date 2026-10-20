@@ -36,12 +36,17 @@ function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
     );
   });
 }
-async function boundedJson(
+export async function readBoundedInventoryJson(
   response: Response,
   signal: AbortSignal,
+  limit = INVENTORY_READ_BYTES,
 ): Promise<unknown> {
+  if (signal.aborted) {
+    void response.body?.cancel().catch(() => undefined);
+    throw new Error("Inventory read aborted");
+  }
   const declared = Number(response.headers?.get("content-length"));
-  if (declared > INVENTORY_READ_BYTES) {
+  if (declared > limit) {
     void response.body?.cancel().catch(() => undefined);
     throw new Error("Inventory response too large");
   }
@@ -51,10 +56,7 @@ async function boundedJson(
     // not a claim of pre-allocation streaming protection on those platforms.
     const data: unknown = await abortable(response.json(), signal);
     const serialized = JSON.stringify(data);
-    if (
-      typeof serialized !== "string" ||
-      new Blob([serialized]).size > INVENTORY_READ_BYTES
-    )
+    if (typeof serialized !== "string" || new Blob([serialized]).size > limit)
       throw new Error("Inventory response too large");
     return data;
   }
@@ -70,7 +72,7 @@ async function boundedJson(
       const part = await abortable(reader.read(), signal);
       if (part.done) break;
       size += part.value.byteLength;
-      if (size > INVENTORY_READ_BYTES) {
+      if (size > limit) {
         void reader.cancel().catch(() => undefined);
         throw new Error("Inventory response too large");
       }
@@ -131,7 +133,7 @@ export async function readInventorySnapshot(options: {
       }
       return {
         state: "ready",
-        data: schema.parse(await boundedJson(response, signal)),
+        data: schema.parse(await readBoundedInventoryJson(response, signal)),
       };
     } catch {
       return { state: "error" };

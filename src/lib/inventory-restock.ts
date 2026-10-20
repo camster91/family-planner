@@ -39,7 +39,7 @@ export async function restockAuthority(
     ? null
     : fail(403, "LISTS_DISABLED");
 }
-async function compare(
+export async function compareInventoryRestock(
   tx: Prisma.TransactionClient,
   familyId: string,
   listId: string,
@@ -105,7 +105,7 @@ export async function reviewInventoryRestock(
     )
       return fail(404, "RESTOCK_LIST_UNAVAILABLE");
     const comparison = input.listId
-      ? await compare(
+      ? await compareInventoryRestock(
           tx,
           actor.familyId,
           input.listId,
@@ -184,7 +184,7 @@ export async function persistInventoryRestock(
       select: { id: true },
     });
     if (!list) return fail(404, "RESTOCK_LIST_UNAVAILABLE");
-    const comparison = await compare(
+    const comparison = await compareInventoryRestock(
       tx,
       actor.familyId,
       list.id,

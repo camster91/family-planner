@@ -6,6 +6,7 @@ import {
 
 /** Owned presentation only. Private names, units, model text and API refusals stay raw. */
 export const inventoryEnglish = {
+  restock: "Add a replacement",
   readHistoryUnavailableEmpty:
     "History could not be loaded. Refresh to check earlier changes and Undo.",
   readRefresh: "Refresh inventory",
@@ -286,6 +287,7 @@ export const inventoryEnglish = {
 } as const;
 export type InventoryMessage = keyof typeof inventoryEnglish;
 export const inventorySpanish: Record<InventoryMessage, string> = {
+  restock: "Añadir un reemplazo",
   readHistoryUnavailableEmpty:
     "No se pudo cargar el historial. Actualiza para comprobar cambios anteriores y Deshacer.",
   readRefresh: "Actualizar inventario",

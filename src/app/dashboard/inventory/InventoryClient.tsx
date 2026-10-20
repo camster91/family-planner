@@ -49,6 +49,7 @@ import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 import { BarcodeFoodDialog } from '@/components/inventory/BarcodeFoodDialog'
 import { FoodDescriptionDraft } from '@/components/inventory/FoodDescriptionDraft'
+import { InventoryRestockSheet } from '@/components/inventory/InventoryRestockSheet'
 import { InventoryRecoveryProvider, InventoryRecoveryPanel, useInventoryWrites, useInventoryRecoveryBlocked } from '@/components/inventory/InventoryRecovery'
 import { makeInventoryChangeIntent, type InventoryChangeIntent } from '@/lib/inventory-change-client'
 import type { InventoryChangeOperation } from '@/lib/inventory-change-contract'
@@ -209,6 +210,7 @@ function InventoryContent({
   React.useEffect(() => { if (readBlocked) readRecoveryRef.current?.focus() }, [readBlocked])
   const lastHistory = React.useRef<HistoryEntry[]>([])
   const mealsOn = useFeatureEnabled('meals')
+  const listsOn = useFeatureEnabled('lists')
   const online = useOnline()
   const displayLocale = useDisplayLocale()
   const showUndo = useUndoToast()
@@ -221,6 +223,7 @@ function InventoryContent({
   const [notice, setNotice] = React.useState<{ text: InventoryFeedback; error?: boolean } | null>(null)
   const [scanning, setScanning] = React.useState(false)
   const [barcodeScanning, setBarcodeScanning] = React.useState(false)
+  const [restockItem, setRestockItem] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState<string | null>(null)
   const [stockChange, setStockChange] = React.useState<PendingStockChange | null>(null)
   const stockChangeRef = React.useRef<PendingStockChange | null>(null)
@@ -616,7 +619,7 @@ function InventoryContent({
               {mealsOn && <CookSection load={data.data.cook} onRetry={load} canOpenRecipes={canOpenRecipes} />}
               {data.data.historyFailed && <p role="status" className="card-apple p-4 text-subhead">{copy(data.data.history.length ? 'readHistoryUnavailable' : 'readHistoryUnavailableEmpty')}</p>}
               {data.data.history.length > 0 && (
-                <HistorySection entries={data.data.history} canWrite={canWrite} onUndo={(e) => undo(e.id, e.item_name)} />
+                <HistorySection entries={data.data.history} canWrite={canWrite} onUndo={(e) => undo(e.id, e.item_name)} onRestock={listsOn && intakeContext && !recoveryBlocked ? (e) => setRestockItem(e.item_id) : undefined} />
               )}
             </div>
           )}
@@ -643,6 +646,7 @@ function InventoryContent({
           onVerifyAccess={() => void load()}
           initialContext={intakeContext}
           initial={editing.mode === 'edit' ? editing.item : undefined}
+          onRestock={editing.mode === 'edit' && listsOn && intakeContext && !recoveryBlocked ? () => setRestockItem(editing.item.id) : undefined}
           onClose={() => setEditing(null)}
           onDone={(message) => {
             focusAddAfterEdit.current = true
@@ -652,6 +656,7 @@ function InventoryContent({
           onChangeStock={startStockChange}
         />
       )}
+      {restockItem && <InventoryRestockSheet key={restockItem} itemId={restockItem} context={intakeContext} suspended={readBlocked} disabled={recoveryBlocked} onClose={() => setRestockItem(null)} onChanged={() => void load()} />}
     </div>
     </>
   )
@@ -1129,10 +1134,12 @@ function HistorySection({
   entries,
   canWrite,
   onUndo,
+  onRestock,
 }: {
   entries: HistoryEntry[]
   canWrite: boolean
   onUndo: (entry: HistoryEntry) => void
+  onRestock?: (entry: HistoryEntry) => void
 }) {
   const copy = useInventoryCopy()
   const locale = useDisplayLocale()
@@ -1163,6 +1170,7 @@ function HistorySection({
                   {copy('undo')}
                 </ActionButton>
               )}
+              {canWrite && onRestock && e.item_id && !e.undone_at && <button type="button" className="btn-plain min-h-[44px]" onClick={() => onRestock(e)}>{copy('restock')}</button>}
             </li>
           ))}
         </ul>
@@ -1199,6 +1207,7 @@ function ItemModal({
   onDone,
   onAdjust,
   onChangeStock,
+  onRestock,
 }: {
   mode: 'add' | 'edit'
   suspended?: boolean
@@ -1208,6 +1217,7 @@ function ItemModal({
   onClose: () => void
   onDone: (message: InventoryFeedback) => void
   onChangeStock: (operation: InventoryChangeOperation, name: string) => Promise<InventoryFeedback | null>
+  onRestock?: () => void
   onAdjust: (
     target: AdjustTarget,
     kind: AdjustKind,
@@ -1486,6 +1496,7 @@ function ItemModal({
               <Trash2 className="w-4 h-4" aria-hidden="true" />
               <span>{copy('throwAway')}</span>
             </button>
+            {onRestock && <button type="button" className="btn-plain min-h-[44px]" disabled={locked || suspended} onClick={() => { if (!mutationRef.current) onRestock(); }}>{copy('restock')}</button>}
           </div>
         </div>
       )}

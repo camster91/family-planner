@@ -175,7 +175,7 @@ every new field is optional. Rollback of the app code is safe; the new columns s
 
 ## Food inventory (#263, #158/#121)
 
-**Replacement restock backend source (2026-10-20, not UI/journal integrated):**
+**Replacement restock source (2026-10-20, gated UI/add-journal integrated):**
 GET `/api/inventory/restock?itemId=&listId=&content=` returns current source
 name/version, eligible lists (cap 100), exact open replacement pointer and up to
 ten possible duplicate summaries with incomplete-comparison disclosure (2000-row
@@ -188,7 +188,15 @@ lists authority applies before effect/replay. Removed list rows are not recreate
 by confirmation. POST `/api/inventory/restock/undo` is original actor/household/
 requestId-bound, 4 KiB/60 per minute, with the existing ten-minute own-open-rows
 Undo rule; checked rows stay. Every outcome private/no-store. Details and
-unfinished integration: `INVENTORY_RESTOCK.md`.
+pending acceptance: `INVENTORY_RESTOCK.md`.
+
+Modern review uses POST `/api/inventory/restock/review` with strict
+`{itemId,listId?,content?}` in a 4 KiB body, sharing the 90/user/minute budget and
+read-scope echo. This avoids private draft text in URL queries. The legacy GET
+remains compatible. Restock adds now join the private owned inventory journal
+and canonical recovered review with original target-list binding and compact
+receipt. Explicit UI/result/Undo controls are authored, not exercised. Unknown
+Undo remains open-sheet retry/manual acknowledgement, not a durable queue.
 
 **Inventory recovery foundation (2026-10-20, off/gated UI integrated):** personal
 
@@ -215,8 +223,8 @@ Intake/change accept optional `X-Herewoven-Inventory-Owner`; a supplied mismatch
 is 409 `INVENTORY_RECOVERY_OWNER_CHANGED` before body processing/replay, even with
 new recovery writing paused. No-header old clients retain existing behavior.
 Post helpers may pass that original scope with unchanged body/key. See
-`INVENTORY_RECOVERY.md` for unfinished browser/review integration and required
-rollback boundaries. No durable inventory client support is claimed yet.
+`INVENTORY_RECOVERY.md` for gated browser/review source and required
+rollback acceptance. Durable behavior is authored, not yet verified.
 
 **Additive personal read binding (#125, source candidate 2026-10-19):** the list,
 `use-soon`, `cook` and `adjustments` GET routes accept optional

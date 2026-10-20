@@ -23,13 +23,31 @@ import {
 } from "@/lib/inventory-change-client";
 import { inventoryIntakeInput } from "@/lib/inventory-intake-contract";
 import { inventoryChangeInput } from "@/lib/inventory-change-contract";
+import { restockInput } from "@/lib/inventory-restock-contract";
+import {
+  postInventoryRestock,
+  type RestockIntent,
+  type RestockOutcome,
+} from "@/lib/inventory-restock-client";
 import type { InventoryRecoveryEntry } from "@/lib/inventory-recovery-contract";
 import type { InventoryRecoveryReview } from "@/lib/inventory-recovery-review-contract";
 type Controller = ReturnType<typeof browserInventoryRecovery>;
 type Status = "legacy" | "loading" | "ready" | "paused" | "blocked";
+type WriteOutcome = IntakeOutcome | InventoryChangeOutcome | RestockOutcome;
+function sendEntry(
+  entry: InventoryRecoveryEntry,
+  scope?: string,
+): Promise<WriteOutcome> {
+  return entry.kind === "intake"
+    ? postInventoryIntake(entry, scope)
+    : entry.kind === "restock"
+      ? postInventoryRestock(entry, scope)
+      : postInventoryChange(entry, scope);
+}
 type Recovery = {
   intake: (intent: IntakeIntent) => Promise<IntakeOutcome>;
   change: (intent: InventoryChangeIntent) => Promise<InventoryChangeOutcome>;
+  restock: (intent: RestockIntent) => Promise<RestockOutcome>;
   status: Status;
   mountedPending: boolean;
   rows: InventoryRecoveryEntry[];
@@ -45,7 +63,11 @@ const Context = React.createContext<Recovery | null>(null);
 export function useInventoryWrites() {
   const recovery = React.useContext(Context);
   return (
-    recovery ?? { intake: postInventoryIntake, change: postInventoryChange }
+    recovery ?? {
+      intake: postInventoryIntake,
+      change: postInventoryChange,
+      restock: postInventoryRestock,
+    }
   );
 }
 function online() {
@@ -153,13 +175,14 @@ export function InventoryRecoveryProvider({
     intent: InventoryChangeIntent,
   ): Promise<InventoryChangeOutcome>;
   async function write(
-    kind: "intake" | "change",
+    kind: "restock",
+    intent: RestockIntent,
+  ): Promise<RestockOutcome>;
+  async function write(
+    kind: "intake" | "change" | "restock",
     intent: IntakeIntent,
-  ): Promise<IntakeOutcome | InventoryChangeOutcome> {
-    if (!adopted.current)
-      return kind === "intake"
-        ? postInventoryIntake(intent)
-        : postInventoryChange(intent);
+  ): Promise<WriteOutcome> {
+    if (!adopted.current) return sendEntry({ kind, ...intent });
     if (
       changed ||
       statusRef.current !== "ready" ||
@@ -179,14 +202,7 @@ export function InventoryRecoveryProvider({
       pendingKeys.current.add(intent.key);
       await store.stage({ kind, key: intent.key, body: intent.body });
       staged = true;
-      const outcome = await store.send(
-        intent.key,
-        true,
-        (entry, scope): Promise<IntakeOutcome | InventoryChangeOutcome> =>
-          entry.kind === "intake"
-            ? postInventoryIntake(entry, scope)
-            : postInventoryChange(entry, scope),
-      );
+      const outcome = await store.send(intent.key, true, sendEntry);
       // Unconfirmed/refused requests stay durably present. A later mount reviews them.
       if (
         outcome.kind === "confirmed" ||
@@ -289,14 +305,7 @@ export function InventoryRecoveryProvider({
     flight.current = true;
     setBusy(true);
     try {
-      const outcome = await controller.current.send(
-        key,
-        true,
-        (entry, scope): Promise<IntakeOutcome | InventoryChangeOutcome> =>
-          entry.kind === "intake"
-            ? postInventoryIntake(entry, scope)
-            : postInventoryChange(entry, scope),
-      );
+      const outcome = await controller.current.send(key, true, sendEntry);
       if (
         outcome.kind !== "confirmed" &&
         outcome.kind !== "removed" &&
@@ -331,6 +340,7 @@ export function InventoryRecoveryProvider({
       value={{
         intake: (intent) => write("intake", intent),
         change: (intent) => write("change", intent),
+        restock: (intent) => write("restock", intent),
         status: changed ? "blocked" : status,
         mountedPending,
         rows,
@@ -441,7 +451,28 @@ export function InventoryRecoveryPanel({
           {inspect && (
             <div className="space-y-3" data-testid="inventory-recovered-review">
               <h3 className="text-headline">{inspect.name ?? c.change}</h3>
-              <p>{c[inspect.state]}</p>
+              <p>
+                {inspect.entry.kind === "restock" &&
+                inspect.state === "committed" &&
+                inspect.receipt &&
+                "created" in inspect.receipt &&
+                !inspect.receipt.created
+                  ? c.restockAlready
+                  : c[inspect.state]}
+              </p>
+              {inspect.targetList && (
+                <p>
+                  {c.list}: {inspect.targetList.name} ·{" "}
+                  <a
+                    className="inline-flex min-h-[44px] items-center underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    href={`/dashboard/lists/${encodeURIComponent(inspect.targetList.id)}`}
+                  >
+                    {c.openList} ↗
+                  </a>
+                </p>
+              )}
               <OriginalValues entry={inspect.entry} />
               {inspect.current && (
                 <p>
@@ -529,6 +560,26 @@ export function InventoryRecoveryPanel({
 function OriginalValues({ entry }: { entry: InventoryRecoveryEntry }) {
   const { locale } = useTranslation(),
     c = locale === "es" ? inventoryRecoverySpanish : inventoryRecoveryEnglish;
+  if (entry.kind === "restock") {
+    const input = restockInput.parse(JSON.parse(entry.body));
+    return (
+      <details>
+        <summary className="min-h-[44px] cursor-pointer">
+          {c.original}: {c.restock}
+        </summary>
+        <dl>
+          <dt>{c.name}</dt>
+          <dd>{input.content}</dd>
+          <dt>{c.amount}</dt>
+          <dd>
+            {input.amount} {input.unit ?? ""}
+          </dd>
+          <dt>{c.similar}</dt>
+          <dd>{input.allow_similar ? c.yes : c.no}</dd>
+        </dl>
+      </details>
+    );
+  }
   const parsed =
     entry.kind === "intake"
       ? inventoryIntakeInput.parse(JSON.parse(entry.body))

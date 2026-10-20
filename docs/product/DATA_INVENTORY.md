@@ -1,5 +1,15 @@
 # Data Inventory
 
+Restock source extension (2026-10-20): the existing private owned inventory
+journal can also hold the exact reviewed online grocery replacement request,
+original actor/household/source/list IDs, version and desired purchase values.
+No raw media or stock remaining/expiry/package values are copied into it by
+restocking. Draft-name duplicate review uses a private POST body, not a URL.
+Names/target lists appear in recovered UI only after current canonical scope
+review. This adds no public/telemetry data, no offline action and no separate
+stock store. Undo uncertainty is local to the open sheet; no new durable Undo
+record is advertised. Source only, flags off, acceptance deferred.
+
 This document is the engineering source for privacy review and future Play Data Safety answers. It must be reconciled against actual code before public release.
 
 Inventory recovery source (2026-10-20, off/gated UI integrated): the personal
