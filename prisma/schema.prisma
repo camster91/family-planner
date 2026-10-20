@@ -11,6 +11,11 @@ datasource db {
 
 // User model
 model User {
+  responsibility_coordinations ResponsibilityState[] @relation("ResponsibilityCoordinator")
+  responsibility_backups ResponsibilityState[] @relation("ResponsibilityBackupAccount")
+  responsibility_statements_about ResponsibilityState[] @relation("ResponsibilityPrimaryAccount")
+  responsibility_primary_statements ResponsibilityState[] @relation("ResponsibilityPrimaryActor")
+  responsibility_backup_statements ResponsibilityState[] @relation("ResponsibilityBackupActor")
   feedback_reports AppFeedback[]
   id                            String             @id @default(cuid())
   email                         String             @unique
@@ -156,6 +161,7 @@ model User {
 }
 
 model Family {
+  responsibility_states ResponsibilityState[]
   feedback_reports AppFeedback[]
   id                 String    @id @default(cuid())
   name               String
@@ -427,6 +433,10 @@ model FamilyInvite {
 }
 
 model Chore {
+  /// Consent source continuity, not a credential. Legacy material edits advance the epoch in SQL.
+  responsibility_generation String @default(dbgenerated("gen_random_uuid()::text"))
+  responsibility_epoch Int @default(0)
+  responsibility_state ResponsibilityState?
   id             String    @id @default(cuid())
   family_id      String
   title          String
@@ -520,6 +530,7 @@ model Chore {
   @@index([family_id, due_date])
   @@index([recurrence_id])
   @@index([family_id, routine_stack_id])
+  @@unique([id, family_id], map: "Chore_id_family_id_key")
 }
 
 /// Durable identity for a cross-member routine stack. This is additive: old
@@ -1444,6 +1455,10 @@ model EmergencyContact {
 }
 
 model Pickup {
+  /// Consent source continuity, not a credential. Legacy material edits advance the epoch in SQL.
+  responsibility_generation String @default(dbgenerated("gen_random_uuid()::text"))
+  responsibility_epoch Int @default(0)
+  responsibility_state ResponsibilityState?
   id           String    @id @default(cuid())
   family_id    String
   title        String // 'School pickup', 'Soccer practice'
@@ -1465,6 +1480,7 @@ model Pickup {
   @@index([family_id])
   @@index([family_id, pickup_time])
   @@index([assigned_to])
+  @@unique([id, family_id], map: "Pickup_id_family_id_key")
 }
 
 model Allowance {
@@ -1513,6 +1529,10 @@ model WishlistItem {
 }
 
 model Handoff {
+  /// Consent source continuity, not a credential. Legacy material edits advance the epoch in SQL.
+  responsibility_generation String @default(dbgenerated("gen_random_uuid()::text"))
+  responsibility_epoch Int @default(0)
+  responsibility_state ResponsibilityState?
   id                String    @id @default(cuid())
   family_id         String
   sitter_name       String
@@ -1537,6 +1557,7 @@ model Handoff {
   creator User   @relation("HandoffCreator", fields: [created_by], references: [id])
 
   @@index([family_id])
+  @@unique([id, family_id], map: "Handoff_id_family_id_key")
 }
 
 model SickDay {
@@ -1966,6 +1987,8 @@ model AppFeedback {
 
 // #480 dormant identity foundation. A member is never a User/session principal.
 model HouseholdMember {
+  responsibility_backups ResponsibilityState[] @relation("ResponsibilityBackupProfile")
+  responsibility_statements_about ResponsibilityState[] @relation("ResponsibilityPrimaryProfile")
   id             String    @id @default(cuid())
   family_id      String
   name           String
@@ -2045,4 +2068,56 @@ model HouseholdProfileLinkChallenge {
 
   @@index([family_id, state, expires_at])
   @@index([member_id, family_id])
+}
+
+
+/// Consent/backup metadata attached to exactly one canonical target; no competing chore/pickup owner.
+model ResponsibilityState {
+  id String @id @default(cuid())
+  protocol String @default("herewoven.responsibility.v1")
+  family_id String
+  chore_id String?
+  pickup_id String?
+  handoff_id String?
+  source_token String
+  revision Int @default(0)
+  coordinator_id String?
+  backup_account_id String?
+  backup_member_id String?
+  primary_subject_account_id String?
+  primary_subject_member_id String?
+  primary_decision String?
+  primary_by_id String?
+  primary_method String?
+  primary_at DateTime?
+  backup_decision String?
+  backup_by_id String?
+  backup_method String?
+  backup_at DateTime?
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  chore Chore? @relation(fields: [chore_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  pickup Pickup? @relation(fields: [pickup_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  handoff Handoff? @relation(fields: [handoff_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  coordinator User? @relation("ResponsibilityCoordinator", fields: [coordinator_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  backupAccount User? @relation("ResponsibilityBackupAccount", fields: [backup_account_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  backupMember HouseholdMember? @relation("ResponsibilityBackupProfile", fields: [backup_member_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  primaryAccount User? @relation("ResponsibilityPrimaryAccount", fields: [primary_subject_account_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  primaryMember HouseholdMember? @relation("ResponsibilityPrimaryProfile", fields: [primary_subject_member_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  primaryActor User? @relation("ResponsibilityPrimaryActor", fields: [primary_by_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  backupActor User? @relation("ResponsibilityBackupActor", fields: [backup_by_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([chore_id, family_id])
+  @@unique([pickup_id, family_id])
+  @@unique([handoff_id, family_id])
+  @@index([family_id, updated_at])
+  @@index([coordinator_id, family_id])
+  @@index([backup_account_id, family_id])
+  @@index([backup_member_id, family_id])
+  @@index([primary_subject_account_id, family_id])
+  @@index([primary_subject_member_id, family_id])
+  @@index([primary_by_id, family_id])
+  @@index([backup_by_id, family_id])
 }

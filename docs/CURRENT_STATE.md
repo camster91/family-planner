@@ -1,5 +1,33 @@
 # Current State
 
+## Responsibility FK/storage/lifecycle source — 2026-10-20
+
+The next #123 slice now has additive Prisma/migration source for one FK-attached
+ResponsibilityState per canonical target, typed consent/backup/coordinator columns,
+family-scoped identities/targets and constrained statement shapes. Canonical
+chore/pickup owners are preserved. New immutable DB generation + monotonic epoch
+columns/triggers bind material edits, away/back changes, recreated records and
+routine roots. Identity retirement invalidates primary work even before metadata
+exists, advances affected counters and clears participation for membership/role/
+profile/archive/erasure/link lifecycle changes, independent of rollout. Counter
+saturation holds consent operations, not ordinary domain edits. No SQL has run.
+
+Private raw adapters now probe source availability, lock target/root in stable
+order, decode exact typed state, and perform target/protocol/revision CAS without
+replacement. Callers still need current actor/household/related-identity locks and
+fresh authorization; API/atomic receipt/owned recovery are next. Export includes
+only current own participation with live family/role checks and excludes child
+handoffs/target text/source tokens. The explicit household deletion plan now names
+the model and uses a compatibility-probed SQL cleanup before its targets/identities.
+
+Unit/fake and guarded disposable-PG test source is authored but unrun. No Prisma
+client generation/schema validation/migration, SQL/DB/API, tests/types/lint/build,
+browser/native/provider/CI, push/merge/deploy or activation. Old generated overlay
+unchanged; full restore/migration/concurrency/FK/old-client/privacy/rendered/native
+and release acceptance remains deferred. Next: authenticated API/atomic receipts/
+exact owned recovery, then compact canonical UI and weekly summary integration.
+The broader goal stays active and consolidated QA still follows remaining code.
+
 ## Responsibility/backup consent contract and planner source — 2026-10-20
 
 `docs/plans/responsibility-and-backup-v1.md` now defines the full #123 canonical

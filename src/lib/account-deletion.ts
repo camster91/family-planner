@@ -1,4 +1,5 @@
 import { erasePersonalImportProvenanceInTx } from '@/lib/account-erasure-imports'
+import { clearHouseholdResponsibilityInTx } from '@/lib/responsibility-storage'
 import { eraseRetainedAccountHistoryInTx } from '@/lib/account-erasure-history'
 import { expandSeriesInTx } from '@/lib/recurringChores'
 import { handOverRoutineControlRootsInTx, handOverHistoricalRoutineControlsInTx } from '@/lib/routine-root-handover'
@@ -628,6 +629,7 @@ type Scope =
   | { kind: 'familyOrMembers'; column: string }
 
 export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scope; why: string }> = [
+  { model: 'responsibilityState', scope: { kind: 'family' }, why: 'consent and backup metadata before canonical targets/identities; compatibility-probed SQL' },
   // 1. Shared devices: sessions (access + refresh tokens), pairings, devices.
   { model: 'deviceSession', scope: { kind: 'family' }, why: 'device access and refresh tokens' },
   { model: 'devicePairing', scope: { kind: 'family' }, why: 'pending pairing codes' },
@@ -812,7 +814,8 @@ export async function deleteHousehold(
 
       // 4. Every household-scoped table, in order.
       for (const step of HOUSEHOLD_DELETION_PLAN) {
-        await tx[step.model].deleteMany({ where: whereFor(step.scope, familyId, memberIds) })
+        if (step.model === 'responsibilityState') await clearHouseholdResponsibilityInTx(tx, familyId)
+        else await tx[step.model].deleteMany({ where: whereFor(step.scope, familyId, memberIds) })
       }
       // 5. The household row.
       await tx.family.delete({ where: { id: familyId } })

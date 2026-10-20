@@ -1,4 +1,5 @@
 import { exportWeeklyReset } from '@/lib/weekly-reset-storage'
+import { exportResponsibilityState } from '@/lib/responsibility-storage'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
@@ -518,9 +519,11 @@ export async function GET(request: NextRequest) {
     }) : []
 
     const weeklyReset = await exportWeeklyReset(prisma!, userId)
+    const responsibilityState = await exportResponsibilityState(prisma!, userId, familyId, me?.role)
     const exportData = {
       exportedAt: new Date().toISOString(),
       ...(weeklyReset === undefined ? {} : { weeklyReset }),
+      ...(responsibilityState === undefined ? {} : { responsibilityState }),
       user,
       // Same shape as GET /api/users/preferences (#286).
       notificationPreferences: user ? preferencesFromRow(user) : null,

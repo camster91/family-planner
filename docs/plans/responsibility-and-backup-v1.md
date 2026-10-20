@@ -46,7 +46,7 @@ or unavailable targets and paused capabilities refuse new statements. Authorized
 backup cannot be the same canonical subject. A parent cannot self-confirm for
 another account; parent-recorded confirmation is limited to profile subjects.
 
-## Persistence and concurrency (required next slice)
+## Persistence and concurrency (implementation contract; latest source status below)
 
 Use one additive target-attached ResponsibilityState table with real nullable
 FKs to Chore/Pickup/Handoff and a database exactly-one-target check. Target and
@@ -130,3 +130,72 @@ No DB/schema/migration/endpoint/UI/client generation or activation is included i
 this slice. Required next work is the FK persistence/legacy invalidation/lifecycle/
 export slice, then locked API/exact owned recovery and the full EN/ES canonical UI
 and weekly-summary integration above. Full #123 and repository scope remains open.
+
+
+## FK storage, source continuity and lifecycle source — 2026-10-20
+
+`prisma/schema.prisma` and the new transaction-wrapped additive
+`database/migration-zzzzzz-responsibility.sql` now describe ResponsibilityState.
+Exactly one target is required, with family-scoped target/account/profile FKs,
+unique target/family keys, statement-shape/identity checks and indexed identity
+participation. Handoff coordinator is the only new primary ownership field;
+chore/pickup primaries remain in their original domain rows. Statement subject
+FKs preserve historical consent identity for comparison, never current assignment.
+Unknown protocol text is not silently migrated or overwritten. No opaque consent
+JSON stores untracked person IDs. Identity/target/family cascades remove metadata;
+canonical domain retention/deletion remains under existing policy.
+
+Canonical Chore/Pickup/Handoff rows gain an immutable per-insertion DB-generated
+UUID and nonnegative monotonic epoch. SQL triggers advance the epoch on explicit
+material-field changes by legacy clients too; a replaced row receives a new UUID.
+A content hash alone is not used as continuity. Material source is not copied to
+metadata or a provider. Epoch saturation holds new responsibility operations
+instead of overflowing or blocking ordinary target edits. Root epochs also bind
+child-occurrence consent. `responsibility-storage.ts` locks target/root rows in
+stable ID order and rejects missing/changed/unlocked roots, malformed generations
+and saturated counters. It still requires caller-authenticated actor/household
+locks and fresh domain/subject authorization; it is not an API or capability.
+
+User detachment/role/deletion, profile age/role/archive/erasure/deletion and mapping/
+link changes now have source-level DB retirement hooks independent of rollout.
+They advance existing canonical primary work even before a metadata row exists,
+then advance affected target counters and remove participation metadata. This
+closes metadata deletion/recreation and first-confirmation identity ABA. Mapping/
+link retirement runs after the FK mutation; account/profile retirement runs before
+identity changes and FK cascades. New services must lock the relevant current
+account/profile identity rows in stable order **before** target/root/state locks,
+then renew their relationship snapshot. A related identity or root discovered
+outside that locked snapshot is a hold, not a late out-of-order lock acquisition.
+Actual legacy/concurrent FK/trigger ordering remains an explicit real-PG gate.
+
+The raw transaction store reads explicit typed columns under a row lock, verifies
+returned family/target, refuses unknown/partial/contradictory states, and persists
+only a changed planner result with exact target/protocol/revision CAS. Creation
+uses insert-on-conflict refusal, never destructive replacement. It does not grant
+auth, change canonical ownership, create a transaction itself or commit a receipt;
+the next locked API slice must commit effect + minimal receipt atomically.
+
+Own export now probes schema compatibility and selects current-household own
+participation (including current canonical primary), renews current family/role
+in the statement, omits child handoffs and excludes source tokens, target text,
+emails, ages and bearer secrets. Export remains available during rollback. The
+explicit HOUSEHOLD_DELETION_PLAN names ResponsibilityState before targets/links;
+a table-probed SQL branch clears only the authorized family even on an older
+generated client. Metadata cascade is additional defense, not a missing plan row.
+
+Authored source/unit cases cover source generation/epoch/root/saturation, pre-DDL
+compatibility, export scope, typed statement decoding, foreign/unknown rows and
+CAS/no destructive replacement. Authored opt-in disposable-DB cases cover legacy
+away/back edits, same-ID recreation, root edits, family/statement constraints,
+member/profile retirement, target cascade, pre-metadata role changes and counter
+saturation. They require the fixture target guard and already-applied migration;
+none was run. Fakes do not prove FK, locking, migration or actual retirement.
+
+No Prisma generation/validation, migration, SQL/DB/API invocation, unit/types/lint/
+build, browser/native/provider/CI, push/merge/deploy or flag activation occurred.
+Old generated overlays remain unchanged. Before later activation, validate the
+Prisma/DDL mapping, repeatable protected migration/restore and old/new client
+compatibility, SQL lock graph, FK/trigger constraints/erasure and source identity.
+Required next code remains fresh-authority person API/atomic receipts/owned recovery,
+full compact EN/ES domain controls and weekly-summary integration. Full #123 and
+repository scope is active; storage source is not verified feature delivery.
