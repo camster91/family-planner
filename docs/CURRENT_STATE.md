@@ -1,5 +1,43 @@
 # Current State
 
+## Durable routine draft and attached legacy handoff source — 2026-10-20
+
+Unsent routine forms now have a separate strict local-draft contract, server-derived
+person owner scope and browser store using the existing owned envelope, locations,
+leases and retirement format. Partial fields remain editable locally; the real
+command is still validated separately only for submission. Local draft entries
+cannot enter a send callback. The shared journal has an explicit opt-in local-only
+compare-and-replace operation; ordinary request bodies remain immutable.
+
+The manager creates/restores that document, debounces verified saves, flushes on
+sheet close and before submission, and clears it only after confirmed completion
+or explicit local dismissal. It shows pending versus device-saved state and guards
+navigation while local/request writes are pending. Discard invalidates queued
+older autosaves. Re-read conflicts do not overwrite another tab's changed or
+cleared draft: explicit load-saved confirmation is required. Known uncertain
+storage transitions retain their proposal for explicit repair. Current disabled
+points are stripped before a restored draft can reach the UI. No draft payload is
+posted to a server mutation route; the new GET context mode contains identity,
+ownership and capability metadata only.
+
+Owned attached routine URLs now offer a localized handoff before the old one-day
+editor loads, on direct and intercepted stack/root edit pages. The old stack GET
+renews parent authority under locks and refuses scheduled metadata; its client
+fallback offers the new route instead of repeated failed legacy saves. Handoff
+uses exact household-owned IDs, leaves ordinary individual copies/legacy stacks
+alone and exits the old intercepted slot with full navigation. Detached-root
+management remains the next separate code gap.
+
+Authored/unrun storage cases cover incomplete reload, cross-controller conflict,
+explicit adoption, stale queued autosaves after discard, uncertain write repair,
+changed owner, disabled-points purge and local-only send refusal. Protected DB
+source covers attached/foreign/same-name-legacy/copy handoffs. Source inspection
+and formatting only; no tests/typecheck/lint/build/browser/native, schema/client
+operation, hosted CI, push/merge/deploy or activation. Existing gates are unchanged.
+Next: detached-series future controls, clean-sheet Back choreography, recovery
+presentation/remaining async-epoch audit and scheduled-once capabilities; then
+lifecycle/rollback/device reconciliation and the consolidated QA phase.
+
 ## Parent routine catalog/editor/recovery UI source — 2026-10-20
 
 Parent-only bounded catalog/state DTOs and GET catalog paging now provide saved

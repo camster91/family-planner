@@ -90,3 +90,31 @@ it("preserves hidden points as null and freezes the reviewed day/zone instead of
     }).success,
   ).toBe(false);
 });
+it("restores multiple removed neighbors in either order without swapping their identities", () => {
+  const original = routineDraftFromState(state());
+  original.steps.push({
+    ...original.steps[0],
+    template_id: "root-three",
+    client_step_id: "client-three",
+  });
+  original.steps.push({
+    ...original.steps[0],
+    template_id: "root-four",
+    client_step_id: "client-four",
+  });
+  const removed = removeRoutineEditorStep(
+    removeRoutineEditorStep(original, 1, "stop-future"),
+    1,
+    "unstack-future",
+  );
+  for (const ids of [
+    ["root-two", "root-three"],
+    ["root-three", "root-two"],
+  ]) {
+    let restored = removed;
+    for (const id of ids) restored = restoreRoutineEditorStep(restored, id);
+    expect(restored.steps.map((step) => step.template_id)).toEqual(
+      original.steps.map((step) => step.template_id),
+    );
+  }
+});

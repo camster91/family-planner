@@ -46,6 +46,8 @@ export type OwnedRequestJournalOptions<
   contract: string;
   maxBytes: number;
   matchesContext: (entry: E, context: C) => boolean;
+  /** Opt-in for a local-only editable document. Such entries can never send. */
+  localDraftKind?: E["kind"];
   error?: (
     reason: OwnedRequestRecoveryError["reason"],
   ) => OwnedRequestRecoveryError;
@@ -293,6 +295,34 @@ export function createOwnedRequestJournal<
           await persist([...rows, copy(entry)], fresh.owner);
         });
       }),
+    /** Compare-and-replace a local-only draft. Network intents stay immutable. */
+    replaceLocalDraft: (input: E, expectedBody: string) =>
+      serial(async () => {
+        const parsed = options.entry.safeParse(input);
+        if (
+          !parsed.success ||
+          !options.localDraftKind ||
+          parsed.data.kind !== options.localDraftKind
+        )
+          return fail("INTENT_CHANGED");
+        const entry = parsed.data;
+        return checked(async (fresh) => {
+          if (!options.matchesContext(entry, fresh))
+            return fail("OWNER_CHANGED");
+          const existing = rows.find((row) => row.key === entry.key);
+          if (
+            !existing ||
+            existing.kind !== options.localDraftKind ||
+            existing.body !== expectedBody
+          )
+            return fail("INTENT_CHANGED");
+          await persist(
+            rows.map((row) => (row.key === entry.key ? copy(entry) : row)),
+            fresh.owner,
+          );
+          held.add(entry.key);
+        }, true);
+      }),
     /** Explicit user recovery only; repairs solely the exact known transition. */
     recoverStorage: () =>
       serial(async () => {
@@ -357,6 +387,8 @@ export function createOwnedRequestJournal<
         checked(async (fresh) => {
           const entry = rows.find((row) => row.key === key);
           if (!entry) return fail("INTENT_CHANGED");
+          if (options.localDraftKind && entry.kind === options.localDraftKind)
+            return fail("DISABLED");
           if (
             held.has(key) &&
             (!reviewRecovered ||

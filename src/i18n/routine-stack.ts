@@ -4,6 +4,7 @@ import { useTranslation } from "@/i18n";
 
 /** Routine editor and shared presentation copy. User-authored titles and member names stay verbatim. */
 export const routineStackEnglish = {
+  scheduleRequired: "Open Routine plans to edit this shared schedule.",
   stacksLabel: "Routine stacks",
   focusNext: "Focus on the next step",
   noRoutines:
@@ -82,6 +83,8 @@ export type RoutineStackMessage = keyof typeof routineStackEnglish;
 export type RoutineStackMessages = Record<RoutineStackMessage, string>;
 
 export const routineStackSpanish: RoutineStackMessages = {
+  scheduleRequired:
+    "Abre Planes de rutinas para editar este horario compartido.",
   stacksLabel: "Rutinas paso a paso",
   focusNext: "Enfocarse en el siguiente paso",
   noRoutines:

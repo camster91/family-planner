@@ -8,6 +8,12 @@ import { getRequestId } from "@/lib/request-id";
 import { HouseholdMemberIdentityConflict } from "@/lib/household-member-lifecycle";
 import { requestedMemberProtocol } from "@/lib/chore-profile";
 import { prisma } from "@/lib/prisma";
+import { readRoutineScheduleHandoff } from "@/lib/routine-schedule-handoff";
+import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
+import {
+  routineScheduleAuthority,
+  routineScheduleFailure,
+} from "@/lib/routine-schedule-runtime";
 import {
   readParentRoutineStack,
   type RoutineStackReadDb,
@@ -82,6 +88,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (process.env[ROUTINE_SCHEDULE_READY_ENV] === "1") {
+      const href = await prisma!.$transaction(async (tx) => {
+        await routineScheduleAuthority(tx, {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          tokenVersion: auth.payload.tv ?? 0,
+        });
+        return readRoutineScheduleHandoff(
+          tx,
+          auth.user.family_id,
+          "stack",
+          stackId,
+        );
+      });
+      if (href)
+        return error(
+          409,
+          "ROUTINE_SCHEDULE_EDITOR_REQUIRED",
+          "Open routine plans to change this schedule.",
+          requestId,
+        );
+    }
     const result = await readParentRoutineStack(
       prisma! as unknown as RoutineStackReadDb,
       routineStackActor(request, auth.user),
@@ -107,6 +135,12 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json(result, { headers: NO_STORE });
   } catch (caught) {
+    const refusal = routineScheduleFailure(caught);
+    if (refusal)
+      return NextResponse.json(refusal.body, {
+        status: refusal.status,
+        headers: NO_STORE,
+      });
     logRouteError("GET /api/chores/stacks", caught, requestId);
     return error(
       500,

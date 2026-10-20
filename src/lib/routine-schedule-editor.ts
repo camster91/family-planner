@@ -25,7 +25,12 @@ export type RoutineEditorDraft = {
     Extract<
       RoutineScheduleCommand,
       { action: "replace-future" }
-    >["removed_steps"][number] & { step: RoutineEditorStep; position: number }
+    >["removed_steps"][number] & {
+      step: RoutineEditorStep;
+      position: number;
+      before: string | null;
+      after: string | null;
+    }
   >;
 };
 export function newRoutineStep(
@@ -136,6 +141,8 @@ export function removeRoutineEditorStep(
             disposition: disposition!,
             step,
             position: index,
+            before: draft.steps[index - 1]?.client_step_id ?? null,
+            after: draft.steps[index + 1]?.client_step_id ?? null,
           },
         ]
       : draft.removed,
@@ -149,7 +156,21 @@ export function restoreRoutineEditorStep(
   const removed = draft.removed.find((row) => row.template_id === templateId);
   if (!removed || draft.steps.length >= 99) return draft;
   const steps = [...draft.steps];
-  steps.splice(Math.min(removed.position, steps.length), 0, removed.step);
+  const after = steps.findIndex(
+    (step) => step.client_step_id === removed.after,
+  );
+  const before = steps.findIndex(
+    (step) => step.client_step_id === removed.before,
+  );
+  steps.splice(
+    after >= 0
+      ? after
+      : before >= 0
+        ? before + 1
+        : Math.min(removed.position, steps.length),
+    0,
+    removed.step,
+  );
   return {
     ...draft,
     steps,

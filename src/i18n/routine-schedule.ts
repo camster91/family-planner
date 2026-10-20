@@ -13,6 +13,15 @@ const en = {
     "This unsent draft will be cleared. Saved requests and existing routines stay unchanged.",
   minutes: "min",
   restore: "Keep step",
+  handoff:
+    "This routine has a shared schedule. Manage its future steps and controls together in Routine plans.",
+  draftSaving: "Saving draft on this device…",
+  draftSaved: "Draft saved on this device.",
+  loadDraft: "Load the saved draft",
+  loadDraftHint:
+    "Replace the open unsent draft with the version saved on this device? Submitted requests and family records stay unchanged.",
+  dismissDraftHint:
+    "This removes the saved request and the open draft from this device. It does not undo a change that already reached your family.",
   memberRole: "Family member",
   account: "Account",
   profile: "Profile without email",
@@ -93,7 +102,8 @@ const en = {
   removed: "Removed future steps: {count}",
   newScope:
     "Your selected schedule creates upcoming steps. Each person completes their own steps; later steps stay available.",
-  draftKept: "Closing keeps this draft while you stay on this page.",
+  draftKept:
+    "Closing keeps the verified draft on this device. Unsent drafts do not change your family.",
   uncertain:
     "This save may have reached the server. Check its result before making another change.",
   saved: "Routine saved.",
@@ -139,6 +149,15 @@ const es: Record<keyof typeof en, string> = {
     "Se borrará este borrador sin enviar. Las solicitudes guardadas y las rutinas existentes no cambian.",
   minutes: "min",
   restore: "Conservar paso",
+  handoff:
+    "Esta rutina tiene un horario compartido. Gestiona sus pasos futuros y controles juntos en Planes de rutinas.",
+  draftSaving: "Guardando el borrador en este dispositivo…",
+  draftSaved: "Borrador guardado en este dispositivo.",
+  loadDraft: "Cargar el borrador guardado",
+  loadDraftHint:
+    "¿Reemplazar el borrador abierto sin enviar por la versión guardada en este dispositivo? Las solicitudes enviadas y los registros familiares no cambian.",
+  dismissDraftHint:
+    "Se eliminan de este dispositivo la solicitud guardada y el borrador abierto. No se deshace un cambio que ya haya llegado a tu familia.",
   memberRole: "Familiar",
   account: "Cuenta",
   profile: "Perfil sin correo",
@@ -221,7 +240,8 @@ const es: Record<keyof typeof en, string> = {
   removed: "Pasos futuros quitados: {count}",
   newScope:
     "El horario elegido crea los próximos pasos. Cada persona completa los suyos; los pasos posteriores siguen disponibles.",
-  draftKept: "Al cerrar se conserva el borrador mientras sigas en esta página.",
+  draftKept:
+    "Al cerrar se conserva el borrador verificado en este dispositivo. Los borradores sin enviar no cambian los datos familiares.",
   uncertain:
     "Este guardado puede haber llegado al servidor. Comprueba el resultado antes de hacer otro cambio.",
   saved: "Rutina guardada.",

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { NextRequest } from "next/server";
 import type { TokenPayload } from "@/lib/auth";
+import type { QueueOwner } from "@/lib/queue-owner-contract";
 import {
   personQueueOwner,
   isQueueOwnerRecoveryEnabled,
@@ -28,4 +29,15 @@ export function routineScheduleOwner(
 }
 export function routineRecoveryWritingEnabled() {
   return isQueueOwnerRecoveryEnabled() && isRoutineScheduleExpansionEnabled();
+}
+/** Separate owner location, still covered by normal generation/household retirement. */
+export function routineDraftOwner(owner: QueueOwner | null): QueueOwner | null {
+  return owner
+    ? {
+        ...owner,
+        scope: createHash("sha256")
+          .update(JSON.stringify(["routine-draft.owner.v1", owner.scope]))
+          .digest("hex"),
+      }
+    : null;
 }

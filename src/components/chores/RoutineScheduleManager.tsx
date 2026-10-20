@@ -11,6 +11,8 @@ import { useTranslation } from "@/i18n";
 import { formatWeeklyDays } from "@/lib/chore-weekdays";
 import { sameQueueOwner } from "@/lib/queue-owner-contract";
 import { OwnedRequestRecoveryError } from "@/lib/owned-request-journal";
+import { browserRoutineDraft } from "@/lib/routine-draft-browser";
+import { sanitizeRoutineDraftPoints } from "@/lib/routine-draft-contract";
 import { browserRoutineRecovery } from "@/lib/routine-schedule-recovery-browser";
 import {
   readRoutineRecoveryContext,
@@ -37,6 +39,7 @@ import type {
 } from "@/lib/routine-schedule-recovery-contract";
 import type { RoutineScheduleCatalog } from "@/lib/routine-schedule-view";
 type Store = ReturnType<typeof browserRoutineRecovery>;
+type DraftStore = ReturnType<typeof browserRoutineDraft>;
 export default function RoutineScheduleManager({
   userId,
   familyId,
@@ -49,6 +52,9 @@ export default function RoutineScheduleManager({
   const t = useRoutineScheduleText(),
     { locale } = useTranslation(),
     router = useRouter();
+  const drafts = React.useRef<DraftStore | null>(null),
+    draftRef = React.useRef<RoutineEditorDraft | null>(null),
+    draftEpoch = React.useRef(0);
   const store = React.useRef<Store | null>(null),
     context = React.useRef<RoutineRecoveryContext | null>(null),
     epoch = React.useRef(0),
@@ -65,14 +71,26 @@ export default function RoutineScheduleManager({
     [busy, setBusy] = React.useState(true),
     [saving, setSaving] = React.useState(false),
     [notice, setNotice] = React.useState<string | null>(null);
-  const [draft, setDraft] = React.useState<RoutineEditorDraft | null>(null),
+  const [draft, setDraftState] = React.useState<RoutineEditorDraft | null>(
+      null,
+    ),
     [editorOpen, setEditorOpen] = React.useState(false);
   const [control, setControl] = React.useState<RoutineRecoveryEntry | null>(
       null,
     ),
     [dismiss, setDismiss] = React.useState<string | null>(null),
-    [discardDraft, setDiscardDraft] = React.useState(false);
-  usePendingFormNavigationController(saving);
+    [discardDraft, setDiscardDraft] = React.useState(false),
+    [adoptDraft, setAdoptDraft] = React.useState(false),
+    [draftWriting, setDraftWriting] = React.useState(false);
+  function setDraft(value: RoutineEditorDraft | null) {
+    draftRef.current = value;
+    setDraftState(value);
+  }
+  const draftDirty =
+    draft !== null && !(drafts.current?.isSaved(draft) ?? false);
+  usePendingFormNavigationController(
+    saving || (authorized && draftDirty) || draftWriting,
+  );
   const available = authorized && context.current?.enabled === true;
   const blocked = busy || entries.length > 0;
   async function current() {
@@ -134,8 +152,17 @@ export default function RoutineScheduleManager({
       next = await current();
     if (!store.current)
       store.current = browserRoutineRecovery({ userId, familyId });
+    if (!drafts.current)
+      drafts.current = browserRoutineDraft({ userId, familyId });
     const saved = await store.current.initialize(),
+      restored = await drafts.current.initialize(),
       data = await readRoutineCatalog(next);
+    let chosen = draftRef.current ?? restored;
+    if (chosen) {
+      chosen = sanitizeRoutineDraftPoints(chosen, data.pointsEnabled);
+      if (!drafts.current.isSaved(chosen))
+        chosen = await drafts.current.write(chosen);
+    }
     const fresh = await current();
     if (!sameQueueOwner(next.owner!, fresh.owner!))
       throw new OwnedRequestRecoveryError("OWNER_CHANGED");
@@ -146,6 +173,8 @@ export default function RoutineScheduleManager({
     )
       return;
     context.current = fresh;
+    setDraft(chosen);
+    setDraftWriting(false);
     setEntries(saved.map(({ kind, key, body }) => ({ kind, key, body })));
     setCatalog(data);
     setAuthorized(true);
@@ -180,14 +209,118 @@ export default function RoutineScheduleManager({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, familyId, locale]);
   React.useEffect(() => {
-    if (!draft) return;
+    if (
+      !authorized ||
+      !draft ||
+      !drafts.current ||
+      drafts.current.isSaved(draft)
+    ) {
+      setDraftWriting(false);
+      return;
+    }
+    const token = epoch.current,
+      revision = draftEpoch.current,
+      text = JSON.stringify(draft),
+      target = draft;
+    setDraftWriting(true);
+    const timer = setTimeout(() => {
+      if (
+        revision !== draftEpoch.current ||
+        JSON.stringify(draftRef.current) !== text
+      )
+        return;
+      void drafts
+        .current!.write(target)
+        .then((saved) => {
+          if (
+            !mounted.current ||
+            token !== epoch.current ||
+            revision !== draftEpoch.current ||
+            JSON.stringify(draftRef.current) !== text
+          )
+            return;
+          if (JSON.stringify(saved) !== text) setDraft(saved);
+          setDraftWriting(false);
+        })
+        .catch((caught) => {
+          if (
+            !mounted.current ||
+            token !== epoch.current ||
+            revision !== draftEpoch.current ||
+            JSON.stringify(draftRef.current) !== text
+          )
+            return;
+          setDraftWriting(false);
+          setAuthorized(false);
+          setNotice(
+            t(
+              caught instanceof OwnedRequestRecoveryError &&
+                caught.reason === "OWNER_CHANGED"
+                ? "owner"
+                : "storage",
+            ),
+          );
+          if (
+            caught instanceof OwnedRequestRecoveryError &&
+            caught.reason === "OWNER_CHANGED"
+          ) {
+            setDraft(null);
+            setEditorOpen(false);
+            setCatalog(null);
+            setEntries([]);
+            setReviews({});
+          }
+        });
+    }, 1500);
+    return () => clearTimeout(timer);
+    // Owned storage renews authority for each write; locale changes do not rewrite content.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, authorized]);
+  React.useEffect(() => {
+    if (!draftDirty && !saving && !draftWriting) return;
     const protect = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", protect);
     return () => window.removeEventListener("beforeunload", protect);
-  }, [draft]);
+  }, [draftDirty, saving, draftWriting]);
+  async function clearDraft() {
+    const token = epoch.current;
+    draftEpoch.current += 1;
+    setSaving(true);
+    await drafts.current!.clear();
+    draftRef.current = null;
+    if (mounted.current && token === epoch.current) {
+      setDraftState(null);
+      setDraftWriting(false);
+    }
+  }
+  async function closeEditor() {
+    if (busy || saving) return;
+    await run(async () => {
+      const token = epoch.current;
+      if (draftRef.current) {
+        const saved = await drafts.current!.write(draftRef.current);
+        if (mounted.current && token === epoch.current) setDraft(saved);
+      }
+      if (mounted.current && token === epoch.current) {
+        setDraftWriting(false);
+        setEditorOpen(false);
+      }
+    });
+  }
+  async function beginDraft(value: RoutineEditorDraft) {
+    const token = epoch.current;
+    draftEpoch.current += 1;
+    const saved = await drafts.current!.begin(value);
+    if (mounted.current && token === epoch.current) {
+      setDraft(saved);
+      setEditorOpen(true);
+      setDraftWriting(false);
+      setNotice(null);
+    }
+  }
   async function openEditor(stackId: string) {
     if (!available || blocked || draft) return;
     await run(async () => {
@@ -203,9 +336,7 @@ export default function RoutineScheduleManager({
         state.config.state === "stopped"
       )
         return;
-      setDraft(routineDraftFromState(state));
-      setEditorOpen(true);
-      setNotice(null);
+      await beginDraft(routineDraftFromState(state));
     });
   }
   const initialOpened = React.useRef(false);
@@ -246,7 +377,8 @@ export default function RoutineScheduleManager({
           receipt: result.receipt,
         },
       }));
-      setDraft(null);
+      await clearDraft();
+      if (!mounted.current || token !== epoch.current) return;
       setEditorOpen(false);
       setControl(null);
       setNotice(t("saved"));
@@ -273,6 +405,7 @@ export default function RoutineScheduleManager({
     void run(async () => {
       const token = epoch.current;
       setSaving(true);
+      if (draftRef.current) await drafts.current!.write(draftRef.current);
       await store.current!.stage(entry);
       if (!mounted.current || token !== epoch.current) return;
       setEntries((old) => [...old, entry]);
@@ -393,13 +526,18 @@ export default function RoutineScheduleManager({
           >
             {t("retry")}
           </button>
-          {store.current?.hasUncertainStorage() && (
+          {(store.current?.hasUncertainStorage() ||
+            drafts.current?.hasUncertainStorage()) && (
             <button
               className="btn-ghost min-h-[44px]"
               disabled={busy}
               onClick={() =>
                 void run(async () => {
-                  await store.current!.recoverStorage();
+                  draftEpoch.current += 1;
+                  if (store.current?.hasUncertainStorage())
+                    await store.current.recoverStorage();
+                  if (drafts.current?.hasUncertainStorage())
+                    setDraft(await drafts.current.recoverStorage());
                   await load();
                 })
               }
@@ -407,9 +545,23 @@ export default function RoutineScheduleManager({
               {t("recoverStorage")}
             </button>
           )}
+          {drafts.current?.hasConflict() && (
+            <button
+              className="btn-ghost min-h-[44px]"
+              disabled={busy}
+              onClick={() => setAdoptDraft(true)}
+            >
+              {t("loadDraft")}
+            </button>
+          )}
         </div>
       ) : (
         <>
+          {draft && (
+            <p role="status" className="text-footnote text-label-secondary">
+              {t(draftWriting || draftDirty ? "draftSaving" : "draftSaved")}
+            </p>
+          )}
           {!available && (
             <p role="status" className="text-body text-label-secondary">
               {t("recoveryPaused")}
@@ -487,21 +639,17 @@ export default function RoutineScheduleManager({
             <button
               className="btn-filled min-h-[44px]"
               disabled={!available || blocked || !catalog}
-              onClick={() => {
-                try {
-                  setDraft(
+              onClick={() =>
+                void run(() =>
+                  beginDraft(
                     newRoutineDraft(
                       userId,
                       catalog!.assignments,
                       catalog!.pointsEnabled,
                     ),
-                  );
-                  setEditorOpen(true);
-                  setNotice(null);
-                } catch {
-                  setNotice(t("storage"));
-                }
-              }}
+                  ),
+                )
+              }
             >
               {t("create")}
             </button>
@@ -606,11 +754,11 @@ export default function RoutineScheduleManager({
               assignments={catalog.assignments}
               pointsEnabled={catalog.pointsEnabled}
               locked={blocked || !available}
-              saving={saving}
+              saving={saving || busy}
               error={notice}
               onChange={setDraft}
               onSave={save}
-              onClose={() => setEditorOpen(false)}
+              onClose={() => void closeEditor()}
             />
           )}
           <Dialog
@@ -666,7 +814,13 @@ export default function RoutineScheduleManager({
             open={dismiss !== null || discardDraft}
             role="alertdialog"
             title={t(discardDraft ? "discardDraftTitle" : "dismissTitle")}
-            description={t(discardDraft ? "discardDraftHint" : "dismissHint")}
+            description={t(
+              discardDraft
+                ? "discardDraftHint"
+                : draft
+                  ? "dismissDraftHint"
+                  : "dismissHint",
+            )}
             onClose={() => {
               setDismiss(null);
               setDiscardDraft(false);
@@ -678,6 +832,7 @@ export default function RoutineScheduleManager({
                 disabled={busy}
                 onClick={() =>
                   void run(async () => {
+                    await clearDraft();
                     if (dismiss) {
                       await store.current!.dismiss(dismiss);
                       setEntries((old) =>
@@ -689,7 +844,6 @@ export default function RoutineScheduleManager({
                         return copy;
                       });
                     }
-                    setDraft(null);
                     setEditorOpen(false);
                     setControl(null);
                     setDismiss(null);
@@ -705,6 +859,32 @@ export default function RoutineScheduleManager({
           </Dialog>
         </>
       )}
+      <Dialog
+        open={adoptDraft}
+        role="alertdialog"
+        title={t("loadDraft")}
+        description={t("loadDraftHint")}
+        closeLabel={t("close")}
+        onClose={() => setAdoptDraft(false)}
+        footer={
+          <button
+            className="btn-filled min-h-[44px]"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                draftEpoch.current += 1;
+                setDraft(await drafts.current!.adoptStored());
+                setAdoptDraft(false);
+                await load();
+              })
+            }
+          >
+            {t("confirm")}
+          </button>
+        }
+      >
+        {null}
+      </Dialog>
     </section>
   );
 }

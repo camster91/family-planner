@@ -17,6 +17,10 @@ import {
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import {
+  routineDraftContext,
+  type RoutineDraftContext,
+} from "@/lib/routine-draft-contract";
+import {
   routineScheduleCatalog,
   routineScheduleState,
 } from "@/lib/routine-schedule-view";
@@ -142,6 +146,16 @@ export async function readRoutineRecoveryContext(): Promise<RoutineRecoveryConte
   if (result.kind !== "reply" || !result.response.ok)
     throw new Error("Routine recovery unavailable");
   return routineRecoveryContext.parse(result.body);
+}
+export async function readRoutineDraftContext(): Promise<RoutineDraftContext> {
+  const result = await request(
+    "/api/chores/routines/recovery?draft=1",
+    { headers: { "X-Member-Protocol": "2" } },
+    16384,
+  );
+  if (result.kind !== "reply" || !result.response.ok)
+    throw new Error("Routine draft context unavailable");
+  return routineDraftContext.parse(result.body);
 }
 export async function readRoutineRecoveryReview(
   entry: RoutineRecoveryEntry,

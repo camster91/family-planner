@@ -440,3 +440,74 @@ No tests/typecheck/lint/build/browser/rendered/native, database/schema/client or
 hosted CI command ran. Next: durable unsent drafts, legacy/detached management,
 scheduled-once presentation and full lifecycle/rollback source reconciliation,
 then the consolidated QA/release gates. #450 remains open at full scope.
+
+
+## Continuation: durable unsent local documents and attached-link handoff — 2026-10-20
+
+A separate `herewoven.routine-draft.v1` document now holds incomplete form state,
+including canonical/client identities, explicit removals and stable neighboring
+step IDs for restoration. Empty fields and invalid numeric ranges may be retained
+locally; this is not a valid command or permission to execute. The one-document
+journal is bounded to 2 MiB and its entry to 1 MiB. Current user/family metadata
+must match the owner context. A draft-specific server scope derives from the
+existing routine person scope while retaining owner ID, household scope and token
+generation. The normal owned envelope/location format and retirement scanner are
+reused, with no ad-hoc storage suffix that would escape existing purge matching.
+The read-only `?draft=1` context mode authenticates/renews the same current parent
+and returns capabilities/ownership, never the draft's content.
+
+`createRoutineDraftStore` adapts the shared owned journal without exposing send.
+Its explicit local-only compare-and-replace requires the exact prior body and
+still checks fresh ownership, lease and candidate baselines. Ordinary saved
+network intents do not opt in and stay immutable. Even a direct generic send call
+on the configured local kind refuses before the transport callback. Begin,
+replace, clear and explicit stored-version adoption serialize; document generations
+invalidate queued old autosaves so discarded work cannot resurrect. Clear refuses
+uncertain/conflicting state and checks the expected body before removing it.
+
+Reload validates the whole stored document; it does not silently merge another
+controller's newer body or an externally cleared document into an open form.
+Such changes hold with explicit load-saved confirmation. Known partial writes keep
+the exact proposed transition and only explicit storage recovery can repair that
+transition. Disabled Points & streaks values are nulled, including removed steps,
+and physically updated before a restored draft is returned. Canonical server
+points remain untouched; a later command's null points preserve their stored
+values. The controller never invents an account/profile from a label.
+
+The manager now begins a verified local document before opening the form, restores
+it after context checks, debounces edits for 1.5 seconds and flushes the latest
+snapshot before closing/submitting. Saved status means read-back-confirmed owned
+storage, not a family mutation. Pending drafts/request writes use the existing
+navigation guard and beforeunload protection. Final request staging still freezes
+the original body/key/date and requires an explicit recovered retry. A confirmed
+save or explicit dismissal clears the local draft; the UI states when dismissing
+a saved request also discards the open draft. Epoch checks retain only current
+owner responses; unsent draft content never goes to a mutation endpoint. Restore
+and member selection still require live owned context: this does not enable an
+unauthenticated offline form or claim physical process-death acceptance.
+
+Older direct/intercepted routine-stack and canonical-root edit pages now detect
+exact attached owned schedule identities and present an EN/ES handoff before the
+one-day form loads. The link deliberately performs full navigation to leave the
+old intercepted slot. The old stack GET also renews canonical parent authority
+and refuses scheduled metadata before serializing old step data; a raced legacy
+client gets a localized new-controls link rather than another failed save loop.
+Ordinary individual copies keep their occurrence editor and equal-named legacy
+stacks are not adopted. Unknown definitions remain fail-closed; detached roots
+are not falsely presented as editable through their former stack.
+
+Authored, **unrun** cases cover incomplete drafts, same-key body immutability
+outside local opt-in, local send refusal, multi-controller changed/cleared state,
+explicit adoption, queued stale autosave rejection, quota-after-write recovery,
+owner change and point-value purge on restore. Neighbor-based remove/restore
+source covers multiple adjacent steps restored in either order. Existing guarded
+PostgreSQL source adds owned/foreign attached IDs, equal-name legacy stacks and
+individual-copy handoff boundaries. No tests, typecheck, lint, build, rendered/
+browser/native, schema/client or hosted CI ran. No environment, public capability,
+provider, real data, push/merge/deploy or release was changed.
+
+Remaining before #450 code acceptance: detached-series future controls, clean
+sheet Back behavior, recovery presentation/async-epoch review and scheduled-once
+availability; then full lifecycle/erasure and supported-client rollback source
+audit. Device/DB/EN/ES/accessibility behavior still needs the later consolidated
+QA. Preserve the transferred #559 scope; this is not issue or goal completion.

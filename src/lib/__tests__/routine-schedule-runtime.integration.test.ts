@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { assertFixtureTargetAllowed } from "@/lib/fixtures/guard";
 import { readRoutineScheduleCatalog } from "@/lib/routine-schedule-catalog";
+import { readRoutineScheduleHandoff } from "@/lib/routine-schedule-handoff";
 import {
   saveRoutineSchedule,
   reviewRoutineSchedule,
@@ -344,6 +345,58 @@ suite("canonical scheduled routine commands", () => {
         data: { features: { chores: true } },
       });
     }
+  });
+  it("hands off owned scheduled identities without adopting same-name legacy stacks or redirecting individual copies", async () => {
+    const created = await create();
+    if (created.body.action !== "create") throw new Error("fixture mismatch");
+    const expected = `/dashboard/chores/schedules?stack_id=${created.proof.stackId}`;
+    expect(
+      await readRoutineScheduleHandoff(
+        prisma!,
+        familyId,
+        "stack",
+        created.proof.stackId,
+      ),
+    ).toBe(expected);
+    expect(
+      await readRoutineScheduleHandoff(
+        prisma!,
+        otherFamily,
+        "stack",
+        created.proof.stackId,
+      ),
+    ).toBeNull();
+    expect(
+      await readRoutineScheduleHandoff(
+        prisma!,
+        familyId,
+        "chore",
+        created.proof.roots[0],
+      ),
+    ).toBe(expected);
+    const copy = await prisma!.chore.findFirstOrThrow({
+      where: {
+        family_id: familyId,
+        recurrence_id: created.proof.roots[0],
+        id: { not: created.proof.roots[0] },
+      },
+      select: { id: true },
+    });
+    expect(
+      await readRoutineScheduleHandoff(prisma!, familyId, "chore", copy.id),
+    ).toBeNull();
+    const legacy = await prisma!.routineStack.create({
+      data: {
+        id: crypto.randomUUID(),
+        family_id: familyId,
+        created_by: parent,
+        label: created.body.label,
+        fingerprint: "fixture-legacy",
+      },
+    });
+    expect(
+      await readRoutineScheduleHandoff(prisma!, familyId, "stack", legacy.id),
+    ).toBeNull();
   });
   it("pause preserves root snapshots and all evidence/today rows, pruning only untouched future copies without reordering steps", async () => {
     const { proof } = await create(),

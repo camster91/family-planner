@@ -14,7 +14,11 @@ import {
   ROUTINE_RECOVERY_CONTRACT,
   routineRecoveryReviewInput,
 } from "@/lib/routine-schedule-recovery-contract";
-import { routineRecoveryWritingEnabled } from "@/lib/routine-schedule-owner";
+import {
+  routineRecoveryWritingEnabled,
+  routineDraftOwner,
+} from "@/lib/routine-schedule-owner";
+import { ROUTINE_DRAFT_CONTRACT } from "@/lib/routine-draft-contract";
 import {
   openRoutineSchedule,
   routineResponse,
@@ -27,9 +31,20 @@ export async function GET(request: NextRequest) {
   try {
     const opened = await openRoutineSchedule(request);
     if (!opened.ok) return opened.response;
-    await prisma!.$transaction((tx) =>
+    const capabilities = await prisma!.$transaction((tx) =>
       routineScheduleAuthority(tx, opened.actor),
     );
+    if (new URL(request.url).searchParams.get("draft") === "1") {
+      const owner = routineDraftOwner(opened.owner);
+      return routineResponse({
+        contract: ROUTINE_DRAFT_CONTRACT,
+        enabled: routineRecoveryWritingEnabled() && owner !== null,
+        owner,
+        pointsEnabled: capabilities.pointsEnabled,
+        userId: opened.actor.userId,
+        familyId: opened.actor.familyId,
+      });
+    }
     return routineResponse({
       contract: ROUTINE_RECOVERY_CONTRACT,
       enabled: routineRecoveryWritingEnabled() && opened.owner !== null,
