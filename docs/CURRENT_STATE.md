@@ -1,5 +1,31 @@
 # Current State
 
+## Routine recurrence adapter source — 2026-10-20
+
+The canonical expander now consumes known private routine definitions before
+legacy frequency handling. Attached stacks renew household-scoped stack schedule,
+state, cue and authored step membership/order; detached roots continue from their
+own saved definition. Existing account/member authority and a shared profile
+eligibility helper renew future owners without creating login accounts. Unknown,
+paused/stopped, erased and rollout-paused definitions hold. Both private gates
+remain off and the coordinator remains unrouted.
+
+Future copies snapshot reviewed content, current canonical subject, cue, duration,
+label and order. Existing dates/history are left intact; off-schedule evidence
+does not hide eligible dates. Pure bounded windows reuse canonical UTC date-only
+arithmetic: seven daily slots, four weeks of selected weekdays or three monthly
+slots, with month-end anchor retention and no missed-day catch-up. One-off work
+uses its fixed reviewed effective/start day and cannot move forward on each read.
+The parent coordinator now tops up active roots inside the same transaction as
+its keyed receipt, so expansion failure rolls back the request.
+
+Unit source for windows/authority/stack coherence/detached snapshots/holds is
+authored; guarded integration source now accounts for canonical generated copies
+when checking conservative pause pruning. Nothing was executed beyond formatting
+and source inspection. Inactive-root visibility/completion and legacy stack-editor
+guards, owned recovery, routes and parent controls remain next. No QA/typecheck/
+lint/build/browser/native, schema/client operation, push/merge/deploy or activation.
+
 ## Private routine coordinator source — 2026-10-20
 
 Ordinary chore JSON routes and server page strip private future definitions;

@@ -5,6 +5,7 @@ import { lockUser, lockHousehold } from "@/lib/household-lock";
 import { normalizeFeatures, isFeatureEnabled } from "@/lib/features";
 import { choreAssigneeForCreateInTx } from "@/lib/chore-member-subject";
 import { profileChoreAssigneeInTx } from "@/lib/chore-profile";
+import { expandSeriesInTx } from "@/lib/recurringChores";
 import {
   isProfileChoreEnabled,
   isProfileChoreRecurrenceSupported,
@@ -26,8 +27,14 @@ import {
   type RoutineFutureSnapshot,
 } from "@/lib/routine-schedule";
 export const ROUTINE_SCHEDULE_ACTION = "routine.schedule.v1";
-export const ROUTINE_SCHEDULE_WRITE_ENV = "ROUTINE_SCHEDULE_ENABLED";
-export const ROUTINE_SCHEDULE_READY_ENV = "ROUTINE_SCHEDULE_ROLLBACK_READY";
+import {
+  ROUTINE_SCHEDULE_WRITE_ENV,
+  ROUTINE_SCHEDULE_READY_ENV,
+} from "@/lib/routine-schedule-gates";
+export {
+  ROUTINE_SCHEDULE_WRITE_ENV,
+  ROUTINE_SCHEDULE_READY_ENV,
+} from "@/lib/routine-schedule-gates";
 export type RoutineScheduleActor = {
   userId: string;
   familyId: string;
@@ -571,6 +578,11 @@ export async function persistRoutineSchedule(
           steps: roots.map((template_id) => ({ template_id })),
         });
         await storeStack(tx, actor, stackId, version, label, config);
+        // The definitions, stack order and canonical upcoming copies commit with
+        // the original receipt. A retry never runs a second top-up effect.
+        if (state === "active")
+          for (const rootId of roots)
+            await expandSeriesInTx(tx, rootId, actor.familyId, now);
         const proof = routineScheduleReceipt.parse({
           protocol: input.protocol,
           requestId: recordId,

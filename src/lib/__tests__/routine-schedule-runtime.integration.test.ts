@@ -200,6 +200,17 @@ suite("canonical scheduled routine commands", () => {
           status: "pending",
         },
       });
+    const untouchedCount = await prisma!.chore.count({
+      where: {
+        family_id: familyId,
+        routine_stack_id: proof.stackId,
+        id: { notIn: proof.roots },
+        is_template: false,
+        status: "pending",
+        due_date: { gt: new Date("2026-10-20T00:00:00.000Z") },
+        photo_url: null,
+      },
+    });
     const {
       label: _label,
       anchor: _anchor,
@@ -226,7 +237,7 @@ suite("canonical scheduled routine commands", () => {
     expect(routineScheduleReceipt.parse(result.body)).toMatchObject({
       state: "paused",
       roots: proof.roots,
-      prunedCount: 1,
+      prunedCount: untouchedCount,
     });
     expect(
       await prisma!.chore.findUnique({ where: { id: copies[2].id } }),

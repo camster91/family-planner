@@ -8,8 +8,8 @@ import type { ChoreFrequency } from '@/types'
 import { planRotationTurns } from '@/lib/chore-rotation'
 import { eligibleChoreAssigneeInTx } from '@/lib/chore-member-subject'
 import { lockHousehold } from '@/lib/household-lock'
-import { isProfileAgeAllowed, profileRoleSchema } from '@/lib/member-subject-contract'
-import { isProfileChoreRecurrenceSupported } from '@/lib/profile-chore-gates'
+import { eligibleProfileChoreAssigneeInTx } from '@/lib/chore-profile-assignee'
+import { expandRoutineScheduleInTx } from '@/lib/routine-schedule-expansion'
 
 const FREQUENCY_CONFIG: Record<Exclude<ChoreFrequency, 'once'>, { occurrences: number; unit: 'day' | 'week' | 'month'; amount: number }> = {
   daily: { occurrences: 7, unit: 'day', amount: 1 },
@@ -81,12 +81,15 @@ export async function expandSeriesInTx(
   })
 
   // Household-scoped: a template of another household is never expanded.
-  if (!original || original.family_id !== familyId || original.frequency === 'once') return 0
-  // Until the scheduled-definition adapter is completed, hold any known or
-  // future private definition. Never expand it using legacy snapshot fields.
+  if (!original || original.family_id !== familyId) return 0
+  // Definitions are authoritative even when the historical root is a one-off.
+  // Unsupported metadata never falls back to legacy snapshot fields.
   const definition = await tx.$queryRaw<{ routine_series_config: unknown }[]>`
     SELECT "routine_series_config" FROM "Chore" WHERE "id" = ${templateId} AND "family_id" = ${familyId}`
-  if (definition.some(row => row.routine_series_config != null)) return 0
+  if (definition.some(row => row.routine_series_config != null)) {
+    return expandRoutineScheduleInTx(tx, original, definition[0].routine_series_config, startOfDay(now).toISOString().slice(0, 10))
+  }
+  if (original.frequency === 'once') return 0
   const assignedTo = original.assigned_to
 
   // A profile series is a gated, canonical member-owned template. Never pass
@@ -94,23 +97,8 @@ export async function expandSeriesInTx(
   // expansion rather than inventing a User or account assignment.
   const profileMemberId = original.assigned_member_id
   if (assignedTo === null) {
-    if (!isProfileChoreRecurrenceSupported()) return 0
     if (!profileMemberId || original.member_subject_erased || original.recurrence_id !== original.id || !original.is_template || original.rotation_member_ids.length > 0) return 0
-    const member = await tx.householdMember.findFirst({
-      where: { id: profileMemberId, family_id: familyId },
-      select: {
-        id: true,
-        family_id: true,
-        role: true,
-        age: true,
-        archived_at: true,
-        erasure_user_id: true,
-        legacy_mapping: { select: { user_id: true } },
-        account_link: { select: { user_id: true } },
-      },
-    })
-    const role = member ? profileRoleSchema.safeParse(member.role) : null
-    if (!member || member.id !== profileMemberId || member.family_id !== familyId || member.archived_at !== null || member.erasure_user_id !== null || member.legacy_mapping !== null || member.account_link !== null || !role?.success || !isProfileAgeAllowed(role.data, member.age)) return 0
+    if (!await eligibleProfileChoreAssigneeInTx(tx, familyId, profileMemberId)) return 0
   }
 
   const windowSize = WINDOW_SIZE[original.frequency as Exclude<ChoreFrequency, 'once'>] * (original.frequency === 'weekly' ? Math.max(1, normalizedWeekdays(original.weekly_days).length) : 1)

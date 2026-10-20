@@ -201,3 +201,52 @@ editor interaction/versioning, exact owned request recovery, bounded route
 contracts, parent list/editor/control UI and EN/ES/role/device behavior. Lifecycle
 erasure/reassignment and old-client rollback still need the consolidated source
 and acceptance audit. Keep this issue open at full transferred #559 scope.
+
+
+## Continuation: canonical future expansion source — 2026-10-20
+
+Replaces the prior intermediate hold for **known active** root definitions only.
+`routine-schedule-expansion.ts` is called by canonical `expandSeriesInTx` under
+the existing household lock, before the legacy one-off early return. Unknown
+metadata never downgrades to old snapshot expansion. Flags are factored into a
+small independent module to avoid a coordinator/profile/expander import cycle.
+Both rollout controls remain unset/off; no route exposes the coordinator.
+
+Attached roots must match their household-owned stack's schedule, state,
+effective day and habit cue and appear in its unique authored step IDs. Label and
+position come from that stack. Detached roots instead use their saved definition
+and create unstacked copies; historical root stack references are not rewritten.
+Current account/member resolution requires the reviewed canonical member ID to
+still match, and profile expansion shares the existing legacy profile-series
+eligibility checks through `chore-profile-assignee.ts`. Ineligible or erased
+subjects do not receive invented fallback assignments or login identities.
+
+The adapter fills a fixed date window rather than counting unrelated retained
+evidence: seven daily slots, four weeks of selected weekdays (maximum 28), three
+monthly slots, or the fixed once day. Dates reuse canonical UTC date-only helpers,
+respect future start/effective floors and monthly anchor clamping, and skip past
+days. Once uses max(reviewed start, effective day); after that day it creates no
+catch-up. Existing occupied dates of any status are preserved. Only newly created
+UUIDs get cue/duration snapshots, along with reviewed title/description/points/
+icon/subject and stack order; no historic row is updated to new content.
+
+The coordinator fills active attached roots after storing all root definitions
+and stack configuration and before committing the original receipt. Thus initial
+and future-edit windows are atomic with the request; receipt replay does not
+reapply expansion. Later existing lazy top-up still bounds additional dates.
+There is no scheduler or notification side effect. Removed detached roots retain
+an independent schedule; later canonical top-up handles their repeating windows.
+
+Authored, **unrun** focused unit source covers bounded selected weekdays,
+month-end retention, once-no-chase, occupied history, detached content snapshots,
+canonical subject remap refusal, profile authority, attached order/coherence and
+unsupported/paused/stopped/erased/rollout holds. Existing guarded DB source now
+calculates the untouched pending-copy count for pause after initial generation.
+No test/build/typecheck/lint/browser/DB/schema/client/native command was run.
+
+Still before exposure: inactive future-root visibility and completion policy on
+account/profile/device paths, legacy current-occurrence stack-edit interaction,
+original-body owned retry recovery, bounded routes, parent list/editor/control
+UI and EN/ES. Lifecycle/reassignment/erasure and supported-client rollback remain
+required, then consolidated QA. This is source progress, not #450 completion,
+activation, release or verified behavior.
