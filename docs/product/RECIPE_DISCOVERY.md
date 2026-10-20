@@ -245,3 +245,44 @@ EN/ES and responsive/native journeys still need the consolidated QA pass.
 No tests/type/lint/build/browser QA, schema generation/migration, provider call,
 push, merge or deployment occurred. Full #460 acceptance remains open; reconcile
 remaining parser review, discovery constraints and reading/scaling before QA.
+
+
+## Cooking portions preview source — 2026-10-19
+
+The saved reader has an EN/ES Cooking portions input and Original reset for known
+base servings. A whole 1–100 target scales reviewed numeric ingredient amounts
+only, preserving the exact authored unit, note, directions and cooking times.
+It does not parse ingredient prose, convert units, guess missing base servings or
+write the Recipe. Invalid input explicitly shows original amounts; unknown base
+servings have no scaler. The prepared-history reader remains an unscaled record.
+Display uses four significant digits so tiny nonzero quantities do not round to
+zero. The preview and rounding policy are visible; canonical amounts remain raw.
+
+The grocery action receives the same valid target and opens the existing
+selection/destination/scaled-amount review before any write. Its explicit request
+ceiling now matches Recipe and ordinary meal servings at 100; bulk prep remains
+1–50. Older grocery servers may refuse a >50 explicit target before writing,
+without a client fallback or clamped request. Existing owned provenance,
+idempotency, per-source duplicate checks and Undo remain the server authority.
+The scaler is local to the loaded recipe version and resets on canonical version
+replacement; it does not rewrite the plan or cooked history.
+
+Focused source covers ratio arithmetic, tiny amounts, original reset, invalid and
+unknown serving states, stable authored directions/data and the 100/101 grocery
+boundary. Existing boundary fixtures now use 101 for invalid explicit requests.
+No tests/type/lint/build/browser QA, provider call, schema change, push, merge or
+deployment. Later integrated QA must inspect scaling alongside editor, recipe
+curation and pending grocery add/Undo ownership across version/role/device paths.
+
+
+Grocery add/Undo now own the pending-navigation controller while a request or
+uncertain recovery is active. The reader freezes portion changes, recipe edit/
+curation controls and reuse links during that ownership. Exact add body/key are
+retained even when a later retry is refused; uncertain Undo keeps its original
+receipt and retry control beyond the display timer. New review cannot replace
+an owned unknown action. Ownership releases before canonical-change callbacks
+on known completion. The cooking reader resets its local portion choice on a
+canonical version change without keying/remounting the grocery component by
+version. Focused unexecuted source covers retained ownership/body/key through
+lost response, later refusal and eventual confirmation. Rendered/native Back
+and full parent-sheet ownership remain required consolidated QA evidence.

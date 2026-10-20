@@ -50,7 +50,7 @@ export const addFromRecipeSchema = z
     mealId: idString.optional(),
     batchId: idString.optional(),
     listId: idString.optional(),
-    servings: z.number().int().min(1).max(50).optional(),
+    servings: z.number().int().min(1).max(100).optional(),
     ingredientIds: z.array(idString).min(1).max(FROM_RECIPE_MAX_INGREDIENTS).optional(),
   })
   .strict()

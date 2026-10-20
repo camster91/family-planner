@@ -8,7 +8,7 @@
  */
 import * as React from "react";
 import { Clock, Users } from "lucide-react";
-import { formatAmount } from "@/lib/grocery-display";
+import { formatRecipeAmount } from "@/lib/recipe-scaling";
 import { publicRecipeUrl } from "@/lib/recipe-discovery";
 import { formatMinutes } from "@/lib/meal-slots";
 import { useTranslation } from "@/i18n";
@@ -131,7 +131,7 @@ export function RecipeDetail({
             data-testid="recipe-ingredients"
           >
             {recipe.ingredients.map((line) => {
-              const amount = formatAmount(line.amount, line.unit);
+              const amount = formatRecipeAmount(line.amount, line.unit, locale);
               return (
                 <li
                   key={line.id}

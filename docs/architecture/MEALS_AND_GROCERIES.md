@@ -600,3 +600,15 @@ When a person's `PATCH /api/lists/items/update` changes a grocery/shopping row f
 - Per-store layouts (a household that shops at two stores with different walking orders); today there is one learned order per household.
 - Editing `Ingredient.section` from the recipe screen, and a way to review or reset all of a household's section choices at once.
 - A design reference for the section headers, the "Move" sheet and the switch (#150–#153), as for #252.
+
+
+### Recipe portion preview additive candidate — 2026-10-19 (#460)
+
+Saved Recipe detail locally previews 1–100 target servings when its canonical base
+is known. Only reviewed numeric ingredient quantities scale; no unit conversion,
+raw-text ingredient inference, stock change or canonical write. Recipe-grocery
+explicit `servings` now permits 1–100, matching ordinary meals and recipes; the
+prep-domain 1–50 cap remains. Review/confirmation, household provenance and owned
+Undo still govern grocery mutation. Older grocery servers can refuse >50 before
+write; no automatic clamping or fallback changes the reviewed payload. Source
+candidate only: the full integrated QA/release gate remains open.

@@ -208,7 +208,7 @@ it.each([
   },
 );
 
-it.each([0, 1.5, 51, 100, NaN, Infinity])(
+it.each([0, 1.5, 101, NaN, Infinity])(
   "rejects explicit servings %s before commit without clamping",
   async (servings) => {
     render(<AddToGroceriesButton recipeId="recipe-a" servings={servings} />);
@@ -216,7 +216,7 @@ it.each([0, 1.5, 51, 100, NaN, Infinity])(
       screen.getByRole("button", { name: "Add ingredients to groceries" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Servings must be a whole number from 1 to 50.",
+      "Servings must be a whole number from 1 to 100.",
     );
     expect(
       screen.queryByRole("button", { name: "Add selected ingredients" }),

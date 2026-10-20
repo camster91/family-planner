@@ -1,5 +1,23 @@
 # Current State
 
+## Recipe cooking portion preview source — 2026-10-19
+
+Saved recipe detail now has a local EN/ES Cooking portions preview (1–100),
+Original reset and grocery intent using the same selected portion count. Only
+reviewed numeric ingredient amounts scale; units, authored directions and times
+stay as written. Unknown base servings stay unscaled. Invalid input shows original
+amounts with an explicit correction message. Canonical recipes and prepared
+history are not rewritten. Tiny amounts use significant-digit formatting so a
+small nonzero quantity is not displayed as zero.
+
+The explicit recipe-grocery request ceiling now matches existing recipe and
+ordinary meal servings (100), replacing its inconsistent 50 limit. Bulk prep's
+50-portion cap is unchanged. Grocery add/Undo own pending navigation and retain
+original recovery through later refusal. The reader freezes preview/edit/curation/
+reuse controls during that ownership. Source tests and architecture notes are updated;
+none run. No QA, schema, provider, push, merge or deployment action occurred.
+Remaining discovery/parser and broader issue reconciliation are still open.
+
 ## Saved recipe reuse and keyed ordinary meal create source — 2026-10-19
 
 Saved recipe detail now links directly to Plan a meal and Add to prep. A recipe
