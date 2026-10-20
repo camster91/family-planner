@@ -93,16 +93,34 @@ export default function PairTabletDialog({
   const labelRef = React.useRef<HTMLInputElement>(null);
   const digitsRef = React.useRef<HTMLInputElement>(null);
   const labelForDone = React.useRef(label);
+  const attempt = React.useRef(0);
+  const operation = React.useRef<
+    "create" | "confirm" | "deny" | "remove" | null
+  >(null);
+  const openRef = React.useRef(open);
+  const stepRef = React.useRef(step);
+  openRef.current = open;
+  stepRef.current = step;
+  const currentAttempt = React.useCallback(
+    (token: number) => openRef.current && attempt.current === token,
+    [],
+  );
 
   React.useEffect(() => {
+    attempt.current += 1;
+    operation.current = null;
     if (open) {
       setStep({ kind: "label" });
+      setRetryState("idle");
       setLabel(replace ? replace.label : textRef.current("kitchen"));
       setRemoveOld(true);
       setDigits("");
       setError(null);
       setBusy(false);
     }
+    return () => {
+      attempt.current += 1;
+    };
   }, [open, replace]);
 
   const pairingId =
@@ -125,7 +143,7 @@ export default function PairTabletDialog({
 
   // Countdown.
   React.useEffect(() => {
-    if (expiresAt === null) return;
+    if (!open || expiresAt === null) return;
     setNow(Date.now());
     const id = window.setInterval(() => {
       const t = Date.now();
@@ -133,7 +151,7 @@ export default function PairTabletDialog({
       if (t >= expiresAt) setStep({ kind: "ended", reason: "expired" });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [expiresAt]);
+  }, [open, expiresAt]);
 
   const [retryState, setRetryState] = React.useState<
     "idle" | "busy" | "failed"
@@ -141,7 +159,9 @@ export default function PairTabletDialog({
 
   /** Recovery when the server did not remove the replaced tablet: a plain revoke, checked. */
   const removeOldNow = async () => {
-    if (!replace || step.kind !== "done") return;
+    if (!replace || step.kind !== "done" || operation.current) return;
+    const token = attempt.current;
+    operation.current = "remove";
     setRetryState("busy");
     try {
       const res = await fetch(
@@ -152,35 +172,61 @@ export default function PairTabletDialog({
           body: JSON.stringify({ reason: "replaced" }),
         },
       );
+      if (!currentAttempt(token)) return;
       if (!res.ok) throw new Error(String(res.status));
-      setStep({ ...step, replaced: { removed: true } });
+      setStep((current) =>
+        currentAttempt(token) && current.kind === "done"
+          ? { ...current, replaced: { removed: true } }
+          : current,
+      );
       setRetryState("idle");
     } catch {
-      setRetryState("failed");
+      if (currentAttempt(token)) setRetryState("failed");
+    } finally {
+      if (currentAttempt(token)) operation.current = null;
     }
   };
 
   // Poll the pairing while waiting for the tablet (claim) or for issue (paired).
   React.useEffect(() => {
-    if (!polling || !pairingId) return;
+    if (!open || !polling || !pairingId) return;
+    const token = attempt.current;
     let cancelled = false;
     let timer: number | undefined;
+    const advance = (next: Step) =>
+      setStep((current) =>
+        currentAttempt(token) &&
+        (current.kind === "code" || current.kind === "connecting") &&
+        current.kind === step.kind &&
+        current.pairingId === pairingId
+          ? next
+          : current,
+      );
     const poll = async () => {
-      if (cancelled) return;
+      if (cancelled || !currentAttempt(token)) return;
       let delay = PAIRING_POLL_MS;
       try {
         const res = await fetch(
           `/api/family/devices/pairings/${encodeURIComponent(pairingId)}`,
           { cache: "no-store" },
         );
-        if (cancelled) return;
+        if (cancelled || !currentAttempt(token)) return;
         if (res.ok) {
           const body = (await res.json()) as {
             status: string;
             replaces?: { deviceId: string; removed: boolean } | null;
           };
+          const active = stepRef.current;
+          if (
+            cancelled ||
+            !currentAttempt(token) ||
+            (active.kind !== "code" && active.kind !== "connecting") ||
+            active.kind !== step.kind ||
+            active.pairingId !== pairingId
+          )
+            return;
           if (body.status === "claimed" && step.kind === "code") {
-            setStep({
+            advance({
               kind: "confirm",
               pairingId,
               expiresAt: expiresAt ?? Date.now(),
@@ -189,7 +235,7 @@ export default function PairTabletDialog({
           }
           if (body.status === "paired") {
             setRetryState("idle");
-            setStep({
+            advance({
               kind: "done",
               label: labelForDone.current,
               replaced: body.replaces
@@ -199,7 +245,7 @@ export default function PairTabletDialog({
             return;
           }
           if (body.status === "expired" || body.status === "cancelled") {
-            setStep({ kind: "ended", reason: body.status });
+            advance({ kind: "ended", reason: body.status });
             return;
           }
         } else if (res.status === 429) {
@@ -209,14 +255,15 @@ export default function PairTabletDialog({
       } catch {
         // Offline for a moment: keep polling until the code expires.
       }
-      if (!cancelled) timer = window.setTimeout(poll, delay);
+      if (!cancelled && currentAttempt(token))
+        timer = window.setTimeout(poll, delay);
     };
     timer = window.setTimeout(poll, PAIRING_POLL_MS);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [polling, pairingId, expiresAt, step.kind]);
+  }, [open, polling, pairingId, expiresAt, step.kind, currentAttempt]);
 
   const cancelPairing = async (id: string) => {
     await fetch(`/api/family/devices/pairings/${encodeURIComponent(id)}`, {
@@ -225,6 +272,8 @@ export default function PairTabletDialog({
   };
 
   const close = () => {
+    attempt.current += 1;
+    operation.current = null;
     // Closing mid-pairing cancels the code, so it cannot be used later.
     if (pairingId && step.kind !== "connecting") void cancelPairing(pairingId);
     if (step.kind === "done" || step.kind === "connecting") onPaired();
@@ -233,11 +282,14 @@ export default function PairTabletDialog({
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!openRef.current || operation.current) return;
     const trimmed = label.trim();
     if (!trimmed || trimmed.length > 40) {
       setError({ key: "nameLengthLong" });
       return;
     }
+    const token = attempt.current;
+    operation.current = "create";
     setBusy(true);
     setError(null);
     try {
@@ -256,16 +308,28 @@ export default function PairTabletDialog({
           code: string;
           expiresAt: string;
         };
+        if (!currentAttempt(token)) {
+          // Closing before POST returned could not yet know this code's ID.
+          // Retire only that abandoned attempt; never reopen it in a new dialog.
+          if (typeof body.pairingId === "string" && body.pairingId)
+            void cancelPairing(body.pairingId);
+          return;
+        }
         labelForDone.current = trimmed;
-        setStep({
-          kind: "code",
-          pairingId: body.pairingId,
-          code: body.code,
-          expiresAt: Date.parse(body.expiresAt),
-        });
+        setStep((current) =>
+          currentAttempt(token)
+            ? {
+                kind: "code",
+                pairingId: body.pairingId,
+                code: body.code,
+                expiresAt: Date.parse(body.expiresAt),
+              }
+            : current,
+        );
         return;
       }
       const { code, retryAfter } = await readError(res);
+      if (!currentAttempt(token)) return;
       if (code === "DEVICE_LIMIT_REACHED") {
         setError({ key: replace && !removeOld ? "limitRemove" : "limit" });
       } else if (replace && res.status === 404) {
@@ -278,19 +342,38 @@ export default function PairTabletDialog({
         setError({ key: "createFailed" });
       }
     } catch {
-      setError({ key: "unreachable", params: { brand: PRODUCT_BRAND.name } });
+      if (currentAttempt(token))
+        setError({ key: "unreachable", params: { brand: PRODUCT_BRAND.name } });
     } finally {
-      setBusy(false);
+      if (currentAttempt(token)) {
+        operation.current = null;
+        setBusy(false);
+      }
     }
   };
 
   const confirm = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (step.kind !== "confirm") return;
+    if (step.kind !== "confirm" || operation.current || !openRef.current)
+      return;
     if (!/^\d{4}$/.test(digits)) {
       setError({ key: "digitsRequired" });
       return;
     }
+    const token = attempt.current;
+    operation.current = "confirm";
+    const stillConfirming = () =>
+      currentAttempt(token) &&
+      stepRef.current.kind === "confirm" &&
+      stepRef.current.pairingId === step.pairingId;
+    const advance = (next: Step) =>
+      setStep((current) =>
+        currentAttempt(token) &&
+        current.kind === "confirm" &&
+        current.pairingId === step.pairingId
+          ? next
+          : current,
+      );
     setBusy(true);
     setError(null);
     try {
@@ -302,8 +385,9 @@ export default function PairTabletDialog({
           body: JSON.stringify({ digits }),
         },
       );
+      if (!stillConfirming()) return;
       if (res.ok) {
-        setStep({
+        advance({
           kind: "connecting",
           pairingId: step.pairingId,
           expiresAt: step.expiresAt,
@@ -311,9 +395,10 @@ export default function PairTabletDialog({
         return;
       }
       const { code, attemptsLeft } = await readError(res);
+      if (!stillConfirming()) return;
       setDigits("");
       if (code === "PAIRING_DIGITS_MISMATCH") {
-        if (attemptsLeft === 0) setStep({ kind: "ended", reason: "mismatch" });
+        if (attemptsLeft === 0) advance({ kind: "ended", reason: "mismatch" });
         else
           setError({
             key:
@@ -325,22 +410,33 @@ export default function PairTabletDialog({
             params: attemptsLeft === null ? undefined : { count: attemptsLeft },
           });
       } else if (code === "PAIRING_EXPIRED") {
-        setStep({ kind: "ended", reason: "expired" });
+        advance({ kind: "ended", reason: "expired" });
       } else if (code === "PAIRING_CANCELLED") {
-        setStep({ kind: "ended", reason: "cancelled" });
+        advance({ kind: "ended", reason: "cancelled" });
       } else {
         setError({ key: "confirmFailed" });
       }
     } catch {
-      setError({ key: "unreachable", params: { brand: PRODUCT_BRAND.name } });
+      if (stillConfirming())
+        setError({ key: "unreachable", params: { brand: PRODUCT_BRAND.name } });
     } finally {
-      setBusy(false);
+      if (currentAttempt(token)) {
+        operation.current = null;
+        setBusy(false);
+      }
     }
   };
 
   const deny = async () => {
-    if (step.kind !== "confirm") return;
+    if (step.kind !== "confirm" || operation.current === "deny") return;
+    // A deliberate rejection supersedes any pending confirmation UI result.
+    const token = ++attempt.current;
+    operation.current = "deny";
+    setBusy(true);
     await cancelPairing(step.pairingId);
+    if (!currentAttempt(token)) return;
+    operation.current = null;
+    setBusy(false);
     setStep({ kind: "ended", reason: "denied" });
   };
 
@@ -565,14 +661,7 @@ export default function PairTabletDialog({
               </button>
             </div>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              onPaired();
-              onClose();
-            }}
-            className={primaryButtonClass}
-          >
+          <button type="button" onClick={close} className={primaryButtonClass}>
             {text("done")}
           </button>
         </div>
@@ -587,6 +676,10 @@ export default function PairTabletDialog({
             <button
               type="button"
               onClick={() => {
+                attempt.current += 1;
+                operation.current = null;
+                setBusy(false);
+                setRetryState("idle");
                 setError(null);
                 setDigits("");
                 setStep({ kind: "label" });
@@ -597,7 +690,7 @@ export default function PairTabletDialog({
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={close}
               className={neutralButtonClass}
             >
               {text("close")}

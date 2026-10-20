@@ -1,5 +1,32 @@
 # Current State
 
+## Parent Devices source map and pairing attempt guards — 2026-10-20
+
+Original #445 criteria now map to current typed management/pairing/server/helper
+source in `docs/architecture/PARENT_DEVICE_LOCALIZATION.md`, with original role,
+request/timer/private/native/gallery/hosted/served requirements still deferred.
+No old unit/browser/build/capture history is treated as current proof.
+
+A confirmed late-response gap was fixed: polling now checks cancellation after
+streamed JSON and advances only the current matching step/pairing ID, including
+when expiry was already queued. Each opening owns an attempt generation, retired
+by close/unmount/replacement/new-code/denial; late create/confirm/revoke results
+cannot overwrite a newer opening or clear its pending state. Closed dialogs stop
+poll/countdown effects. Immediate operation guards prevent duplicate submissions.
+An abandoned creation whose response arrives later cancels only that returned
+code through the existing endpoint. Fresh openings clear prior retry presentation.
+These are bounded lifecycle corrections, distinct from localization; no locale
+was added to effect dependencies. Original intervals/backoff/request bodies,
+parent/household/session/replacement policy and success callbacks remain.
+
+Fabricated mocked-endpoint cases are authored for late expired poll bodies,
+close/reopen, closed polling, abandoned code cancellation, immediate guards and
+late confirmation. All remain unrun; full locale/native/focus/timer/deny/replacement/
+private/role/actual-route and hardware/store/customer proof is still pending.
+Only source inspection, edits and formatting occurred. No tests/types/lint/build/
+browser/native/schema/CI/device/pairing/provider operations, push, merge, deploy
+or activation. Galleries/old reports were not edited. Full goal remains active.
+
 ## Mounted Settings source map and subscription-read recovery — 2026-10-20
 
 Original #443 requirements now map to current scoped Settings/child presentations
