@@ -1,5 +1,20 @@
 # Current State
 
+## Ingredient-presence confidence source — 2026-10-19
+
+Cooking/grocery review now distinguish saved ingredient links from name-only
+matches and state that amounts/units still need checking. Zero/invalid/finished
+stock is not a match; SQL excludes zero stock before cooking/use-soon caps.
+Household-inconsistent recipes are skipped with incomplete disclosure. A bounded
+cook-response contract refuses contradictory/future sufficiency metadata while
+retaining legacy presence replies. All-matched recipes still offer grocery review.
+Today personal wording follows presence semantics; shared DTOs gain no private data.
+
+Source fixtures/tests and EN/ES copy are updated, not run. No QA/build/browser/
+native, schema/provider/account, push, merge or deployment action occurred.
+Quantity sufficiency/conversion is not inferred. Next: refresh/offline/native
+reconciliation. Full matrix: `product/FOOD_CAPTURE.md`.
+
 ## Reviewed stock edit/remove source — 2026-10-19
 
 Personal edits and confirmed removals now use the same atomic change/recovery

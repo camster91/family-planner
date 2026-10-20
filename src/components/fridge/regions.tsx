@@ -292,7 +292,7 @@ export function dinnerRecipeLine(
 }
 
 /**
- * "2 ingredients missing" for tonight's linked recipe (#122), or null when
+ * "2 ingredients not found in inventory" for tonight's linked recipe (#122), or null when
  * nothing is missing or the count is unknown (inventory off, shared device,
  * no recipe, or a recipe without ingredients).
  */

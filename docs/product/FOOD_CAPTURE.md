@@ -18,7 +18,7 @@ eligibility, native camera acceptance and rollout remain explicit dependencies.
 | Public product lookup | Fixed-host bounded Open Food Facts v3 adapter with explicit lookup/apply and attribution; all deployment gates off | Data reuse/attribution approval, coverage, cost/usage and consolidated QA required before activation; no provider calls performed |
 | Private product corrections | FoodProduct recognition metadata and immutable stock snapshots, atomic revision-checked opt-in corrections; export/erasure wired | Additive migration/client generation and disposable-DB/isolation acceptance deferred; never a second stock store |
 | Package/label/date photo and receipt | Dedicated versioned document suggestions, printed-evidence/date apply, receipt redaction acknowledgement, one-item review and atomic label snapshots | Source only; separate deployment gate stays off pending document-processing/provider acceptance and consolidated QA |
-| Stock lifecycle | Versioned atomic consume/discard/Undo/edit/remove, current authority, reviewed versions and exact recovery sheet are coded | Ingredient/unit confidence, refresh/offline/native reconciliation and consolidated QA remain |
+| Stock lifecycle | Versioned atomic changes, reviewed versions/recovery and explicit link/name presence hints are coded; zero stock does not match | Refresh, durable offline/native reconciliation and consolidated QA remain; quantity sufficiency/unit conversion are not inferred |
 | Cross-device/offline | No new intake queue/manifest action advertised | #135/#473 compatibility, unsupported/offline draft recovery and actual native lifecycle proof |
 | Provider/model eligibility | #567 retains its dependency | No paid/Gemini activation, raw-media retention or external household processing added |
 
@@ -298,3 +298,40 @@ the versioned endpoint. EN/ES review labels and focus restoration are wired.
 Tests are authored, not executed. No QA/build/browser/native, generation/migration,
 provider/account action, push, merge or deployment occurred. Next: ingredient/unit
 matching confidence and refresh/offline/native compatibility reconciliation.
+
+## Honest ingredient-presence matching source — 2026-10-19
+
+Cooking suggestions retain ADR-0007's canonical presence-only rule: exact saved
+Ingredient link first, normalized-name fallback for unlinked stock, no semantic
+AI substitution, cross-unit conversion or enough-for-recipe inference. Matches
+now carry `linked`/`name` provenance. Known zero/non-finite/non-positive quantities
+and finished stock are excluded by the index; SQL excludes zero stock before
+cooking/use-soon caps. Unknown amounts can still identify a food, with an explicit
+amount/unit check. Existing expiry rules remain unchanged.
+
+Cook replies add `matching: presence_only` and comparison-incomplete metadata.
+Owned recipes containing foreign ingredient links are skipped whole, never
+partially compared or returned with foreign names. Malformed/oversized suggestion
+metadata is skipped with incomplete disclosure. The personal HTTP reader validates
+bounded counts, IDs, coverage, disjoint ingredient sets and known match modes;
+old replies remain readable with match-details-unavailable copy. New or contradictory
+sufficiency modes refuse instead of presenting unsupported claims.
+
+Inventory shows Found/matched wording plus a calm amount/unit/condition reminder
+and collapsed match details. All-matched recipes still offer the existing canonical
+grocery review, because presence does not prove enough stock. Unmatched-only adds
+keep their explicit reviewed selection; no stock decrement or inferred shortage is
+written. Grocery review receives optional link/name provenance and translated hints;
+legacy replies still work. Every add still needs the existing ingredient/list review.
+
+Today's personal dinner count uses the same zero-stock/matching rule and says
+not found in inventory rather than declaring real-world absence. Inconsistent
+ingredient ownership suppresses the count. Shared-device DTOs still omit this
+count, and no stock quantities, ingredient names or match arrays are added to
+shared surfaces. The shared Use soon select remains its original minimal fields.
+
+Focused contract/pure/isolation/UI and existing fixture sources are updated,
+not executed. No QA/typecheck/lint/build/browser/native, schema/provider/account,
+push, merge or deployment action occurred. This is matching transparency, not
+calibrated AI/OCR accuracy, quantity sufficiency or native acceptance. Next:
+bounded refresh and durable offline/native capability reconciliation.

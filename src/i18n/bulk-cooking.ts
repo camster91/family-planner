@@ -2,6 +2,17 @@
 import { useTranslation } from "@/i18n";
 
 export const bulkCookingEnglish = {
+  stockComparisonUnavailable:
+    "Inventory comparison unavailable. Choose what you need.",
+  stockPresenceOnly:
+    "Matches identify foods only. Check amounts and units before cooking.",
+  stockPartial: "Inventory scan is incomplete.",
+  stockLinked: "Saved ingredient link — check amount and unit",
+  stockNameMatch: "Name match only — confirm food, amount and unit",
+  stockPresent: "Present in inventory — check amount and unit",
+  stockNoMatch: "No inventory match",
+  stockNoMatchPartial: "No match in scanned inventory",
+
   views: "Meal planning views",
   navPlan: "Plan",
   navExplore: "Explore",
@@ -104,6 +115,18 @@ export const bulkCookingEnglish = {
 } as const;
 type Messages = Record<keyof typeof bulkCookingEnglish, string>;
 export const bulkCookingSpanish: Messages = {
+  stockComparisonUnavailable:
+    "No se pudo comparar el inventario. Elige lo que necesitas.",
+  stockPresenceOnly:
+    "Las coincidencias solo identifican alimentos. Revisa cantidades y unidades antes de cocinar.",
+  stockPartial: "La revisión del inventario está incompleta.",
+  stockLinked: "Ingrediente vinculado; revisa cantidad y unidad",
+  stockNameMatch:
+    "Solo coincide el nombre; confirma alimento, cantidad y unidad",
+  stockPresent: "Presente en el inventario; revisa cantidad y unidad",
+  stockNoMatch: "Sin coincidencia en el inventario",
+  stockNoMatchPartial: "Sin coincidencia en el inventario revisado",
+
   views: "Vistas de planificación",
   navPlan: "Plan",
   navExplore: "Explorar",

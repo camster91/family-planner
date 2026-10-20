@@ -56,7 +56,11 @@ export async function GET(request: NextRequest) {
     let targetServings = recipe.servings > 0 ? recipe.servings : 1;
     let batchId = new URL(request.url).searchParams.get("batchId");
     const mealId = new URL(request.url).searchParams.get("mealId");
-    if (mealId && batchId) return NextResponse.json({ error: "Choose a meal or a batch" }, { status: 400 });
+    if (mealId && batchId)
+      return NextResponse.json(
+        { error: "Choose a meal or a batch" },
+        { status: 400 },
+      );
     if (mealId) {
       const meal = await prisma!.familyMeal.findFirst({
         where: { id: mealId, family_id: familyId },
@@ -74,10 +78,26 @@ export async function GET(request: NextRequest) {
     }
     let batchPrepared = false;
     if (batchId) {
-      const batch = await prisma!.mealBatch.findFirst({ where: { id: batchId, family_id: familyId }, select: { total_servings: true, recipe_id: true, prep_session: { select: { family_id: true, prepared_at: true } } } });
-      if (!batch || batch.prep_session.family_id !== familyId) return NextResponse.json({ error: "Bulk dish not found" }, { status: 404 });
-      if (batch.recipe_id !== recipe.id) return NextResponse.json({ error: "That dish does not use this recipe" }, { status: 400 });
-      targetServings = batch.total_servings; batchPrepared = batch.prep_session.prepared_at !== null;
+      const batch = await prisma!.mealBatch.findFirst({
+        where: { id: batchId, family_id: familyId },
+        select: {
+          total_servings: true,
+          recipe_id: true,
+          prep_session: { select: { family_id: true, prepared_at: true } },
+        },
+      });
+      if (!batch || batch.prep_session.family_id !== familyId)
+        return NextResponse.json(
+          { error: "Bulk dish not found" },
+          { status: 404 },
+        );
+      if (batch.recipe_id !== recipe.id)
+        return NextResponse.json(
+          { error: "That dish does not use this recipe" },
+          { status: 400 },
+        );
+      targetServings = batch.total_servings;
+      batchPrepared = batch.prep_session.prepared_at !== null;
     }
     const listRows = await prisma!.list.findMany({
       where: { family_id: familyId, type: { in: ["grocery", "shopping"] } },
@@ -95,6 +115,8 @@ export async function GET(request: NextRequest) {
           state: "available";
           haveIngredientIds: string[];
           truncated: boolean;
+          matching: "presence_only";
+          matches: Array<{ ingredientId: string; kind: "linked" | "name" }>;
         } = { state: "unavailable" };
     // Optional hints must not turn a disabled/failed comparison into a claim of absence.
     try {
@@ -111,6 +133,12 @@ export async function GET(request: NextRequest) {
           state: "available",
           haveIngredientIds: have.map((i) => i.ingredientId),
           truncated: loaded.truncated,
+          matching: "presence_only",
+          matches: have.flatMap((item) =>
+            item.match
+              ? [{ ingredientId: item.ingredientId, kind: item.match }]
+              : [],
+          ),
         };
       }
     } catch {

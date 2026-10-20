@@ -20,8 +20,8 @@ export const todayBoardEnglish = {
   moreLaterToday: "{count} more later today",
   recipe: "Recipe: {title}",
   prep: "Prep {duration}",
-  missingIngredientOne: "1 ingredient missing",
-  missingIngredientMany: "{count} ingredients missing",
+  missingIngredientOne: "1 ingredient not found in inventory",
+  missingIngredientMany: "{count} ingredients not found in inventory",
   mealPlanningOff: "Meal planning is turned off for this household.",
   turnOnMealPlanning: "Turn on meal planning",
   dinnerEmpty: "No dinner planned yet.",
@@ -112,8 +112,9 @@ export const todayBoardSpanish: TodayBoardMessages = {
   moreLaterToday: "{count} más hoy",
   recipe: "Receta: {title}",
   prep: "Preparación {duration}",
-  missingIngredientOne: "Falta 1 ingrediente",
-  missingIngredientMany: "Faltan {count} ingredientes",
+  missingIngredientOne: "1 ingrediente sin coincidencia en el inventario",
+  missingIngredientMany:
+    "{count} ingredientes sin coincidencia en el inventario",
   mealPlanningOff:
     "La planificación de comidas está desactivada para este hogar.",
   turnOnMealPlanning: "Activar la planificación de comidas",

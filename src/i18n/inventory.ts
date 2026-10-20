@@ -6,6 +6,16 @@ import {
 
 /** Owned presentation only. Private names, units, model text and API refusals stay raw. */
 export const inventoryEnglish = {
+  cookPresenceOnly:
+    "Matches identify foods only. Check amounts, units and condition before cooking.",
+  cookMatchDetails: "How these foods matched",
+  cookMatchLinked: "Saved ingredient link",
+  cookMatchName: "Name match only — confirm the food",
+  cookMatchUnknown: "Match details unavailable; check the food and amount.",
+  cookComparisonIncomplete:
+    "Some saved recipes could not be compared. Review their ingredients in Meals.",
+  cookReviewGroceries: "Review recipe groceries",
+
   stockChangeReviewedDetails: "Reviewed changes",
   stockChangeNotRecorded: "Not recorded",
   stockChangePending: "Check the pending food change before starting another.",
@@ -196,18 +206,18 @@ export const inventoryEnglish = {
   recipesEmptyCapped:
     "No match among the recipes and items checked. You have more recipes or items than we can compare at once, so this may be incomplete.",
   recipesEmpty:
-    "No saved recipe uses what you have yet. Add items, or save recipes in Meals, to see ideas here.",
+    "No saved recipe matches recorded stock yet. Add food, or save recipes in Meals, to see ideas here.",
   recipesIncomplete:
     "You have more recipes or items than we can compare at once, so this list may be incomplete.",
-  haveAllOne: "You have all {count} ingredient",
-  haveAllMany: "You have all {count} ingredients",
-  haveSome: "You have {have} of {total} ingredients",
+  haveAllOne: "Found {count} of {count} ingredient in inventory",
+  haveAllMany: "Found {count} of {count} ingredients in inventory",
+  haveSome: "Found {have} of {total} ingredients in inventory",
   cookSoonOne: " · uses {count} item to use soon",
   cookSoonMany: " · uses {count} items to use soon",
-  inStock: "In stock: ",
-  missing: "Missing: ",
+  inStock: "Matched foods: ",
+  missing: "No match: ",
   viewRecipe: "View recipe",
-  addMissing: "Add {count} missing to groceries",
+  addMissing: "Review {count} unmatched for groceries",
   openedDate: "Opened {date}",
   noAmountDate: "No amount or date",
   nothingFridge: "Nothing in the fridge.",
@@ -263,6 +273,17 @@ export const inventoryEnglish = {
 } as const;
 export type InventoryMessage = keyof typeof inventoryEnglish;
 export const inventorySpanish: Record<InventoryMessage, string> = {
+  cookPresenceOnly:
+    "Las coincidencias solo identifican alimentos. Revisa cantidades, unidades y estado antes de cocinar.",
+  cookMatchDetails: "Cómo se identificaron estos alimentos",
+  cookMatchLinked: "Ingrediente vinculado",
+  cookMatchName: "Solo coincide el nombre; confirma el alimento",
+  cookMatchUnknown:
+    "No hay detalles de la coincidencia; revisa el alimento y la cantidad.",
+  cookComparisonIncomplete:
+    "No se pudieron comparar algunas recetas guardadas. Revisa sus ingredientes en Comidas.",
+  cookReviewGroceries: "Revisar compras de la receta",
+
   stockChangeReviewedDetails: "Cambios revisados",
   stockChangeNotRecorded: "Sin registrar",
   stockChangePending: "Comprueba el cambio pendiente antes de iniciar otro.",
@@ -459,15 +480,16 @@ export const inventorySpanish: Record<InventoryMessage, string> = {
     "Aún no hay una receta guardada que use lo que tienes. Añade alimentos o guarda recetas en Comidas para ver ideas aquí.",
   recipesIncomplete:
     "Tienes más recetas o alimentos de los que podemos comparar a la vez, así que esta lista puede estar incompleta.",
-  haveAllOne: "Tienes el {count} ingrediente",
-  haveAllMany: "Tienes los {count} ingredientes",
-  haveSome: "Tienes {have} de {total} ingredientes",
+  haveAllOne: "Se encontró {count} de {count} ingrediente en el inventario",
+  haveAllMany:
+    "Se encontraron {count} de {count} ingredientes en el inventario",
+  haveSome: "Se encontraron {have} de {total} ingredientes en el inventario",
   cookSoonOne: " · usa {count} alimento que hay que usar pronto",
   cookSoonMany: " · usa {count} alimentos que hay que usar pronto",
-  inStock: "Disponible: ",
-  missing: "Falta: ",
+  inStock: "Alimentos identificados: ",
+  missing: "Sin coincidencia: ",
   viewRecipe: "Ver receta",
-  addMissing: "Añadir {count} ingredientes que faltan a la compra",
+  addMissing: "Revisar {count} sin coincidencia para la compra",
   openedDate: "Abierto el {date}",
   noAmountDate: "Sin cantidad ni fecha",
   nothingFridge: "No hay nada en el refrigerador.",

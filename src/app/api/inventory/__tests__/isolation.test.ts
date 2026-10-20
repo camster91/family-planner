@@ -365,4 +365,21 @@ describe('inventory — two households, roles and gates', () => {
     expect((await cook.GET(req({ as: 'parentA' }))).status).toBe(403)
     expect((await list('parentA')).status).toBe(200)
   })
+it('does not count zero stock or disclose cross-household recipe ingredients in cooking hints', async () => {
+  const own = db.rows('inventoryItem').find(row => row.family_id === 'family-A' && row.ingredient_id === 'ingredient-a');
+  if (!own) throw new Error('fixture stock missing');
+  own.amount = 0;
+  let body = await (await cook.GET(req({ as: 'childA' }))).json();
+  expect(body.suggestions).toEqual([]);
+  own.amount = 1;
+  const line = db.rows('recipeIngredient').find(row => row.recipe_id === 'recipe-a');
+  if (!line) throw new Error('fixture recipe line missing');
+  line.ingredient_id = 'ingredient-b';
+  body = await (await cook.GET(req({ as: 'childA' }))).json();
+  expect(body.suggestions).toEqual([]);
+  expect(body.comparisonIncomplete).toBe(true);
+  expect(JSON.stringify(body)).not.toContain(FOREIGN);
+});
+
+
 })

@@ -58,6 +58,16 @@ const groceryReviewSchema = z
         state: z.literal("available"),
         haveIngredientIds: z.array(reviewId).max(100),
         truncated: z.boolean(),
+        matching: z.literal("presence_only").optional(),
+        matches: z
+          .array(
+            z.object({
+              ingredientId: reviewId,
+              kind: z.enum(["linked", "name"]),
+            }),
+          )
+          .max(100)
+          .optional(),
       }),
     ]),
   })
@@ -71,7 +81,16 @@ const groceryReviewSchema = z
       (data.inventory.state === "unavailable" ||
         data.inventory.haveIngredientIds.every((id) =>
           data.ingredients.some((i) => i.ingredientId === id),
-        )),
+        )) &&
+      (data.inventory.state === "unavailable" ||
+        !data.inventory.matches ||
+        (new Set(data.inventory.matches.map((match) => match.ingredientId))
+          .size === data.inventory.matches.length &&
+          data.inventory.matches.every(
+            (match) =>
+              data.inventory.state === "available" &&
+              data.inventory.haveIngredientIds.includes(match.ingredientId),
+          ))),
   );
 type GroceryReview = z.infer<typeof groceryReviewSchema>;
 
@@ -364,13 +383,11 @@ export function AddToGroceriesButton({
             <p className="font-semibold break-words">{review.title}</p>
             <p>For {review.targetServings} servings</p>
             {review.inventory.state === "unavailable" ? (
-              <p>Inventory comparison unavailable. Choose what you need.</p>
+              <p>{tBulk("stockComparisonUnavailable")}</p>
             ) : (
               <p>
-                Presence only, not enough-for-recipe amounts.
-                {review.inventory.truncated
-                  ? " Inventory scan is incomplete."
-                  : ""}
+                {tBulk("stockPresenceOnly")}
+                {review.inventory.truncated ? ` ${tBulk("stockPartial")}` : ""}
               </p>
             )}
             <label className="block">
@@ -429,10 +446,19 @@ export function AddToGroceriesButton({
                         {review.inventory.haveIngredientIds.includes(
                           i.ingredientId,
                         )
-                          ? "Present in inventory"
+                          ? review.inventory.matches?.find(
+                              (match) => match.ingredientId === i.ingredientId,
+                            )?.kind === "linked"
+                            ? tBulk("stockLinked")
+                            : review.inventory.matches?.find(
+                                  (match) =>
+                                    match.ingredientId === i.ingredientId,
+                                )?.kind === "name"
+                              ? tBulk("stockNameMatch")
+                              : tBulk("stockPresent")
                           : review.inventory.truncated
-                            ? "No match in scanned inventory"
-                            : "No inventory match"}
+                            ? tBulk("stockNoMatchPartial")
+                            : tBulk("stockNoMatch")}
                       </span>
                     )}
                   </span>

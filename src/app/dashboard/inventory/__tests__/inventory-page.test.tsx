@@ -485,13 +485,15 @@ describe("/dashboard/inventory", () => {
     const cook = await screen.findByTestId("cook-suggestion");
     expect(within(cook).getByText("Tomato soup")).toBeTruthy();
     expect(within(cook).getByTestId("cook-coverage").textContent).toBe(
-      "You have 1 of 2 ingredients · uses 1 item to use soon",
+      "Found 1 of 2 ingredients in inventory · uses 1 item to use soon",
     );
     expect(within(cook).getByTestId("cook-missing").textContent).toContain(
       "Stock",
     );
     await user.click(
-      within(cook).getByRole("button", { name: "Add 1 missing to groceries" }),
+      within(cook).getByRole("button", {
+        name: "Review 1 unmatched for groceries",
+      }),
     );
     const review = await screen.findByRole("dialog", {
       name: "Review grocery ingredients",
@@ -537,6 +539,36 @@ describe("/dashboard/inventory", () => {
     expect(
       await within(cook).findByText(/Added 1 item to Groceries/),
     ).toBeTruthy();
+  });
+
+  it("offers grocery review even when all ingredient names match, without claiming enough stock", async () => {
+    const row = COOK.suggestions[0];
+    setup({
+      cook: {
+        ...COOK,
+        suggestions: [
+          {
+            ...row,
+            haveCount: 2,
+            missingCount: 0,
+            coverage: 1,
+            have: [...row.have, ...row.missing],
+            missing: [],
+          },
+        ],
+      },
+    });
+    const region = await screen.findByTestId("what-can-i-cook");
+    expect(
+      await within(region).findByRole("button", {
+        name: "Review recipe groceries",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(region).getByText(
+        "Matches identify foods only. Check amounts, units and condition before cooking.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("adds and edits an item through the dialog", async () => {

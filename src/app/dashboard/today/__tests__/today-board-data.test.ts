@@ -940,9 +940,9 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
             title: 'Street tacos',
             prep_time: 20,
             ingredients: [
-              { ingredient: { id: 'ing-tortilla', name: 'Tortillas' } },
-              { ingredient: { id: 'ing-beans', name: 'Black beans' } },
-              { ingredient: { id: 'ing-salsa', name: 'Salsa' } },
+              { ingredient: { id: 'ing-tortilla', name: 'Tortillas', family_id: FAMILY } },
+              { ingredient: { id: 'ing-beans', name: 'Black beans', family_id: FAMILY } },
+              { ingredient: { id: 'ing-salsa', name: 'Salsa', family_id: FAMILY } },
             ],
           },
         },
@@ -996,14 +996,14 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
 
       const mealArgs = (db.familyMeal.findMany as jest.Mock).mock.calls[0][0]
       expect(mealArgs.select.recipe.select.ingredients).toEqual({
-        select: { ingredient: { select: { id: true, name: true } } },
+        select: { ingredient: { select: { id: true, name: true, family_id: true } } },
       })
       const matchArgs = findMany.mock.calls[2][0]
       expect(matchArgs.where).toMatchObject({
         family_id: FAMILY,
         status: 'active',
       })
-      expect(Object.keys(matchArgs.select).sort()).toEqual(['date_kind', 'expires_on', 'ingredient_id', 'name'])
+      expect(Object.keys(matchArgs.select).sort()).toEqual(['amount', 'date_kind', 'expires_on', 'ingredient_id', 'name', 'status'])
 
       expect(data.dinners?.[0]).toEqual({
         id: 'm1',

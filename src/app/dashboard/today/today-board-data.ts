@@ -336,7 +336,7 @@ interface DinnerRow {
   recipe: {
     title: string
     prep_time: number | null
-    ingredients?: Array<{ ingredient: { id: string; name: string } }>
+    ingredients?: Array<{ ingredient: { id: string; name: string; family_id?: string } }>
   } | null
 }
 
@@ -359,6 +359,7 @@ async function missingIngredientCounts(
   const { items, truncated } = await loadCookInventory(db, familyId, { from })
   if (truncated) return counts
   for (const d of withIngredients) {
+    if (d.recipe!.ingredients!.some(line => line.ingredient.family_id !== familyId)) continue
     const day = parseDateOnly(toDateOnlyUTC(d.date))
     if (!day) continue
     const missing = countMissingIngredients(d.recipe!.ingredients!, items, day)
@@ -531,7 +532,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
                   ? {
                       ingredients: {
                         select: {
-                          ingredient: { select: { id: true, name: true } },
+                          ingredient: { select: { id: true, name: true, family_id: true } },
                         },
                       },
                     }

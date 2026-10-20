@@ -50,6 +50,7 @@ import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 import { BarcodeFoodDialog } from '@/components/inventory/BarcodeFoodDialog'
 import { makeInventoryChangeIntent, postInventoryChange, type InventoryChangeIntent } from '@/lib/inventory-change-client'
 import type { InventoryChangeOperation } from '@/lib/inventory-change-contract'
+import { cookSuggestionsSchema } from '@/lib/inventory-cook-contract'
 import { makeInventoryIntakeIntent, postInventoryIntake, readInventoryIntakeContext, type IntakeContext, type IntakeIntent } from '@/lib/inventory-intake-client'
 import { ScanFridgeDialog } from './ScanFridgeDialog'
 import { Dialog } from '@/components/ui/dialog'
@@ -84,6 +85,8 @@ interface CookData {
   truncated: boolean
   /** Some recipes or items were past the server's scan caps (older servers omit it). */
   inputsTruncated?: boolean
+  matching?: 'presence_only'
+  comparisonIncomplete?: boolean
 }
 
 interface HistoryEntry extends AdjustmentDto {
@@ -256,7 +259,7 @@ export default function InventoryClient({
       getAllItems(),
       get(`/api/inventory/use-soon?${q}&days=3`, (b) => b.items as UseSoonItem[]),
       mealsOn
-        ? get(`/api/inventory/cook?${q}`, (b) => b as CookData)
+        ? get(`/api/inventory/cook?${q}`, (b) => cookSuggestionsSchema.parse(b))
         : Promise.resolve<Load<CookData>>({
             state: 'ready',
             data: { suggestions: [], recipesConsidered: 0, truncated: false, inputsTruncated: false },
@@ -943,7 +946,7 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
         </div>
       ) : load.data.suggestions.length === 0 ? (
         <p className="card-apple p-4 text-subhead text-label-secondary" data-testid="cook-empty">
-          {load.data.inputsTruncated
+          {load.data.comparisonIncomplete ? copy('cookComparisonIncomplete') : load.data.inputsTruncated
             ? copy('recipesEmptyCapped')
             : copy('recipesEmpty')}
         </p>
@@ -954,6 +957,8 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
               {copy('recipesIncomplete')}
             </p>
           )}
+          {load.data.comparisonIncomplete && <p className="mb-3 text-footnote" role="status">{copy('cookComparisonIncomplete')}</p>}
+          <p className="mb-3 text-footnote text-label-secondary">{copy('cookPresenceOnly')}</p>
           <ul className="space-y-3">
             {load.data.suggestions.map((s) => (
               <li key={s.recipeId} data-testid="cook-suggestion" data-recipe-id={s.recipeId} className="card-apple p-4 space-y-2">
@@ -981,6 +986,11 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
                     {s.missing.map((m) => m.name).join(', ')}
                   </p>
                 )}
+                <details className="rounded-xl bg-[var(--surface-fill)] px-3">
+                  <summary className="min-h-[44px] cursor-pointer py-3 text-footnote">{copy('cookMatchDetails')}</summary>
+                  {s.have.some(item => item.match === undefined) && <p className="mb-2 text-footnote">{copy('cookMatchUnknown')}</p>}
+                  <ul className="pb-3 space-y-2">{s.have.map(item => <li key={item.ingredientId} className="text-footnote break-words"><span className="font-semibold">{item.name}</span>{' · '}{copy(item.match === 'linked' ? 'cookMatchLinked' : item.match === 'name' ? 'cookMatchName' : 'cookMatchUnknown')}</li>)}</ul>
+                </details>
                 <div className="flex flex-wrap items-start gap-2">
                   {canOpenRecipes && (
                     <Link
@@ -993,14 +1003,12 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
                       </span>
                     </Link>
                   )}
-                  {s.missing.length > 0 && (
-                    <AddToGroceriesButton
+                  <AddToGroceriesButton
                       className="flex-1 min-w-[14rem]"
                       recipeId={s.recipeId}
-                      ingredientIds={s.missing.map((m) => m.ingredientId)}
-                      label={copy('addMissing', { count: s.missing.length })}
-                    />
-                  )}
+                      ingredientIds={s.missing.length ? s.missing.map((m) => m.ingredientId) : undefined}
+                      label={s.missing.length ? copy('addMissing', { count: s.missing.length }) : copy('cookReviewGroceries')}
+                  />
                 </div>
               </li>
             ))}

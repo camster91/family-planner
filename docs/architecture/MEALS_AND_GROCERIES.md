@@ -645,3 +645,20 @@ causes blind replay. Live stock is refetched; no receipt is a current quantity.
 Legacy routes share primitives but retain their old envelopes, without claiming
 new expected-context/replay guarantees. No new schema/offline/native action.
 All acceptance remains pending the later integrated QA.
+
+### Presence matching transparency (2026-10-19; source candidate)
+
+ADR-0007 remains presence-only: no cross-unit arithmetic or automatic stock usage.
+`indexCookInventory` rejects non-positive/non-finite/finished stock; positive or
+unknown amount is presence, not sufficiency. Cooking and Use soon SQL exclude
+zero quantities before caps while preserving minimal shared DTOs. Matched recipe
+ingredients carry link/name provenance. Cross-household recipe ingredient links
+skip that whole recipe with `comparisonIncomplete`, never leaking foreign names.
+
+`inventory-cook-contract.ts` validates bounded and consistent response metadata,
+retains legacy presence responses, and rejects unsupported sufficiency modes.
+Grocery review receives optional presence/link/name hints without stock values.
+Inventory/Today copy describes recorded matches, not confirmed real-world absence
+or enough stock. All-matched recipes still offer explicit grocery review. No
+inventory decrement, quantity comparison, synonym engine or provider call added.
+Source tests/fixtures only; integrated QA and native acceptance remain deferred.

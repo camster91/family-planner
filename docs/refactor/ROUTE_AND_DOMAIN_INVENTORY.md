@@ -546,3 +546,14 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
   delete completion-row update now rolls back the deletion.
 - Personal editor uses the existing recovery owner and a collapsed readable edit
   summary; source tests/EN-ES only. Consolidated QA and native acceptance deferred.
+
+### Cooking presence evidence (#125, 2026-10-19; source only)
+
+- Cook and recipe-grocery review add optional link/name provenance and explicit
+  presence-only semantics. Zero stock is excluded before cooking/use-soon caps;
+  unknown positive availability never implies enough-for-recipe amounts.
+- Owned recipes with foreign ingredient links are skipped whole with incomplete
+  disclosure. Personal cook JSON is bounded/validated; old presence replies retain
+  an explicit unknown-details fallback. No new stock write or provider action.
+- Personal Today counts use the same eligibility and omit inconsistent ownership;
+  shared DTOs/selects retain their existing minimal field boundary. QA deferred.

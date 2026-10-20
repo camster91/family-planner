@@ -100,11 +100,15 @@ for (const locale of ["en", "es"] as const)
       const recipe = {
         recipeId: "synthetic-recipe",
         title: privateName,
+        prep_time: null,
+        cook_time: null,
+        servings: 2,
+        coverage: 0.5,
         totalCount: 2,
         haveCount: 1,
         missingCount: 1,
         useSoonCount: 1,
-        have: [{ name: privateName }],
+        have: [{ ingredientId: "synthetic-present", name: privateName }],
         missing: [
           {
             name: "Raw missing {name} 李",
@@ -112,37 +116,35 @@ for (const locale of ["en", "es"] as const)
           },
         ],
       };
-      global.fetch = jest
-        .fn()
-        .mockImplementation(async (input: string) =>
-          response(
-            input.includes("/cook?")
+      global.fetch = jest.fn().mockImplementation(async (input: string) =>
+        response(
+          input.includes("/cook?")
+            ? {
+                suggestions: [recipe],
+                recipesConsidered: 1,
+                truncated: false,
+                inputsTruncated: true,
+              }
+            : input.includes("/adjustments?")
               ? {
-                  suggestions: [recipe],
-                  recipesConsidered: 1,
-                  truncated: false,
-                  inputsTruncated: true,
+                  adjustments: [
+                    {
+                      id: "synthetic-adjustment",
+                      kind: "discard",
+                      item_name: privateName,
+                      status_after: "discarded",
+                      amount_delta: null,
+                      created_at: "2026-10-08T12:00:00Z",
+                      undone_at: "2026-10-08T12:01:00Z",
+                      undoable: true,
+                    },
+                  ],
                 }
-              : input.includes("/adjustments?")
-                ? {
-                    adjustments: [
-                      {
-                        id: "synthetic-adjustment",
-                        kind: "discard",
-                        item_name: privateName,
-                        status_after: "discarded",
-                        amount_delta: null,
-                        created_at: "2026-10-08T12:00:00Z",
-                        undone_at: "2026-10-08T12:01:00Z",
-                        undoable: true,
-                      },
-                    ],
-                  }
-                : input.includes("/use-soon?")
-                  ? { items: [] }
-                  : { items: [item], nextOffset: null },
-          ),
-        );
+              : input.includes("/use-soon?")
+                ? { items: [] }
+                : { items: [item], nextOffset: null },
+        ),
+      );
       mount();
       await act(async () => {});
       expect(screen.getByTestId("past-use-by")).toHaveTextContent(
