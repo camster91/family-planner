@@ -191,3 +191,57 @@ client, exercise authority/role/device and concurrent write/recovery paths,
 check eaten/Undo/next-prep quantities and inspect EN/ES rendering. No migration,
 generation, checks/build/browser QA, provider call, push, merge or deployment.
 Full #460 acceptance and broader discovery/reuse reconciliation remain open.
+
+
+## Direct reuse and ordinary meal confirmation source — 2026-10-19
+
+Saved detail exposes Plan a meal and Add to prep for personal parent/teen viewers.
+The destination receives only the recipe ID. The EN/ES reuse launcher reads owned
+canonical summary metadata with a 10-second bound, cancels stale loads, and asks
+for a deliberate editor action. Missing/foreign/invalid recipes offer retry and
+Dismiss; they never become guessed free-text meals. Dismiss removes only the
+recipe intent, retaining the selected week/view and unrelated URL parameters.
+The same existing Recipe ID seeds the ordinary meal editor or first prep dish.
+Dates, slot, cook and portions remain reviewable; a prep can add several dishes.
+Recipe base servings populate ordinary meals up to 100 and prep up to its existing
+50-portion cap; larger/unknown prep bases retain the visible default of eight for
+review. None of these actions imports a duplicate or consumes stock.
+
+Ordinary create now uses `GET/POST /api/meals/create`. GET supplies fresh current
+personal context; POST requires the strict `herewoven.meal-create.v1` envelope,
+that expected user/family, issued-at and stable Idempotency-Key. This dedicated
+path is important because older `POST /api/meals` readers strip unknown fields;
+a body marker sent there could not establish rollback-safe exact retry. An older
+server lacking the dedicated endpoint cannot silently receive a legacy fallback.
+The original route remains for old clients; its behavior is not retroactively
+claimed keyed. No new offline/native action or manifest capability is advertised.
+
+The write locks current User, household and receipt, renews existing ordinary
+meal role/session/meals authority (including its existing unverified-person
+policy), validates cook and recipe in that household, and commits FamilyMeal and
+its compact `{mealId}` receipt together. Completed replay renews authority and
+checks current owned existence. Deleted meals stay deleted. A new execution more
+than the receipt TTL minus one hour after its issued-at, or with clock skew more
+than one minute into the future, is refused; an expired receipt cannot recreate
+an abandoned request. Beta usage counts run only after a newly committed create,
+never for a receipt replay. No schema or account-deletion changes are needed.
+
+The ordinary form waits for context before editing, owns synchronous and rendered
+pending state, and retains exact key/body after timeout, malformed success or
+lost response. A later refusal cannot erase uncertainty. Explicit Check the same
+save retries that body, with a read-only plan link in another tab. It does not
+create a fresh key, re-resolve household intent or claim an unknown save failed.
+A canonical deleted-meal confirmation resolves the old attempt without recreating
+it. Ordinary meal Undo acquires context before deletion and retains its own
+key/issued-at/body across Check same restore attempts. Prep allocation Undo keeps
+its existing exact-request path. Canonical reload reflects the resulting state.
+
+Unexecuted contract/transaction/UI source covers the new envelope, concurrent
+confirmation, receipt/meal rollback, deleted replay, context/token/expiry refusal,
+missing recipe/cook, original body/key after uncertainty/refusal, explicit reuse
+and stale recipe loads. Existing meal-page fixtures include the new context and
+receipt path. Full two-household, role, rollback, expired-intent, lost-response,
+EN/ES and responsive/native journeys still need the consolidated QA pass.
+No tests/type/lint/build/browser QA, schema generation/migration, provider call,
+push, merge or deployment occurred. Full #460 acceptance remains open; reconcile
+remaining parser review, discovery constraints and reading/scaling before QA.

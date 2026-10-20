@@ -11,6 +11,8 @@ import {
 import { parseDateOnly, toDateOnlyUTC } from "@/lib/dates";
 import { AddToGroceriesButton } from "./AddToGroceriesButton";
 import { MealPrepEditor } from "./MealPrepEditor";
+import { RecipeReuseLauncher } from "./RecipeReuseLauncher";
+import type { RecipeOption } from "./RecipePicker";
 import { PreparedRecipe } from "./PreparedRecipe";
 import {
   MealPrepActionSheet,
@@ -22,11 +24,15 @@ export function BulkCookingPanel({
   refreshKey,
   onMealsChanged,
   onContext,
+  reuseRecipeId,
+  onDismissReuse,
 }: {
   defaultDay: string;
   refreshKey: unknown;
   onMealsChanged: () => void;
   onContext: (scope: MealPrepContext | null) => void;
+  reuseRecipeId?: string | null;
+  onDismissReuse?: () => void;
 }) {
   const tBulk = useBulkCookingText();
   const locale = useDisplayLocale();
@@ -45,6 +51,7 @@ export function BulkCookingPanel({
   const [editor, setEditor] = React.useState<{
     day: string;
     seed?: MealPrepSummary;
+    recipe?: RecipeOption;
   } | null>(null);
   const [modal, setModal] = React.useState<{
     kind: PrepActionKind;
@@ -248,6 +255,20 @@ export function BulkCookingPanel({
       ) : !current ? (
         <p className="text-subhead text-label-secondary">{tBulk("empty")}</p>
       ) : null}
+      {reuseRecipeId &&
+        onDismissReuse &&
+        scope &&
+        !forbidden &&
+        !mutationsBlocked &&
+        !editor &&
+        !modal && (
+          <RecipeReuseLauncher
+            recipeId={reuseRecipeId}
+            onDismiss={onDismissReuse}
+            kind="prep"
+            onUse={(recipe) => setEditor({ day: defaultDay, recipe })}
+          />
+        )}
       {current && !forbidden && (
         <>
           <label className="block text-subhead" htmlFor={`${id}-session`}>
@@ -434,6 +455,7 @@ export function BulkCookingPanel({
           context={scope}
           defaultDay={editor.day}
           seed={editor.seed}
+          initialRecipe={editor.recipe}
           freshWritesBlocked={mutationsBlocked}
           onClose={() => setEditor(null)}
           onSaved={saved}

@@ -38,6 +38,7 @@ const emptyDish = (): DishDraft => ({
 export function MealPrepEditor({
   defaultDay,
   seed,
+  initialRecipe,
   context,
   freshWritesBlocked = false,
   onClose,
@@ -47,6 +48,7 @@ export function MealPrepEditor({
   defaultDay: string;
   context: MealPrepContext;
   seed?: MealPrepSummary;
+  initialRecipe?: RecipeOption;
   freshWritesBlocked?: boolean;
   onClose: () => void;
   onSaved: (sessionId?: string) => void;
@@ -74,7 +76,22 @@ export function MealPrepEditor({
           storage: batch.reserve_storage,
           meals: [],
         }))
-      : [emptyDish()],
+      : [
+          {
+            ...emptyDish(),
+            ...(initialRecipe
+              ? {
+                  name: initialRecipe.title,
+                  recipe: initialRecipe,
+                  portions: String(
+                    initialRecipe.servings && initialRecipe.servings <= 50
+                      ? initialRecipe.servings
+                      : 8,
+                  ),
+                }
+              : {}),
+          },
+        ],
   );
   const initial = React.useRef(
     JSON.stringify({ day: defaultDay, nextDay: "", dishes }),

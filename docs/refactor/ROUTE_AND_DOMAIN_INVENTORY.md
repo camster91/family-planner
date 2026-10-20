@@ -436,3 +436,17 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
   prep lists contain only timestamp metadata. Existing batch/family erasure
   covers it. No new shared-device route, provider call or offline action.
 - Source candidate only; additive migration/generation and all QA deferred.
+
+
+### Ordinary meal create confirmation source candidate (#460, 2026-10-19)
+
+- `/api/meals/create` GET/POST: current personal ordinary meal authorization,
+  User/household/session/meals locks; paired sessions refused; private/no-store.
+  GET returns current user/family context only. POST bounds JSON to 8 KiB and
+  30 requests/minute/user, requires strict v1 envelope and Idempotency-Key.
+- Canonical FamilyMeal and compact receipt commit together; actor, recipe and
+  cook remain household-bound. Confirmation renews authority and existence;
+  deleted meals never recreate on replay. Old `/api/meals` POST stays legacy.
+- Saved recipe intent links seed existing editors only after explicit review;
+  no new model, provider, offline action, shared-device API or media retention.
+- Source only; integrated QA and release compatibility remain unverified.

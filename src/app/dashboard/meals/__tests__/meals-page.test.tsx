@@ -27,6 +27,10 @@ jest.mock("next/navigation", () => ({
     return new URLSearchParams(search);
   },
   useRouter: () => ({
+    replace: (url: string) => {
+      window.history.replaceState({}, "", url);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    },
     push: (url: string) => {
       window.history.pushState({}, "", url);
       window.dispatchEvent(new PopStateEvent("popstate"));
@@ -74,6 +78,11 @@ function setup({
           status,
           json: async () => data,
         }) as Response;
+      if (url === "/api/meals/create" && method === "GET")
+        return json(200, {
+          userId: "fixture_parent",
+          familyId: "fixture_family",
+        });
       if (url.startsWith("/api/meals?"))
         return json(
           mealsStatus,
@@ -94,6 +103,8 @@ function setup({
         url.startsWith("/api/meals")
       )
         return json(saveError.status, { error: saveError.error });
+      if (url === "/api/meals/create" && method === "POST")
+        return json(201, { mealId: "new" });
       if (url === "/api/meals" && method === "POST")
         return json(201, { meal: { id: "new" } });
       if (url.startsWith("/api/meals/") && method === "PATCH")
@@ -764,7 +775,7 @@ describe("/dashboard/meals", () => {
     await user.type(within(dialog).getByLabelText("Servings (optional)"), "1");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() =>
-      expect(calls.find((c) => c.method === "POST")?.body).toEqual({
+      expect(calls.find((c) => c.method === "POST")?.body).toMatchObject({
         date: today,
         meal_type: "lunch",
         recipe_name: "",
@@ -891,9 +902,7 @@ describe("/dashboard/meals", () => {
     window.history.replaceState({}, "", "/dashboard/meals?view=bulk");
     setup({ meals: [] });
     await screen.findByTestId("bulk-cooking-panel");
-    expect(
-      screen.queryByRole("button", { name: /^Add meal$/i }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Add meal$/i })).toBeNull();
     expect(
       screen.getByRole("button", { name: "Plan a prep session" }),
     ).toHaveProperty("disabled", true);
@@ -1010,7 +1019,7 @@ describe("/dashboard/meals", () => {
     await user.type(within(dialog).getByLabelText("Recipe name"), "Apples");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() =>
-      expect(calls.find((c) => c.method === "POST")?.body).toEqual({
+      expect(calls.find((c) => c.method === "POST")?.body).toMatchObject({
         date: today,
         meal_type: "snack",
         recipe_name: "Apples",
@@ -1207,7 +1216,7 @@ describe("/dashboard/meals", () => {
     await waitFor(() =>
       expect(calls.some((c) => c.method === "POST")).toBe(true),
     );
-    expect(calls.find((c) => c.method === "POST")!.body).toEqual({
+    expect(calls.find((c) => c.method === "POST")!.body).toMatchObject({
       date: today,
       meal_type: "breakfast",
       recipe_name: "Porridge",
@@ -1238,7 +1247,7 @@ describe("/dashboard/meals", () => {
     await waitFor(() =>
       expect(calls.some((c) => c.method === "POST")).toBe(true),
     );
-    expect(calls.find((c) => c.method === "POST")!.body).toEqual({
+    expect(calls.find((c) => c.method === "POST")!.body).toMatchObject({
       date: today,
       meal_type: "dinner",
       recipe_name: "Veggie lasagna",
@@ -1380,7 +1389,7 @@ describe("/dashboard/meals", () => {
     expect(document.querySelector("img[data-brand-illustration]")).toBeNull();
   });
 
-  it("shows the server's reason in a toast when a save fails, not alert(), and keeps the dialog open", async () => {
+  it("shows the server's reason inline when a create fails and keeps the dialog open", async () => {
     const user = userEvent.setup();
     setup({
       meals: [],

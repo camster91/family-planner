@@ -5,6 +5,12 @@ import styles from "./meals-board.module.css";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { MealViewNav } from "@/components/meals/MealViewNav";
+import {
+  mealCreateContext,
+  mealCreateReceipt,
+} from "@/lib/meal-create-contract";
+import { useMealCreation } from "@/components/meals/use-meal-creation";
+import { RecipeReuseLauncher } from "@/components/meals/RecipeReuseLauncher";
 import { BulkCookingPanel } from "@/components/meals/BulkCookingPanel";
 import { useBulkCookingText } from "@/i18n/bulk-cooking";
 import { mealPrepListSchema, type MealPrepContext } from "@/lib/meal-batches";
@@ -56,7 +62,9 @@ function MealModal({
   initial,
   defaultDate,
   defaultMealType,
+  defaultRecipe,
   onSave,
+  onCreated,
   onDelete,
   onClose,
   saving,
@@ -66,13 +74,17 @@ function MealModal({
   initial?: MealSlot;
   defaultDate?: string;
   defaultMealType?: MealType;
+  defaultRecipe?: RecipeOption;
   onSave: (data: MealSaveData) => void;
+  onCreated: () => void;
   onDelete?: () => void;
   onClose: () => void;
   saving: boolean;
   isMealMutationPending: () => boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const es = locale === "es";
+  const creation = useMealCreation(mode === "add", onCreated);
   const tBulk = useBulkCookingText();
   const [date, setDate] = React.useState(
     initial?.date
@@ -83,12 +95,16 @@ function MealModal({
     initial?.meal_type ?? defaultMealType ?? "dinner",
   );
   const [recipe_name, setRecipeName] = React.useState(
-    initial?.recipe_name ?? "",
+    initial?.recipe_name ?? defaultRecipe?.title ?? "",
   );
   const [notes, setNotes] = React.useState(initial?.notes ?? "");
   const initialCookId = initial?.cook_id ?? null;
   const [cookId, setCookId] = React.useState(initialCookId ?? "");
-  const initialServings = initial?.servings ?? null;
+  const initialServings =
+    initial?.servings ??
+    (defaultRecipe?.servings && defaultRecipe.servings <= 100
+      ? defaultRecipe.servings
+      : null);
   const [servings, setServings] = React.useState(
     initialServings === null ? "" : String(initialServings),
   );
@@ -120,7 +136,7 @@ function MealModal({
   // Optional recipe link (ADR-0007). A free-text meal never sends recipe_id.
   const initialRecipeId = initial?.recipe_id ?? initial?.recipe?.id ?? null;
   const [recipe, setRecipe] = React.useState<RecipeOption | null>(
-    initial?.recipe ?? null,
+    initial?.recipe ?? defaultRecipe ?? null,
   );
   const titleId = React.useId();
   const [recipeCreating, setRecipeCreating] = React.useState(false);
@@ -129,8 +145,11 @@ function MealModal({
     recipeMutationPending.current = pending;
     setRecipeCreating(pending);
   }, []);
-  const busy = saving || recipeCreating;
-  const isBusy = () => recipeMutationPending.current || isMealMutationPending();
+  const busy = saving || recipeCreating || creation.locked;
+  const isBusy = () =>
+    recipeMutationPending.current ||
+    isMealMutationPending() ||
+    creation.isPending();
   const handleClose = () => {
     if (!isBusy()) onClose();
   };
@@ -165,7 +184,9 @@ function MealModal({
       mode === "add" ? nextServings !== null : nextServings !== initialServings
     )
       data.servings = nextServings;
-    onSave(data);
+    if (mode === "add") {
+      void creation.save(data);
+    } else onSave(data);
   };
 
   return (
@@ -180,174 +201,227 @@ function MealModal({
       testId="meal-modal"
       className="sm:max-w-md space-y-4"
     >
+      {mode === "add" && !creation.ready && (
+        <p role={creation.contextError ? "alert" : "status"}>
+          {creation.contextError
+            ? es
+              ? "No pudimos comprobar tu hogar. El borrador se conserva."
+              : "We could not check your household. The draft is kept."
+            : es
+              ? "Comprobando hogar…"
+              : "Checking household…"}
+        </p>
+      )}
+      {mode === "add" && creation.contextError && (
+        <button
+          type="button"
+          className="btn-tinted min-h-[44px]"
+          onClick={creation.reloadContext}
+        >
+          {es ? "Reintentar" : "Try again"}
+        </button>
+      )}
+      {creation.error && <p role="alert">{creation.error}</p>}
+      {creation.unknown && (
+        <a
+          href="/dashboard/meals"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-[44px] items-center text-[var(--accent-text)]"
+        >
+          {es
+            ? "Revisar comidas en otra pestaña"
+            : "Review meals in another tab"}{" "}
+          ↗
+        </a>
+      )}
+      {creation.unknown && (
+        <button
+          type="button"
+          className="btn-tinted min-h-[44px]"
+          disabled={creation.busy}
+          onClick={() => void creation.retry()}
+        >
+          {es ? "Comprobar el mismo guardado" : "Check the same save"}
+        </button>
+      )}
       <form onSubmit={handleSubmit} className="space-y-4">
-        {initial?.batch_id && <p className="text-subhead text-label-secondary">{tBulk("detachNotice")}</p>}
-        <div>
-          <label
-            htmlFor={`${titleId}-date`}
-            className="text-subhead text-label-secondary mb-1 block"
-          >
-            {t("meals.date")}
-          </label>
-          <input
-            id={`${titleId}-date`}
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full input-apple"
-            required
+        <fieldset
+          disabled={busy || (mode === "add" && !creation.ready)}
+          className="space-y-4 min-w-0"
+        >
+          {initial?.batch_id && (
+            <p className="text-subhead text-label-secondary">
+              {tBulk("detachNotice")}
+            </p>
+          )}
+          <div>
+            <label
+              htmlFor={`${titleId}-date`}
+              className="text-subhead text-label-secondary mb-1 block"
+            >
+              {t("meals.date")}
+            </label>
+            <input
+              id={`${titleId}-date`}
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full input-apple"
+              required
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor={`${titleId}-type`}
+              className="text-subhead text-label-secondary mb-1 block"
+            >
+              Meal
+            </label>
+            <select
+              id={`${titleId}-type`}
+              value={meal_type}
+              onChange={(e) => setMealType(e.target.value as MealType)}
+              className="w-full input-apple"
+            >
+              {MEAL_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {mealLabels[t]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor={`${titleId}-name`}
+              className="text-subhead text-label-secondary mb-1 block"
+            >
+              {t("meals.addRecipeName")}
+            </label>
+            <input
+              id={`${titleId}-name`}
+              type="text"
+              value={recipe_name}
+              onChange={(e) => setRecipeName(e.target.value)}
+              placeholder={t("meals.addRecipeName")}
+              className="w-full input-apple"
+            />
+          </div>
+
+          <RecipePicker
+            value={recipe?.id ?? null}
+            onChange={handleRecipeChange}
+            initialRecipe={initial?.recipe ?? defaultRecipe ?? null}
+            onCreatingChange={handleRecipeCreatingChange}
+            disabled={saving}
+            isMutationPending={isMealMutationPending}
           />
-        </div>
-
-        <div>
-          <label
-            htmlFor={`${titleId}-type`}
-            className="text-subhead text-label-secondary mb-1 block"
-          >
-            Meal
-          </label>
-          <select
-            id={`${titleId}-type`}
-            value={meal_type}
-            onChange={(e) => setMealType(e.target.value as MealType)}
-            className="w-full input-apple"
-          >
-            {MEAL_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {mealLabels[t]}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor={`${titleId}-name`}
-            className="text-subhead text-label-secondary mb-1 block"
-          >
-            {t("meals.addRecipeName")}
-          </label>
-          <input
-            id={`${titleId}-name`}
-            type="text"
-            value={recipe_name}
-            onChange={(e) => setRecipeName(e.target.value)}
-            placeholder={t("meals.addRecipeName")}
-            className="w-full input-apple"
-          />
-        </div>
-
-        <RecipePicker
-          value={recipe?.id ?? null}
-          onChange={handleRecipeChange}
-          initialRecipe={initial?.recipe ?? null}
-          onCreatingChange={handleRecipeCreatingChange}
-          disabled={saving}
-          isMutationPending={isMealMutationPending}
-        />
-        <div>
-          <label
-            htmlFor={`${titleId}-cook`}
-            className="text-subhead text-label-secondary mb-1 block"
-          >
-            Cook (optional)
-          </label>
-          <select
-            id={`${titleId}-cook`}
-            value={cookId}
-            onChange={(e) => setCookId(e.target.value)}
-            className="w-full input-apple min-h-[44px]"
-            disabled={membersLoading || membersError || saving}
-          >
-            <option value="">Unassigned</option>
-            {cookId && !members.some((member) => member.id === cookId) && (
-              <option value={cookId}>Current cook</option>
+          <div>
+            <label
+              htmlFor={`${titleId}-cook`}
+              className="text-subhead text-label-secondary mb-1 block"
+            >
+              Cook (optional)
+            </label>
+            <select
+              id={`${titleId}-cook`}
+              value={cookId}
+              onChange={(e) => setCookId(e.target.value)}
+              className="w-full input-apple min-h-[44px]"
+              disabled={membersLoading || membersError || saving}
+            >
+              <option value="">Unassigned</option>
+              {cookId && !members.some((member) => member.id === cookId) && (
+                <option value={cookId}>Current cook</option>
+              )}
+              {members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
+            {membersLoading && (
+              <p role="status" className="text-footnote text-label-secondary">
+                Loading household cooks…
+              </p>
             )}
-            {members.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
-          </select>
-          {membersLoading && (
-            <p role="status" className="text-footnote text-label-secondary">
-              Loading household cooks…
-            </p>
+            {membersError && (
+              <p role="status" className="text-footnote text-label-secondary">
+                Could not load cooks. The current assignment will be kept.
+              </p>
+            )}
+          </div>
+          {recipe && (
+            <Link
+              href={`/dashboard/meals/recipes/${recipe.id}`}
+              className="inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-[var(--accent-text)]"
+            >
+              <BookOpen className="w-4 h-4" aria-hidden="true" />
+              <span>View recipe</span>
+            </Link>
           )}
-          {membersError && (
-            <p role="status" className="text-footnote text-label-secondary">
-              Could not load cooks. The current assignment will be kept.
+
+          <div>
+            <label
+              htmlFor={`${titleId}-notes`}
+              className="text-subhead text-label-secondary mb-1 block"
+            >
+              {t("meals.addNotes")}
+            </label>
+            <textarea
+              id={`${titleId}-notes`}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder={t("meals.addNotes")}
+              className="w-full input-apple resize-none"
+              rows={2}
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor={`${titleId}-servings`}
+              className="text-subhead text-label-secondary mb-1 block"
+            >
+              Servings (optional)
+            </label>
+            <input
+              id={`${titleId}-servings`}
+              type="number"
+              min="1"
+              max="100"
+              step="1"
+              value={servings}
+              onChange={(e) => setServings(e.target.value)}
+              className="w-full input-apple min-h-[44px]"
+              disabled={busy}
+            />
+            <p className="text-footnote text-label-secondary">
+              Leave blank if not set. Otherwise, enter 1–100.
             </p>
-          )}
-        </div>
-        {recipe && (
-          <Link
-            href={`/dashboard/meals/recipes/${recipe.id}`}
-            className="inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-[var(--accent-text)]"
-          >
-            <BookOpen className="w-4 h-4" aria-hidden="true" />
-            <span>View recipe</span>
-          </Link>
-        )}
-
-        <div>
-          <label
-            htmlFor={`${titleId}-notes`}
-            className="text-subhead text-label-secondary mb-1 block"
-          >
-            {t("meals.addNotes")}
-          </label>
-          <textarea
-            id={`${titleId}-notes`}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder={t("meals.addNotes")}
-            className="w-full input-apple resize-none"
-            rows={2}
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor={`${titleId}-servings`}
-            className="text-subhead text-label-secondary mb-1 block"
-          >
-            Servings (optional)
-          </label>
-          <input
-            id={`${titleId}-servings`}
-            type="number"
-            min="1"
-            max="100"
-            step="1"
-            value={servings}
-            onChange={(e) => setServings(e.target.value)}
-            className="w-full input-apple min-h-[44px]"
-            disabled={busy}
-          />
-          <p className="text-footnote text-label-secondary">
-            Leave blank if not set. Otherwise, enter 1–100.
-          </p>
-        </div>
-        <div className="flex gap-2 pt-2">
-          {mode === "edit" && onDelete && (
+          </div>
+          <div className="flex gap-2 pt-2">
+            {mode === "edit" && onDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="btn-destructive flex-1 min-h-[44px]"
+                disabled={busy}
+              >
+                {t("meals.deleteMeal")}
+              </button>
+            )}
             <button
-              type="button"
-              onClick={handleDelete}
-              className="btn-destructive flex-1 min-h-[44px]"
+              type="submit"
+              className="btn-tinted flex-1 min-h-[44px]"
               disabled={busy}
             >
-              {t("meals.deleteMeal")}
+              {saving || creation.busy ? t("common.saving") : t("meals.save")}
             </button>
-          )}
-          <button
-            type="submit"
-            className="btn-tinted flex-1 min-h-[44px]"
-            disabled={busy}
-          >
-            {saving ? t("common.saving") : t("meals.save")}
-          </button>
-        </div>
+          </div>
+        </fieldset>
       </form>
 
       {/* Groceries use the saved meal, never unsaved recipe/servings drafts. */}
@@ -394,15 +468,24 @@ function supportedMealWeek(start: string): Date | null {
 }
 
 function MealsPageInner() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const es = locale === "es";
   // Food inventory (#263) is a separate, opt-in feature; link to it when on.
   const inventoryOn = useFeatureEnabled("inventory");
   const displayLocale = useDisplayLocale();
   const searchParams = useSearchParams();
+  const reuseRecipeId = searchParams.get("recipe");
   const pathname = usePathname();
   const router = useRouter();
   // Keep the existing rolling week: today plus six days, not a locale-dependent
   // weekday boundary. URL dates are calendar days, never UTC instants.
+  const dismissReuse = () => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("recipe");
+    router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
+      scroll: false,
+    });
+  };
   const bulkContext = React.useRef<MealPrepContext | null>(null);
   const view = searchParams.get("view") === "bulk" ? "bulk" : "week";
   const requestedStart = searchParams.get("start");
@@ -450,6 +533,7 @@ function MealsPageInner() {
     meal?: MealSlot;
     defaultDate?: string;
     defaultMealType?: MealType;
+    defaultRecipe?: RecipeOption;
   } | null>(null);
   const [saving, setSaving] = React.useState(false);
   // Nested recipe handlers can run before React commits the saving state.
@@ -458,7 +542,7 @@ function MealsPageInner() {
     () => mealMutationPending.current,
     [],
   );
-  const { addToast } = useToast();
+  const { addToast, removeToast } = useToast();
   const showUndo = useUndoToast();
   const mealRequest = React.useRef({ version: 0 });
   const selectedAnchor = React.useRef<Date | null>(anchor);
@@ -513,40 +597,31 @@ function MealsPageInner() {
   const openEdit = (meal: MealSlot) => setModal({ mode: "edit", meal });
 
   const handleSave = async (data: MealSaveData) => {
-    if (mealMutationPending.current) return;
+    if (mealMutationPending.current || modal?.mode !== "edit" || !modal.meal)
+      return;
     mealMutationPending.current = true;
-    const editing = modal?.mode === "edit" && modal.meal ? modal.meal : null;
+    const editing = modal.meal;
     // Keep the dialog open on failure and say why: the server's reason (for
     // example a validation message) or the offline line.
-    const failTitle = editing
-      ? "Couldn't save the meal"
-      : "Couldn't add the meal";
+    const failTitle = "Couldn't save the meal";
     setSaving(true);
     try {
-      const res = editing
-        ? await fetch(`/api/meals/${editing.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              id: editing.id,
-              date: data.date,
-              meal_type: data.meal_type,
-              recipe_name: data.recipe_name,
-              notes: data.notes,
-              ...(data.recipe_id !== undefined
-                ? { recipe_id: data.recipe_id }
-                : {}),
-              ...(data.cook_id !== undefined ? { cook_id: data.cook_id } : {}),
-              ...(data.servings !== undefined
-                ? { servings: data.servings }
-                : {}),
-            }),
-          })
-        : await fetch("/api/meals", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data),
-          });
+      const res = await fetch(`/api/meals/${editing.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editing.id,
+          date: data.date,
+          meal_type: data.meal_type,
+          recipe_name: data.recipe_name,
+          notes: data.notes,
+          ...(data.recipe_id !== undefined
+            ? { recipe_id: data.recipe_id }
+            : {}),
+          ...(data.cook_id !== undefined ? { cook_id: data.cook_id } : {}),
+          ...(data.servings !== undefined ? { servings: data.servings } : {}),
+        }),
+      });
       if (!res.ok) {
         addToast({
           type: "error",
@@ -568,25 +643,59 @@ function MealsPageInner() {
   // Undo over confirm (#269): delete at once, then offer Undo, which
   // re-creates the meal with the same day, slot, name, notes, cook, recipe and
   // servings (as a new row).
-  const restoreMeal = async (meal: MealSlot, scope?: MealPrepContext, key?: string) => {
+  const restoreMeal = async (
+    meal: MealSlot,
+    scope?: MealPrepContext,
+    key?: string,
+    issuedAt?: string,
+  ) => {
     try {
       if (meal.batch_id) {
-        if (!scope || !key || typeof meal.servings !== "number") throw new Error("Batch context unavailable");
+        if (!scope || !key || typeof meal.servings !== "number")
+          throw new Error("Batch context unavailable");
         const res = await fetch("/api/meals/bulk/actions", {
-          method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
-          body: JSON.stringify({ action: "allocate", expected_family_id: scope.familyId, expected_user_id: scope.userId,
-            batch_id: meal.batch_id, ...(meal.batch_allocation_key ? { restore_allocation_key: meal.batch_allocation_key } : {}),
-            meals: [{ date: toDateOnlyUTC(meal.date), meal_type: meal.meal_type, servings: meal.servings,
-              ...(meal.recipe_name?.trim() ? { recipe_name: meal.recipe_name } : {}), notes: meal.notes ?? null, cook_id: meal.cook_id ?? null }],
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": key,
+          },
+          body: JSON.stringify({
+            action: "allocate",
+            expected_family_id: scope.familyId,
+            expected_user_id: scope.userId,
+            batch_id: meal.batch_id,
+            ...(meal.batch_allocation_key
+              ? { restore_allocation_key: meal.batch_allocation_key }
+              : {}),
+            meals: [
+              {
+                date: toDateOnlyUTC(meal.date),
+                meal_type: meal.meal_type,
+                servings: meal.servings,
+                ...(meal.recipe_name?.trim()
+                  ? { recipe_name: meal.recipe_name }
+                  : {}),
+                notes: meal.notes ?? null,
+                cook_id: meal.cook_id ?? null,
+              },
+            ],
           }),
         });
         if (!res.ok) throw new Error("Could not restore allocation");
-        await fetchMeals(); return;
+        removeToast(`meal-restore-${meal.id}`);
+        await fetchMeals();
+        return;
       }
-      const res = await fetch("/api/meals", {
+      if (!scope || !key || !issuedAt)
+        throw new Error("Original restore context unavailable");
+      const res = await fetch("/api/meals/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
         body: JSON.stringify({
+          protocol: "herewoven.meal-create.v1",
+          expected_user_id: scope.userId,
+          expected_family_id: scope.familyId,
+          issued_at: issuedAt,
           date: toDateOnlyUTC(meal.date),
           meal_type: meal.meal_type,
           recipe_name: meal.recipe_name ?? "",
@@ -600,13 +709,25 @@ function MealsPageInner() {
             : {}),
         }),
       });
-      if (!res.ok) throw new Error("Failed to restore");
+      if (!res.ok || !mealCreateReceipt.safeParse(await res.json()).success)
+        throw new Error("Failed to restore");
+      removeToast(`meal-restore-${meal.id}`);
       await fetchMeals();
     } catch {
       addToast({
         type: "error",
-        title: `Couldn't put back ${mealTitle(meal)}`,
-        message: "Check your connection and try again.",
+        id: `meal-restore-${meal.id}`,
+        title: es
+          ? `No pudimos confirmar la restauración de ${mealTitle(meal)}`
+          : `Couldn't confirm restoring ${mealTitle(meal)}`,
+        message: es
+          ? "Puede haberse guardado. Comprueba la misma solicitud antes de añadir la comida otra vez."
+          : "The restore may have saved. Check the same request before adding the meal again.",
+        duration: 0,
+        action: {
+          label: es ? "Comprobar restauración" : "Check same restore",
+          onClick: () => void restoreMeal(meal, scope, key, issuedAt),
+        },
       });
     }
   };
@@ -619,11 +740,23 @@ function MealsPageInner() {
     try {
       let undoScope = bulkContext.current ?? undefined;
       if (meal.batch_id && !undoScope) {
-        const contextResponse = await fetch("/api/meals/bulk", { cache: "no-store" });
+        const contextResponse = await fetch("/api/meals/bulk", {
+          cache: "no-store",
+        });
         if (!contextResponse.ok) throw new Error("Batch context unavailable");
-        undoScope = mealPrepListSchema.parse(await contextResponse.json()).context;
+        undoScope = mealPrepListSchema.parse(
+          await contextResponse.json(),
+        ).context;
       }
-      const undoKey = meal.batch_id ? newIdempotencyKey() : undefined;
+      if (!meal.batch_id) {
+        const contextResponse = await fetch("/api/meals/create", {
+          cache: "no-store",
+        });
+        if (!contextResponse.ok) throw new Error("Meal context unavailable");
+        undoScope = mealCreateContext.parse(await contextResponse.json());
+      }
+      const undoKey = newIdempotencyKey();
+      const undoIssuedAt = new Date().toISOString();
       const res = await fetch(`/api/meals/${meal.id}?id=${meal.id}`, {
         method: "DELETE",
       });
@@ -632,7 +765,7 @@ function MealsPageInner() {
       await fetchMeals();
       showUndo({
         title: `Deleted ${mealTitle(meal)}`,
-        onUndo: () => void restoreMeal(meal, undoScope, undoKey),
+        onUndo: () => void restoreMeal(meal, undoScope, undoKey, undoIssuedAt),
       });
     } catch (err) {
       console.error(err);
@@ -680,125 +813,157 @@ function MealsPageInner() {
       </div>
 
       <MealViewNav active={view === "bulk" ? "prep" : "plan"} />
-      {view === "bulk" && <BulkCookingPanel defaultDay={anchor ? startKey : toDateOnlyLocal(new Date())} refreshKey={meals} onMealsChanged={() => void fetchMeals()} onContext={(scope) => { bulkContext.current = scope; }} />}
-      {/* Week section */}
-      {view === "week" && <section aria-labelledby="meals-week-heading">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
-          <h2
-            id="meals-week-heading"
-            className="section-header"
-            aria-live="polite"
-          >
-            {anchor ? (
-              <>
-                {anchor.toLocaleDateString(displayLocale, {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-                {" – "}
-                {getWeekDates(anchor)[6].toLocaleDateString(displayLocale, {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-              </>
-            ) : (
-              "Unsupported week"
-            )}
-          </h2>
-          <nav
-            aria-label="Meal planning weeks"
-            className="flex flex-wrap gap-2"
-          >
-            <button
-              type="button"
-              className="btn-tinted min-h-[44px]"
-              disabled={!previousWeek}
-              onClick={() => navigateWeek(-1)}
-            >
-              Previous week
-            </button>
-            <button
-              type="button"
-              className="btn-tinted min-h-[44px]"
-              onClick={() => navigateWeek(null)}
-            >
-              Current week
-            </button>
-            <button
-              type="button"
-              className="btn-tinted min-h-[44px]"
-              disabled={!nextWeek}
-              onClick={() => navigateWeek(1)}
-            >
-              Next week
-            </button>
-          </nav>
-        </div>
+      {view === "week" && reuseRecipeId && anchor && !modal && (
+        <RecipeReuseLauncher
+          recipeId={reuseRecipeId}
+          onDismiss={dismissReuse}
+          kind="meal"
+          onUse={(recipe) => {
+            if (mealMutationPending.current) return;
+            setModal({
+              mode: "add",
+              defaultDate: startKey,
+              defaultRecipe: recipe,
+            });
+          }}
+        />
+      )}
 
-        {!anchor ? (
-          <p role="alert" className="text-subhead text-label-secondary">
-            Choose a supported seven-day week, or return to the current week.
-          </p>
-        ) : loading ? (
-          <div
-            className="space-y-3"
-            role="status"
-            aria-label={t("meals.loading")}
-          >
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="card-apple overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-[var(--surface-separator)]">
-                  <Skeleton className="h-4 w-32" />
-                </div>
-                <div className="divide-y divide-[var(--surface-separator)]">
-                  {[0, 1, 2].map((j) => (
-                    <div key={j} className="px-4 py-3 flex items-center gap-3">
-                      <Skeleton className="h-9 w-9 rounded-full" />
-                      <Skeleton className="h-4 flex-1" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : error ? (
-          <EmptyState
-            icon={UtensilsCrossed}
-            glyphColor="meals"
-            title={t("meals.errorLoad")}
-            description="Check your connection and try again."
-            action={
+      {view === "bulk" && (
+        <BulkCookingPanel
+          reuseRecipeId={reuseRecipeId}
+          onDismissReuse={dismissReuse}
+          defaultDay={anchor ? startKey : toDateOnlyLocal(new Date())}
+          refreshKey={meals}
+          onMealsChanged={() => void fetchMeals()}
+          onContext={(scope) => {
+            bulkContext.current = scope;
+          }}
+        />
+      )}
+      {/* Week section */}
+      {view === "week" && (
+        <section aria-labelledby="meals-week-heading">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
+            <h2
+              id="meals-week-heading"
+              className="section-header"
+              aria-live="polite"
+            >
+              {anchor ? (
+                <>
+                  {anchor.toLocaleDateString(displayLocale, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                  {" – "}
+                  {getWeekDates(anchor)[6].toLocaleDateString(displayLocale, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </>
+              ) : (
+                "Unsupported week"
+              )}
+            </h2>
+            <nav
+              aria-label="Meal planning weeks"
+              className="flex flex-wrap gap-2"
+            >
               <button
                 type="button"
                 className="btn-tinted min-h-[44px]"
-                onClick={fetchMeals}
+                disabled={!previousWeek}
+                onClick={() => navigateWeek(-1)}
               >
-                Try again
+                Previous week
               </button>
-            }
-          />
-        ) : (
-          <>
-            {/* One empty state: an empty week is the week of "Nothing planned"
-                rows, each one the way to add that meal. No separate
-                illustrated "No meals planned yet" above it. */}
-            <div className={styles.board}>
-              {week.map((day) => (
-                <DayCard
-                  key={day.dateKey}
-                  day={day}
-                  expanded={expandedDays[day.dateKey] ?? false}
-                  onToggle={() => toggleDay(day.dateKey)}
-                  onAdd={openAdd}
-                  onEdit={openEdit}
-                />
+              <button
+                type="button"
+                className="btn-tinted min-h-[44px]"
+                onClick={() => navigateWeek(null)}
+              >
+                Current week
+              </button>
+              <button
+                type="button"
+                className="btn-tinted min-h-[44px]"
+                disabled={!nextWeek}
+                onClick={() => navigateWeek(1)}
+              >
+                Next week
+              </button>
+            </nav>
+          </div>
+
+          {!anchor ? (
+            <p role="alert" className="text-subhead text-label-secondary">
+              Choose a supported seven-day week, or return to the current week.
+            </p>
+          ) : loading ? (
+            <div
+              className="space-y-3"
+              role="status"
+              aria-label={t("meals.loading")}
+            >
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="card-apple overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-[var(--surface-separator)]">
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                  <div className="divide-y divide-[var(--surface-separator)]">
+                    {[0, 1, 2].map((j) => (
+                      <div
+                        key={j}
+                        className="px-4 py-3 flex items-center gap-3"
+                      >
+                        <Skeleton className="h-9 w-9 rounded-full" />
+                        <Skeleton className="h-4 flex-1" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
-          </>
-        )}
-      </section>}
+          ) : error ? (
+            <EmptyState
+              icon={UtensilsCrossed}
+              glyphColor="meals"
+              title={t("meals.errorLoad")}
+              description="Check your connection and try again."
+              action={
+                <button
+                  type="button"
+                  className="btn-tinted min-h-[44px]"
+                  onClick={fetchMeals}
+                >
+                  Try again
+                </button>
+              }
+            />
+          ) : (
+            <>
+              {/* One empty state: an empty week is the week of "Nothing planned"
+                rows, each one the way to add that meal. No separate
+                illustrated "No meals planned yet" above it. */}
+              <div className={styles.board}>
+                {week.map((day) => (
+                  <DayCard
+                    key={day.dateKey}
+                    day={day}
+                    expanded={expandedDays[day.dateKey] ?? false}
+                    onToggle={() => toggleDay(day.dateKey)}
+                    onAdd={openAdd}
+                    onEdit={openEdit}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       {/* Modal */}
       {modal && (
@@ -807,7 +972,12 @@ function MealsPageInner() {
           initial={modal.meal}
           defaultDate={modal.defaultDate}
           defaultMealType={modal.defaultMealType}
+          defaultRecipe={modal.defaultRecipe}
           onSave={handleSave}
+          onCreated={() => {
+            setModal(null);
+            void fetchMeals();
+          }}
           onDelete={modal.mode === "edit" ? handleDelete : undefined}
           onClose={() => setModal(null)}
           saving={saving}
@@ -889,7 +1059,9 @@ function DayCard({
               >
                 <span className={styles.slotLabel}>{label}</span>
                 <span className={styles.mealTitle}>{mealTitle(meal)}</span>
-                {meal.batch_id && <span className={styles.meta}>{tBulk("fromBatch")}</span>}
+                {meal.batch_id && (
+                  <span className={styles.meta}>{tBulk("fromBatch")}</span>
+                )}
                 {meta && (
                   <span className={styles.meta}>{`${label} · ${meta}`}</span>
                 )}

@@ -20,6 +20,7 @@ import {
 } from "@/components/meals/RecipeDetail";
 import { AddToGroceriesButton } from "@/components/meals/AddToGroceriesButton";
 import { RecipeDetailEdit } from "@/components/meals/RecipeDetailEdit";
+import { useTranslation } from "@/i18n";
 import { RecipeCuration } from "@/components/meals/RecipeCuration";
 
 type Load =
@@ -37,6 +38,8 @@ export default function RecipePage() {
 }
 
 function RecipePageInner() {
+  const { locale } = useTranslation();
+  const es = locale === "es";
   const params = useParams<{ id: string }>();
   const id = params?.id;
   const [role, setRole] = React.useState<string | null>(null);
@@ -150,6 +153,22 @@ function RecipePageInner() {
           recipe={load.recipe}
           actions={
             <div className="flex flex-wrap gap-2">
+              {(role === "parent" || role === "teen") && (
+                <>
+                  <Link
+                    href={`/dashboard/meals?recipe=${encodeURIComponent(load.recipe.id)}`}
+                    className="btn-filled min-h-[44px]"
+                  >
+                    {es ? "Planificar comida" : "Plan a meal"}
+                  </Link>
+                  <Link
+                    href={`/dashboard/meals?view=bulk&recipe=${encodeURIComponent(load.recipe.id)}`}
+                    className="btn-tinted min-h-[44px]"
+                  >
+                    {es ? "Añadir a una preparación" : "Add to prep"}
+                  </Link>
+                </>
+              )}
               <RecipeDetailEdit
                 key={load.recipe.id}
                 recipe={load.recipe}

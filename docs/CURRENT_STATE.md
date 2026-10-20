@@ -1,5 +1,29 @@
 # Current State
 
+## Saved recipe reuse and keyed ordinary meal create source — 2026-10-19
+
+Saved recipe detail now links directly to Plan a meal and Add to prep. A recipe
+URL carries intent only: the destination re-reads canonical owned metadata and
+a deliberate tap opens the existing editor. The same saved ID is reused, with
+reviewable day/slot/portions; no automatic meal, recipe copy or stock write.
+Prep can add more dishes through the existing multi-step session editor.
+
+The ordinary meal editor now uses a dedicated versioned/keyed create endpoint.
+Fresh User/household/session/meals authority, expected account/family, same-family
+recipe/cook checks, canonical meal and compact receipt share the write boundary.
+Ambiguous responses retain the exact key/body and lock editing/navigation until
+confirmation. A replay checks current ownership and existence; it never recreates
+a deleted meal. Issued-at bounds refuse recreating an expired saved intent after
+receipt pruning. Ordinary meal Undo also retains its original context/key/body
+and offers Check same restore after an unknown result. Existing legacy
+`POST /api/meals` remains for old callers; no broad mixed-client safety claim.
+
+EN/ES reuse/recovery controls, focused source tests and issue documentation are
+updated. No QA/type/lint/build/browser run, generation, migration, provider call,
+push, merge or deployment occurred. Remaining #460 parsing/discovery/scaling and
+broader issue reconciliation still need implementation review, then one
+consolidated QA pass. This goal remains unfinished.
+
 ## Prepared recipe history source — 2026-10-19
 
 The #460 reuse candidate captures a bounded canonical recipe snapshot when a
