@@ -1,5 +1,31 @@
 # Current State
 
+## Family setup guards and dropdown source inventory — 2026-10-20
+
+Original #446 maps to canonical dashboard/standalone Add Everyone, explicit invite
+roles/send and finish-later paths in
+`docs/plans/family-onboarding-source-reconciliation.md`. Existing gated no-login
+profile behavior remains separate; no flags or invitation policies changed.
+Two confirmed client gaps were fixed: family creation now owns a synchronous
+submission ref before a pending render (also ignores composing Enter), and
+ambiguous membership reconciliation bounds both fetch and JSON body through the
+existing 2500ms read helper. Timeout retains the draft and unknown state without
+advance or automatic retry; late read results cannot mutate the finished race.
+The create mutation itself was not given an automatic timeout/retry.
+
+Source cases cover same-turn Enter/click, composing input, failure/draft retention
+and stalled reconciliation fetch/body plus late responses; all are unrun.
+`docs/plans/native-select-source-inventory.md` records 69 native selects across
+45 non-test source files, shared light/dark color-scheme/solid option/optgroup
+rules and zero inline option class/style hints from a lexical scan. Custom-menu
+inventory/reconciliation is still partial, and no compiled CSS/contrast/browser
+or Android/Windows popup behavior is claimed. Ledger updated with those limits.
+
+Only source inspection, edits and formatting occurred. No tests, types, lint,
+build, browser/native/schema operations, CI, family creation/invitation, push,
+merge, deployment or activation. Full implementation goal and QA/release gates
+remain active and unchanged.
+
 ## Custom-list/private-cover creation source reconciliation — 2026-10-20
 
 Original #447/#454 are mapped in

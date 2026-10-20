@@ -133,6 +133,7 @@ export default function OnboardingFlow({
   const [step, setStep] = useState(1);
   const [familyName, setFamilyName] = useState("");
   const [loading, setLoading] = useState(false);
+  const creatingFamilyRef = useRef(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [profileAvailability, setProfileAvailability] =
@@ -246,8 +247,13 @@ export default function OnboardingFlow({
 
   async function reconcileFamily(): Promise<ReconcileResult> {
     try {
-      const response = await fetch("/api/auth/me", { cache: "no-store" });
-      const payload: unknown = await response.json();
+      const result = await fetchJsonWithinTimeout(
+        "/api/auth/me",
+        { cache: "no-store" },
+        ROSTER_REFRESH_TIMEOUT_MS,
+      );
+      if (!result) return "unknown";
+      const { response, payload } = result;
       const user =
         payload && typeof payload === "object"
           ? (payload as { user?: { family_id?: unknown } }).user
@@ -272,12 +278,14 @@ export default function OnboardingFlow({
   }
 
   async function createFamily() {
-    if (loading) return;
+    if (creatingFamilyRef.current) return;
     const trimmedName = familyName.trim();
     if (!trimmedName) {
       setError(text("createError"));
       return;
     }
+    // Enter/click can reach this handler before the loading render commits.
+    creatingFamilyRef.current = true;
     setLoading(true);
     setError("");
     setNotice("");
@@ -333,6 +341,7 @@ export default function OnboardingFlow({
       if ((await reconcileFamily()) === "found") return;
       setError(text("reconcileUnknown"));
     } finally {
+      creatingFamilyRef.current = false;
       setLoading(false);
     }
   }
@@ -483,7 +492,10 @@ export default function OnboardingFlow({
               placeholder={text("familyNamePlaceholder")}
               className="w-full rounded-xl border border-input bg-card px-4 py-3 text-lg text-foreground focus:border-[var(--focus-ring)] focus:ring-2 focus:ring-[var(--focus-ring)]"
               onKeyDown={(event) => {
-                if (event.key === "Enter") void createFamily();
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  void createFamily();
+                }
               }}
               disabled={loading}
             />
