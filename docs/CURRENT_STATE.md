@@ -1,5 +1,28 @@
 # Current State
 
+## Gated inventory recovery UI source — 2026-10-20
+
+Personal inventory now has a shared recovery provider, EN/ES review sheets and
+gated write wiring across manual creates, barcode/photo trays and all stock
+changes. Exact online requests stage before send; original keys/bodies and owner
+proof reach existing canonical routes. Unresolved keys block unrelated changes;
+confirmed cleanup must persist before success reaches the form. Recovered names
+are hidden until current canonical review; original values, stock summary,
+explicit retry, historical confirmation and confirmed local dismissal are wired.
+Uncertain storage has deliberate repair controls. Read access loss suspends the
+panel. Native bridges ignoring cancellation settle writes as unknown at 15 s.
+
+The adopted rollback flag selects this UI boundary; new-writing gates remain
+off. Paused negotiation still permits owner-checked read/review/local dismissal,
+but stage/send stay refused. No automatic retry or new offline queue action.
+Source tests are authored for ordering, original-key retention, late network
+completion, hidden names, local dismissal, paused review and EN/ES. None ran.
+No typecheck/lint/build/browser/native QA, schema/provider action, push, merge or
+deployment. Next: finish #125 source reconciliation against all issue criteria,
+including voice/cooking/restocking dependencies, then remaining issue ledger.
+Actual storage, multi-tab, nested focus/Back and physical lifecycle acceptance
+remain in the later consolidated QA pass. `architecture/INVENTORY_RECOVERY.md`.
+
 ## Canonical inventory recovery review source — 2026-10-20
 
 Added read-only exact-request review against matching actor/household/action/hash

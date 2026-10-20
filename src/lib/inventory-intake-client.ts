@@ -6,6 +6,7 @@ import {
 } from "@/lib/inventory-intake-contract";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { INVENTORY_RECOVERY_OWNER_HEADER } from "@/lib/inventory-recovery-contract";
+import { inventoryWriteDeadline } from "@/lib/inventory-write-deadline";
 export type IntakeContext = { userId: string; familyId: string };
 export type IntakeIntent = { key: string; body: string };
 export async function readInventoryIntakeContext(
@@ -42,6 +43,14 @@ export type IntakeOutcome =
   | { kind: "refused"; code: string; accessChanged?: boolean }
   | { kind: "removed" };
 export async function postInventoryIntake(
+  intent: IntakeIntent,
+  ownerScope?: string,
+): Promise<IntakeOutcome> {
+  return inventoryWriteDeadline(() =>
+    performInventoryIntake(intent, ownerScope),
+  );
+}
+async function performInventoryIntake(
   intent: IntakeIntent,
   ownerScope?: string,
 ): Promise<IntakeOutcome> {

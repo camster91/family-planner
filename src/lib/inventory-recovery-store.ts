@@ -66,6 +66,7 @@ export function createInventoryRecoveryStore(options: Options) {
   let rows: InventoryRecoveryEntry[] = [];
   let held = new Set<string>();
   let currentStore = -1;
+  let writesEnabled = false;
   let uncertain: {
     base: Array<string | null>;
     text: string;
@@ -105,6 +106,7 @@ export function createInventoryRecoveryStore(options: Options) {
         !sameQueueOwner(context.owner, next.owner))
     )
       return fail("OWNER_CHANGED");
+    writesEnabled = next.enabled;
     return next as InventoryRecoveryContext & { owner: QueueOwner };
   }
   async function probe() {
@@ -209,13 +211,14 @@ export function createInventoryRecoveryStore(options: Options) {
   }
   async function checked<T>(
     run: (now: InventoryRecoveryContext & { owner: QueueOwner }) => Promise<T>,
+    allowPaused = false,
   ) {
     const now = await resolve();
     return lease(now.owner, async () => {
       // Renew after obtaining the lease; no cached login proof authorizes work.
       const fresh = await resolve();
       if (!sameQueueOwner(now.owner, fresh.owner)) return fail("OWNER_CHANGED");
-      if (!fresh.enabled) return fail("DISABLED");
+      if (!fresh.enabled && !allowPaused) return fail("DISABLED");
       if (!context || !baseline) return fail("UNAVAILABLE");
       if (uncertain) return fail("UNAVAILABLE");
       const values = await probe();
@@ -234,14 +237,15 @@ export function createInventoryRecoveryStore(options: Options) {
     uncertain = null;
   }
   return {
+    writesAvailable: () => writesEnabled,
+    hasUncertainStorage: () => uncertain !== null,
     initialize: () =>
       serial(async () => {
         if (uncertain) return fail("UNAVAILABLE");
         const next = await resolve();
-        if (!next.enabled) return fail("DISABLED");
         return lease(next.owner, async () => {
           const fresh = await resolve();
-          if (!fresh.enabled || !sameQueueOwner(next.owner, fresh.owner))
+          if (!sameQueueOwner(next.owner, fresh.owner))
             return fail("OWNER_CHANGED");
           stores = options.candidates(fresh.owner);
           const values = await probe();
@@ -282,8 +286,7 @@ export function createInventoryRecoveryStore(options: Options) {
         if (!pending || !context) return fail("UNAVAILABLE");
         const now = await resolve();
         return lease(now.owner, async () => {
-          const fresh = await resolve();
-          if (!fresh.enabled) return fail("DISABLED");
+          await resolve();
           const values = await probe();
           if (
             values.some(
@@ -318,7 +321,7 @@ export function createInventoryRecoveryStore(options: Options) {
             fresh.owner,
           );
           held.delete(key);
-        }),
+        }, true),
       ),
     inspect: <T>(
       key: string,
@@ -332,11 +335,10 @@ export function createInventoryRecoveryStore(options: Options) {
           const entry = rows.find((row) => row.key === key);
           if (!entry) return fail("INTENT_CHANGED");
           const result = await inspect(copy(entry), fresh);
-          const latest = await resolve();
-          if (!latest.enabled) return fail("DISABLED");
+          await resolve();
           if (!identical(await probe(), baseline!)) return fail("DIVERGENT");
           return result;
-        }),
+        }, true),
       ),
     send: <T>(
       key: string,

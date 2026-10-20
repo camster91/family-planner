@@ -227,10 +227,20 @@ it("disabled negotiation and owner change during recovered review never call the
   });
   expect(send).not.toHaveBeenCalled();
   f.setContext({ ...context, enabled: false });
-  await expect(f.build().initialize()).rejects.toMatchObject({
+  const paused = f.build();
+  expect(await paused.initialize()).toEqual([
+    { ...entry, reviewRequired: true },
+  ]);
+  expect(paused.writesAvailable()).toBe(false);
+  await expect(paused.send(entry.key, true, send)).rejects.toMatchObject({
     reason: "DISABLED",
   });
   expect(f.first.get()).toContain(entry.key);
+  expect(await paused.inspect(entry.key, async () => "canonical review")).toBe(
+    "canonical review",
+  );
+  await paused.dismiss(entry.key);
+  expect(await f.build().initialize()).toEqual([]);
 });
 it("uses existing generation retirement for unloaded inventory journals without touching future records", async () => {
   const f = fixture(),

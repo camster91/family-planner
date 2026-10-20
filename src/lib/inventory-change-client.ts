@@ -7,6 +7,7 @@ import {
 import type { IntakeContext } from "@/lib/inventory-intake-client";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { INVENTORY_RECOVERY_OWNER_HEADER } from "@/lib/inventory-recovery-contract";
+import { inventoryWriteDeadline } from "@/lib/inventory-write-deadline";
 export type InventoryChangeIntent = { key: string; body: string };
 export function makeInventoryChangeIntent(
   operation: InventoryChangeOperation,
@@ -33,6 +34,14 @@ export type InventoryChangeOutcome =
   | { kind: "removed" }
   | { kind: "not_applied" };
 export async function postInventoryChange(
+  intent: InventoryChangeIntent,
+  ownerScope?: string,
+): Promise<InventoryChangeOutcome> {
+  return inventoryWriteDeadline(() =>
+    performInventoryChange(intent, ownerScope),
+  );
+}
+async function performInventoryChange(
   intent: InventoryChangeIntent,
   ownerScope?: string,
 ): Promise<InventoryChangeOutcome> {

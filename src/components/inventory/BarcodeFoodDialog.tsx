@@ -15,7 +15,6 @@ import {
 import {
   readInventoryIntakeContext,
   makeInventoryIntakeIntent,
-  postInventoryIntake,
   type IntakeContext,
   type IntakeIntent,
 } from "@/lib/inventory-intake-client";
@@ -23,6 +22,7 @@ import { createInventorySchema } from "@/lib/inventory";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { useFoodBarcodeCamera } from "@/components/inventory/use-food-barcode-camera";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
+import { useInventoryWrites } from "@/components/inventory/InventoryRecovery";
 type Row = {
   id: string;
   code: FoodBarcode;
@@ -60,6 +60,7 @@ export function BarcodeFoodDialog({
   onDone: (count: number) => void;
 }) {
   const { locale } = useTranslation();
+  const { intake: sendIntake } = useInventoryWrites();
   const es = locale === "es";
   const text = (en: string, spanish: string) => (es ? spanish : en);
   const [context, setContext] = useState<IntakeContext | null>(
@@ -390,7 +391,7 @@ export function BarcodeFoodDialog({
         };
         attempts.current.set(row.id, attempt);
       }
-      const result = await postInventoryIntake(attempt.intent);
+      const result = await sendIntake(attempt.intent);
       if (result.kind === "refused" && result.accessChanged) onVerifyAccess?.();
       if (result.kind === "confirmed") {
         attempts.current.delete(row.id);

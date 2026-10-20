@@ -48,11 +48,12 @@ import { useOnline } from '@/components/ui/use-online'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 import { BarcodeFoodDialog } from '@/components/inventory/BarcodeFoodDialog'
-import { makeInventoryChangeIntent, postInventoryChange, type InventoryChangeIntent } from '@/lib/inventory-change-client'
+import { InventoryRecoveryProvider, InventoryRecoveryPanel, useInventoryWrites, useInventoryRecoveryBlocked } from '@/components/inventory/InventoryRecovery'
+import { makeInventoryChangeIntent, type InventoryChangeIntent } from '@/lib/inventory-change-client'
 import type { InventoryChangeOperation } from '@/lib/inventory-change-contract'
 import { readInventorySnapshot, INVENTORY_ITEM_PAGE_SIZE, INVENTORY_ITEM_MAX_PAGES, type InventoryReadAccess } from '@/lib/inventory-reader'
 import { inventoryReadScopeValue } from '@/lib/inventory-read-scope'
-import { makeInventoryIntakeIntent, postInventoryIntake, readInventoryIntakeContext, type IntakeContext, type IntakeIntent } from '@/lib/inventory-intake-client'
+import { makeInventoryIntakeIntent, readInventoryIntakeContext, type IntakeContext, type IntakeIntent } from '@/lib/inventory-intake-client'
 import { ScanFridgeDialog } from './ScanFridgeDialog'
 import { Dialog } from '@/components/ui/dialog'
 import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
@@ -170,21 +171,27 @@ type PendingStockChange = {
   uncertain: boolean
 }
 
-export default function InventoryClient({
+type InventoryClientProps = {
+  canWrite: boolean
+  canOpenRecipes: boolean
+  intakeContext?: { userId: string; familyId: string }
+  canScan?: boolean
+  canCaptureDocuments?: boolean
+  recoveryRequired?: boolean
+}
+export default function InventoryClient(props: InventoryClientProps) {
+  return <InventoryRecoveryProvider required={props.recoveryRequired ?? false} original={props.intakeContext}><InventoryContent {...props} /></InventoryRecoveryProvider>
+}
+function InventoryContent({
   canWrite,
   canOpenRecipes,
   canScan = false,
   canCaptureDocuments = false,
   intakeContext,
-}: {
-  canWrite: boolean
-  canOpenRecipes: boolean
-  /** Parent, and the deployment has a fridge-scan provider key (#265). */
-  intakeContext?: { userId: string; familyId: string }
-  canScan?: boolean
-  canCaptureDocuments?: boolean
-}) {
+}: InventoryClientProps) {
   const copy = useInventoryCopy()
+  const { change: sendStockChange } = useInventoryWrites()
+  const recoveryBlocked = useInventoryRecoveryBlocked()
   const readScope = intakeContext ? inventoryReadScopeValue(intakeContext) : undefined
   const originalReadScope = React.useRef(readScope).current
   const scopeRef = React.useRef(readScope)
@@ -309,7 +316,7 @@ export default function InventoryClient({
     setStockSending(true)
     const operation = pending.operation
     try {
-      const result = await postInventoryChange(pending.intent)
+      const result = await sendStockChange(pending.intent)
       if (result.kind === 'unknown' || (result.kind === 'refused' && pending.uncertain)) {
         pending.uncertain = true
         setStockChange({ ...pending })
@@ -427,6 +434,7 @@ export default function InventoryClient({
   }
 
   const openAdd = () => {
+    if (recoveryBlocked) return
     if (isOffline()) {
       setNotice({ text: feedback('offlineWrite'), error: true })
       return
@@ -438,6 +446,7 @@ export default function InventoryClient({
     <>
     {readBlocked && <EmptyState icon={WifiOff} title={copy('readAccessTitle')} description={copy(readAccessLost === 'unsupported' ? 'readScopeUnsupported' : 'readScopeChanged')} action={<button type="button" className="btn-tinted min-h-[44px]" ref={readRecoveryRef} disabled={refreshing} onClick={() => { if (readScope !== originalReadScope) window.location.reload(); else void load() }}>{copy(readScope !== originalReadScope ? 'readReopen' : 'tryAgain')}</button>} />}
     <div hidden={readBlocked} inert={readBlocked} className="min-w-0 space-y-6">
+      <InventoryRecoveryPanel suspended={readBlocked} onChanged={() => void load()} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-large-title font-display">{copy('title')}</h1>
@@ -449,14 +458,14 @@ export default function InventoryClient({
         {(canWrite || canScan) && (
           <div className="flex flex-wrap gap-2">
             {canScan && (
-              <button type="button" className="btn-tinted min-h-[44px]" onClick={() => setScanning(true)}>
+              <button type="button" className="btn-tinted min-h-[44px]" disabled={recoveryBlocked} onClick={() => setScanning(true)}>
                 <Camera className="w-4 h-4" aria-hidden="true" />
                 <span>{copy('scanFridge')}</span>
               </button>
             )}
-            {canWrite && <button type="button" className="btn-tinted min-h-[44px]" onClick={() => setBarcodeScanning(true)}>{copy('scanFood')}</button>}
+            {canWrite && <button type="button" className="btn-tinted min-h-[44px]" disabled={recoveryBlocked} onClick={() => setBarcodeScanning(true)}>{copy('scanFood')}</button>}
             {canWrite && (
-              <button ref={addItemRef} type="button" className="btn-tinted min-h-[44px]" onClick={openAdd}>
+              <button ref={addItemRef} type="button" className="btn-tinted min-h-[44px]" disabled={recoveryBlocked} onClick={openAdd}>
                 <Plus className="w-4 h-4" aria-hidden="true" />
                 <span>{copy('addItem')}</span>
               </button>
@@ -1206,6 +1215,7 @@ function ItemModal({
 }) {
   const copy = useInventoryCopy()
   const [name, setName] = React.useState(initial?.name ?? '')
+  const { intake: sendIntake } = useInventoryWrites()
   const [location, setLocation] = React.useState<InventoryLocation>(initial?.location ?? 'fridge')
   const [amount, setAmount] = React.useState(initial?.amount != null ? String(initial.amount) : '')
   const [unit, setUnit] = React.useState(initial?.unit ?? '')
@@ -1292,7 +1302,7 @@ function ItemModal({
       setError(null)
       try {
         const wasUncertain = uncertain
-        const result = await postInventoryIntake(createAttempt.current)
+        const result = await sendIntake(createAttempt.current)
         if (result.kind === 'refused' && result.accessChanged) onVerifyAccess?.()
         if (result.kind === 'confirmed') {
           createAttempt.current = null

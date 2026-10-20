@@ -2,14 +2,14 @@
 
 This document is the engineering source for privacy review and future Play Data Safety answers. It must be reconciled against actual code before public release.
 
-Inventory recovery foundation (2026-10-20, off/not UI-integrated): a future
-personal recovery journal holds only exact user-reviewed intake/change kind,
+Inventory recovery source (2026-10-20, off/gated UI integrated): the personal
+recovery journal holds only exact user-reviewed intake/change kind,
 request key and body inside a private session/household-owned envelope. At most
 20 rows, 8 KiB per body, 200 KiB per journal; no raw photos/audio/OCR, provider
 prompts, copied display titles or credentials. It reuses owned-person storage
 and generation/household retirement; unknown records stay held. No automatic
-queue replay or telemetry content is introduced. Existing forms still persist
-no inventory request journal. Full ownership, privacy and remaining integration
+queue replay or telemetry content is introduced. Unadopted forms still persist
+no inventory request journal; adopted forms stage before sending. Full ownership, privacy and acceptance
 boundaries: `architecture/INVENTORY_RECOVERY.md`.
 
 ## Classification levels

@@ -175,7 +175,7 @@ every new field is optional. Rollback of the app code is safe; the new columns s
 
 ## Food inventory (#263, #158/#121)
 
-**Inventory recovery foundation (2026-10-20, off/not UI-integrated):** personal
+**Inventory recovery foundation (2026-10-20, off/gated UI integrated):** personal
 
 `POST /api/inventory/recovery/review` accepts strict
 `{contract:'herewoven.inventory-recovery-review.v1',entry:{kind,key,body}}` and
@@ -186,7 +186,7 @@ and returns ready/pending/committed/removed/expired/conflict/unavailable,
 canRetry, current canonical summary and validated completed receipt if present.
 Ready is only a snapshot; writes retain all version/authority checks. Unknown
 and foreign targets reveal no names. Browser readers bound time/bytes and exact
-response ownership. UI integration remains open.
+response ownership. Gated UI source is integrated; acceptance remains open.
 
 Personal negotiation:
 `GET /api/inventory/recovery` renews parent/teen inventory authority and returns

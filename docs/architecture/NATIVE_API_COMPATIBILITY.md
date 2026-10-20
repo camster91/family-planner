@@ -28,12 +28,13 @@ provider gate, camera permission or supported installed binary.
 | Stock changes | `herewoven.inventory-change.v1`; versioned edit/remove/consume/discard and owned Undo | Original key/body survives unknown replies while mounted; rollback must retain these routes and receipt semantics or stop writes without translating intent to legacy routes |
 | Photo/document review | Explicit versioned original-context response and gated document modes | No provider activation. Camera/file permission denial, image formats, upload/review interruption and actual target devices remain unverified |
 | Barcode review | Local camera detection with typed fallback; explicit private/public metadata apply | Web source does not establish scanner availability or installed camera permission. Verify denied permission, unsupported detector, background/resume and hardware |
-| Offline/process death | No durable inventory mutation queue or inventory cache; bounded online refresh and mounted-memory recovery only | Network interruption while mounted differs from restart/upgrade/process death. Reopening cannot promise to recover a lost draft or request key; do not auto-resubmit reconstructed stock |
+| Offline/process death | Unadopted inventory stays memory-only; gated owned exact-online-request journals and EN/ES recovery UI are authored, not accepted. No offline inventory action/cache is advertised | Verify restart/upgrade/process death, original scope/key/body retention, paused-write review and local dismissal on real clients. Never auto-resubmit reconstructed stock |
 
 Original-owner access loss suspends personal sheets and conceals cached reads.
 It does not transfer pending work to a new account/household. Account/role remount
-and explicit page reload clear memory; durable owner retirement in #564 is not
-implicitly extended to inventory. Inventory must remain absent from
+and explicit page reload clear mounted memory; adopted inventory journals reuse
+#564 owner/generation/household retirement with a separate inventory scope. That
+source integration is not proof of physical lifecycle or durable purge acceptance. Inventory must remain absent from
 `QUEUEABLE_ACTIONS` until a separate approved payload/storage/retirement contract
 and later recovery QA establish support. No physical-device, native build,
 schema migration, provider, release or rollback execution is claimed here.

@@ -1,9 +1,9 @@
 # Personal inventory restart recovery — #125/#135/#473
 
-Source foundation in progress, 2026-10-20. **Off by default, not wired into the
-inventory UI, not accepted or released.** Existing mounted recovery remains the
-active client path. This extends the original goal; it does not replace durable
-recovery acceptance with mounted-memory behavior.
+Gated source candidate, 2026-10-20. **Off by default, source UI integrated,
+not accepted or released.** Unadopted deployments retain mounted recovery. This
+extends the original goal; it does not replace durable recovery acceptance
+with mounted-memory behavior.
 
 ## Contract and privacy
 
@@ -67,6 +67,45 @@ falling back to unbound legacy writes.
 
 ## Remaining implementation and consolidated acceptance
 
+### Gated forms and review UI source — 2026-10-20
+
+The server-rendered personal page passes the adopted rollback boundary to
+`InventoryRecoveryProvider`. Once adopted in a mounted view it cannot silently
+fall back to unjournaled writes. A paused/unknown/unsupported negotiation holds
+new sends. The default unadopted path performs no storage negotiation and keeps
+the accepted legacy mounted behavior. Activation still needs both inventory and
+both existing owner-recovery gates and the full release acceptance below.
+
+Manual ItemModal, BarcodeFoodDialog, ScanFridgeDialog and parent stock actions
+use the provider's same keyed sender. Each original reviewed request is stored
+before sending; only its same key may retry while unknown. Success/no-effect/
+original-removal cleanup must persist before the initiating form receives that
+result. Any uncertain storage transition returns unknown and retains intent.
+Transport deadlines also settle at 15 seconds when a bridge ignores abort; late
+completion cannot replace the already-returned unknown outcome.
+
+EN/ES rounded sheets list unnamed recovered entries until proof-bound canonical
+inspection succeeds. They show original reviewed values (including product
+remember/source, package size, dates and storage), current stock, explicit retry,
+clear historical confirmation, or confirmed local dismissal. Local dismissal
+explains it cannot cancel server work. Read scope loss suspends sheets. New
+capture entry buttons are disabled while recovery blocks writes. Existing forms
+retain their own exact-key/navigation guards; after a separate storage repair,
+an original mounted uncertain form may still need its original-key receipt check
+before it closes. This is not a second stock creation.
+
+Paused writing is distinct from lost authority: fresh owner-bound initialization,
+inspection, exact storage repair and deliberate local dismissal remain available
+while stock stage/send are disabled. This permits rollback recovery without
+dropping journals, bypassing ownership or silently using old write routes.
+
+Source tests now cover stage/send/dismiss ordering, unadopted compatibility,
+unknown-key retention, failed confirmed cleanup, hidden names, explicit local
+dismissal, paused read/review and Spanish copy. They are authored only. Actual
+Web Locks/storage faults across tabs, dialog nesting/focus/Back, reconnect,
+owner changes, current/previous client rollback and native process death remain
+unverified until the consolidated acceptance pass.
+
 ### Canonical review and browser bridge source — 2026-10-20
 
 `POST /api/inventory/recovery/review` now reviews one strict original entry with
@@ -95,18 +134,15 @@ after the canonical read. No automatic retry or native capability is added.
 
 Test source covers receipt expiry/pending/hash/household, canonical versions and
 removal proof, private authority refusal, bounded fetch and response binding.
-These tests have not run. Main forms/capture/stock wiring and EN/ES recovery
-controls remain implementation work; support stays off.
+These tests have not run. The later gated forms/EN/ES source wiring is described
+above; support stays off until consolidated acceptance.
 
-- Wire bounded negotiation, storage candidates and lifecycle into personal
-  inventory; fail closed before new writes when an existing journal is unknown
-  or support is paused. Connect forms, barcode/photo saves and stock actions to
-  durable stage-before-send and confirmed dismissal. Keep manual draft fallback
-  truthful when storage is unavailable.
-- Implement a bounded canonical recovered-target/receipt reviewer and EN/ES
-  review, retained/expired/removed, retry, confirmed-dismiss and uncertain-storage
-  controls. Reconstruct no lost keys or rewritten bodies. Preserve navigation
-  guards until both request outcome and local transition are resolved.
+- Verify bounded negotiation, real storage/lifecycle and all manual/barcode/photo/
+  stock stage-before-send and confirmed-dismiss paths. Unknown journals must
+  refuse new writes without replacing original requests.
+- Exercise canonical review and EN/ES retained/expired/removed/retry/dismiss/
+  storage controls. Verify original-key receipt checks after separate storage
+  repair and nested modal focus/Back; no rendered acceptance is claimed.
 - Exercise two-household/role/session/direct API negatives, current/previous and
   forward/rollback candidates, lost acknowledgements, partial writes, divergent
   copies, failed retirement, cross-tab races, capacity and quota, offline/restart,

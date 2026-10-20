@@ -1,5 +1,17 @@
 # Route and domain inventory (#148)
 
+### Inventory recovery UI integration source — 2026-10-20
+
+No new route/schema. Personal InventoryClient now owns InventoryRecoveryProvider
+and EN/ES recovery sheets. Manual ItemModal, BarcodeFoodDialog, ScanFridgeDialog
+and stock actions share gated stage/send/confirmed-dismiss. Root server props
+carry the adopted rollback boundary; default legacy mode does not negotiate or
+persist. Paused writing retains current-owner review/local dismissal while
+stage/send stay refused. Both write transports settle unknown at 15 seconds
+even if the native bridge ignores abort. New source tests cover sender order,
+storage failure, original-key retry, hidden names and EN/ES/paused controls.
+No code execution or rendered/native acceptance; provider/activation gates stay off.
+
 ### Inventory recovery canonical review — 2026-10-20
 
 New `POST /api/inventory/recovery/review`: paired-first personal auth, required

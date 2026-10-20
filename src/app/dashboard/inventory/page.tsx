@@ -32,6 +32,10 @@ export default async function InventoryPage() {
             : undefined
         }
         canWrite={canWriteInventory(user.role)}
+        recoveryRequired={
+          canWriteInventory(user.role) &&
+          process.env.INVENTORY_RECOVERY_ROLLBACK_READY === "1"
+        }
         canOpenRecipes={canRoleAccessPath(
           user.role,
           "/dashboard/meals/recipes",

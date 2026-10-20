@@ -18,10 +18,11 @@ fresh authorization before exposing any queued/native inventory capability;
 
 The 2026-10-20 [inventory recovery foundation](INVENTORY_RECOVERY.md) adds a
 separate exact online-request journal and optional server owner proof. It is
-off by default and not yet connected to forms. It reuses generic owned-record
-retirement, does not change the offline action allowlist, and does not establish
-working restart recovery. Browser review/lifecycle integration remains source
-work before the consolidated QA pass.
+off by default with gated manual/capture/stock UI wiring now authored. It reuses
+generic owned-record retirement and preserves read/review/local dismissal while
+new stock writing is paused. The offline action allowlist is unchanged. Browser
+review, real storage/lifecycle and restart acceptance remain unverified until the
+consolidated QA pass; source integration alone does not prove working recovery.
 
 Shared-device snapshot behavior is implemented in `device-board-cache.ts` and `use-device-board-snapshot.ts`: see [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §8 for exact allowlist, 24-hour display bound, read-only restoration, revocation and application-shell/native limits. This does not extend the mutation allowlist or establish physical Android acceptance.
 

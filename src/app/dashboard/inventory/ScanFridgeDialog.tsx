@@ -34,12 +34,12 @@ import { newIdempotencyKey } from "@/lib/idempotency-key";
 import {
   readInventoryIntakeContext,
   makeInventoryIntakeIntent,
-  postInventoryIntake,
   type IntakeContext,
   type IntakeIntent,
 } from "@/lib/inventory-intake-client";
 import { createInventorySchema } from "@/lib/inventory";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
+import { useInventoryWrites } from "@/components/inventory/InventoryRecovery";
 import { INVENTORY_LOCATIONS, type InventoryLocation } from "@/lib/inventory";
 import type { ScanSuggestion } from "@/lib/inventory-scan";
 import { PRODUCT_BRAND } from "@/lib/brand";
@@ -210,6 +210,7 @@ export function ScanFridgeDialog({
   onFeedback?: (message: InventoryFeedback) => void;
 }) {
   const copy = useInventoryCopy();
+  const { intake: sendIntake } = useInventoryWrites();
   const report = (message: InventoryFeedback) =>
     onFeedback
       ? onFeedback(message)
@@ -482,7 +483,7 @@ export function ScanFridgeDialog({
         };
         attempts.current.set(row.key, attempt);
       }
-      const outcome = await postInventoryIntake(attempt.intent);
+      const outcome = await sendIntake(attempt.intent);
       if (outcome.kind === "refused" && outcome.accessChanged)
         onVerifyAccess?.();
       if (outcome.kind === "confirmed") {
