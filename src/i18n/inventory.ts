@@ -6,6 +6,19 @@ import {
 
 /** Owned presentation only. Private names, units, model text and API refusals stay raw. */
 export const inventoryEnglish = {
+  readHistoryUnavailableEmpty:
+    "History could not be loaded. Refresh to check earlier changes and Undo.",
+  readRefresh: "Refresh inventory",
+  readRefreshing: "Refreshing…",
+  readReopen: "Reopen Inventory",
+  readAccessTitle: "Inventory access needs checking",
+  readScopeChanged:
+    "Your account, household or inventory access changed. Check again with the original account, or reopen Inventory after switching households. Pending drafts are kept in this view until it closes.",
+  readScopeUnsupported:
+    "This server cannot confirm the household for this inventory view. Refresh after the app is updated. No other household's stock was loaded.",
+  readHistoryUnavailable:
+    "History could not be refreshed. Earlier entries are shown without Undo until the next successful refresh.",
+
   cookPresenceOnly:
     "Matches identify foods only. Check amounts, units and condition before cooking.",
   cookMatchDetails: "How these foods matched",
@@ -273,6 +286,19 @@ export const inventoryEnglish = {
 } as const;
 export type InventoryMessage = keyof typeof inventoryEnglish;
 export const inventorySpanish: Record<InventoryMessage, string> = {
+  readHistoryUnavailableEmpty:
+    "No se pudo cargar el historial. Actualiza para comprobar cambios anteriores y Deshacer.",
+  readRefresh: "Actualizar inventario",
+  readRefreshing: "Actualizando…",
+  readReopen: "Volver a abrir Inventario",
+  readAccessTitle: "Hay que comprobar el acceso al inventario",
+  readScopeChanged:
+    "Cambió tu cuenta, hogar o acceso al inventario. Comprueba de nuevo con la cuenta original o vuelve a abrir Inventario tras cambiar de hogar. Los borradores se conservan en esta vista hasta cerrarla.",
+  readScopeUnsupported:
+    "Este servidor no puede confirmar el hogar de esta vista. Actualiza cuando se actualice la aplicación. No se cargaron existencias de otro hogar.",
+  readHistoryUnavailable:
+    "No se pudo actualizar el historial. Las entradas anteriores se muestran sin Deshacer hasta una actualización correcta.",
+
   cookPresenceOnly:
     "Las coincidencias solo identifican alimentos. Revisa cantidades, unidades y estado antes de cocinar.",
   cookMatchDetails: "Cómo se identificaron estos alimentos",

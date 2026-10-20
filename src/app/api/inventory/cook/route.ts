@@ -1,3 +1,7 @@
+import {
+  refuseInventoryReadScope,
+  inventoryScopedResponse,
+} from "@/lib/inventory-read-http";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily } from "@/lib/api-auth";
@@ -25,6 +29,9 @@ async function handle(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+    const readScope = { userId: auth.user.id, familyId: auth.user.family_id };
+    const scopeRefusal = refuseInventoryReadScope(request, readScope);
+    if (scopeRefusal) return scopeRefusal;
 
     const gate = await featureGate(auth.user.family_id, "inventory");
     if (gate) return gate;
@@ -48,7 +55,7 @@ async function handle(request: NextRequest) {
       today,
       limit,
     });
-    return inventoryJson(result);
+    return inventoryScopedResponse(inventoryJson(result), readScope);
   } catch (err) {
     logRouteError("GET /api/inventory/cook", err, getRequestId(request));
     return inventoryError(500, "INTERNAL_ERROR", "Internal server error");

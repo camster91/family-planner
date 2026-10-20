@@ -5,6 +5,10 @@
 // per suggestion even when a create lands but its response is lost), focus
 // management (moved in, follows each step, Tab trapped, restored to the Scan
 // button) and Escape going through the same close path as the Close button.
+import {
+  inventoryReadScopeValue,
+  INVENTORY_READ_SCOPE_HEADER,
+} from "@/lib/inventory-read-scope";
 import * as React from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -37,7 +41,15 @@ function json(status: number, data: unknown) {
     ok: status >= 200 && status < 300,
     status,
     json: async () => data,
-    headers: { get: () => null },
+    headers: {
+      get: (name: string) =>
+        name.toLowerCase() === INVENTORY_READ_SCOPE_HEADER.toLowerCase()
+          ? inventoryReadScopeValue({
+              userId: "fixture_parent",
+              familyId: "fixture_family",
+            })
+          : null,
+    },
   } as unknown as Response;
 }
 

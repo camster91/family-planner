@@ -1,6 +1,10 @@
 /**
  * @jest-environment jsdom
  */
+import {
+  inventoryReadScopeValue,
+  INVENTORY_READ_SCOPE_HEADER,
+} from "@/lib/inventory-read-scope";
 import * as React from "react";
 import "@testing-library/jest-dom";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
@@ -214,7 +218,15 @@ function setup({
           ok: status >= 200 && status < 300,
           status,
           json: async () => data,
-          headers: { get: () => null },
+          headers: {
+            get: (name: string) =>
+              name.toLowerCase() === INVENTORY_READ_SCOPE_HEADER.toLowerCase()
+                ? inventoryReadScopeValue({
+                    userId: "fixture-parent",
+                    familyId: "fixture-family",
+                  })
+                : null,
+          },
         }) as unknown as Response;
       if (url.startsWith("/api/inventory/use-soon"))
         return json(200, { days: 3, items: USE_SOON });

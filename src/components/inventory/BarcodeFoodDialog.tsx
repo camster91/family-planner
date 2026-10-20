@@ -48,10 +48,14 @@ type Row = {
 /** One selected draft at a time, canonical stock only after explicit review/save. */
 export function BarcodeFoodDialog({
   initialContext,
+  suspended = false,
+  onVerifyAccess,
   onClose,
   onDone,
 }: {
   initialContext?: IntakeContext;
+  suspended?: boolean;
+  onVerifyAccess?: () => void;
   onClose: () => void;
   onDone: (count: number) => void;
 }) {
@@ -125,9 +129,16 @@ export function BarcodeFoodDialog({
   const camera = useFoodBarcodeCamera((code) => {
     void add(code);
   });
+  useEffect(() => {
+    if (suspended) {
+      camera.stop();
+      requests.current.forEach((request) => request.abort());
+    }
+  }, [suspended, camera.stop]);
   const current = rows.find((row) => row.id === selected) ?? rows[0];
   function update(change: Partial<Row>) {
     if (
+      suspended ||
       flight.current ||
       readingRef.current ||
       attempts.current.size ||
@@ -149,6 +160,7 @@ export function BarcodeFoodDialog({
   ) {
     if (
       !context ||
+      suspended ||
       readingRef.current ||
       flight.current ||
       attempts.current.size
@@ -164,6 +176,8 @@ export function BarcodeFoodDialog({
         `/api/inventory/products?barcode=${code.gtin}${publicLookup ? "&lookup=1" : ""}`,
         { cache: "no-store", signal: request.signal },
       );
+      if (response.status === 401 || response.status === 403)
+        onVerifyAccess?.();
       if (!response.ok) throw new Error();
       const data = foodProductReply.parse(await response.json());
       if (
@@ -256,6 +270,7 @@ export function BarcodeFoodDialog({
   async function add(code: FoodBarcode) {
     if (
       !context ||
+      suspended ||
       flight.current ||
       readingRef.current ||
       attempts.current.size
@@ -314,12 +329,13 @@ export function BarcodeFoodDialog({
     await metadata(id, code, false);
   }
   function close() {
-    if (flight.current || attempts.current.size) return;
+    if (suspended || flight.current || attempts.current.size) return;
     camera.stop();
     requests.current.forEach((request) => request.abort());
     total.current ? onDone(total.current) : onClose();
   }
   async function save() {
+    if (suspended) return;
     if (flight.current || readingRef.current || !context) return;
     camera.stop();
     const chosen = rowsRef.current.filter((row) => row.include);
@@ -375,6 +391,7 @@ export function BarcodeFoodDialog({
         attempts.current.set(row.id, attempt);
       }
       const result = await postInventoryIntake(attempt.intent);
+      if (result.kind === "refused" && result.accessChanged) onVerifyAccess?.();
       if (result.kind === "confirmed") {
         attempts.current.delete(row.id);
         total.current++;
@@ -436,7 +453,7 @@ export function BarcodeFoodDialog({
   }
   return (
     <Dialog
-      open
+      open={!suspended}
       variant="form"
       title={text("Scan food", "Escanear alimentos")}
       closeLabel={text("Close", "Cerrar")}

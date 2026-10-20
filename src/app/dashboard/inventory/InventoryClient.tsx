@@ -50,7 +50,8 @@ import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 import { BarcodeFoodDialog } from '@/components/inventory/BarcodeFoodDialog'
 import { makeInventoryChangeIntent, postInventoryChange, type InventoryChangeIntent } from '@/lib/inventory-change-client'
 import type { InventoryChangeOperation } from '@/lib/inventory-change-contract'
-import { cookSuggestionsSchema } from '@/lib/inventory-cook-contract'
+import { readInventorySnapshot, INVENTORY_ITEM_PAGE_SIZE, INVENTORY_ITEM_MAX_PAGES, type InventoryReadAccess } from '@/lib/inventory-reader'
+import { inventoryReadScopeValue } from '@/lib/inventory-read-scope'
 import { makeInventoryIntakeIntent, postInventoryIntake, readInventoryIntakeContext, type IntakeContext, type IntakeIntent } from '@/lib/inventory-intake-client'
 import { ScanFridgeDialog } from './ScanFridgeDialog'
 import { Dialog } from '@/components/ui/dialog'
@@ -102,22 +103,13 @@ interface PageData {
   cook: Load<CookData>
   history: HistoryEntry[]
   capped: boolean
+  historyFailed?: boolean
 }
-
-/** Items per request (the API maximum) and the most pages the page follows. */
-const ITEM_PAGE_SIZE = 500
-const ITEM_MAX_PAGES = 20
-/** History rows shown under "Recently used or thrown away". */
-const HISTORY_ROWS = 10
 
 export const OFFLINE_WRITE_MESSAGE = "You're offline. Connect to the internet to change the inventory."
 
 function isOffline(): boolean {
   return typeof navigator !== 'undefined' && navigator.onLine === false
-}
-
-function todayQuery(): string {
-  return `today=${encodeURIComponent(toDateOnlyLocal(new Date()))}`
 }
 
 // Dates and times on this page are display only, in the viewer's locale
@@ -193,6 +185,21 @@ export default function InventoryClient({
   canCaptureDocuments?: boolean
 }) {
   const copy = useInventoryCopy()
+  const readScope = intakeContext ? inventoryReadScopeValue(intakeContext) : undefined
+  const originalReadScope = React.useRef(readScope).current
+  const scopeRef = React.useRef(readScope)
+  scopeRef.current = readScope
+  const [readAccessLost, setReadAccessLost] = React.useState<InventoryReadAccess>(null)
+  const readBlocked = readAccessLost !== null || readScope !== originalReadScope
+  const blockedRef = React.useRef(readBlocked)
+  blockedRef.current = readBlocked
+  const readGeneration = React.useRef(0)
+  const readRequest = React.useRef<AbortController | null>(null)
+  const mounted = React.useRef(true)
+  const [refreshing, setRefreshing] = React.useState(false)
+  const readRecoveryRef = React.useRef<HTMLButtonElement>(null)
+  React.useEffect(() => { if (readBlocked) readRecoveryRef.current?.focus() }, [readBlocked])
+  const lastHistory = React.useRef<HistoryEntry[]>([])
   const mealsOn = useFeatureEnabled('meals')
   const online = useOnline()
   const displayLocale = useDisplayLocale()
@@ -228,67 +235,57 @@ export default function InventoryClient({
   }, [editing])
 
   const load = React.useCallback(async () => {
-    const q = todayQuery()
-    if (!hasData.current) setData({ state: 'loading' })
-    const get = async <T,>(url: string, pick: (body: any) => T): Promise<Load<T>> => {
-      try {
-        const res = await fetch(url)
-        if (!res.ok) return { state: 'error' }
-        return { state: 'ready', data: pick(await res.json()) }
-      } catch {
-        return { state: 'error' }
-      }
-    }
-    // Follow `nextOffset` so a large household sees every item, up to a
-    // bounded number of pages; past that the page says the list is cut short.
-    const getAllItems = async (): Promise<Load<{ items: InventoryItemDto[]; capped: boolean }>> => {
-      const all: InventoryItemDto[] = []
-      let offset: number | null = 0
-      for (let page = 0; offset !== null && page < ITEM_MAX_PAGES; page++) {
-        const res: Load<{ items: InventoryItemDto[]; nextOffset: number | null }> = await get(
-          `/api/inventory?${q}&limit=${ITEM_PAGE_SIZE}&offset=${offset}`,
-          (b) => ({ items: b.items as InventoryItemDto[], nextOffset: (b.nextOffset ?? null) as number | null })
-        )
-        if (res.state !== 'ready') return { state: 'error' }
-        all.push(...res.data.items)
-        offset = res.data.nextOffset
-      }
-      return { state: 'ready', data: { items: all, capped: offset !== null } }
-    }
-    const [list, soon, cooked, history] = await Promise.all([
-      getAllItems(),
-      get(`/api/inventory/use-soon?${q}&days=3`, (b) => b.items as UseSoonItem[]),
-      mealsOn
-        ? get(`/api/inventory/cook?${q}`, (b) => cookSuggestionsSchema.parse(b))
-        : Promise.resolve<Load<CookData>>({
-            state: 'ready',
-            data: { suggestions: [], recipesConsidered: 0, truncated: false, inputsTruncated: false },
-          }),
-      get(`/api/inventory/adjustments?limit=${HISTORY_ROWS}`, (b) => (b.adjustments ?? []) as HistoryEntry[]),
-    ])
-    if (list.state !== 'ready' || soon.state !== 'ready') {
-      // Keep what was loaded; say it could not be refreshed.
-      if (hasData.current) setRefreshFailed(true)
-      else setData({ state: 'error' })
+    const own = ++readGeneration.current
+    readRequest.current?.abort()
+    if (readScope !== originalReadScope) {
+      setRefreshing(false)
+      blockedRef.current = true
+      setReadAccessLost('context')
+      hasData.current = false
+      lastHistory.current = []
+      setLoadedAt(null)
+      setData({ state: 'error' })
       return
     }
-    hasData.current = true
-    setRefreshFailed(false)
-    setLoadedAt(new Date())
-    setData({
-      state: 'ready',
-      data: {
-        items: list.data.items,
-        capped: list.data.capped,
-        useSoon: soon.data,
-        cook: cooked,
-        history: history.state === 'ready' ? history.data : [],
-      },
-    })
-  }, [mealsOn])
+    if (isOffline()) { setRefreshing(false); if (!hasData.current) setData({ state: 'error' }); return }
+    const request = new AbortController()
+    readRequest.current = request
+    const current = () => mounted.current && own === readGeneration.current
+    setRefreshing(true)
+    if (!hasData.current) setData({ state: 'loading' })
+    try {
+      const snapshot = await readInventorySnapshot({ scope: readScope, today: toDateOnlyLocal(new Date()), mealsOn, signal: request.signal })
+      if (!current()) return
+      if (snapshot.accessLost) {
+        blockedRef.current = true
+        setReadAccessLost(snapshot.accessLost)
+        hasData.current = false
+        lastHistory.current = []
+        setLoadedAt(null)
+        setData({ state: 'error' })
+        return
+      }
+      const { list, useSoon: soon, cook: cooked, history } = snapshot
+      if (list.state !== 'ready' || soon.state !== 'ready') {
+        if (hasData.current) setRefreshFailed(true)
+        else setData({ state: 'error' })
+        return
+      }
+      blockedRef.current = false
+      setReadAccessLost(null)
+      hasData.current = true
+      setRefreshFailed(false)
+      setLoadedAt(new Date())
+      if (history.state === 'ready') lastHistory.current = history.data.adjustments
+      setData({ state: 'ready', data: { items: list.data.items, capped: list.data.capped, useSoon: soon.data.items, cook: cooked,
+        history: history.state === 'ready' ? history.data.adjustments : lastHistory.current.map(entry => ({ ...entry, undoable: false })), historyFailed: history.state !== 'ready' } })
+    } finally { if (current()) setRefreshing(false) }
+  }, [mealsOn, readScope, originalReadScope])
 
   React.useEffect(() => {
-    load()
+    mounted.current = true
+    void load()
+    return () => { mounted.current = false; readGeneration.current++; readRequest.current?.abort() }
   }, [load])
 
   // Refresh when the connection comes back.
@@ -306,6 +303,7 @@ export default function InventoryClient({
   }
 
   async function runStockChange(pending: PendingStockChange): Promise<InventoryFeedback | null> {
+    if (blockedRef.current) return feedback('readScopeChanged')
     if (stockFlight.current || stockChangeRef.current !== pending) return feedback('stockChangePending')
     stockFlight.current = true
     setStockSending(true)
@@ -315,6 +313,7 @@ export default function InventoryClient({
       if (result.kind === 'unknown' || (result.kind === 'refused' && pending.uncertain)) {
         pending.uncertain = true
         setStockChange({ ...pending })
+        if (result.kind === 'refused') void load()
         return feedback('stockChangeUnknown')
       }
       stockChangeRef.current = null
@@ -324,6 +323,7 @@ export default function InventoryClient({
         if (operation.kind === 'edit' || operation.kind === 'remove') focusAddAfterEdit.current = true
         setEditing(null)
         await load()
+        if (!mounted.current || blockedRef.current || scopeRef.current !== originalReadScope) return null
         if (operation.kind === 'undo') {
           setNotice({ text: feedback('undoSuccess', { name: pending.name }) })
         } else if (operation.kind === 'edit' || operation.kind === 'remove') {
@@ -354,6 +354,7 @@ export default function InventoryClient({
   }
 
   async function startStockChange(operation: InventoryChangeOperation, name: string, unit?: string | null): Promise<InventoryFeedback | null> {
+    if (blockedRef.current || scopeRef.current !== originalReadScope) return feedback('readScopeChanged')
     if (stockChangeRef.current || stockFlight.current) return feedback('stockChangePending')
     if (isOffline()) return feedback('offlineWrite')
     if (!intakeContext) return feedback('stockChangeContext')
@@ -434,7 +435,9 @@ export default function InventoryClient({
   }
 
   return (
-    <div className="min-w-0 space-y-6">
+    <>
+    {readBlocked && <EmptyState icon={WifiOff} title={copy('readAccessTitle')} description={copy(readAccessLost === 'unsupported' ? 'readScopeUnsupported' : 'readScopeChanged')} action={<button type="button" className="btn-tinted min-h-[44px]" ref={readRecoveryRef} disabled={refreshing} onClick={() => { if (readScope !== originalReadScope) window.location.reload(); else void load() }}>{copy(readScope !== originalReadScope ? 'readReopen' : 'tryAgain')}</button>} />}
+    <div hidden={readBlocked} inert={readBlocked} className="min-w-0 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-large-title font-display">{copy('title')}</h1>
@@ -442,6 +445,7 @@ export default function InventoryClient({
             {copy('subtitle')}
           </p>
         </div>
+        <button type="button" className="btn-plain min-h-[44px]" disabled={refreshing || !online} onClick={() => void load()}>{copy(refreshing ? 'readRefreshing' : 'readRefresh')}</button>
         {(canWrite || canScan) && (
           <div className="flex flex-wrap gap-2">
             {canScan && (
@@ -571,7 +575,7 @@ export default function InventoryClient({
               />
               {data.data.capped && (
                 <p className="text-footnote text-label-secondary" data-testid="items-capped">
-                  {copy('capped', { count: (ITEM_PAGE_SIZE * ITEM_MAX_PAGES).toLocaleString('en-US') })}
+                  {copy('capped', { count: (INVENTORY_ITEM_PAGE_SIZE * INVENTORY_ITEM_MAX_PAGES).toLocaleString(displayLocale) })}
                 </p>
               )}
               {filtersOn && filtered.length === 0 ? (
@@ -597,9 +601,10 @@ export default function InventoryClient({
               )}
             </>
           )}
-          {(mealsOn || data.data.history.length > 0) && (
+          {(mealsOn || data.data.history.length > 0 || data.data.historyFailed) && (
             <div className={cn('grid min-w-0 grid-cols-1 items-start gap-6', mealsOn && data.data.history.length > 0 && 'xl:grid-cols-2')} data-testid="inventory-secondary">
               {mealsOn && <CookSection load={data.data.cook} onRetry={load} canOpenRecipes={canOpenRecipes} />}
+              {data.data.historyFailed && <p role="status" className="card-apple p-4 text-subhead">{copy(data.data.history.length ? 'readHistoryUnavailable' : 'readHistoryUnavailableEmpty')}</p>}
               {data.data.history.length > 0 && (
                 <HistorySection entries={data.data.history} canWrite={canWrite} onUndo={(e) => undo(e.id, e.item_name)} />
               )}
@@ -608,7 +613,7 @@ export default function InventoryClient({
         </>
       )}
 
-      {stockChange && <Dialog open variant="form" title={copy(stockSending ? 'stockChangeSaving' : 'stockChangeRecovery')} testId="inventory-change-recovery">
+      {stockChange && <Dialog open={!readBlocked} variant="form" title={copy(stockSending ? 'stockChangeSaving' : 'stockChangeRecovery')} testId="inventory-change-recovery">
         <p className="text-body break-words">{stockChange.name}</p>
         <p className="text-subhead">{copy(stockChange.operation.kind === 'undo' ? 'undo' : stockChange.operation.kind === 'discard' ? 'throwAway' : stockChange.operation.kind === 'edit' ? 'save' : stockChange.operation.kind === 'remove' ? 'remove' : 'usedIt')}</p>
         {stockChange.operation.kind === 'consume' && stockChange.operation.amount !== null && <p className="text-subhead">{formatAmount(stockChange.operation.amount)} {stockChange.unit ?? ''}</p>}
@@ -618,12 +623,14 @@ export default function InventoryClient({
         <button type="button" className="btn-tinted min-h-[44px] w-full" disabled={stockSending} onClick={() => { const pending = stockChangeRef.current; if (pending) void runStockChange(pending); }}>{copy(stockSending ? 'saving' : 'intakeRetry')}</button>
       </Dialog>}
 
-      {barcodeScanning && <BarcodeFoodDialog initialContext={intakeContext} onClose={() => setBarcodeScanning(false)} onDone={(count) => { setBarcodeScanning(false); afterChange(feedback('barcodeAdded', { count })); }} />}
-      {scanning && <ScanFridgeDialog canCaptureDocuments={canCaptureDocuments} initialContext={intakeContext} onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
+      {barcodeScanning && <BarcodeFoodDialog onVerifyAccess={() => void load()} suspended={readBlocked} initialContext={intakeContext} onClose={() => setBarcodeScanning(false)} onDone={(count) => { setBarcodeScanning(false); afterChange(feedback('barcodeAdded', { count })); }} />}
+      {scanning && <ScanFridgeDialog onVerifyAccess={() => void load()} suspended={readBlocked} canCaptureDocuments={canCaptureDocuments} initialContext={intakeContext} onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
 
       {editing && (
         <ItemModal
           mode={editing.mode}
+          suspended={readBlocked}
+          onVerifyAccess={() => void load()}
           initialContext={intakeContext}
           initial={editing.mode === 'edit' ? editing.item : undefined}
           onClose={() => setEditing(null)}
@@ -636,6 +643,7 @@ export default function InventoryClient({
         />
       )}
     </div>
+    </>
   )
 }
 
@@ -1173,6 +1181,8 @@ function StockEditSummary({ operation }: { operation: InventoryChangeOperation }
 
 function ItemModal({
   mode,
+  suspended = false,
+  onVerifyAccess,
   initial,
   initialContext,
   onClose,
@@ -1181,6 +1191,8 @@ function ItemModal({
   onChangeStock,
 }: {
   mode: 'add' | 'edit'
+  suspended?: boolean
+  onVerifyAccess?: () => void
   initial?: InventoryItemDto
   initialContext?: IntakeContext
   onClose: () => void
@@ -1243,7 +1255,7 @@ function ItemModal({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (mutationRef.current) return
+    if (mutationRef.current || suspended) return
     const trimmed = name.trim()
     if (!trimmed) {
       setError(feedback('enterName'))
@@ -1281,6 +1293,7 @@ function ItemModal({
       try {
         const wasUncertain = uncertain
         const result = await postInventoryIntake(createAttempt.current)
+        if (result.kind === 'refused' && result.accessChanged) onVerifyAccess?.()
         if (result.kind === 'confirmed') {
           createAttempt.current = null
           setUncertain(false)
@@ -1321,7 +1334,7 @@ function ItemModal({
   }
 
   const adjust = async (kind: AdjustKind) => {
-    if (!initial || mutationRef.current) return
+    if (!initial || mutationRef.current || suspended) return
     let usedAmount: number | null = null
     if (kind === 'consume' && used.trim() !== '') {
       usedAmount = Number(used)
@@ -1345,7 +1358,7 @@ function ItemModal({
   }
 
   const remove = async () => {
-    if (!initial || mutationRef.current || !showRemove) return
+    if (!initial || mutationRef.current || suspended || !showRemove) return
     if (isOffline()) {
       setError(feedback('offlineWrite'))
       return
@@ -1382,7 +1395,7 @@ function ItemModal({
 
   return (
     <Dialog
-      open
+      open={!suspended}
       variant="form"
       testId="inventory-modal"
       title={mode === 'add' ? copy('addItem') : copy('editName', { name: initial?.name ?? copy('itemFallback') })}
@@ -1645,7 +1658,7 @@ function ItemModal({
         </fieldset>
       </form>
       <Dialog
-        open={showRemove}
+        open={showRemove && !suspended}
         role="alertdialog"
         title={copy('remove')}
         description={copy('removeConfirm', { name: initial?.name ?? copy('itemFallback') })}

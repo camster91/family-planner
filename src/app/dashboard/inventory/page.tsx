@@ -25,6 +25,7 @@ export default async function InventoryPage() {
   return (
     <FeatureGate featureKey="inventory">
       <InventoryClient
+        key={`${user.id}:${user.family_id ?? "none"}:${user.role}`}
         intakeContext={
           user.family_id
             ? { userId: user.id, familyId: user.family_id }

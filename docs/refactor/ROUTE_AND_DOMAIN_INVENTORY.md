@@ -1,5 +1,16 @@
 # Route and domain inventory (#148)
 
+### Inventory read binding source addendum — 2026-10-19
+
+No route added: inventory list, use-soon, cook and adjustments GET now share
+`inventory-read-http.ts` for optional original-actor/household request binding,
+canonical success echo and private/no-store outcomes. Personal clients share
+`inventory-reader.ts`, `inventory-read-contract.ts` and `inventory-read-scope.ts`
+for bounded refresh generations and DTO validation. Old unbound reads remain
+compatible; new bound readers need the backend first. Details and limits live in
+`architecture/API_CONTRACTS.md` and `architecture/OFFLINE_SYNC.md`. Source only;
+no new queue/manifest action and no QA/release claim.
+
 **Inspected:** `master` at `cbef026` (#280), 2026-09-29. Static source inspection only: no route was run for this document, no production data was read, and nothing here claims runtime behaviour.
 
 **Scope:** every page (`src/app/**/page.tsx`, 57 files) and every API route (`src/app/api/**/route.ts`, 131 files, 197 exported handlers; reconciled with #281 at `32f10d0`). The lists were produced by a throwaway Node script (not committed; the repository has no tooling-scripts location for doc generators) that walks `src/app`, reads each file's exported HTTP methods, `featureGate(...)` / `FeatureGate` / `useFeatureEnabled(...)` calls, device helpers (`authenticateDevice`, `requireElevation`, `refusePairedDevice`), env kill-switch helpers, Prisma delegates used in the route file and its direct `@/lib/*` imports, and joins each handler to the "Role gate" column of [`security/API_ISOLATION_AUDIT.md`](../security/API_ISOLATION_AUDIT.md). Hand-checked rows are marked.

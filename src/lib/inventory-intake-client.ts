@@ -38,7 +38,7 @@ export function makeInventoryIntakeIntent(
 export type IntakeOutcome =
   | { kind: "confirmed"; itemId: string }
   | { kind: "unknown" }
-  | { kind: "refused"; code: string }
+  | { kind: "refused"; code: string; accessChanged?: boolean }
   | { kind: "removed" };
 export async function postInventoryIntake(
   intent: IntakeIntent,
@@ -76,7 +76,13 @@ export async function postInventoryIntake(
       return { kind: "unknown" };
     return code === "INTAKE_ITEM_REMOVED"
       ? { kind: "removed" }
-      : { kind: "refused", code };
+      : {
+          kind: "refused",
+          code,
+          ...([401, 403].includes(response.status)
+            ? { accessChanged: true }
+            : {}),
+        };
   } catch {
     return { kind: "unknown" };
   } finally {

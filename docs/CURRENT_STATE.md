@@ -1,5 +1,23 @@
 # Current State
 
+## Bounded inventory refresh source — 2026-10-19
+
+Personal inventory refresh now uses a 15-second whole-batch deadline, bounded
+response readers and validated DTOs. Pagination rejects repeated IDs/invalid
+cursors, caps at 20 pages of 500, and discloses that cap. New refresh generations
+cancel/ignore older replies. Failed history refresh is explicit and disables stale
+Undo actions. Original actor/household binding is checked by four personal read
+routes and echoed before the new reader parses private data. Authorization/scope
+loss conceals the cached view and suspends capture/edit sheets; original-scope
+retry or explicit reopen is required. Deploy backend support before new clients.
+
+Source tests/fixtures and EN/ES copy are authored, not run. No test, typecheck,
+lint, build, browser/native QA, schema operation, provider action, push, merge or
+deployment occurred. Read snapshots and unresolved write drafts remain memory
+only; remount/reload/process death loses them. This is not durable offline
+recovery or a transaction-wide read snapshot. Next: reconcile that remaining
+offline/native gap with #135/#473 before advertising any new capability.
+
 ## Ingredient-presence confidence source — 2026-10-19
 
 Cooking/grocery review now distinguish saved ingredient links from name-only

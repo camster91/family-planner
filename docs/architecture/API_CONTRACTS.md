@@ -174,6 +174,28 @@ Old Android WebViews and queued #247 operations keep working: no route, request 
 every new field is optional. Rollback of the app code is safe; the new columns stay unused.
 
 ## Food inventory (#263, #158/#121)
+
+**Additive personal read binding (#125, source candidate 2026-10-19):** the list,
+`use-soon`, `cook` and `adjustments` GET routes accept optional
+`X-Herewoven-Inventory-Scope: v1.<URI-encoded JSON>` containing strict
+`{userId,familyId}`. Missing header preserves older callers. Invalid binding is
+400 `INVALID_READ_CONTEXT`; a binding different from the authenticated actor is
+403 `AUTH_CONTEXT_CHANGED`. It supplies no authority. Successful replies echo
+the canonical binding; all outcomes are private/no-store. New bound clients
+reject missing/mismatched echoes before parsing private JSON, so deploy backend
+support first. This does not continuously reauthorize an in-flight database query
+or make parallel reads a consistent transaction snapshot.
+
+The personal reader gives the whole batch 15 seconds, limits each streamed body
+to 2 MiB, validates DTOs, follows at most 20 pages of 500, and rejects repeated
+IDs or unexpected/nonadvancing cursors. Older JSON-only fetch bridges receive a
+post-parse size check, not pre-allocation streaming protection. Latest generation
+alone publishes. Required read failure retains same-owner data with stale copy;
+history failure retains prior history without Undo and discloses the failure.
+Authorization/scope loss hides cached data and suspends edit/capture UI until
+the original scope is confirmed or the page is explicitly reopened. Source tests
+are authored; acceptance is deferred with the integrated candidate.
+
 New routes only; nothing existing changes shape except additive keys: `inventory` and (#158) `inventoryAdjustments`
 in `GET /api/users/export`, new optional item fields, `dateKind` on use-soon entries and the board DTO.
 Rules and data model: [`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md) §10. Roles and isolation:

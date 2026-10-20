@@ -1,4 +1,8 @@
 /** @jest-environment jsdom */
+import {
+  inventoryReadScopeValue,
+  INVENTORY_READ_SCOPE_HEADER,
+} from "@/lib/inventory-read-scope";
 import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { I18nProvider, useTranslation } from "@/i18n";
@@ -39,6 +43,15 @@ function json(status: number, body: unknown) {
     ok: status >= 200 && status < 300,
     status,
     json: async () => body,
+    headers: {
+      get: (name: string) =>
+        name.toLowerCase() === INVENTORY_READ_SCOPE_HEADER.toLowerCase()
+          ? inventoryReadScopeValue({
+              userId: "fixture-parent",
+              familyId: "fixture-family",
+            })
+          : null,
+    },
   } as Response;
 }
 function deferred() {

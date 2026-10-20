@@ -193,12 +193,16 @@ async function scanError(res: Response): Promise<InventoryFeedback> {
 
 export function ScanFridgeDialog({
   initialContext,
+  suspended = false,
+  onVerifyAccess,
   canCaptureDocuments = false,
   onClose,
   onDone,
   onFeedback,
 }: {
   initialContext?: IntakeContext;
+  suspended?: boolean;
+  onVerifyAccess?: () => void;
   canCaptureDocuments?: boolean;
   onClose: () => void;
   onDone: (message: string) => void;
@@ -246,6 +250,17 @@ export function ScanFridgeDialog({
     },
     [],
   );
+  React.useEffect(() => {
+    if (!suspended) return;
+    photoGeneration.current++;
+    photoRequest.current?.abort();
+    scanningRef.current = false;
+    setPhase((previous) =>
+      previous.step === "scanning"
+        ? { step: "error", message: feedback("scanNetwork") }
+        : previous,
+    );
+  }, [suspended]);
   const uncertain = rows.some((row) => row.uncertain);
   const navigation = usePendingFormNavigationController(adding || uncertain);
   React.useEffect(() => {
@@ -302,6 +317,7 @@ export function ScanFridgeDialog({
     const file = e.target.files?.[0];
     if (
       !file ||
+      suspended ||
       !context ||
       (captureMode === "receipt" && !receiptReady) ||
       addingRef.current ||
@@ -344,6 +360,7 @@ export function ScanFridgeDialog({
       });
       if (!current()) return;
       if (!res.ok) {
+        if ([401, 403].includes(res.status)) onVerifyAccess?.();
         const message = await scanError(res);
         if (current()) setPhase({ step: "error", message });
         return;
@@ -395,7 +412,7 @@ export function ScanFridgeDialog({
   const selected = rows.filter((r) => r.include);
 
   const addSelected = async () => {
-    if (addingRef.current || !context) return;
+    if (suspended || addingRef.current || !context) return;
     setAddError(null);
     const selectedRows = rows.filter((row) => row.include);
     if (!selectedRows.length) return;
@@ -466,6 +483,8 @@ export function ScanFridgeDialog({
         attempts.current.set(row.key, attempt);
       }
       const outcome = await postInventoryIntake(attempt.intent);
+      if (outcome.kind === "refused" && outcome.accessChanged)
+        onVerifyAccess?.();
       if (outcome.kind === "confirmed") {
         attempts.current.delete(row.key);
         added++;
@@ -538,7 +557,7 @@ export function ScanFridgeDialog({
 
   return (
     <Dialog
-      open
+      open={!suspended}
       onClose={adding || uncertain ? undefined : close}
       title={copy(canCaptureDocuments ? "foodPhotoTitle" : "scanTitle")}
       closeLabel={copy("close")}
