@@ -176,6 +176,19 @@ every new field is optional. Rollback of the app code is safe; the new columns s
 ## Food inventory (#263, #158/#121)
 
 **Inventory recovery foundation (2026-10-20, off/not UI-integrated):** personal
+
+`POST /api/inventory/recovery/review` accepts strict
+`{contract:'herewoven.inventory-recovery-review.v1',entry:{kind,key,body}}` and
+requires the original inventory owner proof. Limit 32 KiB; 60/user/minute;
+parent/teen current inventory authority; private/no-store. It reads matching
+receipts and current owned targets without mutation. Reply echoes owner/entry
+and returns ready/pending/committed/removed/expired/conflict/unavailable,
+canRetry, current canonical summary and validated completed receipt if present.
+Ready is only a snapshot; writes retain all version/authority checks. Unknown
+and foreign targets reveal no names. Browser readers bound time/bytes and exact
+response ownership. UI integration remains open.
+
+Personal negotiation:
 `GET /api/inventory/recovery` renews parent/teen inventory authority and returns
 `{contract:'herewoven.inventory-recovery.v1',enabled,owner,userId,familyId}`.
 Owner is a separate inventory continuity fingerprint of the actual session and

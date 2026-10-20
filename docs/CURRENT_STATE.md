@@ -1,5 +1,22 @@
 # Current State
 
+## Canonical inventory recovery review source — 2026-10-20
+
+Added read-only exact-request review against matching actor/household/action/hash
+receipts, current owned stock/versions and owned Undo. It distinguishes pending,
+committed, original removal, expired, conflict and unavailable states without
+reconstructing old requests. A private proof-bound endpoint, bounded browser
+negotiation/review, existing storage adapters and checked inspection are authored.
+Test source covers lost-response/expiry/household/version and fetch-binding
+boundaries; none was run.
+
+The recovery programme remains off/not UI-integrated. Next: connect durable
+stage/send/confirmed-dismiss to manual, barcode/photo and stock flows and add
+EN/ES explicit recovered review/storage recovery controls. Current forms still
+retain only mounted-memory recovery. See `architecture/INVENTORY_RECOVERY.md`.
+No tests/typecheck/lint/build/browser/native QA, schema operation, provider
+activation, push, merge or deployment occurred.
+
 ## Inventory restart-recovery foundation — 2026-10-20
 
 Added a strict bounded inventory request journal, separate session/canonical

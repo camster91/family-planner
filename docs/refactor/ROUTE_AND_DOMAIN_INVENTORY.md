@@ -1,5 +1,15 @@
 # Route and domain inventory (#148)
 
+### Inventory recovery canonical review — 2026-10-20
+
+New `POST /api/inventory/recovery/review`: paired-first personal auth, required
+inventory owner proof and canonical inventory authority; read-only receipt and
+owned target/Undo review with time/size/rate boundaries. Shared reviewer and
+response contract in `inventory-recovery-review*.ts`; bounded browser reads in
+`inventory-recovery-client.ts`, storage binding in `inventory-recovery-browser.ts`.
+No model/queue action or native capability added. Form/UI integration is next;
+source tests and common paired-context negatives are authored, not run.
+
 ### Inventory restart recovery source addendum — 2026-10-20
 
 One new personal GET route: `/api/inventory/recovery`, common paired-first auth

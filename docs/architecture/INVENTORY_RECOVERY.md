@@ -67,6 +67,37 @@ falling back to unbound legacy writes.
 
 ## Remaining implementation and consolidated acceptance
 
+### Canonical review and browser bridge source — 2026-10-20
+
+`POST /api/inventory/recovery/review` now reviews one strict original entry with
+required inventory owner proof, common paired-first auth and renewed canonical
+parent/teen inventory authority. Body limit is 32 KiB (including escaped original
+body), rate cap 60/user/minute, and every outcome is private/no-store. It reads
+receipts/stock/adjustments/ingredient ownership inside the canonical authority
+transaction; it writes no stock, receipt or product.
+
+The response echoes the exact entry and owner scope. A receipt must match
+original key, action, request hash, user and household. Successful proofs yield
+current owned stock or explicit original removal; removal operations need their
+matching completed receipt. Unknown/contradictory proof stays unavailable. With
+no receipt, issued-at bounds prevent recreating an old operation after receipt
+pruning. Existing pending work is held. Current stock/version and Undo ownership
+are checked; missing and foreign targets are indistinguishable. `ready` is only
+a review snapshot, never a guarantee that a later write will succeed.
+
+`inventory-recovery-client.ts` bounds negotiation/review to ten seconds and
+32 KiB streamed responses (post-parse bound on JSON-only old bridges), including
+fetch implementations ignoring cancellation. It rejects mismatched owner,
+kind/key/body and contradictory state/receipt metadata. Browser adapters bind
+the controller to the original person/household and existing owned-person
+storage candidates. Checked inspection revalidates owner and physical storage
+after the canonical read. No automatic retry or native capability is added.
+
+Test source covers receipt expiry/pending/hash/household, canonical versions and
+removal proof, private authority refusal, bounded fetch and response binding.
+These tests have not run. Main forms/capture/stock wiring and EN/ES recovery
+controls remain implementation work; support stays off.
+
 - Wire bounded negotiation, storage candidates and lifecycle into personal
   inventory; fail closed before new writes when an existing journal is unknown
   or support is paused. Connect forms, barcode/photo saves and stock actions to

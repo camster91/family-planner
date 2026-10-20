@@ -1,5 +1,14 @@
 # API household-isolation audit (issue #102)
 
+Source addendum 2026-10-20: `POST /api/inventory/recovery/review` additionally
+requires original inventory session-owner proof before original-entry parsing.
+Canonical authority is renewed inside the read transaction. Receipt action,
+hash, key, actor and household must agree before exposing historical success;
+stock/adjustment/ingredient targets are household filtered. Foreign and missing
+targets produce the same nameless unavailable result. No stock/product/receipt
+writes. Body 32 KiB, rate 60/user/minute, all responses private/no-store. Shared
+paired-context and focused review test source is authored, not executed.
+
 Source addendum 2026-10-20: `GET /api/inventory/recovery` uses common paired-first
 person/family auth, then canonical parent/teen inventory authority. It returns
 private/no-store current context and a domain-specific session continuity owner,

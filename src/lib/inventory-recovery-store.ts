@@ -89,7 +89,8 @@ export function createInventoryRecoveryStore(options: Options) {
     let value: unknown;
     try {
       value = await options.resolveContext();
-    } catch {
+    } catch (error) {
+      if (error instanceof InventoryRecoveryError) throw error;
       return fail("UNAVAILABLE");
     }
     const parsed = inventoryRecoveryContext.safeParse(value);
@@ -317,6 +318,24 @@ export function createInventoryRecoveryStore(options: Options) {
             fresh.owner,
           );
           held.delete(key);
+        }),
+      ),
+    inspect: <T>(
+      key: string,
+      inspect: (
+        entry: InventoryRecoveryEntry,
+        context: InventoryRecoveryContext,
+      ) => Promise<T>,
+    ) =>
+      serial(() =>
+        checked(async (fresh) => {
+          const entry = rows.find((row) => row.key === key);
+          if (!entry) return fail("INTENT_CHANGED");
+          const result = await inspect(copy(entry), fresh);
+          const latest = await resolve();
+          if (!latest.enabled) return fail("DISABLED");
+          if (!identical(await probe(), baseline!)) return fail("DIVERGENT");
+          return result;
         }),
       ),
     send: <T>(
