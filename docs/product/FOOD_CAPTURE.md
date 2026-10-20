@@ -18,7 +18,7 @@ eligibility, native camera acceptance and rollout remain explicit dependencies.
 | Public product lookup | Fixed-host bounded Open Food Facts v3 adapter with explicit lookup/apply and attribution; all deployment gates off | Data reuse/attribution approval, coverage, cost/usage and consolidated QA required before activation; no provider calls performed |
 | Private product corrections | FoodProduct recognition metadata and immutable stock snapshots, atomic revision-checked opt-in corrections; export/erasure wired | Additive migration/client generation and disposable-DB/isolation acceptance deferred; never a second stock store |
 | Package/label/date photo and receipt | Dedicated versioned document suggestions, printed-evidence/date apply, receipt redaction acknowledgement, one-item review and atomic label snapshots | Source only; separate deployment gate stays off pending document-processing/provider acceptance and consolidated QA |
-| Stock lifecycle | Existing InventoryItem/InventoryAdjustment consume/discard/Undo and cook suggestions | Reconcile atomic authorization/recovery and unit/matching confidence; no model-driven stock decrement |
+| Stock lifecycle | Versioned atomic consume/discard/Undo, current authority, expected item version and exact recovery sheet are coded | Edit/remove recovery, ingredient/unit matching and offline/native reconciliation remain; consolidated QA deferred |
 | Cross-device/offline | No new intake queue/manifest action advertised | #135/#473 compatibility, unsupported/offline draft recovery and actual native lifecycle proof |
 | Provider/model eligibility | #567 retains its dependency | No paid/Gemini activation, raw-media retention or external household processing added |
 
@@ -212,3 +212,51 @@ generation/migration, account mutation, push, merge or deployment occurred.
 Next implementation: reconcile stock edits/consume/discard/owned Undo and
 cross-device/offline/native capability contracts. Document provider acceptance,
 actual OCR/permission/device behavior and consolidated QA remain unverified.
+
+## Atomic stock changes and owned Undo source — 2026-10-19
+
+Personal Used it, Throw away, toast Undo and history Undo now use dedicated
+`POST /api/inventory/change`, with strict `herewoven.inventory-change.v1`, original
+actor/family, issued-at and a required key. No legacy fallback is used. Input is
+stream-bounded to 8 KiB and rate-limited to 60/minute/person; all outcomes are
+private/no-store and paired sessions are refused. The server-rendered inventory
+context is required; standalone callers without it must reopen Inventory.
+
+The transaction takes current user/household authority, receipt and item locks,
+checks role/session/feature/ownership, applies the canonical adjustment primitive,
+and stores only `{itemId, adjustmentId, kind}` with the same commit. A crash cannot
+leave stock/history committed without its confirmation. Existing wrappers share
+the same primitives; no second stock ledger or amount algorithm is introduced.
+Old endpoints remain for older callers, whose receipt/authority contract is not
+retroactively upgraded. Edit/remove paths still need separate reconciliation.
+
+Consume/discard bind the item version the person reviewed. A changed amount/unit,
+status or later edit refuses before a new deduction; amounts exceeding stock or
+partial use of unknown stock refuse rather than guessing. Whole consume and
+discard retain existing lifecycle/history semantics. Partial subtraction retains
+small nonzero amounts instead of rounding to six decimals, and personal display
+no longer rounds small stock amounts to zero. No unit conversion is inferred.
+Undo uses the adjustment's version and returns conflict after later work; repeating
+an already undone adjustment does not restore it again.
+
+The recovery sheet owns navigation and other stock changes from submission until
+confirmation. A lost/malformed response keeps the exact serialized request/key;
+a later access refusal cannot replace it. The backend's explicit no-effect
+conflict/amount/missing-target outcomes can release it for fresh review because
+those checks run inside the serialized atomic receipt boundary. An expired or
+authorization-refused unknown intent stays owned; it is not declared unapplied.
+Known removal of the original history/stock is explicit and never recreated.
+
+Replay renews current authority and owned existence. Compact historical receipts
+never return cached quantities as current truth; confirmation refreshes the live
+list/history. Undo buttons are still checked against current adjustment/item state
+when invoked. No native/offline capability is advertised and pending state is
+memory-only; process-death/restart/durable-queue acceptance remains open.
+
+Client/contract/disposable-DB and UI recovery test source covers duplicate recovery,
+atomic rollback, stale versions, Undo after later edit, foreign targets, role/token/
+expiry refusal, mismatched receipt and same-key recovery through later refusal.
+Existing inventory/localization fixtures are updated. All are authored, not run.
+No QA/build/browser/native run, generation/migration, provider/account action,
+push, merge or deployment occurred. Next: edit/remove recovery, matching/unit
+confidence and offline/native reconciliation before consolidated acceptance.

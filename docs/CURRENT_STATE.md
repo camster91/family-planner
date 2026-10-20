@@ -1,5 +1,20 @@
 # Current State
 
+## Atomic consume/discard and owned Undo source — 2026-10-19
+
+Personal stock actions now use versioned keyed inventory/change with original
+actor/family, current session/role/feature and expected item versions. Canonical
+stock, adjustment and compact receipt commit together. Replay checks current
+ownership/existence and refreshes live stock instead of returning cached amounts.
+A non-dismissible recovery sheet keeps exact requests through unknown results
+and later access refusal; explicit atomic no-effect results permit fresh review.
+Undo preserves later edits. Legacy wrappers share canonical transaction primitives.
+
+Source fixtures/tests and EN/ES copy are updated, not run. No QA/build/browser/
+native, schema operation, provider/account action, push, merge or deployment
+occurred. Edit/remove paths, matching/units and durable offline/native acceptance
+remain open. Full matrix: `product/FOOD_CAPTURE.md`.
+
 ## Focused package/date and receipt review source — 2026-10-19
 
 Document modes now use explicit protocol/original household context, separate

@@ -6,6 +6,24 @@ import {
 
 /** Owned presentation only. Private names, units, model text and API refusals stay raw. */
 export const inventoryEnglish = {
+  stockChangePending: "Check the pending food change before starting another.",
+  stockChangeUnknown:
+    "This change is not confirmed. Check the same request before leaving or changing this food again. Its original details are kept.",
+  stockChangeConfirmed:
+    "Confirmed the recorded change for {name}. The list shows current stock.",
+  stockChangeNotApplied:
+    "This check confirmed that the request did not change stock. The list was refreshed; review it before trying again.",
+  stockChangeRemoved:
+    "The original food change was recorded, then removed. This check did not recreate it.",
+  stockChangeRefused:
+    "Food change refused. Check your account, household and inventory access.",
+  stockChangeContext:
+    "Reopen Inventory to confirm your account and household before changing stock.",
+  stockChangeRefresh:
+    "Refresh Inventory and review this food before changing it.",
+  stockChangeSaving: "Checking food change…",
+  stockChangeRecovery: "Confirm food change",
+
   foodPhotoTitle: "Photo food capture",
   foodPhotoMode: "What are you photographing?",
   foodPhotoFridge: "Fridge",
@@ -243,6 +261,24 @@ export const inventoryEnglish = {
 } as const;
 export type InventoryMessage = keyof typeof inventoryEnglish;
 export const inventorySpanish: Record<InventoryMessage, string> = {
+  stockChangePending: "Comprueba el cambio pendiente antes de iniciar otro.",
+  stockChangeUnknown:
+    "Este cambio no está confirmado. Comprueba la misma solicitud antes de salir o volver a cambiar el alimento. Se conservan los datos originales.",
+  stockChangeConfirmed:
+    "Se confirmó el cambio registrado de {name}. La lista muestra las existencias actuales.",
+  stockChangeNotApplied:
+    "Esta comprobación confirmó que la solicitud no cambió las existencias. Se actualizó la lista; revísala antes de otro intento.",
+  stockChangeRemoved:
+    "El cambio original se registró y luego se eliminó. Esta comprobación no lo volvió a crear.",
+  stockChangeRefused:
+    "Cambio rechazado. Revisa tu cuenta, hogar y acceso al inventario.",
+  stockChangeContext:
+    "Vuelve a abrir Inventario para confirmar tu cuenta y hogar antes de cambiar existencias.",
+  stockChangeRefresh:
+    "Actualiza Inventario y revisa este alimento antes de cambiarlo.",
+  stockChangeSaving: "Comprobando cambio de alimento…",
+  stockChangeRecovery: "Confirmar cambio de alimento",
+
   foodPhotoTitle: "Capturar alimentos con foto",
   foodPhotoMode: "¿Qué vas a fotografiar?",
   foodPhotoFridge: "Refrigerador",

@@ -612,3 +612,20 @@ prep-domain 1–50 cap remains. Review/confirmation, household provenance and ow
 Undo still govern grocery mutation. Older grocery servers can refuse >50 before
 write; no automatic clamping or fallback changes the reviewed payload. Source
 candidate only: the full integrated QA/release gate remains open.
+
+### Reviewed stock change transaction (#125, 2026-10-19; candidate)
+
+`/api/inventory/change` uses `inventory-change-contract.ts` for consume/discard/
+undo, canonical primitives in `inventory-adjust.ts`, and a single membership/
+receipt/item transaction in `inventory-change.ts`. No stock/history shadow store.
+Expected versions bind current amounts/units for new consumes/discards; no inferred
+unit conversion or excess deduction. Undo cannot replace later stock changes.
+
+The compact historical receipt carries item/adjustment/kind only; live data is
+refetched after current-authority confirmation. The client's serialized key/body
+survives uncertain responses and later refusals in memory. Known no-effect
+outcomes release for fresh review; unknown expiration is not treated as no effect.
+Old APIs remain compatible and use the same canonical transaction primitives,
+without claiming their cached DTOs/fresh-role checks have the new guarantees.
+Edit/remove and offline/native capability reconciliation remain separate work.
+Source tests only; no integrated QA or runtime proof has run.

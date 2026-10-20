@@ -23,6 +23,7 @@ const item = {
   purchased_on: null,
   opened_on: null,
   status: "active",
+  updated_at: "2026-01-01T00:00:00.000Z",
   expiry: { status: "soon", daysLeft: 1 },
 };
 function Switch() {
@@ -75,15 +76,20 @@ function mount({
       headers: init?.headers,
     });
     if (method !== "GET") {
-      if (url.includes("/consume?"))
+      if (url === "/api/inventory/change") {
+        const operation = JSON.parse(String(init?.body)).operation;
         return (
           adjust?.() ??
           json(200, {
-            item,
-            adjustment: { id: "synthetic+adjust", status_after: "consumed" },
+            itemId: item.id,
+            adjustmentId:
+              operation.kind === "undo"
+                ? operation.adjustment_id
+                : "synthetic+adjust",
+            kind: operation.kind,
           })
         );
-      if (url.includes("/undo?")) return json(200, {});
+      }
       return create?.() ?? json(201, { itemId: item.id });
     }
     if (url.includes("/use-soon?"))
@@ -271,7 +277,9 @@ it("updates owned success notice and undo title/action without reloading, replay
     within(toast).getByRole("button", { name: "Descartar aviso" }),
   ).toBeInTheDocument();
   expect(screen.getByTestId("inventory-notice")).toHaveTextContent(
-    "Usaste " + name + ".",
+    "Se confirmó el cambio registrado de " +
+      name +
+      ". La lista muestra las existencias actuales.",
   );
   expect(calls).toHaveLength(count);
   act(() => jest.advanceTimersByTime(3999));
@@ -295,14 +303,18 @@ it("keeps native focus, paused undo and its canonical callback through a locale 
   fireEvent.click(undo);
   await settle();
   expect(screen.queryByTestId("undo-toast")).not.toBeInTheDocument();
-  const undos = calls.filter((c) => c.url.includes("/undo?"));
-  expect(undos).toHaveLength(1);
-  expect(undos[0].url).toBe(
-    "/api/inventory/adjustments/synthetic%2Badjust/undo?today=" +
-      encodeURIComponent(toDateOnlyLocal(new Date())),
+  const undos = calls.filter(
+    (c) =>
+      c.url === "/api/inventory/change" &&
+      (c.body as any).operation.kind === "undo",
   );
+  expect(undos).toHaveLength(1);
+  expect(undos[0].url).toBe("/api/inventory/change");
   expect(undos[0].method).toBe("POST");
-  expect(undos[0].body).toBeUndefined();
+  expect((undos[0].body as any).operation).toEqual({
+    kind: "undo",
+    adjustment_id: "synthetic+adjust",
+  });
   expect(screen.getByTestId("inventory-notice")).toHaveTextContent(
     "Se repuso " + name + ".",
   );

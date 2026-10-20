@@ -48,6 +48,8 @@ import { useOnline } from '@/components/ui/use-online'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 import { BarcodeFoodDialog } from '@/components/inventory/BarcodeFoodDialog'
+import { makeInventoryChangeIntent, postInventoryChange, type InventoryChangeIntent } from '@/lib/inventory-change-client'
+import type { InventoryChangeOperation } from '@/lib/inventory-change-contract'
 import { makeInventoryIntakeIntent, postInventoryIntake, readInventoryIntakeContext, type IntakeContext, type IntakeIntent } from '@/lib/inventory-intake-client'
 import { ScanFridgeDialog } from './ScanFridgeDialog'
 import { Dialog } from '@/components/ui/dialog'
@@ -137,7 +139,7 @@ function formatClock(date: Date, locale: string): string {
 }
 
 function formatAmount(n: number): string {
-  return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100)
+  return Number.isInteger(n) ? String(n) : String(Number(n.toPrecision(15)))
 }
 
 function amountText(item: Pick<InventoryItemDto, 'amount' | 'unit'>): string | null {
@@ -198,6 +200,15 @@ interface AdjustTarget {
   id: string
   name: string
   unit?: string | null
+  version?: string
+}
+
+type PendingStockChange = {
+  intent: InventoryChangeIntent
+  operation: InventoryChangeOperation
+  name: string
+  unit?: string | null
+  uncertain: boolean
 }
 
 export default function InventoryClient({
@@ -229,6 +240,12 @@ export default function InventoryClient({
   const [scanning, setScanning] = React.useState(false)
   const [barcodeScanning, setBarcodeScanning] = React.useState(false)
   const [busy, setBusy] = React.useState<string | null>(null)
+  const [stockChange, setStockChange] = React.useState<PendingStockChange | null>(null)
+  const stockChangeRef = React.useRef<PendingStockChange | null>(null)
+  const stockFlight = React.useRef(false)
+  const [stockSending, setStockSending] = React.useState(false)
+  const stockNavigation = usePendingFormNavigationController(stockChange !== null)
+
   const [query, setQuery] = React.useState('')
   const [whereFilter, setWhereFilter] = React.useState<InventoryLocation | 'all'>('all')
   const [categoryFilter, setCategoryFilter] = React.useState<InventoryCategory | 'all'>('all')
@@ -321,63 +338,74 @@ export default function InventoryClient({
     await load()
   }
 
-  const undo = React.useCallback(
-    async (adjustmentId: string, name: string) => {
-      if (isOffline()) {
-        setNotice({ text: feedback('offlineWrite'), error: true })
-        return
+  async function runStockChange(pending: PendingStockChange): Promise<InventoryFeedback | null> {
+    if (stockFlight.current || stockChangeRef.current !== pending) return feedback('stockChangePending')
+    stockFlight.current = true
+    setStockSending(true)
+    const operation = pending.operation
+    try {
+      const result = await postInventoryChange(pending.intent)
+      if (result.kind === 'unknown' || (result.kind === 'refused' && pending.uncertain)) {
+        pending.uncertain = true
+        setStockChange({ ...pending })
+        return feedback('stockChangeUnknown')
       }
-      try {
-        const res = await postJson(
-          `/api/inventory/adjustments/${encodeURIComponent(adjustmentId)}/undo?${todayQuery()}`,
-          undefined,
-          newIdempotencyKey()
-        )
-        if (!res.ok) {
-          setNotice({ text: await errorMessage(res, feedback('undoFailed', { name })), error: true })
-        } else {
-          setNotice({ text: feedback('undoSuccess', { name }) })
-        }
-      } catch {
-        setNotice({ text: feedback('undoNetwork', { name }), error: true })
-      }
-      // Refresh the list and the history either way, so every Undo shown
-      // still works (a refused undo usually means the item changed).
-      await load()
-    },
-    [load]
-  )
-
-  /** "Used it" / "Throw away". Returns an error message, or null on success. */
-  const adjust = React.useCallback(
-    async (target: AdjustTarget, kind: AdjustKind, amount: number | null = null, key?: string): Promise<InventoryFeedback | null> => {
-      if (isOffline()) return feedback('offlineWrite')
-      const body = kind === 'consume' && amount !== null ? { amount } : {}
-      setBusy(target.id)
-      try {
-        const res = await postJson(
-          `/api/inventory/${encodeURIComponent(target.id)}/${kind}?${todayQuery()}`,
-          body,
-          key ?? newIdempotencyKey()
-        )
-        if (!res.ok) return await errorMessage(res, feedback('saveFailed'))
-        const result = (await res.json()) as { item: InventoryItemDto; adjustment: AdjustmentDto }
-        const partial = kind === 'consume' && result.adjustment.status_after === 'active'
-        const params = { name: target.name, amount: `${amount !== null ? formatAmount(amount) : ''}${target.unit ? ` ${target.unit}` : ''}` }
-        const title = feedback(kind === 'discard' ? 'threwName' : partial && amount !== null ? 'usedAmount' : 'usedName', params)
+      stockChangeRef.current = null
+      setStockChange(null)
+      await stockNavigation.releaseBeforeNavigation()
+      if (result.kind === 'confirmed') {
         setEditing(null)
-        setNotice({ text: feedback(kind === 'discard' ? 'threwNotice' : partial && amount !== null ? 'usedAmountNotice' : 'usedNotice', params) })
-        showUndo({ title: <InventoryText feedback={title} />, onUndo: () => void undo(result.adjustment.id, target.name) })
         await load()
+        if (operation.kind === 'undo') {
+          setNotice({ text: feedback('undoSuccess', { name: pending.name }) })
+        } else {
+          const amount = operation.kind === 'consume' ? operation.amount : null
+          const partial = amount !== null
+          const params = { name: pending.name, amount: `${amount === null ? '' : formatAmount(amount)}${pending.unit ? ` ${pending.unit}` : ''}` }
+          const title = feedback(operation.kind === 'discard' ? 'threwName' : partial ? 'usedAmount' : 'usedName', params)
+          setNotice({ text: feedback('stockChangeConfirmed', { name: pending.name }) })
+          showUndo({ title: <InventoryText feedback={title} />, onUndo: () => void undo(result.receipt.adjustmentId, pending.name) })
+        }
         return null
-      } catch {
-        return feedback('saveNetwork')
-      } finally {
-        setBusy(null)
       }
-    },
-    [load, showUndo, undo]
-  )
+      const message = feedback(result.kind === 'removed' ? 'stockChangeRemoved' : result.kind === 'not_applied' ? 'stockChangeNotApplied' : 'stockChangeRefused')
+      if (result.kind === 'not_applied' || result.kind === 'removed') setEditing(null)
+      setNotice({ text: message, error: true })
+      await load()
+      return message
+    } finally {
+      stockFlight.current = false
+      setStockSending(false)
+      setBusy(null)
+    }
+  }
+
+  async function startStockChange(operation: InventoryChangeOperation, name: string, unit?: string | null): Promise<InventoryFeedback | null> {
+    if (stockChangeRef.current || stockFlight.current) return feedback('stockChangePending')
+    if (isOffline()) return feedback('offlineWrite')
+    if (!intakeContext) return feedback('stockChangeContext')
+    let intent: InventoryChangeIntent
+    try { intent = makeInventoryChangeIntent(operation, intakeContext) }
+    catch { return feedback('stockChangeRefresh') }
+    const pending = { intent, operation, name, unit, uncertain: false }
+    stockChangeRef.current = pending
+    setStockChange(pending)
+    setBusy(operation.kind === 'undo' ? operation.adjustment_id : operation.item_id)
+    return runStockChange(pending)
+  }
+
+  async function undo(adjustmentId: string, name: string) {
+    const error = await startStockChange({ kind: 'undo', adjustment_id: adjustmentId }, name)
+    if (error) setNotice({ text: error, error: true })
+  }
+
+  /** Reviewed amount uses the same loaded version/unit; no silent conversion or rebasing. */
+  const adjust = async (target: AdjustTarget, kind: AdjustKind, amount: number | null = null): Promise<InventoryFeedback | null> => {
+    const current = data.state === 'ready' ? data.data.items.find(item => item.id === target.id) : undefined
+    const expectedVersion = target.version ?? current?.updated_at
+    if (!expectedVersion) return feedback('stockChangeRefresh')
+    return startStockChange(kind === 'consume' ? { kind, item_id: target.id, expected_version: expectedVersion, amount } : { kind, item_id: target.id, expected_version: expectedVersion }, target.name, target.unit ?? current?.unit)
+  }
 
   const quickAdjust = async (target: AdjustTarget, kind: AdjustKind) => {
     const err = await adjust(target, kind)
@@ -606,6 +634,14 @@ export default function InventoryClient({
           )}
         </>
       )}
+
+      {stockChange && <Dialog open variant="form" title={copy(stockSending ? 'stockChangeSaving' : 'stockChangeRecovery')} testId="inventory-change-recovery">
+        <p className="text-body break-words">{stockChange.name}</p>
+        <p className="text-subhead">{copy(stockChange.operation.kind === 'undo' ? 'undo' : stockChange.operation.kind === 'discard' ? 'throwAway' : 'usedIt')}</p>
+        {stockChange.operation.kind === 'consume' && stockChange.operation.amount !== null && <p className="text-subhead">{formatAmount(stockChange.operation.amount)} {stockChange.unit ?? ''}</p>}
+        <p role="status" className="text-footnote">{copy(stockSending ? 'stockChangeSaving' : 'stockChangeUnknown')}</p>
+        <button type="button" className="btn-tinted min-h-[44px] w-full" disabled={stockSending} onClick={() => { const pending = stockChangeRef.current; if (pending) void runStockChange(pending); }}>{copy(stockSending ? 'saving' : 'intakeRetry')}</button>
+      </Dialog>}
 
       {barcodeScanning && <BarcodeFoodDialog initialContext={intakeContext} onClose={() => setBarcodeScanning(false)} onDone={(count) => { setBarcodeScanning(false); afterChange(feedback('barcodeAdded', { count })); }} />}
       {scanning && <ScanFridgeDialog canCaptureDocuments={canCaptureDocuments} initialContext={intakeContext} onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
@@ -1153,7 +1189,6 @@ function ItemModal({
     target: AdjustTarget,
     kind: AdjustKind,
     amount: number | null,
-    key: string,
   ) => Promise<InventoryFeedback | null>
 }) {
   const copy = useInventoryCopy()
@@ -1195,7 +1230,6 @@ function ItemModal({
     return () => { active = false; clearTimeout(timer); controller.abort() }
   }, [mode, initialContext])
   const saveKey = useChangeKey()
-  const adjustKey = useChangeKey()
   const deleteKey = useChangeKey()
 
   // Keep browser Back on this route while the item mutation is in flight.
@@ -1306,8 +1340,7 @@ function ItemModal({
     setSaving(true)
     setError(null)
     try {
-      const key = adjustKey({ kind, usedAmount })
-      const err = await onAdjust({ id: initial.id, name: initial.name, unit: initial.unit }, kind, usedAmount, key)
+      const err = await onAdjust({ id: initial.id, name: initial.name, unit: initial.unit, version: initial.updated_at }, kind, usedAmount)
       if (err) setError(err)
     } catch {
       setError(feedback('saveNetwork'))

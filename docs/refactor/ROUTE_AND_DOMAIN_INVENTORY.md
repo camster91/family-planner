@@ -516,3 +516,18 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
   its atomic receipt; no barcode/product row is invented. Old strict servers
   refuse unknown extensions; no legacy fallback or new offline action advertised.
 - Tests/EN-ES source only, not QA or provider/native acceptance evidence.
+
+### Versioned personal stock changes (#125, 2026-10-19; source only)
+
+- `/api/inventory/change` POST: strict inventory-change.v1, original actor/family,
+  issued-at, key required, 8-KiB stream bound and 60/minute/person; paired refusal
+  and private/no-store for every response. No native/offline action advertised.
+- Fresh User/household/receipt/item locks cover stock, canonical adjustment and
+  compact pointer receipt in one transaction. Consume/discard require the reviewed
+  item version. Undo checks the version left by the adjustment; stale work refuses.
+- Replay/current confirmation rechecks owned history and stock, never recreates
+  deleted rows or exposes cached quantities as current. Client owns exact unknown
+  intent through later access refusal; explicit no-effect results permit refresh.
+- Canonical adjustment primitives now accept the caller's transaction; old route
+  wrappers retain compatibility. Their legacy auth/receipt contracts and edit/
+  removal paths are not upgraded by the new endpoint. QA remains deferred.

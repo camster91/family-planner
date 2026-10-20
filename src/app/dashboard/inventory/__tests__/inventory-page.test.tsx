@@ -34,7 +34,7 @@ const ITEMS = [
     finished_at: null,
     added_by: "u",
     created_at: "",
-    updated_at: "",
+    updated_at: "2026-01-01T00:00:00.000Z",
     expiry: { status: "expired", daysLeft: -1 },
   },
   {
@@ -53,7 +53,7 @@ const ITEMS = [
     finished_at: null,
     added_by: "u",
     created_at: "",
-    updated_at: "",
+    updated_at: "2026-01-01T00:00:00.000Z",
     expiry: { status: "soon", daysLeft: 2 },
   },
   {
@@ -67,7 +67,7 @@ const ITEMS = [
     // An item as an older server sends it: no #158 fields.
     added_by: "u",
     created_at: "",
-    updated_at: "",
+    updated_at: "2026-01-01T00:00:00.000Z",
     expiry: { status: "none", daysLeft: null },
   },
 ];
@@ -87,7 +87,7 @@ const CHICKEN = {
   finished_at: null,
   added_by: "u",
   created_at: "",
-  updated_at: "",
+  updated_at: "2026-01-01T00:00:00.000Z",
   expiry: { status: "past_use_by", daysLeft: -2 },
 };
 const HISTORY = [
@@ -238,53 +238,22 @@ function setup({
       }
       if (url.startsWith("/api/inventory/adjustments?"))
         return json(200, { adjustments: history, nextOffset: null });
-      const adjust = url.match(
-        /^\/api\/inventory\/([^/?]+)\/(consume|discard)\?/,
-      );
-      if (adjust && method === "POST") {
+      if (url === "/api/inventory/change" && method === "POST") {
         if (writeStatus !== 200)
           return json(writeStatus, {
             error: {
-              code: "INVENTORY_ITEM_FINISHED",
-              message: "This item was already used up or thrown away.",
+              code:
+                writeStatus === 409 ? "CHANGE_CONFLICT" : "CHANGE_UNCONFIRMED",
             },
           });
-        const partial =
-          adjust[2] === "consume" &&
-          (body as { amount?: number })?.amount !== undefined;
+        const operation = (body as any).operation;
         return json(200, {
-          item: {
-            id: adjust[1],
-            status: partial
-              ? "active"
-              : adjust[2] === "consume"
-                ? "consumed"
-                : "discarded",
-          },
-          adjustment: {
-            id: `adj-${adjust[1]}`,
-            item_id: adjust[1],
-            kind: adjust[2],
-            status_after: partial ? "active" : "consumed",
-          },
-        });
-      }
-      if (
-        /^\/api\/inventory\/adjustments\/[^/]+\/undo\?/.test(url) &&
-        method === "POST"
-      ) {
-        if (writeStatus !== 200)
-          return json(409, {
-            error: {
-              code: "INVENTORY_UNDO_CONFLICT",
-              message:
-                "This item changed after that, so it cannot be undone. Edit the item instead.",
-            },
-          });
-        return json(200, {
-          item: { id: "x", status: "active" },
-          adjustment: { id: "adj" },
-          alreadyUndone: false,
+          itemId: operation.item_id ?? "x",
+          adjustmentId:
+            operation.kind === "undo"
+              ? operation.adjustment_id
+              : `adj-${operation.item_id}`,
+          kind: operation.kind,
         });
       }
       if (url === "/api/inventory/intake" && method === "POST")
@@ -727,6 +696,58 @@ describe("/dashboard/inventory", () => {
     expect(keys[2]).not.toBe(keys[0]);
   });
 
+  it("keeps the exact stock change through response loss and later access refusal", async () => {
+    const user = userEvent.setup();
+    setup();
+    const normalFetch = global.fetch;
+    const writes: RequestInit[] = [];
+    global.fetch = jest.fn(async (url, init) => {
+      if (String(url) === "/api/inventory/change") {
+        writes.push(init!);
+        if (writes.length === 1) throw new Error("response lost");
+        if (writes.length === 2)
+          return {
+            ok: false,
+            status: 403,
+            json: async () => ({ error: { code: "INTAKE_FORBIDDEN" } }),
+          } as Response;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            kind: "consume",
+            itemId: "i-milk",
+            adjustmentId: "fixture-adjustment",
+          }),
+        } as Response;
+      }
+      return normalFetch(url, init);
+    });
+    const soon = await screen.findByTestId("use-soon");
+    await within(soon).findByRole("button", { name: "Used Milk" });
+    await user.click(within(soon).getByRole("button", { name: "Used Milk" }));
+    const recovery = await screen.findByTestId("inventory-change-recovery");
+    await within(recovery).findByRole("button", { name: "Check same save" });
+    await user.keyboard("{Escape}");
+    expect(recovery).toBeInTheDocument();
+    await user.click(
+      within(recovery).getByRole("button", { name: "Check same save" }),
+    );
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect(screen.getByTestId("inventory-change-recovery")).toBeInTheDocument();
+    await user.click(
+      within(recovery).getByRole("button", { name: "Check same save" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId("inventory-change-recovery")).toBeNull(),
+    );
+    expect(writes).toHaveLength(3);
+    for (const write of writes.slice(1)) {
+      expect(write.body).toBe(writes[0].body);
+      expect(write.headers).toEqual(writes[0].headers);
+    }
+  });
+
   it('"Used it" from use soon runs at once, offers Undo, and Undo puts it back', async () => {
     const user = userEvent.setup();
     const { calls } = setup();
@@ -736,26 +757,25 @@ describe("/dashboard/inventory", () => {
     );
     await user.click(within(soon).getByRole("button", { name: "Used Milk" }));
     await waitFor(() =>
-      expect(
-        calls.some((c) => c.url.startsWith("/api/inventory/i-milk/consume?")),
-      ).toBe(true),
+      expect(calls.some((c) => isStockCall(c, "consume", "i-milk"))).toBe(true),
     );
-    const post = calls.find((c) =>
-      c.url.startsWith("/api/inventory/i-milk/consume?"),
-    )!;
+    const post = calls.find((c) => isStockCall(c, "consume", "i-milk"))!;
     expect(post.method).toBe("POST");
-    expect(post.url).toContain(`today=${today}`);
-    expect(post.body).toEqual({});
+    expect(post.url).toBe("/api/inventory/change");
+    expect((post.body as any).operation).toEqual({
+      kind: "consume",
+      item_id: "i-milk",
+      amount: null,
+      expected_version: "2026-01-01T00:00:00.000Z",
+    });
     expect(header(post, "Idempotency-Key")).toMatch(/^[0-9a-f-]{36}$/);
     const toast = await screen.findByTestId("undo-toast");
     expect(toast.textContent).toContain("Used Milk");
     await user.click(within(toast).getByRole("button", { name: "Undo" }));
     await waitFor(() =>
-      expect(
-        calls.some((c) =>
-          c.url.startsWith("/api/inventory/adjustments/adj-i-milk/undo?"),
-        ),
-      ).toBe(true),
+      expect(calls.some((c) => isStockCall(c, "undo", "adj-i-milk"))).toBe(
+        true,
+      ),
     );
     expect(await screen.findByText("Put Milk back.")).toBeTruthy();
   });
@@ -771,9 +791,7 @@ describe("/dashboard/inventory", () => {
       within(soon).getByRole("button", { name: "Throw away Tomatoes" }),
     );
     await waitFor(() =>
-      expect(
-        calls.some((c) => c.url.startsWith("/api/inventory/i-tom/discard?")),
-      ).toBe(true),
+      expect(calls.some((c) => isStockCall(c, "discard", "i-tom"))).toBe(true),
     );
     expect((await screen.findByTestId("undo-toast")).textContent).toContain(
       "Threw away Tomatoes",
@@ -784,14 +802,12 @@ describe("/dashboard/inventory", () => {
     await user.type(within(edit).getByLabelText(/How much did you use/), "0.5");
     await user.click(within(edit).getByRole("button", { name: "Used it" }));
     await waitFor(() =>
-      expect(
-        calls.some((c) => c.url.startsWith("/api/inventory/i-milk/consume?")),
-      ).toBe(true),
+      expect(calls.some((c) => isStockCall(c, "consume", "i-milk"))).toBe(true),
     );
     expect(
-      calls.find((c) => c.url.startsWith("/api/inventory/i-milk/consume?"))!
-        .body,
-    ).toEqual({ amount: 0.5 });
+      (calls.find((c) => isStockCall(c, "consume", "i-milk"))!.body as any)
+        .operation,
+    ).toMatchObject({ kind: "consume", amount: 0.5 });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(
       screen
@@ -805,9 +821,7 @@ describe("/dashboard/inventory", () => {
     expect(within(peas).queryByLabelText(/How much did you use/)).toBeNull();
     await user.click(within(peas).getByRole("button", { name: "Throw away" }));
     await waitFor(() =>
-      expect(
-        calls.some((c) => c.url.startsWith("/api/inventory/i-peas/discard?")),
-      ).toBe(true),
+      expect(calls.some((c) => isStockCall(c, "discard", "i-peas"))).toBe(true),
     );
   });
 
@@ -820,7 +834,9 @@ describe("/dashboard/inventory", () => {
     );
     await user.click(within(soon).getByRole("button", { name: "Used Milk" }));
     expect(
-      await screen.findByText("This item was already used up or thrown away."),
+      await screen.findByText(
+        "This check confirmed that the request did not change stock. The list was refreshed; review it before trying again.",
+      ),
     ).toBeTruthy();
     expect(screen.queryByTestId("undo-toast")).toBeNull();
   });
@@ -839,11 +855,9 @@ describe("/dashboard/inventory", () => {
       within(past).getByRole("button", { name: "Throw away Chicken" }),
     );
     await waitFor(() =>
-      expect(
-        calls.some((c) =>
-          c.url.startsWith("/api/inventory/i-chicken/discard?"),
-        ),
-      ).toBe(true),
+      expect(calls.some((c) => isStockCall(c, "discard", "i-chicken"))).toBe(
+        true,
+      ),
     );
   });
 
@@ -970,14 +984,10 @@ describe("/dashboard/inventory", () => {
       }),
     );
     await waitFor(() =>
-      expect(
-        calls.some((c) =>
-          c.url.startsWith("/api/inventory/adjustments/adj-1/undo?"),
-        ),
-      ).toBe(true),
+      expect(calls.some((c) => isStockCall(c, "undo", "adj-1"))).toBe(true),
     );
     expect(
-      await screen.findByText(/cannot be undone\. Edit the item instead/),
+      await screen.findByText(/request did not change stock/),
     ).toBeTruthy();
     // The history is fetched again after the attempt.
     await waitFor(() => expect(historyLoads()).toBeGreaterThan(before));
@@ -1151,3 +1161,12 @@ test("child location shortcuts retain read-only inventory and no write controls"
   ).not.toBeInTheDocument();
   expect(calls.every((call) => call.method === "GET")).toBe(true);
 });
+
+function isStockCall(call: Call, kind: string, id: string): boolean {
+  const operation = (call.body as any)?.operation;
+  return (
+    call.url === "/api/inventory/change" &&
+    operation?.kind === kind &&
+    (kind === "undo" ? operation.adjustment_id : operation.item_id) === id
+  );
+}
