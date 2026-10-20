@@ -1,5 +1,27 @@
 # Current State
 
+## Today/grocery/event-duration source criteria mapped — 2026-10-20
+
+Original #461, #462 and #458 were read against their current implementations and
+acceptance source. `docs/plans/today-controls-and-event-duration-reconciliation.md`
+now records each requirement, exact canonical source, rollback and missing runtime
+proof. The ledger moves these issues from unmapped reconciliation to existing
+source candidate with deferred acceptance; none is marked verified or complete.
+
+Existing source already supplies the household grocery zero/one/multiple resolver,
+grocery-only Today counts with unchanged generic Shopping defaults, separate All
+shared lists, filtered EN/ES overview/create context, role/feature-aware compact
+person-only controls, 44px/wrapping/Escape behavior and fridge/device exclusion.
+Event forms already supply six duration presets/custom minutes, elapsed-time end
+calculation, manual-end restoration, original instant precision/fold retention,
+EN/ES and imported-source read-only presentation. Existing source was retained.
+
+This pass inspected source and authored requirement maps only. No tests, types,
+lint, build, browser/native/schema operations, CI, push, merge, deployment or
+activation occurred. Rendered routes, role/device/offline/recovery, localization,
+DST execution and the consolidated candidate acceptance remain pending. The full
+issue goal remains active, including source reconciliation outside these issues.
+
 ## Recurring stop/delete source reconciliation — 2026-10-20
 
 Original #536 requirements now map to existing anchor guards, explicit parent
