@@ -1,5 +1,29 @@
 # Current State
 
+## Responsibility/backup consent contract and planner source — 2026-10-20
+
+`docs/plans/responsibility-and-backup-v1.md` now defines the full #123 canonical
+owner/awaiting/accepted/declined/backup journey, short EN/ES UI, current-role and
+profile boundaries, real target/identity FK persistence, legacy-writer source
+invalidation, lifecycle/export and exact owned recovery requirements. Chore and
+pickup primary ownership stays canonical. Handoff's sitter name is not identity;
+its household coordinator must be explicitly chosen, not inferred from a name.
+
+The strict pure contract/planner now binds original person/family/target/source
+and revision/issuedAt; separates self and parent-recorded profile statements;
+limits configuration to parents and account consent to the named account; allows
+named account backups to respond for their own slot; invalidates statements for
+changed source epochs; refuses duplicate primary/backup and unknown future data;
+and keeps metadata separate from domain completion/reassignment. New pure cases
+are authored but unrun. No source epoch, SQL/FK/transaction or UI claim is made.
+
+Required next code remains additive FK persistence, legacy mutation invalidation,
+lifecycle/export, locked person API/atomic receipts/exact owned recovery, full
+canonical EN/ES controls and weekly-summary integration. No schema, DB, endpoint
+or live feature was added/activated. No tests/types/lint/build, schema/client/
+SQL/DB/API/provider/browser/native/CI, push/merge/deployment operations occurred.
+The full goal stays active and QA follows the remaining code.
+
 ## Weekly review profile routines and recipe-gap source — 2026-10-20
 
 The responsibility summary now reuses canonical chore subjects and visibility:
