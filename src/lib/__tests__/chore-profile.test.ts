@@ -70,15 +70,47 @@ describe("profile-only chore contract", () => {
     });
   });
 
-  it("refuses stale, linked, erased, and cross-household profile rows", () => {
+  it("retains archived unlinked household history but holds every action before recurrence exemptions", () => {
+    const archived = profileRow({
+      assigneeMember: {
+        ...baseMember,
+        archived_at: new Date("2026-10-20T12:00:00Z"),
+      },
+    });
+    expect(readChoreSubject(archived, "family-a")).toEqual({
+      kind: "profile",
+      memberId: "member-child",
+      name: "Child",
+      role: "child",
+    });
+    expect(profileChoreActionAvailability(archived, "scheduled-once")).toEqual({
+      state: "paused",
+      reason: "PROFILE_ARCHIVED",
+      recovery: "choose-active-member",
+      requiresCompatibleClient: false,
+      actions: { complete: false, undo: false, verify: false, reject: false },
+    });
+    expect(readChoreSubject(archived, "foreign-family")).toBeNull();
     expect(
       readChoreSubject(
         profileRow({
-          assigneeMember: { ...baseMember, archived_at: new Date() },
+          assigneeMember: {
+            ...baseMember,
+            archived_at: new Date(),
+            erasure_user_id: "erased-account",
+          },
         }),
         "family-a",
       ),
     ).toBeNull();
+    expect(
+      profileChoreActionAvailability({
+        ...archived,
+        member_subject_erased: true,
+      }),
+    ).toBeNull();
+  });
+  it("refuses stale, linked, erased, and cross-household profile rows", () => {
     expect(
       readChoreSubject(
         profileRow({

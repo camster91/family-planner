@@ -349,6 +349,7 @@ export function isProfileChoreSubject(
   return (
     chore.assigned_to === null &&
     chore.assigned_member_id != null &&
+    chore.assigneeMember?.archived_at === null &&
     readChoreSubject(chore, familyId)?.kind === "profile"
   );
 }
@@ -377,7 +378,7 @@ export async function profileSubjectForVerify(
       },
     },
   });
-  if (!row) return null;
+  if (!row || row.assigneeMember?.archived_at !== null) return null;
   const routinePolicy = await routineOccurrencePolicyInTx(
     tx,
     familyId,

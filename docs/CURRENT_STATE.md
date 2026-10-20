@@ -1,5 +1,34 @@
 # Current State
 
+## Archived-profile retained-history projection source — 2026-10-20
+
+Compatible profile readers now retain the display identity of an archived,
+unlinked profile belonging to the same household. Archive alone no longer makes
+that legitimate history unreadable and refuses the whole chores collection.
+Linked aliases, foreign subjects, erasure/provenance holds and invalid identity/
+role/age still refuse; no account identity or assignment fallback is manufactured.
+List/detail and page projections include an explicit PROFILE_ARCHIVED action hold
+with complete/undo/verify/reject all false. The detail projection now uses its
+hydrated current profile, matching collection/page behavior. Archive takes
+precedence over once-only/recurrence capability exemptions.
+
+Read-only subject display is explicitly separate from action authority. Parent
+verify/reject subject helpers now check active archive state independently; the
+existing device/profile complete/reopen guards already renew active identity.
+The server still refuses archived mutation. EN/ES copy on chores, routine/series
+summaries and fridge state explains archive rather than a compatibility refresh.
+Mixed groups prefer the archive reason when present. Today continues to exclude
+archived profiles from active participant cards.
+
+Authored source cases cover exact archived history, withheld actions, foreign/
+linked/erased refusal, compatible collection+detail with an active account row,
+verify authority separation and both-language verification UI. All are unrun.
+No tests/typecheck/lint/build/browser/native/schema/client operations, CI or
+release actions ran; existing profile protocol and rollout gates remain intact.
+Next: profile role/version and link/rollout reconciliation, remaining navigation/
+async source work and the rest of the full issue ledger before consolidated QA.
+This is not rendered acceptance or issue completion.
+
 ## Write-paused once-only handover recovery source — 2026-10-20
 
 Anonymous handover controls now record a private once_pending checkpoint only for

@@ -216,7 +216,7 @@ async function getOneChore(id: string, familyId: string, request: NextRequest) {
   const scheduledOnceIds = subject.kind === 'profile'
     ? await scheduledOnceRoutineOccurrenceIds(prisma!, familyId, [chore.id])
     : new Set<string>()
-  const actionAvailability = subject.kind === 'profile' ? profileChoreActionAvailability(chore, scheduledOnceIds.has(chore.id) ? "scheduled-once" : "legacy") : null
+  const actionAvailability = subject.kind === 'profile' ? profileChoreActionAvailability(hydrated, scheduledOnceIds.has(chore.id) ? "scheduled-once" : "legacy") : null
   const projectedChore = subject.kind === 'profile' && actionAvailability ? { ...safeChore, actionAvailability } : safeChore
   return choreJson({
     chore: gamified ? projectedChore : omitChorePoints(projectedChore),

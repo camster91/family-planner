@@ -537,7 +537,7 @@ export function ChoreRow({
       )}
       {c.actionAvailability?.state === 'paused' && (
         <span className={cn(metaTextClass, 'block')} role="status">
-          {text('profileChorePaused')}
+          {text(c.actionAvailability.reason === 'PROFILE_ARCHIVED' ? 'profileChoreArchived' : 'profileChorePaused')}
         </span>
       )}
     </span>

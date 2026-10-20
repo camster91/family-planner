@@ -31,7 +31,7 @@ import { useDisplayPreferences } from "@/components/providers/display-preference
 import { useFeatureEnabled } from "@/components/providers/features-provider";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { useChoreVerificationText } from "@/i18n/chore-verification";
-import { useProfileSetupText } from "@/i18n/profile-setup";
+import { useProfileSetupText, profileChorePauseMessage } from "@/i18n/profile-setup";
 import {
   choreFormMessages,
   type ChoreFormMessage,
@@ -953,7 +953,7 @@ export default function ChoresContent({
             ownerLabel,
             formatRelativeDueDate(chore.due_date, now, displayLocale, { today: overviewText("today"), tomorrow: overviewText("tomorrow") }),
             profilePaused
-              ? profileText("profileTargetRecurrencePaused")
+              ? profileText(profileChorePauseMessage(chore.actionAvailability))
               : null,
             routineLabel(chore, overviewText),
             chore.rotation_next_name
@@ -1095,7 +1095,7 @@ export default function ChoresContent({
                               ownerLabel,
                               routineLabel(chore, overviewText),
                               profilePaused
-                                ? profileText("profileTargetRecurrencePaused")
+                                ? profileText(profileChorePauseMessage(chore.actionAvailability))
                                 : verificationText("waitingForCheck", undefined),
                             ]
                               .filter(Boolean)

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { groupByRoutine, ROUTINE_ORDER_MAX } from '@/lib/routine-icons'
 import { useTranslation } from '@/i18n'
 import { useRoutineStackText } from '@/i18n/routine-stack'
-import { useProfileSetupText } from '@/i18n/profile-setup'
+import { useProfileSetupText, profileChorePauseMessage, profileChoreGroupPauseMessage } from '@/i18n/profile-setup'
 import { groupChoreSeries } from '@/lib/chore-series-groups'
 import { formatDateOnly, toDateOnlyLocal } from '@/lib/dates'
 import { RoutineIcon } from './RoutineIcon'
@@ -103,7 +103,7 @@ export function RoutineStacks({ chores, userRole, currentUserId, familyId, local
         <div className="flex-1 min-w-[120px] [overflow-wrap:anywhere]">
           <p className="text-body text-label-primary">{chore.routine_order ? `${chore.routine_order}. ` : ''}{chore.title}</p>
           {context && <p className="text-footnote text-label-secondary">{profileUnavailable ? profileText('profileTargetRefresh') : chore.subject?.name ?? chore.assignee?.name ?? t('routineViews.unassigned')} · {formatDateOnly(chore.due_date, undefined, locale)}</p>}
-          <p className="text-footnote text-label-secondary">{profilePaused ? profileText('profileTargetRecurrencePaused') : chore.status === 'verified' ? routineText('checked') : done ? routineText('doneWaiting') : next ? routineText('upNext') : routineText('toDo')}</p>
+          <p className="text-footnote text-label-secondary">{profilePaused ? profileText(profileChorePauseMessage(chore.actionAvailability)) : chore.status === 'verified' ? routineText('checked') : done ? routineText('doneWaiting') : next ? routineText('upNext') : routineText('toDo')}</p>
         </div>
         {!done && canComplete && <button type="button" onClick={() => onComplete(chore.id)} className="btn-filled min-h-[44px]" aria-label={routineText('completeStep', { title: chore.title })}>{routineText('doneAction')}</button>}
         {userRole === 'parent' && !profileOnly && <Link href={`/dashboard/chores/edit?id=${encodeURIComponent(chore.id)}`} className="text-footnote text-label-secondary min-h-[44px] inline-flex items-center px-2 underline" aria-label={routineText('editStep', { title: chore.title })}>{routineText('editAction')}</Link>}
@@ -139,7 +139,7 @@ export function RoutineStacks({ chores, userRole, currentUserId, familyId, local
           <h2 className="text-title-3 text-label-primary [overflow-wrap:anywhere]">{stack.name}</h2>
           <p className="text-footnote text-label-secondary">{profileUnavailable ? profileText('profileTargetRefresh') : stack.steps[0].subject?.name ?? stack.steps[0].assignee?.name ?? t('routineViews.unassigned')} · {formatDateOnly(stack.steps[0].due_date, undefined, locale)}</p>
           <p className="text-footnote text-label-secondary mt-2" aria-live="polite">{routineText('progress', { done, total: stack.steps.length, checked })}</p>
-          {profilePaused && <p className="text-footnote text-label-secondary mt-2" role="status">{profileText('profileTargetRecurrencePaused')}</p>}
+          {profilePaused && <p className="text-footnote text-label-secondary mt-2" role="status">{profileText(profileChoreGroupPauseMessage(stack.steps))}</p>}
           <ol>{stack.steps.filter(c => !focusNext || c.id === next).map(c => renderStep(c, c.id === next, true))}</ol>
           {focusNext && !next && <p className="text-footnote text-label-secondary mt-2">{routineText(checked < done ? 'allDoneWaiting' : 'allDoneChecked')}</p>}
           {userRole === 'parent' && (!profileOnly || (!profileUnavailable && !profilePaused)) && <div className="flex flex-wrap items-center gap-3">

@@ -642,3 +642,19 @@ archived profile subjects can make an ordinary chore collection unreadable; add
 explicit retained-history/unavailable action projection without granting archive
 subjects new authority. Profile-role/version, rollback and navigation reconciliation
 also remain before full-code completion and consolidated QA.
+
+
+### Archived profile read/action distinction — 2026-10-20
+
+Read-only own-household archived/unlinked profile history is now displayable to
+compatible profile readers. Per-row PROFILE_ARCHIVED with all actions false takes
+precedence over once/recurrence exemptions; API detail uses hydrated current
+profile state. Foreign/linked/erased/provenance-held subjects still refuse.
+The display helper is not action authority: verify/reject now explicitly require
+active state, while existing device completion/reopen authority remains active-
+only. EN/ES chores, series/routine summaries and fridge copy distinguish archive
+from compatibility pause. Source unit/API/UI cases are authored and unrun.
+
+Profile role/version, link/rollout and remaining navigation/async reconciliation
+still remain, then full issue-code completion and consolidated QA. Protocol gates
+were not bypassed; this is not a released or runtime-verified history journey.

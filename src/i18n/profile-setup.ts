@@ -32,8 +32,10 @@ export const profileSetupEnglish = {
     "This server does not support name-only profiles yet. Use an account invitation instead.",
   inviteInstead: "Invite with an account",
   loadError: "Profiles could not be loaded. Your household is unchanged.",
-  saveError: "The profile could not be saved. Check your connection and try again.",
-  networkError: "Check your connection and try again. Your entry is still here.",
+  saveError:
+    "The profile could not be saved. Check your connection and try again.",
+  networkError:
+    "Check your connection and try again. Your entry is still here.",
   invalidResponse: "The server returned an unsupported profile response.",
   profileSaved: "Profile saved.",
   profileTargets: "Household profiles",
@@ -42,14 +44,18 @@ export const profileSetupEnglish = {
     "This profile chore can repeat. Points and taking turns stay off.",
   profileTargetRecurrenceUnsupported:
     "This server cannot repeat profile chores yet. Your schedule is still here; choose an account or try again later.",
+  profileTargetArchived:
+    "This profile is archived. History is kept and actions are paused. Choose an active family member to change future work.",
   profileTargetRecurrencePaused:
     "This recurring profile chore is paused while compatibility is refreshed. Your pending chore and history are still here; refresh to try again.",
   profileTargetUnsupported:
     "This server cannot create a profile chore yet. Your chore details are still here; try again later or choose an account.",
   profileTargetError:
     "The profile chore could not be created. Your details are still here; check your connection and try again.",
-  profileTargetRefresh: "That profile is no longer available. Refresh profiles and choose again.",
-  profileTargetUnavailable: "Name-only profiles are unavailable on this server.",
+  profileTargetRefresh:
+    "That profile is no longer available. Refresh profiles and choose again.",
+  profileTargetUnavailable:
+    "Name-only profiles are unavailable on this server.",
 } as const;
 
 export const profileSetupSpanish = {
@@ -81,9 +87,12 @@ export const profileSetupSpanish = {
     "Este servidor todavía no admite perfiles con solo nombre. Usa una invitación con cuenta.",
   inviteInstead: "Invitar con una cuenta",
   loadError: "No se pudieron cargar los perfiles. Tu hogar no ha cambiado.",
-  saveError: "No se pudo guardar el perfil. Comprueba la conexión e inténtalo de nuevo.",
-  networkError: "Comprueba la conexión e inténtalo de nuevo. Tu entrada sigue aquí.",
-  invalidResponse: "El servidor devolvió una respuesta de perfil no compatible.",
+  saveError:
+    "No se pudo guardar el perfil. Comprueba la conexión e inténtalo de nuevo.",
+  networkError:
+    "Comprueba la conexión e inténtalo de nuevo. Tu entrada sigue aquí.",
+  invalidResponse:
+    "El servidor devolvió una respuesta de perfil no compatible.",
   profileSaved: "Perfil guardado.",
   profileTargets: "Perfiles del hogar",
   profileTargetOnce: "Los perfiles solo admiten tareas únicas.",
@@ -91,18 +100,25 @@ export const profileSetupSpanish = {
     "Esta tarea del perfil se puede repetir. Los puntos y los turnos están desactivados.",
   profileTargetRecurrenceUnsupported:
     "Este servidor todavía no puede repetir tareas de perfiles. Tu programación sigue aquí; elige una cuenta o inténtalo más tarde.",
+  profileTargetArchived:
+    "Este perfil está archivado. El historial se conserva y las acciones están en pausa. Elige un familiar activo para cambiar el trabajo futuro.",
   profileTargetRecurrencePaused:
     "Esta tarea recurrente del perfil está en pausa mientras se actualiza la compatibilidad. Tu tarea pendiente y tu historial siguen aquí; actualiza para intentarlo de nuevo.",
   profileTargetUnsupported:
     "Este servidor todavía no puede crear una tarea para un perfil. Tus datos siguen aquí; inténtalo más tarde o elige una cuenta.",
   profileTargetError:
     "No se pudo crear la tarea del perfil. Tus datos siguen aquí; comprueba la conexión e inténtalo de nuevo.",
-  profileTargetRefresh: "Ese perfil ya no está disponible. Actualiza los perfiles y elige de nuevo.",
-  profileTargetUnavailable: "Los perfiles con solo nombre no están disponibles en este servidor.",
+  profileTargetRefresh:
+    "Ese perfil ya no está disponible. Actualiza los perfiles y elige de nuevo.",
+  profileTargetUnavailable:
+    "Los perfiles con solo nombre no están disponibles en este servidor.",
 } as const;
 
 export type ProfileSetupMessage = keyof typeof profileSetupEnglish;
-export const profileSetupMessages: Record<Locale, Record<ProfileSetupMessage, string>> = {
+export const profileSetupMessages: Record<
+  Locale,
+  Record<ProfileSetupMessage, string>
+> = {
   en: profileSetupEnglish,
   es: profileSetupSpanish,
 };
@@ -110,4 +126,30 @@ export const profileSetupMessages: Record<Locale, Record<ProfileSetupMessage, st
 export function useProfileSetupText() {
   const { locale } = useTranslation();
   return (key: ProfileSetupMessage) => profileSetupMessages[locale][key];
+}
+
+/** Current per-row reason, without loading server subject/Prisma code in UI. */
+export function profileChorePauseMessage(
+  availability?: { state: string; reason?: string } | null,
+): "profileTargetArchived" | "profileTargetRecurrencePaused" {
+  return availability?.state === "paused" &&
+    availability.reason === "PROFILE_ARCHIVED"
+    ? "profileTargetArchived"
+    : "profileTargetRecurrencePaused";
+}
+
+export function profileChoreGroupPauseMessage(
+  rows: ReadonlyArray<{
+    actionAvailability?: { state: string; reason?: string };
+  }>,
+): "profileTargetArchived" | "profileTargetRecurrencePaused" {
+  return profileChorePauseMessage(
+    rows.find(
+      (row) =>
+        row.actionAvailability?.state === "paused" &&
+        row.actionAvailability.reason === "PROFILE_ARCHIVED",
+    )?.actionAvailability ??
+      rows.find((row) => row.actionAvailability?.state === "paused")
+        ?.actionAvailability,
+  );
 }

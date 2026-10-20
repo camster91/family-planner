@@ -152,7 +152,9 @@ export type ChoreWithSubject = Prisma.ChoreGetPayload<{
 
 /**
  * Convert a stored row into the only subject shape safe for a board/API DTO.
- * A profile row is never silently treated as an account row.
+ * A profile row is never silently treated as an account row. An archived,
+ * unlinked own-household profile remains displayable history only. Action
+ * authority must renew active state separately; this helper never grants it.
  */
 export function readChoreSubject(
   row: SubjectRow,
@@ -171,7 +173,6 @@ export function readChoreSubject(
       if (
         !member ||
         member.family_id !== familyId ||
-        member.archived_at !== null ||
         member.erasure_user_id !== null ||
         linkedUsers.length === 0 ||
         linkedUsers.some((userId) => userId !== row.assigned_to)
@@ -237,9 +238,18 @@ export type ProfileChoreActionAvailability =
         verify: false;
         reject: false;
       };
+    }
+  | {
+      state: "paused";
+      reason: "PROFILE_ARCHIVED";
+      recovery: "choose-active-member";
+      requiresCompatibleClient: false;
+      actions: { complete: false; undo: false; verify: false; reject: false };
     };
 
 type ProfileChoreActionRow = {
+  member_subject_erased?: boolean;
+  assigneeMember?: { archived_at: Date | null } | null;
   assigned_to: string | null;
   assigned_member_id: string | null;
   frequency?: string | null;
@@ -255,7 +265,20 @@ export function profileChoreActionAvailability(
   row: ProfileChoreActionRow,
   routinePolicy: RoutineOccurrencePolicy = "legacy",
 ): ProfileChoreActionAvailability | null {
-  if (row.assigned_to !== null || row.assigned_member_id === null) return null;
+  if (
+    row.assigned_to !== null ||
+    row.assigned_member_id === null ||
+    row.member_subject_erased === true
+  )
+    return null;
+  if (row.assigneeMember?.archived_at != null)
+    return {
+      state: "paused",
+      reason: "PROFILE_ARCHIVED",
+      recovery: "choose-active-member",
+      requiresCompatibleClient: false,
+      actions: { complete: false, undo: false, verify: false, reject: false },
+    };
 
   const recurring =
     (row.recurrence_id !== null && row.recurrence_id !== undefined) ||

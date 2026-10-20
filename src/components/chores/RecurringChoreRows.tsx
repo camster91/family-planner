@@ -8,7 +8,10 @@ import type {
 } from "@/lib/chore-profile";
 import { groupChoreSeries, choreCadence } from "@/lib/chore-series-groups";
 import { formatRelativeDueDate } from "@/lib/dates";
-import { profileSetupMessages } from "@/i18n/profile-setup";
+import {
+  profileSetupMessages,
+  profileChoreGroupPauseMessage,
+} from "@/i18n/profile-setup";
 import { useChoreOverviewText } from "@/i18n/chore-overview";
 import { choreScheduleMessages } from "@/i18n/chore-schedule";
 import { useTranslation } from "@/i18n";
@@ -73,7 +76,7 @@ export function RecurringChoreRows<T extends Row>({
                   : profilePaused
                     ? profileSetupMessages[
                         locale.startsWith("es") ? "es" : "en"
-                      ].profileTargetRecurrencePaused
+                      ][profileChoreGroupPauseMessage(group.steps)]
                     : takesTurns
                       ? text("takesTurns")
                       : (next.subject?.name ??
