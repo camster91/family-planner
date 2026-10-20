@@ -1,3 +1,4 @@
+import { hiddenRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 import { refuseScheduledRoutineLegacyWrite, RoutineScheduleLegacyWriteError } from "@/lib/routine-schedule-legacy";
 import { choreJson } from "@/lib/chore-json";
 import { withRouteTelemetry } from '@/lib/route-telemetry'
@@ -95,7 +96,8 @@ async function handleGET(request: NextRequest) {
     const range = parseChoreDateRange(searchParams)
     if (!range.ok) return apiError(400, 'INVALID_QUERY', range.error, { requestId: getRequestId(request) })
 
-    const where: Record<string, unknown> = { family_id: auth.user.family_id }
+    const hiddenRoutineIds = await hiddenRoutineOccurrenceIds(prisma!, auth.user.family_id)
+    const where: Record<string, unknown> = { family_id: auth.user.family_id, id: { notIn: hiddenRoutineIds } }
     if (status) where.status = status
     if (assigned_to) where.assigned_to = assigned_to
     if (range.from || range.toExclusive) {
@@ -175,7 +177,7 @@ async function getOneChore(id: string, familyId: string, request: NextRequest) {
       creator: { select: { id: true, name: true } },
     },
   })
-  if (!chore) return choreJson({ error: 'Chore not found' }, { status: 404 })
+  if (!chore || (await hiddenRoutineOccurrenceIds(prisma!, familyId)).includes(id)) return choreJson({ error: 'Chore not found' }, { status: 404 })
   // A generated copy is stored as 'once'; the edit form shows its series' frequency.
   const template =
     chore.recurrence_id && chore.recurrence_id !== chore.id

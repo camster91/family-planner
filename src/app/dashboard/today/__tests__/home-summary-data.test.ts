@@ -4,6 +4,7 @@ const NOW = new Date('2026-01-05T12:00:00.000Z')
 
 function dbWith(rows: unknown[]) {
   return {
+    $queryRaw: jest.fn().mockResolvedValue([]),
     chore: {
       findMany: jest.fn().mockResolvedValue(rows),
       findFirst: jest.fn().mockResolvedValue(null),

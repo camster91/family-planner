@@ -33,6 +33,7 @@ import { buildTodayBoard, type BoardDisplayData, type BoardPhoto, type TodayBoar
 
 type Db = Pick<
   PrismaClient,
+  | '$queryRaw'
   | 'user'
   | 'event'
   | 'chore'

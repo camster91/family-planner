@@ -85,6 +85,8 @@ const distinctSteps = (steps: { template_id: string }[]) =>
 export const routineStepSeriesConfig = z
   .object({
     protocol: z.literal("herewoven.routine-step-series.v1"),
+    /** A pristine root whose paused day passed remains a control anchor only. */
+    anchor_retired: z.boolean().default(false),
     stack_id: id.nullable(),
     state: z.enum(["active", "paused", "stopped"]),
     effective_on: day,

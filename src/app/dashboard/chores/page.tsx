@@ -1,3 +1,4 @@
+import { hiddenRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 import { publicChoreData } from "@/lib/chore-public-data";
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
@@ -50,10 +51,11 @@ export default async function ChoresPage() {
     ...choreSubjectInclude,
     creator: { select: { name: true } },
   } as const
+  const hiddenRoutineIds = familyId ? await hiddenRoutineOccurrenceIds(prisma!, familyId) : []
   const queries = familyId ? currentChoreQueries(familyId) : null
   const [open, awaitingCheck, history] = queries
     ? await Promise.all([
-        prisma!.chore.findMany({ ...queries.open, include }),
+        prisma!.chore.findMany({ ...queries.open, where: { AND: [queries.open.where, { id: { notIn: hiddenRoutineIds } }] }, include }),
         prisma!.chore.findMany({ ...queries.awaitingCheck, include }),
         prisma!.chore.findMany({
           where: { family_id: familyId, status: 'verified', due_date: { lt: queries.historyBefore } },

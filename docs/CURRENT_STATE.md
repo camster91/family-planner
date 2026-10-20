@@ -1,5 +1,37 @@
 # Current State
 
+## Routine occurrence guards source — 2026-10-20
+
+New private occurrence policy joins each canonical chore to its same-household
+root. Paused/stopped untouched occurrences on/after the reviewed effective day
+are hidden before ordinary chores/API/Today/summary paging and profile-compatibility
+probes. Started work, photos, notes (including empty notes), completion/history and
+prior-day work remain visible. Unknown metadata holds open work. Only hidden IDs
+leave this private read helper; future definitions/evidence do not enter the DTO.
+
+Account/device completion rechecks the policy under the household lock and returns
+409 CHORE_ROUTINE_INACTIVE for stale taps. Profile completion recognizes a known
+scheduled occurrence's saved member instead of requiring the old root owner to
+match; canonical current profile identity and existing gates remain required.
+Known scheduled-once profile work uses base gates consistently in expansion,
+completion, undo and parent subject verification. Its existing per-row availability
+presentation still needs the source audit before activation.
+
+A private default-false anchor_retired definition field keeps a pristine root
+hidden after its paused date passes and the parent later resumes/un-stacks it.
+Actual generated copies and history are unaffected. Expired once routines cannot
+resume into a new catch-up task. Legacy occurrence-stack edits/adoption now refuse
+scheduled stack/root/copy metadata after matching receipt replay and before new
+writes. Ordinary edit/delete paths also refuse inactive copies under their locks.
+
+Focused policy/legacy unit source and guarded PostgreSQL pause/resume/stale-tap
+source are authored, unrun; existing narrow fakes reflect new reads. Formatting
+and source inspection only. No tests/typecheck/lint/build/browser/native,
+schema/client operation, push/merge/deploy or activation. Gates remain off and
+the new parent coordinator unrouted. Next: owned original-body retry recovery,
+bounded routes and parent controls, then remaining per-row capability/EN/ES/
+lifecycle/rollback source audit and consolidated QA.
+
 ## Routine recurrence adapter source — 2026-10-20
 
 The canonical expander now consumes known private routine definitions before

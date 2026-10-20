@@ -58,6 +58,7 @@ export type DeviceErrorCode =
   | 'FEATURE_DISABLED'
   | 'ACTING_MEMBER_INVALID'
   | 'CHORE_NOT_DUE_TODAY'
+  | 'CHORE_ROUTINE_INACTIVE'
   | 'CHORE_ALREADY_VERIFIED'
   | 'UNDO_NOT_ALLOWED'
   | 'IDENTITY_CONFLICT'
@@ -95,6 +96,7 @@ const DEFAULT_MESSAGES: Record<DeviceErrorCode, string> = {
   FEATURE_DISABLED: 'This part of the app is turned off for your household.',
   ACTING_MEMBER_INVALID: "Choose who's using the tablet.",
   CHORE_NOT_DUE_TODAY: 'Only chores due today can be ticked off on the tablet.',
+  CHORE_ROUTINE_INACTIVE: 'This routine chore is no longer available. Refresh your chores.',
   CHORE_ALREADY_VERIFIED: 'A parent has already checked this chore, so it stays done.',
   UNDO_NOT_ALLOWED: 'This can only be undone on the tablet that did it, right after.',
   IDENTITY_CONFLICT: 'Household member identity needs review before this change.',

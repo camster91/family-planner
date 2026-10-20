@@ -101,6 +101,7 @@ export async function expandRoutineScheduleInTx(
           tx,
           root.family_id,
           subject.member_id,
+          definition.schedule.frequency !== "once",
         )
       : await eligibleChoreAssigneeInTx(tx, root.family_id, subject.user_id, {
           requireCanonical: subject.member_id !== null,

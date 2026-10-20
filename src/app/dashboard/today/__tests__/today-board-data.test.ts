@@ -6,6 +6,7 @@ const FAMILY = 'fam_a'
 
 function mockDb(overrides: Partial<Record<string, unknown>> = {}) {
   const db = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
     user: {
       findMany: jest.fn().mockResolvedValue([
         { id: 'u_parent', name: 'Avery Parent', color: 'indigo' },

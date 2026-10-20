@@ -173,7 +173,12 @@ describe("scheduled routine canonical expansion source", () => {
     saved.content.subject = { kind: "profile", member_id: "fixture-profile" };
     await expandRoutineScheduleInTx(tx, root, saved, "2026-10-20");
     expect(account).not.toHaveBeenCalled();
-    expect(profile).toHaveBeenCalledWith(tx, root.family_id, "fixture-profile");
+    expect(profile).toHaveBeenCalledWith(
+      tx,
+      root.family_id,
+      "fixture-profile",
+      true,
+    );
     expect(calls.chore.createMany.mock.calls[0][0].data[0]).toMatchObject({
       assigned_to: null,
       assigned_member_id: "fixture-profile",

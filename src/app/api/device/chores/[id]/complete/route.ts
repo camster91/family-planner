@@ -8,6 +8,7 @@ import { completeProfileChoreInTx } from '@/lib/chore-profile-actions'
 import { getRequestId } from '@/lib/request-id'
 
 import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
+import { RoutineOccurrenceUnavailableError } from '@/lib/routine-occurrence-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         })
         if (outcome === 'not_found') return { status: 404, body: deviceErrorBody('NOT_FOUND') }
         if (outcome === 'not_due') return { status: 409, body: deviceErrorBody('CHORE_NOT_DUE_TODAY') }
+        if (outcome === 'routine_unavailable') return { status: 409, body: deviceErrorBody('CHORE_ROUTINE_INACTIVE') }
         if (outcome === 'profile_unavailable') return { status: 409, body: deviceErrorBody('MEMBER_PROTOCOL_UNAVAILABLE') }
         if (outcome === 'already_completed') return { status: 200, body: { chore: { id, status: 'completed' }, alreadyCompleted: true } }
         return { status: 200, body: { chore: { id, status: 'completed' }, alreadyCompleted: false } }
@@ -78,6 +80,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return { status: 200, body: { chore: { id, status: 'completed' }, alreadyCompleted: false } }
     })
   } catch (error) {
+    if (error instanceof RoutineOccurrenceUnavailableError) return deviceError(409, 'CHORE_ROUTINE_INACTIVE')
     if (error instanceof HouseholdMemberIdentityConflict) return deviceError(409, 'IDENTITY_CONFLICT')
     return deviceInternalError('device.chore_complete', error, getRequestId(request))
   }

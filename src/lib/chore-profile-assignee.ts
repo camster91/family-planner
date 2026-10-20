@@ -4,15 +4,23 @@ import {
   isProfileAgeAllowed,
   profileRoleSchema,
 } from "@/lib/member-subject-contract";
-import { isProfileChoreRecurrenceSupported } from "@/lib/profile-chore-gates";
+import {
+  isProfileChoreEnabled,
+  isProfileChoreRecurrenceSupported,
+} from "@/lib/profile-chore-gates";
 
 /** Caller holds the household lock. Never creates or links a login identity. */
 export async function eligibleProfileChoreAssigneeInTx(
   tx: Prisma.TransactionClient,
   familyId: string,
   memberId: string,
+  repeating = true,
 ): Promise<{ assigned_to: null; assigned_member_id: string } | null> {
-  if (!isProfileChoreRecurrenceSupported()) return null;
+  if (
+    !isProfileChoreEnabled() ||
+    (repeating && !isProfileChoreRecurrenceSupported())
+  )
+    return null;
   const member = await tx.householdMember.findFirst({
     where: { id: memberId, family_id: familyId },
     select: {

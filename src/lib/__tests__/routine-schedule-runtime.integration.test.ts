@@ -2,6 +2,11 @@
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { assertFixtureTargetAllowed } from "@/lib/fixtures/guard";
+import { completeChore, findHouseholdChore } from "@/lib/chore-complete";
+import {
+  hiddenRoutineOccurrenceIds,
+  RoutineOccurrenceUnavailableError,
+} from "@/lib/routine-occurrence-policy";
 import { hashIdempotentRequest, IDEMPOTENCY_TTL_MS } from "@/lib/idempotency";
 import {
   persistRoutineSchedule,
@@ -67,7 +72,7 @@ suite("canonical scheduled routine commands", () => {
         family_id: body.expected_family_id,
         action: ROUTINE_SCHEDULE_ACTION,
         request_hash: hashIdempotentRequest(ROUTINE_SCHEDULE_ACTION, body),
-        expires_at: new Date(now.getTime() + IDEMPOTENCY_TTL_MS),
+        expires_at: new Date(Date.parse(body.issued_at) + IDEMPOTENCY_TTL_MS),
       },
     });
   }
@@ -239,6 +244,18 @@ suite("canonical scheduled routine commands", () => {
       roots: proof.roots,
       prunedCount: untouchedCount,
     });
+    expect(await hiddenRoutineOccurrenceIds(prisma!, familyId)).toEqual(
+      expect.arrayContaining(proof.roots),
+    );
+    const pausedRoot = await findHouseholdChore(prisma!, root.id, familyId);
+    await expect(
+      completeChore(
+        prisma!,
+        pausedRoot!,
+        { id: parent, name: "Fixture Parent" },
+        { now },
+      ),
+    ).rejects.toBeInstanceOf(RoutineOccurrenceUnavailableError);
     expect(
       await prisma!.chore.findUnique({ where: { id: copies[2].id } }),
     ).toBeNull();
@@ -261,6 +278,39 @@ suite("canonical scheduled routine commands", () => {
       due_date: root.due_date,
       points: root.points,
     });
+    const later = new Date("2026-10-23T18:00:00.000Z");
+    const resume = routineScheduleCommand.parse({
+      ...base,
+      action: "resume",
+      stack_id: proof.stackId,
+      expected_version: routineScheduleReceipt.parse(result.body).version,
+      issued_at: later.toISOString(),
+      view_day: "2026-10-23",
+      scope: "future-after-today",
+    });
+    const resumed = await persistRoutineSchedule(
+      prisma!,
+      actor,
+      resume,
+      (await reserve(resume)).id,
+      later,
+    );
+    expect(resumed.status).toBe(200);
+    // The immutable root's paused date passed; resume must not resurrect it as
+    // overdue. Real future copies continue from the next selected weekday.
+    expect(await hiddenRoutineOccurrenceIds(prisma!, familyId)).toEqual(
+      expect.arrayContaining(proof.roots),
+    );
+    const future = await prisma!.chore.findMany({
+      where: {
+        family_id: familyId,
+        recurrence_id: root.id,
+        id: { not: root.id },
+        due_date: { gte: new Date("2026-10-24T00:00:00.000Z") },
+      },
+      orderBy: { due_date: "asc" },
+    });
+    expect(future[0].due_date.toISOString().slice(0, 10)).toBe("2026-10-26");
   });
   it("replaces only future definitions and preserves canonical order through pause/resume/stop", async () => {
     const created = await create();

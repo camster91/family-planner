@@ -14,6 +14,10 @@ import {
 } from "@/lib/chore-profile";
 import { choreAssigneeForCreateInTx } from "@/lib/chore-member-subject";
 import { lockHousehold, lockUser } from "@/lib/household-lock";
+import {
+  refuseScheduledOccurrenceStackWrite,
+  RoutineScheduleLegacyWriteError,
+} from "@/lib/routine-schedule-legacy";
 import { hashIdempotentRequest } from "@/lib/idempotency";
 import {
   isProfileAgeAllowed,
@@ -515,6 +519,18 @@ export async function mutateRoutineStackInTx<T extends object>(
     }
   }
 
+  try {
+    await refuseScheduledOccurrenceStackWrite(
+      tx,
+      actor.familyId,
+      draft.stack_id,
+      selectedIds,
+    );
+  } catch (error) {
+    if (error instanceof RoutineScheduleLegacyWriteError)
+      throw new RoutineStackMutationError(409, error.code, error.message);
+    throw error;
+  }
   if (
     stack?.id &&
     fingerprintRoutineStackSnapshot(snapshotRows(currentStackRows)) !==

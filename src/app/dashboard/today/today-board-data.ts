@@ -1,3 +1,4 @@
+import { hiddenRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 /**
  * Shared-surface DTO for the Today board (/dashboard/today, #119 / #159).
  *
@@ -222,7 +223,7 @@ export interface TodayBoardData {
 
 type Db = Pick<
   PrismaClient,
-  'user' | 'event' | 'chore' | 'familyMeal' | 'calendarSubscription' | 'listItem' | 'list' | 'inventoryItem' | 'householdMember'
+  '$queryRaw' | 'user' | 'event' | 'chore' | 'familyMeal' | 'calendarSubscription' | 'listItem' | 'list' | 'inventoryItem' | 'householdMember'
 >
 
 interface BuildTodayBoardBase {
@@ -422,8 +423,10 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         })
       : undefined
 
+  const hiddenRoutineIds = await hiddenRoutineOccurrenceIds(db, familyId)
   const choreWhere = {
     family_id: familyId,
+    id: { notIn: hiddenRoutineIds },
     due_date: { gte: windowStart, lt: windowEnd },
     ...(inspectProfileRows
       ? {
@@ -505,7 +508,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     }),
     needsProfileCompatibilityProbe
       ? db.chore.findFirst({
-          where: profileCompatibilityProbeWhere(familyId, windowStart, windowEnd),
+          where: { ...profileCompatibilityProbeWhere(familyId, windowStart, windowEnd), id: { notIn: hiddenRoutineIds } },
           select: { id: true },
           orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
         })

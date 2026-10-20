@@ -24,7 +24,9 @@ jest.mock("@/lib/api-auth", () => ({
 jest.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: async (run: (tx: unknown) => unknown) => run(require("@/lib/prisma").prisma),
-    $queryRaw: async () => [],
+    $queryRaw: async (strings: TemplateStringsArray) => strings.join("?").includes('SELECT c."id", c."recurrence_id"')
+      ? [{ own_config: null, series_config: null }]
+      : [],
     chore: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),

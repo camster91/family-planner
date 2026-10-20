@@ -6,6 +6,7 @@ import { normalizeFeatures, isFeatureEnabled } from "@/lib/features";
 import { choreAssigneeForCreateInTx } from "@/lib/chore-member-subject";
 import { profileChoreAssigneeInTx } from "@/lib/chore-profile";
 import { expandSeriesInTx } from "@/lib/recurringChores";
+import { routineOccurrencePolicyInTx } from "@/lib/routine-occurrence-policy";
 import {
   isProfileChoreEnabled,
   isProfileChoreRecurrenceSupported,
@@ -52,6 +53,7 @@ type Stack = {
 };
 type Root = {
   id: string;
+  due_date: Date;
   family_id: string;
   recurrence_id: string | null;
   routine_series_config: unknown;
@@ -119,7 +121,7 @@ async function rootsInTx(
   )) {
     const rows = await tx.$queryRaw<
       Root[]
-    >`SELECT "id", "family_id", "recurrence_id", "routine_stack_id", "routine_series_config" FROM "Chore" WHERE "id" = ${step.template_id} AND "family_id" = ${actor.familyId} FOR UPDATE`;
+    >`SELECT "id", "due_date", "family_id", "recurrence_id", "routine_stack_id", "routine_series_config" FROM "Chore" WHERE "id" = ${step.template_id} AND "family_id" = ${actor.familyId} FOR UPDATE`;
     if (rows.length !== 1 || rows[0].recurrence_id !== rows[0].id)
       refuse(409, "ROUTINE_ROOT_UNAVAILABLE");
     const parsed = routineStepSeriesConfig.safeParse(
@@ -436,6 +438,25 @@ export async function persistRoutineSchedule(
                 : (existing?.config.state ?? "active");
         const effective =
           input.action === "create" ? input.view_day : nextDay(input.view_day);
+        if (
+          input.action === "resume" &&
+          schedule.frequency === "once" &&
+          schedule.starts_on! <= input.view_day
+        )
+          refuse(409, "ROUTINE_ONCE_ALREADY_PASSED");
+        const retiredAnchors = new Set<string>();
+        for (const root of priorRoots) {
+          if (
+            root.definition.anchor_retired ||
+            (root.row.due_date.toISOString().slice(0, 10) < effective &&
+              (await routineOccurrencePolicyInTx(
+                tx,
+                actor.familyId,
+                root.row.id,
+              )) === "inactive")
+          )
+            retiredAnchors.add(root.row.id);
+        }
         const anchor = editing ? input.anchor : existing!.config.anchor;
         const label = editing ? input.label : existing!.row.label;
         const partitions = new Map<
@@ -495,6 +516,7 @@ export async function persistRoutineSchedule(
             unstackedCount += update.count;
             await storeRootDefinition(tx, actor, root.row.id, {
               ...root.definition,
+              anchor_retired: retiredAnchors.has(root.row.id),
               stack_id: null,
               state: "active",
               effective_on: effective,
@@ -513,6 +535,7 @@ export async function persistRoutineSchedule(
             if (removal)
               await storeRootDefinition(tx, actor, root.row.id, {
                 ...root.definition,
+                anchor_retired: retiredAnchors.has(root.row.id),
                 stack_id: null,
                 state: "stopped",
                 effective_on: effective,
@@ -530,6 +553,7 @@ export async function persistRoutineSchedule(
           } = candidate;
           const definition = routineStepSeriesConfig.parse({
             protocol: "herewoven.routine-step-series.v1",
+            anchor_retired: retiredAnchors.has(rootId),
             stack_id: stackId,
             state,
             effective_on: effective,

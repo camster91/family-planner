@@ -10,6 +10,7 @@ import { getRequestId } from '@/lib/request-id'
 import { profileChoreLegacyWriteRefusal } from '@/lib/chore-profile'
 
 import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
+import { RoutineOccurrenceUnavailableError } from '@/lib/routine-occurrence-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
       choreId,
     })
   } catch (error) {
+    if (error instanceof RoutineOccurrenceUnavailableError) return choreJson({ error: { code: error.code, message: error.message } }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
     if (error instanceof HouseholdMemberIdentityConflict) return choreJson({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
     logRouteError('POST /api/chores/complete', error, getRequestId(request))
     return choreJson({ error: 'Internal server error' }, { status: 500 })

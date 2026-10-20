@@ -250,3 +250,55 @@ original-body owned retry recovery, bounded routes, parent list/editor/control
 UI and EN/ES. Lifecycle/reassignment/erasure and supported-client rollback remain
 required, then consolidated QA. This is source progress, not #450 completion,
 activation, release or verified behavior.
+
+
+## Continuation: occurrence read/action and legacy-stack guards — 2026-10-20
+
+`routine-occurrence-policy.ts` is a server-private pure policy plus scoped SQL
+read. It joins an occurrence only to its own household's canonical root. Known
+paused/stopped definitions hide pristine pending work dated on/after the saved
+effective day; prior days, started work, photos, verification fields, completion,
+successors and erased historical subjects are preserved. Empty stored notes and
+photo strings also count as evidence, matching conservative preservation rather
+than treating them as absent. Unknown/contradictory metadata holds open work.
+
+Ordinary chore lists/single reads, the server chores open query, Today board and
+personal summary exclude hidden IDs before their caps/paging and their profile
+compatibility probes. The private SQL consumes metadata/evidence solely for the
+policy; clients receive ordinary projected snapshots, never these fields. Board
+and version wrappers share the same read path. Direct account/device completion
+rechecks under the household lock and returns a stable private no-store 409
+CHORE_ROUTINE_INACTIVE, rather than reporting a paused tap already completed.
+
+Profile completion now distinguishes legacy profile recurrence from a known
+scheduled occurrence. It renews the occurrence's own current unlinked profile
+subject; a later future owner can differ from the historical root's original
+account/profile. Canonical due-today, audit, no-account/no-XP, completion/undo and
+parent verification paths stay authoritative. Scheduled-once definitions use
+base profile gates in expansion, completion, undo and parent subject verification;
+the existing per-row UI availability projection must still learn this distinction
+before activation. Full old-client/lifecycle/role audit remains open.
+
+Resume exposed a no-catch-up edge: immutable paused roots must not become overdue
+when a later active definition replaces pause metadata. The root definition now
+has a private default-false anchor_retired boolean. Before changing control state,
+a pristine inactive root whose original due day is before the new effective day
+is retired. That retained control anchor stays hidden/action-refused after resume
+or unstack; ordinary real copies and any evidence/history are unaffected. No root
+ID, owner, due day, status or proof is rewritten. A once routine whose reviewed
+start is today/past refuses resume rather than inventing a new one-off task.
+
+The old current-occurrence stack command may replay its matching receipt first;
+a new effect then refuses any non-null scheduled stack or selected root/copy
+metadata. It cannot silently overwrite label/version or adopt a future step.
+Ordinary legacy edit/delete also refuse inactive copies after their existing
+locked authority check. Unknown versions always refuse rather than downgrade.
+
+Authored/unrun source covers pure preservation/unknown/retired-anchor behavior,
+scoped read/effect parameter binding, legacy occurrence-editor rejection and
+real-PG-source pause stale-tap refusal/resume without overdue-root resurrection.
+Existing fixture sources were adapted; no test, build, typecheck, lint, browser,
+DB, schema/client or native command was executed. Rollout gates remain off and
+parent HTTP/UI remains unwired. Next is exact owned request recovery, bounded
+routes and parent controls, then capability presentation/EN/ES/lifecycle/rollback
+source reconciliation and the consolidated QA phase. #450 remains open in full.
