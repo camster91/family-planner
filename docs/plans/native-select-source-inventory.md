@@ -6,8 +6,9 @@ numbers are routing hints and can move with later edits. This is not rendered,
 contrast, platform, keyboard or accessibility acceptance.
 
 Shared stylesheet: `src/app/globals.css` assigns light color-scheme on :root and
-dark on .dark. Both option and optgroup receive solid `--surface-elevated` and
-`--label-primary`; disabled options use `--label-tertiary`. Theme token pairs in
+dark on .dark. Option/optgroup and native datalist suggestions receive solid
+`--surface-elevated` and `--label-primary`; disabled options use
+`--label-tertiary`. Theme token pairs in
 this source are light #FFFDF9/#182D2A and dark #182D2A/#F7F4EC. Their compiled and
 platform-specific behavior still requires the deferred QA pass.
 
@@ -69,16 +70,40 @@ A lexical scan of option/optgroup opening tags found 0 tags with inline
 className/style attributes. This scan does not prove browser cascade/OS popup
 behavior or detect dynamically generated/external controls.
 
-Inspected custom surfaces include TodayControls (semantic elevated surface and
-primary labels), CalendarPlanner's connection disclosure (semantic CSS surface/
-text/focus), DashboardNav's account menu (semantic menu surface and labels),
-LongPressRow's action sheet (elevated surface and action/danger text), ExplorePanel
-and shared Dialog. This is a scoped source inventory, not completion of the
-requested all-custom-dropdown audit. Remaining source work: enumerate/reconcile
-other inline popovers and custom menu surfaces before consolidated QA.
+The custom-surface continuation below supersedes the earlier partial inventory.
+The inventory remains a source map; compiled/generated/native behavior still
+requires the deferred full-candidate pass.
+
+## Custom surfaces and native suggestions — source continuation
+
+Non-test TSX was searched for menu/listbox roles, menuitem roles, aria-haspopup,
+anchored top-full popovers, dropdown/popover/combobox terms and native datalists.
+The resulting distinct implementations and their shared-surface consumers were
+traced rather than introducing another dropdown abstraction. This is a lexical
+source audit; external/dynamically generated UI and platform popups cannot be
+proved by it.
+
+| Implementation | Surface/text reconciliation | Preserved behavior |
+| --- | --- | --- |
+| DashboardNav account dropdown | card-apple elevated surface now has explicit text-label-primary; child labels/secondary/help colors retained | Existing outside-click, account/role routes and sign-out remain |
+| ProjectDetailActions menu | Explicit surface-elevated, label-primary and semantic separator replace mixed card/inherited menu base; action success/danger colors remain | Existing menu/menuitem roles, first focus, arrow keys, Escape and canonical actions retained |
+| TodayControls details popup | Already uses elevated surface, primary labels and focus tokens | Native disclosure, Escape/outside pointer, refresh/role links retained |
+| CalendarPlanner connection menu | CSS already pairs elevated surface/label-primary and accent link/focus tokens | Native disclosure and canonical Settings anchors unchanged |
+| CommandPalette custom dialog | Elevated palette now has an explicit primary text baseline; input/result/help labels keep explicit semantic colors | Search, route filtering, keys and request behavior unchanged |
+| LongPressRow action sheet | Elevated surface now has primary baseline; individual accent/danger/disabled/cancel text remains | Existing long-press/button, focus, actions and cancellation retained |
+| Shared Dialog consumers: ExplorePanel, CaptureSheet, list controls and form/picker/confirmation sheets | Shared elevated panel now pairs an explicit primary foreground; consumer help/action/danger colors still override intentionally | Existing portal, stacking, focus trap/restore, pending, role and canonical form/control behavior retained |
+| RoutineFields native datalist | One native suggestion list in RoutineIconPicker now joins the global option surface/foreground rules; root theme color-scheme remains the fallback for OS-owned rendering | Input list/id relationship, literal suggestion values and native selection remain |
+| Other native details: optional forms, help, recovery, overlap lists and Settings disclosures | In-flow disclosures rather than select menus; use root/shared panel/explicit card token inheritance | Disclosure/state/validation behavior unchanged; full rendering remains deferred |
+
+There is no newly introduced custom select, OAuth/provider, invitation or data
+path. Development gallery consumers retain their shared primitives. This pass
+adds presentation tokens only; no low-value implementation-mirroring tests were
+added. Existing theme/contrast, menu/keyboard/dialog and journey source remains
+the acceptance base for the integrated QA pass.
 
 Deferred acceptance: compile actual CSS, check representative closed/open native
 controls in light/dark, verify contrast and keyboard/selection behavior, inspect
 all role/device themes and custom surfaces, and separately prove actual Android
-and Windows native popups plus hosted/build gates. Keep shared CSS rollback scoped;
-no API, schema, role, household data, invitation or message changes.
+and Windows native popups plus hosted/build gates. Rollback is scoped to shared option CSS and the affected menu/panel presentation
+classes; preserve all selection/action/role logic. No API, schema, household data,
+invitation or message changes.

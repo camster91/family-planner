@@ -155,7 +155,7 @@ export function Dialog({
         tabIndex={-1}
         data-testid={testId}
         className={cn(
-          "max-h-[100dvh] w-full overflow-y-auto rounded-t-[var(--radius-2xl)] bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-lg)] outline-none sm:max-w-lg sm:rounded-[var(--radius-2xl)]",
+          "max-h-[100dvh] w-full overflow-y-auto rounded-t-[var(--radius-2xl)] bg-[var(--surface-elevated)] text-label-primary p-6 shadow-[var(--shadow-lg)] outline-none sm:max-w-lg sm:rounded-[var(--radius-2xl)]",
           "motion-safe:animate-spring-in",
           variant === "form" &&
             "flex max-h-[92dvh] flex-col overflow-hidden p-0 sm:max-h-[90dvh] sm:max-w-xl",

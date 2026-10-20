@@ -280,7 +280,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
 
               {/* Overflow dropdown */}
               {avatarOpen && (
-                <div className="absolute right-0 top-full mt-2 w-64 card-apple border border-[var(--surface-separator)] animate-spring-up">
+                <div className="absolute right-0 top-full mt-2 w-64 card-apple text-label-primary border border-[var(--surface-separator)] animate-spring-up">
                   {/* User info */}
                   <div className="px-4 py-3 border-b border-[var(--surface-separator)]">
                     <p className="text-[15px] font-semibold text-label-primary truncate">

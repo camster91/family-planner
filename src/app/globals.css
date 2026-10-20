@@ -225,16 +225,18 @@
     letter-spacing: -0.012em;
   }
 
-  /* Native popup rows may not inherit the select's translucent input fill.
+  /* Native select/suggestion rows may not inherit the input's translucent fill.
      Use a solid theme surface and its matching label; color-scheme handles
      platform-owned popups that do not honor option styling. */
   select option,
-  select optgroup {
+  select optgroup,
+  datalist option {
     background-color: var(--surface-elevated);
     color: var(--label-primary);
   }
 
-  select option:disabled {
+  select option:disabled,
+  datalist option:disabled {
     color: var(--label-tertiary);
   }
 

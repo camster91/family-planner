@@ -240,7 +240,7 @@ export function ProjectDetailActions({
             id={menuId}
             role="menu"
             aria-label={text("projectActions")}
-            className="absolute right-0 top-full mt-1 z-20 w-48 rounded-xl bg-card border shadow-lg py-1 overflow-hidden"
+            className="absolute right-0 top-full mt-1 z-20 w-48 rounded-xl bg-[var(--surface-elevated)] text-label-primary border border-[var(--surface-separator)] shadow-lg py-1 overflow-hidden"
           >
             {actions.length === 0 && (
               <p className="px-4 py-3 text-sm text-label-secondary">

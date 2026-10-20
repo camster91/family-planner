@@ -110,7 +110,7 @@ export default function CommandPalette({
         aria-label="Command palette"
         className={cn(
           "relative w-full max-w-lg mx-4",
-          "card-elevated bg-[var(--surface-elevated)]",
+          "card-elevated bg-[var(--surface-elevated)] text-label-primary",
           "overflow-hidden animate-spring-in",
         )}
         onClick={(e) => e.stopPropagation()}

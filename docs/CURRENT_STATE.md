@@ -1,5 +1,29 @@
 # Current State
 
+## Native/custom menu foreground source continuation — 2026-10-20
+
+The #448 inventory now records the identified custom-menu, anchored-popup,
+aria-haspopup/dialog and native-suggestion implementations alongside 69 native
+select declarations in 45 files. It maps their shared consumers and distinguishes
+in-flow disclosures from selection popups; lexical scan limits remain explicit.
+The earlier partial custom-source inventory is superseded by this continuation,
+not by a claim of runtime or all-platform acceptance.
+
+Confirmed presentation gaps are source-fixed: the RoutineFields datalist joins
+global solid themed option/disabled-option rules; DashboardNav, CommandPalette,
+LongPressRow and shared Dialog elevated containers now have an explicit primary
+foreground. ProjectDetailActions pairs elevated surface/primary/separator tokens
+while retaining individual success/danger classes. Native selection, menu keys,
+focus, pending actions, roles and canonical requests are unchanged. No duplicate
+component or new data/provider path was introduced. Low-impact class/CSS edits
+do not add implementation-mirroring tests; existing theme/contrast/menu/dialog/
+journey source remains for the consolidated candidate.
+
+No tests, types, lint, build, compiled CSS, browser/native/schema operations, CI,
+push, merge, deployment or activation occurred. Light/dark actual popup/contrast,
+keyboard/reflow, role/device, Android/Windows and normal release proof are still
+unrun. Full implementation goal and QA/release gates remain active.
+
 ## Family setup guards and dropdown source inventory — 2026-10-20
 
 Original #446 maps to canonical dashboard/standalone Add Everyone, explicit invite
