@@ -2,6 +2,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRoutineLinkNavigation } from "./useRoutineLinkNavigation";
 import { parseDateOnly } from "@/lib/dates";
 import { Dialog } from "@/components/ui/dialog";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
@@ -90,8 +91,8 @@ export default function RoutineScheduleManager({
   }
   const draftDirty =
     draft !== null && !(drafts.current?.isSaved(draft) ?? false);
-  usePendingFormNavigationController(
-    saving || (authorized && (draftDirty || editorOpen)) || draftWriting,
+  const navigation = usePendingFormNavigationController(
+    saving || draftDirty || (authorized && editorOpen) || draftWriting,
     {
       onBack: () => {
         if (editorOpen && authorized) void closeEditor();
@@ -101,6 +102,34 @@ export default function RoutineScheduleManager({
   );
   const available = authorized && context.current?.enabled === true;
   const blocked = busy || entries.length > 0;
+  useRoutineLinkNavigation(
+    draftDirty || editorOpen || saving || draftWriting,
+    navigateAway,
+  );
+  async function navigateAway(href: string) {
+    if (busy || saving || !authorized) return;
+    await run(async () => {
+      const token = epoch.current;
+      if (draftRef.current) {
+        const saved = await drafts.current!.write(draftRef.current);
+        if (!(
+          mounted.current &&
+          token === epoch.current &&
+          document.visibilityState !== "hidden"
+        ))
+          return;
+        setDraft(saved);
+      }
+      if (!(await navigation.releaseBeforeNavigation())) return;
+      if (!(
+        mounted.current &&
+        token === epoch.current &&
+        document.visibilityState !== "hidden"
+      ))
+        return;
+      router.push(href);
+    });
+  }
   async function current() {
     const next = await readRoutineRecoveryContext();
     if (
@@ -542,11 +571,19 @@ export default function RoutineScheduleManager({
               disabled={busy}
               onClick={() =>
                 void run(async () => {
+                  const token = epoch.current;
                   draftEpoch.current += 1;
                   if (store.current?.hasUncertainStorage())
                     await store.current.recoverStorage();
-                  if (drafts.current?.hasUncertainStorage())
-                    setDraft(await drafts.current.recoverStorage());
+                  if (drafts.current?.hasUncertainStorage()) {
+                    const restored = await drafts.current.recoverStorage();
+                    // Keep the repaired durable value even if visibility changes;
+                    // the next foreground load must not write the stale draft back.
+                    draftRef.current = restored;
+                    if (!mounted.current || token !== epoch.current) return;
+                    setDraftState(restored);
+                  }
+                  if (!mounted.current || token !== epoch.current) return;
                   await load();
                 })
               }

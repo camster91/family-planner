@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
+import { useRoutineLinkNavigation } from "./useRoutineLinkNavigation";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/dialog";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
@@ -104,8 +105,8 @@ export default function IndependentRoutineManager({
       document.visibilityState !== "hidden"
     );
   }
-  usePendingFormNavigationController(
-    saving || writing || (authorized && (dirty || editorOpen)),
+  const navigation = usePendingFormNavigationController(
+    saving || writing || dirty || (authorized && editorOpen),
     {
       onBack: () => {
         if (authorized && editorOpen) void closeEditor();
@@ -113,6 +114,24 @@ export default function IndependentRoutineManager({
       warnOnUnload: dirty || writing || saving,
     },
   );
+  useRoutineLinkNavigation(
+    dirty || editorOpen || saving || writing,
+    navigateAway,
+  );
+  async function navigateAway(href: string) {
+    if (busy || saving || !authorized) return;
+    await run(async () => {
+      const token = epoch.current;
+      if (draftRef.current) {
+        const saved = await drafts.current!.write(draftRef.current);
+        if (!live(token)) return;
+        setDraft(saved);
+      }
+      if (!(await navigation.releaseBeforeNavigation())) return;
+      if (!live(token)) return;
+      router.push(href);
+    });
+  }
   async function current() {
     const next = await readIndependentRecoveryContext();
     if (
@@ -527,6 +546,7 @@ export default function IndependentRoutineManager({
                     if (!live(token)) return;
                     setDraftState(restored);
                   }
+                  if (!live(token)) return;
                   await load();
                 })
               }

@@ -1,5 +1,28 @@
 # Current State
 
+## Routine draft repair and dashboard-link navigation source — 2026-10-20
+
+Both future-routine managers now capture ordinary same-window dashboard links,
+including sidebar links outside the editor subtree, while a draft/editor or
+write is active. The manager first flushes its owned local draft, then awaits
+release of its own Back sentinel, and pushes the destination only while the
+same visible controller epoch remains current. Busy, unauthorized, failed-storage
+and changed-epoch attempts stay put. Dirty drafts retain Back ownership even
+when a storage error temporarily removes authority. Modified clicks, downloads,
+other windows, same-page fragments and destinations outside the dashboard keep
+their normal behavior. Programmatic navigation and non-link account controls
+still require the later full navigation/lifecycle reconciliation.
+
+Stacked-routine storage repair now updates the durable draft reference before
+checking visibility, matching independent routines: a backgrounded successful
+repair cannot let the next foreground load overwrite it with the old draft.
+Both repair handlers avoid starting another load after their epoch expires.
+Authored link-capture cases cover outside-sidebar links, duplicate clicks during
+preparation, failed preparation/retry, browser-link semantics, current protection
+state and unmount cleanup. These cases and all broader QA remain unrun. Only
+source inspection, edits and formatting occurred; no tests, types, lint, build,
+browser/native/schema operations, CI or release actions. Rollout gates unchanged.
+
 ## Historical message/audit erasure source — 2026-10-20
 
 The photo retention contract was traced before editing: household Upload files

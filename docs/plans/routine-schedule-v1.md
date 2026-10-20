@@ -692,3 +692,21 @@ and message readers remain. Focused and protected source cases are authored,
 unrun. Historical provenance/other non-FK data still need full-ledger reconciliation.
 Remaining source scope includes link/rollout and navigation/async boundaries;
 all broader lifecycle/file/device acceptance remains deferred to consolidated QA.
+
+## Dashboard-link and repair continuation — 2026-10-20
+
+Source now routes ordinary same-window dashboard links through the future-routine
+manager while a local draft, editor or write is active. This includes dashboard
+sidebar links outside the manager subtree. A successful owned-draft flush precedes
+awaited sentinel release and an epoch/visibility-checked router push. Storage,
+authority, busy and stale-controller failures keep the current page. Dirty Back
+ownership persists through recoverable storage failures. Browser modified-click,
+download, other-window, fragment and outside-dashboard behavior is preserved.
+The repair continuation updates the durable draft ref even when a successful
+repair finishes after backgrounding, preventing stale in-memory re-upload on the
+next foreground load; expired handlers do not start another load.
+
+Link-handler regression cases are authored but unrun. This is source progress,
+not rendered or native navigation acceptance; programmatic navigation, non-link
+account controls and full lifecycle reconciliation remain for consolidated QA.
+No rollout, API/schema, provider, CI, merge or deployment changes.
