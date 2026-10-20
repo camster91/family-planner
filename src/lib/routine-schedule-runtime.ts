@@ -99,6 +99,7 @@ export async function routineScheduleAuthority(
     refuse(403, "CHORES_DISABLED");
   if (process.env[ROUTINE_SCHEDULE_READY_ENV] !== "1")
     refuse(404, "ROUTINE_SCHEDULE_UNAVAILABLE");
+  return { pointsEnabled: normalizeFeatures(family.features).gamification };
 }
 async function stackInTx(tx: Tx, familyId: string, id: string) {
   const rows = await tx.$queryRaw<
@@ -325,7 +326,7 @@ export async function persistRoutineScheduleInTx(
   now = new Date(),
 ): Promise<EffectResult> {
   const input = routineScheduleCommand.parse(raw);
-  await routineScheduleAuthority(tx, actor);
+  const capabilities = await routineScheduleAuthority(tx, actor);
   if (
     input.expected_user_id !== actor.userId ||
     input.expected_family_id !== actor.familyId
@@ -412,7 +413,14 @@ export async function persistRoutineScheduleInTx(
   if (input.action === "create" && schedule.starts_on! < input.view_day)
     refuse(400, "ROUTINE_START_IN_PAST");
   const candidates = editing
-    ? input.steps
+    ? input.steps.map((step) => ({
+        ...step,
+        points:
+          !capabilities.pointsEnabled || step.points === null
+            ? (priorRoots.find((root) => root.row.id === step.template_id)
+                ?.definition.content.points ?? 0)
+            : step.points,
+      }))
     : existing!.config.steps.map((step) => {
         const root = priorRoots.find(
           (candidate) => candidate.row.id === step.template_id,
@@ -648,7 +656,7 @@ export async function readRoutineSchedule(
 ): Promise<EffectResult> {
   try {
     return await db.$transaction(async (tx) => {
-      await routineScheduleAuthority(tx, actor);
+      const capabilities = await routineScheduleAuthority(tx, actor);
       const stack = await stackInTx(tx, actor.familyId, stackId),
         roots = await rootsInTx(tx, actor, stackId, stack.config);
       const byId = new Map(
@@ -663,11 +671,17 @@ export async function readRoutineSchedule(
           stackId,
           version: stack.row.version,
           label: stack.row.label,
+          pointsEnabled: capabilities.pointsEnabled,
           config: stack.config,
-          steps: stack.config.steps.map((step) => ({
-            template_id: step.template_id,
-            ...byId.get(step.template_id)!,
-          })),
+          steps: stack.config.steps.map((step) => {
+            const content = byId.get(step.template_id)!;
+            const { points, ...rest } = content;
+            return {
+              template_id: step.template_id,
+              ...rest,
+              ...(capabilities.pointsEnabled ? { points } : {}),
+            };
+          }),
         },
       };
     });

@@ -1,5 +1,46 @@
 # Current State
 
+## Parent routine catalog/editor/recovery UI source — 2026-10-20
+
+Parent-only bounded catalog/state DTOs and GET catalog paging now provide saved
+routine summaries, explicit unsupported-protocol rows and eligible canonical
+account/profile choices. Current family/token/role/features renew under locks;
+member identity conflicts are skipped, not guessed from names. Profile choices
+carry their current repeat capability. The new /dashboard/chores/schedules view
+and a parent Routines-view entry are gated by existing rollback-ready support;
+all gates remain unchanged/default-off and no deployed app is changed.
+
+The manager and reusable rounded form Dialog source now show a catalog, frozen
+control confirmations and explicit saved-request inspect/retry/dismiss actions.
+The form has Routine / Steps / Review stages, one focused step, bounded step
+navigation, independent owner/duration, optional details/picture/effort/points,
+weekday/monthly/start choices and accessible move controls. Removing a persisted
+step requires keep-independent versus stop-future scope and can be restored
+locally. Review shows owners, cadence/first matching day and removed-step scope;
+its clock/zone freeze before submission rather than rebase at a later click.
+Paused edits stay paused; expired once routines do not offer resume.
+
+Submission stages the exact owned request before sending; saved/unknown work
+holds new edits until explicit recovery/dismissal. Visibility/owner/async epochs
+hold private rendering and suppress stale replies. Pending navigation protection
+covers writes. Closing retains unsent form state only while this page remains
+mounted, with a beforeunload warning: durable unsent drafts, SPA/native Back,
+legacy editor-link handoff and detached-series controls still need code.
+
+A source audit found future parent reads exposed points with gamification off.
+They now omit that field server-side, enforce it in the read codec and expose only
+a capability boolean. Null point intent preserves existing hidden points (new
+steps use zero); disabled points edits cannot overwrite stored values. This also
+avoids clobbering points when the setting changes between reading and saving.
+Focused form model/identity/removal/frozen-day tests and protected DB source for
+catalog role scope/points omission/preservation were authored, unrun.
+
+Formatting and source inspection only. No tests/typecheck/lint/build/rendered/
+browser/native, schema/client operation, push/merge/deploy or activation. Remaining
+#450 source work: durable unsent draft ownership/recovery, old-link/detached-series
+management and scheduled-once action presentation; then full EN/ES, lifecycle,
+rollback and device reconciliation and the later consolidated QA phase.
+
 ## Routine original-request recovery and gated HTTP source — 2026-10-20
 
 Routine changes now have a strict owned recovery contract, fixed original

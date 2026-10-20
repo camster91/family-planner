@@ -16,6 +16,10 @@ import {
 } from "@/lib/routine-schedule-recovery-contract";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
+import {
+  routineScheduleCatalog,
+  routineScheduleState,
+} from "@/lib/routine-schedule-view";
 type Draft<T> = T extends unknown
   ? Omit<
       T,
@@ -79,6 +83,55 @@ async function request(path: string, init: RequestInit, bytes = 1024 * 1024) {
   } finally {
     clearTimeout(timer);
   }
+}
+export async function readRoutineCatalog(
+  context: RoutineRecoveryContext,
+  cursor: string | null = null,
+) {
+  if (!context.owner) throw new Error("Routine owner changed");
+  const result = await request(
+    `/api/chores/routines${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
+    {
+      headers: {
+        "X-Member-Protocol": "2",
+        [ROUTINE_RECOVERY_OWNER_HEADER]: context.owner.scope,
+      },
+    },
+  );
+  if (result.kind !== "reply" || !result.response.ok)
+    throw new Error("Routine catalog unavailable");
+  const catalog = routineScheduleCatalog.parse(result.body);
+  if (
+    catalog.userId !== context.userId ||
+    catalog.familyId !== context.familyId
+  )
+    throw new Error("Routine owner changed");
+  return catalog;
+}
+export async function readRoutineState(
+  stackId: string,
+  context: RoutineRecoveryContext,
+) {
+  if (!context.owner) throw new Error("Routine owner changed");
+  const result = await request(
+    `/api/chores/routines?stack_id=${encodeURIComponent(stackId)}`,
+    {
+      headers: {
+        "X-Member-Protocol": "2",
+        [ROUTINE_RECOVERY_OWNER_HEADER]: context.owner.scope,
+      },
+    },
+  );
+  if (result.kind !== "reply" || !result.response.ok)
+    throw new Error("Routine unavailable");
+  const state = routineScheduleState.parse(result.body);
+  if (
+    state.userId !== context.userId ||
+    state.familyId !== context.familyId ||
+    state.stackId !== stackId
+  )
+    throw new Error("Routine owner changed");
+  return state;
 }
 export async function readRoutineRecoveryContext(): Promise<RoutineRecoveryContext> {
   const result = await request(

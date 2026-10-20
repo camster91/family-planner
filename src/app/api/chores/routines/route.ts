@@ -8,6 +8,7 @@ import {
 } from "@/lib/bounded-request-text";
 import { ROUTINE_SCHEDULE_MAX_BYTES } from "@/lib/routine-schedule";
 import { readRoutineSchedule } from "@/lib/routine-schedule-runtime";
+import { readRoutineScheduleCatalog } from "@/lib/routine-schedule-catalog";
 import { saveRoutineSchedule } from "@/lib/routine-schedule-api";
 import { routineRecoveryWritingEnabled } from "@/lib/routine-schedule-owner";
 import {
@@ -23,6 +24,14 @@ export async function GET(request: NextRequest) {
     const opened = await openRoutineSchedule(request);
     if (!opened.ok) return opened.response;
     const stackId = new URL(request.url).searchParams.get("stack_id");
+    if (stackId === null) {
+      const result = await readRoutineScheduleCatalog(
+        prisma!,
+        opened.actor,
+        new URL(request.url).searchParams.get("cursor"),
+      );
+      return routineResponse(result.body, result.status);
+    }
     if (!stackId || stackId.length > 128)
       return routineError(400, "INVALID_QUERY");
     const result = await readRoutineSchedule(prisma!, opened.actor, stackId);

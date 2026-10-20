@@ -72,6 +72,8 @@ export const routineScheduledStepDraft = z
     /** Canonical root Chore ID. Null means explicitly create a new step. */
     template_id: id.nullable(),
     ...stepContent,
+    /** Null preserves hidden/existing points, or uses zero for a new step. */
+    points: stepContent.points.nullable(),
   })
   .strict();
 export const routineScheduledStep = z

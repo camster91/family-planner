@@ -370,3 +370,73 @@ Still open: parent list/catalog, contextual editor/controls and recovery UI,
 unsent form drafts, full current-subject choice presentation, scheduled-once action
 availability, EN/ES, lifecycle/erasure/rollback audit, then consolidated QA and
 normal release gates. Source HTTP wiring does not make #450 accepted or released.
+
+
+## Continuation: parent catalog and three-stage management UI — 2026-10-20
+
+New `routine-schedule-view.ts` validates private parent catalog/state DTOs, stable
+root order, points visibility and catalog cursor continuity. Catalog GET uses
+household-owned non-null stack definitions in stable ID pages of twenty; unknown
+protocols remain visible as uneditable entries. Eligible current account/member
+subjects use existing canonical resolvers, never name matching or account creation.
+Name-only profile choices renew current age/role/link/erasure eligibility and carry
+current repeat support. More than 1,000 combined members refuses rather than
+silently truncating assignment identity. Parent authority renews under the usual
+user/household locks, including negative teen/foreign-family behavior.
+
+`RoutineScheduleManager` has a dedicated private `/dashboard/chores/schedules`
+page and a parent-only entry in the existing Chores Routines view. Existing
+rollback-ready support controls entry/page admission; actual API authority and
+writing gates still apply. No gate, environment, manifest or deployed UI changed.
+Catalog paging, create/future-edit, active/paused/stopped state and explicit
+pause/resume/stop review use the same canonical HTTP and owned request helpers.
+Controls load current version first and freeze the reviewed command before the
+confirmation. Expired one-time routines explain why resume is unavailable.
+
+The `RoutineScheduleEditor` reuses the rounded form Dialog, WeeklyDaysPicker and
+RoutineIconPicker. Three short stages separate routine/schedule, focused ordered
+steps and review. Cadence choices include selected weekdays, fixed monthly anchor
+with short-month explanation and optional start. Each step has an independently
+chosen canonical subject and optional minutes. Description, picture, effort and
+available points are collapsed extras. Move buttons have explicit labels and
+44px targets; a bounded, keyboard-focusable list navigates long stacks. Routine,
+step and review focus targets change with the stage. Review shows cadence,
+canonical first matching day, cue, each owner/duration and explicit removed-step
+scope, rather than just a count. Existing root IDs remain stable even when titles
+match. Persisted-step removal must choose independent continuation or stop; a
+local restore retains the same step/identity/order. Final review freezes viewer
+clock/zone so a delayed save must pass the original day/intent-age check.
+
+The manager stages original body/key before any effect, disables conflicting
+fresh edits while a saved request exists and exposes check-original-result,
+reviewed retry and explicit local dismissal. Unknown/malformed/refused results do
+not imply a new request or a cancelled server effect. Completed and later-removed
+proofs remain distinguishable. Live owner checks, visibility holds and request
+epochs suppress stale private results; the existing pending-navigation controller
+protects writes. EN/ES copy covers these new surfaces. Native controls and existing
+semantic tokens are reused, but no rendered/accessibility/device claim is made.
+
+Unsent draft state is currently retained only while the manager is mounted;
+closing its sheet preserves it and a beforeunload warning protects reload/leave.
+This is **not durable draft recovery**. Durable owned unsent drafts, same-document
+Back/native process-death behavior, handoff from legacy current-occurrence links
+and future controls for detached roots are still required before activation. Do
+not mark these requirements accepted because the new dedicated path exists.
+
+A privacy gap was found in the prior parent definition read: points leaked while
+Points & streaks was off. Authority now returns the current capability, reads omit
+points server-side and the state codec rejects hidden numeric values. Draft
+points may be null, meaning preserve the stored future value or zero for a new
+step; disabled points controls always preserve stored values. This prevents both
+leakage and an edit resetting hidden values if gamification changes between read
+and save. Stored root definitions remain numeric and history snapshots stay
+unchanged. Full export/legacy capability audits remain separate work.
+
+Authored/unrun model cases cover equal-name root identity, explicit remove scope,
+local restore without local-only fields entering the command, null hidden points
+and frozen reviewed day/zone. Protected PostgreSQL source adds current catalog
+role scope, no-points DTOs, null preservation and later enabled-point visibility.
+No tests/typecheck/lint/build/browser/rendered/native, database/schema/client or
+hosted CI command ran. Next: durable unsent drafts, legacy/detached management,
+scheduled-once presentation and full lifecycle/rollback source reconciliation,
+then the consolidated QA/release gates. #450 remains open at full scope.

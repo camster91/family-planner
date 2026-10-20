@@ -2,6 +2,7 @@
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { assertFixtureTargetAllowed } from "@/lib/fixtures/guard";
+import { readRoutineScheduleCatalog } from "@/lib/routine-schedule-catalog";
 import {
   saveRoutineSchedule,
   reviewRoutineSchedule,
@@ -263,6 +264,86 @@ suite("canonical scheduled routine commands", () => {
         )
       ).status,
     ).toBe(403);
+  });
+  it("keeps points out of disabled parent DTOs while preserving hidden future values and scoped catalog authority", async () => {
+    const created = await create();
+    if (created.body.action !== "create") throw new Error("fixture mismatch");
+    const root = created.proof.roots[0];
+    await prisma!
+      .$executeRaw`UPDATE "Chore" SET "routine_series_config" = jsonb_set("routine_series_config", '{content,points}', '7'::jsonb) WHERE "id" = ${root} AND "family_id" = ${familyId}`;
+    const hidden = await readRoutineSchedule(
+      prisma!,
+      actor,
+      created.proof.stackId,
+    );
+    expect(hidden.body).toMatchObject({ pointsEnabled: false });
+    expect(
+      (hidden.body as { steps: unknown[] }).steps.every(
+        (step) => !Object.prototype.hasOwnProperty.call(step, "points"),
+      ),
+    ).toBe(true);
+    const catalog = await readRoutineScheduleCatalog(prisma!, actor, null);
+    expect(catalog.status).toBe(200);
+    expect(catalog.body).toMatchObject({
+      userId: parent,
+      familyId,
+      pointsEnabled: false,
+    });
+    expect(
+      (
+        await readRoutineScheduleCatalog(
+          prisma!,
+          { userId: teen, familyId, tokenVersion: 0 },
+          null,
+        )
+      ).status,
+    ).toBe(403);
+    const replacement = routineScheduleCommand.parse({
+      ...created.body,
+      action: "replace-future",
+      stack_id: created.proof.stackId,
+      expected_version: created.proof.version,
+      removed_steps: [],
+      steps: created.body.steps.map((step, index) => ({
+        ...step,
+        template_id: created.proof.roots[index],
+        points: null,
+      })),
+    });
+    expect(
+      (
+        await persistRoutineSchedule(
+          prisma!,
+          actor,
+          replacement,
+          (await reserve(replacement)).id,
+          now,
+        )
+      ).status,
+    ).toBe(200);
+    const stored = await prisma!.$queryRaw<
+      { points: number }[]
+    >`SELECT ("routine_series_config"->'content'->>'points')::integer AS points FROM "Chore" WHERE "id" = ${root} AND "family_id" = ${familyId}`;
+    expect(stored[0].points).toBe(7);
+    await prisma!.family.update({
+      where: { id: familyId },
+      data: { features: { chores: true, gamification: true } },
+    });
+    try {
+      expect(
+        (await readRoutineSchedule(prisma!, actor, created.proof.stackId)).body,
+      ).toMatchObject({
+        pointsEnabled: true,
+        steps: expect.arrayContaining([
+          expect.objectContaining({ template_id: root, points: 7 }),
+        ]),
+      });
+    } finally {
+      await prisma!.family.update({
+        where: { id: familyId },
+        data: { features: { chores: true } },
+      });
+    }
   });
   it("pause preserves root snapshots and all evidence/today rows, pruning only untouched future copies without reordering steps", async () => {
     const { proof } = await create(),

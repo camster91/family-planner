@@ -1,5 +1,6 @@
 import { hiddenRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 import { publicChoreData } from "@/lib/chore-public-data";
+import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import ChoresContent from './ChoresContent'
@@ -200,6 +201,7 @@ export default async function ChoresPage() {
       currentUserId={sessionUser.id}
       userRole={user?.role || 'child'}
       familyId={familyId}
+      routineSchedulesEnabled={user?.role === 'parent' && process.env[ROUTINE_SCHEDULE_READY_ENV] === '1'}
       historyCursor={historyCursor}
     />
   )

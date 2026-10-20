@@ -8,6 +8,7 @@ import { RecurringChoreRows } from "@/components/chores/RecurringChoreRows";
 import { ChoreViewControls, type ChorePresentation } from "@/components/chores/ChoreViewControls";
 import { useChoreOverviewText } from "@/i18n/chore-overview";
 import { RoutineStacks } from "@/components/chores/RoutineStacks";
+import { RoutineScheduleEntry } from "@/components/chores/RoutineScheduleEntry";
 import { RoutineIcon } from "@/components/chores/RoutineIcon";
 import { CheckboxRow } from "@/components/ui/checkbox-row";
 import { ListRow } from "@/components/ui/list-row";
@@ -79,6 +80,7 @@ interface ChoresContentProps {
   currentUserId: string;
   userRole: string;
   familyId?: string;
+  routineSchedulesEnabled?: boolean;
   /** `GET /api/chores` cursor for older verified chores not loaded yet (O-19), or null when all are here. */
   historyCursor?: string | null;
 }
@@ -207,6 +209,7 @@ export default function ChoresContent({
   currentUserId,
   userRole,
   familyId,
+  routineSchedulesEnabled = false,
   historyCursor = null,
 }: ChoresContentProps) {
   const [view, setView] = React.useState<"chores" | "routines">("chores");
@@ -1009,6 +1012,7 @@ export default function ChoresContent({
 
   return (
     <div className="pb-20">
+      {routineSchedulesEnabled && userRole === "parent" && view === "routines" && <RoutineScheduleEntry />}
       <LargeHeader
         title={overviewText("title")}
         subtitle={
