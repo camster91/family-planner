@@ -30,19 +30,19 @@ function event(
 } {
   return Object.assign(new Event("navigate", { cancelable }), {
     navigationType,
-    ...(sameDocument === null
-      ? {}
-      : { destination: { sameDocument } }),
+    ...(sameDocument === null ? {} : { destination: { sameDocument } }),
   });
 }
 
 function installBootstrap() {
   unregisterNavigate = jest.fn();
   unregisterPopState = jest.fn();
-  registerNavigate = jest.fn((handler: PendingFormNavigationNavigateHandler) => {
-    navigateHandler = handler;
-    return unregisterNavigate;
-  });
+  registerNavigate = jest.fn(
+    (handler: PendingFormNavigationNavigateHandler) => {
+      navigateHandler = handler;
+      return unregisterNavigate;
+    },
+  );
   const register = jest.fn((handler: PendingFormNavigationPopStateHandler) => {
     popStateHandler = handler;
     return unregisterPopState;
@@ -60,11 +60,18 @@ function installBootstrap() {
 function Harness({
   busy,
   onNavigation,
+  onBack,
+  warnOnUnload,
 }: {
   busy: boolean;
+  onBack?: () => void;
+  warnOnUnload?: boolean;
   onNavigation: (navigation: PendingFormNavigation) => void;
 }) {
-  const navigation = usePendingFormNavigationController(busy);
+  const navigation = usePendingFormNavigationController(busy, {
+    onBack,
+    warnOnUnload,
+  });
   React.useEffect(() => {
     onNavigation(navigation);
   }, [navigation, onNavigation]);
@@ -73,9 +80,7 @@ function Harness({
 
 beforeEach(() => {
   installBootstrap();
-  historyBack = jest
-    .spyOn(window.history, "back")
-    .mockImplementation(() => {});
+  historyBack = jest.spyOn(window.history, "back").mockImplementation(() => {});
   window.history.replaceState({ route: "base" }, "", originalUrl);
 });
 
@@ -86,9 +91,7 @@ afterEach(() => {
 });
 
 it("cancels a cancelable traverse only while busy and owning the current entry", async () => {
-  const view = render(
-    <Harness busy onNavigation={() => {}} />,
-  );
+  const view = render(<Harness busy onNavigation={() => {}} />);
   await waitFor(() =>
     expect(window.history.state.__herewovenPendingForm).toEqual(
       expect.any(String),
@@ -233,4 +236,57 @@ it("unregisters the Navigation API handler during cleanup", () => {
   expect(registerNavigate).toHaveBeenCalledTimes(1);
   expect(unregisterNavigate).toHaveBeenCalledTimes(1);
   expect(unregisterPopState).toHaveBeenCalledTimes(1);
+});
+
+it("lets a clean owned sheet handle Back without warning on unload", () => {
+  const close = jest.fn();
+  render(
+    <Harness
+      busy
+      onBack={close}
+      warnOnUnload={false}
+      onNavigation={() => {}}
+    />,
+  );
+  const unload = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(unload);
+  expect(unload.defaultPrevented).toBe(false);
+  expect(navigateHandler(event())).toBe(true);
+  expect(close).toHaveBeenCalledTimes(1);
+  expect(navigateHandler(event(true, "push"))).toBe(false);
+  expect(close).toHaveBeenCalledTimes(1);
+});
+
+it("requests sheet close only on the initial owned fallback Back, not its restoration", () => {
+  const close = jest.fn();
+  const forward = jest
+    .spyOn(window.history, "forward")
+    .mockImplementation(() => {});
+  try {
+    render(<Harness busy onBack={close} onNavigation={() => {}} />);
+    const sentinel = window.history.state;
+    window.history.replaceState({ route: "base" }, "", originalUrl);
+    expect(
+      popStateHandler(
+        new PopStateEvent("popstate", { state: window.history.state }),
+      ),
+    ).toBe(true);
+    expect(close).toHaveBeenCalledTimes(1);
+    window.history.replaceState(sentinel, "", originalUrl);
+    expect(
+      popStateHandler(new PopStateEvent("popstate", { state: sentinel })),
+    ).toBe(true);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(forward).toHaveBeenCalledTimes(1);
+  } finally {
+    forward.mockRestore();
+  }
+});
+
+it("retains an explicit dirty-work unload warning when sheet authority is held", () => {
+  render(<Harness busy={false} warnOnUnload onNavigation={() => {}} />);
+  const unload = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(unload);
+  expect(unload.defaultPrevented).toBe(true);
+  expect(navigateHandler(event())).toBe(false);
 });

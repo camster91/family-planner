@@ -5,6 +5,7 @@ import Link from "next/link";
 import { parseDateOnly } from "@/lib/dates";
 import { Dialog } from "@/components/ui/dialog";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
+import { RoutineSavedRequestDetails } from "@/components/chores/RoutineSavedRequestDetails";
 import { RoutineScheduleEditor } from "@/components/chores/RoutineScheduleEditor";
 import { useRoutineScheduleText } from "@/i18n/routine-schedule";
 import { useTranslation } from "@/i18n";
@@ -89,7 +90,13 @@ export default function RoutineScheduleManager({
   const draftDirty =
     draft !== null && !(drafts.current?.isSaved(draft) ?? false);
   usePendingFormNavigationController(
-    saving || (authorized && draftDirty) || draftWriting,
+    saving || (authorized && (draftDirty || editorOpen)) || draftWriting,
+    {
+      onBack: () => {
+        if (editorOpen && authorized) void closeEditor();
+      },
+      warnOnUnload: draftDirty || saving || draftWriting,
+    },
   );
   const available = authorized && context.current?.enabled === true;
   const blocked = busy || entries.length > 0;
@@ -276,15 +283,6 @@ export default function RoutineScheduleManager({
     // Owned storage renews authority for each write; locale changes do not rewrite content.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, authorized]);
-  React.useEffect(() => {
-    if (!draftDirty && !saving && !draftWriting) return;
-    const protect = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", protect);
-    return () => window.removeEventListener("beforeunload", protect);
-  }, [draftDirty, saving, draftWriting]);
   async function clearDraft() {
     const token = epoch.current;
     draftEpoch.current += 1;
@@ -589,6 +587,11 @@ export default function RoutineScheduleManager({
                       ? reviewText(reviews[entry.key].state)
                       : t("uncertain")}
                   </p>
+                  <RoutineSavedRequestDetails
+                    entry={entry}
+                    assignments={catalog?.assignments ?? []}
+                    pointsEnabled={catalog?.pointsEnabled === true}
+                  />
                   <div className="flex flex-wrap gap-2">
                     <button
                       className="btn-ghost min-h-[44px]"
@@ -832,15 +835,19 @@ export default function RoutineScheduleManager({
                 disabled={busy}
                 onClick={() =>
                   void run(async () => {
+                    const token = epoch.current;
+                    const dismissedKey = dismiss;
                     await clearDraft();
-                    if (dismiss) {
-                      await store.current!.dismiss(dismiss);
+                    if (!mounted.current || token !== epoch.current) return;
+                    if (dismissedKey) {
+                      await store.current!.dismiss(dismissedKey);
+                      if (!mounted.current || token !== epoch.current) return;
                       setEntries((old) =>
-                        old.filter((entry) => entry.key !== dismiss),
+                        old.filter((entry) => entry.key !== dismissedKey),
                       );
                       setReviews((old) => {
                         const copy = { ...old };
-                        delete copy[dismiss];
+                        delete copy[dismissedKey];
                         return copy;
                       });
                     }
@@ -872,8 +879,11 @@ export default function RoutineScheduleManager({
             disabled={busy}
             onClick={() =>
               void run(async () => {
+                const token = epoch.current;
                 draftEpoch.current += 1;
-                setDraft(await drafts.current!.adoptStored());
+                const restored = await drafts.current!.adoptStored();
+                if (!mounted.current || token !== epoch.current) return;
+                setDraft(restored);
                 setAdoptDraft(false);
                 await load();
               })

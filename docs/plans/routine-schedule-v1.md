@@ -520,3 +520,17 @@ not the presence of a recurrence ID. Scoped selected-ID reads feed list/detail,
 chores page and Today board projections. Metadata is never serialized into these
 ordinary DTOs. Repeating/legacy profile gates and locked mutation checks remain.
 Authored policy/projection cases are unrun; consolidated QA is still deferred.
+
+
+### Routine sheet Back and saved intent review — 2026-10-20
+
+Source opts the routine sheet into owned Back handling through the existing
+navigation controller. The verified local close path retains the draft and
+returns to the catalog; only dirty/pending work warns on unload. Defaults for
+other forms remain unchanged. Browser/native navigation acceptance is unrun.
+
+Saved request recovery now has read-only, collapsed EN/ES original-intent details.
+The exact stored body remains the retry source. Current eligible identities only
+supply display names, unavailable members remain explicit, and disabled points
+are omitted. New authored navigation/UI cases are deferred to consolidated QA.
+Independent detached root controls and lifecycle/rollback/device work remain.

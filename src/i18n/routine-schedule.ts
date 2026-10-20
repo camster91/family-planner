@@ -1,6 +1,12 @@
 "use client";
 import { useTranslation } from "@/i18n";
 const en = {
+  originalDetails: "Review original saved request",
+  originalReviewed: "Reviewed {at} ({zone})",
+  originalStart: "Original start date: {day}",
+  originalMemberUnavailable: "Original member is no longer available",
+  originalExact:
+    "Retry sends this exact saved request. Current member names are shown when available. To make a different change, check the result first, then dismiss this saved copy and review a new change.",
   pausedEdit:
     "This routine stays paused. These settings apply when it resumes.",
   afterDay: "Changes apply after {day}.",
@@ -138,6 +144,12 @@ const en = {
   return: "Back to chores",
 };
 const es: Record<keyof typeof en, string> = {
+  originalDetails: "Revisar la solicitud original guardada",
+  originalReviewed: "Revisada el {at} ({zone})",
+  originalStart: "Fecha de inicio original: {day}",
+  originalMemberUnavailable: "El familiar original ya no está disponible",
+  originalExact:
+    "Reintentar envía esta misma solicitud guardada. Se muestran los nombres actuales cuando están disponibles. Para hacer otro cambio, consulta primero el resultado; después descarta esta copia y revisa un cambio nuevo.",
   pausedEdit:
     "Esta rutina sigue en pausa. Los ajustes se aplican al reanudarla.",
   afterDay: "Los cambios se aplican después del {day}.",

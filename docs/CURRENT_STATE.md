@@ -1,5 +1,29 @@
 # Current State
 
+## Routine sheet navigation and original request review source — 2026-10-20
+
+Routine sheets now opt into the existing owned navigation sentinel while open.
+Browser Back invokes the same verified local save-and-close path as the close
+button, retaining the draft and returning to the manager catalog. A clean sheet
+can own Back without warning on document unload; dirty/sending work retains the
+warning. Existing pending-form callers keep their default behavior. Both early
+Navigation API and fallback popstate use the opt-in callback; controller-owned
+restoration/consumption traversals do not invoke it. New source-only cases cover
+clean unload, Back interception and restoration without duplicate close.
+
+Saved requests now offer collapsed original-intent details in EN/ES: original
+ordered step content, schedule, cue, review time/zone, effective-day scope and
+removed-step dispositions. Assignment display uses only currently eligible exact
+identities; unavailable targets do not acquire a substitute or expose raw IDs.
+Current disabled points remain hidden. The view has no mutation controls and
+never rebuilds the immutable request from the current catalog. Authored UI source
+covers both languages, hidden points, unavailable targets and unchanged bodies.
+Adoption/dismissal async callbacks also hold stale epoch results before rendering.
+
+No tests, browser QA, builds, typecheck, schema/client operations, CI, native
+validation or release actions ran. Detached future controls and full lifecycle,
+rollback and device reconciliation remain required before consolidated QA.
+
 ## Scheduled-once profile action projection source — 2026-10-20
 
 A private household-scoped read now reduces canonical routine metadata to the
