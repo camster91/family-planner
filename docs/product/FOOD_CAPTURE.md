@@ -18,7 +18,7 @@ eligibility, native camera acceptance and rollout remain explicit dependencies.
 | Public product lookup | Fixed-host bounded Open Food Facts v3 adapter with explicit lookup/apply and attribution; all deployment gates off | Data reuse/attribution approval, coverage, cost/usage and consolidated QA required before activation; no provider calls performed |
 | Private product corrections | FoodProduct recognition metadata and immutable stock snapshots, atomic revision-checked opt-in corrections; export/erasure wired | Additive migration/client generation and disposable-DB/isolation acceptance deferred; never a second stock store |
 | Package/label/date photo and receipt | Dedicated versioned document suggestions, printed-evidence/date apply, receipt redaction acknowledgement, one-item review and atomic label snapshots | Source only; separate deployment gate stays off pending document-processing/provider acceptance and consolidated QA |
-| Stock lifecycle | Versioned atomic consume/discard/Undo, current authority, expected item version and exact recovery sheet are coded | Edit/remove recovery, ingredient/unit matching and offline/native reconciliation remain; consolidated QA deferred |
+| Stock lifecycle | Versioned atomic consume/discard/Undo/edit/remove, current authority, reviewed versions and exact recovery sheet are coded | Ingredient/unit confidence, refresh/offline/native reconciliation and consolidated QA remain |
 | Cross-device/offline | No new intake queue/manifest action advertised | #135/#473 compatibility, unsupported/offline draft recovery and actual native lifecycle proof |
 | Provider/model eligibility | #567 retains its dependency | No paid/Gemini activation, raw-media retention or external household processing added |
 
@@ -260,3 +260,41 @@ Existing inventory/localization fixtures are updated. All are authored, not run.
 No QA/build/browser/native run, generation/migration, provider/account action,
 push, merge or deployment occurred. Next: edit/remove recovery, matching/unit
 confidence and offline/native reconciliation before consolidated acceptance.
+
+## Reviewed edit and removal source — 2026-10-19
+
+Personal Save edits and the existing explicit Remove/history confirmation now use
+inventory-change.v1 too. Both bind the original person/household and the version
+opened in the editor. An intervening consume, storage/unit change, edit or remove
+refuses before replacing newer work; the client does not rebase automatically.
+The unknown-operation sheet owns the original body/key through response loss and
+later access refusal. A collapsed Reviewed changes panel shows the actual edit
+fields, including explicit cleared values, rather than implementation JSON.
+Remove retains its history-loss warning and has no invented deletion Undo.
+
+Shared `inventory-edit.ts` transaction primitives contain the canonical edit and
+remove logic. Renames re-resolve only same-household Ingredient links; an explicit
+foreign/missing ingredient is refused identically. Stock label/product snapshots
+and remembered FoodProduct metadata are not rewritten by a normal name edit.
+Dates/storage/category/amount fields use existing validation and monotonic versions.
+Legacy PATCH/DELETE use these same primitives while retaining their older request/
+response contracts. Their old client-context/replay guarantees are not advertised
+as upgraded. Legacy delete now refuses a lost completion-row update instead of
+committing an unconfirmed deletion.
+
+New edit/remove commit with compact `{itemId, kind}` receipts; they do not invent
+consume history. All change confirmation now also checks a completed actor/family/
+action/request-hash receipt whose body matches the returned pointer. Edit replay
+checks current owned existence and never restores stale fields. Removal replay
+uses the atomic receipt as historical deletion proof after the item/history are
+gone. Missing/pruned/mismatched proof stays unconfirmed; it never repeats deletion
+or recreates stock. Current stock still comes from the refreshed list, not cached
+receipt state. Original consume/discard/Undo pointer shapes remain readable.
+
+Source tests cover stale overwrite/removal refusal, exact edit/removal recovery,
+commit rollback, foreign ingredient refusal, post-deletion proof, missing/forged
+proof and matching client receipts. Existing editor/localization fixtures follow
+the versioned endpoint. EN/ES review labels and focus restoration are wired.
+Tests are authored, not executed. No QA/build/browser/native, generation/migration,
+provider/account action, push, merge or deployment occurred. Next: ingredient/unit
+matching confidence and refresh/offline/native compatibility reconciliation.

@@ -531,3 +531,18 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
 - Canonical adjustment primitives now accept the caller's transaction; old route
   wrappers retain compatibility. Their legacy auth/receipt contracts and edit/
   removal paths are not upgraded by the new endpoint. QA remains deferred.
+
+### Stock edit/remove extension (#125, 2026-10-19; source only)
+
+- inventory-change.v1 adds strict edit/remove with reviewed item versions; compact
+  item/kind receipts, no fabricated adjustment history or deletion Undo.
+- All change confirmation also requires matching completed actor/family/action/
+  request-hash proof. Remove confirms historical deletion even after stock/history
+  cascade; absent/mismatched proof stays unknown. Edit still checks current owned
+  existence and never reapplies cached fields.
+- `inventory-edit.ts` provides canonical transaction primitives for new changes
+  and old PATCH/DELETE. New writes include receipt/current-authority boundaries;
+  old client-context/replay contracts remain explicitly legacy. Failed legacy
+  delete completion-row update now rolls back the deletion.
+- Personal editor uses the existing recovery owner and a collapsed readable edit
+  summary; source tests/EN-ES only. Consolidated QA and native acceptance deferred.

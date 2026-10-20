@@ -70,3 +70,44 @@ it("distinguishes confirmed no-effect and original removal without silently star
   expect(await postInventoryChange(intent)).toEqual({ kind: "not_applied" });
   expect(await postInventoryChange(intent)).toEqual({ kind: "removed" });
 });
+
+it.each(["edit", "remove"] as const)(
+  "recognizes only the exact %s receipt, without inventing adjustment history",
+  async (kind) => {
+    const op =
+      kind === "edit"
+        ? {
+            kind,
+            item_id: "fixture-item",
+            expected_version: operation.expected_version,
+            changes: { name: "Reviewed name" },
+          }
+        : {
+            kind,
+            item_id: "fixture-item",
+            expected_version: operation.expected_version,
+          };
+    const intent = makeInventoryChangeIntent(op, context);
+    global.fetch = jest.fn(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({ kind, itemId: "fixture-item" }),
+        }) as Response,
+    );
+    expect(await postInventoryChange(intent)).toEqual({
+      kind: "confirmed",
+      receipt: { kind, itemId: "fixture-item" },
+    });
+    global.fetch = jest.fn(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({ kind, itemId: "other-item" }),
+        }) as Response,
+    );
+    expect(await postInventoryChange(intent)).toEqual({ kind: "unknown" });
+  },
+);

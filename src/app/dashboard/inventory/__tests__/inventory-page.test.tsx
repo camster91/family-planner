@@ -191,7 +191,7 @@ function setup({
   page?: (offset: number) => { items: unknown[]; nextOffset: number | null };
   cook?: unknown;
   history?: unknown[];
-  /** Status of PATCH / consume / discard / undo answers. */
+  /** Status of versioned stock-change answers. */
   writeStatus?: number;
 } = {}) {
   const calls: Call[] = [];
@@ -247,6 +247,8 @@ function setup({
             },
           });
         const operation = (body as any).operation;
+        if (operation.kind === "edit" || operation.kind === "remove")
+          return json(200, { itemId: operation.item_id, kind: operation.kind });
         return json(200, {
           itemId: operation.item_id ?? "x",
           adjustmentId:
@@ -258,18 +260,6 @@ function setup({
       }
       if (url === "/api/inventory/intake" && method === "POST")
         return json(201, { itemId: "new" });
-      if (url.startsWith("/api/inventory/") && method === "PATCH") {
-        return writeStatus === 200
-          ? json(200, { item: { id: "x" } })
-          : json(writeStatus, {
-              error: {
-                code: "INTERNAL_ERROR",
-                message: "Internal server error",
-              },
-            });
-      }
-      if (url.startsWith("/api/inventory/") && method === "DELETE")
-        return json(200, { success: true });
       if (
         url.startsWith("/api/lists/items/from-recipe/review?") &&
         method === "GET"
@@ -620,7 +610,9 @@ describe("/dashboard/inventory", () => {
         within(confirmation).getByRole("button", { name: "Keep item" }),
       ).toHaveFocus(),
     );
-    expect(calls.filter((c) => c.method === "DELETE")).toHaveLength(0);
+    expect(
+      calls.filter((c) => isStockCall(c, "remove", "i-peas")),
+    ).toHaveLength(0);
     await user.click(
       within(confirmation).getByRole("button", { name: "Keep item" }),
     );
@@ -634,7 +626,9 @@ describe("/dashboard/inventory", () => {
     await user.dblClick(
       within(confirmation).getByRole("button", { name: "Remove" }),
     );
-    expect(calls.filter((c) => c.method === "DELETE")).toHaveLength(1);
+    expect(
+      calls.filter((c) => isStockCall(c, "remove", "i-peas")),
+    ).toHaveLength(1);
     await user.keyboard("{Escape}");
     expect(confirmation).toBeInTheDocument();
     expect(
@@ -645,22 +639,19 @@ describe("/dashboard/inventory", () => {
       status: 503,
       json: async () => ({}),
     } as Response);
-    await within(confirmation).findByRole("alert");
+    const recovery = await screen.findByTestId("inventory-change-recovery");
+    await within(recovery).findByRole("button", { name: "Check same save" });
     expect(within(edit).getByLabelText("Name")).toHaveValue("Peas");
     pendingMutation = null;
     await user.click(
-      within(confirmation).getByRole("button", { name: "Remove" }),
+      within(recovery).getByRole("button", { name: "Check same save" }),
     );
     await waitFor(() =>
-      expect(
-        calls.some(
-          (c) => c.method === "DELETE" && c.url === "/api/inventory/i-peas",
-        ),
-      ).toBe(true),
+      expect(calls.some((c) => isStockCall(c, "remove", "i-peas"))).toBe(true),
     );
-    const del = calls.find((c) => c.method === "DELETE")!;
+    const del = calls.find((c) => isStockCall(c, "remove", "i-peas"))!;
     expect(header(del, "Idempotency-Key")).toMatch(/^[0-9a-f-]{36}$/);
-    const deletes = calls.filter((c) => c.method === "DELETE");
+    const deletes = calls.filter((c) => isStockCall(c, "remove", "i-peas"));
     expect(deletes).toHaveLength(2);
     expect(header(deletes[1], "Idempotency-Key")).toBe(
       header(del, "Idempotency-Key"),
@@ -673,27 +664,59 @@ describe("/dashboard/inventory", () => {
     );
   });
 
-  it("an edit retried after a failure reuses its Idempotency-Key; a changed edit gets a new one", async () => {
+  it("keeps a failed edit immutable through recovery and starts a new reviewed edit only after confirmation", async () => {
     const user = userEvent.setup();
-    const { calls } = setup({ writeStatus: 500 });
+    const { calls } = setup();
+    const normalFetch = global.fetch;
+    let loseEdit = true;
+    global.fetch = jest.fn(async (url, init) => {
+      if (String(url) === "/api/inventory/change" && loseEdit) {
+        // Let the existing fixture record the original request, then lose only its response.
+        const response = await normalFetch(url, init);
+        loseEdit = false;
+        void response;
+        throw new Error("response lost");
+      }
+      return normalFetch(url, init);
+    });
     await user.click(
       await screen.findByRole("button", { name: "Edit Tomatoes" }),
     );
     const edit = await screen.findByRole("dialog");
     await user.click(within(edit).getByRole("button", { name: "Save" }));
-    expect(await within(edit).findByRole("alert")).toBeTruthy();
-    await user.click(within(edit).getByRole("button", { name: "Save" }));
-    await user.clear(within(edit).getByLabelText("Name"));
-    await user.type(within(edit).getByLabelText("Name"), "Cherry tomatoes");
-    await user.click(within(edit).getByRole("button", { name: "Save" }));
-    await waitFor(() =>
-      expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(3),
+    const recovery = await screen.findByTestId("inventory-change-recovery");
+    await within(recovery).findByRole("button", { name: "Check same save" });
+    await user.keyboard("{Escape}");
+    expect(recovery).toBeInTheDocument();
+    await user.click(
+      within(recovery).getByRole("button", { name: "Check same save" }),
     );
-    const keys = calls
-      .filter((c) => c.method === "PATCH")
-      .map((c) => header(c, "Idempotency-Key"));
-    expect(keys[0]).toBe(keys[1]);
-    expect(keys[2]).not.toBe(keys[0]);
+    await waitFor(() =>
+      expect(screen.queryByTestId("inventory-change-recovery")).toBeNull(),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Edit Tomatoes" }),
+    );
+    const next = await screen.findByRole("dialog");
+    await user.clear(within(next).getByLabelText("Name"));
+    await user.type(within(next).getByLabelText("Name"), "Cherry tomatoes");
+    await user.click(within(next).getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(calls.filter((c) => isStockCall(c, "edit", "i-tom"))).toHaveLength(
+        3,
+      ),
+    );
+    const edits = calls.filter((c) => isStockCall(c, "edit", "i-tom"));
+    expect(header(edits[0], "Idempotency-Key")).toBe(
+      header(edits[1], "Idempotency-Key"),
+    );
+    expect(edits[0].body).toEqual(edits[1].body);
+    expect(header(edits[2], "Idempotency-Key")).not.toBe(
+      header(edits[0], "Idempotency-Key"),
+    );
+    expect((edits[2].body as any).operation.changes.name).toBe(
+      "Cherry tomatoes",
+    );
   });
 
   it("keeps the exact stock change through response loss and later access refusal", async () => {

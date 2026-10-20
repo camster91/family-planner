@@ -55,7 +55,8 @@ export async function postInventoryChange(
       return receipt.success &&
         receipt.data.kind === original.kind &&
         (original.kind === "undo"
-          ? receipt.data.adjustmentId === original.adjustment_id
+          ? receipt.data.kind === "undo" &&
+            receipt.data.adjustmentId === original.adjustment_id
           : receipt.data.itemId === original.item_id)
         ? { kind: "confirmed", receipt: receipt.data }
         : { kind: "unknown" };
@@ -79,7 +80,8 @@ export async function postInventoryChange(
     if (
       (response.status === 409 &&
         ["CHANGE_CONFLICT", "CHANGE_AMOUNT_INVALID"].includes(code)) ||
-      (response.status === 404 && code === "CHANGE_TARGET_UNAVAILABLE")
+      (response.status === 404 && code === "CHANGE_TARGET_UNAVAILABLE") ||
+      (response.status === 400 && code === "CHANGE_EDIT_INVALID")
     )
       return { kind: "not_applied" };
     return code === "CHANGE_ORIGINAL_REMOVED"

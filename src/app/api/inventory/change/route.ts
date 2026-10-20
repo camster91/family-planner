@@ -84,14 +84,19 @@ async function handle(request: NextRequest) {
         beforeReplay: () =>
           prisma!.$transaction((tx) => inventoryIntakeAuthority(tx, actor)),
         transformReplay: (result) =>
-          confirmInventoryChange(prisma!, actor, result),
+          confirmInventoryChange(prisma!, actor, result, input.data),
       },
     );
     if (!response.ok) return response;
-    const confirmed = await confirmInventoryChange(prisma!, actor, {
-      status: response.status,
-      body: await response.json(),
-    });
+    const confirmed = await confirmInventoryChange(
+      prisma!,
+      actor,
+      {
+        status: response.status,
+        body: await response.json(),
+      },
+      input.data,
+    );
     return NextResponse.json(confirmed.body, {
       status: confirmed.status,
       headers: response.headers,

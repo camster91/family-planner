@@ -57,7 +57,6 @@ import { usePendingFormNavigationController } from '@/components/layout/pending-
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { cn } from '@/lib/utils'
 import { formatDateOnly, toDateOnlyLocal } from '@/lib/dates'
-import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import {
   DATE_KINDS,
   INVENTORY_CATEGORIES,
@@ -110,19 +109,6 @@ const HISTORY_ROWS = 10
 
 export const OFFLINE_WRITE_MESSAGE = "You're offline. Connect to the internet to change the inventory."
 
-/** API error envelope `{ error: { message } }` or legacy `{ error: string }`. */
-async function errorMessage(res: Response, fallback: InventoryFeedback): Promise<InventoryFeedback> {
-  try {
-    const body = await res.json()
-    const err = body?.error
-    if (typeof err === 'string') return { raw: err }
-    if (err && typeof err.message === 'string') return { raw: err.message }
-  } catch {
-    // fall through
-  }
-  return fallback
-}
-
 function isOffline(): boolean {
   return typeof navigator !== 'undefined' && navigator.onLine === false
 }
@@ -147,28 +133,6 @@ function amountText(item: Pick<InventoryItemDto, 'amount' | 'unit'>): string | n
   if (item.amount === null) return item.unit
   const n = formatAmount(item.amount)
   return item.unit ? `${n} ${item.unit}` : n
-}
-
-/**
- * One idempotency key per logical change: the same body retried keeps its
- * key, a changed body gets a new one (so an edit after a failure is a new
- * change, not a 422).
- */
-function useChangeKey() {
-  const ref = React.useRef<{ body: string; key: string } | null>(null)
-  return React.useCallback((body: unknown) => {
-    const text = JSON.stringify(body ?? null)
-    if (!ref.current || ref.current.body !== text) ref.current = { body: text, key: newIdempotencyKey() }
-    return ref.current.key
-  }, [])
-}
-
-async function postJson(url: string, body: unknown, key: string, method = 'POST'): Promise<Response> {
-  return fetch(url, {
-    method,
-    headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: key },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
 }
 
 const STATUS_STYLE: Record<ExpiryStatus, string> = {
@@ -354,17 +318,23 @@ export default function InventoryClient({
       setStockChange(null)
       await stockNavigation.releaseBeforeNavigation()
       if (result.kind === 'confirmed') {
+        if (operation.kind === 'edit' || operation.kind === 'remove') focusAddAfterEdit.current = true
         setEditing(null)
         await load()
         if (operation.kind === 'undo') {
           setNotice({ text: feedback('undoSuccess', { name: pending.name }) })
+        } else if (operation.kind === 'edit' || operation.kind === 'remove') {
+          setNotice({ text: feedback(operation.kind === 'edit' ? 'savedName' : 'removedName', { name: pending.name }) })
         } else {
           const amount = operation.kind === 'consume' ? operation.amount : null
           const partial = amount !== null
           const params = { name: pending.name, amount: `${amount === null ? '' : formatAmount(amount)}${pending.unit ? ` ${pending.unit}` : ''}` }
           const title = feedback(operation.kind === 'discard' ? 'threwName' : partial ? 'usedAmount' : 'usedName', params)
           setNotice({ text: feedback('stockChangeConfirmed', { name: pending.name }) })
-          showUndo({ title: <InventoryText feedback={title} />, onUndo: () => void undo(result.receipt.adjustmentId, pending.name) })
+          if ('adjustmentId' in result.receipt) {
+            const adjustmentId = result.receipt.adjustmentId
+            showUndo({ title: <InventoryText feedback={title} />, onUndo: () => void undo(adjustmentId, pending.name) })
+          }
         }
         return null
       }
@@ -637,8 +607,10 @@ export default function InventoryClient({
 
       {stockChange && <Dialog open variant="form" title={copy(stockSending ? 'stockChangeSaving' : 'stockChangeRecovery')} testId="inventory-change-recovery">
         <p className="text-body break-words">{stockChange.name}</p>
-        <p className="text-subhead">{copy(stockChange.operation.kind === 'undo' ? 'undo' : stockChange.operation.kind === 'discard' ? 'throwAway' : 'usedIt')}</p>
+        <p className="text-subhead">{copy(stockChange.operation.kind === 'undo' ? 'undo' : stockChange.operation.kind === 'discard' ? 'throwAway' : stockChange.operation.kind === 'edit' ? 'save' : stockChange.operation.kind === 'remove' ? 'remove' : 'usedIt')}</p>
         {stockChange.operation.kind === 'consume' && stockChange.operation.amount !== null && <p className="text-subhead">{formatAmount(stockChange.operation.amount)} {stockChange.unit ?? ''}</p>}
+        <StockEditSummary operation={stockChange.operation} />
+        {stockChange.operation.kind === 'remove' && <p className="text-footnote">{copy('removeConfirm', { name: stockChange.name })}</p>}
         <p role="status" className="text-footnote">{copy(stockSending ? 'stockChangeSaving' : 'stockChangeUnknown')}</p>
         <button type="button" className="btn-tinted min-h-[44px] w-full" disabled={stockSending} onClick={() => { const pending = stockChangeRef.current; if (pending) void runStockChange(pending); }}>{copy(stockSending ? 'saving' : 'intakeRetry')}</button>
       </Dialog>}
@@ -657,6 +629,7 @@ export default function InventoryClient({
             void afterChange(message)
           }}
           onAdjust={adjust}
+          onChangeStock={startStockChange}
         />
       )}
     </div>
@@ -1172,6 +1145,24 @@ function HistorySection({
   )
 }
 
+function StockEditSummary({ operation }: { operation: InventoryChangeOperation }) {
+  const copy = useInventoryCopy()
+  if (operation.kind !== 'edit') return null
+  const changes = operation.changes
+  const blank = copy('stockChangeNotRecorded')
+  const fields: Array<[string, string]> = []
+  if (changes.name !== undefined) fields.push([copy('name'), changes.name])
+  if (changes.location !== undefined) fields.push([copy('where'), copy(changes.location)])
+  if (changes.amount !== undefined) fields.push([copy('amount'), changes.amount === null ? blank : formatAmount(changes.amount)])
+  if (changes.unit !== undefined) fields.push([copy('unit'), changes.unit || blank])
+  if (changes.expires_on !== undefined) fields.push([copy('packDate'), changes.expires_on || blank])
+  if (changes.date_kind !== undefined) fields.push([copy('foodPhotoDateKind'), copy(changes.date_kind)])
+  if (changes.category !== undefined) fields.push([copy('category'), changes.category ? copy(changes.category) : blank])
+  if (changes.purchased_on !== undefined) fields.push([copy('bought'), changes.purchased_on || blank])
+  if (changes.opened_on !== undefined) fields.push([copy('opened'), changes.opened_on || blank])
+  return <details className="rounded-xl bg-[var(--surface-fill)] p-3"><summary className="min-h-[44px] cursor-pointer py-2">{copy('stockChangeReviewedDetails')}</summary><dl className="space-y-2">{fields.map(([label, value]) => <div key={label} className="grid grid-cols-2 gap-3 text-footnote"><dt>{label}</dt><dd className="break-words">{value}</dd></div>)}</dl></details>
+}
+
 function ItemModal({
   mode,
   initial,
@@ -1179,12 +1170,14 @@ function ItemModal({
   onClose,
   onDone,
   onAdjust,
+  onChangeStock,
 }: {
   mode: 'add' | 'edit'
   initial?: InventoryItemDto
   initialContext?: IntakeContext
   onClose: () => void
   onDone: (message: InventoryFeedback) => void
+  onChangeStock: (operation: InventoryChangeOperation, name: string) => Promise<InventoryFeedback | null>
   onAdjust: (
     target: AdjustTarget,
     kind: AdjustKind,
@@ -1229,8 +1222,6 @@ function ItemModal({
     }).finally(() => clearTimeout(timer))
     return () => { active = false; clearTimeout(timer); controller.abort() }
   }, [mode, initialContext])
-  const saveKey = useChangeKey()
-  const deleteKey = useChangeKey()
 
   // Keep browser Back on this route while the item mutation is in flight.
   // The local close path below also guards Escape/backdrop/close-button
@@ -1311,15 +1302,10 @@ function ItemModal({
     setError(null)
     try {
       if (!initial) return
-      const url = `/api/inventory/${encodeURIComponent(initial.id)}?${todayQuery()}`
-      const res = await postJson(url, body, saveKey(body), 'PATCH')
-      if (!res.ok) {
-        setError(await errorMessage(res, feedback('saveFailed')))
-        return
-      }
-      onDone(feedback('savedName', { name: trimmed }))
+      const err = await onChangeStock({ kind: 'edit', item_id: initial.id, expected_version: initial.updated_at, changes: body }, trimmed)
+      if (err) setError(err)
     } catch {
-      setError(feedback('saveNetwork'))
+      setError(feedback('stockChangeUnknown'))
     } finally {
       mutationRef.current = false
       setSaving(false)
@@ -1360,19 +1346,10 @@ function ItemModal({
     setSaving(true)
     setError(null)
     try {
-      const res = await postJson(
-        `/api/inventory/${encodeURIComponent(initial.id)}`,
-        undefined,
-        deleteKey({ remove: initial.id }),
-        'DELETE',
-      )
-      if (!res.ok) {
-        setError(await errorMessage(res, feedback('removeFailed')))
-        return
-      }
-      onDone(feedback('removedName', { name: initial.name }))
+      const err = await onChangeStock({ kind: 'remove', item_id: initial.id, expected_version: initial.updated_at }, initial.name)
+      if (err) setError(err)
     } catch {
-      setError(feedback('removeNetwork'))
+      setError(feedback('stockChangeUnknown'))
     } finally {
       mutationRef.current = false
       setSaving(false)

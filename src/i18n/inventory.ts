@@ -6,6 +6,8 @@ import {
 
 /** Owned presentation only. Private names, units, model text and API refusals stay raw. */
 export const inventoryEnglish = {
+  stockChangeReviewedDetails: "Reviewed changes",
+  stockChangeNotRecorded: "Not recorded",
   stockChangePending: "Check the pending food change before starting another.",
   stockChangeUnknown:
     "This change is not confirmed. Check the same request before leaving or changing this food again. Its original details are kept.",
@@ -261,6 +263,8 @@ export const inventoryEnglish = {
 } as const;
 export type InventoryMessage = keyof typeof inventoryEnglish;
 export const inventorySpanish: Record<InventoryMessage, string> = {
+  stockChangeReviewedDetails: "Cambios revisados",
+  stockChangeNotRecorded: "Sin registrar",
   stockChangePending: "Comprueba el cambio pendiente antes de iniciar otro.",
   stockChangeUnknown:
     "Este cambio no está confirmado. Comprueba la misma solicitud antes de salir o volver a cambiar el alimento. Se conservan los datos originales.",

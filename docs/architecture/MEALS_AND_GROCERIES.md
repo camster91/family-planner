@@ -629,3 +629,19 @@ Old APIs remain compatible and use the same canonical transaction primitives,
 without claiming their cached DTOs/fresh-role checks have the new guarantees.
 Edit/remove and offline/native capability reconciliation remain separate work.
 Source tests only; no integrated QA or runtime proof has run.
+
+### Reviewed stock edit/removal extension (2026-10-19; candidate)
+
+Edit/remove join inventory-change.v1 and shared `inventory-edit.ts` primitives.
+A reviewed item version refuses stale form writes. Ingredient resolution remains
+same-household and creates no new ingredient. Product/label snapshots are not
+rewritten by ordinary edits. Delete preserves the explicit history-loss decision.
+
+All stock change replies are verified against a completed current-actor/family/
+action/request-hash receipt. Edit/remove pointers carry item/kind, while original
+adjustment pointers retain item/adjustment/kind. Removal proof survives the item
+and history cascade in the existing receipt retention window; absent proof never
+causes blind replay. Live stock is refetched; no receipt is a current quantity.
+Legacy routes share primitives but retain their old envelopes, without claiming
+new expected-context/replay guarantees. No new schema/offline/native action.
+All acceptance remains pending the later integrated QA.

@@ -1,5 +1,19 @@
 # Current State
 
+## Reviewed stock edit/remove source — 2026-10-19
+
+Personal edits and confirmed removals now use the same atomic change/recovery
+path as consumption/Undo. Opened item versions prevent stale overwrites/deletes;
+unknown outcomes keep original requests and expose reviewed fields in a collapsed
+summary. Shared canonical edit/remove primitives serve new and legacy routes.
+Removal confirmations require matching completed actor/household/request receipts
+after the item/history are gone; edit replay cannot restore stale fields.
+
+Source fixtures/tests and EN/ES labels are updated, not run. No QA/build/browser/
+native, schema operation, provider/account action, push, merge or deployment
+occurred. Remaining #125 source work: matching/unit confidence and refresh/offline/
+native reconciliation. Full boundaries: `product/FOOD_CAPTURE.md`.
+
 ## Atomic consume/discard and owned Undo source — 2026-10-19
 
 Personal stock actions now use versioned keyed inventory/change with original

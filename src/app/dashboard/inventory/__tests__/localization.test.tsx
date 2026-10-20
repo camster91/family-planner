@@ -78,6 +78,8 @@ function mount({
     if (method !== "GET") {
       if (url === "/api/inventory/change") {
         const operation = JSON.parse(String(init?.body)).operation;
+        if (operation.kind === "edit" || operation.kind === "remove")
+          return json(200, { itemId: operation.item_id, kind: operation.kind });
         return (
           adjust?.() ??
           json(200, {
