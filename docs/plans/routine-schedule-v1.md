@@ -534,3 +534,21 @@ The exact stored body remains the retry source. Current eligible identities only
 supply display names, unavailable members remain explicit, and disabled points
 are omitted. New authored navigation/UI cases are deferred to consolidated QA.
 Independent detached root controls and lifecycle/rollback/device work remain.
+
+
+### Independent detached future-step contract/coordinator — 2026-10-20
+
+A distinct independent protocol now owns exact canonical root edit/pause/resume/
+stop intent, optimistic revision, private state/catalog and receipt. Staged roots
+without a revision parse as revision one. Every new stack write/removal advances
+root revisions. Independent effects preserve original root/history content and
+only prune locked untouched future copies whose stack association is null.
+They reuse parent authority, subject eligibility, future partitioning, root writes
+and canonical expansion. Atomic receipts bind the original actor/key/body and do
+not expire into a second first effect. Disabled points are preserved in metadata
+and omitted from state reads. Unknown/attached/erased roots hold.
+
+Authored pure and guarded integration cases remain unrun. The new module is
+unrouted: recovery owner/storage/client, editor/catalog UI and legacy root handoff
+must be wired next before this requirement can count as implemented end to end.
+No activation, migration, generated client, QA, build, native or release action.

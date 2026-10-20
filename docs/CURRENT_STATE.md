@@ -1,5 +1,36 @@
 # Current State
 
+## Independent future-step coordinator source — 2026-10-20
+
+Explicitly unstacked canonical roots now have a separate strict command/read/
+receipt contract and unrouted parent coordinator for future edit, pause, resume
+and stop. The definition carries a bounded optimistic revision (old staged JSON
+defaults to one); stack writes/removals also advance it so stale independent
+forms cannot overwrite a newer definition. No database/client operation is needed
+for this JSON contract addition. Older strict code may hold new metadata, which
+is safe rollback behavior to prove later, not a compatibility claim.
+
+The independent boundary renews actor/token/household/features under existing
+locks, scopes roots to the current family, refuses attached/erased/unknown roots,
+and binds actor/key/action/hash/revision to an atomic effect and receipt. Late
+same-key proof remains confirmation while fresh writes are paused; a removed
+root cannot be recreated. First effects retain the original viewer day/timezone
+and expiry. Edit/resume renew subject eligibility, while pause/stop need no new
+assignee. Hidden points preserve canonical values. Only row-locked, untouched,
+future detached copies can be pruned; roots, today, attached evidence, started
+work and history retain their original snapshots. Resume skips missed days and
+passed once schedules. Active changes top up using the canonical expander.
+
+Private state and bounded catalog reads expose exact independent root identities,
+current definition/revision and no disabled points. Source-only pure and guarded
+DB cases cover strict scopes, optimistic conflicts, paused/stopped transitions,
+expiry/midnight/once holds, detached partitions, same-key concurrency/replay,
+evidence/root preservation, foreign household reads and hidden-points edits.
+They are unrun. No route, browser journal, form, legacy handoff or release is wired
+for this independent protocol yet. Those integrations are the next code work,
+followed by lifecycle/rollback/device reconciliation and consolidated QA. Existing
+gates are unchanged; no QA/build/schema/client/native/CI or release actions ran.
+
 ## Routine sheet navigation and original request review source — 2026-10-20
 
 Routine sheets now opt into the existing owned navigation sentinel while open.

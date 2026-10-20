@@ -1,3 +1,12 @@
+import {
+  saveIndependentRoutineStep,
+  readIndependentRoutineStep,
+} from "../routine-independent-runtime";
+import {
+  routineIndependentCommand,
+  routineIndependentReceipt,
+  ROUTINE_INDEPENDENT_PROTOCOL,
+} from "../routine-independent";
 /** Authored only. Never run outside an explicitly guarded disposable database. */
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
@@ -397,6 +406,230 @@ suite("canonical scheduled routine commands", () => {
     expect(
       await readRoutineScheduleHandoff(prisma!, familyId, "stack", legacy.id),
     ).toBeNull();
+  });
+  it("controls an explicitly unstacked root with revisions, immutable receipts and preserved evidence", async () => {
+    const created = await create();
+    const [kept, detached] = created.proof.roots;
+    const request = (revision: number, action: "pause" | "resume" | "stop") =>
+      routineIndependentCommand.parse({
+        protocol: ROUTINE_INDEPENDENT_PROTOCOL,
+        expected_user_id: parent,
+        expected_family_id: familyId,
+        issued_at: now.toISOString(),
+        view_day: "2026-10-20",
+        view_zone: "America/Toronto",
+        root_id: detached,
+        expected_revision: revision,
+        action,
+        scope: "future-after-today",
+      });
+    expect(
+      (
+        await saveIndependentRoutineStep(
+          prisma!,
+          actor,
+          request(1, "pause"),
+          crypto.randomUUID(),
+          now,
+        )
+      ).status,
+    ).toBe(409);
+    const original = created.body as Extract<
+      RoutineScheduleCommand,
+      { action: "create" }
+    >;
+    const replacement = routineScheduleCommand.parse({
+      ...original,
+      action: "replace-future",
+      stack_id: created.proof.stackId,
+      expected_version: 1,
+      steps: [{ ...original.steps[0], template_id: kept }],
+      removed_steps: [{ template_id: detached, disposition: "unstack-future" }],
+    });
+    expect(
+      (
+        await saveRoutineSchedule(
+          prisma!,
+          actor,
+          replacement,
+          crypto.randomUUID(),
+          now,
+        )
+      ).status,
+    ).toBe(200);
+    const before = await prisma!.chore.findUniqueOrThrow({
+      where: { id: detached },
+    });
+    const evidence = crypto.randomUUID();
+    await prisma!.chore.create({
+      data: {
+        id: evidence,
+        family_id: familyId,
+        created_by: parent,
+        assigned_to: parent,
+        title: "Original evidence snapshot",
+        recurrence_id: detached,
+        routine_stack_id: null,
+        due_date: new Date("2026-10-22T00:00:00.000Z"),
+        photo_url: "fixture-proof.jpg",
+        status: "pending",
+      },
+    });
+    const key = crypto.randomUUID(),
+      pause = request(2, "pause");
+    const results = await Promise.all([
+      saveIndependentRoutineStep(prisma!, actor, pause, key, now),
+      saveIndependentRoutineStep(prisma!, actor, pause, key, now),
+    ]);
+    expect(results[0].body).toEqual(results[1].body);
+    const proof = routineIndependentReceipt.parse(results[0].body);
+    expect(proof).toMatchObject({
+      revision: 3,
+      rootId: detached,
+      state: "paused",
+    });
+    expect(
+      await prisma!.chore.findUnique({ where: { id: evidence } }),
+    ).toMatchObject({
+      title: "Original evidence snapshot",
+      photo_url: "fixture-proof.jpg",
+    });
+    expect(
+      await prisma!.chore.findUnique({ where: { id: detached } }),
+    ).toMatchObject({ title: before.title, due_date: before.due_date });
+    const late = new Date(now.getTime() + 10 * 86400000);
+    expect(
+      (
+        await saveIndependentRoutineStep(
+          prisma!,
+          actor,
+          pause,
+          key,
+          late,
+          false,
+        )
+      ).body,
+    ).toEqual(proof);
+    expect(
+      (
+        await saveIndependentRoutineStep(
+          prisma!,
+          actor,
+          request(2, "stop"),
+          key,
+          now,
+        )
+      ).status,
+    ).toBe(422);
+    const staleKey = crypto.randomUUID();
+    expect(
+      (await saveIndependentRoutineStep(prisma!, actor, pause, staleKey, now))
+        .status,
+    ).toBe(409);
+    expect(
+      await prisma!.idempotencyRecord.findUnique({
+        where: { scope_key: { scope: `user:${parent}`, key: staleKey } },
+      }),
+    ).toBeNull();
+    const state = await readIndependentRoutineStep(prisma!, actor, detached);
+    expect(state.body).toMatchObject({
+      revision: 3,
+      state: "paused",
+      pointsEnabled: false,
+    });
+    expect(JSON.stringify(state.body)).not.toContain('"points":');
+    expect(
+      (
+        await readIndependentRoutineStep(
+          prisma!,
+          { ...actor, userId: foreignParent, familyId: otherFamily },
+          detached,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await saveIndependentRoutineStep(
+          prisma!,
+          actor,
+          request(3, "resume"),
+          crypto.randomUUID(),
+          now,
+        )
+      ).status,
+    ).toBe(200);
+    // Strict content intentionally contains no editor identity keys.
+    const {
+      client_step_id: _client,
+      template_id: _template,
+      ...content
+    } = original.steps[1];
+    const editable = routineIndependentCommand.parse({
+      ...request(4, "pause"),
+      action: "replace-future",
+      anchor: "After lunch",
+      schedule: {
+        frequency: "daily",
+        starts_on: "2026-10-21",
+        weekly_days: [],
+        monthly_day: null,
+      },
+      content: { ...content, title: "Future independent title", points: 999 },
+    });
+    expect(
+      (
+        await saveIndependentRoutineStep(
+          prisma!,
+          actor,
+          editable,
+          crypto.randomUUID(),
+          now,
+        )
+      ).status,
+    ).toBe(200);
+    const stored = await prisma!.$queryRaw<
+      {
+        routine_series_config: {
+          revision: number;
+          content: { points: number; title: string };
+        };
+      }[]
+    >`SELECT "routine_series_config" FROM "Chore" WHERE "id" = ${detached} AND "family_id" = ${familyId}`;
+    expect(stored[0].routine_series_config).toMatchObject({
+      revision: 5,
+      content: { points: 0, title: "Future independent title" },
+    });
+    expect(
+      await prisma!.chore.findUnique({ where: { id: detached } }),
+    ).toMatchObject({ title: before.title });
+    expect(
+      (
+        await saveIndependentRoutineStep(
+          prisma!,
+          actor,
+          request(5, "stop"),
+          crypto.randomUUID(),
+          now,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await saveIndependentRoutineStep(
+          prisma!,
+          actor,
+          request(6, "resume"),
+          crypto.randomUUID(),
+          now,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (await readRoutineSchedule(prisma!, actor, created.proof.stackId)).body,
+    ).toMatchObject({
+      version: 2,
+      config: { state: "active", steps: [{ template_id: kept }] },
+    });
   });
   it("pause preserves root snapshots and all evidence/today rows, pruning only untouched future copies without reordering steps", async () => {
     const { proof } = await create(),

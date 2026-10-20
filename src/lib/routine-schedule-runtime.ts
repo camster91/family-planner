@@ -142,7 +142,7 @@ async function rootsInTx(
   }
   return roots;
 }
-async function subjectInTx(
+export async function routineScheduleSubjectInTx(
   tx: Tx,
   actor: RoutineScheduleActor,
   subject: RoutineStepSeriesConfig["content"]["subject"],
@@ -191,10 +191,10 @@ function nextDay(day: string) {
   date.setUTCDate(date.getUTCDate() + 1);
   return date.toISOString().slice(0, 10);
 }
-async function partitionInTx(
+export async function partitionRoutineFutureInTx(
   tx: Tx,
   actor: RoutineScheduleActor,
-  stackId: string,
+  stackId: string | null,
   roots: string[],
   viewDay: string,
 ) {
@@ -270,7 +270,7 @@ async function partitionInTx(
     return refuse(409, "ROUTINE_OCCURRENCE_CONFLICT");
   }
 }
-async function storeRootDefinition(
+export async function storeRoutineRootDefinition(
   tx: Tx,
   actor: RoutineScheduleActor,
   rootId: string,
@@ -441,7 +441,7 @@ export async function persistRoutineScheduleInTx(
     for (const candidate of candidates)
       assignments.set(
         candidate.client_step_id,
-        await subjectInTx(
+        await routineScheduleSubjectInTx(
           tx,
           actor,
           candidate.subject,
@@ -480,11 +480,11 @@ export async function persistRoutineScheduleInTx(
   const label = editing ? input.label : existing!.row.label;
   const partitions = new Map<
     string,
-    Awaited<ReturnType<typeof partitionInTx>>
+    Awaited<ReturnType<typeof partitionRoutineFutureInTx>>
   >();
   let reviewedRows = 0;
   for (const root of priorRoots) {
-    const partition = await partitionInTx(
+    const partition = await partitionRoutineFutureInTx(
       tx,
       actor,
       stackId,
@@ -529,8 +529,9 @@ export async function persistRoutineScheduleInTx(
       if (update.count !== partition.pruneIds.length)
         refuse(409, "ROUTINE_OCCURRENCE_CONFLICT");
       unstackedCount += update.count;
-      await storeRootDefinition(tx, actor, root.row.id, {
+      await storeRoutineRootDefinition(tx, actor, root.row.id, {
         ...root.definition,
+        revision: root.definition.revision + 1,
         anchor_retired: retiredAnchors.has(root.row.id),
         stack_id: null,
         state: "active",
@@ -548,8 +549,9 @@ export async function persistRoutineScheduleInTx(
         refuse(409, "ROUTINE_OCCURRENCE_CONFLICT");
       prunedCount += deletion.count;
       if (removal)
-        await storeRootDefinition(tx, actor, root.row.id, {
+        await storeRoutineRootDefinition(tx, actor, root.row.id, {
           ...root.definition,
+          revision: root.definition.revision + 1,
           anchor_retired: retiredAnchors.has(root.row.id),
           stack_id: null,
           state: "stopped",
@@ -568,6 +570,9 @@ export async function persistRoutineScheduleInTx(
     } = candidate;
     const definition = routineStepSeriesConfig.parse({
       protocol: "herewoven.routine-step-series.v1",
+      revision:
+        (priorRoots.find((root) => root.row.id === rootId)?.definition
+          .revision ?? 0) + 1,
       anchor_retired: retiredAnchors.has(rootId),
       stack_id: stackId,
       state,
@@ -606,7 +611,7 @@ export async function persistRoutineScheduleInTx(
       });
       await tx.$executeRaw`UPDATE "Chore" SET "routine_anchor" = ${anchor}, "routine_duration_minutes" = ${content.duration_minutes} WHERE "id" = ${rootId} AND "family_id" = ${actor.familyId}`;
     }
-    await storeRootDefinition(tx, actor, rootId, definition);
+    await storeRoutineRootDefinition(tx, actor, rootId, definition);
   }
   const config = routineScheduleConfig.parse({
     protocol: input.protocol,

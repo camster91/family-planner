@@ -87,6 +87,8 @@ const distinctSteps = (steps: { template_id: string }[]) =>
 export const routineStepSeriesConfig = z
   .object({
     protocol: z.literal("herewoven.routine-step-series.v1"),
+    /** Optimistic future-definition revision; old staged rows start at one. */
+    revision: z.number().int().min(1).max(2147483647).default(1),
     /** A pristine root whose paused day passed remains a control anchor only. */
     anchor_retired: z.boolean().default(false),
     stack_id: id.nullable(),
@@ -121,7 +123,7 @@ export const routineScheduleConfig = z
     "Stored routine needs explicit start and unique canonical steps",
   );
 export type RoutineScheduleConfig = z.infer<typeof routineScheduleConfig>;
-const scope = {
+export const routineCommandScope = {
   protocol: z.literal(ROUTINE_SCHEDULE_PROTOCOL),
   expected_user_id: id,
   expected_family_id: id,
@@ -141,6 +143,7 @@ const scope = {
       }
     }, "Choose a supported viewer timezone"),
 };
+const scope = routineCommandScope;
 const draft = {
   label: z.string().trim().min(1).max(ROUTINE_NAME_MAX),
   anchor: z.string().trim().max(200).nullable(),
@@ -311,7 +314,7 @@ export const routineFutureSnapshot = z
   .object({
     id,
     family_id: id,
-    routine_stack_id: id,
+    routine_stack_id: id.nullable(),
     recurrence_id: id,
     is_template: z.boolean(),
     due_day: day,
@@ -329,7 +332,7 @@ export type RoutineFutureSnapshot = z.infer<typeof routineFutureSnapshot>;
 /** Conservative partition only. The command transaction must lock/recheck rows. */
 export function planRoutineFutureRows(input: {
   familyId: string;
-  stackId: string;
+  stackId: string | null;
   templateIds: string[];
   viewDay: string;
   rows: RoutineFutureSnapshot[];
