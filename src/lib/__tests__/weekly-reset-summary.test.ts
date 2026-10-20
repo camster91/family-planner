@@ -274,3 +274,18 @@ it("reports open groceries separately from unknown ingredient coverage", async (
     }),
   );
 });
+it("does not retrieve recipes behind a child's grocery review even when meals/inventory are enabled", async () => {
+  const { tx, db } = fixture();
+  const result = await loadWeeklyResetSummaryInTx(
+    db,
+    { ...actor, role: "child" },
+    { ...defaultFeatures(), inventory: true },
+    scope,
+    "groceries",
+    now,
+  );
+  expect(result.groups.map((group) => group.kind)).toEqual(["groceries"]);
+  expect(result.notes).toContain("groceryGapsNotAssessed");
+  expect(tx.familyMeal.findMany).not.toHaveBeenCalled();
+  expect(tx.inventoryItem.findMany).not.toHaveBeenCalled();
+});

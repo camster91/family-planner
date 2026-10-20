@@ -1,5 +1,12 @@
 import { useTranslation } from "@/i18n";
 const en = {
+  mealPlanReview: "Review meal plan",
+  noRecipes: "No linked recipes were compared.",
+  noGaps: "No missing ingredients found in the linked recipes compared.",
+  profile: "Family profile",
+  recipeReview: "Review recipe",
+  unknownCoverage:
+    "This comparison is incomplete. Open the recipes to review their ingredients.",
   title: "Weekly reset",
   open: "Review your week",
   intro:
@@ -70,13 +77,14 @@ const en = {
   },
   groups: {
     events: "Schedule",
-    chores: "Account chores",
+    chores: "Chores and routines",
     pickups: "Pickups",
     handoffs: "Sitter handoffs",
     meals: "Planned meals",
     prep: "Prep dishes",
     food: "Use soon",
     groceries: "Open groceries",
+    gaps: "Recipe stock gaps",
   },
   dateKinds: { best_before: "Best before", use_by: "Use by" },
   owners: {
@@ -98,6 +106,12 @@ const en = {
       "These are your open groceries. Recipe ingredient gaps have not been assessed here yet.",
     prepRequiresVerifiedEmail:
       "Verify your account email to review prep sessions.",
+    storedChoresOnly:
+      "Stored chores and routine occurrences only. Future definitions and paused work still use the chore controls.",
+    ingredientPresenceOnly:
+      "Ingredient presence for unprepared meals only, checked for the meal day or today if later. Already prepared bulk dishes are excluded. Amounts and units are not compared; these ingredients may already be on your grocery list. Review a recipe before adding anything.",
+    recipeGapsIncomplete:
+      "Some meals have no usable linked recipe, or this comparison reached its limit. An incomplete comparison cannot show everything you need.",
     currentFoodSnapshot:
       "Food dates are checked against today, even when reviewing another week. Follow storage and food-safety guidance.",
   },
@@ -117,6 +131,13 @@ const en = {
 };
 type Copy = { [K in keyof typeof en]: (typeof en)[K] };
 const es: Copy = {
+  mealPlanReview: "Revisar plan de comidas",
+  noRecipes: "No se compararon recetas vinculadas.",
+  noGaps: "No faltan ingredientes en las recetas vinculadas comparadas.",
+  profile: "Perfil familiar",
+  recipeReview: "Revisar receta",
+  unknownCoverage:
+    "Esta comparación está incompleta. Abre las recetas para revisar sus ingredientes.",
   title: "Revisión semanal",
   open: "Revisa tu semana",
   intro:
@@ -188,13 +209,14 @@ const es: Copy = {
   },
   groups: {
     events: "Agenda",
-    chores: "Tareas de las cuentas",
+    chores: "Tareas y rutinas",
     pickups: "Recogidas",
     handoffs: "Cuidado de niños",
     meals: "Comidas planeadas",
     prep: "Platos preparados",
     food: "Usar pronto",
     groceries: "Compras pendientes",
+    gaps: "Ingredientes que faltan",
   },
   dateKinds: {
     best_before: "Consumo preferente",
@@ -219,6 +241,12 @@ const es: Copy = {
       "Estas son tus compras pendientes. Aquí aún no se han revisado los ingredientes que faltan para las recetas.",
     prepRequiresVerifiedEmail:
       "Verifica el correo de tu cuenta para revisar las preparaciones.",
+    storedChoresOnly:
+      "Solo tareas y rutinas guardadas. Revisa los horarios futuros y el trabajo en pausa en los controles de tareas.",
+    ingredientPresenceOnly:
+      "Solo se comprueba la presencia para comidas sin preparar, según el día de la comida o hoy si es posterior. Los platos por lotes ya preparados se excluyen. No se comparan cantidades ni unidades; puede que estos ingredientes ya estén en tu lista. Revisa la receta antes de añadirlos.",
+    recipeGapsIncomplete:
+      "Algunas comidas no tienen una receta vinculada disponible, o la comparación alcanzó su límite. Una comparación incompleta no muestra todo lo necesario.",
     currentFoodSnapshot:
       "Las fechas se comprueban según hoy, aunque revises otra semana. Sigue las indicaciones de conservación y seguridad alimentaria.",
   },

@@ -211,3 +211,56 @@ canonical recipe ingredient-gap review. Current account-chore/open-grocery
 previews explicitly say what they cannot assess. Accepted/backup responsibility,
 conflicts/event prep/unified review inbox/what changed and broader grounded #123/
 #144 still remain. The full goal is active, not narrowed to this weekly UI.
+
+
+## Profile routines and recipe gaps integrated in source — 2026-10-20
+
+The responsibility preview now selects canonical subject projections and reuses
+readChoreSubject, current family/account/profile linkage, erasure/active/age/role
+checks and routine-occurrence visibility. Parents can see named eligible email-free
+profile subjects only while the existing profile-chore read gate is enabled.
+Profiles never authenticate the viewer. Teen/child queries remain restricted to
+the current account, and profile, age, mapping and internal IDs are not emitted.
+Legacy conflicting/archived/foreign/erased subjects and inactive/unsupported
+occurrences do not become actionable or appear as valid rows. Cap/unknown notes
+remain explicit; no routine is generated, rescheduled or completed by the review.
+Existing gates remain unchanged and rollback retains an explicit profile hold.
+
+Groceries now adds a role/feature-authorized recipe stock-gap preview when the
+viewer may open Meals and inventory is enabled. It selects up to eight eligible
+meal slots in the review week and only same-household linked recipes, up to 100
+ingredients per recipe and 500 current active stock rows. Prepared bulk dishes
+are excluded as already-cooked food. The canonical stock loader, expiry/name/ID
+presence index and ingredient matcher are reused; comparisons use the meal day
+or actual local today if later. Zero amounts and expired/past-use-by food do not
+count, unknown quantities do not establish sufficiency, and no cross-unit math
+is introduced. Repeated recipe/ingredient pairs are collapsed with their first
+missing meal date. At most eight gap rows leave the server, with an original
+same-origin recipe link and source title; the sheet shows at most three before
+its full-section links. It does not add, merge or create grocery/list records.
+
+Inventory truncation suppresses missing-ingredient conclusions entirely. Missing,
+foreign, unlinked, ingredient-less or over-limit recipes mark the comparison
+incomplete. A bounded comparison count distinguishes no linked recipes from no
+gaps found in compared recipes. Caps and partial coverage never establish a
+complete shopping plan. Existing open groceries remain separate; gaps may already
+be on a list. Child/inaccessible/feature-off paths do not retrieve recipe/stock
+context and say the comparison is unavailable. Recipe/meal plan links use the
+existing review/explicit-add controls, so normal amount/duplicate/ownership and
+prepared-batch protections still govern any later user action.
+
+The EN/ES sheet now shows profile names/kinds for authorized parents and recipe
+source/review links, with distinct incomplete/empty results and presence-only
+wording. Authored source cases cover valid and foreign/archived/erased/linked/
+invalid-age profile subjects, teen/child/rollout holds, stock ID/name matching,
+zero/expired stock, repeated recipes, recipe/inventory caps, unavailable ownership
+and role-hidden recipe context. All remain unrun. Only source edits/inspection,
+formatting and local commit preparation occurred; no QA/check/build, schema/DB,
+API/provider/browser/native/CI, release or gate activation.
+
+The weekly-review journey now has source for its intended personal progress/UI,
+owned recovery and bounded canonical sections. This is not verified acceptance:
+real PostgreSQL, role/device/storage/locale/rendered/native and release checks
+remain in the later consolidated pass. Broader accepted/backup responsibility,
+conflict resolution, event preparation, unified review inbox, what changed,
+grounded planning and #144 remain required code/reconciliation in #123.

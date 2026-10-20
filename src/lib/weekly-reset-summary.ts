@@ -5,6 +5,12 @@ import { zonedWallTimeToUtc } from "@/lib/calendar-import/timezone";
 import { isFeatureEnabled, type FamilyFeatures } from "@/lib/features";
 import { getUseSoonItems } from "@/lib/inventory";
 import { getOpenShoppingItems } from "@/lib/shopping-snapshot";
+import {
+  choreSubjectInclude,
+  readChoreSubject,
+  isProfileChoreEnabled,
+} from "@/lib/chore-profile";
+import { weeklyRecipeGaps } from "@/lib/weekly-reset-gaps";
 import { routineOccurrencePolicyInTx } from "@/lib/routine-occurrence-policy";
 import {
   WEEKLY_RESET_PROTOCOL,
@@ -95,32 +101,71 @@ export async function loadWeeklyResetSummaryInTx(
   if (step === "responsibilities") {
     notes.push("acceptanceAndBackupUnknown");
     if (isFeatureEnabled(features, "chores")) {
-      // Personal account tasks only. Profile identity never authenticates the
-      // viewer. Full email-free/profile routine review stays in canonical UI.
+      // Profiles are review subjects, never authenticated viewers. Parents
+      // may preview active household profiles under the canonical read gate.
+      const profiles = actor.role === "parent" && isProfileChoreEnabled();
+      const account = {
+        assigned_to: { not: null },
+        assignee: { is: { family_id } },
+      };
       const rows = await tx.chore.findMany({
         where: {
           family_id,
-          assigned_to: actor.role === "parent" ? { not: null } : actor.userId,
+          ...(actor.role === "parent"
+            ? {
+                OR: [
+                  account,
+                  ...(profiles
+                    ? [
+                        {
+                          assigned_to: null,
+                          assigned_member_id: { not: null },
+                          assigneeMember: {
+                            is: {
+                              family_id,
+                              archived_at: null,
+                              erasure_user_id: null,
+                              legacy_mapping: { is: null },
+                              account_link: { is: null },
+                            },
+                          },
+                        },
+                      ]
+                    : []),
+                ],
+              }
+            : { assigned_to: actor.userId, assignee: { is: { family_id } } }),
           member_subject_erased: false,
           due_date: { gte: window.dateStart, lt: window.dateEnd },
           status: { in: ["pending", "in_progress", "overdue"] },
-          assignee: { is: { family_id } },
         },
-        select: { id: true, title: true, due_date: true, assigned_to: true },
+        select: {
+          id: true,
+          title: true,
+          due_date: true,
+          assigned_to: true,
+          assigned_member_id: true,
+          member_subject_erased: true,
+          ...choreSubjectInclude,
+        },
         orderBy: [{ due_date: "asc" }, { id: "asc" }],
         take: LIMIT + 1,
       });
       const visible = [];
       for (const row of rows) {
+        const subject = readChoreSubject(row, family_id);
+        if (!subject || (subject.kind === "profile" && !profiles)) continue;
         const policy = await routineOccurrencePolicyInTx(tx, family_id, row.id);
         if (policy === "inactive" || policy === "unsupported") continue;
         visible.push({
           title: text(row.title),
           when: toDateOnlyUTC(row.due_date),
           owner:
-            row.assigned_to === actor.userId
+            subject.kind === "account" && subject.accountId === actor.userId
               ? ("you" as const)
               : ("assigned" as const),
+          subjectKind: subject.kind,
+          ...(actor.role === "parent" ? { ownerName: text(subject.name) } : {}),
         });
       }
       groups.push({
@@ -128,7 +173,8 @@ export async function loadWeeklyResetSummaryInTx(
         rows: visible.slice(0, LIMIT),
         more: rows.length > LIMIT,
       });
-      notes.push("profileChoresInChores");
+      if (!profiles) notes.push("profileChoresInChores");
+      notes.push("storedChoresOnly");
       if (visible.length !== rows.length) notes.push("boundedPreview");
     }
     if (isFeatureEnabled(features, "pickups")) {
@@ -302,8 +348,26 @@ export async function loadWeeklyResetSummaryInTx(
         quantity: row.quantity,
       })),
     });
-    // Open groceries are not evidence of complete recipe ingredient coverage.
-    notes.push("groceryGapsNotAssessed");
+    const canReadRecipes = weeklyResetSections(actor.role, features).some(
+      (section) => section.id === "meals",
+    );
+    if (!canReadRecipes || !isFeatureEnabled(features, "inventory"))
+      notes.push("groceryGapsNotAssessed");
+    else {
+      const today = parseDateOnly(
+        dayKeyFor({ kind: "tz", timeZone: scope.timeZone })(now),
+      )!;
+      const gaps = await weeklyRecipeGaps(
+        tx,
+        family_id,
+        window.dateStart,
+        window.dateEnd,
+        today,
+      );
+      groups.push(gaps.group);
+      notes.push("ingredientPresenceOnly");
+      if (gaps.incomplete) notes.push("recipeGapsIncomplete");
+    }
   }
   return weeklyResetSummary.parse({
     protocol: WEEKLY_RESET_PROTOCOL,

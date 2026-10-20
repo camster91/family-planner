@@ -638,6 +638,14 @@ export default function WeeklyResetReview({
                               <h4 className="font-semibold">
                                 {copy.groups[group.kind]}
                               </h4>
+                              {group.kind === "gaps" && (
+                                <Link
+                                  href="/dashboard/meals"
+                                  className={`${plain} inline-flex items-center`}
+                                >
+                                  {copy.mealPlanReview}
+                                </Link>
+                              )}
                               {group.total !== undefined && (
                                 <p className="text-callout">
                                   {copy.groceryTotal(group.total)}
@@ -645,7 +653,13 @@ export default function WeeklyResetReview({
                               )}
                               {group.rows.length === 0 ? (
                                 <p className="text-callout text-label-secondary">
-                                  {copy.empty}
+                                  {group.incomplete
+                                    ? copy.unknownCoverage
+                                    : group.kind === "gaps"
+                                      ? group.compared
+                                        ? copy.noGaps
+                                        : copy.noRecipes
+                                      : copy.empty}
                                 </p>
                               ) : (
                                 <ul className="divide-y divide-[var(--surface-separator)]">
@@ -659,6 +673,19 @@ export default function WeeklyResetReview({
                                         <p className="font-medium">
                                           {row.title || copy.unnamed}
                                         </p>
+                                        {row.sourceTitle && (
+                                          <p className="text-callout text-label-secondary">
+                                            {row.sourceTitle}
+                                          </p>
+                                        )}
+                                        {row.href && (
+                                          <Link
+                                            href={row.href}
+                                            className={`${plain} inline-flex items-center`}
+                                          >
+                                            {copy.recipeReview}
+                                          </Link>
+                                        )}
                                         <p className="text-callout text-label-secondary">
                                           {row.dateKind
                                             ? `${copy.dateKinds[row.dateKind]}: `
@@ -667,6 +694,12 @@ export default function WeeklyResetReview({
                                           {row.end ? ` – ${date(row.end)}` : ""}
                                           {row.owner
                                             ? ` · ${copy.owners[row.owner]}`
+                                            : ""}
+                                          {row.ownerName
+                                            ? ` · ${row.ownerName}`
+                                            : ""}
+                                          {row.subjectKind === "profile"
+                                            ? ` · ${copy.profile}`
                                             : ""}
                                           {group.kind === "groceries" &&
                                           row.quantity !== undefined

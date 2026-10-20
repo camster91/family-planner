@@ -17,6 +17,13 @@ const summaryRow = z
     when: when.nullable(),
     end: when.nullable().optional(),
     owner: z.enum(["you", "assigned", "unassigned", "unknown"]).optional(),
+    ownerName: z.string().max(480).optional(),
+    subjectKind: z.enum(["account", "profile"]).optional(),
+    sourceTitle: z.string().max(480).optional(),
+    href: z
+      .string()
+      .regex(/^\/dashboard\/meals\/recipes\/[^/?#]+$/)
+      .optional(),
     quantity: z.number().int().nonnegative().optional(),
     prepared: z.boolean().optional(),
     eaten: z.number().int().nonnegative().optional(),
@@ -45,10 +52,13 @@ export const weeklyResetSummary = z
               "prep",
               "food",
               "groceries",
+              "gaps",
             ]),
             rows: z.array(summaryRow).max(LIMIT),
             more: z.boolean(),
             total: z.number().int().nonnegative().optional(),
+            incomplete: z.boolean().optional(),
+            compared: z.number().int().min(0).max(8).optional(),
           })
           .strict(),
       )
@@ -63,9 +73,12 @@ export const weeklyResetSummary = z
           "groceryGapsNotAssessed",
           "prepRequiresVerifiedEmail",
           "currentFoodSnapshot",
+          "storedChoresOnly",
+          "ingredientPresenceOnly",
+          "recipeGapsIncomplete",
         ]),
       )
-      .max(6),
+      .max(10),
   })
   .strict();
 export type WeeklyResetSummary = z.infer<typeof weeklyResetSummary>;

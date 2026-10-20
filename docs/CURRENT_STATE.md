@@ -1,5 +1,30 @@
 # Current State
 
+## Weekly review profile routines and recipe-gap source — 2026-10-20
+
+The responsibility summary now reuses canonical chore subjects and visibility:
+parent-only named email-free profile previews under existing gates, current
+family/link/erasure/age/role checks, and unchanged teen/child own-account reads.
+Internal IDs/age/mapping are omitted. No profile authenticates a viewer and no
+routine/task state is mutated. Stored/capped previews remain explicit.
+
+A role/feature-gated grocery gap group now compares bounded current-household
+linked unprepared meals/recipes with canonical inventory presence and expiry
+rules. Already prepared bulk dishes are excluded. Actual today is the minimum
+comparison date, repeated recipe/ingredient pairs are collapsed, and missing/
+foreign/oversized/ingredient-less recipes or truncated stock produce an explicit
+incomplete state. No recipe/stock context goes to a child or disabled feature.
+Recipe/meal-plan links reuse existing explicit review/add flows; no grocery write,
+quantity sufficiency claim, unit conversion, provider request or new scheduler.
+The EN/ES sheet distinguishes no compared recipes, no gaps in compared recipes
+and incomplete coverage. Profile/gap/role source cases are authored but unrun.
+
+No tests/types/lint/build, schema/client/SQL/DB/API, browser/native/provider/CI,
+push/merge/deploy or activation. Existing rollout settings remain unchanged.
+Weekly-review source acceptance is still unverified. Next broader #123 work is
+accepted/backup responsibility and the other approved coordination/grounded
+planning outcomes, preserving all remaining repository scope and later QA.
+
 ## Weekly reset compact UI and exact owned recovery source — 2026-10-20
 
 The gated personal Today entry now lazily opens an EN/ES short review sheet with
