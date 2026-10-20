@@ -8,6 +8,7 @@ import CreateChoreForm from "@/app/dashboard/chores/create/CreateChoreForm";
 import EditChoreForm from "@/app/dashboard/chores/edit/EditChoreForm";
 import { useTranslation } from "@/i18n";
 import { listCreateMessages } from "@/i18n/list-create";
+import { choreFormMessages } from "@/i18n/chore-forms";
 import type { ListTypeKey } from "@/lib/list-type-filter";
 import {
   PendingFormNavigationProvider,
@@ -95,20 +96,32 @@ export function ListCreateSheet({
   );
 }
 
-export function ChoreCreateSheet() {
+function ChoreSheet({ edit = false }: { edit?: boolean }) {
   const [busy, setBusy] = useState(false);
+  const { locale } = useTranslation();
+  const copy = choreFormMessages[locale];
   return (
-    <FormSheet title="New Chore" busy={busy}>
-      <CreateChoreForm inSheet onBusyChange={setBusy} />
+    <FormSheet
+      title={edit ? copy.editTitle : copy.newTitle}
+      busy={busy}
+      closeLabel={copy.sheetCloseLabel}
+      description={
+        busy ? copy.sheetPendingDescription : copy.sheetDraftDescription
+      }
+    >
+      {edit ? (
+        <EditChoreForm inSheet onBusyChange={setBusy} />
+      ) : (
+        <CreateChoreForm inSheet onBusyChange={setBusy} />
+      )}
     </FormSheet>
   );
 }
 
+export function ChoreCreateSheet() {
+  return <ChoreSheet />;
+}
+
 export function ChoreEditSheet() {
-  const [busy, setBusy] = useState(false);
-  return (
-    <FormSheet title="Edit Chore" busy={busy}>
-      <EditChoreForm inSheet onBusyChange={setBusy} />
-    </FormSheet>
-  );
+  return <ChoreSheet edit />;
 }

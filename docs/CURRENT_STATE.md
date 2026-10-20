@@ -1,5 +1,27 @@
 # Current State
 
+## Calendar connection/form-sheet source reconciliation — 2026-10-20
+
+Original #456 and #455 (including #453) now have requirement/source/remaining-proof
+maps in `docs/plans/calendar-connections-and-form-sheets-reconciliation.md`.
+Existing parent/configured calendar Settings shortcuts, delayed Settings anchors,
+canonical route-backed list/chore forms, null overlay clearing, essential-first
+mounted optional sections and pending/focus/inert/scroll protections were retained.
+The form-sheet contract now describes the existing owned pending Back sentinel
+instead of suggesting pending history is unguarded.
+
+A confirmed presentation gap was fixed: New/Edit Chore sheet chrome now uses the
+typed EN/ES chore dictionary for titles, close label and draft/save-upload notices,
+through one shared helper retaining the canonical forms and busy callbacks.
+Wrapper localization/pending-dismissal cases are authored but unrun; actual form
+and upload behavior remain owned by their existing regression/journey sources.
+Ledger entries identify implemented source separately from full route, reload,
+Back/native, responsive, accessibility, role, offline and provider acceptance.
+
+Only source inspection, edits and formatting occurred. No tests, types, lint,
+build, browser/native/schema operations, CI, push, merge, deployment or activation.
+The full implementation-first goal remains active; QA and release gates remain.
+
 ## Today/grocery/event-duration source criteria mapped — 2026-10-20
 
 Original #461, #462 and #458 were read against their current implementations and

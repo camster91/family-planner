@@ -4,6 +4,9 @@ import type { RoutineIconKey } from "@/lib/routine-icons";
 export const choreFormsEnglish = {
   back: "Chores",
   backToChores: "Back to Chores",
+  sheetCloseLabel: "Close and return",
+  sheetDraftDescription: "Close to return. Unsaved changes will be cleared.",
+  sheetPendingDescription: "Please wait for saving or uploading to finish.",
   newTitle: "New Chore",
   newDescription: "Assign a task to a family member.",
   editTitle: "Edit Chore",
@@ -135,6 +138,10 @@ export type ChoreFormMessage = keyof typeof choreFormsEnglish;
 export const choreFormsSpanish: Record<ChoreFormMessage, string> = {
   back: "Tareas",
   backToChores: "Volver a tareas",
+  sheetCloseLabel: "Cerrar y volver",
+  sheetDraftDescription:
+    "Cierra para volver. Se borrarán los cambios sin guardar.",
+  sheetPendingDescription: "Espera a que termine de guardar o subir la foto.",
   newTitle: "Nueva tarea",
   newDescription: "Asigna una tarea a un familiar.",
   editTitle: "Editar tarea",
