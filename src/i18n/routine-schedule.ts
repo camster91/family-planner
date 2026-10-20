@@ -1,6 +1,15 @@
 "use client";
 import { useTranslation } from "@/i18n";
 const en = {
+  independentTitle: "Independent steps",
+  independentIntro:
+    "Manage steps you kept repeating outside a routine. Changes affect future work.",
+  independentEmpty: "No independent routine steps yet.",
+  independentEdit: "Edit independent step",
+  independentSave: "Save step",
+  independentHandoff:
+    "This step now repeats independently. Manage its future schedule and controls in Independent steps.",
+  returnRoutines: "Back to routine plans",
   originalDetails: "Review original saved request",
   originalReviewed: "Reviewed {at} ({zone})",
   originalStart: "Original start date: {day}",
@@ -144,6 +153,15 @@ const en = {
   return: "Back to chores",
 };
 const es: Record<keyof typeof en, string> = {
+  independentTitle: "Pasos independientes",
+  independentIntro:
+    "Gestiona los pasos que conservaste fuera de una rutina. Los cambios afectan al trabajo futuro.",
+  independentEmpty: "Aún no hay pasos de rutina independientes.",
+  independentEdit: "Editar paso independiente",
+  independentSave: "Guardar paso",
+  independentHandoff:
+    "Este paso ahora se repite de forma independiente. Gestiona su horario futuro y sus controles en Pasos independientes.",
+  returnRoutines: "Volver a planes de rutinas",
   originalDetails: "Revisar la solicitud original guardada",
   originalReviewed: "Revisada el {at} ({zone})",
   originalStart: "Fecha de inicio original: {day}",

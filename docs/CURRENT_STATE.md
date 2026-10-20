@@ -1,5 +1,42 @@
 # Current State
 
+## Independent-step manager/editor and durable draft source — 2026-10-20
+
+Independent-step management is now source-wired through a private parent page,
+bounded catalog/paging, fresh-definition editor, edit/pause/resume/stop review,
+original-request details and explicit recovery controls. Routine plans links to
+this view. Exact detached legacy root links hand off to the independent route;
+ordinary copies and foreign roots stay outside that handoff. The EN/ES editor
+uses a compact main step/schedule form with collapsed advanced options and a
+review stage. It supports selected weekly days, monthly anchors, start date,
+exact account/profile choices, cue, instructions, minutes, effort, picture and
+conditional points. Current ineligible repeat profiles remain unavailable.
+
+Independent local drafts now have a strict separate partial-field contract and
+derived person owner location, plus context/read/store/browser wiring. The shared
+owned local-document implementation was extracted from routine drafts: exact CAS,
+explicit competing-version adoption, uncertain-transition repair, generation
+invalidations after discard, current capability sanitation and no send transport
+apply to both adapters. Empty/incomplete content can remain on-device without
+becoming a valid command. The manager debounces verified saves, flushes on close/
+submit, restores without rebasing revisions and uses owned Back close handling.
+Visibility/owner epochs hold private rendering; adopted/repaired draft refs retain
+the accepted document even when the view becomes hidden before it can render.
+
+Confirmation now clears a draft only when it matches that original command;
+confirming an older or unrelated request cannot erase newer unsent work. This
+preservation rule also applies to the stack manager. Explicit discard/dismiss
+still requires its existing confirmation. Authored source cases cover partial
+independent reload, competing edits, discard, hidden points, exact originating
+command matching, both editor languages and detached/foreign root handoffs.
+All remain unrun. Source inspection and formatting only: no tests/typecheck/lint/
+build/browser/native/schema/client operations, CI, release or activation.
+
+Next: reconcile lifecycle/erasure/reassignment and rollback behavior across these
+new independent definitions, finish outstanding navigation/async presentation
+edges, then continue the full issue ledger before consolidated QA. The new source
+is not rendered, device-accepted or released; all rollout gates remain unchanged.
+
 ## Independent routes and owned request recovery source — 2026-10-20
 
 Independent future steps now have private catalog/state/save and recovery-context/

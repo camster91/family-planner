@@ -2,6 +2,7 @@
 import {
   routineDraftFromState,
   routineEditorCommand,
+  routineDraftMatchesCommand,
   removeRoutineEditorStep,
   restoreRoutineEditorStep,
 } from "../routine-schedule-editor";
@@ -117,4 +118,32 @@ it("restores multiple removed neighbors in either order without swapping their i
       original.steps.map((step) => step.template_id),
     );
   }
+});
+
+it("retains an unrelated or newer draft when confirming an older request", () => {
+  const draft = routineDraftFromState(state());
+  const entry = makeRoutineScheduleIntent(
+    routineEditorCommand(draft),
+    { userId: "fixture-parent", familyId: "fixture-family" },
+    "America/Toronto",
+    new Date("2026-10-20T16:00:00Z"),
+    "matching_origin_request_001",
+  );
+  const original = JSON.parse(entry.body);
+  expect(routineDraftMatchesCommand(draft, original)).toBe(true);
+  expect(
+    routineDraftMatchesCommand({ ...draft, stackId: "other-stack" }, original),
+  ).toBe(false);
+  expect(routineDraftMatchesCommand({ ...draft, version: 4 }, original)).toBe(
+    false,
+  );
+  expect(
+    routineDraftMatchesCommand(
+      { ...draft, label: "Newer local change" },
+      original,
+    ),
+  ).toBe(false);
+  expect(
+    routineDraftMatchesCommand(draft, { ...original, action: "stop" }),
+  ).toBe(false);
 });

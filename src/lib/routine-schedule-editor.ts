@@ -1,3 +1,4 @@
+import { routineScheduleCommand } from "@/lib/routine-schedule";
 /** Parent form state. Stable client/root IDs, never label-based adoption. */
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import type {
@@ -176,4 +177,28 @@ export function restoreRoutineEditorStep(
     steps,
     removed: draft.removed.filter((row) => row !== removed),
   };
+}
+
+/** A confirmed earlier request cannot erase a different unsent local document. */
+export function routineDraftMatchesCommand(
+  draft: RoutineEditorDraft,
+  raw: unknown,
+): boolean {
+  try {
+    const command = routineScheduleCommand.parse(raw);
+    if (command.action !== "create" && command.action !== "replace-future")
+      return false;
+    const rebuilt = routineScheduleCommand.parse({
+      ...routineEditorCommand(draft),
+      protocol: command.protocol,
+      expected_user_id: command.expected_user_id,
+      expected_family_id: command.expected_family_id,
+      issued_at: command.issued_at,
+      view_day: command.view_day,
+      view_zone: command.view_zone,
+    });
+    return JSON.stringify(rebuilt) === JSON.stringify(command);
+  } catch {
+    return false;
+  }
 }

@@ -1,3 +1,4 @@
+import { independentDraftContext } from "@/lib/routine-independent-draft-contract";
 /** Explicit foreground requests only. Original bytes/key survive every unknown result. */
 import {
   routineIndependentCommand,
@@ -178,4 +179,15 @@ export async function postIndependentRoutineStep(
   return code === "ROUTINE_ORIGINAL_REMOVED"
     ? { kind: "removed" }
     : { kind: "refused", code };
+}
+
+export async function readIndependentDraftContext() {
+  const result = await requestOwnedJson(
+    "/api/chores/routines/independent/recovery?draft=1",
+    { headers: { "X-Member-Protocol": "2" } },
+    16384,
+  );
+  if (result.kind !== "reply" || !result.response.ok)
+    throw new Error("Independent draft context unavailable");
+  return independentDraftContext.parse(result.body);
 }

@@ -461,6 +461,15 @@ suite("canonical scheduled routine commands", () => {
     const before = await prisma!.chore.findUniqueOrThrow({
       where: { id: detached },
     });
+    expect(
+      await readRoutineScheduleHandoff(prisma!, familyId, "chore", detached),
+    ).toBe(
+      `/dashboard/chores/schedules/independent?root_id=${encodeURIComponent(detached)}`,
+    );
+    expect(
+      await readRoutineScheduleHandoff(prisma!, otherFamily, "chore", detached),
+    ).toBeNull();
+
     const evidence = crypto.randomUUID();
     await prisma!.chore.create({
       data: {

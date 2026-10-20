@@ -27,6 +27,7 @@ import {
   newRoutineDraft,
   routineDraftFromState,
   routineEditorCommand,
+  routineDraftMatchesCommand,
   type RoutineEditorDraft,
 } from "@/lib/routine-schedule-editor";
 import {
@@ -375,7 +376,11 @@ export default function RoutineScheduleManager({
           receipt: result.receipt,
         },
       }));
-      await clearDraft();
+      if (
+        !draftRef.current ||
+        routineDraftMatchesCommand(draftRef.current, JSON.parse(entry.body))
+      )
+        await clearDraft();
       if (!mounted.current || token !== epoch.current) return;
       setEditorOpen(false);
       setControl(null);
@@ -506,6 +511,12 @@ export default function RoutineScheduleManager({
       <header>
         <h1 className="text-title-1 text-label-primary">{t("title")}</h1>
         <p className="mt-2 text-body text-label-secondary">{t("intro")}</p>
+        <Link
+          href="/dashboard/chores/schedules/independent"
+          className="btn-ghost inline-flex min-h-[44px] items-center"
+        >
+          {t("independentTitle")}
+        </Link>
       </header>
       {notice && (
         <p role="status" className="text-body text-label-primary">
@@ -882,6 +893,7 @@ export default function RoutineScheduleManager({
                 const token = epoch.current;
                 draftEpoch.current += 1;
                 const restored = await drafts.current!.adoptStored();
+                draftRef.current = restored;
                 if (!mounted.current || token !== epoch.current) return;
                 setDraft(restored);
                 setAdoptDraft(false);

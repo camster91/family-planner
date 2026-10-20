@@ -29,6 +29,8 @@ export async function readRoutineScheduleHandoff(
     rows[0].routine_series_config,
   );
   if (!parsed.success) return "/dashboard/chores/schedules";
+  if (parsed.data.stack_id === null)
+    return `/dashboard/chores/schedules/independent?root_id=${encodeURIComponent(id)}`;
   return parsed.data.stack_id && parsed.data.stack_id === rows[0].stack_id
     ? `/dashboard/chores/schedules?stack_id=${encodeURIComponent(parsed.data.stack_id)}`
     : null;

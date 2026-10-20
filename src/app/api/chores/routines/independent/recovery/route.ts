@@ -1,3 +1,5 @@
+import { INDEPENDENT_DRAFT_CONTRACT } from "@/lib/routine-independent-draft-contract";
+import { routineDraftOwner } from "@/lib/routine-schedule-owner";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
@@ -27,9 +29,20 @@ export async function GET(request: NextRequest) {
   try {
     const opened = await openRoutineSchedule(request, false, "independent");
     if (!opened.ok) return opened.response;
-    await prisma!.$transaction((tx) =>
+    const capabilities = await prisma!.$transaction((tx) =>
       routineScheduleAuthority(tx, opened.actor),
     );
+    if (new URL(request.url).searchParams.get("draft") === "1") {
+      const owner = routineDraftOwner(opened.owner);
+      return routineResponse({
+        contract: INDEPENDENT_DRAFT_CONTRACT,
+        owner,
+        enabled: routineRecoveryWritingEnabled() && owner !== null,
+        userId: opened.actor.userId,
+        familyId: opened.actor.familyId,
+        pointsEnabled: capabilities.pointsEnabled,
+      });
+    }
     return routineResponse({
       contract: INDEPENDENT_RECOVERY_CONTRACT,
       enabled: routineRecoveryWritingEnabled() && opened.owner !== null,

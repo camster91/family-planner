@@ -15,7 +15,13 @@ export function RoutineScheduleHandoff({
   // legacy draft was loaded and no schedule/step is changed by this handoff.
   const content = (
     <div className="space-y-4">
-      <p className="text-body text-label-secondary">{t("handoff")}</p>
+      <p className="text-body text-label-secondary">
+        {t(
+          href.includes("/schedules/independent")
+            ? "independentHandoff"
+            : "handoff",
+        )}
+      </p>
       <a
         href={href}
         className="btn-filled inline-flex min-h-[44px] items-center"

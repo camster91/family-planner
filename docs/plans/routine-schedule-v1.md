@@ -568,3 +568,25 @@ Unrun storage/client/guarded-DB cases were authored for these invariants.
 Next integrations: independent editor/catalog UI, unsent drafts and legacy root
 handoff; then lifecycle/rollback/device reconciliation and consolidated QA. Gates
 remain unchanged and this is not a released or accepted user journey.
+
+
+### Independent manager/editor/local document integration — 2026-10-20
+
+The independent parent page/catalog/editor/control/recovery path is now wired in
+source, with a Routine plans entry and exact detached-root legacy handoff. Main
+fields stay compact, advanced step fields collapse, and explicit review captures
+original intent time/zone before save. Account/email-free profile choices renew
+from the current canonical catalog. Removed/ineligible identities never get a
+substitute. EN/ES text and current points omission apply throughout.
+
+A separate independent unsent document retains partial fields and original
+root/revision. Both form types share the extracted owned local-document engine
+for leases/CAS/conflicts/discard/repair and disabled-points sanitation. Close/Back
+flushes the draft; requests still use immutable saved body/key and explicit review
+before recovered retry. Confirmation clears only an exactly matching originating
+draft, retaining unrelated/newer unsent work. Authored focused source cases remain
+unrun; runtime/rendered/device/lifecycle/rollback acceptance is still unproven.
+
+Next source reconciliation: household/profile lifecycle and erasure, reassignment,
+rollback compatibility and remaining navigation/async presentation edges. Keep the
+full issue goal active and defer consolidated QA until the candidate code is done.

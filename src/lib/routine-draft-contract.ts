@@ -7,7 +7,7 @@ import type { RoutineEditorDraft } from "@/lib/routine-schedule-editor";
 export const ROUTINE_DRAFT_CONTRACT = "herewoven.routine-draft.v1";
 export const ROUTINE_DRAFT_MAX_BYTES = 2 * 1024 * 1024;
 const id = z.string().min(1).max(128);
-const step = z
+export const routinePartialStep = z
   .object({
     client_step_id: id,
     template_id: id.nullable(),
@@ -21,6 +21,15 @@ const step = z
   })
   .strict();
 /** Empty/unfinished fields and invalid numeric ranges may be retained, never sent as-is. */
+const step = routinePartialStep;
+export const routinePartialSchedule = z
+  .object({
+    frequency: z.enum(["once", "daily", "weekly", "monthly"]),
+    starts_on: z.string().max(10).nullable(),
+    weekly_days: z.array(z.number().int().min(0).max(6)).max(7),
+    monthly_day: z.number().finite().nullable(),
+  })
+  .strict();
 export const routineEditorDraftSchema = z
   .object({
     stackId: id.nullable(),
@@ -28,14 +37,7 @@ export const routineEditorDraftSchema = z
     state: z.enum(["active", "paused", "stopped"]),
     label: z.string().max(ROUTINE_NAME_MAX),
     anchor: z.string().max(200),
-    schedule: z
-      .object({
-        frequency: z.enum(["once", "daily", "weekly", "monthly"]),
-        starts_on: z.string().max(10).nullable(),
-        weekly_days: z.array(z.number().int().min(0).max(6)).max(7),
-        monthly_day: z.number().finite().nullable(),
-      })
-      .strict(),
+    schedule: routinePartialSchedule,
     steps: z.array(step).min(1).max(99),
     removed: z
       .array(
