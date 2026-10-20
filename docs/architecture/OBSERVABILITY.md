@@ -179,3 +179,12 @@ booleans and null-or-numeric rates (no string cardinality). Retention: queue-ins
 on clear/auth loss/disposal; no database, storage, log or remote sink. Collection: internal local
 counters, with deliberate user viewing/copying in Help. No analytics consent/disclosure or provider
 boundary is widened. Fleet collection needs a separately reviewed transmission/consent/retention design.
+
+### Product measurement scope — 2026-10-20
+
+`../product/PRODUCT_MEASUREMENT.md` maps the existing nine fixed beta-count
+metrics to #140 goals, owners, replay/loss limits and missing denominators.
+Scorecard JSON/text adds `herewoven.beta-count-scorecard.v1` scope metadata: count
+thresholds only, best-effort, ordered/cohort acceptance unverified. D-6 counting
+rules and opt-in/retention behavior are unchanged. No new collection, provider,
+experiment or tracking activation. Source tests authored/unrun.

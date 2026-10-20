@@ -119,7 +119,9 @@ Every Monday, for the four beta weeks (ISO weeks, Monday to Sunday, UTC):
    Do not keep the database URL in shell history (prefix the command with a space if `HISTCONTROL=ignorespace`, or use a private env file).
 
 3. **Reliability** is always "INSUFFICIENT DATA" in the scorecard (counts record successes only). Take it from the server logs: 5xx answers on core routes (chores, events, meals, rewards, family join) divided by all requests to them, for the week. Target: at least 99% success.
-4. **Freeze** the text and JSON output with the date, as that week's scorecard. The output has numbers only (households 1 to 5), so it may be posted to #108. Do not edit it afterwards; a correction is a new, dated run.
+4. **Interpret count statuses** as D-6 aggregate thresholds only. Independent consenting households and ordered linked-record journeys require the separate reviewed cohort/observation record. The report marks acceptance as not evaluated; do not use a count PASS to close #84/#108 or approve a release.
+
+   **Freeze** the text and JSON output with the date, as that week's scorecard. The output has numbers only (households 1 to 5), so it may be posted to #108. Do not edit it afterwards; a correction is a new, dated run.
 5. **Never fill gaps by guessing.** "INSUFFICIENT DATA" stays as it is.
 6. **Ask each adult the weekly question**, exactly, with no hints or follow-up coaching:
 

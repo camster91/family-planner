@@ -1,5 +1,17 @@
 # Current State
 
+## Private measurement source and scorecard scope — 2026-10-20
+
+#140 now maps every requested metric/funnel to current opt-in daily counts or an
+explicit uncollected/unknown denominator. Existing D-6 counting rules stay intact;
+scorecard JSON/text adds a versioned scope declaring best-effort aggregate count
+thresholds, no verified ordering/independent cohort and acceptance not evaluated.
+Weekly copy no longer says aggregate counts prove an ordered linked-record loop.
+Source test assertions are authored, not run. No new collection/schema/provider,
+experiment, consent/production setting, QA, push, merge or deployment.
+`product/PRODUCT_MEASUREMENT.md` records event owners/replay limits, future
+metric design, research/experiment rules and separate activation dependencies.
+
 ## Preserved-finance product plan source — 2026-10-20
 
 #566 now has a current source inventory and FIN-0 through FIN-7 delivery design

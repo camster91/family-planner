@@ -103,6 +103,14 @@ id, role, text or content. Counting is **off by default**: a parent turns on
 deletes the household's counts. Counts are kept 13 months and deleted with the
 household (privacy page, `product/ACCOUNT_DELETION.md`).
 
+Count-status interpretation (source clarification, 2026-10-20, #140): daily
+aggregates evaluate the D-6 thresholds below. They do not establish order across
+linked records, independent consenting cohort membership, or final beta/release
+acceptance. Scorecard JSON/text now carries this boundary explicitly through
+`herewoven.beta-count-scorecard.v1`. Missing counts remain unknown; post-commit
+recording is best-effort. See `product/PRODUCT_MEASUREMENT.md` for complete metric
+coverage, replay limits and the separate research/consent gates.
+
 `npm run beta:scorecard` (`scripts/beta-scorecard.mjs`, read-only) prints each
 criterion with its measured value and PASS / FAIL / INSUFFICIENT DATA.
 Households appear only as numbers. It reads local databases by default; any
