@@ -91,6 +91,8 @@ const scheduleReviewQueryObject = z
   .object({
     protocol: z.literal(SCHEDULE_REVIEW_PROTOCOL),
     owner,
+    range: interval,
+    timeZone: z.string().max(100).refine(isValidTimeZone),
     snapshotToken: token,
     target: z.object({ id, sourceToken: token }).strict(),
     buffers: scheduleBuffers,
@@ -119,7 +121,12 @@ export type ScheduleReviewQuery = z.infer<typeof scheduleReviewQuery>;
 export class ScheduleReviewError extends Error {
   constructor(
     public readonly code:
-      "INVALID" | "OWNER_CHANGED" | "STALE" | "MISSING" | "INVALID_WINDOW",
+      | "INVALID"
+      | "OWNER_CHANGED"
+      | "STALE"
+      | "MISSING"
+      | "INVALID_WINDOW"
+      | "UNAVAILABLE",
   ) {
     super("Schedule review needs a fresh authorized snapshot");
   }
@@ -203,6 +210,12 @@ export function planScheduleReview(
   )
     throw new ScheduleReviewError("OWNER_CHANGED");
   if (snapshot.snapshotToken !== query.snapshotToken)
+    throw new ScheduleReviewError("STALE");
+  if (
+    snapshot.timeZone !== query.timeZone ||
+    Date.parse(snapshot.range.start) !== Date.parse(query.range.start) ||
+    Date.parse(snapshot.range.end) !== Date.parse(query.range.end)
+  )
     throw new ScheduleReviewError("STALE");
   const events = new Map(snapshot.events.map((event) => [event.id, event]));
   const target = events.get(query.target.id);

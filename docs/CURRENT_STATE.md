@@ -1,5 +1,40 @@
 # Current State
 
+## Canonical schedule source/atomic-compare foundation — 2026-10-20
+
+Continued #123 with additive Event insertion generation/material epoch Prisma
+and migration source, immutable/monotonic legacy-writer trigger behavior and
+range-end/recurrence/invalid-interval indexes. No new schedule or collection-
+version store. Canonical Event ownership/deletion/cascades remain authoritative.
+Saturated versions hold new conflict-review use; ordinary edits remain possible.
+No schema generation/migration/SQL or database operation ran.
+
+`schedule-source.ts` adds schema/trigger probes, scoped target locks, a common
+padded all-source/recurrence/invalid-interval comparison predicate and bounded
+single-statement source reads. Snapshot fingerprints bind original actor/session,
+range/zone/coverage and sorted insertion/material tokens. Review requests now
+carry original range/zone explicitly. The internal confirmed-move primitive
+compares the exact source set and changes canonical Event times in ONE statement
+snapshot, with target epoch/family/source/duration checks and validated returned
+times. It is not an authorized endpoint: caller must lock/renew actor/household/
+Family/target, recompute the full applicable candidate and commit its minimal
+idempotency receipt in the SAME transaction. No API/UI calls this helper yet.
+
+A shared collection row was deliberately avoided: legacy multi-event writers
+must not acquire collection-then-another-Event locks. Other comparison events
+are MVCC reads, not late row/identity locks. Changes committed before the atomic
+comparison snapshot invalidate old source sets; later independent changes can
+introduce another conflict and no permanent availability claim is made.
+
+Unit/disposable-DB source cases are authored and unrun, including trigger/source
+continuity, recreated IDs, old-value restoration, new/deleted blockers, foreign
+scope, UTC/duration and saturation. Only source editing/inspection/formatting:
+no tests/types/lint/build/API/DB/schema/client/SQL/browser/native/provider/CI,
+activation/push/merge/deploy. Required next source is authenticated snapshot/apply,
+coverage/source status, minimal receipts and owned recovery, then EN/ES controls/
+discovery/weekly integration. Full #123/#144/repository scope remains active;
+consolidated QA follows remaining code.
+
 ## Schedule conflict planner source — 2026-10-20
 
 Continued #123 from the existing calendar overlap disclosure, which remains an

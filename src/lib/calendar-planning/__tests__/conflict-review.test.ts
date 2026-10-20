@@ -54,6 +54,8 @@ function fixture() {
     protocol: SCHEDULE_REVIEW_PROTOCOL,
     owner,
     snapshotToken: token,
+    range: { ...snapshot.range },
+    timeZone: snapshot.timeZone,
     target: { id: target.id, sourceToken: token },
     buffers: { ...NO_SCHEDULE_BUFFERS },
     otherBuffers: [],
@@ -137,6 +139,7 @@ it("compares actual instants through the repeated DST hour, not equal wall label
     start: "2026-11-01T00:00:00Z",
     end: "2026-11-02T00:00:00Z",
   };
+  query.range = { ...snapshot.range };
   snapshot.events = [
     event("target-a", "2026-11-01T01:30:00-04:00", "2026-11-01T01:30:00-05:00"),
     event("obstacle-a", "2026-11-01T05:45:00Z", "2026-11-01T06:45:00Z"),
@@ -285,6 +288,7 @@ it("reports no opening when busy intervals cover every requested window; buffer 
     holds: expect.arrayContaining(["no-opening"]),
   });
   snapshot.range.start = snapshot.events[0].start;
+  query.range = { ...snapshot.range };
   query.windows[0].start = snapshot.range.start;
   query.buffers.preparation = 30;
   expect(planScheduleReview(snapshot, query, now).holds).toContain(

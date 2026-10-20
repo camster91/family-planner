@@ -58,12 +58,15 @@ layer. No provider or AI is required to use it.
    rows before events in stable order, and renew current role/token/family.
    Bind original user/family/source generation+epoch/snapshot/range/preferences,
    issuedAt and exact proposed instants. Guard the whole compared range against
-   phantom inserts/deletes, not only the selected event row: all canonical/legacy
-   writers need a common transaction/version ordering without late identity or
-   parent-row lock inversion. Merely comparing updated_at, taking Event row
-   locks or trusting an earlier list query is insufficient. A stable serial
-   order must allow a later independent event change to introduce a new conflict
-   without retroactively claiming the earlier move remained conflict-free.
+   phantom inserts/deletes, not only the selected event row. The current source
+   uses immutable per-insertion/material Event versions plus one atomic SQL
+   comparison-and-update statement after the selected target is locked. Its
+   bounded current-source set and the time effect share a statement snapshot.
+   No family-wide version row is locked by legacy Event triggers: multi-event
+   updates/cascades must not acquire collection-then-another-Event locks.
+   Merely comparing updated_at, taking Event row locks or trusting an earlier
+   list query is insufficient. A later independent event change can introduce
+   a new conflict after that validation point; never claim permanent availability.
    Recompute live constraints; stale,
    missing/foreign/changed sources or new overlapping records hold unchanged.
    Ordinary legacy event writers must participate in source invalidation: an
@@ -116,3 +119,69 @@ EN/ES controls/discovery and weekly integration remain required code. All QA,
 DDL/schema/client/DB/API/provider/browser/native/CI/release and activation are
 unverified and deferred. Do not close #123 or replace the full workflow with an
 advisory-only link. Continue the full vertical implementation next.
+
+
+## Canonical source epochs and atomic comparison source — 2026-10-20
+
+`database/migration-zzzzzzz-schedule-review.sql` and additive Event Prisma fields
+now author an immutable per-insertion UUID and monotonic material epoch. A
+BEFORE UPDATE trigger covers existing local/provider/project/legacy writers,
+including title/instructions/location/times/recurrence/source/identity/family
+changes and away/back changes. Delete/recreate gets a new default generation;
+updates cannot replace it or lower the epoch. Saturation holds new review use
+while ordinary domain edits remain possible. Technical updated_at-only edits
+do not invent material changes. There is no extra schedule/consent store or
+family-version row. Event's existing canonical cascades/export/lifecycle remain
+authoritative; no untracked identity, location or checklist JSON is introduced.
+Additional range-end and partial recurrence/invalid-interval indexes are source
+only; partial indexes are intentionally SQL-owned.
+
+`schedule-source.ts` probes required NOT NULL columns and the enabled row-level
+BEFORE UPDATE trigger/function. Scoped target locks return only technical source
+metadata. The common comparison predicate includes the target, every authorized
+source in a buffer-padded range, all stored recurring roots and invalid legacy
+intervals; absence of usable timing data is not free time. A single-statement
+minimal comparison read returns 501 rows to signal the 500-row cap without
+silently claiming complete coverage. Fingerprints bind original owner/role/token
+version/range/IANA zone/coverage and sorted event source tokens, excluding titles,
+notes, addresses and provider secrets. The strict query/command now carries its
+original range and zone so an eventual apply service can reconstruct scope
+rather than guessing from a fingerprint.
+
+`applyComparedScheduleMoveInTx` is the internal effect primitive, not an endpoint
+or independently authorized writer. The selected Event must be locked first.
+One SQL statement materializes at most 501 current source identities/epochs and
+compares the entire set against the exact previously rebuilt complete set, then
+updates canonical Event times only if unchanged. Selected generation/epoch,
+current family, concrete/non-ICS source and original duration are guarded again
+on the actual UPDATE. UTC casts are explicit. Zero affected rows are a conflict;
+returned identity/time/protocol bounds must match before caller receipt commit.
+An insertion/deletion/edit/recreation committed before that statement snapshot
+cannot slip through an earlier list read. Changes ordered after that validation
+point may introduce a later conflict; this source does not promise a permanently
+clear schedule or prohibit independent calendar edits.
+
+This avoids a shared collection row in legacy Event triggers, which could invert
+locks during multi-event updates/deletes. Comparison rows use plain MVCC reads;
+no late blocker Event/identity/source locks. Family and actor/household authority
+locks must precede target locking. The future service must rebuild and authorize
+the complete candidate, enforce readiness/age/owned exact intent, and commit the
+minimal idempotency receipt in the SAME transaction. Calling this helper outside
+that service contract is prohibited; it is currently referenced only by authored
+source cases. No API or UI can invoke it yet.
+
+Unit and disposable-DB case source is authored for source-family/generation/epoch
+binding, sorted snapshot binding, invalid/padded scope bounds, atomic no-effect
+refusal, actual trigger continuity, technical edit distinction, immutable UUID,
+recreated IDs, inserted/deleted/away-back blockers, foreign scope and saturation.
+Integration sources require the existing fixture guard plus an explicitly allowed
+disposable DB with migrations already installed; they do not install migrations.
+All cases remain unrun. Real concurrency/DDL/trigger/atomic-receipt correctness,
+client compatibility and the complete journey still require later QA.
+
+Next required code is the authenticated canonical snapshot/apply service, current
+source-status/coverage projection, minimal receipt and owned recovery; then EN/ES
+short controls, discovery and weekly integration. No new readiness switch was
+activated, no generated client/DDL/SQL/DB command ran, no fixture/live/provider
+mutation occurred and no push/merge/deploy happened. This is source progress,
+not completion of the approved conflict workflow or the repository goal.

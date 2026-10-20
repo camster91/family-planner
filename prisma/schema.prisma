@@ -923,6 +923,10 @@ model PushSubscription {
 }
 
 model Event {
+  // Source identity for explicit conflict-review proposals. Additive, default-off;
+  // database triggers cover legacy writers and material away/back changes.
+  schedule_generation String @default(dbgenerated("gen_random_uuid()::text"))
+  schedule_epoch Int @default(0)
   id          String   @id @default(cuid())
   family_id   String
   title       String
@@ -968,6 +972,7 @@ model Event {
   @@index([family_id])
   @@index([start_time])
   @@index([family_id, start_time])
+  @@index([family_id, end_time])
   @@index([project_id])
   @@index([source_subscription_id, start_time])
   @@index([source_connection_id])
@@ -2121,3 +2126,4 @@ model ResponsibilityState {
   @@index([primary_by_id, family_id])
   @@index([backup_by_id, family_id])
 }
+
