@@ -13,6 +13,9 @@ import { loadHomeSummary } from "./home-summary-data";
 import { loadGetStarted } from "./get-started-data";
 import { isDoneStatus, isOpenStatus } from "@/lib/home-summary";
 import { isProfileChoreEnabled } from "@/lib/chore-profile";
+import { Suspense } from "react";
+import WeeklyResetLauncher from "@/components/dashboard/WeeklyResetLauncher";
+import { weeklyResetReady } from "@/lib/weekly-reset";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -133,6 +136,17 @@ export default async function TodayBoardPage({
   return (
     <>
       <HomeSummary viewer={viewer} {...home} />
+      {weeklyResetReady() &&
+        !fridgeMode &&
+        ["parent", "teen", "child"].includes(user.role) && (
+          <Suspense fallback={null}>
+            <WeeklyResetLauncher
+              key={`${sessionUser.id}:${familyId}`}
+              userId={sessionUser.id}
+              familyId={familyId}
+            />
+          </Suspense>
+        )}
       <TodayBoard
         data={data}
         fridgeMode={fridgeMode}

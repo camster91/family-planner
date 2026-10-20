@@ -12,6 +12,8 @@ const features = defaultFeatures();
 const base = {
   protocol: WEEKLY_RESET_PROTOCOL,
   familyId: "family-a",
+  userId: "user-a",
+  issuedAt: "2026-10-20T12:00:00.000Z",
   weekStart: "2026-10-19",
   timeZone: "America/Toronto",
   expectedRevision: 0,

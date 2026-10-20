@@ -150,3 +150,64 @@ is authored yet; typed EN/ES compact review/resume/recovery remains required.
 New schema/window/role/query/cap/source-failure/food/prep/authority test source is
 unrun. No tests/typecheck/lint/build/schema/DB/API/browser/native/provider/CI or
 release operations were performed. No flag, deployed runtime or client changed.
+
+
+## Compact UI and owned recovery source — 2026-10-20
+
+The personal Today page now has a readiness-gated Review your week entry, omitted
+in fridge mode and for unsupported roles. It lazily loads one compact EN/ES
+review sheet. The URL query carries the open state using normal Next navigation:
+opening pushes an entry, Back removes it, and a direct link closes by replacing
+only the review query. No custom history marker competes with the router.
+The source reuses the shared Dialog focus trap/restore, rounded mobile sheet,
+bounded scrolling/fixed footer, current theme tokens and 44px controls. Larger
+screens get a step rail; phones show one step. Each group previews at most three
+rows with an explicit full-section link/more notice. Week/zone and each review
+state are visible. Start for a different week warns that it replaces personal
+review metadata; explicit skip/back/restart/finish and final skipped counts are
+implemented. Finish means reviewed, never domain work complete.
+
+Commands and minimal receipts now explicitly bind the original user as well as
+family/week/zone/action. New commands carry issuedAt; a missing receipt cannot
+replay an intent older than 15 minutes or more than one minute in the future.
+A completed exact receipt remains inspectable before age/revision checks. This
+hardens only an unactivated source endpoint, not a shipped installed-client API.
+User progress metadata itself is unchanged and still contains no domain content.
+
+The new browser adapter reuses createOwnedRequestJournal, owned storage locations,
+Web Locks, physical-store probes, owner retirement and storage-transition repair.
+A distinct hashed session/user/generation/household/role owner prevents journal
+collision with groceries/routines. Recovery GET renews canonical authority;
+explicit POST inspection checks exact user-scoped idempotency action/hash/body,
+receipt, current revision/protocol/step availability and age. New writes require
+both the weekly-reset readiness flag and existing queue-recovery enable/rollback
+flags, an exact owner header and the normal current person session. No flag was
+changed. Recovery inspection remains available during a write pause; it performs
+no domain or progress write. Old/unknown journals are held, never silently erased.
+
+Each action persists its immutable body/key before its one foreground send.
+Opening, locale, focus, recovery and read retries never send a mutation. Recovered
+requests require explicit inspect/retry; stale/expired/conflicting requests remain
+held with local-dismissal confirmation. A receipt is validated against original
+actor/family/week/zone/action before local dismissal and a fresh role projection.
+Unknown HTTP/parse/timeout/storage outcomes retain the request. Closing during
+staging prevents a later send; closing during an already-started request retains
+its key for later inspection. Late read/results cannot update a closed/older
+opening. Storage repair distinguishes staging from dismissal, so repairing a
+confirmed deletion cannot restage the dismissed request. Local dismissal never
+claims to undo a server effect. No unowned fallback or background queue is added.
+
+Client-safe summary schemas are separated from server-only canonical loaders.
+Authored UI/client/recovery-server source cases cover no automatic sends, exact
+retry receipts, other-account/scope refusal, duplicate activation, durable-stage
+failure, closing during staging, restored committed receipts, partial dismissal
+repair, expiration/revision/rollout/unknown protocols and unavailable previews.
+All remain unrun. Formatting/source inspection only: no tests, typecheck, lint,
+build, generated client/schema/SQL/DB/API operations, browser/native/provider/CI,
+push, merge, deployment or activation. No rendered/device/release claim.
+
+Required next code remains profile/email-free routine summary integration and
+canonical recipe ingredient-gap review. Current account-chore/open-grocery
+previews explicitly say what they cannot assess. Accepted/backup responsibility,
+conflicts/event prep/unified review inbox/what changed and broader grounded #123/
+#144 still remain. The full goal is active, not narrowed to this weekly UI.

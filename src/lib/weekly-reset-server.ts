@@ -30,7 +30,7 @@ type Row = {
   progress: unknown;
   revision: number;
 };
-async function actorInTx(
+export async function weeklyResetActorInTx(
   tx: Prisma.TransactionClient,
   actor: WeeklyResetActor,
 ) {
@@ -63,7 +63,7 @@ export function readWeeklyResetSummary(
   step: WeeklyResetStep,
 ) {
   return db.$transaction(async (tx) => {
-    const { user, features } = await actorInTx(tx, actor);
+    const { user, features } = await weeklyResetActorInTx(tx, actor);
     return loadWeeklyResetSummaryInTx(
       tx,
       {
@@ -91,7 +91,7 @@ export function authorizeWeeklyReset(
   actor: WeeklyResetActor,
 ) {
   return db.$transaction(async (tx) => {
-    await actorInTx(tx, actor);
+    await weeklyResetActorInTx(tx, actor);
   });
 }
 export function readWeeklyReset(
@@ -100,7 +100,7 @@ export function readWeeklyReset(
   scope: WeeklyResetScope,
 ) {
   return db.$transaction(async (tx) => {
-    const { user, features } = await actorInTx(tx, actor);
+    const { user, features } = await weeklyResetActorInTx(tx, actor);
     const stored = recordFrom(user);
     const record = weeklyResetMatches(stored, actor.familyId, scope)
       ? stored
@@ -133,8 +133,8 @@ export function writeWeeklyReset(
   now = new Date(),
 ): Promise<EffectResult> {
   return db.$transaction(async (tx) => {
-    const { user, features } = await actorInTx(tx, actor);
-    if (command.familyId !== actor.familyId)
+    const { user, features } = await weeklyResetActorInTx(tx, actor);
+    if (command.familyId !== actor.familyId || command.userId !== actor.userId)
       throw new WeeklyResetError("FORBIDDEN");
     await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
     const receipt = await tx.idempotencyRecord.findFirst({
@@ -157,6 +157,7 @@ export function writeWeeklyReset(
       if (
         !parsed.success ||
         parsed.data.receipt.familyId !== actor.familyId ||
+        parsed.data.receipt.userId !== actor.userId ||
         parsed.data.receipt.weekStart !== command.weekStart ||
         parsed.data.receipt.timeZone !== command.timeZone ||
         parsed.data.receipt.action !== command.action
@@ -165,6 +166,9 @@ export function writeWeeklyReset(
       return { status: receipt.response_status, body: parsed.data };
     }
     if (user.revision !== command.expectedRevision)
+      throw new WeeklyResetError("CONFLICT");
+    const age = now.getTime() - Date.parse(command.issuedAt);
+    if (age > 15 * 60_000 || age < -60_000)
       throw new WeeklyResetError("CONFLICT");
     const original = recordFrom(user);
     const next = planWeeklyReset(original, command, user.role, features, now);
@@ -181,6 +185,7 @@ export function writeWeeklyReset(
       receipt: {
         protocol: WEEKLY_RESET_PROTOCOL,
         familyId: actor.familyId,
+        userId: actor.userId,
         weekStart: command.weekStart,
         timeZone: command.timeZone,
         action: command.action,

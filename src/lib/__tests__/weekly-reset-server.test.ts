@@ -13,6 +13,8 @@ const command = {
   ...scope,
   protocol: WEEKLY_RESET_PROTOCOL,
   familyId: actor.familyId,
+  userId: actor.userId,
+  issuedAt: new Date().toISOString(),
   expectedRevision: 0,
   action: "start" as const,
 };
@@ -105,6 +107,7 @@ it("writes only own User review metadata and the atomic minimal receipt", async 
         ...scope,
         protocol: WEEKLY_RESET_PROTOCOL,
         familyId: "family-a",
+        userId: "user-a",
         action: "start",
         revision: 1,
       },
@@ -131,6 +134,19 @@ it("writes only own User review metadata and the atomic minimal receipt", async 
     }),
   );
 });
+it("refuses another account's command and an expired intent without progress writes", async () => {
+  for (const patch of [
+    { userId: "user-b" },
+    { issuedAt: "2026-01-01T00:00:00.000Z" },
+  ]) {
+    const { db, tx } = fixture();
+    await expect(
+      writeWeeklyReset(db, actor, { ...command, ...patch }, "receipt-a"),
+    ).rejects.toThrow();
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    expect(tx.idempotencyRecord.update).not.toHaveBeenCalled();
+  }
+});
 it("replays a completed effect without a second progress change, after fresh authority", async () => {
   const { db, tx } = fixture({ revision: 5 });
   const body = {
@@ -138,6 +154,7 @@ it("replays a completed effect without a second progress change, after fresh aut
       ...scope,
       protocol: WEEKLY_RESET_PROTOCOL,
       familyId: "family-a",
+      userId: "user-a",
       action: "start",
       revision: 1,
     },

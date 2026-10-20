@@ -1,5 +1,4 @@
 import type { Prisma } from "@prisma/client";
-import { z } from "zod";
 import { addDaysToKey, dayKeyFor } from "@/lib/local-day-key";
 import { parseDateOnly, toDateOnlyUTC } from "@/lib/dates";
 import { zonedWallTimeToUtc } from "@/lib/calendar-import/timezone";
@@ -10,8 +9,6 @@ import { routineOccurrencePolicyInTx } from "@/lib/routine-occurrence-policy";
 import {
   WEEKLY_RESET_PROTOCOL,
   WeeklyResetError,
-  weeklyResetScope,
-  weeklyResetStep,
   weeklyResetSections,
   type WeeklyResetScope,
   type WeeklyResetStep,
@@ -20,67 +17,14 @@ import {
 const LIMIT = 8;
 const text = (value: string) =>
   Array.from(value.normalize("NFC")).slice(0, 240).join("");
-export const weeklyResetSummaryQuery = weeklyResetScope
-  .extend({ step: weeklyResetStep })
-  .strict();
-const summaryRow = z
-  .object({
-    title: z.string().max(480),
-    when: z.string().nullable(),
-    end: z.string().nullable().optional(),
-    owner: z.enum(["you", "assigned", "unassigned", "unknown"]).optional(),
-    quantity: z.number().optional(),
-    prepared: z.boolean().optional(),
-    eaten: z.number().optional(),
-    remaining: z.number().optional(),
-    nextPrep: z.string().nullable().optional(),
-    dateKind: z.enum(["best_before", "use_by"]).optional(),
-  })
-  .strict();
-export const weeklyResetSummary = z
-  .object({
-    protocol: z.literal(WEEKLY_RESET_PROTOCOL),
-    owner: z.object({ userId: z.string(), familyId: z.string() }).strict(),
-    scope: weeklyResetScope,
-    step: weeklyResetStep,
-    generatedAt: z.string().datetime(),
-    groups: z
-      .array(
-        z
-          .object({
-            kind: z.enum([
-              "events",
-              "chores",
-              "pickups",
-              "handoffs",
-              "meals",
-              "prep",
-              "food",
-              "groceries",
-            ]),
-            rows: z.array(summaryRow).max(LIMIT),
-            more: z.boolean(),
-            total: z.number().int().nonnegative().optional(),
-          })
-          .strict(),
-      )
-      .max(3),
-    notes: z
-      .array(
-        z.enum([
-          "storedScheduleOnly",
-          "acceptanceAndBackupUnknown",
-          "profileChoresInChores",
-          "boundedPreview",
-          "groceryGapsNotAssessed",
-          "prepRequiresVerifiedEmail",
-          "currentFoodSnapshot",
-        ]),
-      )
-      .max(6),
-  })
-  .strict();
-export type WeeklyResetSummary = z.infer<typeof weeklyResetSummary>;
+import {
+  weeklyResetSummary,
+  type WeeklyResetSummary,
+} from "@/lib/weekly-reset-summary-contract";
+export {
+  weeklyResetSummaryQuery,
+  weeklyResetSummary,
+} from "@/lib/weekly-reset-summary-contract";
 type Group = WeeklyResetSummary["groups"][number];
 type SummaryActor = {
   userId: string;
@@ -250,12 +194,10 @@ export async function loadWeeklyResetSummaryInTx(
     groups.push({
       kind: "meals",
       more: rows.length > LIMIT,
-      rows: rows
-        .slice(0, LIMIT)
-        .map((row) => ({
-          title: text(row.recipe_name ?? ""),
-          when: toDateOnlyUTC(row.date),
-        })),
+      rows: rows.slice(0, LIMIT).map((row) => ({
+        title: text(row.recipe_name ?? ""),
+        when: toDateOnlyUTC(row.date),
+      })),
     });
   }
   if (step === "prep") {

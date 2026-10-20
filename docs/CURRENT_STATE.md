@@ -1,5 +1,32 @@
 # Current State
 
+## Weekly reset compact UI and exact owned recovery source — 2026-10-20
+
+The gated personal Today entry now lazily opens an EN/ES short review sheet with
+router-owned Back/close, one step on phones/step rail on larger screens, bounded
+previews and canonical links, week selection, explicit start/review/skip/back/
+restart/finish, skipped-step summary and personal-only completion wording.
+Shared/fridge discovery is excluded. Current semantic tokens and shared Dialog
+focus/scroll/footer behavior are reused. No rendered behavior has been verified.
+
+Commands/receipts now bind the original account as well as household/scope/action;
+issuedAt prevents expired unconfirmed intents being reapplied. The shared owned
+request journal handles exact body/key staging before any send, session/generation/
+household retirement, cross-store divergence/repair and explicit recovered review.
+Person-only recovery inspection checks current authority, request hash, receipt,
+revision/protocol/age and availability without executing a progress/domain write.
+Unknown acknowledgements/storage outcomes stay held. Partial dismissal repair
+cannot restage a confirmed removed request. A fresh role projection follows ack.
+Writes additionally preserve the existing queue-recovery enable/rollback gates;
+all readiness/rollout settings remain unchanged. No background replay/provider.
+
+New UI/client/recovery-server source cases are authored but unrun. No tests,
+types, lint, build, schema/client/SQL/DB/API, browser/native/provider/CI, push,
+merge, deployment or activation. Required next internal code: profile-routine
+and recipe ingredient-gap review integration, then the remaining broader #123/
+#144 coordination/grounded jobs and full repository issue scope. QA follows all
+code; this is not a completed issue, integrated acceptance or release claim.
+
 ## Weekly reset bounded summary source — 2026-10-20
 
 A gated, person-only, strict single-step summary GET now renews current actor

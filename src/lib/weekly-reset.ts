@@ -60,6 +60,8 @@ export const weeklyResetRecord = z
 const commandScope = {
   protocol: z.literal(WEEKLY_RESET_PROTOCOL),
   familyId,
+  userId: familyId,
+  issuedAt: z.string().datetime(),
   weekStart,
   timeZone,
   expectedRevision: z.number().int().min(0).max(2147483646),
@@ -81,6 +83,37 @@ export type WeeklyResetScope = z.infer<typeof weeklyResetScope>;
 export type WeeklyResetRecord = z.infer<typeof weeklyResetRecord>;
 export type WeeklyResetCommand = z.infer<typeof weeklyResetCommand>;
 export type WeeklyResetStep = z.infer<typeof weeklyResetStep>;
+export const weeklyResetView = z
+  .object({
+    protocol: z.literal(WEEKLY_RESET_PROTOCOL),
+    owner: z.object({ userId: familyId, familyId }).strict(),
+    scope: weeklyResetScope,
+    revision: z.number().int().nonnegative(),
+    started: z.boolean(),
+    steps: z
+      .array(
+        z
+          .object({
+            id: weeklyResetStep,
+            href: z.enum([
+              "/dashboard/today",
+              "/dashboard/calendar",
+              "/dashboard/chores",
+              "/dashboard/pickups",
+              "/dashboard/meals",
+              "/dashboard/inventory",
+              "/dashboard/lists/groceries",
+            ]),
+            state: weeklyResetStepState,
+          })
+          .strict(),
+      )
+      .max(6),
+    finishedAt: z.string().datetime().nullable(),
+    complete: z.boolean(),
+  })
+  .strict();
+export type WeeklyResetView = z.infer<typeof weeklyResetView>;
 export function weeklyResetSections(
   role: string,
   features: FamilyFeatures,
@@ -197,6 +230,7 @@ export const weeklyResetReceipt = z
       .object({
         protocol: z.literal(WEEKLY_RESET_PROTOCOL),
         familyId,
+        userId: familyId,
         weekStart,
         timeZone,
         revision: z.number().int().min(0),

@@ -22,6 +22,11 @@ import {
   writeWeeklyReset,
   authorizeWeeklyReset,
 } from "@/lib/weekly-reset-server";
+import {
+  weeklyResetOwner,
+  weeklyResetWritingEnabled,
+} from "@/lib/weekly-reset-owner";
+import { WEEKLY_RESET_OWNER_HEADER } from "@/lib/weekly-reset-recovery";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 function failure(error: unknown): EffectResult {
@@ -65,6 +70,14 @@ async function handle(request: NextRequest, write: boolean) {
       familyId: auth.user.family_id,
       tokenVersion: auth.payload.tv ?? 0,
     };
+    const owner = weeklyResetOwner(request, auth.payload, auth.user);
+    if (
+      write &&
+      (!weeklyResetWritingEnabled() ||
+        !owner ||
+        request.headers.get(WEEKLY_RESET_OWNER_HEADER) !== owner.scope)
+    )
+      throw new WeeklyResetError("FORBIDDEN");
     if (!write) {
       const params = request.nextUrl.searchParams;
       if (new Set(params.keys()).size !== [...params.keys()].length)
@@ -102,7 +115,10 @@ async function handle(request: NextRequest, write: boolean) {
         { error: "Invalid review request" },
         { status: 400, headers },
       );
-    if (parsed.data.familyId !== actor.familyId)
+    if (
+      parsed.data.familyId !== actor.familyId ||
+      parsed.data.userId !== actor.userId
+    )
       throw new WeeklyResetError("FORBIDDEN");
     return await withIdempotency(
       prisma,
