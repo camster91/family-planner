@@ -1,5 +1,15 @@
 # Route and domain inventory (#148)
 
+### Food voice/text draft source — 2026-10-20
+
+No route/schema added. `FoodDescriptionDraft` is an optional disclosure in the
+canonical ItemModal create mode. `food-description.ts` is a bounded suggestion
+parser, not another stock model. Browser speech reuses `use-voice-draft` with
+optional language/deadline and stale-callback guards; the existing local Android
+preview gate remains unchanged. Only explicit Apply updates editable fields;
+Save retains the intake/recovery contracts. Parsing/UI test source is authored,
+not executed. Recipe/prep stock review and direct restocking remain code gaps.
+
 ### Inventory recovery UI integration source — 2026-10-20
 
 No new route/schema. Personal InventoryClient now owns InventoryRecoveryProvider

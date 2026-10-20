@@ -11,6 +11,17 @@ Every execution calls a fixed existing API with fresh auth/household checks; AI 
 Non-idempotent APIs receive one UI attempt and no automatic retries. A lost/unreadable response consumes the proposal and tells the user to check the app before another attempt. Grocery additions reuse Idempotency-Key. Multiple/absent grocery lists require choosing/creating in Lists instead of guessing or silently creating one. Existing date conversion preserves device-local wall time and rejects gaps/invalid intervals.
 
 ## AI and voice
+
+2026-10-20 source addition (#125): personal inventory Add item reuses foreground
+browser voice and the separately gated local Android preview in an optional
+description disclosure. It proposes explicit EN/ES food fields for Apply, then
+uses the existing manual canonical intake/recovery Save. It does not add an
+assistant inventory tool or arbitrary app control. Food browser listening is
+bounded to 20 seconds and uses app/device language; typed input remains usable
+without speech or an AI provider. No automatic submission, background wake,
+provider activation, stored audio or physical microphone acceptance is added.
+The shared voice hook's existing assistant defaults are retained; food opts into
+language/deadline and stale callback guards. Meal voice proposals remain open.
 Uses the existing encrypted household AI configuration or deployment fallback, existing vetted public provider transport, redirect restrictions and 30-second deadline. Chat adds a 1300-token budget and a 64KiB response-body limit; new JSON requests are bounded while streaming. Sends bounded conversation text and viewer-supplied clock/time zone only, never queries/attaches household records. Structured replies are validated; malformed actions rejected. 30 calls/hour/user. No provider enabled, key created or paid call made by the agent. Parent setup link exposes the existing Settings disclosure through explicit `?setup=ai#ai-capture`; it does not save credentials or change server configuration. Chat requires a configured provider before production use.
 
 Voice starts only on explicit button click using available browser SpeechRecognition / webkitSpeechRecognition. The browser may use its own speech service, disclosed in UI. Transcription fills an editable draft, never automatically sends or executes. Unsupported browsers retain typing; permission/error messages are clear. Close, unmount, tab change and pending requests abort listening and detach callbacks. Physical microphone, Android WebView and real provider acceptance remain separate checks.

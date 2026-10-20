@@ -1,5 +1,27 @@
 # Current State
 
+## Reviewed foreground food description source — 2026-10-20
+
+Canonical Add item has an optional collapsed typed/voice description. A bounded
+EN/ES parser proposes only explicit name, quantity/unit, storage and labelled ISO
+date fields. Multiple items, relative/invalid/ambiguous dates and unsupported
+quantities require manual review. Quantities/units are not converted and no
+safety/expiry inference is made. Apply changes only shown fields; Save remains
+the existing canonical intake/recovery action. No new model or provider route.
+
+Browser recognition is tap-only with disclosure, app/device language, 20-second
+food-listening bound, stop on collapse/lock/visibility/context/unmount, and typed
+fallback. A late transcript does not replace text edited while listening. The
+existing optional local Android phrase preview is reused without enabling it;
+no background wake or native acceptance claim. Source tests are authored, not run.
+
+Reconciliation found remaining #125 code gaps: meal voice proposals, integrated
+recipe/prep stock-lot/amount review, and direct used/discarded stock restocking.
+Recipe display scaling/portion tracking does not itself decrement inventory.
+Next: implement those existing-issue gaps, retaining explicit quantity review.
+No QA/typecheck/lint/build/browser/native, provider/schema action, push, merge or
+deployment occurred. Matrix: `product/FOOD_CAPTURE.md`.
+
 ## Gated inventory recovery UI source — 2026-10-20
 
 Personal inventory now has a shared recovery provider, EN/ES review sheets and

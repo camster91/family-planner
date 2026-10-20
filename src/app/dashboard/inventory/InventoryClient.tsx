@@ -48,6 +48,7 @@ import { useOnline } from '@/components/ui/use-online'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
 import { BarcodeFoodDialog } from '@/components/inventory/BarcodeFoodDialog'
+import { FoodDescriptionDraft } from '@/components/inventory/FoodDescriptionDraft'
 import { InventoryRecoveryProvider, InventoryRecoveryPanel, useInventoryWrites, useInventoryRecoveryBlocked } from '@/components/inventory/InventoryRecovery'
 import { makeInventoryChangeIntent, type InventoryChangeIntent } from '@/lib/inventory-change-client'
 import type { InventoryChangeOperation } from '@/lib/inventory-change-contract'
@@ -1491,6 +1492,14 @@ function ItemModal({
 
       <form id={titleId} onSubmit={submit} className="space-y-4" noValidate>
         <fieldset disabled={locked} className="space-y-4">
+          {mode === 'add' && <FoodDescriptionDraft enabled={!locked && !suspended} contextKey={`${context?.userId ?? ''}:${context?.familyId ?? ''}`} onApply={(draft) => {
+            if (locked || suspended || mutationRef.current) return
+            setName(draft.name)
+            if (draft.amount !== undefined) { setAmount(String(draft.amount)); setUnit(draft.unit ?? '') }
+            if (draft.location) setLocation(draft.location)
+            if (draft.expires_on && draft.date_kind) { setExpiresOn(draft.expires_on); setDateKind(draft.date_kind) }
+            setError(null)
+          }} />}
           <div>
             <label htmlFor={`${titleId}-name`} className="text-subhead text-label-secondary mb-1 block">
               {copy('name')}
