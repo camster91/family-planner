@@ -304,3 +304,17 @@ the `Activity` deletion rules above and are also pruned 90 days after they were 
   wait, then fail cleanly once the household is deleted, and no account is orphaned; `deleteHousehold` waits on the
   same lock; a real deletion racing a join always ends consistent.
 - `e2e/account-deletion.spec.ts` also covers a teen deleting their own account from their Settings.
+
+## Personal import provenance
+
+Permanent account deletion removes import mappings for personal Chore,
+ChoreAssignment, HabitLog, EarnedBadge, RewardRedemption and WishlistItem rows
+that are deleted with the account. Cleanup matches the exact household, target
+model and target record ID, never a bare ID shared across tables. Historical
+personal targets participate in sorted household-lock discovery even when the
+account has no current household. A new scope after locking refuses the whole
+transaction; each delete predicate is bounded to 200 pairs. Shared imported
+Habit/Reward/BadgeDefinition records, their mappings and import jobs retain their
+existing household retention/handover policy. Normal import replay behavior is
+unchanged; this does not automatically reimport or recreate anything. Current and
+former-member source cases are authored; runtime acceptance is deferred.

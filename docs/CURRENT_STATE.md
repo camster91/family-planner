@@ -1,5 +1,26 @@
 # Current State
 
+## Exact personal import-provenance erasure source — 2026-10-20
+
+Account deletion now discovers household locks from the personal import-target
+rows it will remove, including historical households after membership detachment.
+Inside those locks it re-reads the targets before personal deletion/cascades and
+removes provenance by exact household + target model + target record ID. A newly
+discovered unlocked scope refuses the transaction before any provenance deletion.
+Each delete predicate has at most 200 target pairs. Shared imported content and
+its mappings remain; colliding IDs in different models or household scopes are
+not treated as the same target. This preserves the established personal-target
+provenance removal policy; it adds no tombstones or new importer replay behavior.
+
+The old current-household bare-ID cleanup was removed. Both account paths share
+the exact cleanup before their personal rows disappear. Authored cases cover
+sorted historical scope discovery, exact pairs, empty targets, new-scope refusal,
+bounded long histories and model/household collisions in current/former-member
+fake and disposable-Postgres paths. All are unrun. No tests, types, lint, build,
+browser/native/schema operations, CI, push, merge or deployment occurred. Gates
+unchanged. Full non-FK erasure reconciliation and other issue requirements remain
+open; this is not comprehensive erasure acceptance.
+
 ## Routine draft repair and dashboard-link navigation source — 2026-10-20
 
 Both future-routine managers now capture ordinary same-window dashboard links,

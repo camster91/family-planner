@@ -343,6 +343,39 @@ describe('deleteMemberAccount', () => {
     seedExtras()
   })
 
+  it.each(['current', 'historical'] as const)('removes only exact personal import mappings for a %s member', async (membership) => {
+    if (membership === 'historical') {
+      db.find('user', 'child-a')!.family_id = null
+      await fakePrisma.householdMemberAccountLink.deleteMany({ where: { user_id: 'child-a' } })
+      await fakePrisma.householdMemberLegacyMapping.deleteMany({ where: { user_id: 'child-a' } })
+      Object.assign(db.find('householdMember', 'member-a')!, { archived_at: new Date('2026-10-01'), erasure_user_id: 'child-a' })
+    }
+    // IDs can legally coincide across tables. Provenance must bind model as well
+    // as household and target id, including imported records in a former home.
+    db.rows('habitLog').push({ id: 'personal-import-target', family_id: FAMILY_A, user_id: 'child-a', habit_id: 'habit-a' })
+    db.rows('habit').push({ id: 'personal-import-target', family_id: FAMILY_A, title: 'Keep shared habit', created_by: 'parent-a' })
+    const mapping = (id: string, family_id: string, target_model: string, target_id: string) => ({
+      id, family_id, import_job_id: family_id === FAMILY_A ? 'import-a' : 'import-b',
+      source_app: 'chore-champs', source_model: target_model, source_id: id, target_model, target_id,
+    })
+    db.rows('importedRecord').push(
+      mapping('erase-personal-log', FAMILY_A, 'HabitLog', 'personal-import-target'),
+      mapping('retain-shared-model', FAMILY_A, 'Habit', 'personal-import-target'),
+      mapping('retain-foreign-scope', FAMILY_B, 'HabitLog', 'personal-import-target'),
+      mapping('retain-other-person', FAMILY_A, 'HabitLog', 'other-person-target'),
+    )
+    const beforeB = snapshot((model, row) => row.family_id === FAMILY_B)
+    const { d } = deps()
+    await deleteMemberAccount('child-a', d)
+    expect(db.find('importedRecord', 'erase-personal-log')).toBeUndefined()
+    for (const id of ['retain-shared-model', 'retain-foreign-scope', 'retain-other-person']) {
+      expect(db.find('importedRecord', id)).toBeDefined()
+    }
+    expect(db.find('habit', 'personal-import-target')).toBeDefined()
+    expect(db.find('habitLog', 'personal-import-target')).toBeUndefined()
+    expect(snapshot((model, row) => row.family_id === FAMILY_B)).toEqual(beforeB)
+  })
+
   it('erases former-member message files and copied history while retaining household photos and other members', async () => {
     db.find('user', 'child-a')!.family_id = null
     await fakePrisma.householdMemberAccountLink.deleteMany({ where: { user_id: 'child-a' } })

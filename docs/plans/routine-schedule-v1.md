@@ -710,3 +710,16 @@ Link-handler regression cases are authored but unrun. This is source progress,
 not rendered or native navigation acceptance; programmatic navigation, non-link
 account controls and full lifecycle reconciliation remain for consolidated QA.
 No rollout, API/schema, provider, CI, merge or deployment changes.
+
+## Historical import provenance continuation — 2026-10-20
+
+Personal target provenance now participates in account-erasure household discovery
+and exact scoped cleanup before routine-root/other personal-row deletion. The
+same path covers current membership and former households. Cleanup includes
+assigned chores and linked legacy assignments, personal logs/badges/redemptions/
+wishes; model and household identity are explicit, preserving other mappings
+with colliding target IDs. New unlocked scopes refuse the transaction; bounded
+200-pair predicates avoid one giant deletion query for long histories. Retained
+household imports and ordinary importer replay semantics are unchanged. Helper,
+fake-database and disposable-Postgres cases are authored and unrun. This does not
+close full non-FK erasure, link/rollout or lifecycle/device acceptance.

@@ -1,3 +1,4 @@
+import { erasePersonalImportProvenanceInTx } from '@/lib/account-erasure-imports'
 import { eraseRetainedAccountHistoryInTx } from '@/lib/account-erasure-history'
 import { expandSeriesInTx } from '@/lib/recurringChores'
 import { handOverRoutineControlRootsInTx, handOverHistoricalRoutineControlsInTx } from '@/lib/routine-root-handover'
@@ -279,6 +280,9 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
       if (!user) return none
       const erasureFamilies = await lockAccountProfileHouseholds(tx, user.id, user.family_id)
       const messageFiles = await personalMessageFiles(tx, user.id, root)
+      // Exact model/record pairs must be captured before personal deletion or
+      // user cascades, including retained rows in former households.
+      await erasePersonalImportProvenanceInTx(tx, user.id, erasureFamilies)
 
       if (!user.family_id) {
         await eraseAccountProfiles(tx, user.id, null)
@@ -470,7 +474,7 @@ export const HOUSEHOLD_CLEARED_REFERENCES: ReadonlyArray<readonly [string, strin
 /**
  * Member path, inside the transaction: hand household content to the
  * successor, clear references, delete what was only about this member.
- * Returns the files to remove after commit.
+ * Private sent-message files are collected separately before this handover.
  */
 async function handOverAndDetach(
   tx: any,
@@ -530,23 +534,10 @@ async function handOverAndDetach(
   // Their own chores (assigned to them) go; photos are handled below.
   const ownChores = await tx.chore.findMany({ where: { ...inFamily, assigned_to: userId }, select: { id: true } })
   const ownChoreIds = ownChores.map((c: { id: string }) => c.id)
-  const [ownAssignments, habitLogs, badges, redemptions, wishes] = await Promise.all([
-    tx.choreAssignment.findMany({
-      where: { OR: [{ assigned_to: userId }, { chore_id: { in: ownChoreIds } }] },
-      select: { id: true },
-    }),
-    tx.habitLog.findMany({ where: { user_id: userId }, select: { id: true } }),
-    tx.earnedBadge.findMany({ where: { user_id: userId }, select: { id: true } }),
-    tx.rewardRedemption.findMany({ where: { requested_by: userId }, select: { id: true } }),
-    tx.wishlistItem.findMany({ where: { requested_by: userId }, select: { id: true } }),
-  ])
-  const removedTargets = [...ownChores, ...ownAssignments, ...habitLogs, ...badges, ...redemptions, ...wishes].map(
-    (r: { id: string }) => r.id
-  )
-  if (removedTargets.length > 0) {
-    // Import provenance for rows that no longer exist.
-    await tx.importedRecord.deleteMany({ where: { ...inFamily, target_id: { in: removedTargets } } })
-  }
+  const ownAssignments = await tx.choreAssignment.findMany({
+    where: { OR: [{ assigned_to: userId }, { chore_id: { in: ownChoreIds } }] },
+    select: { id: true },
+  })
 
   // Delete what was only about this member before handing anything over, so
   // a chore they both created and were assigned is deleted, not handed over.

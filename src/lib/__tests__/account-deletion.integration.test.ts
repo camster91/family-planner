@@ -275,6 +275,32 @@ describeWithDatabase('account deletion against Postgres', () => {
     expect(missing).toEqual([])
   })
 
+  it.each([false, true])('erases exact personal import targets after account deletion (previously removed: %s)', async (removed) => {
+    const child = uid('a', 'child')
+    if (removed) {
+      const { removeHouseholdMember } = await import('@/lib/member-removal')
+      await removeHouseholdMember({ actorId: uid('a', 'parent'), familyId: fam('a'), targetId: child }, { revokeCalendarGrant: async () => undefined })
+    }
+    const target = `${P}-a-habit-log`
+    await prisma.habit.create({ data: { id: target, family_id: fam('a'), title: 'Shared habit with colliding model id', created_by: uid('a', 'parent') } })
+    const data = (id: string, h: string, target_model: string, target_id: string) => ({
+      id: `${P}-${id}`, family_id: fam(h), import_job_id: `${P}-${h}-job`,
+      source_app: 'chore-champs', source_model: target_model, source_id: `${P}-${id}`, target_model, target_id,
+    })
+    await prisma.importedRecord.createMany({ data: [
+      data('erase-personal', 'a', 'HabitLog', target),
+      data('keep-shared-model', 'a', 'Habit', target),
+      data('keep-other-household', 'b', 'HabitLog', target),
+    ] })
+    const beforeB = await rowsOf('b')
+    await lib.deleteMemberAccount(child, { uploadDir, revokeCalendarGrant: async () => undefined })
+    expect(await prisma.habitLog.findUnique({ where: { id: target } })).toBeNull()
+    expect(await prisma.importedRecord.findUnique({ where: { id: `${P}-erase-personal` } })).toBeNull()
+    expect(await prisma.importedRecord.findUnique({ where: { id: `${P}-keep-shared-model` } })).not.toBeNull()
+    expect(await prisma.habit.findUnique({ where: { id: target } })).not.toBeNull()
+    expect(await rowsOf('b')).toEqual(beforeB)
+  })
+
   it('account erasure deletes the copied profile and links without changing another household', async () => {
     await prisma.householdMember.create({ data: { id: `${P}-a-unlinked-child`, family_id: fam('a'), name: 'Name-only fixture child' } })
     const beforeB = await rowsOf('b')
