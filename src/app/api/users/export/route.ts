@@ -1,3 +1,4 @@
+import { exportEventPreparation } from '@/lib/event-preparation/storage'
 import { exportWeeklyReset } from '@/lib/weekly-reset-storage'
 import { exportResponsibilityState } from '@/lib/responsibility-storage'
 import { NextRequest, NextResponse } from 'next/server'
@@ -520,8 +521,13 @@ export async function GET(request: NextRequest) {
 
     const weeklyReset = await exportWeeklyReset(prisma!, userId)
     const responsibilityState = await exportResponsibilityState(prisma!, userId, familyId, me?.role)
+    const eventPreparation = await exportEventPreparation(prisma!, {
+      userId, familyId, role: me?.role,
+      eventIds: events.map(row => row.id), choreIds: chores.map(row => row.id),
+    })
     const exportData = {
       exportedAt: new Date().toISOString(),
+      ...(eventPreparation === undefined ? {} : { eventPreparation }),
       ...(weeklyReset === undefined ? {} : { weeklyReset }),
       ...(responsibilityState === undefined ? {} : { responsibilityState }),
       user,

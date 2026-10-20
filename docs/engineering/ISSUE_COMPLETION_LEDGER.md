@@ -129,3 +129,15 @@ The GitHub inventory contains **82 open issues**. Older open records may already
 ## Consolidated QA handoff
 
 No new QA rounds run during this implementation phase. At code freeze, bind the candidate commit/tree and preserve prior failures; update affected assertions/selectors, run the appropriate original gates once against the combined candidate, repair real failures, then normally merge/deploy after passing. A later repair still requires its affected checks. Never report an unsigned binary, an unactivated integration, a plan or viewport simulation as production/hardware/customer acceptance.
+
+
+### #123 event preparation continuation — 2026-10-20
+
+Authored strict canonical transition planning, due-day cues, honest checked versus
+marked-done summaries, bounded deterministic reviewed-scope tokens, additive
+EventPreparation/Step Prisma+SQL lifecycle source, old-client storage probes,
+explicit optional household cleanup and parent scoped portability. Authored unit
+and isolated disposable-DB lifecycle cases; all unrun. Full authenticated source
+loading/mutation/receipts/recovery/EN-ES sheet and canonical discovery remain code
+work. See `docs/plans/event-preparation-v1.md`. No activation/schema execution or
+QA/release claim; #123 stays open. QA follows all remaining implementation.

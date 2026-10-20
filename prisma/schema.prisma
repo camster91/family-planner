@@ -161,6 +161,8 @@ model User {
 }
 
 model Family {
+  event_preparations EventPreparation[]
+  event_preparation_steps EventPreparationStep[]
   responsibility_states ResponsibilityState[]
   feedback_reports AppFeedback[]
   id                 String    @id @default(cuid())
@@ -433,6 +435,7 @@ model FamilyInvite {
 }
 
 model Chore {
+  event_preparation_step EventPreparationStep?
   /// Consent source continuity, not a credential. Legacy material edits advance the epoch in SQL.
   responsibility_generation String @default(dbgenerated("gen_random_uuid()::text"))
   responsibility_epoch Int @default(0)
@@ -923,6 +926,8 @@ model PushSubscription {
 }
 
 model Event {
+  preparation_epoch Int @default(0)
+  preparation EventPreparation?
   // Source identity for explicit conflict-review proposals. Additive, default-off;
   // database triggers cover legacy writers and material away/back changes.
   schedule_generation String @default(dbgenerated("gen_random_uuid()::text"))
@@ -968,6 +973,7 @@ model Event {
   source_connection   CalendarConnection?   @relation("CalendarConnectionEvents", fields: [source_connection_id], references: [id], onDelete: Cascade)
   sync_links          CalendarEventLink[]
 
+  @@unique([id, family_id], map: "Event_id_family_id_key")
   @@unique([source_subscription_id, source_uid, source_occurrence_start])
   @@index([family_id])
   @@index([start_time])
@@ -2127,3 +2133,35 @@ model ResponsibilityState {
   @@index([backup_by_id, family_id])
 }
 
+
+// Ordering/cue links only. Canonical Chore owns assignment, due day and checks.
+model EventPreparation {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  family_id String
+  event_id String
+  reviewed_event_source String
+  revision Int @default(0)
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  event Event @relation(fields: [event_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction, map: "EventPreparation_event_fkey")
+  steps EventPreparationStep[]
+  @@unique([id, family_id], map: "EventPreparation_id_family_id_key")
+  @@unique([event_id, family_id], map: "EventPreparation_event_id_family_id_key")
+  @@index([family_id])
+}
+model EventPreparationStep {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  family_id String
+  preparation_id String
+  chore_id String
+  position Int
+  cue_anchor String?
+  cue_direction String?
+  cue_minutes Int?
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  preparation EventPreparation @relation(fields: [preparation_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction, map: "EventPreparationStep_plan_fkey")
+  chore Chore @relation(fields: [chore_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction, map: "EventPreparationStep_chore_fkey")
+  // SQL owns deferred uniqueness and cue/position CHECK constraints.
+  @@unique([chore_id, family_id], map: "EventPreparationStep_chore_id_family_id_key")
+  @@unique([preparation_id, position], map: "EventPreparationStep_plan_position_key")
+  @@index([family_id])
+}

@@ -32,6 +32,8 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Shared device, inventory, dashboard, Android, observability, sync and graphics: #157–#163
 - Broader programme: #119–#146
 
+- Event preparation execution contract (#123): `docs/plans/event-preparation-v1.md` (source in progress; not activated or verified).
+
 ## Engineering references
 
 - Execution order: `docs/engineering/EXECUTION_ORDER.md`

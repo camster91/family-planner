@@ -1,4 +1,5 @@
 import { erasePersonalImportProvenanceInTx } from '@/lib/account-erasure-imports'
+import { clearHouseholdEventPreparationInTx } from '@/lib/event-preparation/storage'
 import { clearHouseholdResponsibilityInTx } from '@/lib/responsibility-storage'
 import { eraseRetainedAccountHistoryInTx } from '@/lib/account-erasure-history'
 import { expandSeriesInTx } from '@/lib/recurringChores'
@@ -650,6 +651,8 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   // 3. Calendar integrations (connections already cleared one by one above; listed so none is missed).
   { model: 'calendarEventLink', scope: { kind: 'family' }, why: 'provider event links' },
   { model: 'event', scope: { kind: 'family' }, why: 'events' },
+  { model: 'eventPreparationStep', scope: { kind: 'family' }, why: 'preparation links after canonical Event cascade; compatibility-probed SQL' },
+  { model: 'eventPreparation', scope: { kind: 'family' }, why: 'preparation metadata after canonical Event cascade; compatibility-probed SQL' },
   { model: 'calendarConnection', scope: { kind: 'family' }, why: 'provider tokens' },
   { model: 'calendarSubscription', scope: { kind: 'family' }, why: 'ICS feed URLs' },
   // 4. Household content.
@@ -815,6 +818,8 @@ export async function deleteHousehold(
       // 4. Every household-scoped table, in order.
       for (const step of HOUSEHOLD_DELETION_PLAN) {
         if (step.model === 'responsibilityState') await clearHouseholdResponsibilityInTx(tx, familyId)
+        else if (step.model === 'eventPreparationStep') await clearHouseholdEventPreparationInTx(tx, familyId, 'steps')
+        else if (step.model === 'eventPreparation') await clearHouseholdEventPreparationInTx(tx, familyId, 'plans')
         else await tx[step.model].deleteMany({ where: whereFor(step.scope, familyId, memberIds) })
       }
       // 5. The household row.

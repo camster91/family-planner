@@ -1,5 +1,38 @@
 # Current State
 
+## Event preparation contract, lifecycle and reviewed scope source — 2026-10-20
+
+The next #123 slice authors canonical EventPreparation/Step metadata, additive
+Prisma/SQL source, pure parent transition planning, deterministic reviewed-scope
+fingerprints, old-generated-client-compatible storage probes and household cleanup.
+New steps/routine copies propose fresh pending once-only Chores; canonical tasks
+continue to own completion, checks, photos, points and due days. Linking/detaching
+never completes, reassigns or deletes canonical work. Explicit cues derive a day
+from an actual event instant and named zone. Changed events require a keep-days
+or explicit eligible-retime decision; scheduled/completed work cannot be retimed.
+
+Scoped FKs and canonical move/delete cleanup preserve tasks when events/plans go.
+Plan lifecycle advances Event preparation epoch; inserts/material step updates
+advance plan revision. Chore cascades remove links without updating a shared
+parent row, avoiding chore->plan->another-chore lock cycles. Membership is in the
+scope fingerprint; relinking advances revision. Event family move cleanup runs
+after the outer update with a deferred FK. Saturation holds new reviewed edits.
+These are authored concurrency contracts, not observed PostgreSQL evidence.
+
+The scope binds actor/protocol/policy/zone, canonical source versions, plan
+lifecycle/revision, ordered links/cues, availability/completion, eligible subjects
+and exact dated routine sources. Task/directory query order is normalized. Parent
+portability exports relationship metadata only for already-exported canonical
+Event/Chore IDs and renews current household/role in SQL; child/teen receive none.
+Whole-household deletion names optional metadata cleanup after Event cascades.
+
+Contract/scope/compatibility/disposable lifecycle case source is authored, unrun.
+No tests/types/lint/build, Prisma generation/validation, schema/SQL/DB operation,
+browser/native/CI, activation/push/merge/deploy occurred. Required full API/source
+loading/canonical mutation/receipt/recovery/EN-ES sheet/discovery remains code work
+under `docs/plans/event-preparation-v1.md`; #123 and the full goal remain open.
+Consolidated QA follows remaining implementation.
+
 ## Schedule review sheet and canonical discovery source — 2026-10-20
 
 The next #123 slice adds the lazy EN/ES personal schedule-review sheet and entry
