@@ -1,5 +1,37 @@
 # Current State
 
+## Schedule conflict planner source — 2026-10-20
+
+Continued #123 from the existing calendar overlap disclosure, which remains an
+advisory details/edit path. The full required conflict-review contract now lives
+in `docs/plans/schedule-conflict-review-v1.md`; it preserves canonical Event,
+source/role/device/household boundaries, explicit buffer/search controls, exact
+preview/confirmation, pending recovery and current-source/whole-range concurrency
+requirements. It is not a substitute for the required API/apply/UI journey.
+
+`calendar-planning/conflict-review.ts` adds strict owner/snapshot/target-bound pure
+planning source: half-open overlaps, actual versus buffer-only explanations,
+separate preparation/travel-before/travel-after, explicit search windows, gap-
+based closest alternatives (three), exact duration/seconds and injected clock.
+It compares instants across DST, bounds events/windows/overrides/previews, rejects
+duplicate/foreign/unknown/stale inputs and never infers who attends. Partial,
+capped, failed-source, recurrence-unknown or out-of-coverage original buffers
+hold application. Read-only/subscribed/child/teen/repeating targets also hold.
+Exact preview intents must select an actual applicable candidate; no I/O/write
+or provider call exists in this layer.
+
+Source cases are authored for adjacency, actual/buffer-only conflicts, preparation
+not starting in the past, duration/seconds, repeated DST hour, incomplete coverage,
+role/source/recurrence holds, stale/foreign/missing/duplicate scope, window bounds,
+determinism, exact candidate previews and no openings. All remain unrun. Only
+formatting/source inspection occurred; no tests/typecheck/lint/build/browser/
+native/API/schema/client/SQL/DB/provider/CI/activation/push/merge/deploy. Next source
+must implement canonical event/whole-range versioning and fresh authorized
+snapshots, atomic reschedule/receipt/owned recovery, EN/ES short controls and
+weekly integration. Full #123/#144 and the broader goal remain active; QA follows
+remaining code. START_HERE's earlier responsibility UI-next pointer is reconciled
+with its already-authored controls/weekly integration.
+
 ## Responsibility controls and weekly review source — 2026-10-20
 
 The next #123 slice adds a lazily loaded EN/ES responsibility sheet to canonical
