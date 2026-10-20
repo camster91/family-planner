@@ -90,6 +90,7 @@ run("canonical event material versions and atomic compared moves", () => {
         targetId: id,
         range,
         compared,
+        sourceStatuses: [],
         start: "2026-10-20T12:00:00Z",
         end: "2026-10-20T13:00:00Z",
       });
@@ -167,6 +168,29 @@ run("canonical event material versions and atomic compared moves", () => {
       start: new Date("2026-10-20T12:00:00Z"),
       end: new Date("2026-10-20T13:00:00Z"),
     });
+  });
+  it("rejects a newly configured source between preview and the atomic time effect", async () => {
+    const id = await create(),
+      before = await versions(id),
+      subscriptionId = `source-${crypto.randomUUID()}`;
+    await prisma!.calendarSubscription.create({
+      data: {
+        id: subscriptionId,
+        family_id: family,
+        created_by: actor,
+        name: "Isolated source fixture",
+        url_enc: "fixture-not-a-live-credential",
+      },
+      select: { id: true },
+    });
+    try {
+      await expect(move(id, before)).rejects.toMatchObject({ code: "STALE" });
+    } finally {
+      await prisma!.calendarSubscription.delete({
+        where: { id: subscriptionId },
+        select: { id: true },
+      });
+    }
   });
   it("does not reveal a foreign target and holds saturated epochs while ordinary edits remain possible", async () => {
     const foreign = await create(undefined, otherFamily);

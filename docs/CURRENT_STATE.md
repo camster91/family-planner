@@ -1,5 +1,45 @@
 # Current State
 
+## Schedule review authenticated API and owned recovery source — 2026-10-20
+
+The next #123 slice adds person-only schedule GET/PATCH, readonly preview POST,
+and recovery GET/POST source. Actor/user token/family/role and current Family
+calendar feature are renewed under ordered locks; only parents can move concrete
+editable events. Read projections expose bounded canonical titles/times/origin/
+source tokens, not descriptions/addresses/emails/provider URLs/tokens. All sources
+are compared regardless of display filter. Invalid data/unknown protocols hold.
+The target remains in capped previews; caps and stored-only recurrence are honest
+unknowns. Source status is read before/after projection. Pending/failed/missing,
+older-than-24-hour or excessively future-checked sources mark coverage uncertain;
+no provider refresh or availability/attendance inference occurs.
+
+Source freshness/status/generation metadata is bound into the snapshot hash and
+compared again with the entire event source set in the SAME atomic time-effect
+SQL statement. No source/collection/blocker row locks are acquired after the
+target. The canonical effect and exact minimal receipt commit in one transaction;
+completed takeover/replay returns own proof without reapplying or caching a
+private schedule DTO. Wrong hash/key/actor/family/target/source/times fail safely.
+Proof is historical; the UI must separately reload current schedule state.
+
+The separate owned journal/browser adapter retains immutable body/key (four
+bounded entries), has current owner/generation/store continuity checks, and
+requires inspected recovery before retry. Unknown/refused/malformed results do
+not confirm a move or delete pending work. Own committed proof can be checked
+after age/target/write-pause changes; unconfirmed requests renew current source,
+role/feature/candidate/15-minute intent age and readiness. No automatic replay,
+new key on retry or failed-transaction-as-empty-success behavior. New
+`FAMILY_SCHEDULE_REVIEW_READY` defaults off; existing owner-recovery/rollback
+switches still gate writes and were not changed.
+
+Runtime/server/client/recovery and disposable-DB regression source is authored
+and unrun. Source inspection/formatting only; no tests/types/lint/build/API/DB/
+schema/client/SQL/provider/browser/native/CI, activation/push/merge/deploy. Required
+next code is the compact EN/ES conflict/alternative/buffer/search/preview sheet,
+exact pending/close/storage-repair lifecycle, canonical discovery and weekly
+integration. All PG/locks/receipt/concurrency/role/privacy/storage/rendered/native/
+release acceptance remains deferred. #123 broader workflows, #144 and the full
+repository goal remain active; one consolidated QA follows the remaining code.
+
 ## Canonical schedule source/atomic-compare foundation — 2026-10-20
 
 Continued #123 with additive Event insertion generation/material epoch Prisma

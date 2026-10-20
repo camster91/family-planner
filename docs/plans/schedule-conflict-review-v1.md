@@ -185,3 +185,83 @@ short controls, discovery and weekly integration. No new readiness switch was
 activated, no generated client/DDL/SQL/DB command ran, no fixture/live/provider
 mutation occurred and no push/merge/deploy happened. This is source progress,
 not completion of the approved conflict workflow or the repository goal.
+
+
+## Authenticated API, atomic receipts and owned recovery source — 2026-10-20
+
+The required internal HTTP/service layer now has source in `schedule-runtime`,
+`schedule-route`, `schedule-server`, `schedule-http`, `schedule-owner`,
+`schedule-status`, `schedule-recovery*`, `schedule-client` and `schedule-browser`.
+`/api/coordination/schedule-review` provides GET/PATCH, `/preview` a read-only POST,
+and `/recovery` GET context / POST exact inspection. Authentication uses the
+existing paired-device refusal and fresh person session. Actor advisory lock,
+household lock, current User FOR SHARE and Family FOR SHARE precede the selected
+Event lock. Current token/family/known role/calendar feature are decisive. No
+profile identity expands authorization. Children/teens read the existing personal
+calendar scope but cannot move events. Canonical source editability and concrete
+scope remain enforced separately from read access.
+
+Projection uses a single bounded content/epoch Event read with the target first,
+then returns at most 500 public records. It omits descriptions, locations, emails,
+source URLs/cursors/credentials and raw insertion UUIDs. Source freshness reads
+select only technical ID/status/check/update/generation metadata and expose only
+coverage flags, not that metadata. A before/after metadata check detects source
+churn. More than 100 configured sources or 500 records is incomplete; pending,
+failed, foreign/missing references, no successful check, checks older than 24 hours
+or over one minute in the future are uncertain. A shared injected evaluation
+clock drives preview/freshness/age rules. No source refresh or provider call occurs.
+
+The snapshot hash also binds technical source-status state, not merely event
+rows and a complete boolean. The final atomic Event update compares both bounded
+sets in the SAME statement snapshot, including source additions/removals/refreshes
+between projection and effect. No blocker or connection/subscription row lock is
+acquired after the target. Invalid legacy intervals fail unavailable rather than
+being silently omitted or reported as a bad client request.
+
+Write readiness requires new default-off `FAMILY_SCHEDULE_REVIEW_READY` and the
+existing owner-recovery enable/rollback switches. A distinct current session/
+role/generation/household-derived owner header and required idempotency key protect
+the mutation boundary. Strict original owner/range/zone/source/snapshot/preferences/
+selected times and issuedAt are request-hashed. The service recomputes the whole
+applicable candidate, refuses stale/unknown/nonparent/unsupported/expired choices,
+locks/rereads the exact receipt, then commits the guarded canonical effect and
+minimal bound receipt in one transaction. Abandoned-key takeover checks existing
+proof first; it never reapplies a completed move. Outer replay renews actor
+membership/token and validates exact minimal proof. No private schedule DTO is
+cached as a replay response, and no normal-UI/provider path is blocked by an AI
+failure. No external notification or invitation is introduced.
+
+Recovery is read-only even during pause or rollback. A matching completed own
+receipt is past proof independent of later target deletion/age; it grants no
+current event access. Unconfirmed inspection checks age (15 minutes, at most
+one minute future), readiness, current role/features/source/coverage/constraints
+and exact candidate before canRetry. Database transaction failure is never an
+empty successful review. Missing or stale targets hold, as do unsupported schema
+or saturated source versions. A different hash/action/family cannot take a key.
+
+The browser adapter uses its own owner-bound physical slot, bounded at four
+32-KiB intents / 256-KiB envelope, with generic Web Locks, current owner/store
+probes and retirement semantics. Stage-before-send remains the upcoming UI's
+responsibility. Initialization/read/focus/locale never sends. Inspected retries
+keep original body/key and server evaluation time; malformed/generic/private-DTO/
+mismatched acknowledgements remain unknown. Refused outcomes also preserve the
+entry. Closing/partial storage repair/dismissal must use the same explicit
+lifecycle already implemented in weekly review and responsibility controls.
+
+Authored unrun source cases cover current actor/role/feature isolation, minimal
+projections, failed/old/changing sources and caps; exact atomic effect/minimal
+receipt ordering, completed takeover without reapply, stale/paused/demoted holds,
+receipt failure; immutable client retry, malformed/mismatched/private-DTO replies,
+wrong owner/scope, strict recovery proof and malformed saved body; historical
+proof, expired/paused/demoted inspection without target access and read failures.
+Existing disposable-DB source adds a new-source-after-preview atomic-refusal case.
+These fakes/source cases do not prove transaction, rollback or PostgreSQL behavior.
+
+Source inspection and formatting only. No test/type/lint/build/Prisma/client/
+schema/migration/SQL/DB/app-API/browser/native/provider/CI or activation occurred.
+No push/merge/deploy/live-data mutation. Required next code is the compact EN/ES
+conflict sheet with editable buffers/search windows, exact before/after preview,
+owned pending/close/dismiss/storage repair, canonical calendar entry points and
+weekly-reset integration. This API is not a substitute for that journey. Real
+schema/locking/atomic receipt/takeover/role/storage/viewport/native and release
+acceptance is deferred with the broader #123/#144/repository scope still active.

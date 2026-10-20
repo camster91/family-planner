@@ -14,6 +14,7 @@ const scope = {
   owner: { userId: "person-a", familyId: "family-a" },
   role: "parent" as const,
   tokenVersion: 1,
+  sourceStatusToken: "c".repeat(64),
   timeZone: "America/Toronto",
   range: { start: "2026-10-19T00:00:00Z", end: "2026-10-26T00:00:00Z" },
   coverage: {
@@ -96,6 +97,7 @@ it("treats no atomic effect as a conflict, not success or a replacement request"
       targetId: source.id,
       range: scope.range,
       compared: [source],
+      sourceStatuses: [],
       start: "2026-10-20T12:00:00Z",
       end: "2026-10-20T13:00:00Z",
     }),

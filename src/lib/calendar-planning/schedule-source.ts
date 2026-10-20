@@ -3,6 +3,11 @@
  * and features, then lock the selected Event before reading comparison inputs.
  * All source/identity locks must precede that Event. Blockers remain plain MVCC
  * reads; no new shared lock is added to ordinary legacy calendar writers. */
+import {
+  scheduleStatusQuery,
+  scheduleSourceStatus,
+  type ScheduleSourceStatus,
+} from "./schedule-status";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -116,7 +121,7 @@ export async function readScheduleComparisonInTx(
     SELECT "id", "schedule_generation" AS generation, "schedule_epoch" AS epoch,
       "title", "start_time" AS start, "end_time" AS end, "recurrence",
       "source_subscription_id" AS "sourceSubscriptionId", "source_connection_id" AS "sourceConnectionId"
-    FROM "Event" WHERE ${predicate} ORDER BY "id" LIMIT 501`);
+    FROM "Event" WHERE ${predicate} ORDER BY ("id" = ${targetId}) DESC, "id" LIMIT 501`);
 }
 /** Fingerprint exact authorized scope and sorted canonical insertion/material
  * versions, not content. A browser cannot turn this metadata into permission. */
@@ -124,12 +129,14 @@ export function scheduleSnapshotToken(input: {
   owner: ScheduleReviewSnapshot["owner"];
   role: ScheduleReviewSnapshot["role"];
   tokenVersion: number;
+  sourceStatusToken: string;
   timeZone: string;
   range: ScheduleReviewSnapshot["range"];
   coverage: ScheduleReviewSnapshot["coverage"];
   events: Pick<ScheduleReviewEvent, "id" | "sourceToken">[];
 }): string {
   if (
+    !/^[a-f0-9]{64}$/.test(input.sourceStatusToken) ||
     !Number.isInteger(input.tokenVersion) ||
     input.tokenVersion < 0 ||
     input.events.length > 500 ||
@@ -152,6 +159,7 @@ export function scheduleSnapshotToken(input: {
         input.owner.familyId,
         input.role,
         input.tokenVersion,
+        input.sourceStatusToken,
         input.timeZone,
         input.range.start,
         input.range.end,
@@ -188,6 +196,7 @@ export async function applyComparedScheduleMoveInTx(
     targetId: string;
     range: ScheduleReviewSnapshot["range"];
     compared: ScheduleEventSource[];
+    sourceStatuses: ScheduleSourceStatus[];
     start: string;
     end: string;
   },
@@ -200,6 +209,16 @@ export async function applyComparedScheduleMoveInTx(
   )
     throw new ScheduleReviewError("INVALID");
   const targetSource = parsed.data.find((row) => row.id === input.targetId)!;
+  const statuses = z
+    .array(scheduleSourceStatus)
+    .max(100)
+    .safeParse(input.sourceStatuses);
+  if (
+    !statuses.success ||
+    new Set(statuses.data.map((row) => `${row.kind}:${row.id}`)).size !==
+      statuses.data.length
+  )
+    throw new ScheduleReviewError("INVALID");
   const start = parseCalendarInstant(input.start),
     end = parseCalendarInstant(input.end);
   if (+end <= +start) throw new ScheduleReviewError("INVALID_WINDOW");
@@ -224,10 +243,16 @@ export async function applyComparedScheduleMoveInTx(
       FROM "Event" WHERE ${predicate} ORDER BY "id" LIMIT 501
     ), expected_sources AS MATERIALIZED (
       SELECT * FROM jsonb_to_recordset(${JSON.stringify(parsed.data)}::jsonb) AS source(id text, generation text, epoch integer)
+    ), current_statuses AS MATERIALIZED (${scheduleStatusQuery(input.familyId)}), expected_statuses AS MATERIALIZED (
+      SELECT * FROM jsonb_to_recordset(${JSON.stringify(statuses.data)}::jsonb) AS source(kind text, id text, status text, "checkedAt" timestamptz, "updatedAt" timestamptz, generation integer)
     ), unchanged AS (
       SELECT NOT EXISTS (
         SELECT 1 FROM current_sources AS current FULL JOIN expected_sources AS expected ON current.id = expected.id
         WHERE current.id IS NULL OR expected.id IS NULL OR current.generation IS DISTINCT FROM expected.generation OR current.epoch IS DISTINCT FROM expected.epoch
+      ) AND NOT EXISTS (
+        SELECT 1 FROM current_statuses AS current FULL JOIN expected_statuses AS expected ON current.kind = expected.kind AND current.id = expected.id
+        WHERE current.id IS NULL OR expected.id IS NULL OR current.status IS DISTINCT FROM expected.status OR current.generation IS DISTINCT FROM expected.generation
+          OR current."checkedAt" IS DISTINCT FROM (expected."checkedAt" AT TIME ZONE 'UTC') OR current."updatedAt" IS DISTINCT FROM (expected."updatedAt" AT TIME ZONE 'UTC')
       ) AS matches
     )
     UPDATE "Event" AS target SET "start_time" = new_times.start_utc, "end_time" = new_times.end_utc, "updated_at" = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')

@@ -126,7 +126,11 @@ export class ScheduleReviewError extends Error {
       | "STALE"
       | "MISSING"
       | "INVALID_WINDOW"
-      | "UNAVAILABLE",
+      | "UNAVAILABLE"
+      | "FORBIDDEN"
+      | "UNAUTHORIZED"
+      | "EXPIRED"
+      | "UNSUPPORTED",
   ) {
     super("Schedule review needs a fresh authorized snapshot");
   }
@@ -396,4 +400,23 @@ export function previewScheduleMove(
     end: choice.end,
     issuedAt: now.toISOString(),
   });
+}
+
+/** Shared read scope. A fingerprint cannot reconstruct or authorize a range. */
+export const scheduleReviewScope = z
+  .object({
+    targetId: id,
+    range: interval,
+    timeZone: z.string().max(100).refine(isValidTimeZone),
+  })
+  .strict();
+export type ScheduleReviewScope = z.infer<typeof scheduleReviewScope>;
+export const scheduleReviewInstant = instant;
+export function requireScheduleIntentAge(
+  command: ScheduleMoveCommand,
+  now: Date,
+) {
+  const age = now.getTime() - Date.parse(command.issuedAt);
+  if (!Number.isFinite(age) || age < -60000 || age > 15 * 60000)
+    throw new ScheduleReviewError("EXPIRED");
 }
