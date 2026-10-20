@@ -1,5 +1,14 @@
 # API household-isolation audit (issue #102)
 
+2026-10-20 restock source: GET/POST inventory/restock and POST restock/undo use
+paired-first auth, canonical current parent/teen inventory+lists authority and
+original actor/household binding. Item/list/ingredient/receipt references are
+household checked, source versions prevent silent retargeting, supplied inventory
+owner proof is enforced and replay rechecks current list-item ownership/existence.
+All outcomes private/no-store; stream/rate limits apply. Tests for common paired
+context and disposable-DB ownership/concurrency are authored only. No isolation
+or runtime pass claimed; UI/journal integration remains open.
+
 Source addendum 2026-10-20: `POST /api/inventory/recovery/review` additionally
 requires original inventory session-owner proof before original-entry parsing.
 Canonical authority is renewed inside the read transaction. Receipt action,

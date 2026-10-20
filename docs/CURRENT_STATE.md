@@ -1,5 +1,24 @@
 # Current State
 
+## Inventory replacement restock backend source — 2026-10-20
+
+Added private reviewed inventory-to-grocery APIs and a canonical transaction
+effect. Explicit list/content/purchase amount/unit are independent of stock and
+package size. Existing open replacement provenance skips concurrent duplicate
+requests; similar manual/recipe rows need explicit separate-row review. Item and
+receipt commit atomically. Matching receipt/current ownership confirms historical
+success without recreating a removed list row. Current parent/teen inventory and
+lists authority, source versions and intent age remain enforced.
+
+Owned ten-minute Undo reuses the existing grocery provenance/window rule; checked
+rows remain. No new schema/source enum, stock store or automatic purchase. Existing
+recipe Undo remains a compatibility wrapper. Test source covers concurrency,
+quantity/provenance, duplicate/foreign review, version/age and checked-row Undo;
+none was run. **Not UI/recovery integrated yet.** Next: extend existing owned
+request/review/sender and wire inventory/history replacement UI, then cooking
+stock review. No QA/typecheck/lint/build/browser/native, schema/provider operation,
+push, merge or deployment. `architecture/INVENTORY_RESTOCK.md`.
+
 ## Shared reviewed meal-description source — 2026-10-20
 
 Unlinked Add meal now offers the same collapsed typed/voice review as Add food.

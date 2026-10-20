@@ -395,8 +395,19 @@ export async function undoRecipeAdd(
   actor: Actor,
   now: Date = new Date()
 ): Promise<{ status: number; body: UndoAddResponse | ErrorBody }> {
+  return undoGroceryAdd(db, requestId, actor, ADD_FROM_RECIPE_ACTION, now)
+}
+
+/** Shared O-5 provenance/ownership/window rule; the route fixes the source action. */
+export async function undoGroceryAdd(
+  db: UndoDb,
+  requestId: string,
+  actor: Actor,
+  action: 'grocery.add-from-recipe' | 'grocery.add-from-inventory.v1',
+  now: Date = new Date()
+): Promise<{ status: number; body: UndoAddResponse | ErrorBody }> {
   const record = await db.idempotencyRecord.findFirst({
-    where: { id: requestId, family_id: actor.family_id, action: ADD_FROM_RECIPE_ACTION },
+    where: { id: requestId, family_id: actor.family_id, action },
     select: { user_id: true, created_at: true, response_status: true },
   })
   if (!record) return fail(404, 'UNDO_NOT_FOUND')

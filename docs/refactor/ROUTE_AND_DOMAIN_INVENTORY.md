@@ -1,5 +1,16 @@
 # Route and domain inventory (#148)
 
+### Inventory restock backend source — 2026-10-20
+
+New GET/POST `/api/inventory/restock` and POST `/api/inventory/restock/undo` use
+paired-first personal auth and renewed canonical parent/teen inventory+lists
+authority. Shared effect in `inventory-restock.ts`, strict v1 contract, explicit
+source version/purchase values and atomic canonical ListItem/receipt. Existing
+createListItem accepts internal inventory provenance; grocery O-5 Undo is shared
+with its existing recipe wrapper retained. No schema/source enum/new stock store.
+UI/owned-journal integration remains open; source integration/paired tests are
+authored, not run. Details: `architecture/INVENTORY_RESTOCK.md`.
+
 ### Shared meal/food foreground draft source — 2026-10-20
 
 No route/model/schema added. `ReviewedDescriptionDraft` owns common collapsed

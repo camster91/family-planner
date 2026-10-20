@@ -2,6 +2,16 @@
 
 Supporting detail for [ADR-0007](adr/0007-canonical-meal-recipe-grocery-models.md) (**Accepted 2026-09-27**, issue #149). If this file and the ADR disagree, the ADR wins. `prisma/schema.prisma` and the route source remain authoritative for what exists today.
 
+Inventory replacement source addendum (2026-10-20, #125): explicit restocking
+uses existing canonical ListItem with `source='manual'`, immutable
+`source_key='inventory:<itemId>'` and creating receipt provenance. This extends
+manual provenance without another stock/list model or source enum. Exact open
+replacement lots skip under household serialization; similar rows are reviewed,
+never automatically merged or converted. The existing O-5 grocery Undo primitive
+is shared with its recipe compatibility export preserved. Backend source only;
+UI/owned recovery and consolidated acceptance remain open. See
+[inventory restocking](INVENTORY_RESTOCK.md).
+
 ## 1. Evidence base
 
 - Inspected on `master` @ `2fd6cc5` on 2026-09-27. Static source inspection only. No production data was read, and no row counts in this document come from a live database.

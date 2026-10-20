@@ -175,6 +175,21 @@ every new field is optional. Rollback of the app code is safe; the new columns s
 
 ## Food inventory (#263, #158/#121)
 
+**Replacement restock backend source (2026-10-20, not UI/journal integrated):**
+GET `/api/inventory/restock?itemId=&listId=&content=` returns current source
+name/version, eligible lists (cap 100), exact open replacement pointer and up to
+ten possible duplicate summaries with incomplete-comparison disclosure (2000-row
+scan cap). Optional original read-scope header is validated/echoed.
+POST accepts strict `herewoven.inventory-restock.v1` with expected actor/family,
+issued-at, reviewed source version, list/content/amount/unit and explicit
+allow_similar; key required, 8 KiB body, GET/POST 90/user/minute. Canonical
+ListItem/receipt are atomic; no stock mutation. Current parent/teen inventory and
+lists authority applies before effect/replay. Removed list rows are not recreated
+by confirmation. POST `/api/inventory/restock/undo` is original actor/household/
+requestId-bound, 4 KiB/60 per minute, with the existing ten-minute own-open-rows
+Undo rule; checked rows stay. Every outcome private/no-store. Details and
+unfinished integration: `INVENTORY_RESTOCK.md`.
+
 **Inventory recovery foundation (2026-10-20, off/gated UI integrated):** personal
 
 `POST /api/inventory/recovery/review` accepts strict
