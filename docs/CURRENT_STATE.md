@@ -1,5 +1,15 @@
 # Current State
 
+## Notification snooze source mapping — 2026-10-20
+
+Original #463 criteria now map to existing canonical route, inbox, additive
+schema/migration source and authored route/mounted/paired-denial coverage. No
+duplicate feature was added. All four delays, personal atomic target, Snoozed
+return-time/Show now and unread expiry return are present in source. Existing
+50-row read cap is documented. No tests or migration ran; multi-device and final
+acceptance remain pending. `product/NOTIFICATION_SNOOZE.md` and completion ledger.
+
+
 ## Recipe/prep stock-lot review source — 2026-10-20
 
 Saved recipe cooking and bulk-prep dishes now link to a compact Inventory review.
