@@ -1,5 +1,31 @@
 # Current State
 
+## Responsibility authenticated API and owned recovery source — 2026-10-20
+
+Gated person-only responsibility GET/PATCH and recovery GET/POST now have source:
+strict bounded requests/private DTOs, current actor role/token/family checks,
+related identity locks before target/root/state, canonical subject/availability
+rules and changed-relationship holds. Parent-only choices are bounded/searchable;
+children/teens do not receive a household directory, and children never get
+handoff coordination context. No private notes/addresses/ages/emails or bearer
+secrets are returned. Chore/pickup ownership/completion remains canonical.
+
+The metadata effect and exact minimal receipt commit together. Existing-key
+hash/scope/user/family checks and completed proof prevent takeover reapplication;
+replay renews authority. Own historical proof is distinct from current target
+access and never carries cached names/target DTOs. Recovery checks live source/
+revision/age/role/eligibility without applying an effect. The shared owner-bound
+journal preserves immutable body/key, explicit inspected retry, physical-store
+repair/retirement and no background replay. New readiness + existing recovery
+gates were not changed; the new feature defaults off. No provider or invitation/message was added.
+
+Runtime/server/client/recovery source cases are authored but unrun. No QA/tests/
+types/lint/build, schema/client/SQL/DB/app-API, browser/native/provider/CI, push/
+merge/deploy or activation. Required next code: compact EN/ES canonical controls,
+closing/pending/dismissal recovery UI and weekly-summary integration. Full PG/
+lock/trigger/FK/role/storage/device/rendered and release acceptance is deferred.
+The full goal is active; consolidated QA follows remaining repository code.
+
 ## Responsibility FK/storage/lifecycle source — 2026-10-20
 
 The next #123 slice now has additive Prisma/migration source for one FK-attached

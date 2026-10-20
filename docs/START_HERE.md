@@ -48,7 +48,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Product measurement and learning (#140): `docs/product/PRODUCT_MEASUREMENT.md`
 - Chores (parent check, picture routines for young kids, taking turns): `docs/product/CHORES.md`
 - Provider-free weekly reset (#123, source foundation; not activated): `docs/plans/weekly-reset-v1.md`
-- Responsibility acceptance and backup (#123, consent/storage source; API/UI still required): `docs/plans/responsibility-and-backup-v1.md`
+- Responsibility acceptance and backup (#123, consent/storage/API/recovery source; UI still required): `docs/plans/responsibility-and-backup-v1.md`
 - Release/incident operations: `docs/runbooks/**` (including `BACKUPS.md`, `TRANSACTIONAL_EMAIL.md` and `SUPPORT.md`)
 - Preserved finance to native screens (#566): `docs/plans/finance-archive-product.md` (planning scope; no archive promotion)
 - Existing Coolify source-build deployment (2026-10-07 reconciliation; settings changes remain owner-gated): `docs/runbooks/COOLIFY_DEPLOY.md`

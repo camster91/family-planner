@@ -199,3 +199,71 @@ compatibility, SQL lock graph, FK/trigger constraints/erasure and source identit
 Required next code remains fresh-authority person API/atomic receipts/owned recovery,
 full compact EN/ES domain controls and weekly-summary integration. Full #123 and
 repository scope is active; storage source is not verified feature delivery.
+
+
+## Authenticated API and owned request source — 2026-10-20
+
+Person-only `/api/coordination/responsibilities` GET/PATCH now has source. The
+private FAMILY_RESPONSIBILITY_READY flag is new and defaults off; no flag was changed; writes also
+preserve existing queue-recovery enable/rollback gates and require an exact
+session/role/generation/household-scoped owner header plus Idempotency-Key. The
+normal authenticateWithFamily boundary refuses paired devices. Queries/bodies
+are strict and bounded; responses are private/no-store and names are bounded.
+No family preference, assignment, external invitation or provider is activated.
+
+The runtime renews actor role/token/family under actor then household locks,
+preflights current identity references without a state lock, locks related
+account/profile identities in stable order before family/target/root/state,
+renews permissions/source/relationships and refuses an identity discovered outside
+that locked set. Parent-only configuration is refused before private reference
+retrieval. Chore reads for teens/children require their account as primary or
+backup; handoff context remains parent/teen only; feature-off/archived/erased/
+unknown/inactive/profile-rollback cases remain distinct holds. Chore subjects use
+the canonical validator and same-household locked identity projections, never
+foreign related names or profile-as-actor authority. Parent-recorded provenance
+requires a current parent account. Existing profile recurrence action pauses
+remain enforced. Handoff coordinator is still separate from sitter_name.
+
+The read DTO contains only target title/link, current safe names/slot statements,
+source/revision and role-appropriate controls. Parent configuration choices are
+bounded to 50 with explicit more and name search; an existing chosen identity is
+resolved separately from that cap. Children/teens receive no household directory.
+No notes, addresses, ages, email, share/provider/session secrets or arbitrary
+stored state are copied to a client/provider. Closed records may be read but
+cannot receive a new statement. Assignment/completion still use canonical routes.
+
+The write service applies the pure planner, FK/CAS metadata effect and a minimal
+receipt in one transaction. It checks exact user/key/family/action/body hash and
+completed receipt before takeover can reapply an effect. Receipts carry only
+original actor/target/key/action/source/revision, not a privileged target DTO or
+names. Replays renew current person authority and validate proof shape/binding.
+A receipt proves that an earlier request committed, not that current work remains
+accepted; current target state always requires a fresh role-safe read.
+
+Recovery GET/POST remains read-only during a write pause. Committed own receipts
+can be inspected after target/role/age changes without returning old target data.
+Unconfirmed requests require fresh target/identity/source/revision/intent age and
+planner validity before a retry is offered; no unavailable transaction is turned
+into empty success. The separate owner-bound journal reuses physical-store
+probes, Web Locks, account/household/generation retirement and exact transition
+repair. It retains up to ten distinct immutable requests, has no unowned fallback,
+and never sends on initialize/read/focus/locale. A recovered retry needs explicit
+inspection and preserves original body/key; malformed acknowledgements remain
+unknown. The UI must still stage before send, guard closing/lifecycle, distinguish
+stage versus dismissal storage repair and reload current state after proof.
+
+Authored source cases cover stale/foreign/current-role authority, identity lock
+ordering and changed relationship holds, own named-backup scope, private child
+handoff/directory exclusion, minimal effect/receipt layering, completed takeover,
+receipt write failure, original body/key and malformed/mismatched ack, expired/
+paused recovery and prior own proof without stale target context. All unrun;
+fakes do not prove Postgres transaction/trigger/lock behavior. No tests/types/lint/
+build, Prisma/schema/migration/SQL/DB/app-API, provider/browser/native/CI, push,
+merge, deployment or flag activation occurred. No live data was changed.
+
+Required next code is the complete compact EN/ES canonical owner/statement/backup/
+coordinator UI, exact pending-request lifecycle and storage repair presentation,
+and weekly-reset integration using the same safe projection. The API/journal is
+not a substitute for those screens. Full migration/client/FK/concurrency/receipt/
+role/storage/export/erasure/rendered/native acceptance remains in the later
+consolidated pass; broader #123/#144 and repository scope stays active.

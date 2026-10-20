@@ -124,6 +124,7 @@ export class ResponsibilityError extends Error {
   constructor(
     readonly code:
       | "NOT_FOUND"
+      | "UNAUTHORIZED"
       | "FORBIDDEN"
       | "CONFLICT"
       | "UNSUPPORTED"

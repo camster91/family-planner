@@ -1,7 +1,7 @@
 /** Private transaction primitives, not an authenticated endpoint. Caller locks
  * current actor/household/target first and commits the effect + receipt together. */
 import { randomUUID } from "node:crypto";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import {
   responsibilityState,
   ResponsibilityError,
@@ -127,14 +127,15 @@ export async function readResponsibilityStateInTx(
   tx: Prisma.TransactionClient,
   familyId: string,
   target: ResponsibilityTarget,
+  lock = true,
 ) {
-  const rows = await tx.$queryRaw<ResponsibilityRow[]>`
+  const rows = await tx.$queryRaw<ResponsibilityRow[]>(Prisma.sql`
     SELECT "id", "protocol", "family_id", "chore_id", "pickup_id", "handoff_id", "source_token", "revision", "coordinator_id",
       "backup_account_id", "backup_member_id", "primary_subject_account_id", "primary_subject_member_id",
       "primary_decision", "primary_by_id", "primary_method", "primary_at", "backup_decision", "backup_by_id", "backup_method", "backup_at"
     FROM "ResponsibilityState" WHERE "family_id" = ${familyId} AND
       ((${target.kind} = 'chore' AND "chore_id" = ${target.id}) OR (${target.kind} = 'pickup' AND "pickup_id" = ${target.id}) OR (${target.kind} = 'handoff' AND "handoff_id" = ${target.id}))
-    FOR UPDATE`;
+    ${lock ? Prisma.sql`FOR UPDATE` : Prisma.empty}`);
   if (rows.length > 1) throw new ResponsibilityError("UNSUPPORTED");
   if (!rows[0]) return null;
   const decoded = decodeResponsibilityRow(rows[0]);
