@@ -1,3 +1,4 @@
+import { eraseRetainedAccountHistoryInTx } from '@/lib/account-erasure-history'
 import { expandSeriesInTx } from '@/lib/recurringChores'
 import { handOverRoutineControlRootsInTx, handOverHistoricalRoutineControlsInTx } from '@/lib/routine-root-handover'
 /**
@@ -230,6 +231,17 @@ async function photoNamesUsedElsewhere(tx: any, familyId: string, names: string[
   return new Set([...chores, ...assignments].map((r: { photo_url: string }) => photoRefName(r.photo_url)))
 }
 
+async function personalMessageFiles(tx: any, userId: string, root: string): Promise<FileTarget[]> {
+  const messageFiles = await tx.messageAttachment.findMany({
+    where: { message: { sender_id: userId } },
+    select: { filename: true },
+  })
+  return messageFiles
+    .map((row: { filename: string }) => messageAttachmentPath(root, row.filename))
+    .filter((file: string | null): file is string => Boolean(file))
+    .map((file: string) => ({ path: file }))
+}
+
 // ---------------------------------------------------------------------------
 // Member account
 
@@ -265,16 +277,18 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
       await lockUser(tx, userId)
       const user = await tx.user.findUnique({ where: { id: userId }, select: { id: true, role: true, family_id: true } })
       if (!user) return none
-      await lockAccountProfileHouseholds(tx, user.id, user.family_id)
+      const erasureFamilies = await lockAccountProfileHouseholds(tx, user.id, user.family_id)
+      const messageFiles = await personalMessageFiles(tx, user.id, root)
 
       if (!user.family_id) {
         await eraseAccountProfiles(tx, user.id, null)
         const historicalControls = await handOverHistoricalRoutineControlsInTx(tx, user.id, null)
         const grants = await takeCalendarConnections(tx, { user_id: user.id })
         await deletePersonalRows(tx, user.id)
+        await eraseRetainedAccountHistoryInTx(tx, user, erasureFamilies)
         await tx.user.delete({ where: { id: user.id } })
         for (const control of historicalControls) await expandSeriesInTx(tx, control.rootId, control.familyId, deletionNow)
-        return { deleted: true, successorId: null, files: [] as FileTarget[], grants }
+        return { deleted: true, successorId: null, files: messageFiles, grants }
       }
 
       const familyId: string = user.family_id
@@ -289,12 +303,13 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
       // Their calendar connections: encrypted grants kept for the revoke
       // after commit; links, imported events and rows deleted here.
       const grants = await takeCalendarConnections(tx, { user_id: user.id })
-      const files = await handOverAndDetach(tx, user.id, familyId, successorId, root, deletionNow)
+      await handOverAndDetach(tx, user.id, familyId, successorId, deletionNow)
       await recordMemberLeft(tx, user, familyId)
       await deletePersonalRows(tx, user.id)
+      await eraseRetainedAccountHistoryInTx(tx, user, erasureFamilies)
       await tx.user.delete({ where: { id: user.id } })
       for (const control of historicalControls) await expandSeriesInTx(tx, control.rootId, control.familyId, deletionNow)
-      return { deleted: true, successorId, files, grants }
+      return { deleted: true, successorId, files: messageFiles, grants }
     },
     { timeout: 60_000 }
   )
@@ -462,19 +477,10 @@ async function handOverAndDetach(
   userId: string,
   familyId: string,
   successorId: string,
-  root: string,
   now: Date
-): Promise<FileTarget[]> {
+): Promise<void> {
   const to = successorId
   const inFamily = { family_id: familyId }
-  const messageFiles = await tx.messageAttachment.findMany({
-    where: { message: { sender_id: userId } },
-    select: { filename: true },
-  })
-  const files: FileTarget[] = messageFiles
-    .map((row: { filename: string }) => messageAttachmentPath(root, row.filename))
-    .filter((file: string | null): file is string => Boolean(file))
-    .map((file: string) => ({ path: file }))
 
   // Sessions and credentials first: nothing issued to this member stays live.
   await tx.user.update({
@@ -565,10 +571,7 @@ async function handOverAndDetach(
   // Permanent account erasure anonymizes the original actor without changing stack identity.
   // This is intentionally separate from ordinary household member removal.
   await tx.routineStack.updateMany({ where: { created_by: userId }, data: { created_by: null } })
-  await tx.$executeRaw`
-    UPDATE "Message" SET "read_by" = array_remove("read_by", ${userId})
-    WHERE "family_id" = ${familyId} AND ${userId} = ANY("read_by")
-  `
+
 
   // Photos this member uploaded stay with the household (uploader cleared
   // below) and go with the household when it is deleted. They are not
@@ -579,7 +582,6 @@ async function handOverAndDetach(
   // attaching at that moment would break their chore. Retention exception in
   // docs/product/ACCOUNT_DELETION.md.
   await tx.upload.updateMany({ where: { uploaded_by: userId }, data: { uploaded_by: null } })
-  return files
 }
 
 /**

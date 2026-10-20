@@ -678,3 +678,17 @@ New pure/protected source cases are authored and unrun.
 Next reconciliation: historical ancillary erasure cleanup, link/rollout boundaries
 and navigation/async presentation; then the remaining issue-code ledger before
 consolidated QA. No tests, schema/client/native/CI operations or release activation.
+
+
+### Historical sent-message/audit erasure boundary — 2026-10-20
+
+Shared account erasure now discovers exact historical message/audit references
+before sorted household locking, anonymizes only the deleted member's target/
+actor/read markers and queues private sent-message attachments for post-commit
+cleanup in both membership paths. Household Upload photos remain under their
+existing retention exception; database uploader/actor SET NULL is preserved.
+No extra departure is written to historical households and other member targets
+and message readers remain. Focused and protected source cases are authored,
+unrun. Historical provenance/other non-FK data still need full-ledger reconciliation.
+Remaining source scope includes link/rollout and navigation/async boundaries;
+all broader lifecycle/file/device acceptance remains deferred to consolidated QA.

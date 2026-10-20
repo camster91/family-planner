@@ -1,5 +1,35 @@
 # Current State
 
+## Historical message/audit erasure source — 2026-10-20
+
+The photo retention contract was traced before editing: household Upload files
+remain and the existing SET NULL uploader FK removes account attribution. These
+uploads are not private sent-message files and are not erased as apparent orphans.
+The no-current-household path previously skipped sent-message file collection and
+explicit historical non-FK audit/read identifiers. Both account paths now collect
+validated private message-attachment targets before deleting messages and remove
+those files only after the account transaction commits, using the existing
+best-effort file result and path validation. Other attachment/upload files remain.
+
+Erasure household discovery now includes exact sent/read message and audit actor/
+member-target references alongside profile/routine roots, under the account lock
+before stable household locking. Shared cleanup scrubs copied member-target text
+and IDs, clears this audit actor and removes only this account from message
+read_by arrays in those locked households. Other member targets/text/reader order
+are retained. Historical households receive no extra departure event. Existing
+FK actor/uploader anonymization and ordinary personal-row deletion still apply.
+
+Authored source cases cover scoped lock discovery, exact redaction, former-member
+file cleanup, another household/history member retained, no false departure, real
+message attachment cascade, household upload retention/uploader clearing, reader
+cleanup and file callbacks observing the deleted account after commit. Protected
+routine-deletion cases cover both current and historical membership. All remain
+unrun. No tests/typecheck/lint/build/browser/native/schema/client operations, CI or
+release actions occurred; gates unchanged. Historical import provenance and other
+non-FK subject fields still need full-ledger reconciliation; no broad erasure
+acceptance is claimed. Next source work: remaining link/rollout and navigation/
+async boundaries, then finish the full issue ledger before consolidated QA.
+
 ## Profile-review invalidation and historical-root handover source — 2026-10-20
 
 Unlinked profile edit/archive commands now invalidate exact referenced routine

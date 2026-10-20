@@ -854,6 +854,55 @@ suite("canonical scheduled routine commands", () => {
         orderBy: { id: "asc" },
       });
       expect(prior.length).toBeGreaterThan(0);
+      const sentMessage = await prisma!.message.create({
+        data: {
+          family_id: familyId,
+          sender_id: leaving,
+          content: "Private sent fixture",
+          read_by: [leaving],
+        },
+      });
+      const messageName = `${crypto.randomUUID().replace(/-/g, "")}.png`;
+      const attachment = await prisma!.messageAttachment.create({
+        data: {
+          family_id: familyId,
+          uploaded_by: leaving,
+          message_id: sentMessage.id,
+          filename: messageName,
+          content_type: "image/png",
+          size_bytes: 10,
+        },
+      });
+      const photoName = `${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}.jpg`;
+      const upload = await prisma!.upload.create({
+        data: {
+          family_id: familyId,
+          uploaded_by: leaving,
+          filename: photoName,
+          content_type: "image/jpeg",
+          size_bytes: 10,
+        },
+      });
+      const retainedMessage = await prisma!.message.create({
+        data: {
+          family_id: familyId,
+          sender_id: parent,
+          content: "Household fixture retained",
+          read_by: [parent, leaving],
+        },
+      });
+      const history = await prisma!.auditLog.create({
+        data: {
+          family_id: familyId,
+          actor_user_id: leaving,
+          actor_kind: "person",
+          action: "member.removed",
+          target_type: "member",
+          target_id: leaving,
+          summary: "Private departing fixture name removed",
+        },
+      });
+      const removedFiles: string[] = [];
       // Historical fixture represents a previously removed account. The root's
       // private future subject is already someone else, so metadata aliases alone
       // cannot discover this household; the historic control owner must do so.
@@ -865,11 +914,39 @@ suite("canonical scheduled routine commands", () => {
       const deleted = await deleteMemberAccount(leaving, {
         db: prisma!,
         uploadDir: "/tmp/fp-routine-deletion-fixture",
-        removeFile: async () => {},
+        removeFile: async (file) => {
+          expect(
+            await prisma!.user.findUnique({ where: { id: leaving } }),
+          ).toBeNull();
+          removedFiles.push(file);
+        },
         revokeCalendarGrant: async () => {},
         now: () => now,
       });
       expect(deleted.deleted).toBe(true);
+      expect(removedFiles).toEqual([
+        `/tmp/fp-routine-deletion-fixture/messages/${messageName}`,
+      ]);
+      expect(
+        await prisma!.messageAttachment.findUnique({
+          where: { id: attachment.id },
+        }),
+      ).toBeNull();
+      expect(
+        await prisma!.upload.findUnique({ where: { id: upload.id } }),
+      ).toMatchObject({ filename: photoName, uploaded_by: null });
+      expect(
+        await prisma!.message.findUnique({ where: { id: retainedMessage.id } }),
+      ).toMatchObject({
+        content: "Household fixture retained",
+        read_by: [parent],
+      });
+      const redacted = await prisma!.auditLog.findUniqueOrThrow({
+        where: { id: history.id },
+      });
+      expect(redacted).toMatchObject({ actor_user_id: null, target_id: null });
+      expect(redacted.summary).not.toContain("Private departing fixture name");
+
       expect(
         await prisma!.user.findUnique({ where: { id: leaving } }),
       ).toBeNull();

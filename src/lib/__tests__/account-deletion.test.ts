@@ -343,6 +343,29 @@ describe('deleteMemberAccount', () => {
     seedExtras()
   })
 
+  it('erases former-member message files and copied history while retaining household photos and other members', async () => {
+    db.find('user', 'child-a')!.family_id = null
+    await fakePrisma.householdMemberAccountLink.deleteMany({ where: { user_id: 'child-a' } })
+    await fakePrisma.householdMemberLegacyMapping.deleteMany({ where: { user_id: 'child-a' } })
+    Object.assign(db.find('householdMember', 'member-a')!, { archived_at: new Date('2026-10-01'), erasure_user_id: 'child-a' })
+    db.rows('message').push({ id: 'former-sent', family_id: FAMILY_A, sender_id: 'child-a', content: 'Private fixture', read_by: ['child-a'] }, { id: 'surviving-message', family_id: FAMILY_A, sender_id: 'parent-a', content: 'Keep household message', read_by: ['parent-a', 'child-a'] })
+    db.rows('messageAttachment').push({ id: 'former-file', family_id: FAMILY_A, message_id: 'former-sent', uploaded_by: 'child-a', filename: `${'c'.repeat(32)}.png` })
+    db.rows('auditLog').push({ id: 'former-joined', family_id: FAMILY_A, actor_user_id: 'parent-a', action: 'member.joined', target_type: 'member', target_id: 'child-a', summary: 'Private old name joined' }, { id: 'former-removed', family_id: FAMILY_A, actor_user_id: 'child-a', action: 'member.removed', target_type: 'member', target_id: 'child-a', summary: 'Removed Private old name' }, { id: 'other-member', family_id: FAMILY_A, actor_user_id: 'parent-a', action: 'member.joined', target_type: 'member', target_id: 'parent-a', summary: 'Keep this parent history' })
+    const beforeB = snapshot((m, r) => !belongsToA(m, r) && !(m === 'user' && r.id === 'child-a')), leftBefore = db.rows('auditLog').filter(r => r.action === 'member.left').length
+    const { d, removed } = deps()
+    const result = await deleteMemberAccount('child-a', d)
+    expect(result.deleted).toBe(true)
+    expect(removed).toEqual([path.join(UPLOADS, 'messages', `${'c'.repeat(32)}.png`)])
+    expect(removed.some(name => name.includes(`${path.sep}chores${path.sep}`))).toBe(false)
+    expect(db.find('message', 'former-sent')).toBeUndefined()
+    expect(db.find('message', 'surviving-message')).toMatchObject({ content: 'Keep household message', read_by: ['parent-a'] })
+    for (const id of ['former-joined', 'former-removed']) { expect(db.find('auditLog', id)?.target_id).toBeNull(); expect(db.find('auditLog', id)?.summary).not.toContain('Private old name') }
+    expect(db.find('auditLog', 'former-removed')?.actor_user_id).toBeNull()
+    expect(db.find('auditLog', 'other-member')?.summary).toBe('Keep this parent history')
+    expect(db.rows('auditLog').filter(r => r.action === 'member.left')).toHaveLength(leftBefore)
+    expect(snapshot((m, r) => !belongsToA(m, r) && !(m === 'user' && r.id === 'child-a'))).toEqual(beforeB)
+  })
+
   it('a child: their own chores, sick days, allowance and wishes go; the household and B stay', async () => {
     const beforeB = snapshot((m, r) => !belongsToA(m, r))
     const { d } = deps()

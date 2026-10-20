@@ -154,6 +154,7 @@ const REMOVE_REASON: Record<string, string> = {
 }
 
 export const auditSummary = {
+  memberRedacted: () => 'Member details removed after account deletion',
   memberJoined: (name: string | null | undefined, role: string) =>
     `${auditName(name, 'A former member')} joined as ${roleWord(role)}`,
   /** Role word only: the account and its name are being deleted (#292). */

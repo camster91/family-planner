@@ -1,3 +1,4 @@
+import { accountErasureHistoryHouseholds } from '@/lib/account-erasure-history'
 import { rewriteRoutineSubjectsInTx, routineSubjectHouseholds } from '@/lib/routine-subject-lifecycle'
 /** Dormant #480 compatibility for existing account removal/deletion transactions. */
 import { lockHousehold } from '@/lib/household-lock'
@@ -9,13 +10,15 @@ export class HouseholdMemberIdentityConflict extends Error {
 }
 
 /** Account lock first. Lock current and historic erasure households in stable order. */
-export async function lockAccountProfileHouseholds(tx: any, userId: string, familyId: string | null): Promise<void> {
+export async function lockAccountProfileHouseholds(tx: any, userId: string, familyId: string | null): Promise<string[]> {
   const profiles: Array<{ family_id: string }> = await tx.householdMember.findMany({
     where: { erasure_user_id: userId }, select: { family_id: true },
   })
-  const families = new Set([...profiles.map((p) => p.family_id), ...await routineSubjectHouseholds(tx, userId)])
+  const families = new Set([...profiles.map((p) => p.family_id), ...await routineSubjectHouseholds(tx, userId), ...await accountErasureHistoryHouseholds(tx, userId)])
   if (familyId) families.add(familyId)
-  for (const id of [...families].sort()) await lockHousehold(tx, id)
+  const ordered = [...families].sort()
+  for (const id of ordered) await lockHousehold(tx, id)
+  return ordered
 }
 
 /** Caller holds the account lock, then its household membership lock. */

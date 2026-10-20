@@ -937,7 +937,21 @@ export const fakePrisma: any = new Proxy(
         }
         return 0
       }
-      if (prop === '$executeRaw') return async () => 0
+      if (prop === '$executeRaw') return async (strings: TemplateStringsArray, ...values: unknown[]) => {
+        const sql = strings.join('?').replace(/\s+/g, ' ').trim()
+        // Exact source erasure statement; no generic SQL interpretation.
+        if (sql.startsWith('UPDATE "Message" SET "read_by" = array_remove')) {
+          const userId = values[0], familyId = values[1]
+          let count = 0
+          for (const row of db.rows('message')) {
+            if (row.family_id !== familyId || !Array.isArray(row.read_by) || !row.read_by.includes(userId)) continue
+            row.read_by = row.read_by.filter((id: unknown) => id !== userId)
+            count += 1
+          }
+          return count
+        }
+        return 0
+      }
       if (prop === 'then') return undefined
       if (!delegates[prop]) delegates[prop] = delegate(prop)
       return delegates[prop]

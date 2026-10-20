@@ -133,7 +133,10 @@ One transaction, after the rules are checked again inside it under a per-househo
    different household and their private future subject is now someone else. Those already locked
    households retain replacement controls with an existing successor. Normal creator handover protects
    surviving routine occurrences from the creator cascade; current-family handover is not repeated.
-   Historical ancillary erasure/file acceptance remains part of the deferred lifecycle reconciliation.
+   Historical member-target audit text/IDs and message read markers are explicitly scrubbed under the
+   discovered household locks, without adding another departure event. The same sent-message attachment
+   cleanup runs even when the account has no current household. Household Upload photos remain retained;
+   uploader/actor attribution is cleared. Runtime/file acceptance remains deferred.
 3. **Household content they created is handed over** to the successor (not deleted): chores they created, events,
    lists and list items they added, rewards, budget categories and transactions, projects, meals, notes, saved
    places, pickups, allowance they gave, sitter handoffs, sick days/medications they recorded for others, ICS
@@ -149,7 +152,8 @@ One transaction, after the rules are checked again inside it under a per-househo
 
 Inside the transaction, their calendar connections are read (the encrypted grants are kept in memory) and each
 one's links, imported events and row are deleted. After commit, each grant is revoked at the provider (best effort,
-see "Partial failure") and the photo files are removed from disk.
+see "Partial failure") and the private sent-message attachment files queued for this erasure are removed.
+Household Upload photos remain under the retention exception above.
 
 ### Whole household deletion (`deleteHousehold`)
 
