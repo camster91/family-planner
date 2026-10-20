@@ -1,5 +1,18 @@
 # Current State
 
+## Preserved-finance product plan source — 2026-10-20
+
+#566 now has a current source inventory and FIN-0 through FIN-7 delivery design
+for archive review/money bridge, accounts, bills/payments, savings contributions,
+planned income, receipts, daily periods and no-spend views. The plan distinguishes
+existing parent budget APIs/native import mappings from all 11 passthrough JSON
+archive source keys. Exact currency/date interpretation, Float/USD/UTC bridging,
+reviewed adaptive surfaces, duplicate-safe promotion, provenance, export/erasure
+and non-destructive rollback are explicit. No advanced native finance schema/API
+was added; original archives remain preserved. Planning scope is authored, future
+product slices are planned, not implemented/accepted. No QA, provider, migration,
+real-data access, push, merge or deploy. `plans/finance-archive-product.md`.
+
 ## Notification snooze source mapping — 2026-10-20
 
 Original #463 criteria now map to existing canonical route, inbox, additive

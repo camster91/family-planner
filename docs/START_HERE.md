@@ -46,6 +46,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Navigation and information architecture (one home, tabs, More, undo): `docs/product/NAVIGATION.md`
 - Chores (parent check, picture routines for young kids, taking turns): `docs/product/CHORES.md`
 - Release/incident operations: `docs/runbooks/**` (including `BACKUPS.md`, `TRANSACTIONAL_EMAIL.md` and `SUPPORT.md`)
+- Preserved finance to native screens (#566): `docs/plans/finance-archive-product.md` (planning scope; no archive promotion)
 - Existing Coolify source-build deployment (2026-10-07 reconciliation; settings changes remain owner-gated): `docs/runbooks/COOLIFY_DEPLOY.md`
 - Design-partner beta operations (#107, #108): `docs/product/BETA_OPERATIONS.md`
 
