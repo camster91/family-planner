@@ -1,5 +1,16 @@
 # Current State
 
+## Calendar interoperability source map — 2026-10-20
+
+#124 now maps all required contracts/acceptance cases to existing ICS and gated
+Google/Microsoft sync source, fixture files and current source/status UI.
+Recurrence/DST, external identity/duplicates, conflicts/tombstones, reconnect,
+authority, disable/rollback and mobile/offline limits are explicit. Apple is
+ICS-link interoperability; no Apple OAuth/CalDAV/native calendar-store bridge is
+claimed. No provider/account/sync/QA/activation occurred. Original household
+discovery, OAuth application setup and actual provider/device acceptance remain
+separate dependencies. `product/CALENDAR_INTEROPERABILITY.md`.
+
 ## Required database-suite wiring source — 2026-10-20
 
 #85 reconciliation found 21 existing opt-in integration suites absent from the
