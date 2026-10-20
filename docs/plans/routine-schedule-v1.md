@@ -302,3 +302,71 @@ DB, schema/client or native command was executed. Rollout gates remain off and
 parent HTTP/UI remains unwired. Next is exact owned request recovery, bounded
 routes and parent controls, then capability presentation/EN/ES/lifecycle/rollback
 source reconciliation and the consolidated QA phase. #450 remains open in full.
+
+
+## Continuation: original-request recovery and HTTP source — 2026-10-20
+
+A new private `herewoven.routine-recovery.v1` contract stores only exact validated
+schedule requests, not a general offline action queue. Each entry retains its
+original bytes/key, actor/family, issued-at and viewer zone/day. Five entries and
+2 MiB bound the journal; each command stays within the existing 256 KiB bound.
+The routine-specific person owner scope derives from the current signed session,
+role/family and queue retirement generation, separate from grocery and inventory
+storage. No token or credential is persisted. Existing owned queue retirement and
+Web Lock leases apply; unsupported/failed locks have no permissive fallback.
+
+The inventory recovery controller's unchanged storage state machine was extracted
+as `owned-request-journal.ts`; inventory remains a configured adapter with the
+same contract/error class. Routine uses its own strict context/entry/journal
+validators and recovery review callback. All candidate stores must be readable;
+conflicting copies, unknown contracts, uncertain writes or mismatched ownership
+hold rather than merge/reset. Recovered requests need explicit server review.
+Unknown sends and confirmed sends both retain the entry until an explicit local
+dismissal. The shared controller now renews owner and storage again after a send
+settles, so a delayed reply cannot appear in a different owner's UI. Shared
+stream-bounded JSON decoding was extracted with the existing inventory export
+preserved. This cross-domain refactor still requires the consolidated fault tests.
+
+`routine-schedule-client.ts` prepares an intent once, stamps actual viewer zone/day
+and current actor context, and sends its exact saved bytes/key. A fifteen-second
+settling deadline covers native fetch bridges that ignore AbortSignal; timeouts,
+malformed success and server uncertainty remain unknown. Read-only recovery review
+validates owner scope and byte-for-byte echoed entry before exposing its state.
+It does not refresh timestamps/versions or mint replacement keys on retry.
+
+The canonical coordinator now has a throwing `persistRoutineScheduleInTx` effect.
+`routine-schedule-api.ts` renews actor authority, checks/reserves (user scope,key),
+applies that effect and commits its proof in **one transaction**. Refusals translate
+only after rollback; no partial roots or orphan reservation is committed. A changed
+hash/action/household for an existing key refuses. An old proof is never deleted
+here to reuse the key. Retained committed proof is checked before fresh intent
+age/day and can confirm after nominal TTL or a writing pause; an actually pruned
+proof plus an expired original request cannot recreate the routine. Read-only
+inspection returns committed/removed with the original compact proof, or ready,
+pending, expired, conflict, paused/unavailable without creating records. It checks
+current authority/version/known control state; retry still renews all full target
+and history rules inside the canonical write.
+
+Gated parent-person HTTP source now exists at `/api/chores/routines` (GET exact
+stack state / POST exact keyed effect) and `/api/chores/routines/recovery` (GET
+owner context / POST inspect exact entry). Private/no-store includes auth/errors.
+Mutation and review require the routine owner header; any supplied owner header
+is enforced on reads too. Actual role, household, token generation and chores
+feature renew under canonical locks. Admission also applies a per-person rate
+limit and streamed byte limits, including requests without Content-Length. Paired
+devices remain refused by normal person auth; existing middleware CSRF applies.
+Schedule/rollback and owned-recovery gates stay default-off; no public/offline
+capability, scheduler, environment or deployed app is changed.
+
+Authored/unrun unit source covers frozen original body/key after reload, recovery
+review before replay, changed intent/owner, unknown result retention, late-owner
+switch, paused inspection/dismissal, malformed/oversized entries and malformed
+network success. The existing protected PostgreSQL source adds atomic same-key
+boundary saves, mismatched hash refusal, late retained proof during write pause,
+expired missing proof with rolled-back reservation and foreign household refusal.
+No tests/typecheck/lint/build/browser/DB/schema/client/native or hosted CI ran.
+
+Still open: parent list/catalog, contextual editor/controls and recovery UI,
+unsent form drafts, full current-subject choice presentation, scheduled-once action
+availability, EN/ES, lifecycle/erasure/rollback audit, then consolidated QA and
+normal release gates. Source HTTP wiring does not make #450 accepted or released.

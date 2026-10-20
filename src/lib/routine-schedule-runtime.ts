@@ -305,336 +305,341 @@ export async function persistRoutineSchedule(
   recordId: string,
   now = new Date(),
 ): Promise<EffectResult> {
-  const input = routineScheduleCommand.parse(raw);
   try {
     return await db.$transaction(
-      async (tx) => {
-        await routineScheduleAuthority(tx, actor);
-        if (
-          input.expected_user_id !== actor.userId ||
-          input.expected_family_id !== actor.familyId
-        )
-          refuse(403, "AUTH_CONTEXT_CHANGED");
-        await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
-        const receipt = await tx.idempotencyRecord.findFirst({
-          where: {
-            id: recordId,
-            scope: `user:${actor.userId}`,
-            user_id: actor.userId,
-            family_id: actor.familyId,
-            action: ROUTINE_SCHEDULE_ACTION,
-            request_hash: hashIdempotentRequest(ROUTINE_SCHEDULE_ACTION, input),
-          },
-          select: { response_status: true, response_body: true },
-        });
-        if (!receipt) refuse(409, "IDEMPOTENCY_IN_PROGRESS");
-        if (receipt.response_status !== null) {
-          const proof = routineScheduleReceipt.safeParse(receipt.response_body);
-          if (
-            receipt.response_status !==
-              (input.action === "create" ? 201 : 200) ||
-            !proof.success ||
-            proof.data.requestId !== recordId ||
-            proof.data.action !== input.action ||
-            (input.action !== "create" && proof.data.stackId !== input.stack_id)
-          )
-            refuse(409, "ROUTINE_CONFIRMATION_UNAVAILABLE");
-          const present = await tx.routineStack.findFirst({
-            where: { id: proof.data.stackId, family_id: actor.familyId },
-            select: { id: true },
-          });
-          if (
-            !present ||
-            (await tx.chore.count({
-              where: {
-                id: { in: proof.data.roots },
-                family_id: actor.familyId,
-              },
-            })) !== proof.data.roots.length
-          )
-            refuse(409, "ROUTINE_ORIGINAL_REMOVED");
-          return { status: receipt.response_status, body: proof.data };
-        }
-        if (process.env[ROUTINE_SCHEDULE_WRITE_ENV] !== "1")
-          refuse(409, "ROUTINE_SCHEDULE_PAUSED");
-        const age = now.getTime() - Date.parse(input.issued_at);
-        if (
-          age < -60000 ||
-          age > 15 * 60_000 ||
-          routineViewerDay(input.view_zone, now) !== input.view_day
-        )
-          refuse(409, "ROUTINE_INTENT_EXPIRED");
-        const existing =
-          input.action === "create"
-            ? null
-            : await stackInTx(tx, actor.familyId, input.stack_id);
-        if (
-          existing &&
-          input.action !== "create" &&
-          existing.row.version !== input.expected_version
-        )
-          refuse(409, "ROUTINE_VERSION_CONFLICT");
-        if (existing?.config.state === "stopped")
-          refuse(409, "ROUTINE_STOPPED");
-        if (input.action === "replace-future") {
-          try {
-            validateRoutineStepTransition(existing!.config, input);
-          } catch {
-            refuse(409, "ROUTINE_STEPS_CHANGED");
-          }
-        }
-        const priorRoots = existing
-          ? await rootsInTx(tx, actor, existing.row.id, existing.config)
-          : [];
-        if (input.action === "resume" && existing!.config.state !== "paused")
-          refuse(409, "ROUTINE_STATE_CONFLICT");
-        if (input.action === "pause" && existing!.config.state !== "active")
-          refuse(409, "ROUTINE_STATE_CONFLICT");
-        const editing =
-          input.action === "create" || input.action === "replace-future";
-        const schedule = editing
-          ? normalizeRoutineSharedSchedule(input.schedule, input.view_day)
-          : existing!.config.schedule;
-        if (input.action === "create" && schedule.starts_on! < input.view_day)
-          refuse(400, "ROUTINE_START_IN_PAST");
-        const candidates = editing
-          ? input.steps
-          : existing!.config.steps.map((step) => {
-              const root = priorRoots.find(
-                (candidate) => candidate.row.id === step.template_id,
-              )!;
-              return {
-                ...root.definition.content,
-                template_id: root.row.id,
-                client_step_id: root.row.id,
-              };
-            });
-        const assignments = new Map<
-          string,
-          { assigned_to: string | null; assigned_member_id: string | null }
-        >();
-        // All assignees are renewed before any data change. Pause/stop must remain
-        // available when an old target has left; only fresh work needs eligibility.
-        if (editing || input.action === "resume")
-          for (const candidate of candidates)
-            assignments.set(
-              candidate.client_step_id,
-              await subjectInTx(
-                tx,
-                actor,
-                candidate.subject,
-                schedule.frequency !== "once",
-              ),
-            );
-        const stackId = existing?.row.id ?? crypto.randomUUID(),
-          version = (existing?.row.version ?? 0) + 1;
-        const state =
-          input.action === "pause"
-            ? "paused"
-            : input.action === "stop"
-              ? "stopped"
-              : input.action === "resume"
-                ? "active"
-                : (existing?.config.state ?? "active");
-        const effective =
-          input.action === "create" ? input.view_day : nextDay(input.view_day);
-        if (
-          input.action === "resume" &&
-          schedule.frequency === "once" &&
-          schedule.starts_on! <= input.view_day
-        )
-          refuse(409, "ROUTINE_ONCE_ALREADY_PASSED");
-        const retiredAnchors = new Set<string>();
-        for (const root of priorRoots) {
-          if (
-            root.definition.anchor_retired ||
-            (root.row.due_date.toISOString().slice(0, 10) < effective &&
-              (await routineOccurrencePolicyInTx(
-                tx,
-                actor.familyId,
-                root.row.id,
-              )) === "inactive")
-          )
-            retiredAnchors.add(root.row.id);
-        }
-        const anchor = editing ? input.anchor : existing!.config.anchor;
-        const label = editing ? input.label : existing!.row.label;
-        const partitions = new Map<
-          string,
-          Awaited<ReturnType<typeof partitionInTx>>
-        >();
-        let reviewedRows = 0;
-        for (const root of priorRoots) {
-          const partition = await partitionInTx(
-            tx,
-            actor,
-            stackId,
-            [root.row.id],
-            input.view_day,
-          );
-          reviewedRows +=
-            partition.pruneIds.length + partition.preserveIds.length;
-          if (reviewedRows > 10000) refuse(409, "ROUTINE_REVIEW_TOO_LARGE");
-          partitions.set(root.row.id, partition);
-        }
-        // From this point every refusal throws, rolling back all roots/config/copies.
-        if (!existing)
-          await tx.routineStack.create({
-            data: {
-              id: stackId,
-              family_id: actor.familyId,
-              label,
-              version: 1,
-              fingerprint: "pending",
-              created_by: actor.userId,
-            },
-          });
-        let prunedCount = 0,
-          unstackedCount = 0;
-        const removed =
-          input.action === "replace-future" ? input.removed_steps : [];
-        for (const root of priorRoots) {
-          const partition = partitions.get(root.row.id)!;
-          const removal = removed.find(
-            (step) => step.template_id === root.row.id,
-          );
-          if (removal?.disposition === "unstack-future") {
-            const update = await tx.chore.updateMany({
-              where: {
-                id: { in: partition.pruneIds },
-                family_id: actor.familyId,
-                routine_stack_id: stackId,
-              },
-              data: {
-                routine_stack_id: null,
-                routine: null,
-                routine_order: null,
-              },
-            });
-            if (update.count !== partition.pruneIds.length)
-              refuse(409, "ROUTINE_OCCURRENCE_CONFLICT");
-            unstackedCount += update.count;
-            await storeRootDefinition(tx, actor, root.row.id, {
-              ...root.definition,
-              anchor_retired: retiredAnchors.has(root.row.id),
-              stack_id: null,
-              state: "active",
-              effective_on: effective,
-            });
-          } else {
-            const deletion = await tx.chore.deleteMany({
-              where: {
-                id: { in: partition.pruneIds },
-                family_id: actor.familyId,
-                routine_stack_id: stackId,
-              },
-            });
-            if (deletion.count !== partition.pruneIds.length)
-              refuse(409, "ROUTINE_OCCURRENCE_CONFLICT");
-            prunedCount += deletion.count;
-            if (removal)
-              await storeRootDefinition(tx, actor, root.row.id, {
-                ...root.definition,
-                anchor_retired: retiredAnchors.has(root.row.id),
-                stack_id: null,
-                state: "stopped",
-                effective_on: effective,
-              });
-          }
-        }
-        const roots: string[] = [];
-        for (const [index, candidate] of candidates.entries()) {
-          const rootId = candidate.template_id ?? crypto.randomUUID();
-          roots.push(rootId);
-          const {
-            client_step_id: _client,
-            template_id: _template,
-            ...content
-          } = candidate;
-          const definition = routineStepSeriesConfig.parse({
-            protocol: "herewoven.routine-step-series.v1",
-            anchor_retired: retiredAnchors.has(rootId),
-            stack_id: stackId,
-            state,
-            effective_on: effective,
-            anchor,
-            schedule,
-            content,
-          });
-          if (!candidate.template_id) {
-            const owner = assignments.get(candidate.client_step_id)!;
-            const dueDay = firstRoutineOccurrence(
-              schedule,
-              input.view_day,
-              effective,
-            );
-            await tx.chore.create({
-              data: {
-                id: rootId,
-                family_id: actor.familyId,
-                created_by: actor.userId,
-                ...owner,
-                title: content.title,
-                description: content.description,
-                points: content.points,
-                difficulty: content.difficulty,
-                icon: content.icon,
-                due_date: new Date(`${dueDay}T00:00:00.000Z`),
-                frequency: schedule.frequency,
-                weekly_days: schedule.weekly_days,
-                recurrence_id: rootId,
-                is_template: schedule.frequency !== "once",
-                routine_stack_id: stackId,
-                routine: label,
-                routine_order: index + 1,
-              },
-            });
-            await tx.$executeRaw`UPDATE "Chore" SET "routine_anchor" = ${anchor}, "routine_duration_minutes" = ${content.duration_minutes} WHERE "id" = ${rootId} AND "family_id" = ${actor.familyId}`;
-          }
-          await storeRootDefinition(tx, actor, rootId, definition);
-        }
-        const config = routineScheduleConfig.parse({
-          protocol: input.protocol,
-          state,
-          effective_on: effective,
-          anchor,
-          schedule,
-          steps: roots.map((template_id) => ({ template_id })),
-        });
-        await storeStack(tx, actor, stackId, version, label, config);
-        // The definitions, stack order and canonical upcoming copies commit with
-        // the original receipt. A retry never runs a second top-up effect.
-        if (state === "active")
-          for (const rootId of roots)
-            await expandSeriesInTx(tx, rootId, actor.familyId, now);
-        const proof = routineScheduleReceipt.parse({
-          protocol: input.protocol,
-          requestId: recordId,
-          stackId,
-          version,
-          action: input.action,
-          state,
-          roots,
-          prunedCount,
-          unstackedCount,
-        });
-        const status = input.action === "create" ? 201 : 200;
-        await tx.idempotencyRecord.update({
-          where: { id: recordId },
-          data: {
-            response_status: status,
-            response_body: proof as Prisma.InputJsonObject,
-          },
-        });
-        return { status, body: proof };
-      },
+      (tx) => persistRoutineScheduleInTx(tx, actor, raw, recordId, now),
       { timeout: 30_000 },
     );
   } catch (error) {
-    if (error instanceof Refusal) return fail(error.status, error.code);
+    const refusal = routineScheduleFailure(error);
+    if (refusal) return refusal;
     throw error;
   }
 }
+/** Used by the keyed reservation boundary; every refusal throws until its outer rollback. */
+export async function persistRoutineScheduleInTx(
+  tx: Tx,
+  actor: RoutineScheduleActor,
+  raw: RoutineScheduleCommand,
+  recordId: string,
+  now = new Date(),
+): Promise<EffectResult> {
+  const input = routineScheduleCommand.parse(raw);
+  await routineScheduleAuthority(tx, actor);
+  if (
+    input.expected_user_id !== actor.userId ||
+    input.expected_family_id !== actor.familyId
+  )
+    refuse(403, "AUTH_CONTEXT_CHANGED");
+  await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
+  const receipt = await tx.idempotencyRecord.findFirst({
+    where: {
+      id: recordId,
+      scope: `user:${actor.userId}`,
+      user_id: actor.userId,
+      family_id: actor.familyId,
+      action: ROUTINE_SCHEDULE_ACTION,
+      request_hash: hashIdempotentRequest(ROUTINE_SCHEDULE_ACTION, input),
+    },
+    select: { response_status: true, response_body: true },
+  });
+  if (!receipt) refuse(409, "IDEMPOTENCY_IN_PROGRESS");
+  if (receipt.response_status !== null) {
+    const proof = routineScheduleReceipt.safeParse(receipt.response_body);
+    if (
+      receipt.response_status !== (input.action === "create" ? 201 : 200) ||
+      !proof.success ||
+      proof.data.requestId !== recordId ||
+      proof.data.action !== input.action ||
+      (input.action !== "create" && proof.data.stackId !== input.stack_id)
+    )
+      refuse(409, "ROUTINE_CONFIRMATION_UNAVAILABLE");
+    const present = await tx.routineStack.findFirst({
+      where: { id: proof.data.stackId, family_id: actor.familyId },
+      select: { id: true },
+    });
+    if (
+      !present ||
+      (await tx.chore.count({
+        where: {
+          id: { in: proof.data.roots },
+          family_id: actor.familyId,
+        },
+      })) !== proof.data.roots.length
+    )
+      refuse(409, "ROUTINE_ORIGINAL_REMOVED");
+    return { status: receipt.response_status, body: proof.data };
+  }
+  if (process.env[ROUTINE_SCHEDULE_WRITE_ENV] !== "1")
+    refuse(409, "ROUTINE_SCHEDULE_PAUSED");
+  const age = now.getTime() - Date.parse(input.issued_at);
+  if (
+    age < -60000 ||
+    age > 15 * 60_000 ||
+    routineViewerDay(input.view_zone, now) !== input.view_day
+  )
+    refuse(409, "ROUTINE_INTENT_EXPIRED");
+  const existing =
+    input.action === "create"
+      ? null
+      : await stackInTx(tx, actor.familyId, input.stack_id);
+  if (
+    existing &&
+    input.action !== "create" &&
+    existing.row.version !== input.expected_version
+  )
+    refuse(409, "ROUTINE_VERSION_CONFLICT");
+  if (existing?.config.state === "stopped") refuse(409, "ROUTINE_STOPPED");
+  if (input.action === "replace-future") {
+    try {
+      validateRoutineStepTransition(existing!.config, input);
+    } catch {
+      refuse(409, "ROUTINE_STEPS_CHANGED");
+    }
+  }
+  const priorRoots = existing
+    ? await rootsInTx(tx, actor, existing.row.id, existing.config)
+    : [];
+  if (input.action === "resume" && existing!.config.state !== "paused")
+    refuse(409, "ROUTINE_STATE_CONFLICT");
+  if (input.action === "pause" && existing!.config.state !== "active")
+    refuse(409, "ROUTINE_STATE_CONFLICT");
+  const editing =
+    input.action === "create" || input.action === "replace-future";
+  const schedule = editing
+    ? normalizeRoutineSharedSchedule(input.schedule, input.view_day)
+    : existing!.config.schedule;
+  if (input.action === "create" && schedule.starts_on! < input.view_day)
+    refuse(400, "ROUTINE_START_IN_PAST");
+  const candidates = editing
+    ? input.steps
+    : existing!.config.steps.map((step) => {
+        const root = priorRoots.find(
+          (candidate) => candidate.row.id === step.template_id,
+        )!;
+        return {
+          ...root.definition.content,
+          template_id: root.row.id,
+          client_step_id: root.row.id,
+        };
+      });
+  const assignments = new Map<
+    string,
+    { assigned_to: string | null; assigned_member_id: string | null }
+  >();
+  // All assignees are renewed before any data change. Pause/stop must remain
+  // available when an old target has left; only fresh work needs eligibility.
+  if (editing || input.action === "resume")
+    for (const candidate of candidates)
+      assignments.set(
+        candidate.client_step_id,
+        await subjectInTx(
+          tx,
+          actor,
+          candidate.subject,
+          schedule.frequency !== "once",
+        ),
+      );
+  const stackId = existing?.row.id ?? crypto.randomUUID(),
+    version = (existing?.row.version ?? 0) + 1;
+  const state =
+    input.action === "pause"
+      ? "paused"
+      : input.action === "stop"
+        ? "stopped"
+        : input.action === "resume"
+          ? "active"
+          : (existing?.config.state ?? "active");
+  const effective =
+    input.action === "create" ? input.view_day : nextDay(input.view_day);
+  if (
+    input.action === "resume" &&
+    schedule.frequency === "once" &&
+    schedule.starts_on! <= input.view_day
+  )
+    refuse(409, "ROUTINE_ONCE_ALREADY_PASSED");
+  const retiredAnchors = new Set<string>();
+  for (const root of priorRoots) {
+    if (
+      root.definition.anchor_retired ||
+      (root.row.due_date.toISOString().slice(0, 10) < effective &&
+        (await routineOccurrencePolicyInTx(tx, actor.familyId, root.row.id)) ===
+          "inactive")
+    )
+      retiredAnchors.add(root.row.id);
+  }
+  const anchor = editing ? input.anchor : existing!.config.anchor;
+  const label = editing ? input.label : existing!.row.label;
+  const partitions = new Map<
+    string,
+    Awaited<ReturnType<typeof partitionInTx>>
+  >();
+  let reviewedRows = 0;
+  for (const root of priorRoots) {
+    const partition = await partitionInTx(
+      tx,
+      actor,
+      stackId,
+      [root.row.id],
+      input.view_day,
+    );
+    reviewedRows += partition.pruneIds.length + partition.preserveIds.length;
+    if (reviewedRows > 10000) refuse(409, "ROUTINE_REVIEW_TOO_LARGE");
+    partitions.set(root.row.id, partition);
+  }
+  // From this point every refusal throws, rolling back all roots/config/copies.
+  if (!existing)
+    await tx.routineStack.create({
+      data: {
+        id: stackId,
+        family_id: actor.familyId,
+        label,
+        version: 1,
+        fingerprint: "pending",
+        created_by: actor.userId,
+      },
+    });
+  let prunedCount = 0,
+    unstackedCount = 0;
+  const removed = input.action === "replace-future" ? input.removed_steps : [];
+  for (const root of priorRoots) {
+    const partition = partitions.get(root.row.id)!;
+    const removal = removed.find((step) => step.template_id === root.row.id);
+    if (removal?.disposition === "unstack-future") {
+      const update = await tx.chore.updateMany({
+        where: {
+          id: { in: partition.pruneIds },
+          family_id: actor.familyId,
+          routine_stack_id: stackId,
+        },
+        data: {
+          routine_stack_id: null,
+          routine: null,
+          routine_order: null,
+        },
+      });
+      if (update.count !== partition.pruneIds.length)
+        refuse(409, "ROUTINE_OCCURRENCE_CONFLICT");
+      unstackedCount += update.count;
+      await storeRootDefinition(tx, actor, root.row.id, {
+        ...root.definition,
+        anchor_retired: retiredAnchors.has(root.row.id),
+        stack_id: null,
+        state: "active",
+        effective_on: effective,
+      });
+    } else {
+      const deletion = await tx.chore.deleteMany({
+        where: {
+          id: { in: partition.pruneIds },
+          family_id: actor.familyId,
+          routine_stack_id: stackId,
+        },
+      });
+      if (deletion.count !== partition.pruneIds.length)
+        refuse(409, "ROUTINE_OCCURRENCE_CONFLICT");
+      prunedCount += deletion.count;
+      if (removal)
+        await storeRootDefinition(tx, actor, root.row.id, {
+          ...root.definition,
+          anchor_retired: retiredAnchors.has(root.row.id),
+          stack_id: null,
+          state: "stopped",
+          effective_on: effective,
+        });
+    }
+  }
+  const roots: string[] = [];
+  for (const [index, candidate] of candidates.entries()) {
+    const rootId = candidate.template_id ?? crypto.randomUUID();
+    roots.push(rootId);
+    const {
+      client_step_id: _client,
+      template_id: _template,
+      ...content
+    } = candidate;
+    const definition = routineStepSeriesConfig.parse({
+      protocol: "herewoven.routine-step-series.v1",
+      anchor_retired: retiredAnchors.has(rootId),
+      stack_id: stackId,
+      state,
+      effective_on: effective,
+      anchor,
+      schedule,
+      content,
+    });
+    if (!candidate.template_id) {
+      const owner = assignments.get(candidate.client_step_id)!;
+      const dueDay = firstRoutineOccurrence(
+        schedule,
+        input.view_day,
+        effective,
+      );
+      await tx.chore.create({
+        data: {
+          id: rootId,
+          family_id: actor.familyId,
+          created_by: actor.userId,
+          ...owner,
+          title: content.title,
+          description: content.description,
+          points: content.points,
+          difficulty: content.difficulty,
+          icon: content.icon,
+          due_date: new Date(`${dueDay}T00:00:00.000Z`),
+          frequency: schedule.frequency,
+          weekly_days: schedule.weekly_days,
+          recurrence_id: rootId,
+          is_template: schedule.frequency !== "once",
+          routine_stack_id: stackId,
+          routine: label,
+          routine_order: index + 1,
+        },
+      });
+      await tx.$executeRaw`UPDATE "Chore" SET "routine_anchor" = ${anchor}, "routine_duration_minutes" = ${content.duration_minutes} WHERE "id" = ${rootId} AND "family_id" = ${actor.familyId}`;
+    }
+    await storeRootDefinition(tx, actor, rootId, definition);
+  }
+  const config = routineScheduleConfig.parse({
+    protocol: input.protocol,
+    state,
+    effective_on: effective,
+    anchor,
+    schedule,
+    steps: roots.map((template_id) => ({ template_id })),
+  });
+  await storeStack(tx, actor, stackId, version, label, config);
+  // The definitions, stack order and canonical upcoming copies commit with
+  // the original receipt. A retry never runs a second top-up effect.
+  if (state === "active")
+    for (const rootId of roots)
+      await expandSeriesInTx(tx, rootId, actor.familyId, now);
+  const proof = routineScheduleReceipt.parse({
+    protocol: input.protocol,
+    requestId: recordId,
+    stackId,
+    version,
+    action: input.action,
+    state,
+    roots,
+    prunedCount,
+    unstackedCount,
+  });
+  const status = input.action === "create" ? 201 : 200;
+  await tx.idempotencyRecord.update({
+    where: { id: recordId },
+    data: {
+      response_status: status,
+      response_body: proof as Prisma.InputJsonObject,
+    },
+  });
+  return { status, body: proof };
+}
+/** Translate only this coordinator's refusals after the transaction has rolled back. */
+export function routineScheduleFailure(error: unknown): EffectResult | null {
+  return error instanceof Refusal ? fail(error.status, error.code) : null;
+}
+
 /** Private original-parent read, available while fresh writing is paused. */
 export async function readRoutineSchedule(
   db: Db,

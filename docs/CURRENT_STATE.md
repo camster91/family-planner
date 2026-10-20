@@ -1,5 +1,41 @@
 # Current State
 
+## Routine original-request recovery and gated HTTP source — 2026-10-20
+
+Routine changes now have a strict owned recovery contract, fixed original
+body/key client, bounded network/decode deadline and explicit inspect/send/dismiss
+journal adapter. Existing inventory storage transitions were extracted into
+owned-request-journal.ts and inventory retains its domain contract/error adapter.
+Both domains now renew owner/storage after a delayed send before exposing its
+result. Divergent or uncertain storage, changed owners and recovered requests
+remain held; no background replay or silent new key/body/date is introduced.
+Bounded JSON decoding was extracted with the inventory export preserved.
+
+The routine coordinator now exposes a transaction-local throwing effect. The new
+API boundary reserves/checks the key, applies canonical changes and stores proof
+inside one transaction, translating refusals only after rollback. It never deletes
+an old schedule proof to reuse its key. Late retained proof can confirm while
+fresh writes are paused; lost/pruned proof with an expired original intent cannot
+create again. Private read-only inspection binds owner scope and exact saved
+request, checks current authority/version/day/state and distinguishes ready,
+pending, committed, removed, expired, conflict and paused outcomes.
+
+New source routes /api/chores/routines and /api/chores/routines/recovery are parent
+person-only, rate/body bounded, private/no-store and reject supplied stale owner
+proof. Mutation/review require the routine-specific session/household owner scope;
+the canonical runtime renews role/family/token/features under locks. Existing
+middleware CSRF remains in force. Default-off schedule/rollback and owned-recovery
+gates remain unchanged; this is gated HTTP source, not activation or deployment.
+
+Focused recovery unit and protected PostgreSQL source assert original bytes,
+review holds, unknown results, late owner switch, atomic same-key saves, changed
+hash, paused late confirmation and expired unconfirmed rollback. All unrun.
+Formatting/source inspection only; no QA/typecheck/lint/build/browser/native,
+schema/client action, push/merge/deploy or provider/real-data mutation. Next:
+parent catalog/editor and recovery presentation, unsent form draft handling,
+scheduled-once availability, EN/ES and lifecycle/rollback source audit. Full #450
+scope and later consolidated QA remain open.
+
 ## Routine occurrence guards source — 2026-10-20
 
 New private occurrence policy joins each canonical chore to its same-household

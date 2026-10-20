@@ -1,0 +1,31 @@
+import { createHash } from "node:crypto";
+import type { NextRequest } from "next/server";
+import type { TokenPayload } from "@/lib/auth";
+import {
+  personQueueOwner,
+  isQueueOwnerRecoveryEnabled,
+} from "@/lib/queue-owner-server";
+import { isRoutineScheduleExpansionEnabled } from "@/lib/routine-schedule-gates";
+export function routineScheduleOwner(
+  request: NextRequest,
+  payload: TokenPayload,
+  current: { id: string; family_id: string; role: string },
+) {
+  if (payload.userId !== current.id || current.role !== "parent") return null;
+  const owner = personQueueOwner(request, {
+    ...payload,
+    family_id: current.family_id,
+    role: current.role,
+  });
+  return owner
+    ? {
+        ...owner,
+        scope: createHash("sha256")
+          .update(JSON.stringify(["routine-recovery.owner.v1", owner.scope]))
+          .digest("hex"),
+      }
+    : null;
+}
+export function routineRecoveryWritingEnabled() {
+  return isQueueOwnerRecoveryEnabled() && isRoutineScheduleExpansionEnabled();
+}

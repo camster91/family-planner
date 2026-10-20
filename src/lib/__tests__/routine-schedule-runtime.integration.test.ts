@@ -2,6 +2,10 @@
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { assertFixtureTargetAllowed } from "@/lib/fixtures/guard";
+import {
+  saveRoutineSchedule,
+  reviewRoutineSchedule,
+} from "@/lib/routine-schedule-api";
 import { completeChore, findHouseholdChore } from "@/lib/chore-complete";
 import {
   hiddenRoutineOccurrenceIds,
@@ -175,6 +179,90 @@ suite("canonical scheduled routine commands", () => {
     } finally {
       process.env[ROUTINE_SCHEDULE_WRITE_ENV] = "1";
     }
+  });
+  it("reserves and commits one keyed effect atomically, reviews late proof and rolls back a refused reservation", async () => {
+    const input = command(),
+      key = crypto.randomUUID();
+    const results = await Promise.all([
+      saveRoutineSchedule(prisma!, actor, input, key, now),
+      saveRoutineSchedule(prisma!, actor, input, key, now),
+    ]);
+    expect(results.map((row) => row.status)).toEqual([201, 201]);
+    expect(results[0].body).toEqual(results[1].body);
+    expect(
+      await prisma!.idempotencyRecord.count({
+        where: { scope: `user:${parent}`, key },
+      }),
+    ).toBe(1);
+    expect(
+      (
+        await saveRoutineSchedule(
+          prisma!,
+          actor,
+          { ...input, label: "Changed request" },
+          key,
+          now,
+        )
+      ).status,
+    ).toBe(422);
+    const entry = {
+      kind: "schedule" as const,
+      key,
+      body: JSON.stringify(input),
+    };
+    const late = new Date(now.getTime() + 10 * 24 * 60 * 60_000);
+    expect(
+      (
+        await reviewRoutineSchedule(
+          prisma!,
+          actor,
+          entry,
+          "a".repeat(64),
+          false,
+          late,
+        )
+      ).body,
+    ).toMatchObject({
+      state: "committed",
+      canRetry: false,
+      receipt: results[0].body,
+    });
+    expect(
+      (await saveRoutineSchedule(prisma!, actor, input, key, late, false)).body,
+    ).toEqual(results[0].body);
+    const absent = crypto.randomUUID();
+    expect(
+      (
+        await reviewRoutineSchedule(
+          prisma!,
+          actor,
+          { ...entry, key: absent },
+          "a".repeat(64),
+          true,
+          late,
+        )
+      ).body,
+    ).toMatchObject({ state: "expired", canRetry: false });
+    expect(
+      (await saveRoutineSchedule(prisma!, actor, input, absent, late)).status,
+    ).toBe(409);
+    expect(
+      await prisma!.idempotencyRecord.findUnique({
+        where: { scope_key: { scope: `user:${parent}`, key: absent } },
+      }),
+    ).toBeNull();
+    expect(
+      (
+        await reviewRoutineSchedule(
+          prisma!,
+          { ...actor, familyId: otherFamily },
+          entry,
+          "a".repeat(64),
+          true,
+          now,
+        )
+      ).status,
+    ).toBe(403);
   });
   it("pause preserves root snapshots and all evidence/today rows, pruning only untouched future copies without reordering steps", async () => {
     const { proof } = await create(),
