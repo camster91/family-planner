@@ -1,6 +1,7 @@
 import {
   saveIndependentRoutineStep,
   readIndependentRoutineStep,
+  reviewIndependentRoutineStep,
 } from "../routine-independent-runtime";
 import {
   routineIndependentCommand,
@@ -488,6 +489,43 @@ suite("canonical scheduled routine commands", () => {
       rootId: detached,
       state: "paused",
     });
+    const recoveryEntry = {
+      kind: "independent" as const,
+      key,
+      body: JSON.stringify(pause),
+    };
+    const reviewed = await reviewIndependentRoutineStep(
+      prisma!,
+      actor,
+      recoveryEntry,
+      "a".repeat(64),
+      false,
+      new Date(now.getTime() + 10 * 86400000),
+    );
+    expect(reviewed.body).toMatchObject({
+      state: "committed",
+      canRetry: false,
+      receipt: proof,
+    });
+    const expiredKey = crypto.randomUUID();
+    expect(
+      (
+        await reviewIndependentRoutineStep(
+          prisma!,
+          actor,
+          { ...recoveryEntry, key: expiredKey },
+          "a".repeat(64),
+          true,
+          new Date(now.getTime() + 16 * 60000),
+        )
+      ).body,
+    ).toMatchObject({ state: "expired", canRetry: false });
+    expect(
+      await prisma!.idempotencyRecord.findUnique({
+        where: { scope_key: { scope: `user:${parent}`, key: expiredKey } },
+      }),
+    ).toBeNull();
+
     expect(
       await prisma!.chore.findUnique({ where: { id: evidence } }),
     ).toMatchObject({

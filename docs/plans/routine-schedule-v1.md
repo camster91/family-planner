@@ -552,3 +552,19 @@ Authored pure and guarded integration cases remain unrun. The new module is
 unrouted: recovery owner/storage/client, editor/catalog UI and legacy root handoff
 must be wired next before this requirement can count as implemented end to end.
 No activation, migration, generated client, QA, build, native or release action.
+
+
+### Independent request boundary and recovery — 2026-10-20
+
+Private independent routes, separate owner scope, strict original-request journal,
+read-only proof review and foreground client are now source-wired. The shared
+admission/authority/body/rate/private-response rules still apply. Independent
+scope retains normal retirement fields and never shares a stack journal. Exact
+body/key survives reload and unknown responses; recovered entries require review.
+Proof binds original root/action/next revision. Read-only review never reserves
+or recreates anything and can confirm late committed intent while writes pause.
+Unrun storage/client/guarded-DB cases were authored for these invariants.
+
+Next integrations: independent editor/catalog UI, unsent drafts and legacy root
+handoff; then lifecycle/rollback/device reconciliation and consolidated QA. Gates
+remain unchanged and this is not a released or accepted user journey.

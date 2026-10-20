@@ -41,3 +41,17 @@ export function routineDraftOwner(owner: QueueOwner | null): QueueOwner | null {
       }
     : null;
 }
+
+/** Independent requests never share a physical journal with stack requests. */
+export function routineIndependentOwner(
+  owner: QueueOwner | null,
+): QueueOwner | null {
+  return owner
+    ? {
+        ...owner,
+        scope: createHash("sha256")
+          .update(JSON.stringify(["routine-independent.owner.v1", owner.scope]))
+          .digest("hex"),
+      }
+    : null;
+}

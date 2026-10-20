@@ -1,5 +1,34 @@
 # Current State
 
+## Independent routes and owned request recovery source — 2026-10-20
+
+Independent future steps now have private catalog/state/save and recovery-context/
+review routes. Shared admission derives an independent hashed person owner scope,
+retaining household/generation retirement metadata while separating physical
+journals from stack requests. Parent/token/feature authority still renews under
+locks at read/effect; routes preserve rate limits, body bounds, required owner/key
+headers and private no-store responses. No gate or environment was activated.
+
+A strict independent recovery contract binds the original body/key to its exact
+root/action/next revision proof. Read-only server review checks original actor,
+key/action/hash, ownership, revision/state, expiry and viewer-day constraints.
+Committed receipts remain confirmable after expiry and write pause; absent roots
+return removed evidence, never recreation. Review reserves no key and performs
+no canonical effect. Browser adapters use the existing envelope/candidate/lease/
+retirement implementation, require review after reload, and retain unknown
+outcomes. Foreground client requests validate identity, owner scope, exact echoed
+bytes and matching proof; timeout/parse/network failures cannot confirm a save.
+Stack requests now share the same extracted bounded HTTP utility with unchanged
+request semantics.
+
+Authored storage/client cases cover separated namespaces, exact reload/review,
+changed intent/owner, paused inspection/dismissal, malformed/oversized bodies and
+wrong-revision success. Guarded DB source adds late read-only confirmation and
+expired no-reservation review. All remain unrun. Independent editor/catalog UI,
+unsent draft retention and legacy root handoff are still next; lifecycle/rollback/
+device reconciliation and consolidated QA remain open. No tests/typecheck/lint/
+build/browser/native/schema/client operations, CI or release actions ran.
+
 ## Independent future-step coordinator source — 2026-10-20
 
 Explicitly unstacked canonical roots now have a separate strict command/read/

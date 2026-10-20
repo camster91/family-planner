@@ -1,3 +1,10 @@
+import {
+  independentRecoveryEntry,
+  independentRecoveryReview,
+  INDEPENDENT_RECOVERY_CONTRACT,
+  type IndependentRecoveryEntry,
+  type IndependentRecoveryReview,
+} from "@/lib/routine-independent-recovery";
 /** Canonical detached-step effects. No route/client activation in this module. */
 import type { Prisma, PrismaClient } from "@prisma/client";
 import {
@@ -368,6 +375,117 @@ export async function readIndependentRoutineCatalog(
           nextCursor: rows.length > 20 ? page.at(-1)!.id : null,
         }),
       };
+    });
+  } catch (caught) {
+    const failure = routineIndependentFailure(caught);
+    if (failure) return failure;
+    throw caught;
+  }
+}
+
+/** Read-only exact-key result review; never reserves, mutates or rebases intent. */
+export async function reviewIndependentRoutineStep(
+  db: Db,
+  actor: RoutineScheduleActor,
+  raw: IndependentRecoveryEntry,
+  ownerScope: string,
+  writesEnabled: boolean,
+  now = new Date(),
+): Promise<EffectResult> {
+  const entry = independentRecoveryEntry.parse(raw),
+    input = routineIndependentCommand.parse(JSON.parse(entry.body));
+  try {
+    return await db.$transaction(async (tx) => {
+      await routineScheduleAuthority(tx, actor);
+      if (
+        input.expected_user_id !== actor.userId ||
+        input.expected_family_id !== actor.familyId
+      )
+        refuse(403, "AUTH_CONTEXT_CHANGED");
+      const record = await tx.idempotencyRecord.findUnique({
+        where: { scope_key: { scope: `user:${actor.userId}`, key: entry.key } },
+      });
+      if (
+        record &&
+        (record.user_id !== actor.userId ||
+          record.family_id !== actor.familyId ||
+          record.action !== ROUTINE_INDEPENDENT_ACTION ||
+          record.request_hash !==
+            hashIdempotentRequest(ROUTINE_INDEPENDENT_ACTION, input))
+      )
+        refuse(422, "IDEMPOTENCY_KEY_REUSED");
+      const rows = await tx.$queryRaw<
+        {
+          id: string;
+          recurrence_id: string | null;
+          member_subject_erased: boolean;
+          routine_series_config: unknown;
+        }[]
+      >`
+        SELECT "id", "recurrence_id", "member_subject_erased", "routine_series_config" FROM "Chore"
+        WHERE "id" = ${input.root_id} AND "family_id" = ${actor.familyId}`;
+      const row = rows[0],
+        parsed = routineStepSeriesConfig.safeParse(row?.routine_series_config);
+      const current =
+        rows.length === 1 &&
+        row.recurrence_id === row.id &&
+        !row.member_subject_erased &&
+        parsed.success &&
+        parsed.data.stack_id === null
+          ? parsed.data
+          : null;
+      function reply(
+        state: IndependentRecoveryReview["state"],
+        receipt: unknown = null,
+      ): EffectResult {
+        return {
+          status: 200,
+          body: independentRecoveryReview.parse({
+            contract: INDEPENDENT_RECOVERY_CONTRACT,
+            ownerScope,
+            entry,
+            state,
+            canRetry: state === "ready" || state === "pending",
+            currentRevision: current?.revision ?? null,
+            receipt,
+          }),
+        };
+      }
+      if (record?.response_status != null) {
+        const proof = routineIndependentReceipt.safeParse(record.response_body);
+        if (
+          record.response_status !== 200 ||
+          !proof.success ||
+          proof.data.requestId !== record.id ||
+          proof.data.rootId !== input.root_id ||
+          proof.data.action !== input.action ||
+          proof.data.revision !== input.expected_revision + 1
+        )
+          return reply("unavailable");
+        return reply(
+          rows.length === 1 && row.recurrence_id === row.id
+            ? "committed"
+            : "removed",
+          proof.data,
+        );
+      }
+      const age = now.getTime() - Date.parse(input.issued_at);
+      if (
+        age < -60000 ||
+        age > 15 * 60000 ||
+        routineViewerDay(input.view_zone, now) !== input.view_day
+      )
+        return reply("expired");
+      if (!current) return reply("unavailable");
+      try {
+        assertIndependentIntent(input, current, now);
+      } catch (caught) {
+        if (routineIndependentFailure(caught)) return reply("conflict");
+        throw caught;
+      }
+      if (!writesEnabled || process.env[ROUTINE_SCHEDULE_WRITE_ENV] !== "1")
+        return reply("paused");
+      return reply(record ? "pending" : "ready");
     });
   } catch (caught) {
     const failure = routineIndependentFailure(caught);

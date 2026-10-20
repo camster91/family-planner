@@ -15,7 +15,7 @@ import {
   type RoutineRecoveryEntry,
 } from "@/lib/routine-schedule-recovery-contract";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
-import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
+import { requestOwnedJson as request } from "@/lib/owned-request-http";
 import {
   routineDraftContext,
   type RoutineDraftContext,
@@ -57,36 +57,6 @@ export function makeRoutineScheduleIntent(
     key,
     body: JSON.stringify(command),
   });
-}
-async function request(path: string, init: RequestInit, bytes = 1024 * 1024) {
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      (async () => {
-        const response = await fetch(path, {
-          ...init,
-          cache: "no-store",
-          credentials: "same-origin",
-          signal: controller.signal,
-        });
-        const body = await readBoundedJsonResponse(
-          response,
-          controller.signal,
-          bytes,
-        );
-        return { kind: "reply" as const, response, body };
-      })().catch(() => ({ kind: "unknown" as const })),
-      new Promise<{ kind: "unknown" }>((resolve) => {
-        timer = setTimeout(() => {
-          controller.abort();
-          resolve({ kind: "unknown" });
-        }, 15000);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
 }
 export async function readRoutineCatalog(
   context: RoutineRecoveryContext,

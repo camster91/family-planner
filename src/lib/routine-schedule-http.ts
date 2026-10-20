@@ -4,7 +4,10 @@ import { authenticateWithFamily } from "@/lib/api-auth";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { requestedMemberProtocol } from "@/lib/chore-profile";
 import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
-import { routineScheduleOwner } from "@/lib/routine-schedule-owner";
+import {
+  routineScheduleOwner,
+  routineIndependentOwner,
+} from "@/lib/routine-schedule-owner";
 import { ROUTINE_RECOVERY_OWNER_HEADER } from "@/lib/routine-schedule-recovery-contract";
 export const routineResponse = (body: unknown, status = 200) =>
   NextResponse.json(body, {
@@ -16,6 +19,7 @@ export const routineError = (status: number, code: string) =>
 export async function openRoutineSchedule(
   request: NextRequest,
   requireOwner = false,
+  ownerKind: "schedule" | "independent" = "schedule",
 ) {
   const [auth, error] = await authenticateWithFamily(request);
   if (error) {
@@ -37,7 +41,11 @@ export async function openRoutineSchedule(
       .allowed
   )
     return { ok: false as const, response: routineError(429, "RATE_LIMITED") };
-  const owner = routineScheduleOwner(request, auth.payload, auth.user);
+  const baseOwner = routineScheduleOwner(request, auth.payload, auth.user);
+  const owner =
+    ownerKind === "independent"
+      ? routineIndependentOwner(baseOwner)
+      : baseOwner;
   if (
     (requireOwner || request.headers.has(ROUTINE_RECOVERY_OWNER_HEADER)) &&
     (!owner ||
