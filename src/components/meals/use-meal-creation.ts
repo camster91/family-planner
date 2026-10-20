@@ -174,6 +174,7 @@ export function useMealCreation(enabled: boolean, onCreated: () => void) {
     error,
     contextError,
     ready: !!context,
+    contextKey: context ? `${context.userId}:${context.familyId}` : "",
     locked: busy || unknown,
     isPending: () => flight.current || pending.current !== null,
     reloadContext: () => setAttempt((value) => value + 1),

@@ -12,6 +12,15 @@ Non-idempotent APIs receive one UI attempt and no automatic retries. A lost/unre
 
 ## AI and voice
 
+2026-10-20 follow-on source: food and unlinked meal forms now share
+`ReviewedDescriptionDraft` for foreground description/review/Apply. Meal parsing
+is limited to a free-text name, explicit ISO day/slot/numeric servings; omitted
+fields keep the form's current values. It selects no recipe/cook by name and
+cannot mark meals cooked/eaten or decrement stock. Save uses the existing atomic
+meal-create recovery hook. This is a direct form voice/typed workflow, not a new
+assistant chat tool or full app-control parity. EN/ES source tests are authored,
+not run; provider/native/microphone and lifecycle acceptance remain separate.
+
 2026-10-20 source addition (#125): personal inventory Add item reuses foreground
 browser voice and the separately gated local Android preview in an optional
 description disclosure. It proposes explicit EN/ES food fields for Apply, then
@@ -21,7 +30,7 @@ bounded to 20 seconds and uses app/device language; typed input remains usable
 without speech or an AI provider. No automatic submission, background wake,
 provider activation, stored audio or physical microphone acceptance is added.
 The shared voice hook's existing assistant defaults are retained; food opts into
-language/deadline and stale callback guards. Meal voice proposals remain open.
+language/deadline and stale callback guards. The later shared meal draft described above closes the direct-form source gap; chat meal tools remain unsupported.
 Uses the existing encrypted household AI configuration or deployment fallback, existing vetted public provider transport, redirect restrictions and 30-second deadline. Chat adds a 1300-token budget and a 64KiB response-body limit; new JSON requests are bounded while streaming. Sends bounded conversation text and viewer-supplied clock/time zone only, never queries/attaches household records. Structured replies are validated; malformed actions rejected. 30 calls/hour/user. No provider enabled, key created or paid call made by the agent. Parent setup link exposes the existing Settings disclosure through explicit `?setup=ai#ai-capture`; it does not save credentials or change server configuration. Chat requires a configured provider before production use.
 
 Voice starts only on explicit button click using available browser SpeechRecognition / webkitSpeechRecognition. The browser may use its own speech service, disclosed in UI. Transcription fills an editable draft, never automatically sends or executes. Unsupported browsers retain typing; permission/error messages are clear. Close, unmount, tab change and pending requests abort listening and detach callbacks. Physical microphone, Android WebView and real provider acceptance remain separate checks.

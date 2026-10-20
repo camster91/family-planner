@@ -1,5 +1,25 @@
 # Current State
 
+## Shared reviewed meal-description source — 2026-10-20
+
+Unlinked Add meal now offers the same collapsed typed/voice review as Add food.
+Shared ReviewedDescriptionDraft owns foreground browser/native-preview controls,
+20-second deadline, disclosure, stale-text protection and explicit Apply. Food
+retains its existing parser/fields. A bounded meal parser proposes only explicit
+free-text name, ISO day, slot and numeric servings. It refuses relative/ambiguous
+dates, unsupported time/portion phrases and multiple plans rather than guessing.
+Omitted fields retain current form values; saved recipe/cook IDs are never picked
+by spoken names. Linked-recipe and edit paths retain their manual canonical UI.
+
+Apply does not save, mark cooked/eaten, allocate prep portions or change stock.
+Save still uses useMealCreation's original-context atomic create/recovery path.
+EN/ES parser/control test source is authored, not run; existing food controls
+use the shared primitive. No QA/typecheck/lint/build/browser/native, provider/
+schema operation, push, merge or deployment occurred. Remaining #125 code work:
+integrated recipe/prep stock-lot/amount review and direct used/discarded stock
+restocking. Microphone, provider/model, store and physical lifecycle acceptance
+remain separate dependencies. Matrix: `product/FOOD_CAPTURE.md`.
+
 ## Reviewed foreground food description source — 2026-10-20
 
 Canonical Add item has an optional collapsed typed/voice description. A bounded

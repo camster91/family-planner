@@ -1,5 +1,15 @@
 # Route and domain inventory (#148)
 
+### Shared meal/food foreground draft source — 2026-10-20
+
+No route/model/schema added. `ReviewedDescriptionDraft` owns common collapsed
+typing/browser/local-preview voice, owner-context/lifecycle guards and explicit
+Apply. FoodDescriptionDraft reuses it. New MealDescriptionDraft + bounded
+meal-description parser fill only free-text unlinked Add meal fields. Linked
+recipe/edit/prepared paths are not repurposed; useMealCreation still owns the
+atomic save/original context and recovery. EN/ES test source is authored, not
+run. Stock-lot consumption review and direct replacement restocking remain open.
+
 ### Food voice/text draft source — 2026-10-20
 
 No route/schema added. `FoodDescriptionDraft` is an optional disclosure in the

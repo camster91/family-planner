@@ -10,6 +10,7 @@ import {
   mealCreateReceipt,
 } from "@/lib/meal-create-contract";
 import { useMealCreation } from "@/components/meals/use-meal-creation";
+import { MealDescriptionDraft } from "@/components/meals/MealDescriptionDraft";
 import { RecipeReuseLauncher } from "@/components/meals/RecipeReuseLauncher";
 import { BulkCookingPanel } from "@/components/meals/BulkCookingPanel";
 import { useBulkCookingText } from "@/i18n/bulk-cooking";
@@ -250,6 +251,20 @@ function MealModal({
           disabled={busy || (mode === "add" && !creation.ready)}
           className="space-y-4 min-w-0"
         >
+          {mode === "add" && !recipe && (
+            <MealDescriptionDraft
+              enabled={!busy && creation.ready}
+              contextKey={creation.contextKey}
+              onApply={(draft) => {
+                if (busy || isBusy() || recipe || !creation.ready) return;
+                setRecipeName(draft.recipe_name);
+                if (draft.date) setDate(draft.date);
+                if (draft.meal_type) setMealType(draft.meal_type);
+                if (draft.servings !== undefined)
+                  setServings(String(draft.servings));
+              }}
+            />
+          )}
           {initial?.batch_id && (
             <p className="text-subhead text-label-secondary">
               {tBulk("detachNotice")}
