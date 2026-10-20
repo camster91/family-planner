@@ -498,6 +498,50 @@ describeWithDatabase('recurring chore series against Postgres', () => {
     expect(rows.every((row) => row.recurrence_id === 'rsint-delete-race')).toBe(true)
   })
 
+  it.each(['delete', 'stop'] as const)('refuses %s after a real held user lock and session-generation change', async (action) => {
+    const id = 'rsint-revoked-series'
+    await weeklyTemplate(id, FAM, PARENT, day('2026-10-05'))
+    await recurring.expandRecurringChores({ id, frequency: 'weekly' }, FAM, NOW0)
+    const before = await prisma.chore.findMany({ where: { recurrence_id: id }, orderBy: { id: 'asc' } })
+    const original = await prisma.user.findUniqueOrThrow({ where: { id: PARENT }, select: { token_version: true } })
+    try {
+      const response = await holdThen(
+        locks.userLockKey(PARENT),
+        () => action === 'delete'
+          ? route.DELETE(del({ choreId: id }))
+          : route.PATCH(patch({ choreId: id, frequency: 'once' })),
+        async () => {
+          await prisma.user.update({ where: { id: PARENT }, data: { token_version: { increment: 1 } } })
+        },
+      )
+      expect(response.status).toBe(401)
+      expect(await response.json()).toMatchObject({ error: 'Unauthorized' })
+      expect(await prisma.chore.findMany({ where: { recurrence_id: id }, orderBy: { id: 'asc' } })).toEqual(before)
+    } finally {
+      await prisma.user.update({ where: { id: PARENT }, data: { token_version: original.token_version } })
+    }
+  })
+
+  it('stops the current series when a plain chore became an anchor while PATCH waited', async () => {
+    const id = 'rsint-concurrent-anchor'
+    await prisma.chore.create({ data: { id, family_id: FAM, title: 'Concurrent anchor', assigned_to: PARENT, created_by: PARENT, due_date: day('2026-10-05'), frequency: 'once' } })
+    const response = await holdThen(
+      locks.householdLockKey(FAM),
+      () => route.PATCH(patch({ choreId: id, frequency: 'once' })),
+      async () => {
+        await prisma.chore.update({ where: { id }, data: { recurrence_id: id, is_template: true, frequency: 'weekly', weekly_days: [1] } })
+        await prisma.chore.createMany({ data: [
+          { id: `${id}-history`, family_id: FAM, title: 'Keep history', assigned_to: PARENT, created_by: PARENT, due_date: day('2026-10-12'), frequency: 'once', recurrence_id: id, status: 'completed' },
+          { id: `${id}-future`, family_id: FAM, title: 'Future pending', assigned_to: PARENT, created_by: PARENT, due_date: day('2099-01-05'), frequency: 'once', recurrence_id: id, status: 'pending' },
+        ] })
+      },
+    )
+    expect(response.status).toBe(200)
+    expect(await prisma.chore.findUnique({ where: { id }, select: { frequency: true, is_template: true } })).toEqual({ frequency: 'once', is_template: false })
+    expect(await prisma.chore.findUnique({ where: { id: `${id}-history` } })).not.toBeNull()
+    expect(await prisma.chore.findUnique({ where: { id: `${id}-future` } })).toBeNull()
+  })
+
   it('re-reads the actor role after a held user lock before deleting', async () => {
     await prisma.chore.create({
       data: {

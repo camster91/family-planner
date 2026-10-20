@@ -362,23 +362,34 @@ export async function PATCH(request: NextRequest) {
     } as const
     // One transaction: the edit and any series change (once -> repeating
     // starts a series; a template set to 'once' stops it, O-33) commit together.
+    // Lock actor first and renew session/membership after any wait for
+    // recurrence expansion or another household write.
     // Take turns (O-39) applies to the whole series, after any frequency
     // change in the same request (so "once -> weekly, take turns" works).
     const frequency = updates.frequency
     let updated
     try {
       updated = await prisma!.$transaction(async (tx) => {
+        await lockUser(tx, auth.user.id)
         await lockHousehold(tx, chore.family_id)
-        const caller = await tx.user.findFirst({ where: { id: auth.user.id, family_id: chore.family_id }, select: { id: true, role: true } })
-        const current = await tx.chore.findFirst({ where: { id: choreId, family_id: chore.family_id }, select: { assigned_to: true, assigned_member_id: true } })
+        const caller = await tx.user.findFirst({ where: { id: auth.user.id, family_id: chore.family_id }, select: { id: true, role: true, token_version: true } })
+        if (caller && caller.token_version !== (auth.payload.tv ?? 0)) throw new ChoreSessionChangedError()
+        const current = await tx.chore.findFirst({ where: { id: choreId, family_id: chore.family_id }, select: { assigned_to: true, assigned_member_id: true, member_subject_erased: true, frequency: true, recurrence_id: true, weekly_days: true } })
         if (!caller || !current || caller.role !== auth.user.role || (caller.role !== 'parent' && current.assigned_to !== caller.id)) throw new HouseholdMemberIdentityConflict()
+        if (current.assigned_to === null && current.assigned_member_id != null) throw new HouseholdMemberIdentityConflict()
+        if (current.member_subject_erased && updates.assigned_to !== undefined && updates.assigned_to !== current.assigned_to) throw new HouseholdMemberIdentityConflict()
         await refuseScheduledRoutineLegacyWrite(tx, chore.family_id, choreId, updates.apply_to_series === true || frequency !== undefined || rotation !== undefined)
-        if (updates.assigned_to !== undefined && current.assigned_member_id) Object.assign(data, await canonicalChoreAssigneeInTx(tx, chore.family_id, updates.assigned_to))
+        if (updates.assigned_to !== undefined) {
+          // The selected account may have left while this request waited.
+          const assignee = await tx.user.findFirst({ where: { id: updates.assigned_to, family_id: chore.family_id }, select: { id: true } })
+          if (!assignee) throw new HouseholdMemberIdentityConflict()
+          if (current.assigned_member_id) Object.assign(data, await canonicalChoreAssigneeInTx(tx, chore.family_id, updates.assigned_to))
+        }
         if (Object.keys(data).length > 0) await tx.chore.update({ where: { id: choreId }, data })
         if (frequency !== undefined) {
           await applyFrequencyEditInTx(
             tx,
-            { id: choreId, family_id: chore.family_id, frequency: chore.frequency, recurrence_id: chore.recurrence_id, weekly_days: chore.weekly_days },
+            { id: choreId, family_id: chore.family_id, frequency: current.frequency, recurrence_id: current.recurrence_id, weekly_days: current.weekly_days },
             frequency,
             { applyToSeries: updates.apply_to_series === true, weeklyDays: updates.weekly_days }
           )
@@ -400,6 +411,7 @@ export async function PATCH(request: NextRequest) {
         return tx.chore.findUniqueOrThrow({ where: { id: choreId }, include })
       })
     } catch (err) {
+      if (err instanceof ChoreSessionChangedError) return choreJson({ error: 'Unauthorized' }, { status: 401 })
       if (err instanceof RoutineScheduleLegacyWriteError) return choreJson({ error: err.message, code: err.code }, { status: 409 })
       if (err instanceof HouseholdMemberIdentityConflict) return choreJson({ error: err.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
       if (err instanceof RotationNeedsSeriesError) {
@@ -426,10 +438,14 @@ class RotationNeedsSeriesError extends Error {
   }
 }
 
+/** A session revoked while this request waited cannot perform a chore write. */
+class ChoreSessionChangedError extends Error {}
+
 const RECURRING_SERIES_REQUIRES_STOP = 'RECURRING_SERIES_REQUIRES_STOP'
 const RECURRING_ANCHOR_RETAINS_HISTORY = 'RECURRING_ANCHOR_RETAINS_HISTORY'
 
 type ChoreDeleteResult =
+  | { kind: 'unauthorized' }
   | { kind: 'deleted' }
   | { kind: 'not-found' }
   | { kind: 'foreign' }
@@ -470,9 +486,10 @@ export async function DELETE(request: NextRequest) {
 
       const actor = await tx.user.findFirst({
         where: { id: auth.user.id },
-        select: { id: true, family_id: true, role: true },
+        select: { id: true, family_id: true, role: true, token_version: true },
       })
-      if (!actor || actor.family_id !== auth.user.family_id) {
+      if (!actor || actor.token_version !== (auth.payload.tv ?? 0)) return { kind: 'unauthorized' }
+      if (actor.family_id !== auth.user.family_id) {
         return { kind: 'forbidden', message: 'Only parents or the assignee can delete chores' }
       }
 
@@ -522,6 +539,7 @@ export async function DELETE(request: NextRequest) {
       return { kind: 'deleted' }
     })
 
+    if (result.kind === 'unauthorized') return choreJson({ error: 'Unauthorized' }, { status: 401 })
     if (result.kind === 'not-found') return choreJson({ error: 'Chore not found' }, { status: 404 })
     if (result.kind === 'foreign') return choreJson({ error: 'Forbidden' }, { status: 403 })
     if (result.kind === 'profile-unsupported') {

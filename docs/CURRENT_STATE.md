@@ -1,5 +1,30 @@
 # Current State
 
+## Recurring stop/delete source reconciliation — 2026-10-20
+
+Original #536 requirements now map to existing anchor guards, explicit parent
+Stop/Save UI, typed EN/ES recovery and authored route/Postgres/viewport cases in
+`docs/plans/chore-series-lifecycle-reconciliation.md`. The acceptance remains
+unrun in this candidate. Reconciliation identified a session-generation race:
+DELETE checked role/family under its locks but not a revoked token generation;
+PATCH stopping/editing lacked the actor-user lock and generation recheck.
+
+Both writes now take actor-user then household locks and compare the current
+stored token generation with the authenticated claim before changing chores.
+A revoked session returns 401. Existing parent/assignee rules, parent-only fields,
+profile/scheduled-definition guards, anchor 409 codes, request shapes and explicit
+Stop Save behavior remain. PATCH also renews subject erasure/profile state and
+the selected assignee under the household lock, and passes the locked current
+cadence/root/weekdays to canonical frequency editing rather than the pre-wait
+snapshot. A stop requested as a plain chore now applies to a series created while
+it waited, preserving completed history and removing untouched future copies.
+Authored cases cover revoked DELETE/stop requests, changed assignee/subject state
+and the concurrent-anchor stop. Disposable Postgres cases use real held locks.
+Route fixtures supply full actor state and initialize their own lookups. All
+cases and wider QA remain unrun.
+No tests, types, lint, build, browser/native/schema operations, CI, push, merge,
+deployment or activation occurred. Rollout/release protections unchanged.
+
 ## Exact personal import-provenance erasure source — 2026-10-20
 
 Account deletion now discovers household locks from the personal import-target

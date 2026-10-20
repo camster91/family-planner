@@ -25,6 +25,39 @@ beforeEach(() => {
 })
 
 describe('DELETE /api/chores recurrence lifecycle', () => {
+  it.each(['delete', 'stop'] as const)('refuses %s after session revocation while waiting for locks without changing the series', async (action) => {
+    Object.assign(db.find('chore', 'chore-a')!, { recurrence_id: 'chore-a', is_template: true, frequency: 'weekly' })
+    db.rows('chore').push({ id: 'pending-copy', family_id: 'family-A', assigned_to: 'child-a', recurrence_id: 'chore-a', frequency: 'once', status: 'pending' })
+    const before = JSON.stringify(db.rows('chore'))
+    jest.mocked(lockHousehold).mockImplementationOnce(async () => {
+      db.find('user', 'parent-a')!.token_version += 1
+    })
+    const request = req({ as: 'parentA', body: action === 'delete'
+      ? { choreId: 'chore-a' }
+      : { choreId: 'chore-a', frequency: 'once' } })
+    const response = await (action === 'delete' ? chores.DELETE(request) : chores.PATCH(request))
+    expect(response.status).toBe(401)
+    expect(await response.json()).toMatchObject({ error: 'Unauthorized' })
+    expect(JSON.stringify(db.rows('chore'))).toBe(before)
+    expect(writesTo('chore')).toHaveLength(0)
+    expect(lockUser).toHaveBeenCalledWith(expect.anything(), 'parent-a')
+  })
+
+  it.each(['departed-assignee', 'erased-subject', 'profile-subject'] as const)('refuses legacy edit after locked subject state changes: %s', async (change) => {
+    jest.mocked(lockHousehold).mockImplementationOnce(async () => {
+      if (change === 'departed-assignee') db.find('user', 'teen-a')!.family_id = 'family-B'
+      if (change === 'erased-subject') db.find('chore', 'chore-a')!.member_subject_erased = true
+      if (change === 'profile-subject') Object.assign(db.find('chore', 'chore-a')!, { assigned_to: null, assigned_member_id: 'new-profile' })
+    })
+    const response = await chores.PATCH(req({ as: 'parentA', body: {
+      choreId: 'chore-a', title: 'Must not save stale edit',
+      ...(change !== 'profile-subject' ? { assigned_to: 'teen-a' } : {}),
+    } }))
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ code: 'IDENTITY_CONFLICT' })
+    expect(writesTo('chore')).toHaveLength(0)
+  })
+
   it('deletes one ordinary occurrence and takes user before household lock', async () => {
     const response = await chores.DELETE(req({ as: 'parentA', body: { choreId: 'chore-a' } }))
     expect(response.status).toBe(200)

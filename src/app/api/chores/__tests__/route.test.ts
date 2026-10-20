@@ -82,7 +82,7 @@ describe("PATCH /api/chores — parent-only fields", () => {
     mockChoreUpdate.mockImplementation(async ({ where, data }: any) => ({ id: where.id, ...data }));
     mockUserFindFirst.mockImplementation(async ({ where }: any) => {
       const u = ALL_USERS.find((x) => x.id === where.id && x.family_id === where.family_id);
-      return u ? { id: u.id } : null;
+      return u ? { ...u, token_version: 0 } : null;
     });
   });
 
@@ -198,6 +198,10 @@ describe("PATCH /api/chores — parent-only fields", () => {
 describe("PATCH /api/chores — due_date is stored as a date-only value", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUserFindFirst.mockImplementation(async ({ where }: any) => {
+      const u = ALL_USERS.find((x) => x.id === where.id && x.family_id === where.family_id);
+      return u ? { ...u, token_version: 0 } : null;
+    });
     mockChoreFindUnique.mockImplementation(async ({ where }: any) => CHORES[where.id] ?? null);
     (prisma!.chore.findFirst as jest.Mock).mockImplementation(async ({ where }: any) => CHORES[where.id] ?? null);
     (prisma!.chore.findUniqueOrThrow as jest.Mock).mockImplementation(async ({ where }: any) => ({ id: where.id, ...CHORES[where.id] }));
