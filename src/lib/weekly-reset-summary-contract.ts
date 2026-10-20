@@ -1,3 +1,4 @@
+import { scheduleReviewScope } from "@/lib/calendar-planning/conflict-review";
 import { responsibilityTarget } from "@/lib/responsibility";
 import { z } from "zod";
 import { parseDateOnly } from "@/lib/dates";
@@ -15,6 +16,7 @@ export const weeklyResetSummaryQuery = weeklyResetScope
 const summaryRow = z
   .object({
     responsibility: responsibilityTarget.optional(),
+    scheduleReview: scheduleReviewScope.optional(),
     title: z.string().max(480),
     when: when.nullable(),
     end: when.nullable().optional(),

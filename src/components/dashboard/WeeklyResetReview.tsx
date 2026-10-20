@@ -1,4 +1,9 @@
 "use client";
+import {
+  ScheduleReviewButton,
+  useScheduleReviewActive,
+} from "@/components/calendar/review/ScheduleReviewProvider";
+import { CALENDAR_CHANGED_EVENT } from "@/lib/calendar-planning/changes";
 import * as React from "react";
 import { ResponsibilityReviewEntry } from "@/components/responsibility/ResponsibilityProvider";
 import Link from "next/link";
@@ -48,6 +53,7 @@ export default function WeeklyResetReview({
 }: Props) {
   const copy = useWeeklyResetText(),
     locale = useDisplayLocale();
+  const scheduleReviewActive = useScheduleReviewActive();
   const [store] = React.useState(() =>
     browserWeeklyResetRecovery({ userId, familyId }),
   );
@@ -76,6 +82,11 @@ export default function WeeklyResetReview({
     [summaryLoading, setSummaryLoading] = React.useState(false),
     [summaryAttempt, setSummaryAttempt] = React.useState(0);
   const step = view?.steps[index];
+  React.useEffect(() => {
+    const refresh = () => setSummaryAttempt((value) => value + 1);
+    window.addEventListener(CALENDAR_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(CALENDAR_CHANGED_EVENT, refresh);
+  }, []);
   function retain(entry: WeeklyResetRecoveryEntry | null) {
     pendingRef.current = entry;
     setPending(entry);
@@ -98,12 +109,13 @@ export default function WeeklyResetReview({
     }
   }
   React.useEffect(() => {
+    if (scheduleReviewActive) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, []);
+  }, [scheduleReviewActive]);
   React.useEffect(() => {
     alive.current = true;
     const epoch = ++readEpoch.current;
@@ -335,7 +347,7 @@ export default function WeeklyResetReview({
   );
   return (
     <Dialog
-      open
+      open={!scheduleReviewActive}
       title={copy.title}
       description={copy.intro}
       closeLabel={copy.close}
@@ -674,6 +686,11 @@ export default function WeeklyResetReview({
                                         <p className="font-medium">
                                           {row.title || copy.unnamed}
                                         </p>
+                                        {row.scheduleReview && (
+                                          <ScheduleReviewButton
+                                            scope={row.scheduleReview}
+                                          />
+                                        )}
                                         {row.responsibility && (
                                           <ResponsibilityReviewEntry
                                             target={row.responsibility}

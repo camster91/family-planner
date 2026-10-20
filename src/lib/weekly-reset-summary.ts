@@ -1,3 +1,4 @@
+import { scheduleReviewReady } from "@/lib/calendar-planning/schedule-owner";
 import { responsibilityReady } from "@/lib/responsibility-owner";
 import type { Prisma } from "@prisma/client";
 import { addDaysToKey, dayKeyFor } from "@/lib/local-day-key";
@@ -82,7 +83,7 @@ export async function loadWeeklyResetSummaryInTx(
           start_time: { lt: window.instantEnd },
           end_time: { gt: window.instantStart },
         },
-        select: { title: true, start_time: true, end_time: true },
+        select: { id: true, title: true, start_time: true, end_time: true },
         orderBy: [{ start_time: "asc" }, { id: "asc" }],
         take: LIMIT + 1,
       });
@@ -92,6 +93,18 @@ export async function loadWeeklyResetSummaryInTx(
         kind: "events",
         more: rows.length > LIMIT,
         rows: rows.slice(0, LIMIT).map((row) => ({
+          ...(scheduleReviewReady()
+            ? {
+                scheduleReview: {
+                  targetId: row.id,
+                  range: {
+                    start: window.instantStart.toISOString(),
+                    end: window.instantEnd.toISOString(),
+                  },
+                  timeZone: scope.timeZone,
+                },
+              }
+            : {}),
           title: text(row.title),
           when: row.start_time.toISOString(),
           end: row.end_time.toISOString(),

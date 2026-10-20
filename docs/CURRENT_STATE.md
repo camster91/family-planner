@@ -1,5 +1,54 @@
 # Current State
 
+## Schedule review sheet and canonical discovery source — 2026-10-20
+
+The next #123 slice adds the lazy EN/ES personal schedule-review sheet and entry
+points from calendar overlap previews, native event details and weekly schedule
+rows. The short flow separates current event/known constraints, editable buffers
+and explicit search windows, three nearby options and exact before/after save.
+Target and other-event preparation/travel buffers are explicit comparison-only
+settings; they do not add reminders, send messages or infer attendance. Up to
+16 windows are edited one at a time; search/selection bounds other buffers and
+paged confirmation avoids long lists. Caps, unknown sources, recurrence and
+read-only/provisional results keep confirmation held.
+
+Wall-time input uses the named zone: nonexistent DST times are refused, repeated
+times require an explicit offset, and known original offsets stay selected.
+Displayed instants include offsets and seconds/milliseconds when present; format
+fallback is explicitly exact UTC. Drafts survive read/preview errors. Changed
+comparison buffers require explicit current-version review or removal. The server
+preview envelope is kept separate from UI-only plan/selection metadata when the
+immutable request is staged.
+
+A gate/role-only provider uses ordinary query navigation and Back/direct-URL
+closing, preserving weekly context. No household/owner identity is seeded into
+layout props. Fridge mode hides the host and controls. Readiness hides new entry
+buttons, while existing personal review URLs can still inspect their saved
+requests during pause/rollback. Calendar details close their native top layer
+before opening the sheet. Responsibility and schedule overlays are coordinated;
+weekly review keeps state/journal/cursor mounted but releases its dialog/focus/
+scroll ownership while timing review is active, avoiding lazy-dialog races.
+Confirmed proof triggers content-free calendar refresh and weekly summary reads.
+
+The sheet initializes owned recovery independently of a target read, stages
+before send, invalidates operations synchronously on close, blocks duplicate
+operations and never auto-sends recovered requests. Unknown/refused outcomes keep
+exact body/key. Check/retry/forget and stage-versus-dismissal storage repair are
+explicit; recovered deletion cannot resurrect old memory. Past proof clears the
+old projection before a separate fresh read. Owner changes hold/clear the prior
+projection. Calendar/domain use remains separate from this optional review.
+
+Form, navigation/privacy, role, exact stage/send, close-during-stage, deleted-
+target proof, uncertain dismissal and unsent-draft failure case source is authored
+and unrun. Source editing/inspection/formatting only: no tests/types/lint/build,
+API/schema/client/migration/SQL/DB/provider/browser/native/CI/activation/push/merge/
+deploy. Current source is not UI or release acceptance. Concrete-event conflict
+review now has source across its full UI/backend/recovery journey; recurrence
+scope/coverage and all real role/locking/storage/viewport/native acceptance remain
+open. Next required #123 code: event-linked preparation through canonical tasks/
+routines, unified review inbox/what changed and grounded planning; #144 and the
+broader repository goal remain active. Consolidated QA follows remaining code.
+
 ## Schedule review authenticated API and owned recovery source — 2026-10-20
 
 The next #123 slice adds person-only schedule GET/PATCH, readonly preview POST,

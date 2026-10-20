@@ -1,4 +1,5 @@
 "use client";
+import { ScheduleReviewButton } from "@/components/calendar/review/ScheduleReviewProvider";
 import * as React from "react";
 import Link from "next/link";
 import { useTranslation } from "@/i18n";
@@ -473,20 +474,32 @@ export function CalendarPlanner({
                         </time>
                       </p>
                       {[pair.first, pair.second].map((event) => (
-                        <button
-                          key={event.id}
-                          type="button"
-                          aria-label={msg("reviewEvent", {
-                            title: event.title,
-                          })}
-                          onClick={(ev) => {
-                            trigger.current = ev.currentTarget;
-                            setSelected(event);
-                          }}
-                        >
-                          <strong>{event.title}</strong>
-                          <small>{sourceLabel(event)}</small>
-                        </button>
+                        <div key={event.id}>
+                          <button
+                            key={event.id}
+                            type="button"
+                            aria-label={msg("reviewEvent", {
+                              title: event.title,
+                            })}
+                            onClick={(ev) => {
+                              trigger.current = ev.currentTarget;
+                              setSelected(event);
+                            }}
+                          >
+                            <strong>{event.title}</strong>
+                            <small>{sourceLabel(event)}</small>
+                          </button>
+                          <ScheduleReviewButton
+                            scope={{
+                              targetId: event.id,
+                              range: { start, end },
+                              timeZone: local
+                                ? Intl.DateTimeFormat().resolvedOptions()
+                                    .timeZone
+                                : "UTC",
+                            }}
+                          />
+                        </div>
                       ))}
                     </li>
                   ))}
@@ -856,6 +869,19 @@ export function CalendarPlanner({
           {selected.recurrence && <p>{msg("recurrence")}</p>}
           <div className={styles.detailActions}>
             <button onClick={() => setSelected(null)}>{msg("close")}</button>
+            <ScheduleReviewButton
+              scope={{
+                targetId: selected.id,
+                range: { start, end },
+                timeZone: local
+                  ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                  : "UTC",
+              }}
+              beforeOpen={() => {
+                dialog.current?.close?.();
+                setSelected(null);
+              }}
+            />
             {canEditEvents &&
               !selected.source_subscription_id &&
               !selected.source && (

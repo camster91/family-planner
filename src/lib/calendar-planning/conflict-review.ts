@@ -22,6 +22,11 @@ const interval = z
     (value) => Date.parse(value.end) > Date.parse(value.start),
     "Positive interval required",
   );
+const comparisonInterval = interval.refine(
+  (value) =>
+    Date.parse(value.end) - Date.parse(value.start) <= CALENDAR_RANGE_MAX_MS,
+  "Comparison range is at most 45 days",
+);
 const owner = z.object({ userId: id, familyId: id }).strict();
 export const scheduleBuffers = z
   .object({
@@ -59,7 +64,7 @@ export const scheduleReviewSnapshot = z
     owner,
     role: z.enum(["parent", "teen", "child"]),
     timeZone: z.string().max(100).refine(isValidTimeZone),
-    range: interval,
+    range: comparisonInterval,
     // Generated only by a fresh authorized canonical read; binds the whole range
     // and all compared sources, including event generation/material epochs.
     snapshotToken: token,
@@ -91,7 +96,7 @@ const scheduleReviewQueryObject = z
   .object({
     protocol: z.literal(SCHEDULE_REVIEW_PROTOCOL),
     owner,
-    range: interval,
+    range: comparisonInterval,
     timeZone: z.string().max(100).refine(isValidTimeZone),
     snapshotToken: token,
     target: z.object({ id, sourceToken: token }).strict(),
@@ -406,10 +411,16 @@ export function previewScheduleMove(
 export const scheduleReviewScope = z
   .object({
     targetId: id,
-    range: interval,
+    range: comparisonInterval,
     timeZone: z.string().max(100).refine(isValidTimeZone),
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) =>
+      Date.parse(value.range.end) - Date.parse(value.range.start) <=
+      CALENDAR_RANGE_MAX_MS,
+    "Comparison range is at most 45 days",
+  );
 export type ScheduleReviewScope = z.infer<typeof scheduleReviewScope>;
 export const scheduleReviewInstant = instant;
 export function requireScheduleIntentAge(

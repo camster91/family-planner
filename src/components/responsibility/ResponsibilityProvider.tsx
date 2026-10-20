@@ -1,4 +1,5 @@
 "use client";
+import { useScheduleReviewActive } from "@/components/calendar/review/ScheduleReviewProvider";
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -31,8 +32,10 @@ export default function ResponsibilityProvider({
     copy = useResponsibilityText();
   const pushed = React.useRef<string | null>(null),
     navigating = React.useRef(false);
+  const scheduleActive = useScheduleReviewActive();
   const personal =
     enabled &&
+    !scheduleActive &&
     ["parent", "teen", "child"].includes(role) &&
     params.get("mode") !== "fridge" &&
     !pathname.startsWith("/device");

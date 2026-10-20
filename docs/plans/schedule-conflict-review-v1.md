@@ -265,3 +265,84 @@ owned pending/close/dismiss/storage repair, canonical calendar entry points and
 weekly-reset integration. This API is not a substitute for that journey. Real
 schema/locking/atomic receipt/takeover/role/storage/viewport/native and release
 acceptance is deferred with the broader #123/#144/repository scope still active.
+
+
+## Canonical EN/ES review journey source — 2026-10-20
+
+`ScheduleReviewProvider` and the lazy `ScheduleReviewSheet` now connect calendar
+possible-overlap entries, current native event details and the gated canonical
+weekly schedule summary. Scope uses the actual event ID, compared instants and
+named zone, never a title match. The layout passes only readiness/known role,
+not owner/family context. Fridge mode omits the host and controls; paired-device
+API refusal remains authoritative. A readiness pause hides new buttons but an
+existing personal review URL can still initialize owned recovery and inspect
+past requests without exposing current target data or permitting new writes.
+
+The original rounded Dialog pattern is reused with fixed actions, semantic
+labels, wrapping content, 44px targets and localized EN/ES copy. Review, settings,
+options and confirmation are short separate states. Current event/title/origin/
+checked time/duration and possible constraints remain distinct from availability.
+The first three known conflicts are immediate, the rest of the bounded preview
+are a disclosure, and full counts/cap/recurrence/source unknowns stay explicit.
+Search is deliberate; opening/reading/focus/locale never sends a household command.
+There is no provider call. No design/rendered approval is claimed by this source.
+
+Preparation, travel before and travel after are separate validated 0–240-minute
+fields. Other authorized comparison events can receive explicit what-if buffers;
+bounded title search and a themed selector edit one at a time, and changed/missing
+source versions require explicit review or removal. These settings do not persist
+as reminders, assign attendees or create competing buffer events. Sixteen search
+windows are edited one at a time with Back/Next/Add/Remove; grid size is explicit.
+The comparison envelope includes the original reserved interval and chosen windows
+within the canonical 45-day actual-instant ceiling. Unsubmitted settings survive
+read failures. A fresh changed original event returns to review; unchanged events
+are compared against newly loaded blockers rather than a hidden old snapshot.
+
+`schedule-form.ts` refuses impossible/nonexistent wall times and enumerates valid
+zone-offset choices for folds, with no silent gap repair or first-fold selection.
+Original known instants retain their selected offset. Time labels show offsets,
+and seconds/milliseconds when needed; unsupported format options fall back to
+explicit exact UTC. Duration remains canonical and unchanged. Three alternatives
+show coverage/provisional state and lead to an exact original/new/reserved-time,
+duration, source/zone and buffer preview. Partial/read-only/paused/unsupported
+cases never enable save. Opaque IDs are not inferred from names or object keys.
+
+`useScheduleReviewSession` initializes the exact owner-bound journal before the
+current event read, keeping deleted/forbidden target requests inspectable. A
+confirmed action freezes the minimal server preview envelope separately from UI
+plan/query metadata, stages its immutable original body/key, then sends. A
+synchronous operation/epoch guard prevents a close during local persistence from
+starting a late send before navigation unmounts. Recovered requests are never
+auto-sent. Explicit inspection gates exact retry; forgetting requires confirmation
+and does not undo a server move. Unknown/refused/malformed outcomes remain saved.
+Storage repair tracks stage versus dismissal and cannot resurrect an old deleted
+request. Current owner/session/role/family changes hold and clear projections.
+Matching proof clears stale view data, signals a content-free canonical calendar
+refresh, dismisses only proven work and separately reloads the current event.
+
+Normal Next navigation preserves the containing weekly review. Native event
+details close before opening the sheet so their top layer cannot cover it.
+Schedule and responsibility overlays do not open together. While timing review
+is active, weekly review keeps its state/cursor/journal mounted but releases its
+Dialog/focus/scroll ownership; this also covers direct-URL lazy-loading order.
+Returning restores the weekly step. Confirmed calendar signals refresh the
+bounded weekly preview without marking personal progress or implying consent.
+A local error boundary closes only the optional review, preserving domain use.
+
+Authored, unrun cases cover impossible/gap/fold times and exact offsets/precision,
+original/search range bounds, changed buffer holds; staged exact confirmation,
+close before router unmount, deleted-target past proof/current-read failure,
+uncertain local deletion without resurrection, draft retention and child read-
+only confirmation; shared-mode hiding, normal Back/query preservation and pause-
+time recovery URLs. No test/type/lint/build/app-API/Prisma/client/schema/SQL/DB/
+provider/browser/native/CI or activation has run. Source formatting is not QA.
+No push/merge/deploy or actual household/provider mutation occurred.
+
+Concrete-event conflict review now has source through the required canonical
+planner/epochs/API/atomic receipt/owned recovery/UI/discovery/weekly journey.
+It is not verified or closed. Explicit occurrence/series and complete recurrence
+coverage remain part of the broader canonical calendar/#124 acceptance, with
+unsupported moves held. Continue event preparation, review inbox/what changed,
+grounded #123 jobs and #144 quality/telemetry plus the full repository backlog.
+Consolidated role/DDL/locking/receipt/session/storage/viewport/keyboard/native and
+release QA remains a later gate; no source claim substitutes for that evidence.
