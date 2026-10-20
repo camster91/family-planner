@@ -23,8 +23,12 @@ jest.mock("@/lib/api-auth", () => ({
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    $transaction: async (run: (tx: unknown) => unknown) => run(require("@/lib/prisma").prisma),
+    $queryRaw: async () => [],
     chore: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
       update: jest.fn(),
     },
     user: {
@@ -71,6 +75,8 @@ describe("PATCH /api/chores — parent-only fields", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockChoreFindUnique.mockImplementation(async ({ where }: any) => CHORES[where.id] ?? null);
+    (prisma!.chore.findFirst as jest.Mock).mockImplementation(async ({ where }: any) => CHORES[where.id] ?? null);
+    (prisma!.chore.findUniqueOrThrow as jest.Mock).mockImplementation(async ({ where }: any) => ({ id: where.id, ...CHORES[where.id] }));
     mockChoreUpdate.mockImplementation(async ({ where, data }: any) => ({ id: where.id, ...data }));
     mockUserFindFirst.mockImplementation(async ({ where }: any) => {
       const u = ALL_USERS.find((x) => x.id === where.id && x.family_id === where.family_id);
@@ -191,6 +197,8 @@ describe("PATCH /api/chores — due_date is stored as a date-only value", () => 
   beforeEach(() => {
     jest.clearAllMocks();
     mockChoreFindUnique.mockImplementation(async ({ where }: any) => CHORES[where.id] ?? null);
+    (prisma!.chore.findFirst as jest.Mock).mockImplementation(async ({ where }: any) => CHORES[where.id] ?? null);
+    (prisma!.chore.findUniqueOrThrow as jest.Mock).mockImplementation(async ({ where }: any) => ({ id: where.id, ...CHORES[where.id] }));
     mockChoreUpdate.mockImplementation(async ({ where, data }: any) => ({ id: where.id, ...data }));
   });
 

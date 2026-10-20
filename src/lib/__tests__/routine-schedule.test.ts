@@ -45,6 +45,7 @@ const base = {
   expected_family_id: "fixture-family",
   issued_at: "2026-10-20T23:59:00.000Z",
   view_day: "2026-10-20",
+  view_zone: "America/Toronto",
 };
 it("uses explicit viewer day and chosen weekdays, including the selected start, without guessing UTC today", () => {
   expect(

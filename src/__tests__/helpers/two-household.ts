@@ -898,7 +898,21 @@ export const fakePrisma: any = new Proxy(
       if (prop === '$transaction') {
         return async (arg: any) => (typeof arg === 'function' ? arg(fakePrisma) : Promise.all(arg))
       }
-      if (prop === '$executeRaw' || prop === '$queryRaw') return async () => 0
+      if (prop === '$queryRaw') return async (strings: TemplateStringsArray, ...values: unknown[]) => {
+        const sql = strings.join('?').replace(/\s+/g, ' ').trim()
+        // Exact source query for private scheduled-root metadata. Locks are
+        // intentionally no-ops in this fixture; concurrency needs real PG.
+        if (sql.startsWith('SELECT "routine_series_config" FROM "Chore"')) {
+          const familyFirst = sql.indexOf('"family_id" = ?') < sql.indexOf('"id" = ?')
+          const familyId = familyFirst ? values[0] : values[1]
+          const choreId = familyFirst ? values[1] : values[0]
+          const series = familyFirst && values[2] === true
+          const selected = db.find('chore', String(choreId))
+          return db.rows('chore').filter(row => row.family_id === familyId && (row.id === choreId || (series && row.id === selected?.recurrence_id))).map(row => ({ routine_series_config: row.routine_series_config ?? null }))
+        }
+        return 0
+      }
+      if (prop === '$executeRaw') return async () => 0
       if (prop === 'then') return undefined
       if (!delegates[prop]) delegates[prop] = delegate(prop)
       return delegates[prop]

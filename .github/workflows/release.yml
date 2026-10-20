@@ -233,6 +233,7 @@ jobs:
           src/lib/__tests__/recurring-series.integration.test.ts
           src/lib/__tests__/reward-mutations.integration.test.ts
           src/lib/__tests__/routine-stack.integration.test.ts
+          src/lib/__tests__/routine-schedule-runtime.integration.test.ts
           src/lib/__tests__/routine-stack-migration-guards.integration.test.ts
           src/lib/__tests__/profile-chore.integration.test.ts
           src/lib/calendar-import/__tests__/sync.integration.test.ts

@@ -1,3 +1,4 @@
+import { publicChoreData } from "@/lib/chore-public-data";
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import ChoresContent from './ChoresContent'
@@ -167,7 +168,7 @@ export default async function ChoresPage() {
       is_template?: boolean
     }
     const row = {
-      ...safeChore,
+      ...publicChoreData(safeChore),
       // Keep account/profile subjects display-only on this board. In
       // particular, never manufacture a User for an email-free member.
       assignee: subject ? { name: subject.name } : null,

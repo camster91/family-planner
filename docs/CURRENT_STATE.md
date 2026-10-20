@@ -1,5 +1,30 @@
 # Current State
 
+## Private routine coordinator source — 2026-10-20
+
+Ordinary chore JSON routes and server page strip private future definitions;
+board/device/profile creation paths use explicit DTO/selects. Canonical legacy
+root/series edits and root deletes refuse scheduled/unknown metadata under the
+household lock. Ordinary PATCH now renews ownership for all edits, removing the
+unlocked fast path. Existing fixture sources reflect the transaction/read shape.
+
+New unrouted parent coordinator/read source supports canonical initial-root
+creation, future-definition replacement, explicit removal and pause/resume/stop
+state with original keyed atomic receipt, version, role/household/token/feature,
+current account/profile authority, row-locked history/evidence preservation and
+ordered snapshots. First effects bind validated viewer zone/day and fifteen-minute
+intent age; matching receipt replay does not execute a new day or recreate deleted
+records. Fresh writing and rollback-ready support gates are off; no endpoint or
+public/offline capability exposes this source.
+
+Canonical recurrence now holds non-null definitions rather than run old cadence.
+Metadata-aware expansion, inactive-anchor visibility/completion guards, owned
+request recovery and actual parent routes/editor still must be implemented.
+This is not usable scheduled-routine/pause UI. New source tests/guarded DB suite
+are authored and later workflow-wired, unrun. No typecheck/lint/build/browser/
+native QA, schema/client operation, production/real-data/provider action, push,
+merge/deploy or activation. `plans/routine-schedule-v1.md` records full limits.
+
 ## Weekly start and durable routine foundation — 2026-10-20
 
 Original #449/#452/#451 criteria were re-read against forms, canonical recurrence,

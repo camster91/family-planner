@@ -143,3 +143,12 @@ control JSON. Ordinary domain/profile/complete/board/cache/read projections must
 also exclude private future definitions before activation. Existing household
 erasure inventories stacks/chores. No provider, analytics, media, timer or new
 offline action. `../plans/routine-schedule-v1.md`.
+
+Routine coordinator continuation (2026-10-20): ordinary chore JSON responses and
+server page now strip private definitions recursively; dedicated parent state/
+export stays separate. The original private command adds explicit viewer timezone
+to refuse stale-day first effects, without collecting device analytics. Current
+parent/household/session/feature and profile capability checks guard the unrouted
+coordinator. No runtime endpoint, provider, schema execution, collection activation
+or new cache/offline action. Flags remain off; future adapter/action/lifecycle
+projections and consolidated acceptance remain required.

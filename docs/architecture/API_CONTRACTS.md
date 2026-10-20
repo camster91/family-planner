@@ -847,3 +847,12 @@ read metadata stripping, atomic receipt/config/copy changes, canonical expander
 and legacy-write guards, exact owned recovery and rollback-ready support must
 be implemented and later accepted. Current-occurrence endpoints stay unchanged.
 Parent export includes definitions; non-parent export strips root control JSON.
+
+Routine continuation (2026-10-20): canonical parent coordinator/read functions
+are authored but unrouted. Original viewer zone/day, fifteen-minute first-effect
+age, current parent/session/household/profile/feature authority, stack version
+and original keyed compact receipt bind future operations. Definition support /
+fresh-write flags remain off. Ordinary chore JSON/page projections strip private
+metadata and legacy root writes hold under lock. Recurrence holds rather than
+ignores non-null metadata. Adapter/anchor actions/recovery/routes/UI and QA remain
+open; no public or offline capability is added. See routine-schedule-v1 plan.

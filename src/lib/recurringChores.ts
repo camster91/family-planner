@@ -82,6 +82,11 @@ export async function expandSeriesInTx(
 
   // Household-scoped: a template of another household is never expanded.
   if (!original || original.family_id !== familyId || original.frequency === 'once') return 0
+  // Until the scheduled-definition adapter is completed, hold any known or
+  // future private definition. Never expand it using legacy snapshot fields.
+  const definition = await tx.$queryRaw<{ routine_series_config: unknown }[]>`
+    SELECT "routine_series_config" FROM "Chore" WHERE "id" = ${templateId} AND "family_id" = ${familyId}`
+  if (definition.some(row => row.routine_series_config != null)) return 0
   const assignedTo = original.assigned_to
 
   // A profile series is a gated, canonical member-owned template. Never pass

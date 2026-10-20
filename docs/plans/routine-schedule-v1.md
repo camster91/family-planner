@@ -138,3 +138,66 @@ activation. Leave new fields nullable and retained on code rollback; no destruct
 migration, historical deletion or automatic conversion. Existing legacy clients
 keep ordinary chores and current-occurrence stacks; unsupported scheduled-template
 edits need a clear upgrade/refusal response. Source only is not support proof.
+
+## Canonical runtime source — 2026-10-20 continuation
+
+The parent coordinator/read source is now authored in
+`src/lib/routine-schedule-runtime.ts`. It is not routed or activated. Support
+requires `ROUTINE_SCHEDULE_ROLLBACK_READY=1`; fresh writes also require
+`ROUTINE_SCHEDULE_ENABLED=1`. Both remain unset/off. Reads and matching historical
+receipt confirmation can remain available while fresh writing is paused.
+
+The transaction renews actual parent role, household, token version and chores
+feature under User then household locks, then locks the original keyed receipt,
+stack and canonical roots. Actor/family/action/request hash must match. A compact
+validated result commits with stack/root metadata and copied-row changes.
+Create/replace/control use an expected version; unknown or inconsistent root
+metadata holds. Role/household/token changes refuse before replay. Historical
+confirmation never recreates deleted stack/roots and does not claim its old
+state is still current. Parent reads return current config/order separately.
+
+New first effects require issued-at within fifteen minutes and the original
+viewer day still current in the explicitly supplied validated IANA `view_zone`.
+Cross-midnight unknown outcomes check the original receipt; they do not rebase
+the body or silently execute yesterday's prune scope. The extra timezone is
+private request context, not device analytics or a household timezone guess.
+
+All new/changed targets resolve through existing canonical account/member
+authority before writes; profile subjects require protocol2 and existing profile
+write/recurrence gates. Pause/stop remain possible when an old assignee becomes
+unavailable. Root Chore title/owner/due/points/history snapshots stay unchanged
+on future edits; only future definitions and explicit series control fields
+change. Control operations preserve author order independently from sorted lock
+order. Every candidate copy is re-read under row locks and a bounded total of
+10,000 rows before conservative prune/unstack. Exceptions after the first write
+roll back the whole transaction rather than return a partial success.
+
+Ordinary chore GET/create/edit/complete/undo/verify JSON and the server chore
+page now recursively strip private future-definition keys, while retaining
+occurrence cue/duration. Profile create and board/device paths already use
+explicit snapshot DTO/selects. Dedicated parent definition export/read remain
+separate. Ordinary legacy root/future-series edits and root deletes refuse
+private/unknown scheduled definitions under the household lock. Ordinary PATCH
+now rechecks actor/ownership for every path instead of an unlocked fast path.
+
+Canonical expansion currently **holds** any non-null root definition; it does
+not yet consume the new schedule. This prevents old snapshot expansion from
+ignoring pause/state/version. It is a deliberate intermediate source guard, not
+a completed recurrence adapter. The coordinator creates initial canonical roots
+and replans metadata/eligible pending rows, but does not claim a full upcoming
+window or usable pause controls until the adapter and UI are wired. No runtime
+HTTP entry or public/offline action advertises this source.
+
+Authored/unrun coverage now includes public projection, legacy root refusal and
+a guarded PostgreSQL suite for same-record concurrency/paused replay, root and
+evidence preservation, future definition edits, order, pause/resume/stop, stale
+version/actor/day and household/role reads. Existing small route fakes reflect
+the added transaction/read shape. The new DB file is wired into the existing
+required later CI step; no suite or migration was executed.
+
+Remaining before exposing a writer: canonical metadata-aware top-up (including
+detached steps), pending-anchor visibility/action guards, current-occurrence
+editor interaction/versioning, exact owned request recovery, bounded route
+contracts, parent list/editor/control UI and EN/ES/role/device behavior. Lifecycle
+erasure/reassignment and old-client rollback still need the consolidated source
+and acceptance audit. Keep this issue open at full transferred #559 scope.

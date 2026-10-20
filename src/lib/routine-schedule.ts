@@ -124,6 +124,18 @@ const scope = {
   issued_at: z.string().datetime(),
   /** Viewer-local calendar day, captured with the original request. */
   view_day: day,
+  view_zone: z
+    .string()
+    .min(1)
+    .max(100)
+    .refine((value) => {
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: value });
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Choose a supported viewer timezone"),
 };
 const draft = {
   label: z.string().trim().min(1).max(ROUTINE_NAME_MAX),
@@ -382,3 +394,31 @@ export function validateRoutineStepTransition(
     );
   return input;
 }
+
+/** Day guard for a first effect, never rebase an original retry body at midnight. */
+export function routineViewerDay(zone: string, now: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: zone,
+    calendar: "gregory",
+    numberingSystem: "latn",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value;
+  return day.parse(`${get("year")}-${get("month")}-${get("day")}`);
+}
+export const routineScheduleReceipt = z
+  .object({
+    protocol: z.literal(ROUTINE_SCHEDULE_PROTOCOL),
+    requestId: id,
+    stackId: id,
+    version: z.number().int().min(1),
+    action: z.enum(["create", "replace-future", "pause", "resume", "stop"]),
+    state: z.enum(["active", "paused", "stopped"]),
+    roots: z.array(id).min(1).max(ROUTINE_SCHEDULE_MAX_STEPS),
+    prunedCount: z.number().int().nonnegative().max(10000),
+    unstackedCount: z.number().int().nonnegative().max(10000),
+  })
+  .strict()
+  .refine((value) => new Set(value.roots).size === value.roots.length);

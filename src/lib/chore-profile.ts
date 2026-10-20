@@ -339,6 +339,14 @@ function assertProfileTarget(
  * The caller supplies idempotency around this transaction; this helper never
  * sends mail/notifications and never expands a series.
  */
+/** Shared current profile authority for scheduled roots; never creates login identity. */
+export async function profileChoreAssigneeInTx(tx: Prisma.TransactionClient, familyId: string, memberId: string) {
+  await lockHousehold(tx, familyId);
+  const target = await tx.householdMember.findFirst({ where: { id: memberId, family_id: familyId }, select: profileTargetSelect });
+  assertProfileTarget(target, familyId, memberId);
+  return { assigned_to: null, assigned_member_id: memberId };
+}
+
 function profileChoreResponse(chore: ProfileChoreDTO): ProfileChoreDTO {
   return {
     id: chore.id,

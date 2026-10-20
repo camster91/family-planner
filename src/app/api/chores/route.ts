@@ -1,5 +1,7 @@
+import { refuseScheduledRoutineLegacyWrite, RoutineScheduleLegacyWriteError } from "@/lib/routine-schedule-legacy";
+import { choreJson } from "@/lib/chore-json";
 import { withRouteTelemetry } from '@/lib/route-telemetry'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { lockHousehold, lockUser } from '@/lib/household-lock'
 import { canonicalChoreAssigneeInTx } from '@/lib/chore-member-subject'
@@ -136,9 +138,9 @@ async function handleGET(request: NextRequest) {
     const rowsWithProfileMembers: ProfileHydrated<(typeof chores)[number]>[] = chores.some((row) => row.assigned_member_id != null)
       ? await hydrateProfileMembers(chores)
       : chores.map((row) => ({ ...row, assigneeMember: undefined }))
-    if (hasProfileRows && profileRead) return NextResponse.json(profileRead.body, { status: profileRead.status, headers: { 'Cache-Control': 'private, no-store' } })
+    if (hasProfileRows && profileRead) return choreJson(profileRead.body, { status: profileRead.status, headers: { 'Cache-Control': 'private, no-store' } })
     if (hasProfileRows && rowsWithProfileMembers.some((row) => row.assigned_to === null && row.assigned_member_id != null && !readChoreSubject(row, auth.user.family_id))) {
-      return NextResponse.json(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+      return choreJson(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
     }
     const exposedChores = rowsWithProfileMembers.map((row) => {
       const { assigneeMember: _member, ...safe } = row
@@ -154,13 +156,13 @@ async function handleGET(request: NextRequest) {
     // Points & streaks off for this family (#248): the chore's points value is
     // not sent. It is still stored, and verify still awards XP from it.
     if (!(await isGamificationOn(auth.user.family_id))) {
-      return NextResponse.json({ chores: exposedChores.map(omitChorePoints), ...page })
+      return choreJson({ chores: exposedChores.map(omitChorePoints), ...page })
     }
 
-    return NextResponse.json({ chores: exposedChores, ...page })
+    return choreJson({ chores: exposedChores, ...page })
   } catch (error) {
     logRouteError('GET /api/chores', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return choreJson({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -173,7 +175,7 @@ async function getOneChore(id: string, familyId: string, request: NextRequest) {
       creator: { select: { id: true, name: true } },
     },
   })
-  if (!chore) return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
+  if (!chore) return choreJson({ error: 'Chore not found' }, { status: 404 })
   // A generated copy is stored as 'once'; the edit form shows its series' frequency.
   const template =
     chore.recurrence_id && chore.recurrence_id !== chore.id
@@ -191,14 +193,14 @@ async function getOneChore(id: string, familyId: string, request: NextRequest) {
     ? (await hydrateProfileMembers([chore]))[0]
     : { ...chore, assigneeMember: undefined }
   if (chore.assigned_to === null && chore.assigned_member_id != null && profileRead) {
-    return NextResponse.json(profileRead.body, { status: profileRead.status, headers: { 'Cache-Control': 'private, no-store' } })
+    return choreJson(profileRead.body, { status: profileRead.status, headers: { 'Cache-Control': 'private, no-store' } })
   }
   const subject = readChoreSubject(hydrated, familyId)
   if (!subject) {
     if (chore.assigned_to === null && chore.assigned_member_id != null) {
-      return NextResponse.json(profileRead?.body ?? { error: 'PROFILE_CHORE_SUBJECT_UNREADABLE' }, { status: profileRead?.status ?? 409 })
+      return choreJson(profileRead?.body ?? { error: 'PROFILE_CHORE_SUBJECT_UNREADABLE' }, { status: profileRead?.status ?? 409 })
     }
-    return NextResponse.json({ error: 'Chore subject unavailable' }, { status: 409 })
+    return choreJson({ error: 'Chore subject unavailable' }, { status: 409 })
   }
   const safeChore = (() => {
     const { assigneeMember: _member, ...safe } = hydrated
@@ -207,7 +209,7 @@ async function getOneChore(id: string, familyId: string, request: NextRequest) {
   const gamified = await isGamificationOn(familyId)
   const actionAvailability = subject.kind === 'profile' ? profileChoreActionAvailability(chore) : null
   const projectedChore = subject.kind === 'profile' && actionAvailability ? { ...safeChore, actionAvailability } : safeChore
-  return NextResponse.json({
+  return choreJson({
     chore: gamified ? projectedChore : omitChorePoints(projectedChore),
     template: template ?? null,
     rotation: seriesRotation.length > 0 ? seriesRotation : null,
@@ -228,11 +230,11 @@ export async function PATCH(request: NextRequest) {
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return choreJson({ error: 'Invalid JSON' }, { status: 400 })
     }
     const parsed = updateChoreSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return choreJson({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
     const { choreId, ...updates } = parsed.data
@@ -243,7 +245,7 @@ export async function PATCH(request: NextRequest) {
     if (updates.due_date !== undefined) {
       const normalized = normalizeDateOnlyInput(updates.due_date)
       if (!normalized) {
-        return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+        return choreJson({ error: 'Invalid date' }, { status: 400 })
       }
       dueDate = normalized
     }
@@ -254,25 +256,25 @@ export async function PATCH(request: NextRequest) {
     })
 
     if (!chore) {
-      return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
+      return choreJson({ error: 'Chore not found' }, { status: 404 })
     }
 
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
 
     if (chore.member_subject_erased && updates.assigned_to !== undefined && updates.assigned_to !== chore.assigned_to) {
-      return NextResponse.json(
+      return choreJson(
         { error: 'An erased chore subject cannot be reassigned', code: 'IDENTITY_CONFLICT' },
         { status: 409, headers: { 'Cache-Control': 'private, no-store' } }
       )
     }
 
     if (chore.assigned_to === null && chore.assigned_member_id != null) {
-      return NextResponse.json(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+      return choreJson(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     if (auth.user.role !== 'parent' && chore.assigned_to !== auth.user.id) {
-      return NextResponse.json({ error: 'Only parents or the assignee can edit chores' }, { status: 403 })
+      return choreJson({ error: 'Only parents or the assignee can edit chores' }, { status: 403 })
     }
 
     // Fields a non-parent assignee must not change (#185).
@@ -289,7 +291,7 @@ export async function PATCH(request: NextRequest) {
     if (auth.user.role !== 'parent') {
       const attempted = PARENT_ONLY_FIELDS.filter((f) => updates[f] !== undefined)
       if (attempted.length > 0) {
-        return NextResponse.json(
+        return choreJson(
           { error: `Only parents can change: ${attempted.join(', ')}` },
           { status: 403 }
         )
@@ -306,7 +308,7 @@ export async function PATCH(request: NextRequest) {
           select: { id: true },
         })
         if (!assignee) {
-          return NextResponse.json(
+          return choreJson(
             { error: 'Assignee must be a member of your family' },
             { status: 400 }
           )
@@ -318,7 +320,7 @@ export async function PATCH(request: NextRequest) {
     // household's member reads the same as a missing one.
     const rotation = updates.rotation
     if (rotation && !(await rotationMembersInHousehold(prisma!, auth.user.family_id, rotation))) {
-      return NextResponse.json({ error: 'Everyone taking turns must be in your family' }, { status: 400 })
+      return choreJson({ error: 'Everyone taking turns must be in your family' }, { status: 400 })
     }
 
     // D3 (#102): a new photo must be an upload owned by the caller's family.
@@ -326,7 +328,7 @@ export async function PATCH(request: NextRequest) {
     // loaded, including a legacy file with no Upload row) is left unchanged.
     const photo = await resolveChorePhotoForWrite(auth.user.family_id, updates.photo_url, chore.photo_url)
     if (!photo.ok) {
-      return NextResponse.json({ error: photo.error }, { status: 400 })
+      return choreJson({ error: photo.error }, { status: 400 })
     }
 
     const data: Record<string, unknown> = {}
@@ -356,56 +358,55 @@ export async function PATCH(request: NextRequest) {
     const frequency = updates.frequency
     let updated
     try {
-      updated =
-        frequency === undefined && rotation === undefined && !chore.assigned_member_id
-          ? await prisma!.chore.update({ where: { id: choreId }, data, include })
-          : await prisma!.$transaction(async (tx) => {
-              await lockHousehold(tx, chore.family_id)
-              const caller = await tx.user.findFirst({ where: { id: auth.user.id, family_id: chore.family_id }, select: { id: true, role: true } })
-              const current = await tx.chore.findFirst({ where: { id: choreId, family_id: chore.family_id }, select: { assigned_to: true, assigned_member_id: true } })
-              if (!caller || !current || caller.role !== auth.user.role || (caller.role !== 'parent' && current.assigned_to !== caller.id)) throw new HouseholdMemberIdentityConflict()
-              if (updates.assigned_to !== undefined && current.assigned_member_id) Object.assign(data, await canonicalChoreAssigneeInTx(tx, chore.family_id, updates.assigned_to))
-              if (Object.keys(data).length > 0) await tx.chore.update({ where: { id: choreId }, data })
-              if (frequency !== undefined) {
-                await applyFrequencyEditInTx(
-                  tx,
-                  { id: choreId, family_id: chore.family_id, frequency: chore.frequency, recurrence_id: chore.recurrence_id, weekly_days: chore.weekly_days },
-                  frequency,
-                  { applyToSeries: updates.apply_to_series === true, weeklyDays: updates.weekly_days }
-                )
-              }
-              if (rotation !== undefined) {
-                const row = await tx.chore.findUniqueOrThrow({ where: { id: choreId }, select: { recurrence_id: true } })
-                const template = row.recurrence_id
-                  ? await tx.chore.findFirst({
-                      where: { id: row.recurrence_id, family_id: chore.family_id, is_template: true },
-                      select: { id: true },
-                    })
-                  : null
-                if (template) {
-                  await applyRotationEditInTx(tx, template.id, chore.family_id, rotation ?? [])
-                } else if (rotation) {
-                  throw new RotationNeedsSeriesError()
-                }
-              }
-              return tx.chore.findUniqueOrThrow({ where: { id: choreId }, include })
-            })
+      updated = await prisma!.$transaction(async (tx) => {
+        await lockHousehold(tx, chore.family_id)
+        const caller = await tx.user.findFirst({ where: { id: auth.user.id, family_id: chore.family_id }, select: { id: true, role: true } })
+        const current = await tx.chore.findFirst({ where: { id: choreId, family_id: chore.family_id }, select: { assigned_to: true, assigned_member_id: true } })
+        if (!caller || !current || caller.role !== auth.user.role || (caller.role !== 'parent' && current.assigned_to !== caller.id)) throw new HouseholdMemberIdentityConflict()
+        await refuseScheduledRoutineLegacyWrite(tx, chore.family_id, choreId, updates.apply_to_series === true || frequency !== undefined || rotation !== undefined)
+        if (updates.assigned_to !== undefined && current.assigned_member_id) Object.assign(data, await canonicalChoreAssigneeInTx(tx, chore.family_id, updates.assigned_to))
+        if (Object.keys(data).length > 0) await tx.chore.update({ where: { id: choreId }, data })
+        if (frequency !== undefined) {
+          await applyFrequencyEditInTx(
+            tx,
+            { id: choreId, family_id: chore.family_id, frequency: chore.frequency, recurrence_id: chore.recurrence_id, weekly_days: chore.weekly_days },
+            frequency,
+            { applyToSeries: updates.apply_to_series === true, weeklyDays: updates.weekly_days }
+          )
+        }
+        if (rotation !== undefined) {
+          const row = await tx.chore.findUniqueOrThrow({ where: { id: choreId }, select: { recurrence_id: true } })
+          const template = row.recurrence_id
+            ? await tx.chore.findFirst({
+                where: { id: row.recurrence_id, family_id: chore.family_id, is_template: true },
+                select: { id: true },
+              })
+            : null
+          if (template) {
+            await applyRotationEditInTx(tx, template.id, chore.family_id, rotation ?? [])
+          } else if (rotation) {
+            throw new RotationNeedsSeriesError()
+          }
+        }
+        return tx.chore.findUniqueOrThrow({ where: { id: choreId }, include })
+      })
     } catch (err) {
-      if (err instanceof HouseholdMemberIdentityConflict) return NextResponse.json({ error: err.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
+      if (err instanceof RoutineScheduleLegacyWriteError) return choreJson({ error: err.message, code: err.code }, { status: 409 })
+      if (err instanceof HouseholdMemberIdentityConflict) return choreJson({ error: err.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
       if (err instanceof RotationNeedsSeriesError) {
-        return NextResponse.json({ error: err.message }, { status: 400 })
+        return choreJson({ error: err.message }, { status: 400 })
       }
       throw err
     }
 
     if (!(await isGamificationOn(auth.user.family_id))) {
-      return NextResponse.json({ chore: omitChorePoints(updated) })
+      return choreJson({ chore: omitChorePoints(updated) })
     }
 
-    return NextResponse.json({ chore: updated })
+    return choreJson({ chore: updated })
   } catch (error) {
     logRouteError('PATCH /api/chores', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return choreJson({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -444,11 +445,11 @@ export async function DELETE(request: NextRequest) {
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return choreJson({ error: 'Invalid JSON' }, { status: 400 })
     }
     const parsed = deleteChoreSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: 'choreId is required' }, { status: 400 })
+      return choreJson({ error: 'choreId is required' }, { status: 400 })
     }
 
     const result: ChoreDeleteResult = await prisma!.$transaction(async (tx) => {
@@ -489,6 +490,8 @@ export async function DELETE(request: NextRequest) {
         return { kind: 'forbidden', message: 'Only parents or the assignee can delete chores' }
       }
 
+      await refuseScheduledRoutineLegacyWrite(tx, auth.user.family_id, parsed.data.choreId)
+
       const selfAnchored = chore.recurrence_id === parsed.data.choreId
       if (selfAnchored && chore.is_template && isRepeatingFrequency(chore.frequency)) {
         return { kind: 'requires-stop' }
@@ -510,28 +513,29 @@ export async function DELETE(request: NextRequest) {
       return { kind: 'deleted' }
     })
 
-    if (result.kind === 'not-found') return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
-    if (result.kind === 'foreign') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (result.kind === 'not-found') return choreJson({ error: 'Chore not found' }, { status: 404 })
+    if (result.kind === 'foreign') return choreJson({ error: 'Forbidden' }, { status: 403 })
     if (result.kind === 'profile-unsupported') {
-      return NextResponse.json(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+      return choreJson(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
     }
-    if (result.kind === 'forbidden') return NextResponse.json({ error: result.message }, { status: 403 })
+    if (result.kind === 'forbidden') return choreJson({ error: result.message }, { status: 403 })
     if (result.kind === 'requires-stop') {
-      return NextResponse.json(
+      return choreJson(
         { error: 'Stop repeating before deleting the series anchor', code: RECURRING_SERIES_REQUIRES_STOP },
         { status: 409 }
       )
     }
     if (result.kind === 'retains-history') {
-      return NextResponse.json(
+      return choreJson(
         { error: 'Keep the series anchor to preserve its history', code: RECURRING_ANCHOR_RETAINS_HISTORY },
         { status: 409 }
       )
     }
 
-    return NextResponse.json({ success: true })
+    return choreJson({ success: true })
   } catch (error) {
+    if (error instanceof RoutineScheduleLegacyWriteError) return choreJson({ error: error.message, code: error.code }, { status: 409 })
     logRouteError('DELETE /api/chores', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return choreJson({ error: 'Internal server error' }, { status: 500 })
   }
 }

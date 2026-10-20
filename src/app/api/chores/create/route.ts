@@ -1,5 +1,6 @@
+import { choreJson } from "@/lib/chore-json";
 import { nextSelectedWeekday } from '@/lib/chore-weekdays'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
@@ -42,27 +43,27 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return choreJson({ error: 'Invalid JSON' }, { status: 400 })
     }
     // Profile assignment is an explicit, gated protocol-2 branch. Do not pass
     // it through the legacy schema: that would either reject a valid profile
     // target or, worse, infer an account from a member id.
     if (body && typeof body === 'object' && !Array.isArray(body) && (body.protocol !== undefined || body.selection !== undefined)) {
       if (!isProfileChoreEnabled()) {
-        return NextResponse.json(
+        return choreJson(
           { error: PROFILE_CHORE_UNSUPPORTED_CODE, ...profileChoreProtocolRefusal() },
           { status: 409, headers: { 'Cache-Control': 'private, no-store' } },
         )
       }
       const profile = profileChoreCreateSchema.safeParse(body)
       if (!profile.success) {
-        return NextResponse.json({ error: 'The profile chore request is not valid.' }, { status: 400 })
+        return choreJson({ error: 'The profile chore request is not valid.' }, { status: 400 })
       }
       // Keep recurring profile writes behind their own private rollout gate.
       // This check intentionally precedes idempotency-key lookup so a cached
       // response cannot replay after the recurrence capability is withdrawn.
       if (profile.data.frequency !== 'once' && !isProfileChoreRecurrenceSupported()) {
-        return NextResponse.json(
+        return choreJson(
           { error: PROFILE_CHORE_UNSUPPORTED_CODE, ...profileChoreProtocolRefusal() },
           { status: 409, headers: { 'Cache-Control': 'private, no-store' } },
         )
@@ -74,9 +75,9 @@ export async function POST(request: NextRequest) {
       const dueDate = startDate && profile.data.frequency === 'weekly'
         ? nextSelectedWeekday(startDate, profile.data.weekly_days, true)
         : startDate
-      if (!dueDate) return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+      if (!dueDate) return choreJson({ error: 'Invalid date' }, { status: 400 })
       const photo = await resolveChorePhotoForWrite(auth.user.family_id, profile.data.photo_url)
-      if (!photo.ok) return NextResponse.json({ error: photo.error }, { status: 400 })
+      if (!photo.ok) return choreJson({ error: photo.error }, { status: 400 })
       const response = await withIdempotency(
         prisma!,
         key,
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     const parsed = createChoreSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return choreJson({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
     const { title, description, points, due_date, difficulty, frequency, photo_url, icon, routine, routine_order } =
@@ -135,7 +136,7 @@ export async function POST(request: NextRequest) {
     const startDate = normalizeDateOnlyInput(due_date)
     const dueDate = startDate && frequency === 'weekly' && parsed.data.weekly_days ? nextSelectedWeekday(startDate, parsed.data.weekly_days, true) : startDate
     if (!dueDate) {
-      return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+      return choreJson({ error: 'Invalid date' }, { status: 400 })
     }
 
     // Verify the assigned user belongs to the same family
@@ -145,19 +146,19 @@ export async function POST(request: NextRequest) {
     })
 
     if (!assignee || assignee.family_id !== auth.user.family_id) {
-      return NextResponse.json({ error: 'Assigned user must be in your family' }, { status: 400 })
+      return choreJson({ error: 'Assigned user must be in your family' }, { status: 400 })
     }
 
     // Everyone taking turns must be in the caller's household (another
     // household's member reads the same as a missing one).
     if (rotation && !(await rotationMembersInHousehold(prisma!, auth.user.family_id, rotation))) {
-      return NextResponse.json({ error: 'Everyone taking turns must be in your family' }, { status: 400 })
+      return choreJson({ error: 'Everyone taking turns must be in your family' }, { status: 400 })
     }
 
     // D3 (#102): a photo must be an upload owned by the caller's family.
     const photo = await resolveChorePhotoForWrite(auth.user.family_id, photo_url)
     if (!photo.ok) {
-      return NextResponse.json({ error: photo.error }, { status: 400 })
+      return choreJson({ error: photo.error }, { status: 400 })
     }
 
     const include = {
@@ -216,8 +217,8 @@ export async function POST(request: NextRequest) {
       await expandSeriesInTx(tx, created.id, auth.user.family_id)
       return template
     })
-    if (newChore === 'actor-left') return NextResponse.json({ error: 'Only a parent of this household can create chores' }, { status: 403 })
-    if (newChore === 'member-left') return NextResponse.json({ error: 'Assigned users must still be in your family' }, { status: 400 })
+    if (newChore === 'actor-left') return choreJson({ error: 'Only a parent of this household can create chores' }, { status: 403 })
+    if (newChore === 'member-left') return choreJson({ error: 'Assigned users must still be in your family' }, { status: 400 })
 
     // Beta usage counts (#287): after the write; never fails the request.
     await recordChoreAssigned(prisma!, auth.user.family_id, newChore)
@@ -237,17 +238,17 @@ export async function POST(request: NextRequest) {
 
     // Points & streaks off (#248): the points value is stored but not echoed.
     if (!(await isGamificationOn(auth.user.family_id))) {
-      return NextResponse.json({ chore: omitChorePoints(newChore) })
+      return choreJson({ chore: omitChorePoints(newChore) })
     }
 
-    return NextResponse.json({ chore: newChore })
+    return choreJson({ chore: newChore })
   } catch (error) {
     if (error instanceof ProfileChoreError) {
       const status = error.code === 'PROFILE_TARGET_CONFLICT' ? 409 : error.code === 'PROFILE_TARGET_UNAVAILABLE' ? 404 : 400
-      return NextResponse.json({ error: error.code }, { status })
+      return choreJson({ error: error.code }, { status })
     }
-    if (error instanceof HouseholdMemberIdentityConflict) return NextResponse.json({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
+    if (error instanceof HouseholdMemberIdentityConflict) return choreJson({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
     logRouteError('POST /api/chores/create', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return choreJson({ error: 'Internal server error' }, { status: 500 })
   }
 }
