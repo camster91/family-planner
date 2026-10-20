@@ -1,3 +1,4 @@
+import { clearWeeklyResetInTx } from '@/lib/weekly-reset-storage'
 /**
  * Remove a member from a household (O-34, docs/decisions/PROVISIONAL_OWNER_DECISIONS.md).
  *
@@ -147,6 +148,7 @@ export async function removeHouseholdMember(
         where: { id: target.id },
         data: { family_id: null, token_version: { increment: 1 } },
       })
+      await clearWeeklyResetInTx(tx, target.id)
 
       // Shared tablets.
       await tx.householdDevice.updateMany({

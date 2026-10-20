@@ -39,6 +39,9 @@ model User {
   /// Personal presentation only; never roles, shared-device identity or feature availability.
   display_preferences           Json?
   display_preferences_revision  Int                @default(0)
+  /// Personal weekly-review metadata only, never domain completion or shared approval.
+  weekly_reset_progress          Json?
+  weekly_reset_revision          Int                @default(0)
   /// Per-member notification preferences (#286, PR101 D-5), one switch per
   /// category in src/lib/notification-policy.ts. Default true keeps today's
   /// behaviour. Account and safety messages ignore them (always sent).

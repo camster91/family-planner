@@ -1,5 +1,36 @@
 # Current State
 
+## Weekly reset progress contract and API foundation — 2026-10-20
+
+The previously unimplemented #123 five-minute weekly reset now has an explicit
+complete-journey/progress/role/privacy/recovery design in
+`docs/plans/weekly-reset-v1.md`, linked from START_HERE. It retains all six review
+areas and the required canonical summaries and adaptive UI as outstanding code.
+It does not substitute an API or links-only tour for the intended journey.
+
+Authored foundation source includes strict versioned Monday/zone/family/commands,
+role/feature section selection, explicit start/restart, individual reviewed/skip/
+pending status and complete-only-after-handled Finish. Separate nullable personal
+User metadata and monotonic revision have an additive migration source. A gated
+person-only GET/PATCH renews actor token/role/membership under user/household/
+User-row locks, detects conflicts/unknown protocols, and atomically completes
+progress plus existing keyed receipt. Receipts carry only scope/action/revision;
+reads recompute currently permitted steps. The readiness flag remains unchanged.
+
+Own export and member-detachment cleanup probe schema compatibility even with
+rollout off; deleting the User removes its progress. Stored metadata contains no
+names, domain record IDs/content, task completion, responsibility acceptance or
+provider data. No login identity/profile privilege or shared-device route added.
+Authored contract, transactional-fake and compatibility cases remain unrun.
+No generated client, migration, DB, tests, types, lint, build, browser/native/CI,
+provider, API invocation, progress write, push, merge, deployment or activation.
+
+Next implementation is the canonical bounded step summaries and discoverable
+EN/ES phone/tablet/desktop review/resume/skip/restart/finish UI with exact owned
+request recovery. Remaining #123 coordination/grounded planning and full
+PostgreSQL/schema/client/domain/role/device/release acceptance stay open. The
+full goal remains active; consolidated QA still follows the remaining code.
+
 ## Assistant/report source reconciliation and exact retry binding — 2026-10-20
 
 Original #464 now maps to the current personal-only lazy host, explicit voice,

@@ -1,3 +1,4 @@
+import { exportWeeklyReset } from '@/lib/weekly-reset-storage'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
@@ -516,8 +517,10 @@ export async function GET(request: NextRequest) {
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     }) : []
 
+    const weeklyReset = await exportWeeklyReset(prisma!, userId)
     const exportData = {
       exportedAt: new Date().toISOString(),
+      ...(weeklyReset === undefined ? {} : { weeklyReset }),
       user,
       // Same shape as GET /api/users/preferences (#286).
       notificationPreferences: user ? preferencesFromRow(user) : null,
