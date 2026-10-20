@@ -1,5 +1,30 @@
 # Current State
 
+## Weekly start and durable routine foundation — 2026-10-20
+
+Original #449/#452/#451 criteria were re-read against forms, canonical recurrence,
+template serialization and grouped rendering. Optional weekly start was a real
+UI gap: EN/ES collapsed Start later now picks the first selected weekday on/after
+that date for account, rotation and gated profile payloads. Weekly due dates stay
+internal; default uses viewer-local today, same-day min remains hydration-safe.
+Mounted future-start test source is authored/unrun.
+
+#450's transferred #559 scope is not finished: current stack coordinator handles
+one occurrence only. New strict future schedule/step/subject/control/removal
+contracts and conservative history partition are authored in routine-schedule.ts.
+Existing UTC recurrence dates are extracted/re-exported without a second cadence
+engine. Nullable stack/root future-definition and per-occurrence cue/duration
+schema/migration source is added, ungenerated/unapplied and never written by a
+new runtime route. Parent export now includes durable definitions; non-parent
+export omits root future-control JSON. Source tests are authored, not run.
+
+Next code: private ordinary read projections, canonical parent coordinator and
+expander/legacy-write guards, then owned request recovery/gated route/editor.
+Completed/current/evidence rows and account/profile authority must survive.
+This foundation is not exposed pause/resume/future editing. No QA/typecheck/lint/
+build/browser/native, client generation/schema action, push/merge/deploy or
+activation. `plans/routine-schedule-v1.md` records the full remaining contract.
+
 ## Open-issue directory refresh — 2026-10-20
 
 Read-only GitHub list currently returns 82 open issues. Every current issue is

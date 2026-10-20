@@ -972,6 +972,10 @@ CREATE TABLE IF NOT EXISTS "RoutineStack" (
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE "RoutineStack" ALTER COLUMN "created_by" DROP NOT NULL;
+ALTER TABLE "RoutineStack" ADD COLUMN IF NOT EXISTS "schedule_config" JSONB;
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_anchor" VARCHAR(200);
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_duration_minutes" INTEGER;
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_series_config" JSONB;
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_stack_id" TEXT;
 DO $$ BEGIN
   ALTER TABLE "RoutineStack" ADD CONSTRAINT "RoutineStack_family_id_fkey"

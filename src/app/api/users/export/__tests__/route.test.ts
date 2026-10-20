@@ -56,6 +56,7 @@ jest.mock("@/lib/prisma", () => {
       familyGoal: { findMany: findMany() },
       importJob: { findMany: findMany() },
       financialArchiveRecord: { findMany: findMany() },
+      routineStack: { findMany: findMany() },
       familyMeal: { findMany: findMany() },
       inventoryItem: { findMany: findMany() },
       inventoryAdjustment: { findMany: findMany() },
@@ -145,6 +146,8 @@ function makeRequest() {
 describe("GET /api/users/export — family secrets", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (prisma!.routineStack.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma!.chore.findMany as jest.Mock).mockResolvedValue([]);
     mockUserFindUnique.mockImplementation(async ({ where, select }: any) =>
       project(USERS[where.id], select)
     );
@@ -195,6 +198,32 @@ describe("GET /api/users/export — family secrets", () => {
     }
     // And the user's password hash is not exported either.
     expect(body.user).not.toHaveProperty("password");
+  });
+
+  it("includes household routine definitions only for a current parent", async () => {
+    const read = prisma!.routineStack.findMany as jest.Mock;
+    read.mockResolvedValue([
+      {
+        id: "fixture-stack",
+        family_id: "family-A",
+        label: "Fixture morning",
+        schedule_config: null,
+      },
+    ]);
+    (prisma!.chore.findMany as jest.Mock).mockResolvedValue([{ id: "fixture-root", routine_series_config: { privateFixtureDefinition: true } }]);
+    mockAuth.mockResolvedValue([{ userId: "child-a" }, null]);
+    const child = await (await GET(makeRequest())).json();
+    expect(child.routineStacks).toEqual([]);
+    expect(child.chores[0]).not.toHaveProperty("routine_series_config");
+    expect(read).not.toHaveBeenCalled();
+    mockAuth.mockResolvedValue([{ userId: "parent-a" }, null]);
+    const body = await (await GET(makeRequest())).json();
+    expect(body.routineStacks).toHaveLength(1);
+    expect(body.chores[0].routine_series_config).toEqual({ privateFixtureDefinition: true });
+    expect(read.mock.calls[0][0].where).toEqual({
+      family_id: "family-A",
+      family: { members: { some: { id: "parent-a", role: "parent" } } },
+    });
   });
 
   it("only a parent's export carries the family's travel plans (parent-only, #102)", async () => {

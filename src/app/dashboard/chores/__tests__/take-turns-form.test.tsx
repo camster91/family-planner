@@ -395,6 +395,20 @@ it('creates a weekly chore on selected days without entering a due date', async 
   expect([1,4]).toContain(new Date(occurrence + 'T00:00:00Z').getUTCDay())
 })
 
+it('starts a weekly schedule on the first selected day on or after an optional future start', async () => {
+  const user = userEvent.setup()
+  render(<CreateChorePage />)
+  await screen.findByRole('option', { name: 'Sam' })
+  await user.type(screen.getByLabelText('Title'), 'Fixture future trash')
+  await user.click(screen.getByRole('button', { name: 'Weekly' }))
+  await user.click(screen.getByRole('checkbox', { name: 'Monday' }))
+  await user.click(screen.getByRole('checkbox', { name: 'Thursday' }))
+  await user.click(screen.getByText('Start later (optional)'))
+  await user.type(screen.getByLabelText('Starts on or after'), '2099-10-20')
+  await user.click(screen.getByRole('button', { name: 'Create Chore' }))
+  await waitFor(() => expect(sent('/api/chores/create')).toMatchObject({ frequency: 'weekly', weekly_days: [1,4], due_date: '2099-10-22' }))
+})
+
 it('edits weekdays on a generated copy for the whole weekly series', async () => {
   mockSearch = new URLSearchParams('id=copy')
   choreResponse = {chore:{id:'copy',title:'Trash',assigned_to:'sam',due_date:'2099-10-05',frequency:'once',difficulty:'easy',points:10},template:{id:'template',frequency:'weekly',weekly_days:[1]},rotation:null}

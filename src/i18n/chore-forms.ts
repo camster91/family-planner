@@ -21,6 +21,11 @@ export const choreFormsEnglish = {
   repeatWeekdays: "on the selected weekdays",
   repeatDaily: "every day",
   repeatMonthly: "every month",
+  weeklyStartLater: "Start later (optional)",
+  weeklyStart: "Starts on or after",
+  weeklyStartHelp:
+    "Leave empty to use today. The first chore falls on a selected weekday on or after this date.",
+  weeklyStartInvalid: "Choose today or a later valid start date.",
   dueDate: "Due Date",
   details: "Details",
   detailsPoints: "Details & points",
@@ -147,6 +152,11 @@ export const choreFormsSpanish: Record<ChoreFormMessage, string> = {
   repeatWeekdays: "en los días seleccionados",
   repeatDaily: "cada día",
   repeatMonthly: "cada mes",
+  weeklyStartLater: "Empezar más tarde (opcional)",
+  weeklyStart: "Empezar este día o después",
+  weeklyStartHelp:
+    "Déjalo vacío para usar hoy. La primera tarea será un día seleccionado en esta fecha o después.",
+  weeklyStartInvalid: "Elige hoy u otra fecha válida posterior.",
   dueDate: "Fecha de vencimiento",
   details: "Detalles",
   detailsPoints: "Detalles y puntos",

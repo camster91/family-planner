@@ -479,6 +479,11 @@ model Chore {
   /// Durable cross-member routine-stack identity. Nullable for legacy rows;
   /// routine/routine_order remain the compatibility presentation fields.
   routine_stack_id String?
+  /// Authored cue and duration snapshot for this occurrence; future edits never rewrite history.
+  routine_anchor String? @db.VarChar(200)
+  routine_duration_minutes Int?
+  /// Root-only future definition, separate from historical occurrence fields.
+  routine_series_config Json?
 
   // Take turns (O-39). On a series template: the members who take turns, in
   // order (empty = no rotation, every copy goes to the template's assignee).
@@ -518,6 +523,8 @@ model Chore {
 /// chores remain valid with a NULL routine_stack_id and are never backfilled
 /// or merged from a display label.
 model RoutineStack {
+  /// Versioned future schedule/step definitions; null preserves current-occurrence v1.
+  schedule_config Json?
   id         String   @id @default(cuid())
   family_id  String
   label      String

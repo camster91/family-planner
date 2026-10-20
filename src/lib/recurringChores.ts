@@ -1,3 +1,5 @@
+import { nextDueDate, startOfDay } from '@/lib/chore-recurrence-dates'
+export { nextDueDate, startOfDay } from '@/lib/chore-recurrence-dates'
 import { normalizedWeekdays, nextSelectedWeekday } from '@/lib/chore-weekdays'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
@@ -15,53 +17,10 @@ const FREQUENCY_CONFIG: Record<Exclude<ChoreFrequency, 'once'>, { occurrences: n
   monthly: { occurrences: 3, unit: 'day', amount: 30 },
 }
 
-/**
- * Next due date for one interval after `from`.
- *
- * Exported so the completion path in `/api/chores/complete` uses the SAME rule.
- * Previously the expander advanced monthly by `setDate(+30)` while completion
- * advanced by `setMonth(+1)`; across a month boundary those disagree (#184).
- */
-export function nextDueDate(from: Date, frequency: string, weeklyDays: readonly number[] = [], monthlyAnchorDay = from.getUTCDate()): Date | null {
-  // UTC throughout: due dates are stored as UTC midnight (the date pickers
-  // send `YYYY-MM-DD`), so the result must not depend on the server's time
-  // zone. Local `setHours`/`setDate` moved a UTC-midnight date to the
-  // previous local day, and the next date landed on local midnight.
-  const d = startOfDay(from)
-
-  switch (frequency) {
-    case 'daily':
-      d.setUTCDate(d.getUTCDate() + 1)
-      return d
-    case 'weekly':
-      if (normalizedWeekdays(weeklyDays).length) return nextSelectedWeekday(d, weeklyDays)
-      d.setUTCDate(d.getUTCDate() + 7)
-      return d
-    case 'monthly': {
-      // Keep the template's day, clamping only this occurrence in short months.
-      // Move from day 1 so JavaScript cannot overflow Jan 31 into March.
-      d.setUTCDate(1)
-      d.setUTCMonth(d.getUTCMonth() + 1)
-      const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
-      d.setUTCDate(Math.min(monthlyAnchorDay, lastDay))
-      return d
-    }
-    default:
-      return null
-  }
-}
-
 const WINDOW_SIZE: Record<Exclude<ChoreFrequency, 'once'>, number> = {
   daily: 7,
   weekly: 4,
   monthly: 3,
-}
-
-/** Midnight UTC of the same UTC calendar day. Due dates are stored at UTC midnight. */
-export function startOfDay(d: Date): Date {
-  const out = new Date(d)
-  out.setUTCHours(0, 0, 0, 0)
-  return out
 }
 
 /**

@@ -1,0 +1,140 @@
+# Durable routine schedule extension
+
+2026-10-20 source foundation for #450 (including consolidated #559), #449/#536/
+#480. This extends the current-occurrence editor; it does not replace it or claim
+the requested future editor, coordinator or pause controls are implemented yet.
+No QA, client generation, migration execution or runtime activation.
+
+## Source gap found
+
+Current `routine-stack.ts` / `routine-stack-mutation.ts` accept one dated
+occurrence and refuse template/new-recurring/future-series branches. Existing
+RoutineStacks presentation gives per-member/day progress and canonical actions,
+but a stack cannot yet own shared future scheduling, cue/duration definitions or
+pause/resume. These are unmet #450 requirements, not optional polish.
+
+The ordinary chore forms already have weekday multi-select, canonical template
+metadata, local hydration-safe minimum and series collapse. One actual #449 gap
+was optional weekly start control: Create now has a collapsed EN/ES Start later
+field. It defaults to the viewer's local day and computes the first selected
+weekday on/after that date for account, rotation and gated profile requests.
+It posts the existing due_date + weekly_days contract; it adds no API field or
+mandatory weekly due date. Existing same-key profile retries retain original
+bytes; edit/series history policy is unchanged.
+
+## Identity and data design
+
+Use the existing RoutineStack identity and version, never a label match. Keep
+canonical Chore root IDs as stable step/series identities; generated Chore IDs
+remain occurrence completion/history identities. Each step carries an explicit
+account or email-free profile subject; no email/name inference or synthetic User.
+Fresh server-side account/member resolution remains required.
+
+Authored additive storage fields:
+
+- `RoutineStack.schedule_config`: nullable versioned shared state, effective day,
+  optional authored cue, shared schedule and ordered canonical root IDs only.
+  It is not another completion store, and it does not duplicate per-step content.
+- `Chore.routine_series_config`: nullable root-only future definition. It holds
+  future step content/assignee/duration, reviewed schedule/cue, effective day and
+  attached stack ID or explicit detached state. Historical Chore title, assignee,
+  amount/points, due day, completion and verification fields are snapshots; a
+  future edit must not rewrite them. On deliberate unstack, the root definition
+  keeps its last reviewed future schedule/content independently of stack pause.
+- `Chore.routine_anchor` / `routine_duration_minutes`: nullable authored snapshots
+  for an occurrence. Changing a future cue/duration does not rewrite history.
+
+`database/migration-zzzz-routine-schedules.sql` and matching schema/startup guards
+are authored. Existing rows stay null, with no backfill/adoption. JSON protocol
+and duration bounds are constrained. Generation and migration/schema drift are
+still unrun. Current API validators cannot write these new definitions; no new
+route advertises support or writes a non-null definition in this source slice.
+
+Private cross-member definitions require a dedicated parent read projection.
+Parent account export now includes existing RoutineStack records under current
+household parent membership; non-parent exports strip root future-definition
+metadata. Household erasure already inventories RoutineStack and canonical
+chores. Before any non-null runtime writer is exposed, ordinary Chore GET/detail/
+completion/profile/board/cache/recovery responses must explicitly strip private
+future definitions, showing only authorized occurrence snapshots. Do not rely on
+Prisma's default selection or the absence of a UI control for privacy.
+
+## Authored command and planning contract
+
+`src/lib/routine-schedule.ts` defines strict `herewoven.routine-schedule.v1`:
+create, replace-future, pause, resume and stop with original actor/household,
+issued-at, viewer-local date, original request key owned by the later sender,
+expected existing stack version and strict step identities. Up to 99 steps,
+existing 40-character chore-routine label and 256 KiB request boundary are defined.
+The future route must enforce streamed body bounds and age/key contracts; a
+constant alone does not enforce transport limits.
+
+- Shared once/daily/weekly/monthly schedule; optional draft starts_on, required
+  normalized stored start, weekly distinct weekdays, monthly original day1–31.
+  Dates stay UTC date-only representations of the authored calendar day; no UTC
+  now guess or before-hydration minimum. Monthly clamping never changes anchor.
+- Cue is optional authored text, not an automatic trigger. Duration is optional
+  whole minutes1–1440, not a live timer or reason to lock subsequent steps.
+- Create cannot adopt existing chores by ID or matching label. Later explicit
+  migration must select/review exact canonical rows under its own contract.
+- Every replaced root is retained or explicitly removed with unstack-future or
+  stop-future; foreign, duplicate, retained-and-removed and omitted roots refuse.
+- Pause/resume/stop use explicit future-after-today scope. Today/past work remains
+  available. Resume starts on the next selected future day, without synthetic
+  catch-up or completed entries. A spent one-time routine has no new date; a
+  stopped routine cannot silently resume. Stop archives future scheduling,
+  preserving historical chores rather than deleting the routine's history.
+- Pure future-row partition preserves every root, today/past, started, check-
+  pending, completed/verified/approved, evidence/photo, successor and erased-
+  subject row. Only untouched future pending copies can be pruned/replanned.
+  Partitioning is not permission: the later transaction must lock/re-read and
+  compare current identities/versions before any effect.
+
+`chore-recurrence-dates.ts` extracts the existing canonical UTC daily/weekly/
+monthly arithmetic and retains exports from recurringChores. Both ordinary
+chores and the new pure routine planner use that shared rule. No alternative
+scheduler or cron is introduced. Account/profile expander behavior is otherwise
+unchanged in this source foundation.
+
+## Required implementation sequence still open
+
+1. Complete private read projections and parent canonical state/step loading.
+   Validate null/known/unsupported metadata and original household/role/token,
+   chore feature, profile recurrence capability and existing server flags.
+2. Implement the bounded parent coordinator under User → household → stack/root
+   → receipt locks, original request age/body/hash/key, expected stack version,
+   atomic config/root/copy changes plus compact receipt. Reject unsupported
+   legacy template writes rather than let them compete with the shared future
+   definition. Keep current-occurrence edits separate and version-aware.
+3. Adapt canonical expansion: null metadata keeps legacy cadence. Known metadata
+   uses current root definition and stack state, preserves stack/order/cue/duration
+   snapshots and current profile/account eligibility, never merges by title.
+   Unknown metadata must hold expansion. One-day-per-root uniqueness and existing
+   locks guard concurrent top-up. Resume skips missed days; unstacked definitions
+   continue independently. Existing root/history snapshots remain unchanged.
+4. Expose explicitly gated read/write/control routes; no public/offline capability
+   until their original-body recovery/rollback contracts exist. Saved unknown
+   requests retain original owner/key/body and cannot be reconstructed as new
+   commands. Pause during provider/storage uncertainty is a refusal, not success.
+5. Extend the approved rounded parent editor with shared Schedule and optional
+   cue/duration sections, named subject choices, accessible move controls, exact
+   future-change summary, per-removal policy and pause/resume/stop scope. Keep
+   completion-only child/teen views canonical, truthful Done versus Checked,
+   no artificial next-step lock, EN/ES and short forms.
+6. Later consolidated gates: exact schema/generated client/migration drift,
+   repeated/concurrent create/edit/pause/stop/lazy top-up, stale versions/actors,
+   old-client refusal, roots/history/evidence preservation, account/profile
+   transitions, private projections/export/erasure, uncertainty/process death,
+   EN/ES/six viewports and real native lifecycle. Source tests authored here
+   exercise dates, anchor, explicit removal, conservative partitions and export;
+   none ran. No release claim is attached to this plan.
+
+## Compatibility and rollback
+
+Never activate these definitions while a rollback server/expander can ignore
+non-null metadata and generate old cadence or expose private future definitions.
+A support/rollback-ready gate and all compatible readers/writers must precede
+activation. Leave new fields nullable and retained on code rollback; no destructive
+migration, historical deletion or automatic conversion. Existing legacy clients
+keep ordinary chores and current-occurrence stacks; unsupported scheduled-template
+edits need a clear upgrade/refusal response. Source only is not support proof.

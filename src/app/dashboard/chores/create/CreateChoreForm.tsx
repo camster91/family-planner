@@ -94,6 +94,7 @@ export default function CreateChoreForm({
   const [profileRecurrenceSupported, setProfileRecurrenceSupported] =
     useState(false);
   const [dueDate, setDueDate] = useState("");
+  const [weeklyStart, setWeeklyStart] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [frequency, setFrequency] = useState<Frequency>("once");
   const [weeklyDays, setWeeklyDays] = useState<number[]>([]);
@@ -188,7 +189,10 @@ export default function CreateChoreForm({
       if (Number.isInteger(step) && step >= 1 && step <= ROUTINE_ORDER_MAX)
         setRoutineOrder(String(step));
       const date = params.get("date");
-      if (date && parseDateOnly(date)) setDueDate(date);
+      if (date && parseDateOnly(date)) {
+        setDueDate(date);
+        setWeeklyStart(date);
+      }
     }
     const requestedProfileId = params.get("profile");
     if (!requestedProfileId || profileOptions.length === 0) return;
@@ -276,6 +280,19 @@ export default function CreateChoreForm({
       setError(message("chooseWeekday"));
       return;
     }
+    const viewDay = toDateOnlyLocal(new Date());
+    if (
+      frequency === "weekly" && weeklyStart &&
+      (!parseDateOnly(weeklyStart) || weeklyStart < viewDay)
+    ) {
+      setError(message("weeklyStartInvalid"));
+      return;
+    }
+    const weeklyDueDate = frequency === "weekly"
+      ? nextSelectedWeekday(
+          parseDateOnly(weeklyStart || viewDay)!, weeklyDays, true,
+        )!.toISOString().slice(0, 10)
+      : null;
     const profileTarget =
       assignmentTarget.kind === "profile"
         ? findActiveHouseholdProfile(profileOptions, assignmentTarget.id)
@@ -307,13 +324,7 @@ export default function CreateChoreForm({
       if (profileTarget) {
         const profileDueDate =
           frequency === "weekly"
-            ? nextSelectedWeekday(
-                parseDateOnly(toDateOnlyLocal(new Date()))!,
-                weeklyDays,
-                true,
-              )!
-                .toISOString()
-                .slice(0, 10)
+            ? weeklyDueDate!
             : dueDate;
         const computedRequestBody: Record<string, unknown> = {
           protocol: 2,
@@ -363,13 +374,7 @@ export default function CreateChoreForm({
           // Occurrence dates remain internal; weekly users choose weekdays.
           due_date:
             frequency === "weekly"
-              ? nextSelectedWeekday(
-                  parseDateOnly(toDateOnlyLocal(new Date()))!,
-                  weeklyDays,
-                  true,
-                )!
-                  .toISOString()
-                  .slice(0, 10)
+              ? weeklyDueDate!
               : dueDate,
           difficulty,
           frequency,
@@ -675,13 +680,38 @@ export default function CreateChoreForm({
         {frequency === "monthly" && <MonthlyScheduleHint />}
 
         {frequency === "weekly" && (
-          <WeeklyDaysPicker
-            days={weeklyDays}
-            onChange={(days) => {
-              markProfileDraftEdited();
-              setWeeklyDays(days);
-            }}
-          />
+          <div className="space-y-3">
+            <WeeklyDaysPicker
+              days={weeklyDays}
+              onChange={(days) => {
+                markProfileDraftEdited();
+                setWeeklyDays(days);
+              }}
+            />
+            <details className="rounded-xl bg-[var(--surface-fill)] p-3">
+              <summary className="min-h-[44px] cursor-pointer py-2 text-subhead">
+                {message("weeklyStartLater")}
+              </summary>
+              <label className="label-apple" htmlFor={`${fieldId}-weekly-start`}>
+                {message("weeklyStart")}
+              </label>
+              <input
+                id={`${fieldId}-weekly-start`}
+                className="input-apple"
+                type="date"
+                value={weeklyStart}
+                min={todayKey ?? undefined}
+                aria-describedby={`${fieldId}-weekly-start-help`}
+                onChange={event => {
+                  markProfileDraftEdited();
+                  setWeeklyStart(event.target.value);
+                }}
+              />
+              <p id={`${fieldId}-weekly-start-help`} className="text-footnote text-label-secondary">
+                {message("weeklyStartHelp")}
+              </p>
+            </details>
+          </div>
         )}
 
         {/* Take turns (O-39): repeating chores only */}

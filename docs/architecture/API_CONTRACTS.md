@@ -834,3 +834,16 @@ household feature flags or paired-fridge settings. Existing notification
 `/api/users/preferences` bodies and behavior remain unchanged. New direct APIs
 refuse paired devices and derive actor/household scope from the current session.
 Implementation is local; consolidated migration/API/rendered QA is deferred.
+
+## Durable routine schedule foundation — 2026-10-20 (#450)
+
+`../plans/routine-schedule-v1.md` / `routine-schedule.ts` define a strict future
+command/storage vocabulary, canonical root identities, shared date-only schedule,
+explicit removal and future-after-today controls. This is source preparation,
+not an HTTP/offline/public capability. Nullable RoutineStack.schedule_config and
+Chore root definition/cue/duration fields are authored, ungenerated/unapplied.
+Before runtime writing, dedicated parent state/replay authorization, ordinary
+read metadata stripping, atomic receipt/config/copy changes, canonical expander
+and legacy-write guards, exact owned recovery and rollback-ready support must
+be implemented and later accepted. Current-occurrence endpoints stay unchanged.
+Parent export includes definitions; non-parent export strips root control JSON.

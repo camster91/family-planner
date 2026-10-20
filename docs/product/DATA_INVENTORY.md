@@ -131,3 +131,15 @@ optional package_size reach canonical InventoryItem via intake; the label is a
 snapshot, not stock quantity or a new product/barcode. Existing export/deletion
 already includes package_size. No raw OCR/receipt evidence is added to shared
 surfaces, logs, analytics, export or an offline queue. No native capability claim.
+
+## Durable routine metadata source foundation — 2026-10-20
+
+Proposed nullable canonical stack/root schedule definitions contain parent-authored
+cue, ordered root IDs, future title/instructions, account/profile target, schedule
+and optional duration. Occurrence cue/duration are snapshots. No new route writes
+non-null definitions yet and no schema/generation ran. Parent portability now
+includes existing durable stack definitions; non-parent exports strip root future
+control JSON. Ordinary domain/profile/complete/board/cache/read projections must
+also exclude private future definitions before activation. Existing household
+erasure inventories stacks/chores. No provider, analytics, media, timer or new
+offline action. `../plans/routine-schedule-v1.md`.

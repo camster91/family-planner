@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
       auditLog, betaMetrics,
       allowances, wishlistItems, sickDays, medications, emergencyContacts, anniversaries, pickups, pinnedNotes,
       familyLocations, handoffs, uploads, choreAssignments, calendarSubscriptions, calendarConnections,
-      pushSubscriptions, budgetCategories,
+      pushSubscriptions, budgetCategories, routineStacks,
     ] = await Promise.all([
       prisma!.user.findUnique({
         where: { id: userId },
@@ -500,6 +500,14 @@ export async function GET(request: NextRequest) {
             orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
           })
         : none,
+      // Cross-member schedule definitions are parent controls, not child/account data.
+      // Explicit parent membership protects a late household change as well.
+      own && isParent
+        ? prisma!.routineStack.findMany({
+            where: { family_id: familyId, family: { members: { some: { id: userId, role: 'parent' } } } },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
     ])
 
     const recipeCollections = familyId ? await prisma!.recipeCollection.findMany({
@@ -516,7 +524,10 @@ export async function GET(request: NextRequest) {
       quietHours: user ? quietHoursFromRow(user) : null,
       morningSummary: user ? morningSummaryFromRow(user) : null,
       family,
-      chores,
+      chores: chores.map(row => {
+        const { routine_series_config: futureDefinition, ...occurrence } = row as typeof row & { routine_series_config?: unknown }
+        return isParent ? { ...occurrence, ...(futureDefinition !== undefined ? { routine_series_config: futureDefinition } : {}) } : occurrence
+      }),
       lists,
       messages,
       events,
@@ -562,6 +573,7 @@ export async function GET(request: NextRequest) {
       calendarConnections,
       pushSubscriptions,
       budgetCategories,
+      routineStacks,
     }
 
     return new NextResponse(JSON.stringify(exportData, null, 2), {
