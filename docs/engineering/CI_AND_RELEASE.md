@@ -129,3 +129,12 @@ The current production image contains application code and is identified by its 
 - Backup scheduling on the host. A daily systemd timer and retention are ready in `deploy/systemd/` and `scripts/backup-prune.sh` but not installed; installing them needs Cameron's explicit approval (AGENTS.md). Steps: `docs/runbooks/BACKUPS.md`.
 - A production rollback drill: redeploying the previous image through `Release to VPS` and verifying health. This needs the production environment credentials and approval.
 - Schema *down*-migration. `migrate.js` is forward-only (idempotent, mostly additive; a few guarded column and index drops), so rollback means redeploying the previous image against the expanded schema, or restoring a backup. There is no automated down path.
+
+## Current-head validation reconciliation (#85, 2026-10-20)
+
+`RELEASE_VALIDATION_RECONCILIATION.md` maps the historical master issue to
+current main protection and existing source. Eighteen omitted integration suites
+now join the ordinary DB gate; three malformed-catalog/backfill suites run on
+separate disposable service databases with canonical migration/drift checks and
+cleanup. No tests were added, run or dispatched by this implementation pass.
+Current policy read is not exact-candidate green evidence or a policy mutation.

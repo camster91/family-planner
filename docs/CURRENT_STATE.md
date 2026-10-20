@@ -1,5 +1,17 @@
 # Current State
 
+## Required database-suite wiring source — 2026-10-20
+
+#85 reconciliation found 21 existing opt-in integration suites absent from the
+explicit hosted DB commands. Eighteen now join the normal required Build & Test
+step; three schema-mutating backfill/catalog suites receive separate disposable
+service databases, canonical migrations, post-suite drift checks and cleanup.
+No new test cases were added and no job/test/migration/QA was executed. Current
+GitHub read identifies default main with strict required Build & Test/admin
+enforcement, conversation resolution, force/deletion off; no policy was changed.
+Exact integrated-head local/hosted/native/image acceptance remains deferred.
+`engineering/RELEASE_VALIDATION_RECONCILIATION.md`.
+
 ## Private measurement source and scorecard scope — 2026-10-20
 
 #140 now maps every requested metric/funnel to current opt-in daily counts or an
