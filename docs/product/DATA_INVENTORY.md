@@ -79,3 +79,19 @@ Do not add a provider to production without security/privacy review and explicit
 
 ## Play submission rule
 Reconcile this table against actual dependencies, network calls, Android permissions, server integrations and production configuration before completing Data Safety declarations.
+## Barcode product recognition (#125; source candidate 2026-10-19)
+
+FoodProduct stores household-only GTIN, reviewed name/brand/package label,
+manual/public origin, attributed source URL and revision/time. Parent/teen inventory
+writers may read and opt into updating this metadata with canonical intake. It
+holds no stock amount or expiry; InventoryItem keeps nullable product snapshots
+without mutable product links. Household export includes the library for current
+parents/teens, and household deletion removes it. Shared Use soon gets no extra
+fields. No raw camera frames or public product images are persisted.
+
+The optional public adapter sends only a deliberate barcode to Open Food Facts;
+no household/profile identifier, quantity, dates, cookies or private photos. Safe
+public image loading follows explicit Apply with no referrer. Returned metadata
+and its reuse remain deployment gated pending data-license/attribution approval.
+All three configuration gates default off. Private manual recognition is usable
+without that provider. See `FOOD_CAPTURE.md` for current terms and acceptance gaps.

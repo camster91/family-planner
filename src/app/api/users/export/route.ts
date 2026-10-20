@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       user, family, chores, lists, messages, events, rewards, notifications, activities,
       transactions, projects, recipes, mealPlans, shoppingLists, habits, habitLogs,
       earnedBadges, rewardRedemptions, familyGoals, importJobs, financeArchive,
-      meals, mealPrepSessions, mealBackfillJobs, inventory, inventoryAdjustments, grocerySectionPreferences, groceryShoppingSessions,
+      meals, mealPrepSessions, mealBackfillJobs, inventory, foodProducts, inventoryAdjustments, grocerySectionPreferences, groceryShoppingSessions,
       auditLog, betaMetrics,
       allowances, wishlistItems, sickDays, medications, emergencyContacts, anniversaries, pickups, pinnedNotes,
       familyLocations, handoffs, uploads, choreAssignments, calendarSubscriptions, calendarConnections,
@@ -267,11 +267,17 @@ export async function GET(request: NextRequest) {
         where: { family: { members: { some: { id: userId } } } },
         select: {
           id: true, name: true, ingredient_id: true, amount: true, unit: true,
+          barcode: true, product_brand: true, package_size: true, product_source: true,
           location: true, expires_on: true, date_kind: true, category: true, purchased_on: true,
           opened_on: true, status: true, finished_at: true, added_by: true, created_at: true, updated_at: true,
         },
         orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       }),
+      own && mayReadSubscriptions ? prisma!.foodProduct.findMany({
+        where: { family_id: familyId! },
+        select: { id: true, barcode: true, name: true, brand: true, package_size: true, origin: true, source_url: true, revision: true, updated_at: true },
+        orderBy: { id: 'asc' },
+      }) : none,
       // Inventory history (#158/#121): "Used it" / "Throw away" rows, same
       // audience as the items. No family_id and no idempotency request id.
       prisma!.inventoryAdjustment.findMany({
@@ -524,6 +530,7 @@ export async function GET(request: NextRequest) {
       recipes,
       recipeCollections,
       inventory,
+      foodProducts,
       inventoryAdjustments,
       grocerySectionPreferences,
       groceryShoppingSessions,

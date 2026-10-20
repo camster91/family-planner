@@ -6,6 +6,13 @@ import {
 
 /** Owned presentation only. Private names, units, model text and API refusals stay raw. */
 export const inventoryEnglish = {
+  scanFood: "Scan food",
+  productDetails: "Product details",
+  productCode: "Product code (GTIN)",
+  packageSize: "Label package size",
+  packageNotStock:
+    "Package size describes the label; stock amount and dates are recorded separately.",
+  barcodeAdded: "Confirmed {count} reviewed food items.",
   intakeContextLoading: "Checking your household before capture…",
   intakeContextFailed:
     "We could not check your household. Your suggestions are kept; retry before adding stock.",
@@ -202,6 +209,13 @@ export const inventoryEnglish = {
 } as const;
 export type InventoryMessage = keyof typeof inventoryEnglish;
 export const inventorySpanish: Record<InventoryMessage, string> = {
+  scanFood: "Escanear alimentos",
+  productDetails: "Datos del producto",
+  productCode: "Código del producto (GTIN)",
+  packageSize: "Tamaño en la etiqueta",
+  packageNotStock:
+    "El tamaño describe la etiqueta; la cantidad disponible y las fechas se registran por separado.",
+  barcodeAdded: "Se confirmaron {count} alimentos revisados.",
   intakeContextLoading: "Comprobando tu hogar antes de capturar…",
   intakeContextFailed:
     "No pudimos comprobar tu hogar. Se conservan las sugerencias; reintenta antes de añadir existencias.",

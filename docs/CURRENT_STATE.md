@@ -1,5 +1,20 @@
 # Current State
 
+## Barcode food review and private recognition source — 2026-10-19
+
+Personal inventory now has typed/local-camera barcode capture and a compact
+review tray. Repeated codes do not silently add stock; label size stays separate
+from quantity and dates remain explicit. Household recognition, opt-in revision
+corrections, stock snapshots and keyed receipt share canonical intake. Product
+export/deletion and EN/ES controls are wired. Shared Use soon remains minimal.
+
+The bounded fixed-host Open Food Facts v3 adapter needs explicit lookup/apply
+and stays off behind enable/reuse/contact gates. No public provider was called
+or activated. Additive schema/migration and focused test source are authored,
+not generated, applied or executed. No QA, native run, push, merge or deployment
+occurred. Manual-create migration, focused photo/receipt, lifecycle/offline and
+provider/native acceptance remain open. Full matrix: `product/FOOD_CAPTURE.md`.
+
 ## Atomic reviewed inventory intake source — 2026-10-19
 
 The #125 foundation adds dedicated versioned/keyed inventory intake, committing

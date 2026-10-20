@@ -480,3 +480,17 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
   work. No new model, queue action, provider, media store or shared-device API.
 - Source only: full capture matrix in `docs/product/FOOD_CAPTURE.md`; integrated
   QA/native/compatibility evidence and normal release gates remain deferred.
+
+### Barcode recognition extension (#125, 2026-10-19; source only)
+
+- `/api/inventory/products` GET: current personal parent/teen inventory authority,
+  same-family barcode metadata, private/no-store; paired sessions refused. Public
+  lookup needs explicit `lookup=1` and disabled-by-default server reuse/contact/
+  enable gates, fixed-host bounds and globally spaced DB reservations.
+- Intake v1 gains an optional strict product envelope; old servers fail closed.
+  Optional remembered correction, stock snapshot and receipt commit atomically;
+  stale changed revision refuses before stock. No fallback to legacy create.
+- FoodProduct owns recognition by `(family_id, barcode)`; it is not stock. Export
+  parent/teen library, household deletion and personal stock metadata are wired.
+  Shared Use soon selects unchanged minimal fields. Additive schema/migration is
+  authored only; no client generation, migration or QA has run.

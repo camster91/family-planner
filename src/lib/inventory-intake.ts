@@ -12,6 +12,10 @@ import {
   IDEMPOTENCY_TTL_MS,
   type EffectResult,
 } from "@/lib/idempotency";
+import {
+  foodProductLicenseApproved,
+  foodProductSourceUrl,
+} from "@/lib/food-product-provider";
 import { parseDateOnly } from "@/lib/dates";
 import {
   inventoryIntakeReceipt,
@@ -93,11 +97,59 @@ export async function persistInventoryIntake(
       name,
       data.ingredient_id,
     );
+    const product = input.product;
+    if (product?.origin === "open-food-facts" && !foodProductLicenseApproved())
+      return failure(403, "PRODUCT_REUSE_DISABLED");
+    const productSource =
+      product?.origin === "open-food-facts"
+        ? foodProductSourceUrl(product.barcode)
+        : null;
+    if (product?.remember) {
+      const existing = await tx.foodProduct.findUnique({
+        where: {
+          family_id_barcode: {
+            family_id: actor.familyId,
+            barcode: product.barcode,
+          },
+        },
+      });
+      const desired = {
+        name,
+        brand: product.brand,
+        package_size: product.package_size,
+        origin: product.origin,
+        source_url: productSource,
+      };
+      const same =
+        existing &&
+        Object.entries(desired).every(
+          ([key, value]) => existing[key as keyof typeof desired] === value,
+        );
+      if (!same && (existing?.revision ?? null) !== product.base_revision)
+        return failure(409, "PRODUCT_CHANGED");
+      if (!existing)
+        await tx.foodProduct.create({
+          data: {
+            family_id: actor.familyId,
+            barcode: product.barcode,
+            ...desired,
+          },
+        });
+      else if (!same)
+        await tx.foodProduct.update({
+          where: { id: existing.id },
+          data: { ...desired, revision: { increment: 1 } },
+        });
+    }
     const item = await tx.inventoryItem.create({
       data: {
         family_id: actor.familyId,
         name,
         ingredient_id: ingredientId,
+        barcode: product?.barcode ?? null,
+        product_brand: product?.brand ?? null,
+        package_size: product?.package_size ?? null,
+        product_source: productSource,
         amount: data.amount ?? null,
         unit: data.unit ?? null,
         location: data.location ?? "fridge",

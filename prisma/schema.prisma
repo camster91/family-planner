@@ -257,6 +257,7 @@ model Family {
   // Offline sync (#162)
   idempotency_records IdempotencyRecord[]
   // Food inventory (#263)
+  food_products       FoodProduct[]
   inventory_items     InventoryItem[]
   // Inventory consume/discard history (#158/#121)
   inventory_adjustments InventoryAdjustment[]
@@ -1735,10 +1736,30 @@ model IdempotencyRecord {
 // household (ADR-0007), proven server-side before every write. Additive only:
 // scripts/migrate.js creates the table idempotently. Contract and rules:
 // docs/architecture/MEALS_AND_GROCERIES.md "Food inventory".
+// Private household-reviewed product recognition; never a separate stock ledger.
+model FoodProduct {
+  id String @id @default(cuid())
+  family_id String
+  barcode String @db.VarChar(14)
+  name String
+  brand String?
+  package_size String?
+  origin String @default("manual")
+  source_url String?
+  revision Int @default(0)
+  updated_at DateTime @default(now()) @updatedAt
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  @@unique([family_id, barcode], map: "FoodProduct_family_barcode_key")
+}
+
 model InventoryItem {
   id            String    @id @default(cuid())
   family_id     String
   name          String
+  barcode       String? @db.VarChar(14)
+  product_brand String?
+  package_size  String?
+  product_source String?
   ingredient_id String?
   amount        Float?
   unit          String?

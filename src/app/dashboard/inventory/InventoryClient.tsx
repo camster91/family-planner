@@ -47,6 +47,7 @@ import { useUndoToast } from '@/components/ui/toast'
 import { useOnline } from '@/components/ui/use-online'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
+import { BarcodeFoodDialog } from '@/components/inventory/BarcodeFoodDialog'
 import { ScanFridgeDialog } from './ScanFridgeDialog'
 import { Dialog } from '@/components/ui/dialog'
 import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
@@ -223,6 +224,7 @@ export default function InventoryClient({
   const focusAddAfterEdit = React.useRef(false)
   const [notice, setNotice] = React.useState<{ text: InventoryFeedback; error?: boolean } | null>(null)
   const [scanning, setScanning] = React.useState(false)
+  const [barcodeScanning, setBarcodeScanning] = React.useState(false)
   const [busy, setBusy] = React.useState<string | null>(null)
   const [query, setQuery] = React.useState('')
   const [whereFilter, setWhereFilter] = React.useState<InventoryLocation | 'all'>('all')
@@ -444,6 +446,7 @@ export default function InventoryClient({
                 <span>{copy('scanFridge')}</span>
               </button>
             )}
+            {canWrite && <button type="button" className="btn-tinted min-h-[44px]" onClick={() => setBarcodeScanning(true)}>{copy('scanFood')}</button>}
             {canWrite && (
               <button ref={addItemRef} type="button" className="btn-tinted min-h-[44px]" onClick={openAdd}>
                 <Plus className="w-4 h-4" aria-hidden="true" />
@@ -601,6 +604,7 @@ export default function InventoryClient({
         </>
       )}
 
+      {barcodeScanning && <BarcodeFoodDialog initialContext={intakeContext} onClose={() => setBarcodeScanning(false)} onDone={(count) => { setBarcodeScanning(false); afterChange(feedback('barcodeAdded', { count })); }} />}
       {scanning && <ScanFridgeDialog initialContext={intakeContext} onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
 
       {editing && (
@@ -1333,6 +1337,14 @@ function ItemModal({
         </div>
       }
     >
+      {initial?.barcode && <details className="rounded-xl bg-[var(--surface-fill)] p-3">
+        <summary className="min-h-[44px] cursor-pointer py-2">{copy('productDetails')}</summary>
+        <p className="text-footnote break-all">{copy('productCode')}: {initial.barcode}</p>
+        {initial.product_brand && <p className="text-subhead">{initial.product_brand}</p>}
+        {initial.package_size && <p className="text-subhead">{copy('packageSize')}: {initial.package_size}</p>}
+        <p className="text-footnote text-label-secondary">{copy('packageNotStock')}</p>
+        {initial.product_source && <a href={`https://world.openfoodfacts.org/product/${encodeURIComponent(initial.barcode)}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center">Open Food Facts · ODbL ↗</a>}
+      </details>}
       {mode === 'edit' && initial && (
         <div className="rounded-xl border border-[var(--surface-separator)] p-3 space-y-3" data-testid="adjust-panel">
           <p className="text-subhead font-semibold text-label-primary">{copy('usedOrThrew')}</p>

@@ -210,6 +210,10 @@ export function parseDays(raw: string | null, fallback: number): number | null {
 // Rows and DTOs
 
 export const INVENTORY_ITEM_SELECT = {
+  barcode: true,
+  product_brand: true,
+  package_size: true,
+  product_source: true,
   id: true,
   name: true,
   ingredient_id: true,
@@ -229,6 +233,10 @@ export const INVENTORY_ITEM_SELECT = {
 } as const
 
 export interface InventoryRow {
+  barcode?: string | null
+  product_brand?: string | null
+  package_size?: string | null
+  product_source?: string | null
   id: string
   name: string
   ingredient_id: string | null
@@ -249,6 +257,10 @@ export interface InventoryRow {
 }
 
 export interface InventoryItemDto {
+  barcode?: string | null
+  product_brand?: string | null
+  package_size?: string | null
+  product_source?: string | null
   id: string
   name: string
   ingredient_id: string | null
@@ -287,6 +299,10 @@ export function toInventoryDto(row: InventoryRow, today: Date, days = DEFAULT_US
     id: row.id,
     name: row.name,
     ingredient_id: row.ingredient_id ?? null,
+    barcode: row.barcode ?? null,
+    product_brand: row.product_brand ?? null,
+    package_size: row.package_size ?? null,
+    product_source: row.product_source ?? null,
     amount: row.amount ?? null,
     unit: row.unit ?? null,
     location: asLocation(row.location),

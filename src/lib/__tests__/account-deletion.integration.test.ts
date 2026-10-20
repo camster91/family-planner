@@ -165,7 +165,8 @@ describeWithDatabase('account deletion against Postgres', () => {
     await db.handoff.create({ data: { id: id('handoff'), family_id: f, sitter_name: 'Sam', share_token: id('share-token'), share_expires_at: later, created_by: parent } })
     await db.sickDay.create({ data: { id: id('sick'), family_id: f, person_id: child, severity: 'mild', created_by: parent } })
     await db.medication.create({ data: { id: id('med'), family_id: f, sick_day_id: id('sick'), person_id: child, name: 'Syrup', dosage: '5ml', schedule: 'x', created_by: parent } })
-    // Inventory
+    // Inventory and private product recognition
+    await db.foodProduct.create({ data: { id: id("food-product"), family_id: f, barcode: "00036000291452", name: "Fixture product" } })
     await db.inventoryItem.create({ data: { id: id('inv'), family_id: f, name: 'Tomatoes', ingredient_id: id('ingredient'), added_by: parent } })
     await db.inventoryAdjustment.create({
       data: { id: id('adj'), family_id: f, item_id: id('inv'), kind: 'consume', status_before: 'active', status_after: 'consumed', item_version: t, actor_id: parent },

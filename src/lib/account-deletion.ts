@@ -643,6 +643,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   // 4. Household content.
   { model: 'inventoryAdjustment', scope: { kind: 'family' }, why: 'inventory history' },
   { model: 'inventoryItem', scope: { kind: 'family' }, why: 'inventory' },
+  { model: 'foodProduct', scope: { kind: 'family' }, why: 'private household product recognition' },
   { model: 'groceryShoppingSession', scope: { kind: 'family' }, why: 'shopping trips' },
   { model: 'grocerySectionPreference', scope: { kind: 'family' }, why: 'store sections' },
   { model: 'transaction', scope: { kind: 'family' }, why: 'budget transactions' },
