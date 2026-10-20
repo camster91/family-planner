@@ -5,6 +5,7 @@ import {
   type InventoryIntakeInput,
 } from "@/lib/inventory-intake-contract";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
+import { INVENTORY_RECOVERY_OWNER_HEADER } from "@/lib/inventory-recovery-contract";
 export type IntakeContext = { userId: string; familyId: string };
 export type IntakeIntent = { key: string; body: string };
 export async function readInventoryIntakeContext(
@@ -42,6 +43,7 @@ export type IntakeOutcome =
   | { kind: "removed" };
 export async function postInventoryIntake(
   intent: IntakeIntent,
+  ownerScope?: string,
 ): Promise<IntakeOutcome> {
   const controller = new AbortController();
   const deadline = setTimeout(() => controller.abort(), 15000);
@@ -51,6 +53,9 @@ export async function postInventoryIntake(
       headers: {
         "Content-Type": "application/json",
         "Idempotency-Key": intent.key,
+        ...(ownerScope
+          ? { [INVENTORY_RECOVERY_OWNER_HEADER]: ownerScope }
+          : {}),
       },
       body: intent.body,
       signal: controller.signal,

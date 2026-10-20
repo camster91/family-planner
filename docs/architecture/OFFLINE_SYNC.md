@@ -16,6 +16,13 @@ Durable recovery must reconcile original intent with current server receipts and
 fresh authorization before exposing any queued/native inventory capability;
 #135/#473 acceptance remains open. No lifecycle or offline QA has been run.
 
+The 2026-10-20 [inventory recovery foundation](INVENTORY_RECOVERY.md) adds a
+separate exact online-request journal and optional server owner proof. It is
+off by default and not yet connected to forms. It reuses generic owned-record
+retirement, does not change the offline action allowlist, and does not establish
+working restart recovery. Browser review/lifecycle integration remains source
+work before the consolidated QA pass.
+
 Shared-device snapshot behavior is implemented in `device-board-cache.ts` and `use-device-board-snapshot.ts`: see [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §8 for exact allowlist, 24-hour display bound, read-only restoration, revocation and application-shell/native limits. This does not extend the mutation allowlist or establish physical Android acceptance.
 
 Cache only allowlisted shared-surface data needed for a recent dashboard/detail view. Show the user when data is cached/stale and when it was last synced.

@@ -1,5 +1,16 @@
 # API household-isolation audit (issue #102)
 
+Source addendum 2026-10-20: `GET /api/inventory/recovery` uses common paired-first
+person/family auth, then canonical parent/teen inventory authority. It returns
+private/no-store current context and a domain-specific session continuity owner,
+never stock content or credentials; support is off by default. Negotiation is
+limited to 240/user/minute. Intake/change optionally validate supplied inventory
+owner proof before processing/replay; existing live authority still applies.
+Common paired-with-person-cookie source cases include recovery and the earlier
+intake/change/products routes. New contract/negative tests are authored only;
+no isolation pass is claimed. See `architecture/INVENTORY_RECOVERY.md` for the
+unfinished browser integration and rollback boundaries.
+
 Date: 2026-09-25
 Scope: every `src/app/api/**/route.ts` (86 route files, 139 exported handlers) checked against
 `docs/architecture/AUTHORIZATION.md`, `AGENTS.md` (parent-only finance, private messages, addresses,

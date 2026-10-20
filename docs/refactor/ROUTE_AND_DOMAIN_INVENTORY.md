@@ -1,5 +1,15 @@
 # Route and domain inventory (#148)
 
+### Inventory restart recovery source addendum — 2026-10-20
+
+One new personal GET route: `/api/inventory/recovery`, common paired-first auth
+and canonical parent/teen inventory authority, gated support/private no-store.
+`inventory-recovery-{contract,server,store}.ts` provide bounded original online
+requests, a separate owner scope, optional pre-replay proof and owned persistence
+with explicit recovered review. No schema/new queue action. Existing intake and
+change routes keep legacy no-header behavior. Browser/canonical-review/UI
+integration remains in progress; all source test execution is deferred.
+
 ### Inventory read binding source addendum — 2026-10-19
 
 No route added: inventory list, use-soon, cook and adjustments GET now share

@@ -1,5 +1,23 @@
 # Current State
 
+## Inventory restart-recovery foundation — 2026-10-20
+
+Added a strict bounded inventory request journal, separate session/canonical
+actor/household owner scope, private gated negotiation and optional proof checks
+before intake/change processing or replay. It reuses existing owned-journal
+retirement and Web Locks without adding a grocery queue action. Unknown storage,
+conflicting copies, owner changes and uncertain transitions retain evidence;
+replacement runtimes require explicit canonical review before sending original
+keys/bodies. Source includes storage-fault, generation-retirement, owner-proof,
+gating and route-contract tests, not run.
+
+This is **in progress, off by default and not UI-integrated**. Active inventory
+forms still use mounted-memory recovery. Next: bounded browser negotiation and
+canonical recovered-target/receipt review, then form/capture/stock wiring and
+EN/ES recovery controls. Do not claim restart recovery works yet. Details:
+`architecture/INVENTORY_RECOVERY.md`. No tests/typecheck/lint/build/browser/native
+QA, schema operation, provider activation, push, merge or deployment occurred.
+
 ## Bounded inventory refresh source — 2026-10-19
 
 Personal inventory refresh now uses a 15-second whole-batch deadline, bounded

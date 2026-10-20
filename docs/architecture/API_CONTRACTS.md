@@ -175,6 +175,21 @@ every new field is optional. Rollback of the app code is safe; the new columns s
 
 ## Food inventory (#263, #158/#121)
 
+**Inventory recovery foundation (2026-10-20, off/not UI-integrated):** personal
+`GET /api/inventory/recovery` renews parent/teen inventory authority and returns
+`{contract:'herewoven.inventory-recovery.v1',enabled,owner,userId,familyId}`.
+Owner is a separate inventory continuity fingerprint of the actual session and
+canonical current role/household, or null for a legacy session without nonce.
+Every outcome is private/no-store; rate cap 240/user/minute. Negotiating enabled
+support requires both inventory recovery gates and both existing queue-owner
+gates. It neither grants stock authority nor changes the public manifest.
+Intake/change accept optional `X-Herewoven-Inventory-Owner`; a supplied mismatch
+is 409 `INVENTORY_RECOVERY_OWNER_CHANGED` before body processing/replay, even with
+new recovery writing paused. No-header old clients retain existing behavior.
+Post helpers may pass that original scope with unchanged body/key. See
+`INVENTORY_RECOVERY.md` for unfinished browser/review integration and required
+rollback boundaries. No durable inventory client support is claimed yet.
+
 **Additive personal read binding (#125, source candidate 2026-10-19):** the list,
 `use-soon`, `cook` and `adjustments` GET routes accept optional
 `X-Herewoven-Inventory-Scope: v1.<URI-encoded JSON>` containing strict

@@ -21,6 +21,7 @@ import {
 import { inventoryIntakeAuthority } from "@/lib/inventory-intake";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { refuseInventoryRecoveryOwner } from "@/lib/inventory-recovery-server";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 const fail = (status: number, code: string) =>
@@ -31,6 +32,12 @@ async function handle(request: NextRequest) {
     if (device) return device;
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+    const ownerRefusal = refuseInventoryRecoveryOwner(
+      request,
+      auth.payload,
+      auth.user,
+    );
+    if (ownerRefusal) return ownerRefusal;
     const actor = {
       userId: auth.user.id,
       familyId: auth.user.family_id,
