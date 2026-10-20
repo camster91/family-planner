@@ -1,5 +1,5 @@
 import { resolveChorePhotoForWrite } from "@/lib/chore-photos";
-import { lockHouseholdForJoin } from "@/lib/household-lock";
+import { lockHouseholdForJoin, lockUser } from "@/lib/household-lock";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { featureGate } from "@/lib/feature-gate-server";
@@ -52,37 +52,39 @@ export async function POST(request: NextRequest) {
       created_by: auth.user.id,
       image_url: null as string | null,
     };
-    // Serialize attachment with cleanup/deletion. Old clients without a cover
-    // keep the original creation path.
-    const result = image_url
-      ? await prisma!.$transaction(async (tx) => {
-          if (!(await lockHouseholdForJoin(tx, auth.user.family_id)))
-            return { error: "Household not found", status: 404 } as const;
-          const member = await tx.user.findFirst({
-            where: { id: auth.user.id, family_id: auth.user.family_id },
-            select: { role: true },
-          });
-          if (!member || !canCreateList(member.role))
-            return {
-              error: "Ask a parent to create a new list.",
-              status: 403,
-            } as const;
-          const image = await resolveChorePhotoForWrite(
-            auth.user.family_id,
-            image_url,
-          );
-          if (!image.ok)
-            return {
-              error: "Image not found. Upload a household image and retry.",
-              status: 400,
-            } as const;
+    // All creates renew authority under the same actor -> household locks;
+    // omitting a cover must not bypass membership/session rechecks.
+    const result = await prisma!.$transaction(async (tx) => {
+      await lockUser(tx, auth.user.id);
+      if (!(await lockHouseholdForJoin(tx, auth.user.family_id)))
+        return { error: "Household not found", status: 404 } as const;
+      const member = await tx.user.findFirst({
+        where: { id: auth.user.id, family_id: auth.user.family_id },
+        select: { role: true, token_version: true },
+      });
+      if (member && member.token_version !== (auth.payload.tv ?? 0))
+        return { error: "Unauthorized", status: 401 } as const;
+      if (!member || !canCreateList(member.role))
+        return {
+          error: "Ask a parent to create a new list.",
+          status: 403,
+        } as const;
+      if (image_url) {
+        const image = await resolveChorePhotoForWrite(
+          auth.user.family_id,
+          image_url,
+          undefined,
+          tx,
+        );
+        if (!image.ok)
           return {
-            list: await tx.list.create({
-              data: { ...data, image_url: image.value ?? null },
-            }),
-          };
-        })
-      : { list: await prisma!.list.create({ data }) };
+            error: "Image not found. Upload a household image and retry.",
+            status: 400,
+          } as const;
+        data.image_url = image.value ?? null;
+      }
+      return { list: await tx.list.create({ data }) };
+    });
     if ("error" in result)
       return NextResponse.json(
         { error: result.error },

@@ -1,5 +1,28 @@
 # Current State
 
+## Custom-list/private-cover creation source reconciliation — 2026-10-20
+
+Original #447/#454 are mapped in
+`docs/plans/custom-lists-and-private-covers-reconciliation.md`: canonical Custom
+picker/types/EN/ES/plain-checklist paths, private folded image upload/preview/
+remove, conditional saved covers, nullable additive schema and stale-cleanup
+reference protection already exist. Their acceptance remains unrun.
+
+A confirmed code gap was fixed: all list creates now take actor-user then
+household-existence locks and renew current membership/create-role/session before
+writing. Previously no-cover creation bypassed the transaction; cover creation
+renewed role but not the captured session generation. Revoked requests yield 401;
+removed/unauthorized creators cannot write. Cover ownership now reads through the
+same transaction's upload delegate, with unchanged default behavior for other
+photo-helper callers. Canonical request/response and item retry behavior remain.
+
+Authored fake cover/no-cover waiting-authority cases and disposable-Postgres
+held-lock, cleanup-order and uncommitted-upload/rollback cases remain unrun. No
+tests, types, lint, build, browser/native/schema operations, CI, push, merge,
+deployment or activation occurred. No migration executed, real list created,
+file removed or provider changed. Full UI/file/role/migration/generated-client/
+rendered/device acceptance remains for the consolidated candidate; goal active.
+
 ## Calendar connection/form-sheet source reconciliation — 2026-10-20
 
 Original #456 and #455 (including #453) now have requirement/source/remaining-proof
