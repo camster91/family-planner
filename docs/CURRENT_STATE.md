@@ -1,5 +1,25 @@
 # Current State
 
+## Atomic reviewed inventory intake source — 2026-10-19
+
+The #125 foundation adds dedicated versioned/keyed inventory intake, committing
+canonical stock and a compact receipt in one current-authority transaction.
+Replay renews authority/existence and never recreates deleted stock. Expected
+actor/family and issued-at keep the original household and expiry boundary.
+No separate stock store or schema change is introduced.
+
+Photo review now uses intake, freezes the reviewed body/key after uncertainty,
+keeps recovery across later refusal and blocks navigation/new-photo replacement
+until confirmation. Confirmed rows leave the tray with truthful partial counts.
+Context and photo waits/late responses are bounded; suggestion HTTP data is
+validated. Server-page context binds personal capture; standalone capture can
+read current intake context. EN/ES copy and source fixtures are updated.
+
+Tests are written, not run. No QA, build, provider call, schema operation, push,
+merge or deployment occurred. Barcode capture/product lookup/private corrections,
+manual-form migration, broader stock lifecycle and native/offline acceptance
+remain unfinished. See `docs/product/FOOD_CAPTURE.md` for the full #125 matrix.
+
 ## Bounded multi-source recipe discovery source — 2026-10-19
 
 Explore can search all three existing supported publishers in one deliberate

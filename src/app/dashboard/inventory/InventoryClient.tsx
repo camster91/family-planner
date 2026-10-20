@@ -202,10 +202,12 @@ export default function InventoryClient({
   canWrite,
   canOpenRecipes,
   canScan = false,
+  intakeContext,
 }: {
   canWrite: boolean
   canOpenRecipes: boolean
   /** Parent, and the deployment has a fridge-scan provider key (#265). */
+  intakeContext?: { userId: string; familyId: string }
   canScan?: boolean
 }) {
   const copy = useInventoryCopy()
@@ -599,7 +601,7 @@ export default function InventoryClient({
         </>
       )}
 
-      {scanning && <ScanFridgeDialog onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
+      {scanning && <ScanFridgeDialog initialContext={intakeContext} onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
 
       {editing && (
         <ItemModal

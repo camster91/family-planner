@@ -464,3 +464,19 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
 - Raw extracted ingredients/directions remain review text. Over-limit combined
   drafts are retained for explicit shortening; missing servings are not guessed.
 - Source candidate only; consolidated QA and release proof remain deferred.
+
+
+### Reviewed inventory intake source candidate (#125, 2026-10-19)
+
+- `/api/inventory/intake` GET/POST: current personal parent/teen, inventory
+  feature and session generation; explicit paired refusal; private/no-store.
+  GET returns original actor/family context only. POST bounds JSON to 8 KiB,
+  60 requests/minute/user and requires known v1 plus Idempotency-Key.
+- Canonical InventoryItem + compact receipt commit together under User/household/
+  receipt locks; current replay checks owned existence. Deleted rows do not
+  recreate, and abandoned expired intent cannot silently become a new create.
+- Photo review uses this path and immutable row recovery, not legacy create.
+  Legacy manual item form/POST and broader capture remain separate unfinished
+  work. No new model, queue action, provider, media store or shared-device API.
+- Source only: full capture matrix in `docs/product/FOOD_CAPTURE.md`; integrated
+  QA/native/compatibility evidence and normal release gates remain deferred.

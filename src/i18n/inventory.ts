@@ -2,10 +2,21 @@ import {
   expiryFeedback as compactExpiryFeedback,
   inventoryDisplayEnglish,
   inventoryDisplaySpanish,
-} from './inventory-display'
+} from "./inventory-display";
 
 /** Owned presentation only. Private names, units, model text and API refusals stay raw. */
 export const inventoryEnglish = {
+  intakeContextLoading: "Checking your household before capture…",
+  intakeContextFailed:
+    "We could not check your household. Your suggestions are kept; retry before adding stock.",
+  intakeRetryContext: "Check household again",
+  intakeUnknown:
+    "The item may have been added. Its reviewed values stay locked. Retry to check the same save before closing or scanning another photo.",
+  intakeRefused:
+    "This item was not confirmed. Review your account, household and item details before trying again.",
+  intakeRemoved:
+    "The original saved item was removed. Tick this row only if you deliberately want to add it again.",
+
   ...inventoryDisplayEnglish,
   scanTitle: "Scan the fridge",
   close: "Close",
@@ -191,6 +202,17 @@ export const inventoryEnglish = {
 } as const;
 export type InventoryMessage = keyof typeof inventoryEnglish;
 export const inventorySpanish: Record<InventoryMessage, string> = {
+  intakeContextLoading: "Comprobando tu hogar antes de capturar…",
+  intakeContextFailed:
+    "No pudimos comprobar tu hogar. Se conservan las sugerencias; reintenta antes de añadir existencias.",
+  intakeRetryContext: "Comprobar hogar otra vez",
+  intakeUnknown:
+    "El alimento puede haberse añadido. Los valores revisados quedan bloqueados. Reintenta el mismo guardado antes de cerrar o escanear otra foto.",
+  intakeRefused:
+    "No se confirmó este alimento. Revisa tu cuenta, hogar y los datos antes de reintentar.",
+  intakeRemoved:
+    "Se eliminó el alimento guardado original. Márcalo solo si quieres añadirlo de nuevo expresamente.",
+
   ...inventoryDisplaySpanish,
   scanTitle: "Escanear el refrigerador",
   close: "Cerrar",

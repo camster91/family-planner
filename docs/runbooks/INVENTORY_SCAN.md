@@ -72,3 +72,18 @@ the key (households see "used today's fridge scans").
 Remove `INVENTORY_SCAN_ANTHROPIC_API_KEY` from the container environment and recreate it. The route returns 404 and the
 button disappears on the next page load; nothing else changes and no data needs cleaning (the scan stores nothing).
 If the key may have leaked, also revoke it in the Anthropic Console (credential rotation: Cameron's approval).
+
+
+## Intake migration candidate — 2026-10-19 (#125)
+
+The local photo review candidate now writes through versioned
+`POST /api/inventory/intake`, using atomic stock/receipt persistence and exact
+immutable row recovery. It does not fall back to legacy inventory POST on old
+servers. The signed-in server page supplies original actor/family context;
+standalone capture can read context before choosing a photo. Unknown rows stay
+locked and keep Close/Back/new-photo replacement blocked until confirmation.
+
+This is not a deployed scanner or new provider activation. Legacy manual form
+migration, barcode/product capture and all integrated/native QA remain open.
+See `docs/product/FOOD_CAPTURE.md`. No new credential, media retention, migration,
+queue capability or paid service is introduced by this source change.

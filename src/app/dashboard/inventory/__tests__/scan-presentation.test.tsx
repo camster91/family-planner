@@ -50,7 +50,14 @@ for (const locale of ["en", "es"] as const)
       global.fetch = jest.fn().mockResolvedValue(json({ items: rows }));
       render(
         <I18nProvider locale={locale} pseudolocalize={expanded}>
-          <ScanFridgeDialog onDone={jest.fn()} onClose={jest.fn()} />
+          <ScanFridgeDialog
+            initialContext={{
+              userId: "fixture_parent",
+              familyId: "fixture_family",
+            }}
+            onDone={jest.fn()}
+            onClose={jest.fn()}
+          />
         </I18nProvider>,
       );
       expect(
@@ -87,27 +94,32 @@ for (const locale of ["en", "es"] as const)
     });
     it(`${locale} expanded=${expanded}: collision refusal preserves its deliberate unticked state and raw other refusal`, async () => {
       let calls = 0;
-      global.fetch = jest
-        .fn()
-        .mockImplementation(async (input: string) =>
-          input === "/api/inventory/scan"
-            ? json({ items: rows })
-            : json(
-                {
-                  error:
-                    ++calls === 1
-                      ? {
-                          code: "IDEMPOTENCY_KEY_REUSED",
-                          message: "Raw collision",
-                        }
-                      : { message: "Raw refusal {name} 李" },
-                },
-                false,
-              ),
-        );
+      global.fetch = jest.fn().mockImplementation(async (input: string) =>
+        input === "/api/inventory/scan"
+          ? json({ items: rows })
+          : json(
+              {
+                error:
+                  ++calls === 1
+                    ? {
+                        code: "IDEMPOTENCY_KEY_REUSED",
+                        message: "Raw collision",
+                      }
+                    : { message: "Raw refusal {name} 李" },
+              },
+              false,
+            ),
+      );
       render(
         <I18nProvider locale={locale} pseudolocalize={expanded}>
-          <ScanFridgeDialog onDone={jest.fn()} onClose={jest.fn()} />
+          <ScanFridgeDialog
+            initialContext={{
+              userId: "fixture_parent",
+              familyId: "fixture_family",
+            }}
+            onDone={jest.fn()}
+            onClose={jest.fn()}
+          />
         </I18nProvider>,
       );
       upload();
