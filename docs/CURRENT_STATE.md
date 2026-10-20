@@ -1,5 +1,30 @@
 # Current State
 
+## Mounted Settings source map and subscription-read recovery — 2026-10-20
+
+Original #443 requirements now map to current scoped Settings/child presentations
+and existing acceptance source in `docs/testing/SETTINGS_LOCALIZATION.md`.
+Historical build/test/gallery reports stay labelled by their own commits; none
+is used as current-candidate proof. Original untranslated-copy/startup/guard,
+normal harness/workflow/baseline and gallery sources were not edited here.
+
+A confirmed recovery gap was fixed: the subscribed-calendar loader now catches
+network/JSON failures and refuses HTTP/missing-list responses as unavailable,
+instead of throwing unhandled or implying the household is empty. It presents a
+typed EN/ES failure with an explicit 44px GET-only retry, guarded immediately
+against duplicates. Draft name/URL/color controls remain mounted/editable, while
+Add is held until a valid snapshot is available. This recovery behavior change
+is recorded separately from the original translation work. Locale changes do
+not restart loads or send writes; existing canonical mutation/provider/raw/time
+policies remain. New recovery/mounted-language/draft/GET-count cases are authored
+but unrun, complementing existing actual-selector and canonical action journeys.
+
+Only source inspection, edits and formatting occurred. No tests/types/lint/build/
+scanner/browser/native/schema/CI/provider/credential operations, push, merge,
+deployment or activation. Current original ordinary/expanded, role/device,
+private/raw/focus/timer/request, copy-manifest and release acceptance remain
+pending. Full goal and normal QA/release protections remain active.
+
 ## Native/custom menu foreground source continuation — 2026-10-20
 
 The #448 inventory now records the identified custom-menu, anchored-popup,

@@ -154,6 +154,9 @@ export const settingsEnglish = {
   readOnly: "Imported events are read-only.",
   loadingEllipsis: "Loading…",
   noSubscriptions: "No subscribed calendars yet.",
+  subscriptionsLoadFailed:
+    "Could not load subscribed calendars. Your changes have not been sent.",
+  retrySubscriptions: "Retry calendar list",
   newName: "New name",
   problem: "Problem: ",
   refresh: "Refresh",
@@ -422,6 +425,9 @@ export const settingsSpanish: Record<SettingsMessage, string> = {
   readOnly: "Los eventos importados son de solo lectura.",
   loadingEllipsis: "Cargando…",
   noSubscriptions: "Aún no hay calendarios suscritos.",
+  subscriptionsLoadFailed:
+    "No se pudieron cargar los calendarios suscritos. Tus cambios no se han enviado.",
+  retrySubscriptions: "Reintentar lista de calendarios",
   newName: "Nombre nuevo",
   problem: "Problema: ",
   refresh: "Actualizar",

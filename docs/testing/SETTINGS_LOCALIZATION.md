@@ -85,3 +85,44 @@ Original inventory/recovery artifacts11639866923/11639704461 also verify120inven
 The bounded repair changes only that original spec: typed Settings deletion-entry copy with exact matching, plus typed expanded accessible labels for its existing real-native teen sign-in fixture. The first local expanded rerun passes15/21 but fails all6teen cases at the old shared helper English Email selector; that regression evidence is retained. The scoped sign-in adaptation keeps actual native fields/button and canonical fixture credentials, dashboard/auth checks, all104original assertion ASTs and26guard/interception/capture/offline/cleanup ASTs; shared helper, app/API/schema/dependencies/fixtures/workflow/Playwright/pins/timeouts/retries/skip lists and visual baselines are unchanged. Corrected full original ENESparent/teen/child three-viewport expanded run passes21/21 (18owned+3setup),zero retries/skips,1.8min against explicitly historical484expanded compiled app with unchanged app inputs. Types/lint/format pass. No old compiled app or old-head hosted proof substitutes for final follow-up-head whole-source CI/review/normal merge.
 
 All3907gallery objects/pixels/current ZIPmetadata and CRC are verified; named444-gallery-before-3907 APFSclone preserves exact old archive bytes before any append. Gallery remains unchanged until final new-head source/artifact/rendered review and acceptance. Original443fivecriteria remainOPEN/unchecked; full broad provider/production/native/store/legal/human/household requirements remainOPEN.
+
+## Current implementation-first reconciliation — 2026-10-20
+
+This continuation is source-only for the integrated candidate. All build, test,
+artifact and capture counts above belong to their explicitly named historical
+commits; none proves this candidate. Original #443 remains open. No historical
+failed reports, gallery entries, protected workflows, startup dictionaries or
+untranslated-copy migration records were edited in this continuation.
+
+| Original requirement | Current canonical source | Remaining acceptance |
+| --- | --- | --- |
+| Typed EN/ES Settings + subscriptions/sync/PIN/beta, preserving literal identities | `src/i18n/settings.ts`; SettingsClient and its settings-copy semantic feedback/render helper; CalendarSubscriptionsSection/CalendarSyncSection/SharedDeviceSettings/BetaMetricsSwitch | Existing scoped dictionary and mounted source plus new subscription recovery cases remain to execute; exact original copy-removal/migration preservation gate still required |
+| Mounted language changes preserve drafts, busy/focus/disclosures and canonical work | User/profile/version/feed/AI reads are separate effects; subscription/sync loaders keep stable callback dependencies; notices store semantic feedback or raw values and render using current locale; the existing actual language control updates I18nProvider | `settings/__tests__/localization.test.tsx` retains actual mounted selector, draft/late/raw/pending/no-replay checks; full candidate timer/callback/key/request/focus proof deferred |
+| Roles, privacy, credentials, provider and time helpers remain canonical | Settings server wrapper owns parent/teen/child and feature props. Existing relative-time/calendar-status helper receives optional presentation messages; raw names/URLs/PIN/key/provider values are not translated | Existing teen/privacy/autofill/PIN/calendar/beta/account/helper/API/isolation sources remain original acceptance, unrun in this candidate |
+| Full ordinary/expanded compilation and role/device/browser matrix | Existing scoped harness, normal viewport/visual/fixture/guard/timeout/baseline infrastructure retained | Current exact-tree tests/types/lint/format/scanner/security checks, distinct ordinary/expanded builds, actual language/role/pending/reflow/native/Axe/provider-interception journeys and protected hosted gates deferred |
+| Review/normal merge/ancestry/closure and gallery preservation | Existing release policy; no release, baseline, gallery or original issue closure mutation | Fresh source/rendered review, hosted/protection/conversation/ancestry and normal merge/deploy evidence required later; historical passing output is not reused |
+
+A confirmed load/fallback gap was found while mapping the source:
+CalendarSubscriptionsSection's initial load had a try/finally without catch;
+network or JSON rejection could escape, and HTTP/malformed list responses could
+render a false empty state. It now stores a separate semantic load-failure state,
+with typed EN/ES error and explicit min-44px Retry calendar list control. A
+synchronous ref prevents duplicate read retries. Failed metadata does not claim
+an empty household. Add submission is held until a valid list snapshot is read;
+name/URL/color fields stay mounted and editable. This deliberate recovery change
+is separate from historical translation-only work and is not provider policy.
+
+Retry repeats only the original GET after an explicit action. Loader callbacks
+do not depend on locale; language changes only re-render feedback. Existing
+calendar add/rename/remove/refresh endpoints, bodies, consent, raw feedback,
+relative-clock/status policies and write effects remain. A new recovery test
+source covers network/HTTP/JSON/missing-list failures, mounted locale/draft/node/
+disclosure preservation, duplicate explicit retry, no programmatic add while the
+read is unavailable, late read success and exactly GET-only recovery. Its small
+locale control complements rather than replaces the existing actual-route
+language-selector journey. All new and existing cases remain unrun in this pass.
+
+No tests, types, lint, build, scanner, compiled CSS, browser/native/schema, CI,
+credential/provider/export/calendar/network activation, push, merge or deployment
+was executed. Full #142/#372/legal/native/store/operations/customer requirements
+remain separate. Goal remains active with consolidated QA deferred.
