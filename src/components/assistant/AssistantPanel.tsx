@@ -220,8 +220,14 @@ export default function AssistantPanel({
     [reports, setReports] = React.useState<Report[]>([]),
     [reportsLoading, setReportsLoading] = React.useState(false),
     [reportsLoadFailed, setReportsLoadFailed] = React.useState(false);
-  const requestId = React.useRef(""),
-    actionKey = React.useRef(""),
+  const reportRequest = React.useRef<{
+    requestId: string;
+    kind: string;
+    title: string;
+    details: string;
+    page: string;
+  } | null>(null);
+  const actionKey = React.useRef(""),
     lock = React.useRef(false),
     consumed = React.useRef(false),
     textRef = React.useRef(""),
@@ -647,28 +653,33 @@ export default function AssistantPanel({
     lock.current = true;
     setBusy(true);
     setError(null);
-    if (!requestId.current) requestId.current = crypto.randomUUID();
+    // Retrying a lost response must use the exact original body, including
+    // pathname, even if navigation changed while this draft remained mounted.
+    reportRequest.current ??= {
+      requestId: crypto.randomUUID(),
+      kind,
+      title,
+      details,
+      page: pathname,
+    };
+    const pendingReport = reportRequest.current;
     try {
       const r = await fetch("/api/feedback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            requestId: requestId.current,
-            kind,
-            title,
-            details,
-            page: pathname,
-          }),
+          body: JSON.stringify(pendingReport),
         }),
         b = await r.json();
       if (!r.ok) {
         if (typeof b.error === "string" && b.error) throw new Error(b.error);
         throw new AssistantCopyError("reportSaveFailed");
       }
+      if (typeof b?.report?.id !== "string" || !b.report.id.trim())
+        throw new AssistantCopyError("reportSaveFailed");
       setReceipt(b.report.id);
       setTitle("");
       setDetails("");
-      requestId.current = "";
+      reportRequest.current = null;
     } catch (e) {
       setError(toAssistantError(e, "reportSaveFailed"));
     } finally {
@@ -1210,7 +1221,7 @@ export default function AssistantPanel({
                 value={kind}
                 onChange={(e) => {
                   setKind(e.target.value);
-                  requestId.current = "";
+                  reportRequest.current = null;
                 }}
                 className="input-apple min-h-[44px] w-full"
               >
@@ -1228,7 +1239,7 @@ export default function AssistantPanel({
                 value={title}
                 onChange={(e) => {
                   setTitle(e.target.value);
-                  requestId.current = "";
+                  reportRequest.current = null;
                 }}
                 className="input-apple w-full"
               />
@@ -1246,13 +1257,15 @@ export default function AssistantPanel({
                 value={details}
                 onChange={(e) => {
                   setDetails(e.target.value);
-                  requestId.current = "";
+                  reportRequest.current = null;
                 }}
                 className="input-apple min-h-28 w-full"
               />
             </div>
             <p className="text-xs text-label-secondary">
-              {msg("reportPage", { pathname })}
+              {msg("reportPage", {
+                pathname: reportRequest.current?.page ?? pathname,
+              })}
             </p>
             <button
               disabled={busy}

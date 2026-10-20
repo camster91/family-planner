@@ -1,5 +1,31 @@
 # Current State
 
+## Assistant/report source reconciliation and exact retry binding — 2026-10-20
+
+Original #464 now maps to the current personal-only lazy host, explicit voice,
+typed reviewed fixed actions, one-attempt mutation recovery and own-user reports
+in `docs/product/AI_ASSISTANT.md`. Its default chat sends no automatic household
+records; the separately gated default-unchecked Today opt-in is now described
+accurately. Broader #123 grounded planning and six approved coordination outcomes
+remain implementation/reconciliation work, not merely provider or QA dependencies.
+
+Confirmed feedback retry gaps were fixed: the client freezes its original key/
+kind/title/details/pathname until confirmed or deliberately edited, validates a
+nonempty receipt before clearing, and displays the original request page during
+retry. The server renews current account membership/session under actor-user then
+household locks. Same-key different normalized content returns a generic 409
+without exposing/overwriting the old report; cross-household replay remains 404.
+Existing child report permission, strict body/rate limits, own-user reads, schema
+and retention remain. No provider or general action capability was added.
+
+New client/server source cases cover malformed receipt/draft retention, exact
+retry after navigation, changed content fields and stale session/membership;
+all are unrun. Only source inspection, edits and formatting occurred. No tests,
+types, lint, build, browser/native/schema/CI/provider/microphone/report operations,
+push, merge, deployment or activation. Full action/domain/privacy/role/provider/
+ordinary-rendered/native and normal release acceptance remains deferred; goal
+active. No report was externally forwarded or real household data mutated.
+
 ## Parent Devices source map and pairing attempt guards — 2026-10-20
 
 Original #445 criteria now map to current typed management/pairing/server/helper

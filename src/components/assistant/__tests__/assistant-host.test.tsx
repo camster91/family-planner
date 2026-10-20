@@ -12,10 +12,11 @@ import userEvent from "@testing-library/user-event";
 import { I18nProvider, useTranslation } from "@/i18n";
 import AssistantHost from "../AssistantHost";
 let mockMode = "",
+  mockPathname = "/dashboard/today",
   mockRecognition: any;
 const mockRefresh = jest.fn();
 jest.mock("next/navigation", () => ({
-  usePathname: () => "/dashboard/today",
+  usePathname: () => mockPathname,
   useSearchParams: () => new URLSearchParams(mockMode),
   useRouter: () => ({ push: jest.fn(), refresh: mockRefresh }),
 }));
@@ -37,6 +38,7 @@ const response = (
 });
 beforeEach(() => {
   mockMode = "";
+  mockPathname = "/dashboard/today";
   mockRefresh.mockClear();
   Object.defineProperty(global.crypto, "randomUUID", {
     value: () => "24db1d70-1278-4e01-b4aa-a0efc1f7387d",
@@ -1501,4 +1503,29 @@ it("rejects a Today response that arrives after the request-start lease", async 
   } finally {
     performanceSpy.mockRestore();
   }
+});
+
+it("retains a report after a malformed receipt and retries its exact original body after navigation", async () => {
+  const user = userEvent.setup();
+  const bodies: string[] = [];
+  global.fetch = jest.fn(async (_path, options) => {
+    bodies.push(String(options?.body));
+    return response({ report: bodies.length === 1 ? {} : { id: "confirmed-report" } });
+  }) as typeof fetch;
+  const view = render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "Report / Suggest" }));
+  await user.type(screen.getByLabelText("Title"), "Private report draft");
+  await user.type(screen.getByLabelText("What happened or what would help?"), "Keep this draft until a receipt is confirmed.");
+  await user.click(screen.getByRole("button", { name: "Save report" }));
+  await screen.findByRole("alert");
+  expect(screen.getByLabelText("Title")).toHaveValue("Private report draft");
+  expect(screen.getByLabelText("What happened or what would help?")).toHaveValue("Keep this draft until a receipt is confirmed.");
+  expect(JSON.parse(bodies[0]).page).toBe("/dashboard/today");
+  mockPathname = "/dashboard/calendar";
+  view.rerender(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "Save report" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("confirmed-report");
+  expect(bodies).toHaveLength(2);
+  expect(bodies[1]).toBe(bodies[0]);
+  expect(screen.getByLabelText("Title")).toHaveValue("");
 });
