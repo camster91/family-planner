@@ -1,5 +1,43 @@
 # Current State
 
+## Responsibility controls and weekly review source — 2026-10-20
+
+The next #123 slice adds a lazily loaded EN/ES responsibility sheet to canonical
+open chore occurrences (including expanded routine rows), personal Today chores,
+pickups and handoffs. It displays primary/coordinator and backup separately,
+awaiting/accepted/declined, and self versus named parent-recorded provenance.
+Parents cannot answer for another account. Parent-recorded profile answers use
+the existing server eligibility gates. Progressive people search and an explicit
+preview precede every change; naming does not assign/complete/activate/contact.
+Handoff coordinator remains separate from external sitter details.
+
+A gate/role-only dashboard provider owns normal query navigation and Back/direct
+URL closing without seeding household identity onto shared surfaces. Fridge mode
+and child handoff controls are omitted. Personal owner context is fetched only
+on opening. Every intent is staged with its immutable body/key before send;
+closing invalidates its operation before navigation/unmount, so persistence
+finishing late cannot launch a mutation. Pending requests are never auto-sent.
+Explicit inspection/retry/forget, unknown/refused outcomes, paused/closed/source-
+changed states, owner-change holds and stage-versus-dismissal storage repair now
+have UI source. Recovery initializes independently of target reads so deleted or
+newly forbidden targets cannot hide an own saved request. Historical proof is
+followed by a separate fresh target read, not cached acceptance.
+
+Weekly-reset responsibility summaries add gated canonical target references.
+Only visible bounded rows load read-only statement previews through separate
+transactions, preserving identity-before-target lock order; previews label their
+snapshot and unmount while editing, then read again on return. Weekly review
+progress still implies neither consent nor completion. Flag-off summaries retain
+the existing explicit unknown note; child handoff summaries gain no new target.
+
+Journey/navigation/privacy/storage test source is authored and unrun. Formatting
+only; no tests/typecheck/lint/build/browser/native/API/DB/schema/client/SQL/CI,
+push/merge/deploy or activation occurred. New responsibility readiness stays off.
+Source authored is not release acceptance. Next required #123 source is conflict
+review, event preparation, the unified review inbox/what changed and grounded
+planning, with #144 quality/telemetry still separate. The full goal stays active;
+one consolidated QA follows the remaining code.
+
 ## Responsibility authenticated API and owned recovery source — 2026-10-20
 
 Gated person-only responsibility GET/PATCH and recovery GET/POST now have source:

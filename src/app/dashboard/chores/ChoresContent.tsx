@@ -1,4 +1,5 @@
 "use client";
+import { ResponsibilityButton } from "@/components/responsibility/ResponsibilityProvider";
 
 import * as React from "react";
 import { Plus, CheckSquare, ChevronDown, Flame } from "lucide-react";
@@ -943,7 +944,8 @@ export default function ChoresContent({
     // MEMBER_PROTOCOL_UNAVAILABLE; paired-device actions arrive with that
     // protocol in a later vertical slice.
     const row = (
-      <CheckboxRow
+      <div>
+        <CheckboxRow
           checked={false}
           disabled={profileOnly || profilePaused}
           toggleArea="control"
@@ -993,6 +995,8 @@ export default function ChoresContent({
           }
           className={cn("pr-3", i === todayChores.length - 1 && "border-b-0")}
         />
+        <ResponsibilityButton target={{ kind: "chore", id: chore.id }} />
+      </div>
     );
     if (profileOnly) return <div key={chore.id}>{row}</div>;
     // A visible "⋯" opens the actions (they used to be long-press only), and

@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { ResponsibilityReviewEntry } from "@/components/responsibility/ResponsibilityProvider";
 import Link from "next/link";
 import { Dialog } from "@/components/ui/dialog";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
@@ -673,6 +674,11 @@ export default function WeeklyResetReview({
                                         <p className="font-medium">
                                           {row.title || copy.unnamed}
                                         </p>
+                                        {row.responsibility && (
+                                          <ResponsibilityReviewEntry
+                                            target={row.responsibility}
+                                          />
+                                        )}
                                         {row.sourceTitle && (
                                           <p className="text-callout text-label-secondary">
                                             {row.sourceTitle}

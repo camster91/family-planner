@@ -1,4 +1,5 @@
 "use client";
+import { ResponsibilityButton } from "@/components/responsibility/ResponsibilityProvider";
 
 import * as React from "react";
 import { Plus, Car, Trash2 } from "lucide-react";
@@ -892,7 +893,7 @@ function PickupRow({
 }) {
   return (
     <div
-      className={`flex min-w-0 items-center ${last ? "" : "border-b border-[var(--surface-separator)]"}`}
+      className={`flex flex-wrap min-w-0 items-center ${last ? "" : "border-b border-[var(--surface-separator)]"}`}
       aria-busy={disabled}
     >
       <CheckboxRow
@@ -918,6 +919,7 @@ function PickupRow({
         }
         meta={pickup.assignee_name || undefined}
       />
+      <ResponsibilityButton target={{ kind: "pickup", id: pickup.id }} />
       {onDelete && (
         <button
           type="button"

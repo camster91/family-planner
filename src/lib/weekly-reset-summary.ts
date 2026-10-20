@@ -1,3 +1,4 @@
+import { responsibilityReady } from "@/lib/responsibility-owner";
 import type { Prisma } from "@prisma/client";
 import { addDaysToKey, dayKeyFor } from "@/lib/local-day-key";
 import { parseDateOnly, toDateOnlyUTC } from "@/lib/dates";
@@ -99,7 +100,8 @@ export async function loadWeeklyResetSummaryInTx(
     }
   }
   if (step === "responsibilities") {
-    notes.push("acceptanceAndBackupUnknown");
+    const showResponsibility = responsibilityReady();
+    if (!showResponsibility) notes.push("acceptanceAndBackupUnknown");
     if (isFeatureEnabled(features, "chores")) {
       // Profiles are review subjects, never authenticated viewers. Parents
       // may preview active household profiles under the canonical read gate.
@@ -158,6 +160,9 @@ export async function loadWeeklyResetSummaryInTx(
         const policy = await routineOccurrencePolicyInTx(tx, family_id, row.id);
         if (policy === "inactive" || policy === "unsupported") continue;
         visible.push({
+          ...(showResponsibility
+            ? { responsibility: { kind: "chore" as const, id: row.id } }
+            : {}),
           title: text(row.title),
           when: toDateOnlyUTC(row.due_date),
           owner:
@@ -185,6 +190,7 @@ export async function loadWeeklyResetSummaryInTx(
           pickup_time: { gte: window.instantStart, lt: window.instantEnd },
         },
         select: {
+          id: true,
           title: true,
           pickup_time: true,
           assigned_to: true,
@@ -197,6 +203,9 @@ export async function loadWeeklyResetSummaryInTx(
         kind: "pickups",
         more: rows.length > LIMIT,
         rows: rows.slice(0, LIMIT).map((row) => ({
+          ...(showResponsibility
+            ? { responsibility: { kind: "pickup" as const, id: row.id } }
+            : {}),
           title: text(row.title),
           when: row.pickup_time.toISOString(),
           owner: !row.assigned_to
@@ -215,7 +224,12 @@ export async function loadWeeklyResetSummaryInTx(
           family_id,
           arrival_time: { gte: window.instantStart, lt: window.instantEnd },
         },
-        select: { sitter_name: true, arrival_time: true, departure_time: true },
+        select: {
+          id: true,
+          sitter_name: true,
+          arrival_time: true,
+          departure_time: true,
+        },
         orderBy: [{ arrival_time: "asc" }, { id: "asc" }],
         take: LIMIT + 1,
       });
@@ -223,6 +237,9 @@ export async function loadWeeklyResetSummaryInTx(
         kind: "handoffs",
         more: rows.length > LIMIT,
         rows: rows.slice(0, LIMIT).map((row) => ({
+          ...(showResponsibility && actor.role !== "child"
+            ? { responsibility: { kind: "handoff" as const, id: row.id } }
+            : {}),
           title: text(row.sitter_name),
           when: row.arrival_time?.toISOString() ?? null,
           end: row.departure_time?.toISOString() ?? null,

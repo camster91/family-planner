@@ -1,3 +1,4 @@
+import { responsibilityTarget } from "@/lib/responsibility";
 import { z } from "zod";
 import { parseDateOnly } from "@/lib/dates";
 import {
@@ -13,6 +14,7 @@ export const weeklyResetSummaryQuery = weeklyResetScope
   .strict();
 const summaryRow = z
   .object({
+    responsibility: responsibilityTarget.optional(),
     title: z.string().max(480),
     when: when.nullable(),
     end: when.nullable().optional(),

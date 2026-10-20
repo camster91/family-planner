@@ -267,3 +267,62 @@ and weekly-reset integration using the same safe projection. The API/journal is
 not a substitute for those screens. Full migration/client/FK/concurrency/receipt/
 role/storage/export/erasure/rendered/native acceptance remains in the later
 consolidated pass; broader #123/#144 and repository scope stays active.
+
+
+## Canonical controls and weekly-review integration source — 2026-10-20
+
+`ResponsibilityProvider` is a gate/role-only layout boundary. It lazy-loads the
+short EN/ES `ResponsibilitySheet` from canonical occurrence, pickup, handoff and
+personal Today entry points. Query fields preserve the containing weekly review;
+normal Back closes an owned opening, while direct URLs remove only this sheet's
+fields. The provider receives no family/user owner context; opening explicitly
+fetches that context. Fridge mode and child handoff controls are hidden. No
+household directory is seeded into page props. Server authority remains decisive.
+
+The sheet projects primary/coordinator and backup independently, explicit
+awaiting/accepted/declined and self/parent-recorded provenance including account
+and timestamp. A parent can record only an eligible profile answer, never another
+account's self statement. Choosing/removing a backup or coordinator and clearing
+an answer have explicit previews. Search is bounded and eligible through the
+same server API; selected references never confer authority. Naming does not
+reassign canonical ownership, activate a backup, complete a task or send a
+notification. External sitter identity is not a household coordinator.
+
+The owned journal is initialized before the current target read. Thus a missing/
+forbidden target can still leave its original request inspectable without
+returning target content. Each new command is staged before send, retaining its
+exact body/key on malformed/unknown/refused results. Closing marks the operation
+inactive synchronously before router navigation, including while stage awaits
+storage. Already-started sends stay journaled. No mount/focus/locale read sends.
+Inspection is explicit; only a valid receipt permits local dismissal, and a fresh
+read supplies current statements. Requests for other targets have an explicit
+open action, not inferred target names. Forgetting requires confirmation and
+never undoes a server change. Uncertain storage tracks stage versus dismissal,
+so recovering an empty deletion cannot resurrect stale memory. Owner changes
+hold controls and clear the prior owner's projections; no unowned fallback.
+
+Weekly-reset rows receive canonical target references only under the readiness
+gate. At most three visible records per group (nine total) instantiate small
+read-only projections, each in its own existing authorized transaction. The
+weekly-summary transaction never recursively acquires new target/identity locks.
+Preview labels identify a checked snapshot, not send authority. Editing unmounts
+previews; returning loads afresh. Child handoff rows have no new target reference.
+Flag-off summaries keep acceptance/backup unknown. Weekly review marks remain
+personal progress only. Installed older strict clients may hold on an unfamiliar
+flag-on summary; rollout compatibility remains a later gate, with readiness off.
+
+Authored source cases cover parent-recorded preview/stage/send ordering, another
+account's self-only restriction, closing before navigation during staging,
+deleted-target recovery, no automatic resend, expired retry refusal, uncertain
+local-deletion repair without resurrection, shared-mode/child/flag hiding and
+Back/direct URL preservation. These cases have not been executed. Formatter
+output is not QA. Real DB migration/trigger/lock/FK checks, type/build/tests,
+rendered EN/ES/role/long-text/a11y/viewport flows, cross-tab/storage/session/native
+lifecycle and release acceptance remain for the consolidated pass. No flags,
+live data, providers, messages, push/merge/deploy or production changed.
+
+The required responsibility/backup journey now has source across schema,
+lifecycle, planner, API, owned recovery, canonical controls and weekly review.
+It is not verified or closed. Continue the remaining #123 coordination workflows
+(conflicts, event preparation, unified review inbox, what changed and grounded
+planning) and #144 quality/telemetry; the broader repository goal remains active.

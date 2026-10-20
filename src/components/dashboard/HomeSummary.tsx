@@ -1,4 +1,5 @@
 'use client'
+import { ResponsibilityButton } from '@/components/responsibility/ResponsibilityProvider'
 
 import * as React from 'react'
 import Link from 'next/link'
@@ -143,16 +144,18 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
             const done = isDoneStatus(chore.status)
             const checked = chore.status === 'verified'
             return (
-              <CheckboxRow
-                key={chore.id}
-                checked={done}
-                disabled={checked}
-                wrap
-                onChange={(next) => void (next ? complete(chore) : reopen(chore))}
-                title={chore.title}
-                subtitle={checked ? copy.checkedByParent : done ? doneLabel : copy.dueToday}
-                className={cn(i < rows.length - 1 && 'border-b border-[var(--surface-separator)]')}
-              />
+              <div key={chore.id}>
+                <CheckboxRow
+                  checked={done}
+                  disabled={checked}
+                  wrap
+                  onChange={(next) => void (next ? complete(chore) : reopen(chore))}
+                  title={chore.title}
+                  subtitle={checked ? copy.checkedByParent : done ? doneLabel : copy.dueToday}
+                  className={cn(i < rows.length - 1 && 'border-b border-[var(--surface-separator)]')}
+                />
+                {!done && <ResponsibilityButton target={{ kind: 'chore', id: chore.id }} />}
+              </div>
             )
           })}
         </div>

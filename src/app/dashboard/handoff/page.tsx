@@ -1,4 +1,5 @@
 'use client'
+import { ResponsibilityButton } from '@/components/responsibility/ResponsibilityProvider'
 
 import * as React from 'react'
 import { Plus, Pencil, Trash2, Printer, Link2, Copy, Share2, RefreshCw } from 'lucide-react'
@@ -624,7 +625,8 @@ function HandoffCard({
               <p className="text-subhead text-label-secondary mt-0.5">{handoff.sitter_phone}</p>
             )}
           </div>
-          <div className="flex gap-1 no-print">
+          <div className="flex flex-wrap gap-1 no-print">
+            <ResponsibilityButton target={{ kind: "handoff", id: handoff.id }} />
             {canManage && (
               <button
                 type="button"
