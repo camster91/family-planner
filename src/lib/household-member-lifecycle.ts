@@ -42,6 +42,9 @@ async function exclusiveAccountProfiles(tx: any, userId: string, familyId: strin
 /** Removal retains household profile/history, archives it, and detaches account authority. */
 export async function archiveAccountProfilesInTx(tx: any, userId: string, familyId: string, now: Date): Promise<void> {
   const ids = await exclusiveAccountProfiles(tx, userId, familyId)
+  // Account-only future aliases also need to invalidate prepared review when
+  // membership changes; no subject is transferred to the removing parent.
+  await rewriteRoutineSubjectsInTx(tx, familyId, { kind: 'invalidate', userId, memberIds: ids })
   if (ids.length === 0) return
   await tx.householdMember.updateMany({
     where: { id: { in: ids }, family_id: familyId, archived_at: null },

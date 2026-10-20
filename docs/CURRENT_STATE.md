@@ -1,5 +1,41 @@
 # Current State
 
+## Profile-review invalidation and historical-root handover source — 2026-10-20
+
+Unlinked profile edit/archive commands now invalidate exact referenced routine
+root revisions and stack version/fingerprint inside the same locked transaction.
+Subject identity, schedule, content and state are retained. Replayed profile
+receipts return before invalidation, so the same command does not advance versions
+twice. Account membership removal also invalidates exact future user/member
+aliases even when the account has no canonical profile. Unknown definitions stay
+unsupported rather than being adopted. Stale uncommitted routine controls/edits
+must refresh; already committed original receipts remain read-only evidence.
+
+Historical household discovery now includes a personal control root's raw account
+owner as well as private future subject aliases. This closes the case where that
+root has already been reassigned in future metadata and the account later has no
+current household. Account deletion retains those historical future plans on
+anonymous replacement controls under the previously acquired household locks,
+selects an existing household successor and updates exact surviving lineage/stack
+slots. Normal creator handover applies to retained routine occurrences that would
+otherwise cascade with the deleted creator. Expansion occurs after the account's
+personal cascade, renewing actual subjects/gates and avoiding occupied deleted
+slots. Current-household handover remains separate and is not duplicated.
+
+Source inspection confirms routine owner/effect authority still renews the actual
+User role/token/family. A profile role is presentation only; no account role API,
+login authority, parent elevation or automatic role grant was added. Verified
+account link retains its existing proof and revision boundary.
+
+Authored pure/protected cases cover exact invalidation without reassignment,
+profile role/age edit, archive freshness, no second replay invalidation, cleanup
+pause versus invalid archived resume, and current/historical account deletion
+with retained occurrence IDs/evidence/stack order. All remain unrun. No tests/
+typecheck/lint/build/browser/native/schema/client operations, CI or release action.
+Next: reconcile historical ancillary erasure cleanup and link/rollout edges, then
+remaining navigation/async source work and full-ledger code before consolidated
+QA. These are unverified source changes; no acceptance or completion is claimed.
+
 ## Archived-profile retained-history projection source — 2026-10-20
 
 Compatible profile readers now retain the display identity of an archived,

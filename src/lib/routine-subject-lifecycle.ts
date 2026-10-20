@@ -7,7 +7,8 @@ import {
 } from "@/lib/routine-schedule";
 type Change =
   | { kind: "erase"; userId: string; memberIds: readonly string[] }
-  | { kind: "link"; userId: string; memberId: string };
+  | { kind: "link"; userId: string; memberId: string }
+  | { kind: "invalidate"; userId?: string; memberIds: readonly string[] };
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -44,6 +45,26 @@ export function rewriteRoutineFutureSubject(
       }),
       stackId: parsed.data.stack_id,
     };
+  }
+  if (change.kind === "invalidate") {
+    if (!parsed.success) return null; // Unsupported metadata already refuses fresh edits.
+    const subject = parsed.data.content.subject;
+    const matches =
+      (subject.kind === "account" &&
+        !!change.userId &&
+        subject.user_id === change.userId) ||
+      (subject.kind !== "erased" &&
+        subject.member_id !== null &&
+        change.memberIds.includes(subject.member_id));
+    return matches
+      ? {
+          value: routineStepSeriesConfig.parse({
+            ...parsed.data,
+            revision: Math.min(2147483647, parsed.data.revision + 1),
+          }),
+          stackId: parsed.data.stack_id,
+        }
+      : null;
   }
   // Redact the known identifying slot even if an unknown future protocol holds
   // the row. Never adopt/normalize that unknown definition into a supported one.
@@ -100,15 +121,14 @@ export async function rewriteRoutineSubjectsInTx(
   // Query by exact private subject identifiers, not historic occurrence assignees:
   // a root may already describe future work for a different person.
   const members =
-    change.kind === "erase"
-      ? [...new Set(change.memberIds)]
-      : [change.memberId];
+    change.kind === "link" ? [change.memberId] : [...new Set(change.memberIds)];
+  const userId = change.userId ?? null;
   const rows = await tx.$queryRaw<
     { id: string; routine_series_config: unknown }[]
   >`
     SELECT "id", "routine_series_config" FROM "Chore"
     WHERE "family_id" = ${familyId} AND "recurrence_id" = "id" AND "routine_series_config" IS NOT NULL
-      AND ("routine_series_config"->'content'->'subject'->>'user_id' = ${change.userId}
+      AND ("routine_series_config"->'content'->'subject'->>'user_id' = ${userId}
         OR "routine_series_config"->'content'->'subject'->>'member_id' = ANY(${members}::text[]))
     ORDER BY "id" FOR UPDATE`;
   const stacks = new Set<string>(),
@@ -152,15 +172,15 @@ export async function rewriteRoutineSubjectsInTx(
   return changed;
 }
 
-/** Account-only future aliases can survive leaving without a profile mapping. */
+/** Future aliases and personal control roots can survive leaving without a profile mapping. */
 export async function routineSubjectHouseholds(
   tx: Prisma.TransactionClient,
   userId: string,
 ): Promise<string[]> {
   if (!(await hasRoutineSubjectStorage(tx))) return [];
   const rows = await tx.$queryRaw<{ family_id: string }[]>`
-    SELECT DISTINCT "family_id" FROM "Chore" WHERE "recurrence_id" = "id"
-      AND "routine_series_config"->'content'->'subject'->>'user_id' = ${userId}
+    SELECT DISTINCT "family_id" FROM "Chore" WHERE "recurrence_id" = "id" AND "routine_series_config" IS NOT NULL
+      AND ("routine_series_config"->'content'->'subject'->>'user_id' = ${userId} OR "assigned_to" = ${userId})
     ORDER BY "family_id"`;
   return rows.map((row) => row.family_id);
 }

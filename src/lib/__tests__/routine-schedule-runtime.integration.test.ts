@@ -1,3 +1,4 @@
+import { manageHouseholdProfile } from "../household-profile-management";
 import { deleteMemberAccount } from "../account-deletion";
 import { expandSeriesInTx, topUpHouseholdSeries } from "../recurringChores";
 import { rewriteRoutineSubjectsInTx } from "../routine-subject-lifecycle";
@@ -773,169 +774,181 @@ suite("canonical scheduled routine commands", () => {
       ).status,
     ).toBe(409);
   });
-  it("deletes personal roots while preserving reassigned future plans, surviving occurrence IDs and stack order", async () => {
-    const leaving = `fx_schedule_leaving_${crypto.randomUUID()}`;
-    await prisma!.user.create({
-      data: {
-        id: leaving,
-        family_id: familyId,
-        email: `${leaving}@example.invalid`,
-        name: "Departing fixture",
-        role: "child",
-      },
-    });
-    const initial = command() as Extract<
-      RoutineScheduleCommand,
-      { action: "create" }
-    >;
-    const input = routineScheduleCommand.parse({
-      ...initial,
-      steps: [
-        {
-          ...initial.steps[0],
-          subject: { kind: "account", user_id: leaving, member_id: null },
+  it.each(["current", "historical"] as const)(
+    "deletes personal roots for %s membership while preserving future plans, occurrence IDs and stack order",
+    async (membership) => {
+      const leaving = `fx_schedule_leaving_${crypto.randomUUID()}`;
+      await prisma!.user.create({
+        data: {
+          id: leaving,
+          family_id: familyId,
+          email: `${leaving}@example.invalid`,
+          name: "Departing fixture",
+          role: "child",
         },
-        initial.steps[1],
-      ],
-    });
-    const originalKey = crypto.randomUUID();
-    const created = routineScheduleReceipt.parse(
-      (await saveRoutineSchedule(prisma!, actor, input, originalKey, now)).body,
-    );
-    const oldRoot = created.roots[0],
-      keptRoot = created.roots[1];
-    const edited = routineScheduleCommand.parse({
-      ...initial,
-      action: "replace-future",
-      stack_id: created.stackId,
-      expected_version: 1,
-      steps: initial.steps.map((step, index) => ({
-        ...step,
-        template_id: created.roots[index],
-      })),
-      removed_steps: [],
-    });
-    expect(
-      (
-        await saveRoutineSchedule(
-          prisma!,
-          actor,
-          edited,
-          crypto.randomUUID(),
-          now,
-        )
-      ).status,
-    ).toBe(200);
-    const evidenceId = crypto.randomUUID();
-    await prisma!.chore.create({
-      data: {
-        id: evidenceId,
-        family_id: familyId,
-        created_by: parent,
-        assigned_to: parent,
-        title: "Surviving evidence",
-        recurrence_id: oldRoot,
-        routine_stack_id: created.stackId,
-        due_date: new Date("2026-10-22T00:00:00Z"),
-        status: "in_progress",
-        photo_url: "fixture-surviving-proof.jpg",
-      },
-    });
-    const prior = await prisma!.chore.findMany({
-      where: {
-        family_id: familyId,
-        recurrence_id: oldRoot,
-        assigned_to: parent,
-      },
-      orderBy: { id: "asc" },
-    });
-    expect(prior.length).toBeGreaterThan(0);
-    const deleted = await deleteMemberAccount(leaving, {
-      db: prisma!,
-      uploadDir: "/tmp/fp-routine-deletion-fixture",
-      removeFile: async () => {},
-      revokeCalendarGrant: async () => {},
-      now: () => now,
-    });
-    expect(deleted.deleted).toBe(true);
-    expect(
-      await prisma!.user.findUnique({ where: { id: leaving } }),
-    ).toBeNull();
-    expect(
-      await prisma!.chore.findUnique({ where: { id: oldRoot } }),
-    ).toBeNull();
-    const raw = await prisma!.$queryRaw<
-      { schedule_config: { steps: { template_id: string }[] } }[]
-    >`SELECT "schedule_config" FROM "RoutineStack" WHERE "id" = ${created.stackId} AND "family_id" = ${familyId}`;
-    const replacement = raw[0].schedule_config.steps[0].template_id;
-    expect(replacement).not.toBe(oldRoot);
-    expect(
-      raw[0].schedule_config.steps.map((step) => step.template_id),
-    ).toEqual([replacement, keptRoot]);
-    const control = await prisma!.chore.findUniqueOrThrow({
-      where: { id: replacement },
-    });
-    expect(control).toMatchObject({
-      assigned_to: null,
-      assigned_member_id: null,
-      member_subject_erased: true,
-      points: 0,
-      photo_url: null,
-      completed_at: null,
-      recurrence_id: replacement,
-    });
-    for (const before of prior) {
-      const after = await prisma!.chore.findUniqueOrThrow({
-        where: { id: before.id },
       });
-      expect(after).toEqual({ ...before, recurrence_id: replacement });
-      expect(control.due_date.getTime()).toBeLessThan(
-        before.due_date.getTime(),
+      const initial = command() as Extract<
+        RoutineScheduleCommand,
+        { action: "create" }
+      >;
+      const input = routineScheduleCommand.parse({
+        ...initial,
+        steps: [
+          {
+            ...initial.steps[0],
+            subject: { kind: "account", user_id: leaving, member_id: null },
+          },
+          initial.steps[1],
+        ],
+      });
+      const originalKey = crypto.randomUUID();
+      const created = routineScheduleReceipt.parse(
+        (await saveRoutineSchedule(prisma!, actor, input, originalKey, now))
+          .body,
       );
-    }
-    expect(await hiddenRoutineOccurrenceIds(prisma!, familyId)).toContain(
-      replacement,
-    );
-    expect(
-      (await readRoutineSchedule(prisma!, actor, created.stackId)).status,
-    ).toBe(200);
-    expect(
-      (
-        await saveRoutineSchedule(
-          prisma!,
-          actor,
-          input,
-          originalKey,
-          new Date(now.getTime() + 86400000),
-          false,
-        )
-      ).body,
-    ).toMatchObject({ error: { code: "ROUTINE_ORIGINAL_REMOVED" } });
-    expect(
-      await prisma!.chore.findUnique({ where: { id: oldRoot } }),
-    ).toBeNull();
-    const late = await saveRoutineSchedule(
-      prisma!,
-      actor,
-      edited,
-      crypto.randomUUID(),
-      now,
-    );
-    expect(late.status).toBe(409);
-    await prisma!.$transaction((tx) =>
-      expandSeriesInTx(tx, replacement, familyId, now),
-    );
-    expect(
-      await prisma!.chore.findFirst({
+      const oldRoot = created.roots[0],
+        keptRoot = created.roots[1];
+      const edited = routineScheduleCommand.parse({
+        ...initial,
+        action: "replace-future",
+        stack_id: created.stackId,
+        expected_version: 1,
+        steps: initial.steps.map((step, index) => ({
+          ...step,
+          template_id: created.roots[index],
+        })),
+        removed_steps: [],
+      });
+      expect(
+        (
+          await saveRoutineSchedule(
+            prisma!,
+            actor,
+            edited,
+            crypto.randomUUID(),
+            now,
+          )
+        ).status,
+      ).toBe(200);
+      const evidenceId = crypto.randomUUID();
+      await prisma!.chore.create({
+        data: {
+          id: evidenceId,
+          family_id: familyId,
+          created_by: parent,
+          assigned_to: parent,
+          title: "Surviving evidence",
+          recurrence_id: oldRoot,
+          routine_stack_id: created.stackId,
+          due_date: new Date("2026-10-22T00:00:00Z"),
+          status: "in_progress",
+          photo_url: "fixture-surviving-proof.jpg",
+        },
+      });
+      const prior = await prisma!.chore.findMany({
         where: {
           family_id: familyId,
-          recurrence_id: replacement,
+          recurrence_id: oldRoot,
           assigned_to: parent,
-          due_date: new Date("2026-10-21T00:00:00Z"),
         },
-      }),
-    ).not.toBeNull();
-  });
+        orderBy: { id: "asc" },
+      });
+      expect(prior.length).toBeGreaterThan(0);
+      // Historical fixture represents a previously removed account. The root's
+      // private future subject is already someone else, so metadata aliases alone
+      // cannot discover this household; the historic control owner must do so.
+      if (membership === "historical")
+        await prisma!.user.update({
+          where: { id: leaving },
+          data: { family_id: null, token_version: { increment: 1 } },
+        });
+      const deleted = await deleteMemberAccount(leaving, {
+        db: prisma!,
+        uploadDir: "/tmp/fp-routine-deletion-fixture",
+        removeFile: async () => {},
+        revokeCalendarGrant: async () => {},
+        now: () => now,
+      });
+      expect(deleted.deleted).toBe(true);
+      expect(
+        await prisma!.user.findUnique({ where: { id: leaving } }),
+      ).toBeNull();
+      expect(
+        await prisma!.chore.findUnique({ where: { id: oldRoot } }),
+      ).toBeNull();
+      const raw = await prisma!.$queryRaw<
+        { schedule_config: { steps: { template_id: string }[] } }[]
+      >`SELECT "schedule_config" FROM "RoutineStack" WHERE "id" = ${created.stackId} AND "family_id" = ${familyId}`;
+      const replacement = raw[0].schedule_config.steps[0].template_id;
+      expect(replacement).not.toBe(oldRoot);
+      expect(
+        raw[0].schedule_config.steps.map((step) => step.template_id),
+      ).toEqual([replacement, keptRoot]);
+      const control = await prisma!.chore.findUniqueOrThrow({
+        where: { id: replacement },
+      });
+      expect(control).toMatchObject({
+        assigned_to: null,
+        assigned_member_id: null,
+        member_subject_erased: true,
+        points: 0,
+        photo_url: null,
+        completed_at: null,
+        recurrence_id: replacement,
+      });
+      for (const before of prior) {
+        const after = await prisma!.chore.findUniqueOrThrow({
+          where: { id: before.id },
+        });
+        expect(after).toEqual({ ...before, recurrence_id: replacement });
+        expect(control.due_date.getTime()).toBeLessThan(
+          before.due_date.getTime(),
+        );
+      }
+      expect(await hiddenRoutineOccurrenceIds(prisma!, familyId)).toContain(
+        replacement,
+      );
+      expect(
+        (await readRoutineSchedule(prisma!, actor, created.stackId)).status,
+      ).toBe(200);
+      expect(
+        (
+          await saveRoutineSchedule(
+            prisma!,
+            actor,
+            input,
+            originalKey,
+            new Date(now.getTime() + 86400000),
+            false,
+          )
+        ).body,
+      ).toMatchObject({ error: { code: "ROUTINE_ORIGINAL_REMOVED" } });
+      expect(
+        await prisma!.chore.findUnique({ where: { id: oldRoot } }),
+      ).toBeNull();
+      const late = await saveRoutineSchedule(
+        prisma!,
+        actor,
+        edited,
+        crypto.randomUUID(),
+        now,
+      );
+      expect(late.status).toBe(409);
+      await prisma!.$transaction((tx) =>
+        expandSeriesInTx(tx, replacement, familyId, now),
+      );
+      expect(
+        await prisma!.chore.findFirst({
+          where: {
+            family_id: familyId,
+            recurrence_id: replacement,
+            assigned_to: parent,
+            due_date: new Date("2026-10-21T00:00:00Z"),
+          },
+        }),
+      ).not.toBeNull();
+    },
+  );
   it("recovers only a handover-pending once slot after write pause and does not resurrect a later deliberate deletion", async () => {
     const leaving = `fx_schedule_once_leaving_${crypto.randomUUID()}`;
     await prisma!.user.create({
@@ -1064,6 +1077,159 @@ suite("canonical scheduled routine commands", () => {
         },
       }),
     ).toBe(0);
+  });
+  it("invalidates prepared routine control on profile edit/archive exactly once per fresh profile command", async () => {
+    const gates = [
+      "HOUSEHOLD_PROFILE_CHORE_ENABLED",
+      "HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY",
+      "HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED",
+    ];
+    const prior = gates.map((key) => [key, process.env[key]] as const);
+    for (const key of gates) process.env[key] = "1";
+    try {
+      const profile = await manageHouseholdProfile(
+        prisma!,
+        actor,
+        crypto.randomUUID(),
+        {
+          action: "create",
+          name: "Profile revision fixture",
+          role: "child",
+          age: 3,
+        },
+        now,
+      );
+      const memberActor = { ...actor, memberProtocol: 2 as const },
+        initial = command() as Extract<
+          RoutineScheduleCommand,
+          { action: "create" }
+        >;
+      const input = routineScheduleCommand.parse({
+        ...initial,
+        steps: [
+          {
+            ...initial.steps[0],
+            subject: { kind: "profile", member_id: profile.profile.id },
+          },
+          initial.steps[1],
+        ],
+      });
+      const proof = routineScheduleReceipt.parse(
+        (
+          await saveRoutineSchedule(
+            prisma!,
+            memberActor,
+            input,
+            crypto.randomUUID(),
+            now,
+          )
+        ).body,
+      );
+      const {
+        label: _label,
+        anchor: _anchor,
+        schedule: _schedule,
+        steps: _steps,
+        ...base
+      } = initial;
+      const pending = routineScheduleCommand.parse({
+        ...base,
+        action: "pause",
+        stack_id: proof.stackId,
+        expected_version: 1,
+        scope: "future-after-today",
+      });
+      const editKey = crypto.randomUUID(),
+        edit = {
+          action: "edit",
+          id: profile.profile.id,
+          revision: 0,
+          name: "Teen revision fixture",
+          role: "teen",
+          age: 16,
+        };
+      const changed = await manageHouseholdProfile(
+        prisma!,
+        actor,
+        editKey,
+        edit,
+        now,
+      );
+      expect(changed.profile).toMatchObject({ role: "teen", revision: 1 });
+      expect(
+        (await readRoutineSchedule(prisma!, memberActor, proof.stackId)).body,
+      ).toMatchObject({ version: 2 });
+      expect(
+        (
+          await saveRoutineSchedule(
+            prisma!,
+            memberActor,
+            pending,
+            crypto.randomUUID(),
+            now,
+          )
+        ).status,
+      ).toBe(409);
+      await manageHouseholdProfile(prisma!, actor, editKey, edit, now);
+      expect(
+        (await readRoutineSchedule(prisma!, memberActor, proof.stackId)).body,
+      ).toMatchObject({ version: 2 });
+      await manageHouseholdProfile(
+        prisma!,
+        actor,
+        crypto.randomUUID(),
+        { action: "archive", id: profile.profile.id, revision: 1 },
+        now,
+      );
+      expect(
+        (await readRoutineSchedule(prisma!, memberActor, proof.stackId)).body,
+      ).toMatchObject({ version: 3 });
+      expect(
+        (
+          await saveRoutineSchedule(
+            prisma!,
+            memberActor,
+            { ...pending, expected_version: 2 },
+            crypto.randomUUID(),
+            now,
+          )
+        ).status,
+      ).toBe(409);
+      expect(
+        (
+          await saveRoutineSchedule(
+            prisma!,
+            memberActor,
+            { ...pending, expected_version: 3 },
+            crypto.randomUUID(),
+            now,
+          )
+        ).status,
+      ).toBe(200);
+      expect(
+        (
+          await saveRoutineSchedule(
+            prisma!,
+            memberActor,
+            { ...pending, action: "resume", expected_version: 4 },
+            crypto.randomUUID(),
+            now,
+          )
+        ).status,
+      ).toBe(409);
+      const root = await prisma!.$queryRaw<
+        { routine_series_config: { content: { subject: unknown } } }[]
+      >`SELECT "routine_series_config" FROM "Chore" WHERE "id" = ${proof.roots[0]} AND "family_id" = ${familyId}`;
+      expect(root[0].routine_series_config.content.subject).toEqual({
+        kind: "profile",
+        member_id: profile.profile.id,
+      });
+    } finally {
+      for (const [key, value] of prior) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
   it("pause preserves root snapshots and all evidence/today rows, pruning only untouched future copies without reordering steps", async () => {
     const { proof } = await create(),

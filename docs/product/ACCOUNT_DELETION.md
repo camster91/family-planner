@@ -129,6 +129,11 @@ One transaction, after the rules are checked again inside it under a per-househo
    recovery can settle only that checkpoint after current gates/subject authority allow it; an occupied
    or missed day settles without duplication/catch-up. Once settled, deliberate task deletion stays
    deleted. This does not enroll ordinary once chores in repeat generation.
+   Discovery also includes historical personal roots when their account has already left or joined a
+   different household and their private future subject is now someone else. Those already locked
+   households retain replacement controls with an existing successor. Normal creator handover protects
+   surviving routine occurrences from the creator cascade; current-family handover is not repeated.
+   Historical ancillary erasure/file acceptance remains part of the deferred lifecycle reconciliation.
 3. **Household content they created is handed over** to the successor (not deleted): chores they created, events,
    lists and list items they added, rewards, budget categories and transactions, projects, meals, notes, saved
    places, pickups, allowance they gave, sitter handoffs, sick days/medications they recorded for others, ICS

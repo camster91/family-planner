@@ -76,6 +76,42 @@ it("links only an exact known same-person profile/account alias and invalidates 
     ),
   ).toBeNull();
 });
+it("invalidates exact profile/account revisions without rewriting assignments, content or state", () => {
+  const invalidated = rewriteRoutineFutureSubject(definition, {
+    kind: "invalidate",
+    memberIds: ["profile-a"],
+  });
+  expect(invalidated).toEqual({
+    stackId: "stack-a",
+    value: { ...definition, revision: 5 },
+  });
+  expect(
+    rewriteRoutineFutureSubject(definition, {
+      kind: "invalidate",
+      memberIds: ["other"],
+    }),
+  ).toBeNull();
+  const account = {
+    ...definition,
+    content: {
+      ...definition.content,
+      subject: { kind: "account", user_id: "account-a", member_id: null },
+    },
+  };
+  expect(
+    rewriteRoutineFutureSubject(account, {
+      kind: "invalidate",
+      userId: "account-a",
+      memberIds: [],
+    }),
+  ).toEqual({ stackId: "stack-a", value: { ...account, revision: 5 } });
+  expect(
+    rewriteRoutineFutureSubject(
+      { ...definition, protocol: "unknown" },
+      { kind: "invalidate", memberIds: ["profile-a"] },
+    ),
+  ).toBeNull();
+});
 it("erases the exact private identity without changing content, schedule, state or history", () => {
   const erased = rewriteRoutineFutureSubject(definition, {
     kind: "erase",

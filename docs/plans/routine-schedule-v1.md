@@ -658,3 +658,23 @@ from compatibility pause. Source unit/API/UI cases are authored and unrun.
 Profile role/version, link/rollout and remaining navigation/async reconciliation
 still remain, then full issue-code completion and consolidated QA. Protocol gates
 were not bypassed; this is not a released or runtime-verified history journey.
+
+
+### Profile presentation freshness and historical account controls — 2026-10-20
+
+Exact future root/stack versions now advance transactionally on unlinked profile
+edit/archive and account membership removal. No subject/content/state transfer is
+performed by invalidation. Profile replay receipts do not invalidate again. Actual
+User role/token/family remain authoritative; profile presentation edits grant no
+login or parent access, and account linking keeps its existing verified boundary.
+
+Historical root owner discovery now complements private future aliases, including
+accounts with no current household or canonical profile. Account deletion retains
+historical future controls on anonymous successor-created rows, updates exact
+lineage/stack slots, preserves normal creator handover and expands only after
+personal cascade. Current-family controls are handled by their existing path.
+New pure/protected source cases are authored and unrun.
+
+Next reconciliation: historical ancillary erasure cleanup, link/rollout boundaries
+and navigation/async presentation; then the remaining issue-code ledger before
+consolidated QA. No tests, schema/client/native/CI operations or release activation.

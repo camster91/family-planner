@@ -1,7 +1,10 @@
 /** Future control identity survives erasure without preserving personal chore rows. */
 import crypto from "node:crypto";
 import type { Prisma } from "@prisma/client";
-import { hasRoutineSubjectStorage } from "@/lib/routine-subject-lifecycle";
+import {
+  hasRoutineSubjectStorage,
+  routineSubjectHouseholds,
+} from "@/lib/routine-subject-lifecycle";
 import {
   routineScheduleConfig,
   routineStepSeriesConfig,
@@ -159,4 +162,56 @@ export async function handOverRoutineControlRootsInTx(
     if (written !== 1) throw new Error("Routine stack handover failed");
   }
   return replacements;
+}
+
+/** All returned households were discovered and locked before erasure by the caller. */
+export async function handOverHistoricalRoutineControlsInTx(
+  tx: Prisma.TransactionClient,
+  departingUserId: string,
+  currentFamilyId: string | null,
+): Promise<Array<{ familyId: string; rootId: string }>> {
+  const controls: Array<{ familyId: string; rootId: string }> = [];
+  for (const familyId of await routineSubjectHouseholds(tx, departingUserId)) {
+    if (familyId === currentFamilyId) continue;
+    const orderBy = [{ created_at: "asc" as const }, { id: "asc" as const }];
+    const successor =
+      (await tx.user.findFirst({
+        where: {
+          family_id: familyId,
+          id: { not: departingUserId },
+          role: "parent",
+        },
+        select: { id: true },
+        orderBy,
+      })) ??
+      (await tx.user.findFirst({
+        where: { family_id: familyId, id: { not: departingUserId } },
+        select: { id: true },
+        orderBy,
+      }));
+    if (!successor)
+      throw new Error("Historical routine control successor unavailable");
+    const replacements = await handOverRoutineControlRootsInTx(
+      tx,
+      familyId,
+      departingUserId,
+      successor.id,
+    );
+    if (replacements.size > 0)
+      await tx.chore.updateMany({
+        where: {
+          family_id: familyId,
+          recurrence_id: { in: [...replacements.values()] },
+          created_by: departingUserId,
+          OR: [
+            { assigned_to: null },
+            { assigned_to: { not: departingUserId } },
+          ],
+        },
+        data: { created_by: successor.id },
+      });
+    for (const rootId of replacements.values())
+      controls.push({ familyId, rootId });
+  }
+  return controls;
 }

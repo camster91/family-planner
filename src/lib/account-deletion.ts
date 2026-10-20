@@ -1,5 +1,5 @@
 import { expandSeriesInTx } from '@/lib/recurringChores'
-import { handOverRoutineControlRootsInTx } from '@/lib/routine-root-handover'
+import { handOverRoutineControlRootsInTx, handOverHistoricalRoutineControlsInTx } from '@/lib/routine-root-handover'
 /**
  * Account and household deletion (D-3; contract: docs/product/ACCOUNT_DELETION.md).
  *
@@ -259,6 +259,7 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
   const outcome = await db.$transaction(
     async (tx: any) => {
       const none = { deleted: false, successorId: null, files: [] as FileTarget[], grants: [] as CalendarGrant[] }
+      const deletionNow = (deps.now ?? (() => new Date()))()
       // User lock first (order: user, then household; src/lib/household-lock.ts).
       // Under it no create/join can attach this account to a household.
       await lockUser(tx, userId)
@@ -268,9 +269,11 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
 
       if (!user.family_id) {
         await eraseAccountProfiles(tx, user.id, null)
+        const historicalControls = await handOverHistoricalRoutineControlsInTx(tx, user.id, null)
         const grants = await takeCalendarConnections(tx, { user_id: user.id })
         await deletePersonalRows(tx, user.id)
         await tx.user.delete({ where: { id: user.id } })
+        for (const control of historicalControls) await expandSeriesInTx(tx, control.rootId, control.familyId, deletionNow)
         return { deleted: true, successorId: null, files: [] as FileTarget[], grants }
       }
 
@@ -282,13 +285,15 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
       if (!still || still.family_id !== familyId) return none
       const successorId = await assertMemberMayLeave(tx, user)
       await eraseAccountProfiles(tx, user.id, familyId)
+      const historicalControls = await handOverHistoricalRoutineControlsInTx(tx, user.id, familyId)
       // Their calendar connections: encrypted grants kept for the revoke
       // after commit; links, imported events and rows deleted here.
       const grants = await takeCalendarConnections(tx, { user_id: user.id })
-      const files = await handOverAndDetach(tx, user.id, familyId, successorId, root, (deps.now ?? (() => new Date()))())
+      const files = await handOverAndDetach(tx, user.id, familyId, successorId, root, deletionNow)
       await recordMemberLeft(tx, user, familyId)
       await deletePersonalRows(tx, user.id)
       await tx.user.delete({ where: { id: user.id } })
+      for (const control of historicalControls) await expandSeriesInTx(tx, control.rootId, control.familyId, deletionNow)
       return { deleted: true, successorId, files, grants }
     },
     { timeout: 60_000 }
