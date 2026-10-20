@@ -1,7 +1,11 @@
 /** Transactional source cases; fake statements do not prove PostgreSQL atomicity. */
 import type { PrismaClient } from "@prisma/client";
 import { defaultFeatures } from "@/lib/features";
-import { readWeeklyReset, writeWeeklyReset } from "../weekly-reset-server";
+import {
+  readWeeklyReset,
+  readWeeklyResetSummary,
+  writeWeeklyReset,
+} from "../weekly-reset-server";
 import { WEEKLY_RESET_PROTOCOL } from "../weekly-reset";
 const actor = { userId: "user-a", familyId: "family-a", tokenVersion: 0 };
 const scope = { weekStart: "2026-10-19", timeZone: "America/Toronto" };
@@ -37,12 +41,37 @@ function fixture(overrides = {}) {
       })),
       update: jest.fn(),
     },
+    event: { findMany: jest.fn(async () => []) },
   };
   const db = {
     $transaction: async (run: (tx: unknown) => unknown) => run(tx),
   } as unknown as PrismaClient;
   return { db, tx };
 }
+it.each([{ token_version: 1 }, { family_id: "family-b" }, { role: "unknown" }])(
+  "refuses stale/cross-household authority before summary reads: %j",
+  async (row) => {
+    const { db, tx } = fixture(row);
+    await expect(
+      readWeeklyResetSummary(db, actor, scope, "schedule"),
+    ).rejects.toThrow();
+    expect(tx.event.findMany).not.toHaveBeenCalled();
+  },
+);
+it("returns only the current actor's scoped summary after renewing authority", async () => {
+  const { db, tx } = fixture();
+  const result = await readWeeklyResetSummary(db, actor, scope, "schedule");
+  expect(result.owner).toEqual({
+    userId: actor.userId,
+    familyId: actor.familyId,
+  });
+  expect(result.scope).toEqual(scope);
+  expect(tx.event.findMany).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: expect.objectContaining({ family_id: actor.familyId }),
+    }),
+  );
+});
 it.each([{ token_version: 1 }, { family_id: "family-b" }, { role: "unknown" }])(
   "refuses changed authority before progress or receipt writes: %j",
   async (row) => {

@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { lockUser, lockHousehold } from "@/lib/household-lock";
 import { normalizeFeatures } from "@/lib/features";
 import type { EffectResult } from "@/lib/idempotency";
+import { loadWeeklyResetSummaryInTx } from "@/lib/weekly-reset-summary";
 import {
   WEEKLY_RESET_PROTOCOL,
   WeeklyResetError,
@@ -13,6 +14,7 @@ import {
   type WeeklyResetRecord,
   type WeeklyResetScope,
   type WeeklyResetCommand,
+  type WeeklyResetStep,
 } from "@/lib/weekly-reset";
 export type WeeklyResetActor = {
   userId: string;
@@ -24,6 +26,7 @@ type Row = {
   family_id: string | null;
   role: string;
   token_version: number;
+  email_verified: boolean;
   progress: unknown;
   revision: number;
 };
@@ -35,7 +38,7 @@ async function actorInTx(
   await lockHousehold(tx, actor.familyId);
   const rows = await tx.$queryRaw<
     Row[]
-  >`SELECT "id", "family_id", "role", "token_version",
+  >`SELECT "id", "family_id", "role", "token_version", "email_verified",
     "weekly_reset_progress" AS progress, "weekly_reset_revision" AS revision
     FROM "User" WHERE "id" = ${actor.userId} FOR UPDATE`;
   const user = rows[0];
@@ -52,6 +55,28 @@ async function actorInTx(
   });
   if (!family) throw new WeeklyResetError("FORBIDDEN");
   return { user, features: normalizeFeatures(family.features) };
+}
+export function readWeeklyResetSummary(
+  db: PrismaClient,
+  actor: WeeklyResetActor,
+  scope: WeeklyResetScope,
+  step: WeeklyResetStep,
+) {
+  return db.$transaction(async (tx) => {
+    const { user, features } = await actorInTx(tx, actor);
+    return loadWeeklyResetSummaryInTx(
+      tx,
+      {
+        userId: user.id,
+        familyId: actor.familyId,
+        role: user.role,
+        emailVerified: user.email_verified === true,
+      },
+      features,
+      scope,
+      step,
+    );
+  });
 }
 function recordFrom(row: Row): WeeklyResetRecord | null {
   if (!Number.isInteger(row.revision) || row.revision < 0)
@@ -129,7 +154,13 @@ export function writeWeeklyReset(
       };
     if (receipt.response_status != null) {
       const parsed = weeklyResetReceipt.safeParse(receipt.response_body);
-      if (!parsed.success || parsed.data.receipt.familyId !== actor.familyId)
+      if (
+        !parsed.success ||
+        parsed.data.receipt.familyId !== actor.familyId ||
+        parsed.data.receipt.weekStart !== command.weekStart ||
+        parsed.data.receipt.timeZone !== command.timeZone ||
+        parsed.data.receipt.action !== command.action
+      )
         throw new WeeklyResetError("UNSUPPORTED");
       return { status: receipt.response_status, body: parsed.data };
     }

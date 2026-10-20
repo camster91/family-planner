@@ -1,5 +1,24 @@
 # Current State
 
+## Weekly reset bounded summary source — 2026-10-20
+
+A gated, person-only, strict single-step summary GET now renews current actor
+and household authority before reading canonical data. Source projects bounded
+stored schedule, account chores, pickups/handoff, meals, several-dish prep with
+exact active-consumption totals and next prep, current safe use-soon food, and
+actual open groceries. Scope/actor/step/time, caps, unknowns and read failures
+are explicit. No provider, calendar refresh, routine top-up or domain write.
+Verified-email prep gating and child/teen restrictions remain enforced.
+
+This is partial summary code, not a complete weekly review. Profile routines,
+recipe ingredient-gap integration, accepted/backup responsibility controls and
+the compact discoverable EN/ES UI with exact pending-request recovery remain
+required implementation. Stored-only/capped reads do not promise a complete or
+conflict-free week. Source cases for role/authority/DST/caps/source failure/food/
+prep are authored but unrun. No tests, types, lint, build, schema/client/DB/API,
+browser/native/provider/CI, push, merge, deployment or activation occurred.
+The existing active goal and consolidated-QA-after-code order are unchanged.
+
 ## Weekly reset progress contract and API foundation — 2026-10-20
 
 The previously unimplemented #123 five-minute weekly reset now has an explicit

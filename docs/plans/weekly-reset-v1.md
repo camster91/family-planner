@@ -119,3 +119,34 @@ and frozen owned request recovery. The API/progress foundation does not deliver
 that journey by itself. These remain implementation work, not a provider blocker
 or a substitute links-only tour. Full PostgreSQL, schema/client, existing-domain,
 role/offline/native/rendered/source/hosted and release acceptance follows all code.
+
+## Bounded canonical summary source — 2026-10-20
+
+A separate GET `/api/coordination/weekly-reset/summary` now requests exactly one
+strict step/week/zone, under the same unchanged readiness gate. Fresh locked
+account token/membership/role/features authorize the step before domain reads.
+The response binds actor/household/scope/step, includes generatedAt, and caps each
+preview at eight rows with explicit more/unknown notes. An unavailable source
+fails the step instead of returning an empty success. It never calls a provider,
+refreshes external calendars, generates routine occurrences or mutates a domain.
+
+Authored projections cover shared-safe stored event titles/overlap times using
+DST-aware local-week bounds; current account chore rows with canonical routine
+visibility checks and teen/child own-account predicates; pickups and handoffs
+without private notes/address/share token; weekly meal snapshots; current food
+using the canonical use-soon policy; and actual open grocery totals. Bulk prep
+retains verified-email/role restrictions, multiple dishes, planned/prepared
+distinction, next-prep dates and exact active-consumption sums per displayed dish
+(never a capped history sum). Earlier prepared sessions can be previewed too.
+Food safety always uses actual local today, not a previous review's Monday.
+
+This remains a partial summary slice. Email-free/profile routine review is
+explicitly referred to canonical chores, not presented as fully summarized;
+accepted responsibility/named backup remain unknown in these legacy models.
+Open groceries do not mean recipe coverage was assessed: canonical ingredient
+gap review still needs integration. Capped summaries and stored-only schedule
+do not establish that a week is conflict-free or complete. No UI/discovery entry
+is authored yet; typed EN/ES compact review/resume/recovery remains required.
+New schema/window/role/query/cap/source-failure/food/prep/authority test source is
+unrun. No tests/typecheck/lint/build/schema/DB/API/browser/native/provider/CI or
+release operations were performed. No flag, deployed runtime or client changed.
