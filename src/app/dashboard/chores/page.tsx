@@ -1,4 +1,4 @@
-import { hiddenRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
+import { hiddenRoutineOccurrenceIds, scheduledOnceRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 import { publicChoreData } from "@/lib/chore-public-data";
 import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
 import { getServerUser } from '@/lib/supabase/server'
@@ -157,9 +157,12 @@ export default async function ChoresPage() {
     return nextId ? (memberNames.get(nextId) ?? null) : null
   }
 
+  const scheduledOnceIds = familyId
+    ? await scheduledOnceRoutineOccurrenceIds(prisma!, familyId, chores.filter((row) => row.assigned_to === null && row.assigned_member_id != null).map((row) => row.id))
+    : new Set<string>()
   const serializedChores = chores.map((c) => {
     const subject = familyId ? readChoreSubject(c, familyId) : null
-    const actionAvailability = subject?.kind === 'profile' ? profileChoreActionAvailability(c) : null
+    const actionAvailability = subject?.kind === 'profile' ? profileChoreActionAvailability(c, scheduledOnceIds.has(c.id) ? "scheduled-once" : "legacy") : null
     const { assigneeMember: _assigneeMember, assignee: _assignee, ...safeChore } = c
     // The release owner regenerates Prisma in the migration checkout. Keep
     // this additive projection type-safe for the pre-generated client used by

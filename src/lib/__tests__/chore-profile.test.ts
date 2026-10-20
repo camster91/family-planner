@@ -346,6 +346,31 @@ describe("profile-only chore contract", () => {
     ).toBe("active");
   });
 
+  it("does not confuse a canonical scheduled-once step with a repeating profile series", () => {
+    delete process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV];
+    const row = {
+      assigned_to: null,
+      assigned_member_id: "member-child",
+      frequency: "once",
+      recurrence_id: "routine-root",
+    };
+    expect(profileChoreActionAvailability(row)?.state).toBe("paused");
+    expect(profileChoreActionAvailability(row, "scheduled-once")).toEqual({
+      state: "active",
+      requiresCompatibleClient: false,
+      actions: { complete: true, undo: true, verify: true, reject: true },
+    });
+    expect(profileChoreActionAvailability(row, "scheduled")?.state).toBe(
+      "paused",
+    );
+    expect(
+      profileChoreActionAvailability(
+        { ...row, assigned_to: "account", assigned_member_id: null },
+        "scheduled-once",
+      ),
+    ).toBeNull();
+  });
+
   it("locks membership before the live receipt and stores the response in the same effect", async () => {
     const lockSql: string[] = [];
     const receiptUpdate = jest.fn();

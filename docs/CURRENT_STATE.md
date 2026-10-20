@@ -1,5 +1,22 @@
 # Current State
 
+## Scheduled-once profile action projection source — 2026-10-20
+
+A private household-scoped read now reduces canonical routine metadata to the
+selected one-time occurrence IDs. The chores API (list and detail), chores page
+and Today board use that policy when projecting email-free profile actions.
+A recurrence ID alone no longer pauses a valid scheduled-once step when profile
+recurrence is disabled. Repeating and legacy series keep the existing gate;
+unknown/inactive metadata cannot manufacture the one-time exemption. Raw future
+metadata stays out of ordinary response DTOs. Mutation authority still renews
+under the existing locked policy at the effect.
+
+Authored, unrun source cases cover no-query empty selection, household/ID SQL
+binding, duplicate IDs, selected roots and completed copies, inactive/unknown/
+weekly exclusion and profile versus account projection. No QA or activation.
+Next: detached-series future controls, clean-sheet Back choreography, recovery
+presentation/async-epoch audit and lifecycle/rollback/device reconciliation.
+
 ## Durable routine draft and attached legacy handoff source — 2026-10-20
 
 Unsent routine forms now have a separate strict local-draft contract, server-derived
@@ -35,7 +52,7 @@ source covers attached/foreign/same-name-legacy/copy handoffs. Source inspection
 and formatting only; no tests/typecheck/lint/build/browser/native, schema/client
 operation, hosted CI, push/merge/deploy or activation. Existing gates are unchanged.
 Next: detached-series future controls, clean-sheet Back choreography, recovery
-presentation/remaining async-epoch audit and scheduled-once capabilities; then
+presentation/remaining async-epoch audit; then
 lifecycle/rollback/device reconciliation and the consolidated QA phase.
 
 ## Parent routine catalog/editor/recovery UI source — 2026-10-20

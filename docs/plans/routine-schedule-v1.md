@@ -511,3 +511,12 @@ sheet Back behavior, recovery presentation/async-epoch review and scheduled-once
 availability; then full lifecycle/erasure and supported-client rollback source
 audit. Device/DB/EN/ES/accessibility behavior still needs the later consolidated
 QA. Preserve the transferred #559 scope; this is not issue or goal completion.
+
+
+### Scheduled-once profile actions — 2026-10-20
+
+Source now derives one-time action availability from private canonical policy,
+not the presence of a recurrence ID. Scoped selected-ID reads feed list/detail,
+chores page and Today board projections. Metadata is never serialized into these
+ordinary DTOs. Repeating/legacy profile gates and locked mutation checks remain.
+Authored policy/projection cases are unrun; consolidated QA is still deferred.

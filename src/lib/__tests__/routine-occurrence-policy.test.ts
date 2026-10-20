@@ -4,6 +4,7 @@ import {
   routineOccurrencePolicy,
   routineOccurrencePolicyInTx,
   hiddenRoutineOccurrenceIds,
+  scheduledOnceRoutineOccurrenceIds,
   type RoutineOccurrenceSnapshot,
 } from "../routine-occurrence-policy";
 const definition = {
@@ -153,6 +154,75 @@ describe("routine occurrence read/action policy source", () => {
         photo_url: "fixture-proof",
       }),
     ).toBe("scheduled");
+  });
+  it("projects one-time capability only from owned selected canonical definitions", async () => {
+    const once = {
+      ...definition,
+      state: "active",
+      schedule: {
+        frequency: "once",
+        starts_on: "2026-10-21",
+        weekly_days: [],
+        monthly_day: null,
+      },
+    };
+    const raw = jest.fn(
+      async (..._args: unknown[]): Promise<RoutineOccurrenceSnapshot[]> => [
+        { ...root(), own_config: once, series_config: once },
+        {
+          ...root(),
+          id: "not-requested",
+          own_config: null,
+          series_config: once,
+        },
+        {
+          ...root(),
+          id: "completed-copy",
+          own_config: null,
+          series_config: once,
+          status: "completed",
+        },
+        {
+          ...root(),
+          id: "paused-copy",
+          own_config: null,
+          series_config: { ...once, state: "paused" },
+        },
+        {
+          ...root(),
+          id: "unknown-copy",
+          own_config: null,
+          series_config: { protocol: "future" },
+        },
+        {
+          ...root(),
+          id: "weekly-copy",
+          own_config: null,
+          series_config: { ...definition, state: "active" },
+        },
+      ],
+    );
+    const db = { $queryRaw: raw } as unknown as Prisma.TransactionClient;
+    expect(await scheduledOnceRoutineOccurrenceIds(db, "family-a", [])).toEqual(
+      new Set(),
+    );
+    expect(raw).not.toHaveBeenCalled();
+    const ids = [
+      "fixture-root",
+      "completed-copy",
+      "paused-copy",
+      "unknown-copy",
+      "weekly-copy",
+      "fixture-root",
+    ];
+    expect(
+      await scheduledOnceRoutineOccurrenceIds(db, "family-a", ids),
+    ).toEqual(new Set(["fixture-root", "completed-copy"]));
+    expect(raw.mock.calls[0].slice(1)).toEqual(["family-a", [...new Set(ids)]]);
+    const sql = (raw.mock.calls[0][0] as TemplateStringsArray).join("?");
+    expect(sql).toContain('r."family_id" = c."family_id"');
+    expect(sql).toContain('c."family_id" = ?');
+    expect(sql).toContain('c."id" = ANY(?::text[])');
   });
   it("returns only hidden IDs and binds both read/effect SQL to the supplied household", async () => {
     const raw = jest.fn(

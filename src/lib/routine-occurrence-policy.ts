@@ -100,3 +100,35 @@ export async function routineOccurrencePolicyInTx(
   // A disappeared occurrence cannot become an available legacy chore.
   return rows.length === 1 ? routineOccurrencePolicy(rows[0]) : "unsupported";
 }
+
+/**
+ * Read only the rows already selected for a response. A recurrence ID alone is
+ * not evidence that a scheduled step repeats: a routine can run just once.
+ * Private metadata is reduced to owned occurrence IDs and never enters a DTO.
+ */
+export async function scheduledOnceRoutineOccurrenceIds(
+  db: Reader,
+  familyId: string,
+  ids: readonly string[],
+): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const selected = [...new Set(ids)];
+  const rows = await db.$queryRaw<RoutineOccurrenceSnapshot[]>`
+    SELECT c."id", c."recurrence_id", r."id" AS root_id, r."recurrence_id" AS root_recurrence_id,
+      c."routine_series_config" AS own_config, r."routine_series_config" AS series_config,
+      c."due_date", c."status", c."photo_url", c."photo_verified", c."verified_at", c."verified_notes",
+      c."completed_at", c."successor_id", c."member_subject_erased"
+    FROM "Chore" c LEFT JOIN "Chore" r ON r."id" = c."recurrence_id" AND r."family_id" = c."family_id"
+    WHERE c."family_id" = ${familyId} AND c."id" = ANY(${selected}::text[])
+      AND (c."routine_series_config" IS NOT NULL OR r."routine_series_config" IS NOT NULL)`;
+  const requested = new Set(selected);
+  return new Set(
+    rows
+      .filter(
+        (row) =>
+          requested.has(row.id) &&
+          routineOccurrencePolicy(row) === "scheduled-once",
+      )
+      .map((row) => row.id),
+  );
+}

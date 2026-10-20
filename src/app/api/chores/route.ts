@@ -1,4 +1,4 @@
-import { hiddenRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
+import { hiddenRoutineOccurrenceIds, scheduledOnceRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 import { refuseScheduledRoutineLegacyWrite, RoutineScheduleLegacyWriteError } from "@/lib/routine-schedule-legacy";
 import { choreJson } from "@/lib/chore-json";
 import { withRouteTelemetry } from '@/lib/route-telemetry'
@@ -144,12 +144,16 @@ async function handleGET(request: NextRequest) {
     if (hasProfileRows && rowsWithProfileMembers.some((row) => row.assigned_to === null && row.assigned_member_id != null && !readChoreSubject(row, auth.user.family_id))) {
       return choreJson(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
     }
+    const scheduledOnceIds = await scheduledOnceRoutineOccurrenceIds(
+      prisma!, auth.user.family_id,
+      rowsWithProfileMembers.filter((row) => row.assigned_to === null && row.assigned_member_id != null).map((row) => row.id),
+    )
     const exposedChores = rowsWithProfileMembers.map((row) => {
       const { assigneeMember: _member, ...safe } = row
       if (row.assigned_to === null && row.assigned_member_id != null) {
         const subject = readChoreSubject(row, auth.user.family_id)
         if (!subject) return safe
-        const actionAvailability = profileChoreActionAvailability(row)
+        const actionAvailability = profileChoreActionAvailability(row, scheduledOnceIds.has(row.id) ? "scheduled-once" : "legacy")
         return { ...safe, subject, ...(actionAvailability ? { actionAvailability } : {}) }
       }
       return safe
@@ -209,7 +213,10 @@ async function getOneChore(id: string, familyId: string, request: NextRequest) {
     return subject.kind === 'profile' ? { ...safe, subject } : safe
   })()
   const gamified = await isGamificationOn(familyId)
-  const actionAvailability = subject.kind === 'profile' ? profileChoreActionAvailability(chore) : null
+  const scheduledOnceIds = subject.kind === 'profile'
+    ? await scheduledOnceRoutineOccurrenceIds(prisma!, familyId, [chore.id])
+    : new Set<string>()
+  const actionAvailability = subject.kind === 'profile' ? profileChoreActionAvailability(chore, scheduledOnceIds.has(chore.id) ? "scheduled-once" : "legacy") : null
   const projectedChore = subject.kind === 'profile' && actionAvailability ? { ...safeChore, actionAvailability } : safeChore
   return choreJson({
     chore: gamified ? projectedChore : omitChorePoints(projectedChore),

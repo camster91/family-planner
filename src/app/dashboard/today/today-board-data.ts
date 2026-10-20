@@ -1,4 +1,4 @@
-import { hiddenRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
+import { hiddenRoutineOccurrenceIds, scheduledOnceRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 /**
  * Shared-surface DTO for the Today board (/dashboard/today, #119 / #159).
  *
@@ -645,6 +645,10 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     } | null
   }
   const choreRows = chores as BoardChoreRow[]
+  const scheduledOnceIds = await scheduledOnceRoutineOccurrenceIds(
+    db, familyId,
+    choreRows.filter((row) => row.assigned_to === null && row.assigned_member_id != null).map((row) => row.id),
+  )
   const hasProfileRows =
     Boolean(profileCompatibilityProbe) || choreRows.some((chore) => readChoreSubject(chore, familyId)?.kind === 'profile')
   const boardChores: BoardChore[] = choreRows.flatMap((chore): BoardChore[] => {
@@ -678,7 +682,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     const subject = readChoreSubject(chore, familyId)
     const profile = subject?.kind === 'profile' ? profileById.get(subject.memberId) : undefined
     if (!profile) return []
-    const actionAvailability = profileChoreActionAvailability(chore)
+    const actionAvailability = profileChoreActionAvailability(chore, scheduledOnceIds.has(chore.id) ? "scheduled-once" : "legacy")
     return [
       {
         ...base,

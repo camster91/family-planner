@@ -1,3 +1,4 @@
+import type { RoutineOccurrencePolicy } from "@/lib/routine-occurrence-policy";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { updateChoreSchema } from "@/lib/validations";
@@ -252,6 +253,7 @@ type ProfileChoreActionRow = {
  */
 export function profileChoreActionAvailability(
   row: ProfileChoreActionRow,
+  routinePolicy: RoutineOccurrencePolicy = "legacy",
 ): ProfileChoreActionAvailability | null {
   if (row.assigned_to !== null || row.assigned_member_id === null) return null;
 
@@ -260,7 +262,11 @@ export function profileChoreActionAvailability(
     (row.frequency !== undefined &&
       row.frequency !== null &&
       row.frequency !== "once");
-  if (!recurring || isProfileChoreRecurrenceSupported()) {
+  if (
+    routinePolicy === "scheduled-once" ||
+    !recurring ||
+    isProfileChoreRecurrenceSupported()
+  ) {
     return {
       state: "active",
       requiresCompatibleClient: false,
@@ -340,9 +346,16 @@ function assertProfileTarget(
  * sends mail/notifications and never expands a series.
  */
 /** Shared current profile authority for scheduled roots; never creates login identity. */
-export async function profileChoreAssigneeInTx(tx: Prisma.TransactionClient, familyId: string, memberId: string) {
+export async function profileChoreAssigneeInTx(
+  tx: Prisma.TransactionClient,
+  familyId: string,
+  memberId: string,
+) {
   await lockHousehold(tx, familyId);
-  const target = await tx.householdMember.findFirst({ where: { id: memberId, family_id: familyId }, select: profileTargetSelect });
+  const target = await tx.householdMember.findFirst({
+    where: { id: memberId, family_id: familyId },
+    select: profileTargetSelect,
+  });
   assertProfileTarget(target, familyId, memberId);
   return { assigned_to: null, assigned_member_id: memberId };
 }
@@ -387,10 +400,7 @@ export async function createProfileOnlyChoreInTx(
   // or creating its template. A rollout can therefore turn this opt-in off
   // without replaying a cached recurring response or leaving a new series
   // half-created. One-off profile writes continue to use the existing gate.
-  if (
-    input.frequency !== "once" &&
-    !isProfileChoreRecurrenceSupported()
-  ) {
+  if (input.frequency !== "once" && !isProfileChoreRecurrenceSupported()) {
     return {
       status: 409,
       body: {
