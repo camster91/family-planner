@@ -16,6 +16,7 @@ import {
   onlineRecipeSchema,
   importedRecipeInstructions,
   recipeImportIssues,
+  recipeDiscoveryResponse,
 } from "@/lib/recipe-preview-contract";
 import { useRecipeExploreText } from "@/i18n/recipe-explore";
 import {
@@ -31,7 +32,7 @@ type SavedRecipe = {
   source_url?: string | null;
   favorite?: boolean;
 };
-type RecipeSearchResult = { title: string; url: string };
+type RecipeSearchResult = { title: string; url: string; source?: string };
 
 export default function RecipeExplorePage() {
   const text = useRecipeExploreText();
@@ -49,6 +50,8 @@ export default function RecipeExplorePage() {
   const [searching, setSearching] = React.useState(false);
   const [searchError, setSearchError] = React.useState("");
   const [searched, setSearched] = React.useState(false);
+  const [incompleteSearch, setIncompleteSearch] = React.useState(false);
+  const searchGeneration = React.useRef(0);
   const searchController = React.useRef<AbortController | null>(null);
   const [url, setUrl] = React.useState("");
   const [recipes, setRecipes] = React.useState<SavedRecipe[]>([]);
@@ -128,6 +131,7 @@ export default function RecipeExplorePage() {
       abort.abort();
       previewGeneration.current++;
       controller.current?.abort();
+      searchGeneration.current++;
       searchController.current?.abort();
       libraryController.current?.abort();
       libraryBusy.current = false;
@@ -198,6 +202,8 @@ export default function RecipeExplorePage() {
   const searchOnline = async (event: React.FormEvent) => {
     event.preventDefault();
     searchController.current?.abort();
+    const own = ++searchGeneration.current;
+    const current = () => own === searchGeneration.current;
     const abort = new AbortController();
     searchController.current = abort;
     setSearching(true);
@@ -205,6 +211,12 @@ export default function RecipeExplorePage() {
     setResults([]);
     setResultLimit(6);
     setSearched(false);
+    setIncompleteSearch(false);
+    let timedOut = false;
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      abort.abort();
+    }, 15000);
     try {
       const response = await fetch("/api/recipes/discover", {
         method: "POST",
@@ -212,21 +224,29 @@ export default function RecipeExplorePage() {
         body: JSON.stringify({ query: query.trim(), source }),
         signal: abort.signal,
       });
-      const data = (await response.json().catch(() => null)) as {
-        results?: RecipeSearchResult[];
-      } | null;
-      if (!response.ok || !Array.isArray(data?.results)) {
-        if (!abort.signal.aborted) setSearchError(text("searchFailed"));
+      const parsed = recipeDiscoveryResponse.safeParse(
+        await response.json().catch(() => null),
+      );
+      if (!response.ok || !parsed.success) {
+        if (current() && !abort.signal.aborted)
+          setSearchError(text("searchFailed"));
         return;
       }
-      if (!abort.signal.aborted) {
-        setResults(data.results);
+      if (current() && !abort.signal.aborted) {
+        setResults(parsed.data.results);
+        setIncompleteSearch(
+          parsed.data.sources?.some(
+            (source) => source.state === "unavailable",
+          ) ?? false,
+        );
         setSearched(true);
       }
     } catch {
-      if (!abort.signal.aborted) setSearchError(text("searchNetworkError"));
+      if (current() && (!abort.signal.aborted || timedOut))
+        setSearchError(text("searchNetworkError"));
     } finally {
-      if (!abort.signal.aborted) setSearching(false);
+      clearTimeout(deadline);
+      if (current() && (!abort.signal.aborted || timedOut)) setSearching(false);
     }
   };
 
@@ -285,6 +305,7 @@ export default function RecipeExplorePage() {
                   value={source}
                   onChange={(event) => setSource(event.target.value)}
                 >
+                  <option value="all">{text("allSources")}</option>
                   {recipeSources.map((recipeSource) => (
                     <option key={recipeSource.name}>{recipeSource.name}</option>
                   ))}
@@ -304,6 +325,11 @@ export default function RecipeExplorePage() {
               {searchError}
             </p>
           )}
+          {incompleteSearch && (
+            <p role="status" className="text-footnote">
+              {text("partialSearch")}
+            </p>
+          )}
           {searched && results.length === 0 && (
             <p role="status" className="text-label-secondary">
               {text("noSearchResults")}
@@ -316,6 +342,11 @@ export default function RecipeExplorePage() {
                 className="rounded-xl border border-[var(--surface-separator)] p-3 min-w-0"
               >
                 <p className="text-headline break-words">{result.title}</p>
+                {result.source && (
+                  <p className="text-footnote text-label-secondary">
+                    {result.source}
+                  </p>
+                )}
                 <p className="text-footnote text-label-secondary">
                   {new URL(result.url).hostname}
                 </p>

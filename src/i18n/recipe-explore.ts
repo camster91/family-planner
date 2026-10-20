@@ -3,6 +3,9 @@ import { useTranslation } from "@/i18n";
 
 /** Explore-page controls and safe recovery copy. Recipe/source content stays verbatim. */
 export const recipeExploreEnglish = {
+  allSources: "All supported sites",
+  partialSearch:
+    "Some sites were unavailable. These results are incomplete; try their original search links below.",
   importReview: "Review imported details",
   importLimitsUnknown:
     "This preview did not report extraction limits. Compare it with the original before saving.",
@@ -92,6 +95,9 @@ export const recipeExploreEnglish = {
 export type RecipeExploreMessage = keyof typeof recipeExploreEnglish;
 
 export const recipeExploreSpanish: Record<RecipeExploreMessage, string> = {
+  allSources: "Todos los sitios compatibles",
+  partialSearch:
+    "Algunos sitios no estaban disponibles. Los resultados están incompletos; prueba los enlaces de búsqueda originales.",
   importReview: "Revisar datos importados",
   importLimitsUnknown:
     "Esta vista previa no informó los límites de extracción. Compárala con el original antes de guardar.",

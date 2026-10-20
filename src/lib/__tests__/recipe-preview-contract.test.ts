@@ -51,3 +51,31 @@ it.each([
     false,
   );
 });
+
+it("validates source attribution/coverage without accepting executable result URLs", async () => {
+  const { recipeDiscoveryResponse } =
+    await import("../recipe-preview-contract");
+  expect(
+    recipeDiscoveryResponse.safeParse({
+      results: [{ title: "Soup", url: "javascript:alert(1)" }],
+    }).success,
+  ).toBe(false);
+  expect(
+    recipeDiscoveryResponse.parse({
+      results: [
+        {
+          title: "Soup",
+          url: "https://example.test/recipe",
+          source: "Serious Eats",
+        },
+      ],
+      sources: [
+        {
+          name: "Allrecipes",
+          state: "unavailable",
+          searchUrl: "https://www.allrecipes.com/search?q=rice",
+        },
+      ],
+    }).sources?.[0].state,
+  ).toBe("unavailable");
+});

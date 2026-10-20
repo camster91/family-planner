@@ -132,3 +132,20 @@ it("bounds nested direction traversal and keeps untrusted commands as plain sour
   expect(recipe.reviewIssues).toContain("directions-shortened");
   expect(recipe.servings).toBe(4);
 });
+
+it("preserves meaningful recipe query values while deduplicating tracking variants", () => {
+  const links =
+    '<a href="/recipes/soup?recipe=red&amp;utm_source=one">Red soup</a><a href="/recipes/soup?utm_source=two&amp;recipe=red">Red again</a><a href="/recipes/soup?recipe=green">Green soup</a>';
+  expect(
+    extractRecipeLinks(links, "https://www.bbcgoodfood.com/search?q=soup"),
+  ).toEqual([
+    {
+      title: "Red soup",
+      url: "https://www.bbcgoodfood.com/recipes/soup?recipe=red",
+    },
+    {
+      title: "Green soup",
+      url: "https://www.bbcgoodfood.com/recipes/soup?recipe=green",
+    },
+  ]);
+});

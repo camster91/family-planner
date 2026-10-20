@@ -1,29 +1,130 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { authenticateWithFamily } from '@/lib/api-auth'
-import { featureGate } from '@/lib/feature-gate-server'
-import { checkRateLimit } from '@/lib/rate-limit-db'
-import { fetchFeed } from '@/lib/calendar-import/fetch'
-import { extractRecipeLinks, recipeSources } from '@/lib/recipe-discovery'
-export const runtime = 'nodejs'
-export async function POST(request: NextRequest) {
-  const [auth, error] = await authenticateWithFamily(request)
-  if (error) return error
-  const gate = await featureGate(auth.user.family_id, 'meals')
-  if (gate) return gate
-  const limit = await checkRateLimit(`recipe-search:${auth.user.id}`, 15, 60000)
-  if (!limit.allowed) return NextResponse.json({ error: 'Please wait a minute before searching again.' }, { status: 429 })
-  let body: unknown
-  try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid search.' }, { status: 400 }) }
-  const input = body as { query?: unknown; source?: unknown } | null
-  const source = recipeSources.find(source => source.name === input?.source)
-  const query = typeof input?.query === 'string' ? input.query.trim() : ''
-  if (!source || query.length < 2 || query.length > 120) return NextResponse.json({ error: 'Choose a source and enter 2–120 characters.' }, { status: 400 })
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { authenticateWithFamily } from "@/lib/api-auth";
+import { featureGate } from "@/lib/feature-gate-server";
+import { checkRateLimit } from "@/lib/rate-limit-db";
+import { fetchFeed } from "@/lib/calendar-import/fetch";
+import { extractRecipeLinks, recipeSources } from "@/lib/recipe-discovery";
+import {
+  boundedRequestText,
+  RequestBodyTooLarge,
+} from "@/lib/bounded-request-text";
+export const runtime = "nodejs";
+const headers = { "Cache-Control": "private, no-store" };
+const inputSchema = z
+  .object({
+    query: z.string().trim().min(2).max(120),
+    source: z.enum(["all", "BBC Good Food", "Allrecipes", "Serious Eats"]),
+  })
+  .strict();
+async function discover(request: NextRequest) {
+  const [auth, error] = await authenticateWithFamily(request);
+  if (error) return error;
+  const gate = await featureGate(auth.user.family_id, "meals");
+  if (gate) return gate;
+  const limit = await checkRateLimit(
+    `recipe-search:${auth.user.id}`,
+    15,
+    60000,
+  );
+  if (!limit.allowed)
+    return NextResponse.json(
+      { error: "Please wait a minute before searching again." },
+      { status: 429 },
+    );
+  let body: unknown;
   try {
-    const searchUrl = `${source.search}${encodeURIComponent(query)}`
-    const page = await fetchFeed(searchUrl, { accept: 'text/html', userAgent: 'Herewoven-RecipeDiscovery/1.0' })
-    const results = page.notModified ? [] : extractRecipeLinks(page.body, searchUrl)
-    return NextResponse.json({ results, source: source.name, searchUrl }, { headers: { 'Cache-Control': 'private, no-store' } })
+    body = JSON.parse(await boundedRequestText(request, 8192));
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Invalid search." },
+      { status: error instanceof RequestBodyTooLarge ? 413 : 400 },
+    );
+  }
+  const input = inputSchema.safeParse(body);
+  if (!input.success)
+    return NextResponse.json(
+      { error: "Choose a supported source and enter 2–120 characters." },
+      { status: 400 },
+    );
+  const selected = recipeSources.filter(
+    (source) =>
+      input.data.source === "all" || source.name === input.data.source,
+  );
+  // At most three fixed hosts. Independent bounded reads; no retry fan-out,
+  // arbitrary URL, family identifier, cookie or saved household content.
+  const reads = await Promise.all(
+    selected.map(async (source) => {
+      const searchUrl = `${source.search}${encodeURIComponent(input.data.query)}`;
+      try {
+        const page = await fetchFeed(searchUrl, {
+          accept: "text/html",
+          userAgent: "Herewoven-RecipeDiscovery/1.0",
+          maxBytes: 2 * 1024 * 1024,
+        });
+        const results = page.notModified
+          ? []
+          : extractRecipeLinks(page.body, searchUrl);
+        return {
+          name: source.name,
+          searchUrl,
+          state: results.length ? ("available" as const) : ("empty" as const),
+          results,
+        };
+      } catch {
+        return {
+          name: source.name,
+          searchUrl,
+          state: "unavailable" as const,
+          results: [],
+        };
+      }
+    }),
+  );
+  // Round-robin avoids filling all 24 places from the first publisher.
+  const results: Array<{
+    title: string;
+    url: string;
+    source?: (typeof recipeSources)[number]["name"];
+  }> = [];
+  const seen = new Set<string>();
+  for (let index = 0; index < 24 && results.length < 24; index++)
+    for (const read of reads) {
+      const result = read.results[index];
+      if (result && !seen.has(result.url) && results.length < 24) {
+        seen.add(result.url);
+        results.push({
+          ...result,
+          ...(selected.length > 1 ? { source: read.name } : {}),
+        });
+      }
+    }
+  const unavailable = reads.every((source) => source.state === "unavailable");
+  return NextResponse.json(
+    {
+      ...(unavailable
+        ? {
+            error:
+              "The selected sources are unavailable. Use the original search links.",
+          }
+        : {}),
+      results,
+      source: input.data.source,
+      searchUrl: selected.length === 1 ? reads[0].searchUrl : null,
+      sources: reads.map(({ results: _results, ...source }) => source),
+    },
+    { status: unavailable ? 422 : 200 },
+  );
+}
+export async function POST(request: NextRequest) {
+  try {
+    const response = await discover(request);
+    response.headers.set("Cache-Control", headers["Cache-Control"]);
+    return response;
   } catch {
-    return NextResponse.json({ error: 'This source is unavailable here. Use its search link below or try another source.' }, { status: 422 })
+    return NextResponse.json(
+      { error: "Recipe discovery unavailable." },
+      { status: 500, headers },
+    );
   }
 }

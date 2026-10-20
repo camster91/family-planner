@@ -123,3 +123,54 @@ it("bounds request bodies and refuses unknown fields without outbound work; all 
   }
   expect(mockFetch).not.toHaveBeenCalled();
 });
+
+it("combines only the three fixed publishers and retains successful links when one fails", async () => {
+  mockFetch.mockImplementation(async (url: string) => {
+    if (url.startsWith("https://www.allrecipes.com/"))
+      throw new Error("Fixture publisher outage");
+    return {
+      notModified: false,
+      body: '<a href="/recipes/fixture-soup">Fixture soup</a>',
+    };
+  });
+  const response = await discover(
+    req({
+      as: "parentA",
+      method: "POST",
+      body: { query: "rice & beans", source: "all" },
+    }),
+  );
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(
+    body.results.map((result: { source: string }) => result.source),
+  ).toEqual(["BBC Good Food", "Serious Eats"]);
+  expect(body.sources).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ name: "Allrecipes", state: "unavailable" }),
+    ]),
+  );
+  expect(mockFetch).toHaveBeenCalledTimes(3);
+  expect(
+    mockFetch.mock.calls.map(([url]) => new URL(url).hostname).sort(),
+  ).toEqual([
+    "www.allrecipes.com",
+    "www.bbcgoodfood.com",
+    "www.seriouseats.com",
+  ]);
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
+  expect(db.writes).toHaveLength(0);
+});
+it("refuses unsupported all-source payloads and oversize queries before publisher reads", async () => {
+  for (const body of [
+    { query: "rice", source: "all", household: "untrusted" },
+    { query: "x".repeat(9000), source: "all" },
+  ]) {
+    const response = await discover(
+      req({ as: "parentA", method: "POST", body }),
+    );
+    expect([400, 413]).toContain(response.status);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+  }
+  expect(mockFetch).not.toHaveBeenCalled();
+});

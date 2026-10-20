@@ -1,5 +1,34 @@
 # Recipe discovery (#460)
 
+## Current implementation candidate — 2026-10-19
+
+The local candidate supports fixed-publisher single/all-source discovery, bounded
+public JSON-LD preview with explicit truncation/missing-data review, canonical
+source identity and duplicate/copy choices, exact-create recovery, full saved
+search, shared favorites/collections, direct meal/prep reuse, portion preview,
+reviewed grocery destination/selection and cooked recipe evidence. These are
+source states; runtime/role/device/rollback acceptance and release are unproven.
+
+| Requirement | Current authoritative source | State / limit |
+| --- | --- | --- |
+| Online search | `/api/recipes/discover`, Explore | One or all three fixed publishers; 24 title/link results, source attribution and partial outage. Not a comprehensive licensed index. |
+| Public link parse/review | `recipe-discovery.ts`, `recipe-preview-contract.ts`, `/api/recipes/preview` | Bounded JSON-LD; explicit incomplete/unknown review; full bounded draft text retained. Optional model/image/PDF parsing is not activated. |
+| Canonical save/retry | `recipe-write.ts`, RecipeEditor | Household lock, source identity, atomic pointer receipt, explicit copy; no silent background overwrite. |
+| Find/organize | `recipe-search.ts`, RecipeCuration/RecipeCollections | Server-backed saved constraints, favorites and collections; no second provider-owned library. |
+| Meal/prep reuse | RecipeReuseLauncher, `/api/meals/create`, MealPrepEditor | Same saved Recipe ID; deliberate day/slot/portion review and keyed save/restore. |
+| Portion/cooking reader | RecipeCookingView/RecipeDetail | Numeric reviewed amounts only, 1–100 preview; no unit conversion or altered directions/times. |
+| Groceries | AddToGroceriesButton, `grocery-from-recipe.ts` | Explicit selection/destination/scaling, source dedupe and owned Undo; presence is not enough-stock confidence. |
+| Cooked history | `meal-recipe-history.ts`, PreparedRecipe | Snapshot at first prep completion; legacy history remains explicitly unrecorded. |
+| Eligibility/provider dependencies | #567, #125 | No paid model/product-data service, image/PDF capability or live family processing activated. |
+| Integrated evidence | Consolidated QA after implementation | All new source tests, schema/client preparation, runtime/device/privacy/compatibility evidence still required. |
+
+The detailed dated sections below preserve earlier staged decisions. Statements
+about missing features in earlier stages are historical, superseded by the
+current matrix and later source entries. Optional provider feasibility remains
+an external decision, not a claim that the broad goal is blocked or complete.
+
+## Earlier stages and retained implementation history
+
 ## Reference and flow
 Paprika documents browser search, clipping into a recipe box, categories and meal planning (https://www.paprikaapp.com/help/windows/). Samsung Food documents discovery, saving from websites and a reusable recipe box (https://support.samsungfood.com/hc/en-us/articles/18365507924372-Getting-Started-with-Samsung-Food-Save-Search-and-Share-Recipes).
 
@@ -329,3 +358,36 @@ publisher call, provider/model activation, media retention, QA/type/lint/build/
 browser pass, schema operation, push, merge or deployment. Full acceptance still
 requires consolidated source/runtime/role/device/security and rollback evidence.
 Remaining discovery breadth and the rest of the completion ledger remain open.
+
+
+## Bounded all-supported-source discovery — 2026-10-19
+
+The source selector adds All supported sites, retaining its original single-site
+default. `POST /api/recipes/discover` accepts only the three fixed publisher IDs
+or `all`, with a 2–120 character query and strict 8 KiB streamed body. One all
+request runs at most three independent 10-second/2 MiB public-DNS-pinned reads;
+there is no arbitrary URL, retry fan-out, saved stock/household content, cookie,
+credential or model call. The existing 15/minute/user request limit remains.
+
+Up to 24 unique title/link results are interleaved round-robin, so one publisher
+cannot occupy all places. All-source cards name their publisher. Each selected
+site reports available-links, empty extraction or unavailable state; empty is
+not a promise of comprehensive coverage. Partial outages preserve other source
+links with explicit EN/ES incomplete-results copy; total outage retains all
+original publisher search links and the manual/link-import paths. Nothing is
+saved by search. This adds no new publisher, licensed catalog or paid provider.
+
+The client validates results/coverage metadata, bounds search waiting to 15
+seconds and invalidates older/unmounted queries. Every route response is
+private/no-store, including auth/feature/rate/body/upstream failures. Focused
+unexecuted fixtures cover three-host-only fan-out, source attribution, outage,
+no writes, invalid extra fields/oversize input, safe result URLs and coverage.
+No actual publisher request, QA/type/lint/build/browser run, provider activation,
+schema operation, push, merge or deployment. Full #460 acceptance still requires
+the later integrated workflow/role/device/security/rollback evidence.
+
+Discovery URLs keep meaningful recipe query values while removing only known
+tracking parameters and fragments, matching the saved source-identity policy.
+Links longer than 1,500 characters are skipped before forming a response.
+Unexecuted source covers two recipe-specific variants and tracking deduplication;
+this avoids turning distinct publisher links into the same query-free URL.

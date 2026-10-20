@@ -220,9 +220,18 @@ export function extractRecipeLinks(
         continue;
       const title = text(anchor[2], 200).replace(/\s+/g, " ").trim();
       if (!title || title.length < 3) continue;
-      link.search = "";
+      // Keep recipe-specific query values; remove only known tracking keys.
+      for (const key of [...link.searchParams.keys()]) {
+        if (
+          /^utm_/i.test(key) ||
+          ["fbclid", "gclid"].includes(key.toLowerCase())
+        )
+          link.searchParams.delete(key);
+      }
+      link.searchParams.sort();
       link.hash = "";
       const url = link.toString();
+      if (url.length > 1500) continue;
       if (!results.has(url)) results.set(url, { title, url });
       if (results.size >= 24) break;
     } catch {

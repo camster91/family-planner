@@ -1,5 +1,20 @@
 # Current State
 
+## Bounded multi-source recipe discovery source — 2026-10-19
+
+Explore can search all three existing supported publishers in one deliberate
+request, retaining single-source selection and original search fallbacks.
+At most three independent bounded public reads run; round-robin title/link
+results are capped at 24 and attributed by source. One site's outage preserves
+other results with EN/ES incomplete-coverage copy. No comprehensive index,
+licensed recipe catalog or new provider activation is implied.
+
+Discovery input is strict/stream-bounded, every response is private/no-store,
+and client result JSON/waiting/stale requests are bounded. Mocked source tests
+for fixed-host fan-out, attribution and partial outage are written, not run.
+No QA/build/browser pass, provider call, push, merge or deployment occurred.
+Full recipe acceptance and the wider issue-completion goal remain unfinished.
+
 ## Explicit recipe import review source — 2026-10-19
 
 Bounded public JSON-LD extraction now reports shortened title/description,

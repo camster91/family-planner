@@ -60,3 +60,45 @@ export function recipeImportIssues(recipe: OnlineRecipe): RecipeImportIssue[] {
   if (!recipe.instructions) issues.add("directions-missing");
   return [...issues];
 }
+
+const sourceName = z.enum(["BBC Good Food", "Allrecipes", "Serious Eats"]);
+const publicLink = z
+  .string()
+  .max(1500)
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" && !url.username && !url.password;
+    } catch {
+      return false;
+    }
+  });
+export const recipeDiscoveryResponse = z
+  .object({
+    results: z
+      .array(
+        z
+          .object({
+            title: z.string().min(1).max(200),
+            url: publicLink,
+            source: sourceName.optional(),
+          })
+          .strict(),
+      )
+      .max(24),
+    source: z.string().max(100).optional(),
+    searchUrl: publicLink.nullable().optional(),
+    sources: z
+      .array(
+        z
+          .object({
+            name: sourceName,
+            state: z.enum(["available", "empty", "unavailable"]),
+            searchUrl: publicLink,
+          })
+          .strict(),
+      )
+      .max(3)
+      .optional(),
+  })
+  .strict();
