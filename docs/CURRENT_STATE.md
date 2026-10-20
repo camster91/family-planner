@@ -1,5 +1,17 @@
 # Current State
 
+## Open-issue directory refresh — 2026-10-20
+
+Read-only GitHub list currently returns 82 open issues. Every current issue is
+represented in `engineering/ISSUE_COMPLETION_LEDGER.md`, with no ledger-only
+open-issue rows; directory parity does not establish implementation/acceptance.
+This continuation added finance planning, measurement interpretation, omitted
+DB-suite wiring and calendar source/acceptance mapping. Remaining leaf rows with
+"acceptance reconciliation pending" still require original-criteria/source
+review. Next bounded implementation pass: weekly/same-day/recurring chore and
+routine leaf criteria (#449/#452/#451/#450), preserving their existing source.
+All QA remains deferred; no push, merge or deployment.
+
 ## Calendar interoperability source map — 2026-10-20
 
 #124 now maps all required contracts/acceptance cases to existing ICS and gated
