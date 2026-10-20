@@ -1,3 +1,4 @@
+import { normalizeFeatures, isFeatureEnabled } from "@/lib/features";
 /** Canonical routine top-up. Caller holds the household lock; no second store. */
 import crypto from "node:crypto";
 import type { Prisma } from "@prisma/client";
@@ -60,6 +61,15 @@ export async function expandRoutineScheduleInTx(
 ): Promise<number> {
   if (!isRoutineScheduleExpansionEnabled() || root.recurrence_id !== root.id)
     return 0;
+  const family = await tx.family.findUnique({
+    where: { id: root.family_id },
+    select: { features: true },
+  });
+  if (
+    !family ||
+    !isFeatureEnabled(normalizeFeatures(family.features), "chores")
+  )
+    return 0;
   const parsed = routineStepSeriesConfig.safeParse(raw);
   // Unknown versions hold, rather than falling back to historical root fields.
   if (!parsed.success || parsed.data.state !== "active") return 0;
@@ -110,8 +120,20 @@ export async function expandRoutineScheduleInTx(
       assignee.assigned_member_id !== subject.member_id)
   )
     return 0;
+  async function settleOnceHandover() {
+    if (definition.schedule.frequency !== "once" || !definition.once_pending)
+      return;
+    // Operational checkpoint only: preserve the authored revision/content and
+    // never turn an ordinary once occurrence into a recurring intention.
+    await tx.$executeRaw`UPDATE "Chore" SET "routine_series_config" = jsonb_set("routine_series_config", '{once_pending}', 'false'::jsonb)
+      WHERE "id" = ${root.id} AND "family_id" = ${root.family_id} AND "recurrence_id" = ${root.id}
+        AND "routine_series_config"->>'once_pending' = 'true'`;
+  }
   const days = routineExpansionDays(definition, today);
-  if (!days.length) return 0;
+  if (!days.length) {
+    await settleOnceHandover();
+    return 0;
+  }
   const existing = await tx.chore.findMany({
     where: {
       family_id: root.family_id,
@@ -147,7 +169,10 @@ export async function expandRoutineScheduleInTx(
       routine: label,
       routine_order: order,
     }));
-  if (!copies.length) return 0;
+  if (!copies.length) {
+    await settleOnceHandover();
+    return 0;
+  }
   const inserted = await tx.chore.createMany({
     data: copies,
     skipDuplicates: true,
@@ -157,5 +182,6 @@ export async function expandRoutineScheduleInTx(
   const ids = copies.map((copy) => copy.id);
   await tx.$executeRaw`UPDATE "Chore" SET "routine_anchor" = ${definition.anchor}, "routine_duration_minutes" = ${content.duration_minutes}
     WHERE "family_id" = ${root.family_id} AND "recurrence_id" = ${root.id} AND "id" = ANY(${ids}::text[])`;
+  await settleOnceHandover();
   return inserted.count;
 }

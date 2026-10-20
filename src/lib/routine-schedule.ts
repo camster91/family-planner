@@ -94,6 +94,8 @@ export const routineStepSeriesConfig = z
     protocol: z.literal("herewoven.routine-step-series.v1"),
     /** Optimistic future-definition revision; old staged rows start at one. */
     revision: z.number().int().min(1).max(2147483647).default(1),
+    /** Handover-only checkpoint; normal deleted once occurrences never opt in. */
+    once_pending: z.boolean().default(false),
     /** A pristine root whose paused day passed remains a control anchor only. */
     anchor_retired: z.boolean().default(false),
     stack_id: id.nullable(),

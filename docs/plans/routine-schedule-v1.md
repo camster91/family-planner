@@ -625,3 +625,20 @@ Pure/protected deletion source assertions were authored, unrun. Current QA/build
 schema/native/release gates stay deferred/off. Profile archive/role/link rollback
 and navigation/async reconciliation remain before full-ledger code completion and
 consolidated QA. This is source integration, not verified deletion acceptance.
+
+
+### Deferred one-time handover materialization — 2026-10-20
+
+Private once_pending is set by control handover, not by normal once commands or
+ordinary occurrence deletion. A bounded foreground pass handles these explicit
+checkpoints separately from repeating templates. Canonical expansion renews
+current household feature/subject/definition authority, respects all gates and
+settles created/occupied/missed slots without changing authored revisions. Missed
+days are not generated. A settled or ordinary once occurrence is not resurrected
+after deliberate deletion. Unavailable/paused intent remains held.
+
+Focused/protected source cases are authored and unrun. Next source gap confirmed:
+archived profile subjects can make an ordinary chore collection unreadable; add
+explicit retained-history/unavailable action projection without granting archive
+subjects new authority. Profile-role/version, rollback and navigation reconciliation
+also remain before full-code completion and consolidated QA.

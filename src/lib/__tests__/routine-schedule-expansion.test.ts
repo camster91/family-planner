@@ -55,6 +55,9 @@ const root = {
 };
 function fixture() {
   const calls = {
+    family: {
+      findUnique: jest.fn().mockResolvedValue({ features: { chores: true } }),
+    },
     chore: {
       findMany: jest.fn().mockResolvedValue([]),
       createMany: jest
@@ -233,6 +236,55 @@ describe("scheduled routine canonical expansion source", () => {
       member_subject_erased: false,
     });
     expect(historical.member_subject_erased).toBe(true);
+  });
+  it("settles a handover-only once checkpoint without duplicating occupied or missed work", async () => {
+    const { tx, calls } = fixture();
+    const once = {
+      ...definition(),
+      once_pending: true,
+      schedule: {
+        frequency: "once" as const,
+        starts_on: "2026-10-21",
+        weekly_days: [],
+        monthly_day: null,
+      },
+    };
+    calls.chore.findMany.mockResolvedValue([
+      { due_date: new Date("2026-10-21T00:00:00Z") },
+    ]);
+    expect(await expandRoutineScheduleInTx(tx, root, once, "2026-10-20")).toBe(
+      0,
+    );
+    expect(calls.chore.createMany).not.toHaveBeenCalled();
+    expect(
+      (calls.$executeRaw.mock.calls[0][0] as TemplateStringsArray).join("?"),
+    ).toContain("'{once_pending}', 'false'::jsonb");
+    calls.$executeRaw.mockClear();
+    calls.chore.findMany.mockClear();
+    expect(await expandRoutineScheduleInTx(tx, root, once, "2026-10-22")).toBe(
+      0,
+    );
+    expect(calls.chore.findMany).not.toHaveBeenCalled();
+    expect(calls.$executeRaw).toHaveBeenCalledTimes(1);
+    calls.$executeRaw.mockClear();
+    expect(
+      await expandRoutineScheduleInTx(
+        tx,
+        root,
+        { ...once, once_pending: false },
+        "2026-10-22",
+      ),
+    ).toBe(0);
+    expect(calls.$executeRaw).not.toHaveBeenCalled();
+  });
+  it("holds fresh routine expansion when the household turns chores off", async () => {
+    const { tx, calls } = fixture();
+    calls.family.findUnique.mockResolvedValue({ features: { chores: false } });
+    expect(
+      await expandRoutineScheduleInTx(tx, root, definition(), "2026-10-20"),
+    ).toBe(0);
+    expect(calls.chore.createMany).not.toHaveBeenCalled();
+    expect(account).not.toHaveBeenCalled();
   });
   it("holds unknown, paused, stopped, erased, non-root and rollout-paused definitions", async () => {
     const { tx, calls } = fixture();

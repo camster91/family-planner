@@ -65,6 +65,9 @@ export async function handOverRoutineControlRootsInTx(
           ...parsed.data,
           revision: Math.min(2147483647, parsed.data.revision + 1),
           anchor_retired: true,
+          once_pending:
+            parsed.data.schedule.frequency === "once" &&
+            parsed.data.state !== "stopped",
         })
       : null;
     const oldest = await tx.chore.findFirst({

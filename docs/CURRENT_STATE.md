@@ -1,5 +1,35 @@
 # Current State
 
+## Write-paused once-only handover recovery source — 2026-10-20
+
+Anonymous handover controls now record a private once_pending checkpoint only for
+one-time future work retained during account deletion. Existing/ordinary deleted
+once rows never opt into this recovery. A separate bounded foreground pass (100
+explicit roots, independent of the repeating-template budget) discovers active
+handover checkpoints under the household lock and delegates to canonical
+expansion. It checks rollout and current family chores availability, exact current
+subject presence and then renews full root/stack/subject authority in the effect.
+No scheduler or offline/background client replay was introduced.
+
+Canonical expansion now also holds when the household chores feature is off.
+It settles a once checkpoint after its task is created, already occupied (including
+completed/evidence rows), or missed; missed days never become catch-up. Settlement
+changes only the operational checkpoint, preserving authored content/revision.
+Rollout pause and unavailable subjects retain the pending intent for later review.
+After settlement, later deliberate occurrence deletion is not recreated by this
+pass. Unknown, paused/stopped, ordinary once, tombstoned or ineligible definitions
+cannot enter fresh handover recovery.
+
+Authored focused and protected DB source cases cover gate/family holds, bounded
+exact selection, unsupported/ordinary exclusion, occupied/missed settlement,
+write-paused account deletion, later recovery and non-resurrection after deliberate
+deletion. All remain unrun. No tests/typecheck/lint/build/browser/native/schema/
+client operations, CI or release actions ran; gates unchanged.
+Next: archived-profile ordinary read/action state (current unreadable subjects can
+refuse a whole chore collection), profile-role/version reconciliation, rollback
+and remaining navigation/async work; then the rest of the issue-code ledger and
+consolidated QA. This is source progress, not issue completion or acceptance.
+
 ## Account-deletion routine control handover source — 2026-10-20
 
 Account deletion now retains scheduled future definitions on replacement anonymous

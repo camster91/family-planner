@@ -125,6 +125,10 @@ One transaction, after the rules are checked again inside it under a per-househo
    require a new explicit valid assignment; an unsupported definition stays unsupported. Old root IDs and
    original receipts cannot recreate the erased personal row. This integration is authored source and its
    consolidated database/device/rollback acceptance remains deferred.
+   A once-only handover interrupted by disabled writes retains a private pending checkpoint. Foreground
+   recovery can settle only that checkpoint after current gates/subject authority allow it; an occupied
+   or missed day settles without duplication/catch-up. Once settled, deliberate task deletion stays
+   deleted. This does not enroll ordinary once chores in repeat generation.
 3. **Household content they created is handed over** to the successor (not deleted): chores they created, events,
    lists and list items they added, rewards, budget categories and transactions, projects, meals, notes, saved
    places, pickups, allowance they gave, sitter handoffs, sick days/medications they recorded for others, ICS

@@ -1,5 +1,5 @@
 import { deleteMemberAccount } from "../account-deletion";
-import { expandSeriesInTx } from "../recurringChores";
+import { expandSeriesInTx, topUpHouseholdSeries } from "../recurringChores";
 import { rewriteRoutineSubjectsInTx } from "../routine-subject-lifecycle";
 import {
   saveIndependentRoutineStep,
@@ -96,9 +96,8 @@ suite("canonical scheduled routine commands", () => {
       },
     });
   }
-  async function create() {
-    const body = command(),
-      record = await reserve(body),
+  async function create(body: RoutineScheduleCommand = command()) {
+    const record = await reserve(body),
       result = await persistRoutineSchedule(
         prisma!,
         actor,
@@ -936,6 +935,135 @@ suite("canonical scheduled routine commands", () => {
         },
       }),
     ).not.toBeNull();
+  });
+  it("recovers only a handover-pending once slot after write pause and does not resurrect a later deliberate deletion", async () => {
+    const leaving = `fx_schedule_once_leaving_${crypto.randomUUID()}`;
+    await prisma!.user.create({
+      data: {
+        id: leaving,
+        family_id: familyId,
+        email: `${leaving}@example.invalid`,
+        name: "Once departing fixture",
+        role: "child",
+      },
+    });
+    const initial = command() as Extract<
+      RoutineScheduleCommand,
+      { action: "create" }
+    >;
+    const input = routineScheduleCommand.parse({
+      ...initial,
+      schedule: {
+        frequency: "once",
+        starts_on: "2026-10-21",
+        weekly_days: [],
+        monthly_day: null,
+      },
+      steps: [
+        {
+          ...initial.steps[0],
+          subject: { kind: "account", user_id: leaving, member_id: null },
+        },
+        initial.steps[1],
+      ],
+    });
+    const created = await create(input);
+    const oldRoot = created.proof.roots[0];
+    const replacement = routineScheduleCommand.parse({
+      ...input,
+      action: "replace-future",
+      stack_id: created.proof.stackId,
+      expected_version: 1,
+      steps: initial.steps.map((step, index) => ({
+        ...step,
+        template_id: created.proof.roots[index],
+      })),
+      removed_steps: [],
+    });
+    expect(
+      (
+        await saveRoutineSchedule(
+          prisma!,
+          actor,
+          replacement,
+          crypto.randomUUID(),
+          now,
+        )
+      ).status,
+    ).toBe(200);
+    process.env[ROUTINE_SCHEDULE_WRITE_ENV] = "0";
+    let controlId: string;
+    try {
+      expect(
+        (
+          await deleteMemberAccount(leaving, {
+            db: prisma!,
+            uploadDir: "/tmp/fp-routine-once-deletion-fixture",
+            removeFile: async () => {},
+            revokeCalendarGrant: async () => {},
+            now: () => now,
+          })
+        ).deleted,
+      ).toBe(true);
+      const rows = await prisma!.$queryRaw<
+        { schedule_config: { steps: { template_id: string }[] } }[]
+      >`SELECT "schedule_config" FROM "RoutineStack" WHERE "id" = ${created.proof.stackId} AND "family_id" = ${familyId}`;
+      controlId = rows[0].schedule_config.steps[0].template_id;
+      expect(controlId).not.toBe(oldRoot);
+      const pending = await prisma!.$queryRaw<
+        { routine_series_config: { once_pending: boolean } }[]
+      >`SELECT "routine_series_config" FROM "Chore" WHERE "id" = ${controlId} AND "family_id" = ${familyId}`;
+      expect(pending[0].routine_series_config.once_pending).toBe(true);
+      await topUpHouseholdSeries(familyId, now);
+      expect(
+        await prisma!.chore.count({
+          where: {
+            family_id: familyId,
+            recurrence_id: controlId,
+            id: { not: controlId },
+          },
+        }),
+      ).toBe(0);
+    } finally {
+      process.env[ROUTINE_SCHEDULE_WRITE_ENV] = "1";
+    }
+    await topUpHouseholdSeries(familyId, now);
+    const copy = await prisma!.chore.findFirstOrThrow({
+      where: {
+        family_id: familyId,
+        recurrence_id: controlId!,
+        id: { not: controlId! },
+      },
+    });
+    expect(copy).toMatchObject({
+      assigned_to: parent,
+      due_date: new Date("2026-10-21T00:00:00Z"),
+    });
+    const settled = await prisma!.$queryRaw<
+      { routine_series_config: { once_pending: boolean } }[]
+    >`SELECT "routine_series_config" FROM "Chore" WHERE "id" = ${controlId!} AND "family_id" = ${familyId}`;
+    expect(settled[0].routine_series_config.once_pending).toBe(false);
+    await topUpHouseholdSeries(familyId, now);
+    expect(
+      await prisma!.chore.count({
+        where: {
+          family_id: familyId,
+          recurrence_id: controlId!,
+          id: { not: controlId! },
+        },
+      }),
+    ).toBe(1);
+    await prisma!.chore.delete({ where: { id: copy.id } });
+    await topUpHouseholdSeries(familyId, now);
+    expect(
+      await prisma!.chore.count({
+        where: {
+          family_id: familyId,
+          recurrence_id: controlId!,
+          id: { not: controlId! },
+        },
+      }),
+    ).toBe(0);
   });
   it("pause preserves root snapshots and all evidence/today rows, pruning only untouched future copies without reordering steps", async () => {
     const { proof } = await create(),

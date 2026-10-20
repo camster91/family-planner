@@ -1,3 +1,4 @@
+import { topUpScheduledOnceSteps } from '@/lib/routine-once-top-up'
 import { nextDueDate, startOfDay } from '@/lib/chore-recurrence-dates'
 export { nextDueDate, startOfDay } from '@/lib/chore-recurrence-dates'
 import { normalizedWeekdays, nextSelectedWeekday } from '@/lib/chore-weekdays'
@@ -293,6 +294,9 @@ export const MAX_SERIES_PER_TOP_UP = 100
  * renders what is already there.
  */
 export async function topUpHouseholdSeries(familyId: string, now: Date = new Date()): Promise<number> {
+  // Explicit once-only routine recovery has its own bounded pass. It neither
+  // changes legacy once semantics nor consumes the repeating-template budget.
+  const onceInserted = await topUpScheduledOnceSteps(prisma!, familyId, now, expandSeriesInTx)
   try {
     const templates = await prisma!.chore.findMany({
       where: { family_id: familyId, is_template: true, frequency: { not: 'once' } },
@@ -304,10 +308,10 @@ export async function topUpHouseholdSeries(familyId: string, now: Date = new Dat
     for (const template of templates) {
       inserted += await expandRecurringChores(template, familyId, now)
     }
-    return inserted
+    return onceInserted + inserted
   } catch (error) {
     log.warn('chores.series_top_up_failed', describeError(error))
-    return 0
+    return onceInserted
   }
 }
 
