@@ -1,5 +1,27 @@
 # Current State
 
+## Explicit recipe import review source — 2026-10-19
+
+Bounded public JSON-LD extraction now reports shortened title/description,
+ingredient/step omissions and missing servings/times/ingredients/directions.
+Nested direction traversal has node/depth/step/text bounds. EN/ES reader/editor
+notices retain the original-source fallback; older previews with no limit report
+are labeled accordingly. Runtime response validation refuses malformed or future
+metadata instead of rendering unchecked HTTP JSON.
+
+The editable draft now retains all bounded extracted ingredient lines plus
+directions, without the former silent 20,000-character combined cut. Over-limit
+content is retained and refused locally before any save until explicitly edited.
+Imported unknown servings start blank and require review; manual creation retains
+its visible defaults. Preview input is strict and stream-bounded to 8 KiB, all
+responses are private/no-store, and client waiting is bounded with stale/unmount
+guards. No provider/model or media capability was added.
+
+Focused parser/contract/editor/API source tests and fixtures are authored, not
+run. No QA/type/lint/build/browser pass, schema operation, provider call, push,
+merge or deployment occurred. Broader discovery and issue reconciliation remain
+open before the consolidated QA pass.
+
 ## Recipe cooking portion preview source — 2026-10-19
 
 Saved recipe detail now has a local EN/ES Cooking portions preview (1–100),

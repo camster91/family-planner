@@ -286,3 +286,46 @@ canonical version change without keying/remounting the grocery component by
 version. Focused unexecuted source covers retained ownership/body/key through
 lost response, later refusal and eventual confirmation. Rendered/native Back
 and full parent-sheet ownership remain required consolidated QA evidence.
+
+
+## Explicit import review source — 2026-10-19
+
+Public JSON-LD extraction now returns typed review issues for title/description
+shortening, ingredient/step omissions and unknown/missing servings, prep time,
+cook time, ingredients and directions. Numeric fractional/out-of-range yields
+stay unknown. Traversal is bounded to 64 JSON-LD blocks, 2,000 graph nodes,
+2,000 instruction nodes, eight instruction nesting levels, 100 steps/ingredient
+lines, 500 characters per ingredient and 14,000 directions characters; current
+2 MiB/public-DNS/redirect/timeout transport remains the outbound boundary. Any
+returned content clipped by these bounds carries the corresponding review issue.
+Source commands remain untrusted text, never app actions or trusted model input.
+
+Explore validates recipe HTTP JSON with the shared client-safe schema and shows
+EN/ES review notices alongside the original link. Missing data stays unknown;
+older previews missing extraction-limit reports receive a compare-original
+notice. Unknown future metadata is refused with the manual/original-source
+fallback. The preview read has a 15-second client deadline and generation guard,
+so an aborted/unmounted read cannot populate a replacement preview. Server
+request JSON is stream-bounded to 8 KiB, accepts only the bounded URL field and
+sets private/no-store on success, auth/feature/role refusal and failure.
+
+The import editor receives every bounded extracted ingredient line plus the
+extracted directions; it no longer silently slices the combined draft to 20,000
+characters. A larger draft stays editable and visibly over the save ceiling.
+Title/description/method length checks refuse locally before any create/edit
+request until the user explicitly shortens the text. The stored canonical schema
+limits do not change. Imported missing servings start empty, with the existing
+1–100 validation; two servings are no longer invented for an unknown import.
+Manual new recipes retain their visible editable default. Missing times remain
+blank. Raw ingredient prose stays in the method until manually reviewed into
+structured quantities; no numeric conversions, allergens or nutrition are guessed.
+
+Unexecuted source covers repeated/deep steps, omitted/long ingredient lines,
+fractional yields, unknown metadata/unsafe links, raw source commands as text,
+full combined-draft retention, blank imported servings and over-limit local
+refusal without requests. Existing preview API fixtures cover strict/bounded
+input, no outbound work for refusal and private response headers. No actual
+publisher call, provider/model activation, media retention, QA/type/lint/build/
+browser pass, schema operation, push, merge or deployment. Full acceptance still
+requires consolidated source/runtime/role/device/security and rollback evidence.
+Remaining discovery breadth and the rest of the completion ledger remain open.

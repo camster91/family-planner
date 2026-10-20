@@ -12,6 +12,11 @@ import {
   canonicalRecipeSource,
   legacyRecipeSource,
 } from "@/lib/recipe-curation-contract";
+import {
+  onlineRecipeSchema,
+  importedRecipeInstructions,
+  recipeImportIssues,
+} from "@/lib/recipe-preview-contract";
 import { useRecipeExploreText } from "@/i18n/recipe-explore";
 import {
   publicRecipeUrl,
@@ -62,6 +67,7 @@ export default function RecipeExplorePage() {
   const libraryBusy = React.useRef(false);
   const importBusy = React.useRef(false);
   const controller = React.useRef<AbortController | null>(null);
+  const previewGeneration = React.useRef(0);
   const libraryController = React.useRef<AbortController | null>(null);
 
   const loadLibrary = React.useCallback(
@@ -120,6 +126,7 @@ export default function RecipeExplorePage() {
       .catch(() => undefined);
     return () => {
       abort.abort();
+      previewGeneration.current++;
       controller.current?.abort();
       searchController.current?.abort();
       libraryController.current?.abort();
@@ -142,11 +149,18 @@ export default function RecipeExplorePage() {
       setError(text("invalidLink"));
       return;
     }
+    const own = ++previewGeneration.current;
+    const current = () => own === previewGeneration.current;
     importBusy.current = true;
     setLoading(true);
     setError("");
     const abort = new AbortController();
     controller.current = abort;
+    let timedOut = false;
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      abort.abort();
+    }, 15000);
     try {
       const response = await fetch("/api/recipes/preview", {
         method: "POST",
@@ -157,21 +171,24 @@ export default function RecipeExplorePage() {
       const data = (await response.json().catch(() => null)) as {
         recipe?: OnlineRecipe;
       } | null;
-      if (!response.ok || !data?.recipe) {
-        if (!abort.signal.aborted) setError(text("readFailed"));
+      const parsed = onlineRecipeSchema.safeParse(data?.recipe);
+      if (!response.ok || !parsed.success) {
+        if (current() && !abort.signal.aborted) setError(text("readFailed"));
         return;
       }
-      if (!abort.signal.aborted) {
-        setPreview(data.recipe);
+      if (current() && !abort.signal.aborted) {
+        setPreview(parsed.data);
         setEditor(false);
         setCopyImport(false);
         setEmbedded(false);
         setSavedId(null);
       }
     } catch {
-      if (!abort.signal.aborted) setError(text("readNetworkError"));
+      if (current() && (!abort.signal.aborted || timedOut))
+        setError(text("readNetworkError"));
     } finally {
-      if (!abort.signal.aborted) {
+      clearTimeout(deadline);
+      if (current() && (!abort.signal.aborted || timedOut)) {
         importBusy.current = false;
         setLoading(false);
       }
@@ -601,6 +618,32 @@ export default function RecipeExplorePage() {
             }
             closeLabel={text("closeRecipe")}
           >
+            <div className="space-y-2 mb-3">
+              {preview.reviewIssues === undefined && (
+                <p className="text-footnote">{text("importLimitsUnknown")}</p>
+              )}
+              {recipeImportIssues(preview).length > 0 && (
+                <aside
+                  className="rounded-xl bg-[var(--surface-fill)] p-3 space-y-1"
+                  aria-label={text("importReview")}
+                >
+                  <p className="text-subhead font-semibold">
+                    {text("importReview")}
+                  </p>
+                  <ul className="list-disc ps-5 text-footnote">
+                    {recipeImportIssues(preview).map((issue) => (
+                      <li key={issue}>{text(`import_${issue}`)}</li>
+                    ))}
+                  </ul>
+                </aside>
+              )}
+              {importedRecipeInstructions(preview, text("ingredients")).length >
+                20000 && (
+                <p role="alert" className="text-footnote">
+                  {text("importTooLong")}
+                </p>
+              )}
+            </div>
             {editor ? (
               <>
                 <p className="text-footnote text-label-secondary mb-3">
@@ -613,11 +656,10 @@ export default function RecipeExplorePage() {
                     servings: preview.servings,
                     title: preview.title,
                     description: `Source: ${preview.source}\n${preview.description}`,
-                    instructions:
-                      `${preview.ingredientLines.length ? `Ingredients\n${preview.ingredientLines.join("\n")}\n\n` : ""}${preview.instructions}`.slice(
-                        0,
-                        20000,
-                      ),
+                    instructions: importedRecipeInstructions(
+                      preview,
+                      text("ingredients"),
+                    ),
                     prep_time: preview.prep_time,
                     cook_time: preview.cook_time,
                   }}

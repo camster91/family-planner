@@ -450,3 +450,17 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
 - Saved recipe intent links seed existing editors only after explicit review;
   no new model, provider, offline action, shared-device API or media retention.
 - Source only; integrated QA and release compatibility remain unverified.
+
+
+### Recipe preview review contract candidate (#460, 2026-10-19)
+
+- Existing `/api/recipes/preview` remains personal parent/teen and meals-gated.
+  Request accepts only public HTTPS URL shape, stream-bounded to 8 KiB; outbound
+  transport still pins public DNS and bounds redirects/bytes/time. All responses
+  are private/no-store. No schema or write action is introduced.
+- Shared response schema adds optional typed extraction-review issues; old
+  previews remain readable with explicit unavailable-limit-report copy. The
+  client refuses malformed/future metadata and bounds waiting/unmount behavior.
+- Raw extracted ingredients/directions remain review text. Over-limit combined
+  drafts are retained for explicit shortening; missing servings are not guessed.
+- Source candidate only; consolidated QA and release proof remain deferred.

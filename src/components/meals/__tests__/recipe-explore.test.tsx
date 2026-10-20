@@ -22,6 +22,7 @@ const preview = {
   instructions: "Stir then simmer.",
   ingredientLines: ["½ cup rice", "Salt to taste"],
   source: "https://example.org/soup",
+  servings: 4,
   prep_time: 15,
   cook_time: 30,
 };

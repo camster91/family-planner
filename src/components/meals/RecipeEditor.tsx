@@ -69,7 +69,13 @@ export function RecipeEditor({
     initialRecipe?.title ?? initialDraft?.title ?? "",
   );
   const [servings, setServings] = React.useState(
-    String(initialRecipe?.servings ?? initialDraft?.servings ?? 2),
+    initialRecipe
+      ? String(initialRecipe.servings ?? "")
+      : initialDraft
+        ? initialDraft.servings == null
+          ? ""
+          : String(initialDraft.servings)
+        : "2",
   );
   const [description, setDescription] = React.useState(
     initialRecipe?.description ?? initialDraft?.description ?? "",
@@ -308,6 +314,14 @@ export function RecipeEditor({
     if (!cleanTitle) {
       setError(text("emptyTitle"));
       titleRef.current?.focus();
+      return;
+    }
+    if (
+      cleanTitle.length > 200 ||
+      description.length > 2000 ||
+      instructions.length > 20000
+    ) {
+      setError(text("contentTooLong"));
       return;
     }
     const baseServings = Number(servings);

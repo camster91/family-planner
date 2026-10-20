@@ -17,12 +17,14 @@ export const recipeEditorEnglish = {
   retryCreate: "Check the same save",
   expiredCreate:
     "This save is too old to retry safely. Close and check your recipe box before making a separate new recipe.",
+  contentTooLong:
+    "Keep the title within 200 characters, description within 2,000 and method within 20,000. Edit the imported text; nothing has been saved or removed.",
   newRecipe: "New recipe",
   recipeDetails: "Recipe details",
   recipeName: "Recipe name",
   baseServings: "Base servings",
   servingsHint:
-    "The ingredient amounts below make this many servings (1–100). Grocery requests have a separate 1–50 limit.",
+    "The ingredient amounts below make this many servings (1–100). Review portions again when adding groceries.",
   description: "Description",
   method: "Method",
   prepMinutes: "Prep (min)",
@@ -69,12 +71,14 @@ export const recipeEditorSpanish: Record<RecipeEditorMessage, string> = {
   retryCreate: "Comprobar el mismo guardado",
   expiredCreate:
     "Este guardado es demasiado antiguo para repetirlo con seguridad. Cierra y revisa las recetas guardadas antes de crear otra receta.",
+  contentTooLong:
+    "El título admite 200 caracteres; la descripción, 2.000; y los pasos, 20.000. Edita el texto importado; no se ha guardado ni eliminado nada.",
   newRecipe: "Nueva receta",
   recipeDetails: "Detalles de la receta",
   recipeName: "Nombre de la receta",
   baseServings: "Porciones base",
   servingsHint:
-    "Las cantidades de ingredientes indican estas porciones (1–100). Las solicitudes de compra tienen un límite aparte de 1–50.",
+    "Las cantidades corresponden a estas porciones (1–100). Revisa las porciones al añadir a la compra.",
   description: "Descripción",
   method: "Preparación",
   prepMinutes: "Preparación (min)",
