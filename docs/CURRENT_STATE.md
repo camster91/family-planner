@@ -1,5 +1,32 @@
 # Current State
 
+## Recipe/prep stock-lot review source — 2026-10-20
+
+Saved recipe cooking and bulk-prep dishes now link to a compact Inventory review.
+A private current-authority reader returns bounded ingredient guidance from the
+live recipe, or the immutable captured recipe for a prepared dish. Prepared
+history gaps refuse substitution. Original actor/household/source are checked;
+new clients require the inventory read-scope echo before reading private JSON.
+
+EN/ES expandable ingredients show scaled recipe guidance alongside separate
+matching stock lots, their own units, locations and labelled dates. Matching is
+presence-only: linked IDs or unlinked normalized names, no quantity sufficiency
+or conversion. Finished/zero/expired/unversioned lots are excluded. Twenty lots
+per line are shown with a cap notice. Selection opens the existing canonical
+amount-used editor; each lot keeps existing versioned consume, exact retry,
+owned recovery and Undo. The review reopens/refetches after that editor closes.
+It does not mark a recipe/prep session consumed, auto-deduct ingredients, or
+create an atomic multi-lot ledger. Prep readiness and portions eaten remain
+separate records. Read scope loss hides the sheet; stale/refresh/recovery blocks
+new selection. No new schema, public capability or offline action.
+
+Authored source tests cover matching boundaries, current vs captured recipe,
+missing history/authority, scope-before-body and explicit lot handoff. None ran.
+No QA/typecheck/lint/build/browser/native, provider/schema/account action, push,
+merge or deployment. #125/#460 source handoff is implemented; consolidated
+acceptance and external provider/hardware decisions remain open. Next: reconcile
+remaining implementation gaps against the issue completion ledger.
+
 ## Inventory restock UI and saved-request source — 2026-10-20
 
 Item editing and consume/discard history now open the rounded replacement sheet.

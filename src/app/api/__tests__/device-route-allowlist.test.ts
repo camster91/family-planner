@@ -645,6 +645,7 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "GET /api/inventory/products",
   "GET /api/inventory/recovery",
   "POST /api/inventory/recovery/review",
+  "GET /api/inventory/cooking-review",
   "GET /api/inventory/restock",
   "POST /api/inventory/restock",
   "POST /api/inventory/restock/undo",

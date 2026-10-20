@@ -691,3 +691,14 @@ provides:
 As a check that the tests guard the fixes, `meals/route.ts`, `files/[filename]/route.ts`, `locations/route.ts`
 and `handoff/route.ts` were temporarily restored to their `HEAD` versions. 8 of the new tests failed, and they
 passed again once the fixes were restored.
+
+## Cooking context source addendum — 2026-10-20
+
+New personal GET `/api/inventory/cooking-review` reuses current inventory
+authority and additionally meals feature checks. Recipe/batch/prep/live
+ingredient joins are household-scoped; prepared history is never substituted
+with a live recipe. Scope echo precedes modern private JSON parsing, with
+128 KiB/15-second client bounds and 100-line source bounds. Read-only output is
+guidance; every selected lot still uses canonical versioned stock authorization.
+Paired-route test inventory and scoped source cases are authored, not run.
+`../architecture/COOKING_STOCK_REVIEW.md`.

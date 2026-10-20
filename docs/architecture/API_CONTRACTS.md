@@ -175,6 +175,17 @@ every new field is optional. Rollback of the app code is safe; the new columns s
 
 ## Food inventory (#263, #158/#121)
 
+**Cooking stock review source (2026-10-20):** GET
+`/api/inventory/cooking-review?kind=recipe|batch&id=&servings=` is read-only,
+private/no-store, 60/user/minute. Current personal parent/teen inventory + meals
+authority and household-owned source joins apply; prepared batches require
+captured recipe history. Optional original read scope is validated/echoed;
+modern readers require it before parsing. Up to 100 ingredient lines, no stock
+allocation. Recipe/prep links open explicit lot selection into existing versioned
+amount-used/consume/recovery/Undo. Each lot is separate. Source and authored tests
+are unverified; `COOKING_STOCK_REVIEW.md` defines limits and acceptance.
+
+
 **Replacement restock source (2026-10-20, gated UI/add-journal integrated):**
 GET `/api/inventory/restock?itemId=&listId=&content=` returns current source
 name/version, eligible lists (cap 100), exact open replacement pointer and up to

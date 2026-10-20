@@ -642,3 +642,13 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
   an explicit unknown-details fallback. No new stock write or provider action.
 - Personal Today counts use the same eligibility and omit inconsistent ownership;
   shared DTOs/selects retain their existing minimal field boundary. QA deferred.
+
+## Cooking-stock handoff source — 2026-10-20
+
+Recipe and prep dish links open an Inventory sheet with scoped canonical
+recipe/captured-history ingredient context. GET `/api/inventory/cooking-review`
+is private current parent/teen authority, bounded and household-owned. Explicit
+lot selection opens the existing amount-used editor and stock/recovery/Undo
+write path. No auto allocation, conversion, separate stock model or atomic
+recipe-consumption ledger. Source tests authored/unrun; acceptance deferred.
+See `../architecture/COOKING_STOCK_REVIEW.md`.

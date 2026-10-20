@@ -7,6 +7,7 @@ import {
 } from "@/lib/inventory-scan";
 import { canRoleAccessPath } from "@/lib/kid-access";
 import { FeatureGate } from "@/components/ui/feature-gate";
+import { cookingReviewSource } from "@/lib/inventory-cooking-review-contract";
 import InventoryClient from "./InventoryClient";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,27 @@ export const dynamic = "force-dynamic";
  * "Scan fridge" (#265) is shown only to parents and only when the deployment
  * has a scan provider key; the scan route answers 404 otherwise.
  */
-export default async function InventoryPage() {
+export default async function InventoryPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+} = {}) {
+  const query = await searchParams;
+  const validQuery =
+    !(query?.cookBatch && query?.cookRecipe) &&
+    !(query?.cookBatch && query?.portions) &&
+    (!query?.portions || typeof query.portions === "string");
+  const cooking = cookingReviewSource.safeParse(
+    validQuery
+      ? query?.cookBatch
+        ? { kind: "batch", id: query.cookBatch }
+        : {
+            kind: "recipe",
+            id: query?.cookRecipe,
+            ...(query?.portions ? { servings: Number(query.portions) } : {}),
+          }
+      : null,
+  );
   const user = await getServerUser();
   if (!user) return null;
   return (
@@ -32,6 +53,11 @@ export default async function InventoryPage() {
             : undefined
         }
         canWrite={canWriteInventory(user.role)}
+        cookingSource={
+          cooking.success && canWriteInventory(user.role)
+            ? cooking.data
+            : undefined
+        }
         recoveryRequired={
           canWriteInventory(user.role) &&
           process.env.INVENTORY_RECOVERY_ROLLBACK_READY === "1"

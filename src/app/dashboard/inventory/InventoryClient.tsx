@@ -23,6 +23,8 @@
  *   only reinforces them. Targets are at least 44×44.
  */
 import * as React from 'react'
+import { InventoryCookingSheet } from '@/components/inventory/InventoryCookingSheet'
+import type { CookingReviewSource } from '@/lib/inventory-cooking-review-contract'
 import Link from 'next/link'
 import {
   AlertTriangle,
@@ -174,6 +176,7 @@ type PendingStockChange = {
 }
 
 type InventoryClientProps = {
+  cookingSource?: CookingReviewSource
   canWrite: boolean
   canOpenRecipes: boolean
   intakeContext?: { userId: string; familyId: string }
@@ -185,6 +188,7 @@ export default function InventoryClient(props: InventoryClientProps) {
   return <InventoryRecoveryProvider required={props.recoveryRequired ?? false} original={props.intakeContext}><InventoryContent {...props} /></InventoryRecoveryProvider>
 }
 function InventoryContent({
+  cookingSource,
   canWrite,
   canOpenRecipes,
   canScan = false,
@@ -223,6 +227,8 @@ function InventoryContent({
   const [notice, setNotice] = React.useState<{ text: InventoryFeedback; error?: boolean } | null>(null)
   const [scanning, setScanning] = React.useState(false)
   const [barcodeScanning, setBarcodeScanning] = React.useState(false)
+  const [cookingOpen, setCookingOpen] = React.useState(!!cookingSource)
+  React.useEffect(() => { setCookingOpen(!!cookingSource) }, [cookingSource?.kind, cookingSource?.id, cookingSource?.kind === 'recipe' ? cookingSource.servings : undefined])
   const [restockItem, setRestockItem] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState<string | null>(null)
   const [stockChange, setStockChange] = React.useState<PendingStockChange | null>(null)
@@ -638,6 +644,8 @@ function InventoryContent({
 
       {barcodeScanning && <BarcodeFoodDialog onVerifyAccess={() => void load()} suspended={readBlocked} initialContext={intakeContext} onClose={() => setBarcodeScanning(false)} onDone={(count) => { setBarcodeScanning(false); afterChange(feedback('barcodeAdded', { count })); }} />}
       {scanning && <ScanFridgeDialog onVerifyAccess={() => void load()} suspended={readBlocked} canCaptureDocuments={canCaptureDocuments} initialContext={intakeContext} onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
+
+      {cookingOpen && cookingSource && mealsOn && canWrite && intakeContext && <InventoryCookingSheet key={JSON.stringify(cookingSource)} source={cookingSource} context={intakeContext} items={ready?.items ?? []} capped={ready?.capped ?? false} suspended={readBlocked || !!editing || !!stockChange} disabled={recoveryBlocked || refreshing || refreshFailed || !ready} onClose={() => setCookingOpen(false)} onChoose={item => { if (!readBlocked && !recoveryBlocked && !refreshing && !refreshFailed) setEditing({ mode: 'edit', item }) }} />}
 
       {editing && (
         <ItemModal

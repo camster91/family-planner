@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import Link from "next/link";
 import { useBulkCookingText } from "@/i18n/bulk-cooking";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import {
@@ -334,6 +335,20 @@ export function BulkCookingPanel({
                       : tBulk("fridge")}
                   </p>
                   <div className="flex flex-wrap gap-2">
+                    {(batch.recipe_id || batch.recipe_snapshot_at) && (
+                      <Link
+                        className="btn-tinted min-h-[44px]"
+                        aria-disabled={mutationsBlocked}
+                        onClick={(event) => {
+                          if (mutationsBlocked) event.preventDefault();
+                        }}
+                        href={`/dashboard/inventory?cookBatch=${encodeURIComponent(batch.id)}`}
+                      >
+                        {locale.startsWith("es")
+                          ? "Revisar alimentos usados"
+                          : "Review food used"}
+                      </Link>
+                    )}
                     <button
                       type="button"
                       className="btn-tinted min-h-[44px]"

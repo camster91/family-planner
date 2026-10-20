@@ -166,6 +166,14 @@ function RecipePageInner() {
               {(role === "parent" || role === "teen") && (
                 <>
                   <Link
+                    href={`/dashboard/inventory?cookRecipe=${encodeURIComponent(load.recipe.id)}${servings ? `&portions=${servings}` : ""}`}
+                    onClick={guardGrocery}
+                    aria-disabled={groceryPending}
+                    className="btn-tinted min-h-[44px]"
+                  >
+                    {es ? "Revisar alimentos usados" : "Review food used"}
+                  </Link>
+                  <Link
                     href={`/dashboard/meals?recipe=${encodeURIComponent(load.recipe.id)}`}
                     onClick={guardGrocery}
                     aria-disabled={groceryPending}
