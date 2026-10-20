@@ -43,16 +43,18 @@ export function routineOccurrencePolicy(
   )
     return "unsupported";
   const definition = parsed.data;
-  const pristine =
+  const untouched =
     row.status === "pending" &&
     row.photo_url === null &&
     row.photo_verified === false &&
     row.verified_at === null &&
     row.verified_notes === null &&
     row.completed_at === null &&
-    row.successor_id === null &&
-    row.member_subject_erased === false;
-  if (definition.anchor_retired && row.id === row.root_id && pristine)
+    row.successor_id === null;
+  const pristine = untouched && row.member_subject_erased === false;
+  // Anonymous replacement controls are never presented as overdue/to-do work.
+  // Evidence-bearing historical roots retain their normal history visibility.
+  if (definition.anchor_retired && row.id === row.root_id && untouched)
     return "inactive";
   if (
     definition.state !== "active" &&

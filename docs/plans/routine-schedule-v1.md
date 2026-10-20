@@ -608,3 +608,20 @@ by a departing account can already carry a separately assigned future definition
 Its replacement control identity/stack references must survive deletion without
 retaining that account's personal rows. Implement this handover next, then finish
 profile archive, rollback and navigation reconciliation before consolidated QA.
+
+
+### Account erasure control-root handover — 2026-10-20
+
+Source now separates the deletable personal root occurrence from retained future
+household intent. The account-deletion transaction creates an anonymous retired
+replacement control, retains private future metadata, rewires exact surviving
+lineage and stack root slots, and then performs normal personal deletion. It
+never copies historical proof/credit or assigns the control to the successor.
+The control date lies before all retained slots so it cannot suppress a real
+upcoming occurrence. Prior root IDs/versions hold; late original proof cannot
+recreate the erased root. Unsupported metadata remains unsupported and preserved.
+
+Pure/protected deletion source assertions were authored, unrun. Current QA/build/
+schema/native/release gates stay deferred/off. Profile archive/role/link rollback
+and navigation/async reconciliation remain before full-ledger code completion and
+consolidated QA. This is source integration, not verified deletion acceptance.

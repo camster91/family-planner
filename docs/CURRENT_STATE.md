@@ -1,5 +1,36 @@
 # Current State
 
+## Account-deletion routine control handover source — 2026-10-20
+
+Account deletion now retains scheduled future definitions on replacement anonymous
+control roots before its normal personal-chore deletion. Surviving occurrences
+keep their IDs, subjects, status, evidence and credit; only their recurrence
+control lineage changes. Exact stack root slots keep their authored order and
+advance version/fingerprint. The old personal root and personal assignments still
+follow the existing erasure policy. This does not reassign work to the successor:
+the control has no assignee, evidence/completion or points, and carries the private
+previously reviewed future definition. Normal creator/actor erasure rules remain.
+
+The control date precedes all retained occurrence slots. Retired anonymous
+controls are hidden before ordinary paging and cannot occupy a real scheduled
+day; canonical expansion renews the actual future subject and fills upcoming
+slots inside the transaction when rollout gates permit, including one-time work. Tombstoned subjects
+remain unavailable, and unknown protocols retain their unsupported payload rather
+than being adopted. Prior old-root requests hold or report original removed proof;
+they cannot recreate an erased personal row. Independent definitions retain their
+null stack identity, while exact attached config references move to the new root.
+
+Authored pure and guarded deletion source cases cover exact identity/order and
+unknown-payload preservation, pre-migration inactivity, anonymous-control hiding,
+personal root deletion, unchanged surviving evidence/occurrences, stale/late
+requests and continued upcoming-day expansion. All are unrun. Account-deletion
+product documentation and issue ledger now record the control/history boundary.
+No tests/typecheck/lint/build/browser/native/schema/client operations, CI, release
+or activation occurred. Next: profile archive/role/link rollback (including deferred once-only expansion after a
+write-paused deletion) and remaining
+navigation/async reconciliation, then the rest of the full issue-code ledger and
+consolidated QA. End-to-end deletion and device acceptance remain unproven.
+
 ## Routine identity-link and erasure integration source — 2026-10-20
 
 Verified same-person profile/account linking now rewrites matching supported

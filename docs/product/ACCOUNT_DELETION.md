@@ -115,6 +115,16 @@ One transaction, after the rules are checked again inside it under a per-househo
    their sick days and medications, wishlist items and reward redemptions they requested, habit logs, badges,
    notifications, push subscriptions, activity entries, and messages they sent. Import provenance rows pointing at
    deleted rows go too. They are removed from every message's `read_by`.
+   A scheduled routine's future definition is shared household content, separate from its original personal
+   root occurrence. Before deleting that occurrence, the transaction retains the reviewed future definition
+   on a new anonymous hidden control row, rewires surviving occurrence lineage and exact stack root slots,
+   and invalidates prepared versions. The replacement contains no old assignee, evidence, completion or
+   earned credit. Its internal control date precedes retained occurrence slots and is never a task due date.
+   Personal rows are still deleted; surviving occurrence IDs, subjects, evidence and credit are not copied
+   or transferred. Normal creator/actor erasure and handover rules below still apply. Erased future subjects
+   require a new explicit valid assignment; an unsupported definition stays unsupported. Old root IDs and
+   original receipts cannot recreate the erased personal row. This integration is authored source and its
+   consolidated database/device/rollback acceptance remains deferred.
 3. **Household content they created is handed over** to the successor (not deleted): chores they created, events,
    lists and list items they added, rewards, budget categories and transactions, projects, meals, notes, saved
    places, pickups, allowance they gave, sitter handoffs, sick days/medications they recorded for others, ICS

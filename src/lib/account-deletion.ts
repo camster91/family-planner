@@ -1,3 +1,5 @@
+import { expandSeriesInTx } from '@/lib/recurringChores'
+import { handOverRoutineControlRootsInTx } from '@/lib/routine-root-handover'
 /**
  * Account and household deletion (D-3; contract: docs/product/ACCOUNT_DELETION.md).
  *
@@ -283,7 +285,7 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
       // Their calendar connections: encrypted grants kept for the revoke
       // after commit; links, imported events and rows deleted here.
       const grants = await takeCalendarConnections(tx, { user_id: user.id })
-      const files = await handOverAndDetach(tx, user.id, familyId, successorId, root)
+      const files = await handOverAndDetach(tx, user.id, familyId, successorId, root, (deps.now ?? (() => new Date()))())
       await recordMemberLeft(tx, user, familyId)
       await deletePersonalRows(tx, user.id)
       await tx.user.delete({ where: { id: user.id } })
@@ -455,7 +457,8 @@ async function handOverAndDetach(
   userId: string,
   familyId: string,
   successorId: string,
-  root: string
+  root: string,
+  now: Date
 ): Promise<FileTarget[]> {
   const to = successorId
   const inFamily = { family_id: familyId }
@@ -508,6 +511,11 @@ async function handOverAndDetach(
   // Take turns (O-39): they leave every rotation in the household.
   await dropMemberFromRotationsInTx(tx, familyId, userId)
 
+  // Preserve reviewed future plans on a new anonymous control identity before
+  // deleting the departing person's own historic rows. Surviving occurrence
+  // IDs, evidence, subjects and credit remain unchanged.
+  const routineControls = await handOverRoutineControlRootsInTx(tx, familyId, userId, to)
+
   // Their own chores (assigned to them) go; photos are handled below.
   const ownChores = await tx.chore.findMany({ where: { ...inFamily, assigned_to: userId }, select: { id: true } })
   const ownChoreIds = ownChores.map((c: { id: string }) => c.id)
@@ -533,6 +541,10 @@ async function handOverAndDetach(
   // a chore they both created and were assigned is deleted, not handed over.
   await tx.choreAssignment.deleteMany({ where: { id: { in: ownAssignments.map((a: { id: string }) => a.id) } } })
   await tx.chore.deleteMany({ where: { id: { in: ownChoreIds } } })
+  // Top up only after personal occurrences are removed, so a deleted row
+  // cannot occupy the future plan's slot (including a one-time step).
+  // Canonical subject renewal and rollout gates still apply.
+  for (const rootId of routineControls.values()) await expandSeriesInTx(tx, rootId, familyId, now)
   await tx.allowance.deleteMany({ where: { to_user_id: userId } })
   await tx.medication.deleteMany({ where: { person_id: userId } })
   await tx.sickDay.deleteMany({ where: { person_id: userId } })
