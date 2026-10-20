@@ -14,6 +14,30 @@ The native helper `readNativeBuildIdentity` reads the existing App plugin's actu
 
 ## Activation and recovery rules
 
+### Personal food capture compatibility (#125, source 2026-10-20)
+
+Food capture does not add a queue action or change the public capability
+manifest. Its request-specific protocols are enforced at their routes; a
+manifest response alone cannot establish a generated schema, household feature,
+provider gate, camera permission or supported installed binary.
+
+| Surface | Current source behavior | Forward/rollback and native evidence still needed |
+| --- | --- | --- |
+| Personal list/use-soon/cook/history | Optional original-person/household header; canonical success echo; new reader checks before parsing private data | Backend-first deployment; old unbound clients still read. Older server without echo leaves new bound UI in explicit unsupported recovery. Check real proxy/WebView header preservation |
+| Reviewed intake | `herewoven.inventory-intake.v1`, original actor/family, issued-at and immutable key/body | Unsupported/malformed reply never confirms a save; missing/deleted target cannot be recreated by receipt replay. Check current/previous web-server candidates and additive schema prerequisites |
+| Stock changes | `herewoven.inventory-change.v1`; versioned edit/remove/consume/discard and owned Undo | Original key/body survives unknown replies while mounted; rollback must retain these routes and receipt semantics or stop writes without translating intent to legacy routes |
+| Photo/document review | Explicit versioned original-context response and gated document modes | No provider activation. Camera/file permission denial, image formats, upload/review interruption and actual target devices remain unverified |
+| Barcode review | Local camera detection with typed fallback; explicit private/public metadata apply | Web source does not establish scanner availability or installed camera permission. Verify denied permission, unsupported detector, background/resume and hardware |
+| Offline/process death | No durable inventory mutation queue or inventory cache; bounded online refresh and mounted-memory recovery only | Network interruption while mounted differs from restart/upgrade/process death. Reopening cannot promise to recover a lost draft or request key; do not auto-resubmit reconstructed stock |
+
+Original-owner access loss suspends personal sheets and conceals cached reads.
+It does not transfer pending work to a new account/household. Account/role remount
+and explicit page reload clear memory; durable owner retirement in #564 is not
+implicitly extended to inventory. Inventory must remain absent from
+`QUEUEABLE_ACTIONS` until a separate approved payload/storage/retirement contract
+and later recovery QA establish support. No physical-device, native build,
+schema migration, provider, release or rollback execution is claimed here.
+
 ### Bounded storage candidate recovery (#565)
 
 The follow-on #564 owner/retirement implementation is in progress; see
