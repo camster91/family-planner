@@ -17,7 +17,7 @@ eligibility, native camera acceptance and rollout remain explicit dependencies.
 | Barcode identification | Check-digit/leading-zero normalization, explicit eight-digit format, deliberate local camera and typed fallback, one-item review tray | Source only; permission, lifecycle, accessibility and real camera/native acceptance deferred |
 | Public product lookup | Fixed-host bounded Open Food Facts v3 adapter with explicit lookup/apply and attribution; all deployment gates off | Data reuse/attribution approval, coverage, cost/usage and consolidated QA required before activation; no provider calls performed |
 | Private product corrections | FoodProduct recognition metadata and immutable stock snapshots, atomic revision-checked opt-in corrections; export/erasure wired | Additive migration/client generation and disposable-DB/isolation acceptance deferred; never a second stock store |
-| Package/label/date photo | Existing fridge scan only; dates stay unknown until entered | Focused label/date capture, date-kind confirmation and source confidence; no food-safety inference |
+| Package/label/date photo and receipt | Dedicated versioned document suggestions, printed-evidence/date apply, receipt redaction acknowledgement, one-item review and atomic label snapshots | Source only; separate deployment gate stays off pending document-processing/provider acceptance and consolidated QA |
 | Stock lifecycle | Existing InventoryItem/InventoryAdjustment consume/discard/Undo and cook suggestions | Reconcile atomic authorization/recovery and unit/matching confidence; no model-driven stock decrement |
 | Cross-device/offline | No new intake queue/manifest action advertised | #135/#473 compatibility, unsupported/offline draft recovery and actual native lifecycle proof |
 | Provider/model eligibility | #567 retains its dependency | No paid/Gemini activation, raw-media retention or external household processing added |
@@ -144,8 +144,7 @@ camera, runtime, DB, QA, push, merge or deployment action occurred.
   secure-context/capability checks and permission fallback do not establish native
   or target-browser support.
 
-Remaining implementation: focused package/date photo and receipt review; stock lifecycle reconciliation and offline/native
-compatibility. Provider eligibility/activation, native hardware acceptance and
+Remaining implementation: stock lifecycle reconciliation and offline/native compatibility. Provider eligibility/activation, native hardware acceptance and
 consolidated QA remain separate dependencies, not completed issue criteria.
 
 ## Manual create recovery source — 2026-10-19
@@ -159,3 +158,57 @@ and never recreated by replay. Definite first refusal keeps an editable draft;
 a corrected deliberate save may start a new key. EN/ES recovery copy and existing
 manual/localization fixtures are updated; tests remain unrun. PATCH, adjustments
 and remove keep their existing contracts and still need lifecycle reconciliation.
+
+## Focused food-document capture source — 2026-10-19
+
+The existing personal parent-only photo sheet has separate Fridge, Package/date
+and Receipt modes when `INVENTORY_CAPTURE_DOCUMENTS_ENABLED=1` and the existing
+scanner is configured. This new gate defaults off; a fridge key alone does not
+authorize receipt/document processing. No new provider/key/model, activation or
+provider request occurred. Owner acceptance of document-data processing,
+eligibility, retention/processor terms and real target-camera quality remains.
+
+Document requests carry `herewoven.food-photo.v1`, the explicit mode and original
+person/family; server mode/context validation precedes quota/provider use. The
+reply must echo the supported protocol/mode. Older servers' fridge-only replies
+are refused as document confirmation, preserving the draft instead of silently
+using a different interpretation. Fridge-only requests keep their original shape.
+Every route outcome is private/no-store; authority/role/feature are renewed after
+the provider read before returning suggestions.
+
+Package capture separates visible label size from stock: model amounts/units are
+cleared. Printed date evidence stays transient review text; the editable date
+starts blank. Apply requires a valid full date independently supported by the
+printed year/date text and an explicitly recognized best-before/use-by prefix.
+Missing years, ambiguous numeric order, unsupported wording and production dates
+stay manual. The parser supports ISO-style and recognized EN/FR/ES named-month
+forms conservatively; this is not a guarantee of OCR correctness. No shelf life,
+safety status or current-year assumption is inferred. All photo rows now expose
+an explicit best-before/use-by selector instead of labelling every date Use by.
+
+Receipt capture requires a visible acknowledgement to crop/cover personal and
+payment details before upload. It has no automatic redaction claim. The prompt
+excludes personal identifiers, prices/payment/totals and non-food/refund lines;
+model output is still untrusted and needs human review. Receipt dates and suggested
+storage are stripped, so transaction time never becomes expiry. Purchased counts
+remain editable suggestions, not evidence of remaining household stock.
+
+Document suggestions start unselected and show one item at a time, with Previous/
+Next and the total selected save count. Read-only paging remains possible during
+unknown-save recovery. Duplicate/unreadable/excess drops are disclosed, never
+silently summed into quantity. The reviewed package label is a separate optional
+strict intake field saved to the existing InventoryItem package_size snapshot;
+no barcode or FoodProduct is fabricated. Label values are frozen with the same
+atomic stock/receipt request. No raw document/date evidence is stored in inventory.
+
+Upload parsing is byte-bounded before multipart decoding, with a 20-second read
+bound and support for browsers without Content-Length. Upstream JSON is streamed
+with a 128-KiB ceiling; existing provider timeout/quota and fixed-host rules remain.
+Images stay in the transient review/provider path. Source tests cover extraction,
+mode/approval/context refusal, explicit selection/date apply, compact paging and
+immutable label intent. Tests are authored, not run. No QA/build/browser/native,
+generation/migration, account mutation, push, merge or deployment occurred.
+
+Next implementation: reconcile stock edits/consume/discard/owned Undo and
+cross-device/offline/native capability contracts. Document provider acceptance,
+actual OCR/permission/device behavior and consolidated QA remain unverified.

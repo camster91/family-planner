@@ -95,3 +95,19 @@ public image loading follows explicit Apply with no referrer. Returned metadata
 and its reuse remain deployment gated pending data-license/attribution approval.
 All three configuration gates default off. Private manual recognition is usable
 without that provider. See `FOOD_CAPTURE.md` for current terms and acceptance gaps.
+
+## Food-document review (#125; source candidate 2026-10-19)
+
+Package/date-label and receipt photos use the existing fixed scanner only behind
+a separate disabled document-processing gate. Receipt upload requires the parent
+to acknowledge cropping/covering personal/payment details; this is not automatic
+redaction. Prompts exclude personal/payment/store/price data, but provider output
+remains untrusted. Eligibility, processor/retention terms and activation still need
+owner acceptance. No new provider call or persisted raw document is introduced.
+
+Printed date text/candidate and model confidence are transient review metadata.
+Receipt timestamps are discarded. Only deliberately reviewed food fields and
+optional package_size reach canonical InventoryItem via intake; the label is a
+snapshot, not stock quantity or a new product/barcode. Existing export/deletion
+already includes package_size. No raw OCR/receipt evidence is added to shared
+surfaces, logs, analytics, export or an offline queue. No native capability claim.

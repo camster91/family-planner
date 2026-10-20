@@ -6,6 +6,30 @@ import {
 
 /** Owned presentation only. Private names, units, model text and API refusals stay raw. */
 export const inventoryEnglish = {
+  foodPhotoTitle: "Photo food capture",
+  foodPhotoMode: "What are you photographing?",
+  foodPhotoFridge: "Fridge",
+  foodPhotoPackage: "Package / date",
+  foodPhotoReceipt: "Receipt",
+  foodPhotoPackageIntro:
+    "Photograph one food package or its printed date label. Keep the whole date and food name readable. Dates stay blank until you review them.",
+  foodPhotoReceiptIntro:
+    "Crop the receipt to food lines first. Cover names, addresses, loyalty numbers and payment details. Purchased amounts are suggestions, not a count of what remains at home.",
+  foodPhotoRedacted: "I cropped or covered personal and payment details.",
+  foodPhotoReview:
+    "Review and tick each item you want. Nothing is preselected. Confirm stock amount and storage yourself; receipt dates never become expiry dates.",
+  foodPhotoDropped:
+    "{count} unreadable, duplicate or excess suggestions were omitted. Check the photo for anything missing.",
+  foodPhotoPages: "Photo review pages",
+  foodPhotoPrevious: "Previous",
+  foodPhotoNext: "Next",
+  foodPhotoPage: "Item {page} of {total}",
+  foodPhotoDateKind: "Printed date type",
+  foodPhotoPrinted: "Printed date suggestion",
+  foodPhotoUseDate: "Use {kind}: {date}",
+  foodPhotoUnclearDate:
+    "The full date or date type is unclear. Read the label and enter it yourself; no year or shelf life was guessed.",
+
   scanFood: "Scan food",
   productDetails: "Product details",
   productCode: "Product code (GTIN)",
@@ -128,14 +152,14 @@ export const inventoryEnglish = {
   undoNetwork:
     "Could not put {name} back. Check your connection and try again.",
   undoSuccess: "Put {name} back.",
-  intakeContextFailed:
+  manualIntakeContextFailed:
     "Could not confirm your account and household. Keep your draft and reopen Add item when connected.",
-  intakeInvalid: "Review the name, amount and dates before saving.",
-  intakeUnknown:
+  manualIntakeInvalid: "Review the name, amount and dates before saving.",
+  manualIntakeUnknown:
     "Save not confirmed. Your details are locked. Check the same save before leaving or adding it again.",
-  intakeRefused:
+  manualIntakeRefused:
     "Save refused. Check your account, household and inventory access. Your draft is kept.",
-  intakeRemoved:
+  manualIntakeRemoved:
     "The original item was saved and then removed. This check did not add it again. Review before starting a new save.",
   intakeRetry: "Check same save",
   saveFailed: "Could not save. Try again.",
@@ -219,6 +243,30 @@ export const inventoryEnglish = {
 } as const;
 export type InventoryMessage = keyof typeof inventoryEnglish;
 export const inventorySpanish: Record<InventoryMessage, string> = {
+  foodPhotoTitle: "Capturar alimentos con foto",
+  foodPhotoMode: "¿Qué vas a fotografiar?",
+  foodPhotoFridge: "Refrigerador",
+  foodPhotoPackage: "Envase / fecha",
+  foodPhotoReceipt: "Recibo",
+  foodPhotoPackageIntro:
+    "Fotografía un envase o su etiqueta de fecha. El nombre y la fecha completa deben ser legibles. Las fechas quedan vacías hasta que las revises.",
+  foodPhotoReceiptIntro:
+    "Recorta primero el recibo a las líneas de alimentos. Cubre nombres, direcciones, números de fidelidad y datos de pago. Las cantidades compradas son sugerencias, no lo que queda en casa.",
+  foodPhotoRedacted: "Recorté o cubrí los datos personales y de pago.",
+  foodPhotoReview:
+    "Revisa y marca cada alimento que quieras. Ninguno está preseleccionado. Confirma cantidad y lugar; las fechas del recibo nunca se usan como caducidad.",
+  foodPhotoDropped:
+    "Se omitieron {count} sugerencias ilegibles, repetidas o de más. Revisa si falta algo de la foto.",
+  foodPhotoPages: "Páginas de revisión de fotos",
+  foodPhotoPrevious: "Anterior",
+  foodPhotoNext: "Siguiente",
+  foodPhotoPage: "Alimento {page} de {total}",
+  foodPhotoDateKind: "Tipo de fecha impresa",
+  foodPhotoPrinted: "Sugerencia de fecha impresa",
+  foodPhotoUseDate: "Usar {kind}: {date}",
+  foodPhotoUnclearDate:
+    "La fecha completa o su tipo no está claro. Lee la etiqueta e introdúcela; no se estimó el año ni la vida útil.",
+
   scanFood: "Escanear alimentos",
   productDetails: "Datos del producto",
   productCode: "Código del producto (GTIN)",
@@ -343,14 +391,15 @@ export const inventorySpanish: Record<InventoryMessage, string> = {
   undoNetwork:
     "No pudimos reponer {name}. Revisa tu conexión e inténtalo de nuevo.",
   undoSuccess: "Se repuso {name}.",
-  intakeContextFailed:
+  manualIntakeContextFailed:
     "No pudimos confirmar tu cuenta y hogar. Conserva el borrador y vuelve a abrir Añadir alimento cuando tengas conexión.",
-  intakeInvalid: "Revisa el nombre, la cantidad y las fechas antes de guardar.",
-  intakeUnknown:
+  manualIntakeInvalid:
+    "Revisa el nombre, la cantidad y las fechas antes de guardar.",
+  manualIntakeUnknown:
     "Guardado sin confirmar. Tus datos están bloqueados. Comprueba el mismo guardado antes de salir o volver a añadirlo.",
-  intakeRefused:
+  manualIntakeRefused:
     "Guardado rechazado. Revisa tu cuenta, hogar y acceso al inventario. Se conserva el borrador.",
-  intakeRemoved:
+  manualIntakeRemoved:
     "El alimento original se guardó y luego se eliminó. Esta comprobación no lo añadió de nuevo. Revisa antes de otro guardado.",
   intakeRetry: "Comprobar mismo guardado",
   saveFailed: "No pudimos guardar. Inténtalo de nuevo.",

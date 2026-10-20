@@ -52,3 +52,20 @@ it("does not treat malformed success or an old server reply as confirmed stock",
   })) as typeof fetch;
   expect(await postInventoryIntake(intent)).toEqual({ kind: "unknown" });
 });
+
+it("captures an immutable reviewed label without needing or inventing a barcode", () => {
+  const label = { package_size: "500 g" };
+  const intent = makeInventoryIntakeIntent(
+    { name: "Fixture beans", amount: 2, unit: "packages", location: "pantry" },
+    { userId: "fixture-parent", familyId: "fixture-family" },
+    "fixture-label-key",
+    undefined,
+    label,
+  );
+  label.package_size = "later edit";
+  expect(JSON.parse(intent.body)).toMatchObject({
+    label: { package_size: "500 g" },
+    item: { amount: 2, unit: "packages" },
+  });
+  expect(JSON.parse(intent.body)).not.toHaveProperty("product");
+});

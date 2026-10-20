@@ -204,6 +204,7 @@ export default function InventoryClient({
   canWrite,
   canOpenRecipes,
   canScan = false,
+  canCaptureDocuments = false,
   intakeContext,
 }: {
   canWrite: boolean
@@ -211,6 +212,7 @@ export default function InventoryClient({
   /** Parent, and the deployment has a fridge-scan provider key (#265). */
   intakeContext?: { userId: string; familyId: string }
   canScan?: boolean
+  canCaptureDocuments?: boolean
 }) {
   const copy = useInventoryCopy()
   const mealsOn = useFeatureEnabled('meals')
@@ -606,7 +608,7 @@ export default function InventoryClient({
       )}
 
       {barcodeScanning && <BarcodeFoodDialog initialContext={intakeContext} onClose={() => setBarcodeScanning(false)} onDone={(count) => { setBarcodeScanning(false); afterChange(feedback('barcodeAdded', { count })); }} />}
-      {scanning && <ScanFridgeDialog initialContext={intakeContext} onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
+      {scanning && <ScanFridgeDialog canCaptureDocuments={canCaptureDocuments} initialContext={intakeContext} onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
 
       {editing && (
         <ItemModal
@@ -1188,7 +1190,7 @@ function ItemModal({
     void readInventoryIntakeContext(controller.signal).then((value) => {
       if (active) setContext(value)
     }).catch(() => {
-      if (active) setError(feedback('intakeContextFailed'))
+      if (active) setError(feedback('manualIntakeContextFailed'))
     }).finally(() => clearTimeout(timer))
     return () => { active = false; clearTimeout(timer); controller.abort() }
   }, [mode, initialContext])
@@ -1235,10 +1237,10 @@ function ItemModal({
       opened_on: openedOn || null,
     }
     if (mode === 'add') {
-      if (!context) { setError(feedback('intakeContextFailed')); return }
+      if (!context) { setError(feedback('manualIntakeContextFailed')); return }
       if (!createAttempt.current) {
         try { createAttempt.current = makeInventoryIntakeIntent(body, context) }
-        catch { setError(feedback('intakeInvalid')); return }
+        catch { setError(feedback('manualIntakeInvalid')); return }
       }
       mutationRef.current = true
       setSaving(true)
@@ -1254,14 +1256,14 @@ function ItemModal({
         } else if (result.kind === 'removed') {
           createAttempt.current = null
           setUncertain(false)
-          setError(feedback('intakeRemoved'))
+          setError(feedback('manualIntakeRemoved'))
           await navigation.releaseBeforeNavigation()
         } else if (result.kind === 'unknown' || wasUncertain) {
           setUncertain(true)
-          setError(feedback('intakeUnknown'))
+          setError(feedback('manualIntakeUnknown'))
         } else {
           createAttempt.current = null
-          setError(feedback('intakeRefused'))
+          setError(feedback('manualIntakeRefused'))
           await navigation.releaseBeforeNavigation()
         }
       } finally {
@@ -1392,13 +1394,13 @@ function ItemModal({
         </div>
       }
     >
-      {initial?.barcode && <details className="rounded-xl bg-[var(--surface-fill)] p-3">
+      {(initial?.barcode || initial?.package_size) && <details className="rounded-xl bg-[var(--surface-fill)] p-3">
         <summary className="min-h-[44px] cursor-pointer py-2">{copy('productDetails')}</summary>
-        <p className="text-footnote break-all">{copy('productCode')}: {initial.barcode}</p>
+        {initial.barcode && <p className="text-footnote break-all">{copy('productCode')}: {initial.barcode}</p>}
         {initial.product_brand && <p className="text-subhead">{initial.product_brand}</p>}
         {initial.package_size && <p className="text-subhead">{copy('packageSize')}: {initial.package_size}</p>}
         <p className="text-footnote text-label-secondary">{copy('packageNotStock')}</p>
-        {initial.product_source && <a href={`https://world.openfoodfacts.org/product/${encodeURIComponent(initial.barcode)}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center">Open Food Facts · ODbL ↗</a>}
+        {initial.product_source && initial.barcode && <a href={`https://world.openfoodfacts.org/product/${encodeURIComponent(initial.barcode)}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center">Open Food Facts · ODbL ↗</a>}
       </details>}
       {mode === 'edit' && initial && (
         <div className="rounded-xl border border-[var(--surface-separator)] p-3 space-y-3" data-testid="adjust-panel">

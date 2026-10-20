@@ -148,7 +148,8 @@ export async function persistInventoryIntake(
         ingredient_id: ingredientId,
         barcode: product?.barcode ?? null,
         product_brand: product?.brand ?? null,
-        package_size: product?.package_size ?? null,
+        package_size:
+          product?.package_size ?? input.label?.package_size ?? null,
         product_source: productSource,
         amount: data.amount ?? null,
         unit: data.unit ?? null,

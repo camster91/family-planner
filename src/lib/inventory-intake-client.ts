@@ -22,6 +22,7 @@ export function makeInventoryIntakeIntent(
   context: IntakeContext,
   key = newIdempotencyKey(),
   product?: InventoryIntakeInput["product"],
+  label?: InventoryIntakeInput["label"],
 ): IntakeIntent {
   const input = inventoryIntakeInput.parse({
     protocol: "herewoven.inventory-intake.v1",
@@ -30,6 +31,7 @@ export function makeInventoryIntakeIntent(
     issued_at: new Date().toISOString(),
     item,
     ...(product ? { product } : {}),
+    ...(label ? { label } : {}),
   });
   return { key, body: JSON.stringify(input) };
 }

@@ -501,3 +501,18 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
   with original actor/family; no legacy POST fallback. Standalone context waiting
   is bounded. Edit/adjustment/delete contracts are unchanged.
 - Source tests and EN/ES state are updated; consolidated QA remains deferred.
+
+### Food-document suggestion extension (#125, 2026-10-19; source only)
+
+- `/api/inventory/scan` optional explicit package/receipt mode uses known
+  `herewoven.food-photo.v1`, original actor/family, personal parent authority and
+  separate disabled document-processing gate. Legacy fridge shape remains.
+- Multipart bytes/time and provider JSON bytes are bounded. Post-read personal
+  authority/role/feature checks renew access before suggestions are returned.
+- Output keeps printed label/date evidence transient. Receipt dates/storage are
+  stripped, package weight is not stock, and dates require explicit apply/edit.
+  One-item document review starts unselected. No media store or new provider.
+- Intake optional strict label package_size snapshots reuse InventoryItem and
+  its atomic receipt; no barcode/product row is invented. Old strict servers
+  refuse unknown extensions; no legacy fallback or new offline action advertised.
+- Tests/EN-ES source only, not QA or provider/native acceptance evidence.

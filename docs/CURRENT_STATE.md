@@ -1,5 +1,20 @@
 # Current State
 
+## Focused package/date and receipt review source — 2026-10-19
+
+Document modes now use explicit protocol/original household context, separate
+off-by-default processing approval, transient printed evidence and one-item review.
+Dates stay blank until explicit confirmation; receipt timestamps/storage guesses
+are discarded and package size never becomes stock quantity. Reviewed labels
+save as existing stock snapshots through atomic intake. Upload/provider response
+bytes are bounded; post-provider authority/feature checks renew access. EN/ES
+copy and test source are updated, including distinct manual-save message keys.
+
+No provider activation/call, QA/build/browser/native, schema generation/migration,
+push, merge or deployment occurred. Document-data/provider acceptance and native
+quality remain dependencies. Next source work: stock lifecycle and offline/native
+reconciliation. Full requirement matrix: `product/FOOD_CAPTURE.md`.
+
 ## Manual food-create intake source — 2026-10-19
 
 Add item now uses canonical keyed intake with original household context, strict

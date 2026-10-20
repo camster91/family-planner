@@ -87,3 +87,13 @@ This is not a deployed scanner or new provider activation. Legacy manual form
 migration, barcode/product capture and all integrated/native QA remain open.
 See `docs/product/FOOD_CAPTURE.md`. No new credential, media retention, migration,
 queue capability or paid service is introduced by this source change.
+
+## Document capture candidate (2026-10-19; inactive)
+
+`INVENTORY_CAPTURE_DOCUMENTS_ENABLED=1` is an additional server approval gate for
+package/date-label and cropped-receipt modes; it defaults off even if fridge scan
+has a key. Do not activate without document-processing/provider/privacy acceptance
+and the later consolidated QA. No environment value or provider was changed.
+Document requests/replies use `herewoven.food-photo.v1` and original person/family.
+Old replies fail closed. Typed/manual entry remains independent of this gate.
+See `../product/FOOD_CAPTURE.md` for review, bounds, data flows and native limits.

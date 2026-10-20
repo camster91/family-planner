@@ -13,6 +13,10 @@ export const inventoryIntakeInput = z
     issued_at: z.string().datetime(),
     item: createInventorySchema,
     product: foodProductDraft.optional(),
+    label: z
+      .object({ package_size: z.string().trim().max(80).nullable() })
+      .strict()
+      .optional(),
   })
   .strict();
 export const inventoryIntakeReceipt = z.object({ itemId: id }).strict();

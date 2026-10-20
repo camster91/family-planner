@@ -179,7 +179,7 @@ describe("Scan fridge", () => {
     await user.clear(name);
     await user.type(name, "Oat milk");
     await user.selectOptions(within(rows[1]).getByLabelText("Where"), "pantry");
-    const date = within(rows[1]).getByLabelText("Use by");
+    const date = within(rows[1]).getByLabelText("Date on the pack");
     await user.type(date, "2030-01-15");
     await user.click(within(rows[2]).getByRole("checkbox"));
     await user.click(within(rows[1]).getByRole("checkbox"));
@@ -201,6 +201,7 @@ describe("Scan fridge", () => {
         amount: 2,
         unit: "L",
         expires_on: null,
+        date_kind: "best_before",
       },
       {
         name: "Frozen peas",
@@ -208,6 +209,7 @@ describe("Scan fridge", () => {
         amount: null,
         unit: "bag",
         expires_on: "2030-01-15",
+        date_kind: "best_before",
       },
       {
         name: "<b>Mystery</b> jar",
@@ -215,6 +217,7 @@ describe("Scan fridge", () => {
         amount: null,
         unit: null,
         expires_on: null,
+        date_kind: "best_before",
       },
     ]);
   });

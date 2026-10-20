@@ -2,6 +2,7 @@ import { getServerUser } from "@/lib/supabase/server";
 import { canWriteInventory } from "@/lib/inventory";
 import {
   canScanInventory,
+  isFoodDocumentCaptureConfigured,
   isInventoryScanConfigured,
 } from "@/lib/inventory-scan";
 import { canRoleAccessPath } from "@/lib/kid-access";
@@ -35,6 +36,9 @@ export default async function InventoryPage() {
           "/dashboard/meals/recipes",
         )}
         canScan={canScanInventory(user.role) && isInventoryScanConfigured()}
+        canCaptureDocuments={
+          canScanInventory(user.role) && isFoodDocumentCaptureConfigured()
+        }
       />
     </FeatureGate>
   );

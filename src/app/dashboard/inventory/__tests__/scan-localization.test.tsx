@@ -202,6 +202,7 @@ it("preserves private edited rows/canonical location/selection and stable keys t
     amount: 2,
     location: "fridge",
     expires_on: null,
+    date_kind: "best_before",
   });
   expect(JSON.parse(creates[1][1].body)).toEqual(
     JSON.parse(creates[2][1].body),

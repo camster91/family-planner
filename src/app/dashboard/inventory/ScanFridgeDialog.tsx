@@ -21,6 +21,12 @@
  */
 import * as React from "react";
 import { z } from "zod";
+import {
+  FOOD_PHOTO_PROTOCOL,
+  foodPhotoReply,
+  type FoodPhotoMode,
+  type FoodPhotoItem,
+} from "@/lib/food-photo-contract";
 import { Camera, Loader2 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -74,6 +80,14 @@ interface Row {
   unit: string;
   location: InventoryLocation;
   expiresOn: string;
+  dateKind: "best_before" | "use_by";
+  document: boolean;
+  packageSize: string;
+  printedDate: {
+    text: string;
+    candidate: string | null;
+    kind: "best_before" | "use_by" | null;
+  } | null;
   confidence: number;
   error: InventoryFeedback | null;
   /** Sent with every create attempt of this row, so an in-doubt create is replayed, not repeated. */
@@ -93,15 +107,29 @@ export function confidenceLabel(confidence: number): string {
   return "Unsure";
 }
 
-function toRows(items: ScanSuggestion[]): Row[] {
+function toRows(
+  items: (ScanSuggestion | FoodPhotoItem)[],
+  document = false,
+): Row[] {
   return items.map((item, i) => ({
     key: `s${i}`,
-    include: item.confidence >= 0.5,
+    include: !document && item.confidence >= 0.5,
     name: item.name,
     amount: item.amount === null ? "" : String(item.amount),
     unit: item.unit ?? "",
     location: item.location ?? "fridge",
     expiresOn: "",
+    dateKind: "best_before",
+    document,
+    packageSize: "package_size" in item ? (item.package_size ?? "") : "",
+    printedDate:
+      "date_text" in item && item.date_text
+        ? {
+            text: item.date_text,
+            candidate: item.date_candidate,
+            kind: item.date_kind,
+          }
+        : null,
     confidence: item.confidence,
     error: null,
     idempotencyKey: newIdempotencyKey(),
@@ -130,7 +158,10 @@ async function prepareImage(file: Blob): Promise<Blob> {
     canvas.width = Math.max(1, Math.round(bitmap.width * scale));
     canvas.height = Math.max(1, Math.round(bitmap.height * scale));
     const ctx = canvas.getContext("2d");
-    if (!ctx) return file;
+    if (!ctx) {
+      bitmap.close?.();
+      return file;
+    }
     ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     bitmap.close?.();
     const blob = await new Promise<Blob | null>((resolve) =>
@@ -162,11 +193,13 @@ async function scanError(res: Response): Promise<InventoryFeedback> {
 
 export function ScanFridgeDialog({
   initialContext,
+  canCaptureDocuments = false,
   onClose,
   onDone,
   onFeedback,
 }: {
   initialContext?: IntakeContext;
+  canCaptureDocuments?: boolean;
   onClose: () => void;
   onDone: (message: string) => void;
   /** Opt-in semantic feedback; legacy consumers still receive their original English string. */
@@ -179,6 +212,15 @@ export function ScanFridgeDialog({
       : onDone(inventoryFeedbackEnglish(message));
   const [phase, setPhase] = React.useState<Phase>({ step: "pick" });
   const [rows, setRows] = React.useState<Row[]>([]);
+  const [captureMode, setCaptureMode] = React.useState<
+    FoodPhotoMode | "fridge"
+  >("fridge");
+  const [receiptReady, setReceiptReady] = React.useState(false);
+  const [dropped, setDropped] = React.useState(0);
+  const [reviewPage, setReviewPage] = React.useState(0);
+  const page = Math.min(reviewPage, Math.max(0, rows.length - 1));
+  const visibleRows =
+    captureMode === "fridge" ? rows : rows.slice(page, page + 1);
   const [adding, setAdding] = React.useState(false);
   const [addError, setAddError] = React.useState<InventoryFeedback | null>(
     null,
@@ -250,6 +292,7 @@ export function ScanFridgeDialog({
     if (addingRef.current || attempts.current.size > 0 || scanningRef.current)
       return;
     setPhase({ step: "pick" });
+    setReceiptReady(false);
     setRows([]);
     setAddError(null);
     if (inputRef.current) inputRef.current.value = "";
@@ -260,11 +303,13 @@ export function ScanFridgeDialog({
     if (
       !file ||
       !context ||
+      (captureMode === "receipt" && !receiptReady) ||
       addingRef.current ||
       attempts.current.size > 0 ||
       scanningRef.current
     )
       return;
+    if (captureMode === "receipt") setReceiptReady(false);
     scanningRef.current = true;
     const own = ++photoGeneration.current;
     const current = () => own === photoGeneration.current;
@@ -285,7 +330,13 @@ export function ScanFridgeDialog({
         return;
       }
       const form = new FormData();
-      form.append("image", image, "fridge.jpg");
+      form.append("image", image, "food.jpg");
+      if (captureMode !== "fridge") {
+        form.append("protocol", FOOD_PHOTO_PROTOCOL);
+        form.append("capture_mode", captureMode);
+        form.append("expected_user_id", context.userId);
+        form.append("expected_family_id", context.familyId);
+      }
       const res = await fetch("/api/inventory/scan", {
         method: "POST",
         body: form,
@@ -297,13 +348,28 @@ export function ScanFridgeDialog({
         if (current()) setPhase({ step: "error", message });
         return;
       }
-      const parsed = suggestionsResponse.safeParse(await res.json());
+      const response: unknown = await res.json();
       if (!current()) return;
-      if (!parsed.success) {
-        setPhase({ step: "error", message: feedback("scanFailed") });
-        return;
+      if (captureMode === "fridge") {
+        const parsed = suggestionsResponse
+          .extend({ dropped: z.number().int().nonnegative().optional() })
+          .safeParse(response);
+        if (!parsed.success) {
+          setPhase({ step: "error", message: feedback("scanFailed") });
+          return;
+        }
+        setRows(toRows(parsed.data.items));
+        setDropped(parsed.data.dropped ?? 0);
+      } else {
+        const parsed = foodPhotoReply.safeParse(response);
+        if (!parsed.success || parsed.data.capture_mode !== captureMode) {
+          setPhase({ step: "error", message: feedback("scanFailed") });
+          return;
+        }
+        setRows(toRows(parsed.data.items, true));
+        setDropped(parsed.data.dropped);
       }
-      setRows(toRows(parsed.data.items));
+      setReviewPage(0);
       setPhase({ step: "review" });
     } catch {
       if (current())
@@ -342,8 +408,9 @@ export function ScanFridgeDialog({
         amount: row.amount.trim() === "" ? null : Number(row.amount),
         unit: row.unit.trim() || null,
         expires_on: row.expiresOn || null,
+        date_kind: row.dateKind,
       });
-      if (!item.success) {
+      if (!item.success || row.packageSize.length > 80) {
         invalid = true;
         setRows((previous) =>
           previous.map((value) =>
@@ -385,9 +452,14 @@ export function ScanFridgeDialog({
               amount: row.amount.trim() === "" ? null : Number(row.amount),
               unit: row.unit.trim() || null,
               expires_on: row.expiresOn || null,
+              date_kind: row.dateKind,
             },
             context,
             row.idempotencyKey,
+            undefined,
+            row.document
+              ? { package_size: row.packageSize.trim() || null }
+              : undefined,
           ),
           uncertain: false,
         };
@@ -468,7 +540,7 @@ export function ScanFridgeDialog({
     <Dialog
       open
       onClose={adding || uncertain ? undefined : close}
-      title={copy("scanTitle")}
+      title={copy(canCaptureDocuments ? "foodPhotoTitle" : "scanTitle")}
       closeLabel={copy("close")}
       testId="scan-dialog"
       className="sm:max-w-xl"
@@ -516,7 +588,59 @@ export function ScanFridgeDialog({
 
         {phase.step === "pick" && (
           <div className="space-y-4">
-            <p className="text-body text-label-primary">{copy("scanIntro")}</p>
+            {canCaptureDocuments && (
+              <fieldset className="space-y-2">
+                <legend className="text-subhead font-semibold">
+                  {copy("foodPhotoMode")}
+                </legend>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["fridge", "package", "receipt"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      aria-pressed={captureMode === mode}
+                      className={cn(
+                        "min-h-[44px] rounded-xl border p-2 text-subhead",
+                        captureMode === mode
+                          ? "border-[var(--accent)] bg-[var(--accent-tint)]"
+                          : "border-[var(--surface-separator)]",
+                      )}
+                      onClick={() => {
+                        setCaptureMode(mode);
+                        setReceiptReady(false);
+                      }}
+                    >
+                      {copy(
+                        mode === "fridge"
+                          ? "foodPhotoFridge"
+                          : mode === "package"
+                            ? "foodPhotoPackage"
+                            : "foodPhotoReceipt",
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+            <p className="text-body text-label-primary">
+              {copy(
+                captureMode === "fridge"
+                  ? "scanIntro"
+                  : captureMode === "package"
+                    ? "foodPhotoPackageIntro"
+                    : "foodPhotoReceiptIntro",
+              )}
+            </p>
+            {captureMode === "receipt" && (
+              <label className="flex min-h-[44px] items-center gap-3 text-subhead">
+                <input
+                  type="checkbox"
+                  checked={receiptReady}
+                  onChange={(event) => setReceiptReady(event.target.checked)}
+                />
+                {copy("foodPhotoRedacted")}
+              </label>
+            )}
             <p
               className="text-footnote text-label-secondary"
               data-testid="scan-privacy-note"
@@ -533,7 +657,12 @@ export function ScanFridgeDialog({
               }}
               type="button"
               className="btn-tinted w-full min-h-[44px]"
-              disabled={!context || adding || uncertain}
+              disabled={
+                !context ||
+                adding ||
+                uncertain ||
+                (captureMode === "receipt" && !receiptReady)
+              }
               onClick={() => inputRef.current?.click()}
             >
               <Camera className="w-4 h-4" aria-hidden="true" />
@@ -572,7 +701,11 @@ export function ScanFridgeDialog({
               type="button"
               className="btn-tinted w-full min-h-[44px]"
               disabled={!context || adding || uncertain}
-              onClick={() => inputRef.current?.click()}
+              onClick={() =>
+                captureMode === "receipt"
+                  ? pickAgain()
+                  : inputRef.current?.click()
+              }
             >
               <Camera className="w-4 h-4" aria-hidden="true" />
               <span>{copy("tryPhoto")}</span>
@@ -595,7 +728,11 @@ export function ScanFridgeDialog({
                 type="button"
                 className="btn-tinted w-full min-h-[44px]"
                 disabled={!context || adding || uncertain}
-                onClick={() => inputRef.current?.click()}
+                onClick={() =>
+                  captureMode === "receipt"
+                    ? pickAgain()
+                    : inputRef.current?.click()
+                }
               >
                 <Camera className="w-4 h-4" aria-hidden="true" />
                 <span>
@@ -616,18 +753,57 @@ export function ScanFridgeDialog({
                   count: rows.length,
                 })}
               </p>
+              {captureMode !== "fridge" && (
+                <p className="text-footnote text-label-secondary">
+                  {copy("foodPhotoReview")}
+                </p>
+              )}
+              {dropped > 0 && (
+                <p role="status" className="text-footnote">
+                  {copy("foodPhotoDropped", { count: dropped })}
+                </p>
+              )}
               <ul className="space-y-3" aria-label={copy("suggested")}>
-                {rows.map((row, i) => (
+                {visibleRows.map((row, i) => (
                   <SuggestionRow
                     key={row.key}
                     row={row}
-                    index={i}
+                    index={captureMode === "fridge" ? i : page + i}
                     idBase={titleId}
                     disabled={adding || !!row.uncertain}
                     onChange={update}
                   />
                 ))}
               </ul>
+              {captureMode !== "fridge" && rows.length > 1 && (
+                <nav
+                  aria-label={copy("foodPhotoPages")}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <button
+                    type="button"
+                    className="btn-plain min-h-[44px]"
+                    disabled={adding || page === 0}
+                    onClick={() => setReviewPage(page - 1)}
+                  >
+                    {copy("foodPhotoPrevious")}
+                  </button>
+                  <span role="status" className="text-footnote">
+                    {copy("foodPhotoPage", {
+                      page: page + 1,
+                      total: rows.length,
+                    })}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-plain min-h-[44px]"
+                    disabled={adding || page + 1 >= rows.length}
+                    onClick={() => setReviewPage(page + 1)}
+                  >
+                    {copy("foodPhotoNext")}
+                  </button>
+                </nav>
+              )}
               <div className="sticky -bottom-6 -mx-6 -mb-6 border-t border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-6 py-4 space-y-2">
                 {addError && (
                   <p
@@ -805,7 +981,7 @@ function SuggestionRow({
             htmlFor={`${id}-expires`}
             className="text-footnote text-label-secondary block mb-1"
           >
-            {copy("use_by")}
+            {copy("packDate")}
           </label>
           <input
             id={`${id}-expires`}
@@ -817,6 +993,81 @@ function SuggestionRow({
           />
         </div>
       </div>
+
+      <div>
+        <label
+          htmlFor={`${id}-date-kind`}
+          className="text-footnote text-label-secondary block mb-1"
+        >
+          {copy("foodPhotoDateKind")}
+        </label>
+        <select
+          id={`${id}-date-kind`}
+          disabled={disabled}
+          value={row.dateKind}
+          onChange={(event) =>
+            onChange(row.key, {
+              dateKind: event.target.value as Row["dateKind"],
+            })
+          }
+          className="input-apple min-h-[44px] w-full"
+        >
+          <option value="best_before">{copy("best_before")}</option>
+          <option value="use_by">{copy("use_by")}</option>
+        </select>
+        <p className="text-footnote text-label-secondary">
+          {copy(
+            row.dateKind === "use_by" ? "useBySafety" : "bestBeforeQuality",
+          )}
+        </p>
+      </div>
+      {row.document && (
+        <div className="space-y-2 rounded-xl bg-[var(--surface-fill)] p-3">
+          <label htmlFor={`${id}-package`} className="text-footnote block">
+            {copy("packageSize")}
+          </label>
+          <input
+            id={`${id}-package`}
+            value={row.packageSize}
+            maxLength={80}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange(row.key, { packageSize: event.target.value })
+            }
+            className="input-apple w-full"
+          />
+          <p className="text-footnote text-label-secondary">
+            {copy("packageNotStock")}
+          </p>
+          {row.printedDate && (
+            <>
+              <p className="text-footnote break-words">
+                {copy("foodPhotoPrinted")}: {row.printedDate.text}
+              </p>
+              {row.printedDate.candidate && row.printedDate.kind ? (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  className="btn-tinted min-h-[44px]"
+                  onClick={() =>
+                    onChange(row.key, {
+                      expiresOn: row.printedDate!.candidate!,
+                      dateKind: row.printedDate!.kind!,
+                    })
+                  }
+                >
+                  {copy("foodPhotoUseDate", {
+                    date: row.printedDate.candidate,
+                    kind: copy(row.printedDate.kind),
+                  })}
+                </button>
+              ) : (
+                <p className="text-footnote">{copy("foodPhotoUnclearDate")}</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {row.error && (
         <p
