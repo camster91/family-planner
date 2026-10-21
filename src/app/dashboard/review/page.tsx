@@ -13,6 +13,11 @@ export default async function Page({
   if (!session) return null;
   if (session.role !== "parent" || !session.family_id) redirect("/dashboard");
   const params = await searchParams;
+  if (
+    params.mode === "fridge" ||
+    (Array.isArray(params.mode) && params.mode.includes("fridge"))
+  )
+    redirect("/dashboard/today?mode=fridge");
   // Overlay navigation adds its own params; only this page's query is parsed.
   const query = inboxQuery.safeParse({
     source: params.source,
@@ -24,5 +29,10 @@ export default async function Page({
     { userId: session.id, familyId: session.family_id, role: session.role },
     query.data,
   );
-  return <ReviewInbox page={page} />;
+  return (
+    <ReviewInbox
+      page={page}
+      identity={{ userId: session.id, familyId: session.family_id }}
+    />
+  );
 }

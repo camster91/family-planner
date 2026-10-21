@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import SavedRequestsReview from "./SavedRequestsReview";
 import * as React from "react";
 import type { InboxPage } from "@/lib/review-inbox/read";
 import { useReviewInboxText } from "@/i18n/review-inbox";
@@ -9,7 +10,13 @@ function href(source: InboxPage["source"], after?: string | null) {
   if (after) params.set("after", after);
   return `/dashboard/review?${params}`;
 }
-export default function ReviewInbox({ page }: { page: InboxPage }) {
+export default function ReviewInbox({
+  page,
+  identity,
+}: {
+  page: InboxPage;
+  identity: { userId: string; familyId: string };
+}) {
   const copy = useReviewInboxText();
   const [window, setWindow] = React.useState(0);
   React.useEffect(() => setWindow(0), [page]);
@@ -24,7 +31,7 @@ export default function ReviewInbox({ page }: { page: InboxPage }) {
         </p>
       </header>
       <nav aria-label={copy.title} className="flex flex-wrap gap-2">
-        {(["checks", "preparation"] as const).map((source) => (
+        {(["checks", "preparation", "saved"] as const).map((source) => (
           <Link
             key={source}
             href={href(source)}
@@ -35,7 +42,9 @@ export default function ReviewInbox({ page }: { page: InboxPage }) {
           </Link>
         ))}
       </nav>
-      {page.state === "paused" ? (
+      {page.source === "saved" ? (
+        <SavedRequestsReview identity={identity} />
+      ) : page.state === "paused" ? (
         <p role="status">{copy.paused}</p>
       ) : (
         <>

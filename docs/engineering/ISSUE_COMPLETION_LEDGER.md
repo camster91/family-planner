@@ -273,3 +273,52 @@ tests/typecheck/lint/build/browser/rendered/API/native/schema/SQL/DB/client/CI,
 provider/flag activation or push/merge/deploy occurred. QA stays after remaining
 code. #123/#144/#499 and the integrated goal remain in progress.
 
+
+
+## Read-only saved-request inbox adapters — 2026-10-21
+
+The parent Review inbox now has a Saved requests section. Preparation and schedule
+journals are checked only after an explicit click, one type at a time, using
+current server-authorized person context and the exact same owner-scope lease
+as their domain writers. It does not initialize/reconcile a second journal,
+inspect receipts, copy request bodies into inbox storage, retry, dismiss or send.
+No automatic mount/focus discovery or write is added.
+
+A new bounded snapshot reader validates both current context and all candidate
+stores, strict v2 owner envelope and the domain journal/matching entries. Retired,
+corrupt, oversized, unreadable, mismatched or divergent replicas hold discovery;
+no replica is cleaned, selected over another or called empty after a read failure.
+After the asynchronous projection it renews full owner/generation/household and
+rereads every store under the lease. Any change withholds the earlier projection.
+Successful reads register only the content-free owner for existing logout
+retirement; queue data is never written. Existing store adapters may open their
+normal IndexedDB infrastructure; no queue entry is created. Unsupported/blocked
+IndexedDB or local storage holds this adapter rather than silently guessing.
+
+Adapters project fixed request-kind labels, original issued time and constructed
+allowlisted recovery URLs only. No task/event names, exact bodies, request keys,
+hashes, source tokens or credentials enter inbox component state. Preparation
+also verifies the canonical browser digest before projection. All outcomes stay
+explicitly unchecked; even committed/expired/deleted-target requests are retained
+for the original recovery screen to inspect. Paused writes do not hide saved
+work. Existing preparation/schedule URL hosts mount recovery before fresh target
+reads, so discovery does not require a current target or new write readiness.
+
+The compact EN/ES view displays at most five items. It clears on hidden/blur,
+owner prop or selected type changes, owned-store notifications and related
+preparation/schedule/responsibility overlays. No automatic refetch occurs. An
+operation epoch, synchronous current identity/type/overlay check and render-time
+projection identity mask suppress late responses and old-person projections.
+Signed-in fridge mode is redirected from the private inbox; paired sessions
+remain refused by the canonical server session helper. No shared/device DTO or
+reader capability is widened.
+
+Snapshot conflict/retirement/paused/owner/store/read-only cases and component
+explicit-click/late-owner cases are authored, all unrun. No tests/typecheck/lint/
+build/browser/rendered/API/native/schema/SQL/DB/client/CI, activation or push/
+merge/deploy occurred. Only source inspection/edits, formatting and local source
+work. Capture's existing recovery loader rewrites/prunes storage while loading,
+so it was deliberately NOT reused for read-only inbox discovery. Capture/recipe/
+notice drafts, responsibility/other-domain saved work, full grounded references,
+shared/profile readers and broader ledger code remain. QA stays deferred.
+
