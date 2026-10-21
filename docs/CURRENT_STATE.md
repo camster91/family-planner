@@ -1,5 +1,58 @@
 # Current State
 
+## Role context, routine links, initial review inbox and AI source renewal — 2026-10-21
+
+Child/teen personal home source now adds read-only event-preparation context to
+its already-selected own canonical tasks and picture-routine steps. The scoped
+SQL renews the exact account role/household and requires Chore assigned_to to
+match that account, no profile subject, no erased subject and no template. Only
+shared-schedule Event title is projected (bounded); no Event ID, plan tokens,
+other people's work/verification, cues, assignment or edit capability is sent.
+This is optional context, not a whole-plan summary or completion claim. Empty
+context does not imply no relationship. Default-off preparation/schema/domain
+gates apply. Profile subjects are not authenticated actors; paired/shared-device
+readers and profile-targeted context remain separate unfinished scope.
+
+Parent routine-stack views now receive the existing bounded exact task-ID
+backlinks, including concrete dated steps and history where present in the
+initial page. Embedded canonical rows keep their existing action gates. No
+routine-label matching, source-history copying or promotion of a copied one-off
+back into a routine was added. Durable source-routine provenance for new copies,
+canonical-editor context and later history-page discovery still need code.
+
+The initial parent Review inbox is authored at /dashboard/review, linked by a
+labelled 44px header control. It renews current parent household scope in every
+canonical query and has two sources: actual completed Chores awaiting a check,
+and Event preparation whose stored reviewed source differs from current Event
+generation/epoch. Invalid/saturated Event source versions remain review items.
+It reads 21 candidates per keyset window, returns 20 and displays five at a time;
+filtered empty preparation windows retain their next cursor. No all-clear or
+whole-household pending count is inferred. Items open canonical chore checks or
+the existing reviewed preparation host; no bulk approval, second completion store,
+new automatic action, provider call or migration is introduced. Optional missing
+preparation substrate is a paused section. Source errors retain the normal page
+error boundary. EN/ES copy describes current inbox scope. Notice/recipe/capture
+and saved-request adapters are NOT yet a unified review inbox; see its new plan.
+
+Assistant replies now renew person authentication/role/household/token, provider
+configuration and normalized features after provider latency, before returning
+private reply/action content. Opt-in Today responses must still be within the
+original 60-second lease, with the gate on and a fresh canonical typed projection
+identical to the original. The second read anchors the original day/window while
+reading current source values; failures, changed/deleted projected records and
+expired context withhold the old answer with a content-minimal refresh response.
+Provider credentials are compared only in memory and never logged/returned.
+Canonical actions still require their own target authorization and confirmation.
+This is projected-value freshness, not a signed reference/citation protocol,
+semantic hallucination proof, source-generation/ABA guarantee or snapshot-wide
+transaction isolation. Wider grounded planning and #144 evaluation remain open.
+
+New role/projection, inbox window/stale-plan and delayed-provider source cases
+are authored, all unrun. Only source reads/edits and formatting occurred. No
+tests/typecheck/lint/build/browser/rendered/API/native/schema/SQL/DB/client/CI,
+provider/flag activation or push/merge/deploy occurred. QA stays after remaining
+code. #123/#144/#499 and the integrated goal remain in progress.
+
 ## Personal Today and chore preparation discovery source — 2026-10-21
 
 Personal parent Today now has preparation entry points on its bounded event rows,

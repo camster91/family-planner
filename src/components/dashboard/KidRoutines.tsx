@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { RoutineIcon } from "@/components/chores/RoutineIcon";
 import type { RoutineGroup } from "@/lib/routine-icons";
 import { useKidHomeText } from "@/i18n/kid-home";
+import { OwnPreparationNote } from "@/components/calendar/preparation/OwnPreparationNote";
+import type { OwnPreparationContext } from "@/lib/event-preparation/discovery";
 
 export interface RoutineStep {
   id: string;
@@ -18,6 +20,7 @@ export interface RoutineStep {
 }
 
 export interface KidRoutinesProps {
+  preparationContext?: OwnPreparationContext;
   /** Today's routines, already grouped and ordered (`groupByRoutine`). */
   routines: RoutineGroup<RoutineStep>[];
   /** Chores ticked on this page and not yet undone. */
@@ -44,6 +47,7 @@ export default function KidRoutines({
   routines,
   tickedIds,
   onComplete,
+  preparationContext = {},
 }: KidRoutinesProps) {
   const kidHomeText = useKidHomeText();
   // Routine names are free text, so headings get ids from position, not name:
@@ -207,9 +211,7 @@ export default function KidRoutines({
                           className="text-footnote font-semibold text-label-primary"
                           aria-hidden
                         >
-                          <span className="block">
-                            {kidHomeText("done")}
-                          </span>
+                          <span className="block">{kidHomeText("done")}</span>
                           <span className="block mt-1 text-[12px] font-medium text-label-secondary">
                             {state === "waiting"
                               ? kidHomeText("waitingForParent")
@@ -218,6 +220,11 @@ export default function KidRoutines({
                         </span>
                       )}
                     </button>
+                    {preparationContext[step.id] && (
+                      <OwnPreparationNote
+                        title={preparationContext[step.id].eventTitle}
+                      />
+                    )}
                   </li>
                 );
               })}

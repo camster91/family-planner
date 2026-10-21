@@ -77,3 +77,34 @@ it("bounds and deduplicates the canonical ID window without claiming an exhausti
   expect(JSON.parse(bound)).toHaveLength(300);
   expect(JSON.parse(bound)).not.toContain("task-300");
 });
+
+// Child/teen readers never inherit the parent's full relationship projection.
+it("returns only own-task read context and no event IDs or edit/source tokens", async () => {
+  const db = fixture([
+    {
+      chore_id: "task-a",
+      event_title: "School trip",
+      features: defaultFeatures(),
+      event_id: "not-projected",
+      private: "not-projected",
+    },
+  ]);
+  const { readOwnPreparationContext } = await import("../discovery");
+  expect(
+    await readOwnPreparationContext(db, { ...input, role: "child" }),
+  ).toEqual({ "task-a": { eventTitle: "School trip" } });
+  const [sql, ...values] = db.$queryRaw.mock.calls[0];
+  expect(sql.join("")).toContain('c."assigned_to"=u."id"');
+  expect(sql.join("")).toContain('c."assigned_member_id" IS NULL');
+  expect(values).toContain(input.userId);
+  expect(values).toContain("child");
+});
+it("does not treat parent or paired-device context as a child account", async () => {
+  const db = fixture();
+  const { readOwnPreparationContext } = await import("../discovery");
+  expect(await readOwnPreparationContext(db, input)).toEqual({});
+  expect(
+    await readOwnPreparationContext(db, { ...input, role: "device" }),
+  ).toEqual({});
+  expect(db.$queryRaw).not.toHaveBeenCalled();
+});

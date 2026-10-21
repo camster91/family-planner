@@ -3,9 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/ui/brand-illustration";
+import { useReviewInboxText } from "@/i18n/review-inbox";
 import { PRODUCT_BRAND } from "@/lib/brand";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Inbox,
   Search,
   Bell,
   ChevronDown,
@@ -53,6 +55,7 @@ interface DashboardNavProps {
 }
 
 export default function DashboardNav({ user }: DashboardNavProps) {
+  const reviewCopy = useReviewInboxText();
   const { t } = useTranslation();
   const featureNavTitle = useFeatureNavTitle();
   const msg = (
@@ -242,6 +245,15 @@ export default function DashboardNav({ user }: DashboardNavProps) {
               </Link>
             )}
 
+            {user?.role === "parent" && (
+              <Link
+                href="/dashboard/review"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full text-label-secondary hover:text-label-primary hover:bg-[var(--surface-fill)]"
+                aria-label={reviewCopy.title}
+              >
+                <Inbox className="h-5 w-5" aria-hidden="true" />
+              </Link>
+            )}
             {/* Notifications bell */}
             {canSee("/dashboard/notifications") && (
               <Link

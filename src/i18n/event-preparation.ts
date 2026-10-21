@@ -2,6 +2,7 @@ import { useTranslation } from "@/i18n";
 const en = {
   open: "Prepare for this event",
   backlink: "View event preparation",
+  forEvent: "Getting ready for:",
   title: "Get ready",
   intro:
     "Link tasks or reuse a routine. Tasks keep their own completion and parent checks.",
@@ -125,6 +126,7 @@ const en = {
 const es: typeof en = {
   open: "Preparar este evento",
   backlink: "Ver preparativos del evento",
+  forEvent: "Preparativos para:",
   title: "Preparativos",
   intro:
     "Vincula tareas o reutiliza una rutina. Las tareas conservan sus propias finalizaciones y revisiones.",

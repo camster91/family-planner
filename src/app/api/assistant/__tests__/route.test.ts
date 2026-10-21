@@ -56,7 +56,11 @@ const input = {
 };
 const request = (body: unknown = input) =>
   ({ text: async () => JSON.stringify(body) }) as NextRequest;
+afterEach(() => jest.restoreAllMocks());
 beforeEach(() => {
+  jest
+    .spyOn(Date, "now")
+    .mockReturnValue(Date.parse("2026-10-09T12:00:30.000Z"));
   jest.clearAllMocks();
   mockTodayEnabled = false;
   (loadAssistantTodayContext as jest.Mock).mockResolvedValue(null);
@@ -188,4 +192,85 @@ it("checks provider configuration and rate limits before Today DB loading", asyn
     429,
   );
   expect(loadAssistantTodayContext).not.toHaveBeenCalled();
+});
+
+// Source cases authored for the later consolidated QA pass.
+it("withholds a provider reply after the actor moves household", async () => {
+  (authenticateWithFamily as jest.Mock)
+    .mockResolvedValueOnce([
+      { user: { id: "a", role: "parent", family_id: "family-a" } },
+      null,
+    ])
+    .mockResolvedValueOnce([
+      { user: { id: "a", role: "parent", family_id: "family-b" } },
+      null,
+    ]);
+  const response = await POST(request());
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual(
+    expect.objectContaining({ code: "ASSISTANT_SOURCE_CHANGED" }),
+  );
+});
+it("withholds an answer if provider permission/configuration disappears while waiting", async () => {
+  (resolveCaptureConfig as jest.Mock)
+    .mockReturnValueOnce({ model: "test" })
+    .mockReturnValueOnce(null);
+  const response = await POST(request());
+  expect(response.status).toBe(409);
+  const body = await response.json();
+  expect(body.reply).toBeUndefined();
+  expect(body.action).toBeUndefined();
+});
+
+function freshTodayFixture() {
+  return {
+    protocol: "herewoven.assistant-today.v1",
+    generatedAt: "2026-10-09T12:00:00.000Z",
+    expiresAt: "2026-10-09T12:01:00.000Z",
+    viewer: {
+      role: "parent",
+      localDate: "2026-10-09",
+      timeZone: "America/Toronto",
+    },
+    today: {
+      events: [],
+      chores: [],
+      dinner: null,
+      groceries: [],
+      useSoon: [],
+      weather: null,
+      unavailable: ["weather"],
+    },
+  };
+}
+it("withholds grounded output after a referenced record changes during provider latency", async () => {
+  mockTodayEnabled = true;
+  const context = freshTodayFixture();
+  (loadAssistantTodayContext as jest.Mock)
+    .mockResolvedValueOnce(context)
+    .mockResolvedValueOnce({
+      ...context,
+      today: {
+        ...context.today,
+        groceries: [{ item: "Milk", quantity: 1, list: "Groceries" }],
+      },
+    });
+  const response = await POST(request({ ...input, includeToday: true }));
+  expect(response.status).toBe(409);
+  expect((await response.json()).reply).toBeUndefined();
+});
+it("does not return expired grounded context even if all source values are unchanged", async () => {
+  mockTodayEnabled = true;
+  (loadAssistantTodayContext as jest.Mock).mockResolvedValue(
+    freshTodayFixture(),
+  );
+  (structuredAssistantReply as jest.Mock).mockImplementationOnce(async () => {
+    jest
+      .mocked(Date.now)
+      .mockReturnValue(Date.parse("2026-10-09T12:01:00.000Z"));
+    return { reply: "Old household answer", action: null };
+  });
+  const response = await POST(request({ ...input, includeToday: true }));
+  expect(response.status).toBe(409);
+  expect((await response.json()).reply).toBeUndefined();
 });

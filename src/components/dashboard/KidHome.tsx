@@ -29,6 +29,8 @@ import {
 } from "@/lib/dates";
 import { groupByRoutine, normalizeRoutineName } from "@/lib/routine-icons";
 import KidRoutines from "./KidRoutines";
+import { OwnPreparationNote } from "@/components/calendar/preparation/OwnPreparationNote";
+import type { OwnPreparationContext } from "@/lib/event-preparation/discovery";
 import { useLocalNow } from "@/components/ui/use-hydrated";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { useRewardsText } from "@/i18n/rewards";
@@ -67,6 +69,7 @@ interface Reward {
 }
 
 interface KidHomeProps {
+  preparationContext?: OwnPreparationContext;
   user: {
     id?: string;
     name?: string;
@@ -175,6 +178,7 @@ export default function KidHome({
   events,
   rewards,
   workPreviewLimited = false,
+  preparationContext = {},
 }: KidHomeProps) {
   const displayLocale = useDisplayLocale();
   const kidHomeText = useKidHomeText();
@@ -655,6 +659,11 @@ export default function KidHome({
           >
             {chore.title}
           </div>
+          {preparationContext[chore.id] && (
+            <OwnPreparationNote
+              title={preparationContext[chore.id].eventTitle}
+            />
+          )}
           {note && (
             <div className="text-footnote text-label-secondary mt-1">
               {note}
@@ -714,6 +723,7 @@ export default function KidHome({
         {/* Picture routines (#272): first, because they say what to do next. */}
         {routines.length > 0 && (
           <KidRoutines
+            preparationContext={preparationContext}
             routines={routines}
             tickedIds={completedChores}
             onComplete={(id) => {

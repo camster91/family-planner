@@ -1,3 +1,4 @@
+import { assistantGroundingLeaseCurrent } from "@/lib/assistant-grounding-lease";
 import {
   boundedRequestText,
   RequestBodyTooLarge,
@@ -214,6 +215,88 @@ export async function POST(request: NextRequest) {
         { error: "AI returned an unsupported action. Please rephrase." },
         { status: 502 },
       );
+    // Provider latency is not a permission or source lease. Renew before any
+    // private reply/action reaches the browser; never return the old reply on
+    // failure. The canonical action APIs still authorize/confirm each write.
+    const [renewed, renewalError] = await authenticateWithFamily(request);
+    if (renewalError) {
+      renewalError.headers.set("Cache-Control", "private, no-store");
+      return renewalError;
+    }
+    if (
+      renewed.user.id !== auth.user.id ||
+      renewed.user.family_id !== auth.user.family_id ||
+      renewed.user.role !== auth.user.role ||
+      (renewed.payload?.tv ?? 0) !== (auth.payload?.tv ?? 0) ||
+      !canUseCapture(renewed.user.role)
+    )
+      return NextResponse.json(
+        {
+          error:
+            "Your account or household changed. Refresh before asking again.",
+          code: "ASSISTANT_SOURCE_CHANGED",
+        },
+        { status: 409, headers: { "Cache-Control": "private, no-store" } },
+      );
+    const currentFamily = await prisma!.family.findUnique({
+      where: { id: renewed.user.family_id },
+      select: {
+        features: true,
+        capture_ai_key_enc: true,
+        capture_ai_base_url: true,
+        capture_ai_model: true,
+      },
+    });
+    const currentConfig = resolveCaptureConfig(currentFamily);
+    const sourceChanged = () =>
+      NextResponse.json(
+        {
+          error:
+            "Household information changed or expired. Refresh before asking again.",
+          code: "ASSISTANT_SOURCE_CHANGED",
+        },
+        { status: 409, headers: { "Cache-Control": "private, no-store" } },
+      );
+    // Config objects may contain credentials. Compare in memory only; never log
+    // them or include any differing values in errors, receipts or telemetry.
+    if (
+      !currentFamily ||
+      !currentConfig ||
+      JSON.stringify(currentConfig) !== JSON.stringify(config) ||
+      JSON.stringify(normalizeFeatures(currentFamily.features)) !==
+        JSON.stringify(features)
+    )
+      return sourceChanged();
+    if (todayContext) {
+      if (
+        !isAssistantTodayEnabled() ||
+        !assistantGroundingLeaseCurrent(todayContext, Date.now())
+      )
+        return sourceChanged();
+      let currentContext: unknown;
+      try {
+        // Anchor the original local-day/window evaluation, but reread current
+        // canonical records. A rollover or elapsed lease is held separately.
+        currentContext = await loadAssistantTodayContext(prisma!, {
+          userId: renewed.user.id,
+          familyId: renewed.user.family_id,
+          role: renewed.user.role,
+          serverNow: new Date(todayContext.generatedAt),
+          localNow: new Date(parsed.data.localNow),
+          viewerTimeZone: parsed.data.timeZone,
+          surface: "person",
+        });
+      } catch {
+        return sourceChanged();
+      }
+      const checked = assistantTodayContextSchema.safeParse(currentContext);
+      if (
+        !checked.success ||
+        JSON.stringify(checked.data) !== JSON.stringify(todayContext) ||
+        !assistantGroundingLeaseCurrent(todayContext, Date.now())
+      )
+        return sourceChanged();
+    }
     if (
       result.data.action &&
       !canUseAssistantAction(result.data.action, auth.user.role, features)

@@ -11,6 +11,7 @@ import { isKidRole } from "@/lib/kid-access";
 import { refreshStaleSubscriptions } from "@/lib/calendar-import/sync";
 import { addUTCDays, startOfTodayUTC } from "@/lib/dates";
 import KidHome from "@/components/dashboard/KidHome";
+import { readOwnPreparationContext } from "@/lib/event-preparation/discovery";
 
 import OnboardingFlow from "@/components/onboarding/OnboardingFlow";
 
@@ -162,8 +163,15 @@ export default async function DashboardPage() {
     location: event.location,
   }));
 
+  const preparationContext = await readOwnPreparationContext(prisma!, {
+    userId: user.id,
+    familyId,
+    role: user.role,
+    choreIds: chores.map((c) => c.id),
+  });
   return (
     <KidHome
+      preparationContext={preparationContext}
       user={viewer as any}
       chores={visibleChores as any}
       workPreviewLimited={workPreviewLimited}

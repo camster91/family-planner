@@ -2,6 +2,8 @@
 
 import { useState, type ReactNode } from 'react'
 import Link from 'next/link'
+import { PreparationEntry } from '@/components/calendar/preparation/PreparationEntry'
+import type { PreparationBacklinks } from '@/lib/event-preparation/discovery'
 import { groupByRoutine, ROUTINE_ORDER_MAX } from '@/lib/routine-icons'
 import { useTranslation } from '@/i18n'
 import { useRoutineStackText } from '@/i18n/routine-stack'
@@ -68,7 +70,8 @@ function isProfileOnlyStep(
   return chore.assigned_to === null && (chore.assigned_member_id != null || chore.member_subject_erased === true)
 }
 
-export function RoutineStacks({ chores, userRole, currentUserId, familyId, locale, collapseRepeats = false, onComplete, renderOpenRow, showBuilder = true }: {
+export function RoutineStacks({ chores, userRole, currentUserId, familyId, locale, collapseRepeats = false, onComplete, renderOpenRow, showBuilder = true, preparationBacklinks = {} }: {
+  preparationBacklinks?: PreparationBacklinks
   chores: Step[]
   userRole: string
   currentUserId: string
@@ -105,6 +108,7 @@ export function RoutineStacks({ chores, userRole, currentUserId, familyId, local
           {context && <p className="text-footnote text-label-secondary">{profileUnavailable ? profileText('profileTargetRefresh') : chore.subject?.name ?? chore.assignee?.name ?? t('routineViews.unassigned')} · {formatDateOnly(chore.due_date, undefined, locale)}</p>}
           <p className="text-footnote text-label-secondary">{profilePaused ? profileText(profileChorePauseMessage(chore.actionAvailability)) : chore.status === 'verified' ? routineText('checked') : done ? routineText('doneWaiting') : next ? routineText('upNext') : routineText('toDo')}</p>
         </div>
+        {userRole === 'parent' && preparationBacklinks[chore.id] && <PreparationEntry eventId={preparationBacklinks[chore.id]} backlink />}
         {!done && canComplete && <button type="button" onClick={() => onComplete(chore.id)} className="btn-filled min-h-[44px]" aria-label={routineText('completeStep', { title: chore.title })}>{routineText('doneAction')}</button>}
         {userRole === 'parent' && !profileOnly && <Link href={`/dashboard/chores/edit?id=${encodeURIComponent(chore.id)}`} className="text-footnote text-label-secondary min-h-[44px] inline-flex items-center px-2 underline" aria-label={routineText('editStep', { title: chore.title })}>{routineText('editAction')}</Link>}
       </li>

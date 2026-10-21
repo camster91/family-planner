@@ -1174,6 +1174,7 @@ export default function ChoresContent({
           </section>
         ) : view === "routines" ? (
           <RoutineStacks
+            preparationBacklinks={preparationBacklinks}
             chores={filtered}
             userRole={userRole}
             currentUserId={currentUserId}
@@ -1212,7 +1213,7 @@ export default function ChoresContent({
         {now && showInlineRoutines && <details key={filter} open={filter === "today"} className="min-w-0 rounded-[var(--radius-xl)] border border-[var(--surface-separator)]">
           <summary className="min-h-[44px] cursor-pointer px-4 py-3 text-headline text-label-primary">{overviewText("routinePanel")}</summary>
           <div className="p-3 pt-0">
-            <RoutineStacks chores={routineRows} userRole={userRole} currentUserId={currentUserId} familyId={familyId}
+            <RoutineStacks preparationBacklinks={preparationBacklinks} chores={routineRows} userRole={userRole} currentUserId={currentUserId} familyId={familyId}
               locale={displayLocale} collapseRepeats={filter !== "today"} showBuilder={false}
               onComplete={handleCompleteChore}
               renderOpenRow={id => { const chore = choreById.get(id); return chore ? renderOpenChore(chore, 0) : null; }} />
