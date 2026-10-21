@@ -141,3 +141,16 @@ and isolated disposable-DB lifecycle cases; all unrun. Full authenticated source
 loading/mutation/receipts/recovery/EN-ES sheet and canonical discovery remain code
 work. See `docs/plans/event-preparation-v1.md`. No activation/schema execution or
 QA/release claim; #123 stays open. QA follows all remaining implementation.
+
+
+### #123 event preparation API/effect continuation — 2026-10-20
+
+Authored bounded fresh parent canonical source loader, actor/profile/routine/
+Chore/Event lock ordering and dependency-change refusal, explicit private-safe
+projection, exact-source preview/read routes, once-only canonical Chore/date/
+link mutation and same-transaction minimal receipt/replay. New default-off gate
+is unchanged. Additive completion/proof continuity source catches complete/undo
+without changing consent epoch semantics. Cases authored, unrun. Strict client/
+recovery envelopes, 1 MiB exact-body owned journal/inspection, pickers, compact
+EN/ES UI and canonical entry/backlinks remain code work. No API/schema/SQL/DB/
+client generation, tests/build/browser/native/CI, activation or release evidence.

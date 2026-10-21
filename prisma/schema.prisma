@@ -435,6 +435,8 @@ model FamilyInvite {
 }
 
 model Chore {
+  /// Preparation-only completion/proof continuity; canonical status remains authoritative.
+  preparation_epoch Int @default(0)
   event_preparation_step EventPreparationStep?
   /// Consent source continuity, not a credential. Legacy material edits advance the epoch in SQL.
   responsibility_generation String @default(dbgenerated("gen_random_uuid()::text"))

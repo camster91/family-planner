@@ -1,6 +1,24 @@
 -- #123 source only; no migration/DDL/DB operation has been run.
 -- Depends on canonical Chore scoped identity and schedule Event epochs.
 BEGIN;
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "preparation_epoch" INTEGER NOT NULL DEFAULT 0;
+DO $$ BEGIN
+  ALTER TABLE "Chore" ADD CONSTRAINT "Chore_preparation_epoch_check" CHECK ("preparation_epoch" >= 0) NOT VALID;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+ALTER TABLE "Chore" VALIDATE CONSTRAINT "Chore_preparation_epoch_check";
+-- Material content/subject/root versions come from responsibility_generation/
+-- epoch. This separate counter also catches completion/proof changed away/back
+-- without altering the meaning of existing responsibility statements.
+CREATE OR REPLACE FUNCTION herewoven_preparation_task_state() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW."preparation_epoch" := GREATEST(OLD."preparation_epoch", COALESCE(NEW."preparation_epoch", OLD."preparation_epoch"));
+  IF ROW(OLD."status", OLD."photo_url", OLD."photo_verified", OLD."verified_at", OLD."verified_notes", OLD."completed_at", OLD."successor_id") IS DISTINCT FROM ROW(NEW."status", NEW."photo_url", NEW."photo_verified", NEW."verified_at", NEW."verified_notes", NEW."completed_at", NEW."successor_id") THEN
+    NEW."preparation_epoch" := LEAST(2147483647::bigint, NEW."preparation_epoch"::bigint + 1)::integer;
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS herewoven_preparation_task_state ON "Chore";
+CREATE TRIGGER herewoven_preparation_task_state BEFORE UPDATE ON "Chore" FOR EACH ROW EXECUTE FUNCTION herewoven_preparation_task_state();
 ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "preparation_epoch" INTEGER NOT NULL DEFAULT 0;
 CREATE UNIQUE INDEX IF NOT EXISTS "Event_id_family_id_key" ON "Event" ("id", "family_id");
 DO $$ BEGIN

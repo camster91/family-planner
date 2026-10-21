@@ -108,3 +108,46 @@ UI/integration/recovery remain code work, followed by the
 consolidated QA pass. No provider, live data, schema/client/SQL/DB, tests/build/
 browser/native/CI, activation or release evidence exists for this new workflow.
 Do not close #123 or substitute a planner/link-only shortcut for the full journey.
+
+
+## Canonical API/effect continuation — 2026-10-20
+
+Authored `src/lib/event-preparation/{runtime,read-contract,source,state-store,
+mutation,server,http,route,view,owner}.ts` and default-off API entry points:
+GET/PATCH `/api/coordination/event-preparation` and POST its `/preview` child.
+Initial GET reads linked work; selected-source POST refreshes exact chosen task,
+subject and dated-routine scope. Command preview/write reconstruct that exact
+scope server-side; arbitrary supplied view tokens are never server authority.
+Refresh the final selection before preview/confirmation. No broad household
+picker query is substituted for exact command source scope.
+
+Person parent only. Current actor token/household/role/features renew inside the
+transaction. Dependencies are collected before stable User/profile/stack/Chore/
+Event/metadata locks and rechecked; source changes outside that locked set refuse
+instead of acquiring late locks. Routine controls/inactive/unsupported work is
+not actionable. Source copy content is validated from actual fields; display
+truncation is not copy content. Unavailable task content/state and invalid routine
+copy content are withheld. Current identity versions and exact link rows further
+bind the review, separately from content/material and status/proof source epochs.
+
+Additive Chore preparation epoch/trigger source catches completion/proof changes
+including complete/undo; it does not alter existing responsibility consent epoch
+meaning. Schema probe requires those columns/triggers plus existing material and
+identity-retirement dependencies. No schema operation or client generation ran.
+
+The effect uses canonical fresh once-only Chores, scoped date updates and ordered
+metadata; no duplicate completion/points model. Empty intended set removes plan
+metadata. Same transaction stores minimal exact proof (IDs/digests, no descriptions
+or private content). Matching complete claim replay does not reread target or
+clone work. This is not yet the full owned recovery journey: UI/context/journal/
+inspection, strict client DTO schema, pickers and canonical discovery remain next.
+
+Request bound is 1 MiB so 99 full canonical steps are supported, including escaped
+content. Recovery must bound exact bodies/storage explicitly and handle quota
+failures before any send. Do not copy the smaller schedule-review body limit or
+silently truncate a preparation request to make it fit.
+
+Runtime/source/effect/receipt/projection case source is authored and unrun. No API
+request, SQL/DB/migration, tests/types/lint/build/browser/native/CI or activation/
+release has been executed. Full feature and #123 stay open pending remaining code
+and later consolidated QA.

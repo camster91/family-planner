@@ -1,5 +1,46 @@
 # Current State
 
+## Event preparation canonical API/effect source — 2026-10-20
+
+The next #123 slice adds parent-person Event preparation GET, readonly selected-
+source/command-preview POST and owned-idempotent PATCH source. New default-off
+`FAMILY_EVENT_PREPARATION_READY` plus existing owner recovery gates hold writes.
+No flag was changed. Request bodies are bounded at 1 MiB to support the full
+99-step content contract; future owned journal must retain that exact body.
+
+The bounded loader renews current actor token/household/role and calendar/chores
+features. It collects linked/selected/dated-routine task and recurrence-root IDs,
+locks related Users/profiles/source stacks before sorted Chores, then Event,
+plan/links and receipt. Dependency and plan/routine membership changes cause a
+fresh-review refusal; no late identity/root/stack lock is acquired. Canonical
+subject, profile age/link/erasure/gates and scheduled-routine availability apply.
+Template controls/unsupported recurring Event targets are held. Only pristine
+open standalone once-only tasks are eligible for explicit date changes.
+
+Canonical content/subject/root source epochs are combined with a new Chore
+preparation-only completion/proof epoch (additive schema/SQL source). Completion
+then undo invalidates an old preparation request without changing responsibility
+consent semantics. Scope also binds exact link IDs, current selected identity
+source versions and source occurrence membership. Unavailable task text/state is
+omitted from the personal projection; profile gates remain explicit. Routine
+copy content is validated from actual canonical fields rather than truncated UI
+text, and unavailable/invalid source content cannot be copied or projected.
+
+The internal mutation creates fresh pending one-off Chores without recurrence,
+proof/completion/photos or copied credit, retimes only explicit eligible work,
+and detaches/reorders/inserts metadata. Removing all links removes the plan,
+not tasks. Canonical effect and content-minimal receipt are one transaction;
+completed matching claims replay before target/schema/readiness reads and do
+not create another copy. Historical proof does not assert current preparation.
+
+Source/server/projection/role/dependency/receipt cases and a disposable completion-
+undo epoch case are authored, all unrun. No tests/types/lint/build, Prisma/client/
+SQL/schema/DB operation, browser/native/CI, activation/push/merge/deploy occurred.
+Still required: strict client/recovery envelopes, paused/deleted-target owned
+receipt inspection and journal, paged canonical pickers, short EN/ES sheet and
+canonical discovery/backlinks. Full #123 and the integrated goal remain open;
+consolidated QA follows remaining code.
+
 ## Event preparation contract, lifecycle and reviewed scope source — 2026-10-20
 
 The next #123 slice authors canonical EventPreparation/Step metadata, additive

@@ -44,6 +44,7 @@ const content = {
   icon: z.string().refine(isRoutineIconKey).nullable(),
   durationMinutes: z.number().int().min(1).max(1440).nullable(),
 };
+export const preparationStepContent = z.object(content).strict();
 const existing = z
   .object({
     kind: z.literal("existing"),
@@ -168,7 +169,7 @@ export type PreparationContext = {
       content: Omit<
         z.infer<typeof create>,
         "kind" | "clientId" | "dueDay" | "cue"
-      >;
+      > | null;
     }[];
   } | null;
 };
@@ -176,6 +177,9 @@ export class EventPreparationError extends Error {
   constructor(
     public readonly code:
       | "INVALID"
+      | "UNAUTHORIZED"
+      | "NOT_FOUND"
+      | "UNSUPPORTED"
       | "FORBIDDEN"
       | "UNAVAILABLE"
       | "STALE"
@@ -337,6 +341,7 @@ export function planEventPreparation(
         if (
           !source ||
           !source.copyable ||
+          !source.content ||
           source.sourceToken !== step.sourceToken
         )
           return fail("STALE");
@@ -439,6 +444,7 @@ export function planEventPreparation(
     detach,
     retime,
     changed:
+      (!!context.current && ordered.length === 0) ||
       created.length > 0 ||
       retime.length > 0 ||
       detach.length > 0 ||

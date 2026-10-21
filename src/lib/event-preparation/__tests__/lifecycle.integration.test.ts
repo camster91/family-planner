@@ -200,4 +200,30 @@ run("event preparation scoped metadata and canonical lifecycle", () => {
         .$executeRaw`INSERT INTO "EventPreparationStep" ("family_id","preparation_id","chore_id","position") VALUES (${foreignFamily},${first.planId},${second.choreId},2)`,
     ).rejects.toThrow();
   });
+  it("completion then undo advances preparation continuity without changing consent material epoch", async () => {
+    const { choreId } = await fixture();
+    const read = async () =>
+      (
+        await prisma!.$queryRaw<
+          Array<{ preparation: number; material: number }>
+        >`SELECT "preparation_epoch" AS preparation, "responsibility_epoch" AS material FROM "Chore" WHERE "id"=${choreId} AND "family_id"=${family}`
+      )[0];
+    const initial = await read();
+    await prisma!.chore.update({
+      where: { id: choreId },
+      data: {
+        status: "completed",
+        completed_at: new Date("2026-10-21T14:00:00Z"),
+      },
+      select: { id: true },
+    });
+    await prisma!.chore.update({
+      where: { id: choreId },
+      data: { status: "pending", completed_at: null },
+      select: { id: true },
+    });
+    const current = await read();
+    expect(current.preparation).toBe(initial.preparation + 2);
+    expect(current.material).toBe(initial.material);
+  });
 });

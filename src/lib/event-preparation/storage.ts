@@ -6,11 +6,14 @@ export async function eventPreparationStorageAvailable(tx: Reader) {
   const rows = await tx.$queryRaw<Array<{ ready: boolean }>>`
   SELECT to_regclass('public."EventPreparation"') IS NOT NULL AND to_regclass('public."EventPreparationStep"') IS NOT NULL
    AND (SELECT COUNT(*)=3 FROM pg_attribute WHERE attrelid=to_regclass('public."Event"') AND NOT attisdropped AND attnotnull AND attname IN ('schedule_generation','schedule_epoch','preparation_epoch'))
-   AND (SELECT COUNT(*)=7 FROM pg_trigger WHERE NOT tgisinternal AND tgenabled IN ('O','A') AND (
+   AND (SELECT COUNT(*)=3 FROM pg_attribute WHERE attrelid=to_regclass('public."Chore"') AND NOT attisdropped AND attnotnull AND attname IN ('responsibility_generation','responsibility_epoch','preparation_epoch'))
+   AND (SELECT COUNT(*)=1 FROM pg_trigger WHERE tgrelid=to_regclass('public."Chore"') AND tgname='herewoven_responsibility_epoch' AND NOT tgisinternal AND tgenabled IN ('O','A'))
+   AND (SELECT COUNT(*)=4 FROM pg_trigger WHERE tgname='herewoven_responsibility_retirement' AND NOT tgisinternal AND tgenabled IN ('O','A') AND tgrelid IN (to_regclass('public."User"'),to_regclass('public."HouseholdMember"'),to_regclass('public."HouseholdMemberLegacyMapping"'),to_regclass('public."HouseholdMemberAccountLink"')))
+   AND (SELECT COUNT(*)=8 FROM pg_trigger WHERE NOT tgisinternal AND tgenabled IN ('O','A') AND (
     (tgrelid=to_regclass('public."Event"') AND tgname IN ('herewoven_preparation_epoch','herewoven_preparation_event_move')) OR
     (tgrelid=to_regclass('public."EventPreparation"') AND tgname IN ('herewoven_preparation_identity','herewoven_preparation_lifecycle')) OR
     (tgrelid=to_regclass('public."EventPreparationStep"') AND tgname IN ('herewoven_preparation_identity','herewoven_preparation_step_version')) OR
-    (tgrelid=to_regclass('public."Chore"') AND tgname='herewoven_preparation_chore_move')
+    (tgrelid=to_regclass('public."Chore"') AND tgname IN ('herewoven_preparation_chore_move','herewoven_preparation_task_state'))
    )) AS ready`;
   return rows[0]?.ready === true;
 }
