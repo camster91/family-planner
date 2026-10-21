@@ -153,9 +153,11 @@ export function usePreparationActive() {
 export function PreparationButton({
   location,
   beforeOpen,
+  backlink = false,
 }: {
   location: PreparationLocation;
   beforeOpen?: () => void;
+  backlink?: boolean;
 }) {
   const context = React.useContext(Context),
     copy = usePreparationText();
@@ -170,7 +172,7 @@ export function PreparationButton({
         context.open(location);
       }}
     >
-      {copy.open}
+      {backlink ? copy.backlink : copy.open}
     </button>
   );
 }

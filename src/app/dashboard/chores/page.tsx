@@ -4,6 +4,7 @@ import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import ChoresContent from './ChoresContent'
+import { readPreparationBacklinks } from '@/lib/event-preparation/discovery'
 import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
 import {
   CHORE_HISTORY_ORDER,
@@ -197,8 +198,11 @@ export default async function ChoresPage() {
     return gamification ? row : omitChorePoints(row)
   })
 
+  const preparationBacklinks = familyId && user?.role === 'parent'
+    ? await readPreparationBacklinks(prisma!, { userId: sessionUser.id, familyId, role: user.role, choreIds: chores.map(c => c.id) }) : {}
   return (
     <ChoresContent
+      preparationBacklinks={preparationBacklinks}
       chores={serializedChores as any}
       familyMembers={familyMembers as any}
       currentUserId={sessionUser.id}

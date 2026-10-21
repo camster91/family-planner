@@ -1,5 +1,41 @@
 # Current State
 
+## Personal Today and chore preparation discovery source — 2026-10-21
+
+Personal parent Today now has preparation entry points on its bounded event rows,
+in both configurable and fallback personal layouts. Linked tasks in the personal
+summary, Next up and open chore board rows have an event-preparation backlink.
+The existing Chore completion/check/Undo controls remain canonical; the backlink
+is a separate button, outside the completion control. EN/ES labels and a hydrated,
+validated viewer IANA zone feed the existing reviewed preparation host. No zone
+is guessed if the browser cannot supply one. Opening renews canonical authority;
+a link is not a freshness, due-day or whole-event readiness assertion.
+
+The additive server projection renews parent/household membership in the same
+scoped relationship SELECT, joins both canonical Event and Chore household keys,
+filters to already-visible non-template Chore IDs and active domain features,
+and returns only Chore-to-Event IDs. Readiness/schema absence omits discovery.
+It deduplicates/bounds the supplied window at 300 IDs; absence from this map is
+not an exhaustive assertion that a task has no preparation relationship. Older
+history fetched later and non-open chore presentations still need their own
+explicit bounded discovery integration.
+
+The personal map is a separate prop: it is never added to shared/persisted board
+DTOs or device responses. Fridge, device, child/teen and cached-snapshot entry
+controls are omitted, and the parent host remains default-off. No linked Event
+content, cue details, private task content, progress or names are copied into the
+relationship projection. Confirmed preparation writes continue using the existing
+content-free canonical refresh; no polling, scheduler or alternate task store was
+introduced.
+
+Projection role/readiness/schema/window/source case code is authored, unrun. Only
+source inspection and explicit-file formatting occurred; no tests/types/lint/build,
+rendered/browser/native/API/schema/SQL/DB/client generation/CI, activation or
+push/merge/deploy occurred. Remaining code includes narrower authorized reader
+projections, dated-routine/canonical-editor provenance and remaining task views,
+unified review inbox/what-changed, grounded planning/evaluation and broader ledger
+scope. Consolidated QA remains deferred; neither #123 nor release is complete.
+
 ## Event preparation pickers and compact personal sheet source — 2026-10-21
 
 The requested picker/UI code slice is authored: a bounded task/account/profile/

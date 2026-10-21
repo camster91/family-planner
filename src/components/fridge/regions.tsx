@@ -198,7 +198,9 @@ function AddedByLabel({ person }: { person: BoardPerson }) {
 export function ScheduleEventRows({
   events,
   people,
+  eventAction,
 }: {
+  eventAction?: (event: TodayEvent) => React.ReactNode
   events: TodayEvent[]
   people?: Map<string, BoardPerson>
 }) {
@@ -231,6 +233,7 @@ export function ScheduleEventRows({
                   {e.source && <SourceLabel source={e.source} />}
                 </div>
               )}
+              {eventAction?.(e)}
             </div>
           </li>
         )
@@ -516,7 +519,9 @@ export function ChoreRow({
   onTick,
   canTick,
   showOwner = false,
+  action,
 }: {
+  action?: React.ReactNode
   chore: BoardChore
   name: string
   onTick?: ((chore: BoardChore) => void) | null
@@ -560,6 +565,7 @@ export function ChoreRow({
       ) : (
         label
       )}
+      {action}
     </li>
   )
 }

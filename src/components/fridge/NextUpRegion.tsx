@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { PreparationEntry } from "@/components/calendar/preparation/PreparationEntry";
+import type { PreparationBacklinks } from "@/lib/event-preparation/discovery";
 import { CalendarDays } from "lucide-react";
 import type { BoardChore } from "@/app/dashboard/today/today-board-data";
 import { useTodayBoardText } from "@/i18n/today-board";
@@ -28,7 +30,11 @@ export function NextUpRegion({
   choresHref,
   onTick,
   canTick,
+  preparationEnabled = false,
+  preparationBacklinks = {},
 }: {
+  preparationEnabled?: boolean;
+  preparationBacklinks?: PreparationBacklinks;
   events: TodayEvent[];
   people: Map<string, BoardPerson>;
   chores: PersonChores[];
@@ -65,7 +71,15 @@ export function NextUpRegion({
     >
       <p className={`${metaTextClass} mb-3`}>{text("nextUpHint")}</p>
       {shownEvents.length > 0 && (
-        <ScheduleEventRows events={shownEvents} people={people} />
+        <ScheduleEventRows
+          events={shownEvents}
+          people={people}
+          eventAction={
+            preparationEnabled
+              ? (event) => <PreparationEntry eventId={event.id} />
+              : undefined
+          }
+        />
       )}
       {moreEvents > 0 && (
         <p className={`${metaTextClass} mt-2`}>
@@ -108,6 +122,14 @@ export function NextUpRegion({
                 showOwner
                 onTick={onTick}
                 canTick={canTick}
+                action={
+                  preparationEnabled && preparationBacklinks[chore.id] ? (
+                    <PreparationEntry
+                      eventId={preparationBacklinks[chore.id]}
+                      backlink
+                    />
+                  ) : undefined
+                }
               />
             ))}
           </ul>

@@ -16,6 +16,7 @@ import { isProfileChoreEnabled } from "@/lib/chore-profile";
 import { Suspense } from "react";
 import WeeklyResetLauncher from "@/components/dashboard/WeeklyResetLauncher";
 import { weeklyResetReady } from "@/lib/weekly-reset";
+import { readPreparationBacklinks } from "@/lib/event-preparation/discovery";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -122,6 +123,19 @@ export default async function TodayBoardPage({
   if (!home)
     return <TodayBoard data={data} fridgeMode={fridgeMode} viewer={viewer} />;
 
+  const preparationBacklinks =
+    user.role === "parent" && data.links.calendar && data.links.chores
+      ? await readPreparationBacklinks(prisma!, {
+          userId: sessionUser.id,
+          familyId,
+          role: user.role,
+          choreIds: [
+            ...home.chores.map((c) => c.id),
+            ...data.chores.map((c) => c.id),
+          ],
+        })
+      : {};
+
   // Own chore rows already have completion/reopen/Undo in the personal summary.
   // Exclude only those exact IDs from the household tile, not every chore for
   // this member: the two bounded reads can contain different sets of rows.
@@ -135,7 +149,11 @@ export default async function TodayBoardPage({
 
   return (
     <>
-      <HomeSummary viewer={viewer} {...home} />
+      <HomeSummary
+        viewer={viewer}
+        {...home}
+        preparationBacklinks={preparationBacklinks}
+      />
       {weeklyResetReady() &&
         !fridgeMode &&
         ["parent", "teen", "child"].includes(user.role) && (
@@ -152,6 +170,7 @@ export default async function TodayBoardPage({
         fridgeMode={fridgeMode}
         viewer={viewer}
         choresShownElsewhere={choresShownElsewhere}
+        preparationBacklinks={preparationBacklinks}
       />
       {getStarted && (
         <TodaySetup viewer={viewer} familyId={familyId} steps={getStarted} />

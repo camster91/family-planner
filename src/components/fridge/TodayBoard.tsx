@@ -550,7 +550,9 @@ export default function TodayBoard({
   tileActions,
   groceryAction,
   choresShownElsewhere,
+  preparationBacklinks = {},
 }: {
+  preparationBacklinks?: import("@/lib/event-preparation/discovery").PreparationBacklinks;
   data: TodayBoardData;
   /** Exact chore IDs rendered by the personal home summary. Ignored in fridge mode. */
   choresShownElsewhere?: readonly string[];
@@ -771,6 +773,13 @@ export default function TodayBoard({
       case "next":
         return (
           <NextUpRegion
+            preparationEnabled={
+              personal &&
+              !cachedSnapshot &&
+              viewer?.role === "parent" &&
+              Boolean(data.links.calendar && data.links.chores)
+            }
+            preparationBacklinks={preparationBacklinks}
             events={view.today}
             people={view.people}
             chores={view.chores}
@@ -957,6 +966,13 @@ export default function TodayBoard({
               />
             ) : (
               <NextUpRegion
+                preparationEnabled={
+                  personal &&
+                  !cachedSnapshot &&
+                  viewer?.role === "parent" &&
+                  Boolean(data.links.calendar && data.links.chores)
+                }
+                preparationBacklinks={preparationBacklinks}
                 events={view.today}
                 people={view.people}
                 chores={view.chores}

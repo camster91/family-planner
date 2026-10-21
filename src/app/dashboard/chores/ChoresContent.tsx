@@ -1,4 +1,6 @@
 "use client";
+import { PreparationEntry } from "@/components/calendar/preparation/PreparationEntry";
+import type { PreparationBacklinks } from "@/lib/event-preparation/discovery";
 import { ResponsibilityButton } from "@/components/responsibility/ResponsibilityProvider";
 
 import * as React from "react";
@@ -68,6 +70,7 @@ function isActiveRepeatingChore(chore: Chore): boolean {
 }
 
 interface ChoresContentProps {
+  preparationBacklinks?: PreparationBacklinks;
   chores: (Chore & {
     assignee: { name: string } | null;
     creator: { name: string } | null;
@@ -212,6 +215,7 @@ export default function ChoresContent({
   familyId,
   routineSchedulesEnabled = false,
   historyCursor = null,
+  preparationBacklinks = {},
 }: ChoresContentProps) {
   const [view, setView] = React.useState<"chores" | "routines">("chores");
   const [filter, setFilter] = React.useState<FilterMode>("today");
@@ -996,6 +1000,7 @@ export default function ChoresContent({
           className={cn("pr-3", i === todayChores.length - 1 && "border-b-0")}
         />
         <ResponsibilityButton target={{ kind: "chore", id: chore.id }} />
+        {userRole === "parent" && preparationBacklinks[chore.id] && <PreparationEntry eventId={preparationBacklinks[chore.id]} backlink />}
       </div>
     );
     if (profileOnly) return <div key={chore.id}>{row}</div>;

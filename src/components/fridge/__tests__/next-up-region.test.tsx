@@ -7,6 +7,20 @@ import { NextUpRegion } from "../NextUpRegion";
 import type { BoardChore } from "@/app/dashboard/today/today-board-data";
 import type { TodayEvent } from "../board-model";
 
+jest.mock("@/components/calendar/preparation/PreparationEntry", () => ({
+  PreparationEntry: ({
+    eventId,
+    backlink,
+  }: {
+    eventId: string;
+    backlink?: boolean;
+  }) => (
+    <button type="button">
+      {backlink ? "Backlink" : "Prepare"} {eventId}
+    </button>
+  ),
+}));
+
 const member = { id: "a", name: "Avery", color: "purple" as const };
 const chore = (id: string): BoardChore => ({
   id,
@@ -159,4 +173,37 @@ it("retains done-only progress and waiting approvals instead of a false empty st
     "href",
     "/dashboard/chores",
   );
+});
+
+// Authored for the deferred consolidated pass; not executed during implementation.
+it("omits personal preparation by default even if a relationship prop is supplied", () => {
+  show({
+    events: [event("event-a")],
+    preparationBacklinks: { "task-a": "event-a" },
+    chores: [{ member, open: [chore("task-a")], doneCount: 0 }],
+  });
+  expect(
+    screen.queryByRole("button", { name: /Prepare|Backlink/ }),
+  ).not.toBeInTheDocument();
+});
+it("keeps preparation navigation outside the canonical chore completion button", async () => {
+  const onTick = jest.fn();
+  show({
+    preparationEnabled: true,
+    events: [event("event-a")],
+    preparationBacklinks: { "task-a": "event-a" },
+    chores: [{ member, open: [chore("task-a")], doneCount: 0 }],
+    onTick,
+  });
+  expect(screen.getByRole("button", { name: "Prepare event-a" })).toBeVisible();
+  await userEvent
+    .setup()
+    .click(screen.getByRole("button", { name: "Backlink event-a" }));
+  expect(onTick).not.toHaveBeenCalled();
+  await userEvent
+    .setup()
+    .click(
+      screen.getByRole("button", { name: "Mark Chore task-a done, Avery" }),
+    );
+  expect(onTick).toHaveBeenCalledTimes(1);
 });
