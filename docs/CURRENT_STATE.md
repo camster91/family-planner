@@ -1,5 +1,59 @@
 # Current State
 
+## Event preparation pickers and compact personal sheet source — 2026-10-21
+
+The requested picker/UI code slice is authored: a bounded task/account/profile/
+routine discovery API, strict scoped client page contract and lazy EN/ES rounded
+form sheet. Discovery uses current parent household/feature/profile authority and
+canonical task/routine availability, with literal search and keyset ID windows.
+The API reads at most 21 IDs; filtered empty windows keep an honest next cursor.
+The UI displays five candidates/steps/confirmation rows/removals at a time and
+never skips the remaining candidates inside a fetched page. No email directory,
+private raw rows or alternate subject/task model enters picker projections.
+
+The sheet supports new once-only tasks, existing-task linking/unlinking/reorder,
+explicit people selection including gated email-free profiles, per-step details/
+points/difficulty/duration, fixed days and named-zone start/end before/after cues.
+Current locked/scheduled task days remain locked. Changed events require an
+explicit keep-days (clear only mismatched cues) or selected-retime decision.
+Stale task versions require an explicit current-source acknowledgement. Reusing
+a selected stored routine day copies chosen concrete steps into new canonical
+work with explicit person/points/day/cue overrides; source routine/content/checks
+and historical credit stay separate. Save pending manual task changes before
+starting a routine copy; copied drafts can be resumed/cancelled locally. Repeating
+Event targets remain held pending canonical concrete-occurrence #124 support.
+
+Exact selected scope is refreshed before the server preview; the compact review
+shows new tasks, date changes, removed links (tasks kept), people/days/cues and
+bounded per-step rows before confirmation. Existing task links open the canonical
+chore editor. Newly confirmed proof emits content-free calendar and canonical-page
+refreshes. Calendar native event details close before opening preparation; gated
+parent weekly event rows expose independent preparation entry locations.
+
+Only gate/role props enter the provider. Child/teen, paired-device routes and
+signed-in fridge mode omit the personal host/controls. Normal query navigation
+supports Back/direct URLs; a saved personal URL still mounts owned recovery when
+new readiness is paused. Preparation/schedule/responsibility hosts are coordinated,
+and weekly review keeps state while releasing its dialog/focus/scroll ownership.
+Input/select colours inherit existing app theme/native-menu safeguards.
+
+The session initializes recovery before any event read, retains drafts on source
+failure, clears/hides private projections/drafts on owner change, renews the full
+owned identity and never stages after closing during asynchronous intent hashing.
+Closing during durable staging preserves recovery without a late send. Check/
+exact retry/local forget, separate stage-versus-dismissal repair and unknown proof
+holds are wired; proof is followed by a separate current read. A failed current
+read cannot display cached whole-preparation checked status as fresh acceptance.
+
+Picker isolation/paging/schema and component five-row/navigation/fridge/child/
+close-during-hash/storage case source is authored, all unrun. No tests/types/lint/
+build, API/schema/SQL/DB/client generation, browser/rendered/native/CI, activation/
+push/merge/deploy occurred. Default-off readiness is unchanged. This is authored
+UI source, not rendered UX/role/storage/native acceptance. Wider #123 role/device
+reader projections, additional canonical discovery/backlinks, unified inbox/what
+changed and grounded planning, plus the broader ledger, remain code work. QA stays
+at the consolidated pass after remaining implementation; #123 is not closed.
+
 ## Event preparation exact recovery/client source — 2026-10-21
 
 The next #123 slice adds strict browser-safe view/effect/recovery envelopes,

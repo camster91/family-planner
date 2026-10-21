@@ -1,4 +1,5 @@
 "use client";
+import { usePreparationActive } from "@/components/calendar/preparation/PreparationProvider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -31,7 +32,9 @@ export default function ScheduleReviewProvider({
   const pushed = React.useRef<string | null>(null),
     navigating = React.useRef(false),
     closing = React.useRef(false);
+  const preparationActive = usePreparationActive();
   const personal =
+    !preparationActive &&
     ["parent", "teen", "child"].includes(role) &&
     params.get("mode") !== "fridge" &&
     !pathname.startsWith("/device");
@@ -71,6 +74,8 @@ export default function ScheduleReviewProvider({
       return;
     navigating.current = true;
     const next = new URLSearchParams(params.toString());
+    next.delete("prepareEvent");
+    next.delete("prepareZone");
     next.delete("responsibilityKind");
     next.delete("responsibilityId");
     next.set("reviewEvent", input.targetId);

@@ -166,3 +166,17 @@ paused/owner/quota states hold. Receipt creation uses createdCount/full digest,
 keeping proof below generic 8 KiB storage truncation. Source cases authored and
 unrun. Pickers, compact EN/ES sheet, close/stage/storage repair and canonical
 entry/backlinks remain code work. No QA/schema/API/native/activation/release claim.
+
+
+### #123 preparation pickers and compact sheet continuation — 2026-10-21
+
+Authored parent-scoped task/account/gated-profile/routine ID-window discovery,
+five-row picker/list/review UI, lazy EN/ES rounded sheet, canonical chore-editor
+links, normal Back/direct-URL navigation, independent calendar/weekly entry
+controls and sibling modal coordination. Task edit/link/reorder/unlink, explicit
+keep/retime/cues, stale-source acknowledgement and stored routine-step copy with
+person/points/day overrides use canonical commands. Exact owned stage/inspect/
+retry/forget/storage repair includes close-during-hash/stage and owner guards.
+Source tests authored, all unrun. Broader role/device reader and canonical Today/
+task/routine provenance/backlinks plus remaining #123/ledger code remain. No
+schema/API/QA/native/activation/push/merge/deploy evidence; QA stays deferred.

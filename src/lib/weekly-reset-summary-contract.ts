@@ -1,3 +1,4 @@
+import { preparationReadScope } from "@/lib/event-preparation/read-contract";
 import { scheduleReviewScope } from "@/lib/calendar-planning/conflict-review";
 import { responsibilityTarget } from "@/lib/responsibility";
 import { z } from "zod";
@@ -17,6 +18,9 @@ const summaryRow = z
   .object({
     responsibility: responsibilityTarget.optional(),
     scheduleReview: scheduleReviewScope.optional(),
+    preparation: preparationReadScope
+      .pick({ eventId: true, timeZone: true })
+      .optional(),
     title: z.string().max(480),
     when: when.nullable(),
     end: when.nullable().optional(),

@@ -293,3 +293,34 @@ export async function sendPreparation(
       }
     : { kind: "unknown" as const };
 }
+
+export async function readPreparationPicker(
+  raw: import("./picker-contract").PreparationPickerQuery,
+  context: PreparationRecoveryContext,
+) {
+  const { preparationPickerQuery, preparationPickerReply } =
+    await import("./picker-contract");
+  const query = preparationPickerQuery.parse(raw);
+  const params = new URLSearchParams({
+    eventId: query.eventId,
+    timeZone: query.timeZone,
+    memberProtocol: query.memberProtocol,
+    kind: query.kind,
+    search: query.search,
+    ...(query.after ? { after: query.after } : {}),
+  });
+  const result = await request(`${BASE}/picker?${params}`, {}, 65536);
+  if (result.kind !== "reply" || !result.response.ok)
+    throw new Error("Preparation picker unavailable");
+  const value = preparationPickerReply.parse(result.body);
+  if (
+    value.owner.userId !== context.userId ||
+    value.owner.familyId !== context.familyId ||
+    value.eventId !== query.eventId ||
+    value.kind !== query.kind ||
+    value.search !== query.search ||
+    value.after !== (query.after ?? null)
+  )
+    throw new Error("Preparation picker scope changed");
+  return value;
+}

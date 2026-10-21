@@ -1,3 +1,4 @@
+import { eventPreparationReady } from "@/lib/event-preparation/owner";
 import { scheduleReviewReady } from "@/lib/calendar-planning/schedule-owner";
 import { responsibilityReady } from "@/lib/responsibility-owner";
 import type { Prisma } from "@prisma/client";
@@ -93,6 +94,11 @@ export async function loadWeeklyResetSummaryInTx(
         kind: "events",
         more: rows.length > LIMIT,
         rows: rows.slice(0, LIMIT).map((row) => ({
+          ...(actor.role === "parent" &&
+          eventPreparationReady() &&
+          isFeatureEnabled(features, "chores")
+            ? { preparation: { eventId: row.id, timeZone: scope.timeZone } }
+            : {}),
           ...(scheduleReviewReady()
             ? {
                 scheduleReview: {

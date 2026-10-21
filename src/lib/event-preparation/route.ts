@@ -1,3 +1,5 @@
+import { readPreparationPicker } from "./picker";
+import { preparationPickerQuery } from "./picker-contract";
 import { preparationReceiptMatches } from "./receipt-server";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
@@ -60,7 +62,7 @@ const previewInput = z.discriminatedUnion("kind", [
 ]);
 export async function handlePreparationHttp(
   request: NextRequest,
-  mode: "read" | "preview" | "write" | "context" | "inspect",
+  mode: "read" | "preview" | "write" | "context" | "inspect" | "picker",
 ) {
   try {
     const [auth, refusal] = await authenticateWithFamily(request);
@@ -114,6 +116,19 @@ export async function handlePreparationHttp(
     }
     if (!eventPreparationReady())
       throw new EventPreparationError("UNAVAILABLE");
+    if (mode === "picker") {
+      const params = request.nextUrl.searchParams;
+      if (new Set(params.keys()).size !== [...params.keys()].length)
+        throw new EventPreparationError("INVALID");
+      return NextResponse.json(
+        await readPreparationPicker(
+          prisma,
+          actor,
+          preparationPickerQuery.parse(Object.fromEntries(params)),
+        ),
+        { headers },
+      );
+    }
     const now = new Date();
     if (mode === "read" || mode === "preview") {
       let scope: PreparationReadScope;

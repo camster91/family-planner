@@ -1,5 +1,9 @@
 "use client";
 import {
+  usePreparationActive,
+  PreparationButton,
+} from "@/components/calendar/preparation/PreparationProvider";
+import {
   ScheduleReviewButton,
   useScheduleReviewActive,
 } from "@/components/calendar/review/ScheduleReviewProvider";
@@ -53,7 +57,8 @@ export default function WeeklyResetReview({
 }: Props) {
   const copy = useWeeklyResetText(),
     locale = useDisplayLocale();
-  const scheduleReviewActive = useScheduleReviewActive();
+  const preparationActive = usePreparationActive();
+  const scheduleReviewActive = useScheduleReviewActive() || preparationActive;
   const [store] = React.useState(() =>
     browserWeeklyResetRecovery({ userId, familyId }),
   );
@@ -686,6 +691,11 @@ export default function WeeklyResetReview({
                                         <p className="font-medium">
                                           {row.title || copy.unnamed}
                                         </p>
+                                        {row.preparation && (
+                                          <PreparationButton
+                                            location={row.preparation}
+                                          />
+                                        )}
                                         {row.scheduleReview && (
                                           <ScheduleReviewButton
                                             scope={row.scheduleReview}

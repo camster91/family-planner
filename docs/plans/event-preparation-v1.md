@@ -193,3 +193,45 @@ Client/server/journal/schema/proof/body-limit cases authored, all unrun. No live
 request, tests/types/lint/build/schema/SQL/DB/Prisma/browser/native/CI/activation or
 release operation occurred. Canonical paged pickers, EN/ES sheet, close/stage/
 storage repair integration and canonical discovery/backlinks remain required code.
+
+
+## Pickers and compact UI continuation — 2026-10-21
+
+Authored GET `/api/coordination/event-preparation/picker` for parent task/account/
+gated profile/routine discovery, scoped literal-search/keyset pages and strict
+reply kind/subject-ID/cursor validation. Candidate IDs are reprojected through
+current canonical authority, not treated as write permission. Filtered empty
+windows retain a next cursor. API window 20 plus lookahead; UI shows five at a
+time before fetching the next window. Selection is separately refreshed under
+exact source scope before command preview/write.
+
+Authored `src/components/calendar/preparation/*`: gate/role-only provider, short
+rounded EN/ES form sheet, paged picker, step editor, pending requests and guarded
+session. New/link/reorder/unlink, points/difficulty/duration/details, person picker,
+fixed/relative due days, explicit event keep/retime decision and stale task-source
+acknowledgement are wired. Stored routine day selection creates chosen new work
+through the exact reuse command, with subject/points/day/cue overrides. Finish
+pending set-plan edits before starting a routine copy. Copy choices can be edited,
+resumed, locally cancelled or explicitly reloaded after source changes. No source
+routine/status/credit is mutated. Invalid/unsupported occurrence scopes are held.
+
+Review is bounded and explicit: before/after task dates, source people, cues, new
+work and removed links. Removing links preserves tasks. Native event details and
+parent weekly rows have default-off canonical entry controls; linked chores open
+the existing edit sheet. Weekly sibling dialogs yield focus/scroll while the child
+sheet owns them. Fridge/child/teen/device hosts are omitted; personal recovery URL
+survives readiness pause. Back/direct URL, heading focus and native theme styles
+reuse current shell contracts. Actual rendered/native behaviour is still unrun.
+
+Recovery initializes first; private projection/draft display is held or cleared
+on owner mismatch. Async hashing and durable stage each check the live operation
+before a send. Pending inspect/retry/forget and stage-versus-dismissal storage
+repair are connected; no automatic resend or cached success inference. Proof
+refreshes calendar/current route and then current preparation separately. Unknown
+reads do not display a cached whole-event checked claim as current readiness.
+
+Authored picker/schema/role/window and component privacy/navigation/hash/stage
+case source, all unrun. No tests/typecheck/lint/build, API/schema/SQL/DB/client,
+browser/native/CI/activation/release operation was run. Parent UI code slice is
+authored; broader role/device readers, Today/task/routine provenance discovery,
+and the rest of #123 remain required implementation, then consolidated QA.

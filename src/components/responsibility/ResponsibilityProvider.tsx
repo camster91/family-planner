@@ -1,4 +1,5 @@
 "use client";
+import { usePreparationActive } from "@/components/calendar/preparation/PreparationProvider";
 import { useScheduleReviewActive } from "@/components/calendar/review/ScheduleReviewProvider";
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -33,9 +34,11 @@ export default function ResponsibilityProvider({
   const pushed = React.useRef<string | null>(null),
     navigating = React.useRef(false);
   const scheduleActive = useScheduleReviewActive();
+  const preparationActive = usePreparationActive();
   const personal =
     enabled &&
     !scheduleActive &&
+    !preparationActive &&
     ["parent", "teen", "child"].includes(role) &&
     params.get("mode") !== "fridge" &&
     !pathname.startsWith("/device");

@@ -1,4 +1,5 @@
 "use client";
+import { PreparationButton } from "@/components/calendar/preparation/PreparationProvider";
 import { ScheduleReviewButton } from "@/components/calendar/review/ScheduleReviewProvider";
 import * as React from "react";
 import Link from "next/link";
@@ -869,6 +870,18 @@ export function CalendarPlanner({
           {selected.recurrence && <p>{msg("recurrence")}</p>}
           <div className={styles.detailActions}>
             <button onClick={() => setSelected(null)}>{msg("close")}</button>
+            <PreparationButton
+              location={{
+                eventId: selected.id,
+                timeZone: local
+                  ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                  : "UTC",
+              }}
+              beforeOpen={() => {
+                dialog.current?.close?.();
+                setSelected(null);
+              }}
+            />
             <ScheduleReviewButton
               scope={{
                 targetId: selected.id,
