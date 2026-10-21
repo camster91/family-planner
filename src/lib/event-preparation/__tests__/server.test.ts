@@ -6,7 +6,7 @@ import {
   prepareEventPreparationInTx,
 } from "../runtime";
 import { eventPreparationWritingEnabled } from "../owner";
-import { preparationReceiptMatches } from "../http";
+import { preparationReceiptMatches } from "../receipt-server";
 import { actor, now, preparationTestFixture } from "./test-fixture";
 jest.mock("../runtime", () => ({
   openPreparationActorInTx: jest.fn(),

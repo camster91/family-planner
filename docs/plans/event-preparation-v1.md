@@ -151,3 +151,45 @@ Runtime/source/effect/receipt/projection case source is authored and unrun. No A
 request, SQL/DB/migration, tests/types/lint/build/browser/native/CI or activation/
 release has been executed. Full feature and #123 stay open pending remaining code
 and later consolidated QA.
+
+
+## Exact recovery and client continuation — 2026-10-21
+
+Authored strict browser-safe `view-contract`, owned `recovery`, independent
+`recovery-server`, foreground `client`, owned `browser` journal and browser
+canonical Web Crypto digest source. GET/POST `/api/coordination/event-preparation/
+recovery` renews current parent authority without requiring target existence or
+new-feature readiness for historical proof inspection. Context reports current
+calendar/chores, owner, readiness and schema availability without a target DTO.
+
+Only matching exact command/key/owner/digest proof can report committed. Otherwise
+inspection distinguishes expiry, pause, source conflict, unavailable inputs and
+ready/pending, reconstructing the current locked canonical context/pure plan
+before allowing a deliberate retry. It never mutates tasks or claims current
+readiness from an old receipt. Unknown/generic/private/changed acknowledgements
+are held. No background send/retry or inferred successful write.
+
+A browser-safe receipt contract takes an expected digest; Node hashing lives in
+`receipt-server`, while browser Web Crypto uses equivalent validated canonical
+JSON. The client recomputes effects from the strict explicit projection before
+freezing an intent. Available task/routine projections cannot smuggle arbitrary
+DB fields; unavailable rows retain only ID/availability, and summaries must agree
+with actual linked visible/unknown work.
+
+Two exact pending requests, each at most 1 MiB, fit a bounded 6 MiB owned journal
+subject to actual browser quota. Inspection envelope/response bound is twice the
+request plus 16 KiB. Stage/initialize/storage repair and inspect/send use existing
+owned generation/household/lease/divergence/retirement contracts. Initial load
+never resends. Quota failure holds before send; paused inspection/local forget is
+allowed; restored retry requires explicit current inspection.
+
+Minimal proof changed from potentially 99 new-ID pairs to createdCount plus
+full request digest/source/owner/event/plan/key. This stays below the generic
+idempotency wrapper's 8 KiB receipt bound and prevents its outer store replacing
+proof with a generic marker. Refresh canonical state for resulting task IDs; do
+not cache a privileged full task DTO in a receipt.
+
+Client/server/journal/schema/proof/body-limit cases authored, all unrun. No live
+request, tests/types/lint/build/schema/SQL/DB/Prisma/browser/native/CI/activation or
+release operation occurred. Canonical paged pickers, EN/ES sheet, close/stage/
+storage repair integration and canonical discovery/backlinks remain required code.

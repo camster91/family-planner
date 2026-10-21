@@ -154,3 +154,15 @@ without changing consent epoch semantics. Cases authored, unrun. Strict client/
 recovery envelopes, 1 MiB exact-body owned journal/inspection, pickers, compact
 EN/ES UI and canonical entry/backlinks remain code work. No API/schema/SQL/DB/
 client generation, tests/build/browser/native/CI, activation or release evidence.
+
+
+### #123 event preparation exact recovery/client continuation — 2026-10-21
+
+Authored strict explicit DTO/effect/recovery schemas, current-parent owned receipt
+inspection independent of deleted target/feature pause, equivalent browser/server
+command digest, pure preview/effect comparison, exact foreground client and
+2-entry/6 MiB owned journal. Exact body is up to 1 MiB; unknown/expired/stale/
+paused/owner/quota states hold. Receipt creation uses createdCount/full digest,
+keeping proof below generic 8 KiB storage truncation. Source cases authored and
+unrun. Pickers, compact EN/ES sheet, close/stage/storage repair and canonical
+entry/backlinks remain code work. No QA/schema/API/native/activation/release claim.

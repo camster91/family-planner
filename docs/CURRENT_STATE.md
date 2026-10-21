@@ -1,5 +1,44 @@
 # Current State
 
+## Event preparation exact recovery/client source — 2026-10-21
+
+The next #123 slice adds strict browser-safe view/effect/recovery envelopes,
+readonly GET/POST owned recovery endpoints, foreground client and personal owned
+journal source. Actor/household/token/parent authority renews independently of
+Event/schema/age/readiness. Matching historical proof is inspected first even
+for a deleted Event or paused feature; it does not assert current preparation.
+Uncommitted retry requires current exact sources and an applicable pure plan.
+Ready/pending/committed/expired/conflict/paused/unavailable are distinct states.
+
+The exact original body/key and canonical command digest are saved; retry is
+explicit, owner/header and inspected entry are matched, tampered digests are held,
+and unknown acknowledgements never confirm. Current preview effects are also
+recomputed from the strict deliberate projection before creating an intent.
+Node idempotency hashing is isolated from browser contracts; Web Crypto computes
+the equivalent validated canonical digest in the browser, with no provider/key.
+No mount/focus/background write or new queue action was introduced.
+
+Request bodies allow 1 MiB for 99 full steps; inspection envelopes allow twice
+that plus overhead. Owned storage allows two pending requests within 6 MiB,
+using current generation/household retirement, cross-store/lease checks and
+explicit quota/divergence/owner-change holds. An intent must stage durably before
+send; recovery initialization does not send. Paused owned journals allow read/
+inspection/local forget. UI close/storage-repair wiring remains next.
+
+Receipt source now stores only createdCount rather than up to 99 client-to-Chore
+ID pairs. Full mapping could exceed the existing 8 KiB generic receipt limit and
+be replaced by a generic success marker. The bounded minimal proof still binds
+full command digest/owner/event/source/key and fits that limit; fresh canonical
+reads supply current task IDs. This changes unactivated/unrun local source only.
+
+Source cases cover digest/preview/body/key/proof/schema faults, 99-step body and
+receipt bounds, deleted-target/paused/expired inspection, exact pending sources,
+restored-journal review, quota, owner change and paused forget. All are unrun.
+No tests/types/lint/build, API/schema/SQL/DB/client generation, browser/native/CI,
+activation/push/merge/deploy occurred. Required next code remains canonical
+pickers, compact EN/ES sheet with exact stage/send/close/storage recovery and
+canonical discovery/backlinks. #123 and the integrated goal remain active.
+
 ## Event preparation canonical API/effect source — 2026-10-20
 
 The next #123 slice adds parent-person Event preparation GET, readonly selected-

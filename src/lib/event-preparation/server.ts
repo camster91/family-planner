@@ -1,3 +1,4 @@
+import { preparationReceiptMatches } from "./receipt-server";
 /** Owned claim -> current authority/source -> canonical effect + proof in one
  * transaction. Complete receipts replay without target reads or another clone. */
 import type { PrismaClient } from "@prisma/client";
@@ -8,11 +9,7 @@ import {
   EventPreparationError,
   EVENT_PREPARATION_PROTOCOL,
 } from "./contract";
-import {
-  PREPARATION_ACTION,
-  preparationReceipt,
-  preparationReceiptMatches,
-} from "./http";
+import { PREPARATION_ACTION, preparationReceipt } from "./http";
 import {
   openPreparationActorInTx,
   prepareEventPreparationInTx,
@@ -117,7 +114,7 @@ export async function writeEventPreparation(
         sourceToken: command.eventSourceToken,
         expectedToken: command.expectedToken,
         planId: effect.planId,
-        created: effect.created,
+        createdCount: effect.created.length,
       },
     });
     await tx.idempotencyRecord.update({

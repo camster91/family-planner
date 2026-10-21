@@ -1,3 +1,4 @@
+import { preparationReceiptMatches } from "./receipt-server";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -7,6 +8,7 @@ import {
   RequestBodyTooLarge,
 } from "@/lib/bounded-request-text";
 import {
+  hashIdempotentRequest,
   readIdempotencyKey,
   idempotencyError,
   withIdempotency,
@@ -31,15 +33,24 @@ import { preparationView } from "./view";
 import {
   openPreparationActorInTx,
   prepareEventPreparationInTx,
-  type PreparationActor,
 } from "./runtime";
 import { writeEventPreparation, preparationFailure } from "./server";
+import { PREPARATION_ACTION, preparationReceipt } from "./http";
+import { preparationReadReply } from "./view-contract";
 import {
-  PREPARATION_ACTION,
-  preparationReceiptMatches,
-  preparationReceipt,
-} from "./http";
-export const PREPARATION_OWNER_HEADER = "X-Event-Preparation-Owner";
+  PREPARATION_RECOVERY,
+  PREPARATION_OWNER_HEADER,
+  PREPARATION_REQUEST_BYTES,
+  PREPARATION_INSPECTION_BYTES,
+  preparationRecoveryContext,
+  preparationRecoveryInput,
+} from "./recovery";
+import {
+  authorizePreparationReceipt,
+  reviewPreparationRequest,
+} from "./recovery-server";
+import { eventPreparationStorageAvailable } from "./storage";
+import { scheduleStorageAvailable } from "@/lib/calendar-planning/schedule-source";
 const headers = { "Cache-Control": "private, no-store" };
 const previewInput = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("read"), scope: preparationReadScope }).strict(),
@@ -47,25 +58,9 @@ const previewInput = z.discriminatedUnion("kind", [
     .object({ kind: z.literal("preview"), command: preparationCommand })
     .strict(),
 ]);
-/** Metadata-only authority renewal independent of target/schema/readiness, so
- * owned receipt replay remains possible after the event has been deleted. */
-async function authorize(
-  db: NonNullable<typeof prisma>,
-  actor: PreparationActor,
-) {
-  await db.$transaction(async (tx) => {
-    await openPreparationActorInTx(tx, actor);
-    const rows = await tx.$queryRaw<
-      Array<{ token_version: number; role: string }>
-    >`SELECT "token_version", "role" FROM "User" WHERE "id"=${actor.userId} AND "family_id"=${actor.familyId} FOR SHARE`;
-    if (!rows[0] || rows[0].token_version !== actor.tokenVersion)
-      throw new EventPreparationError("UNAUTHORIZED");
-    if (rows[0].role !== "parent") throw new EventPreparationError("FORBIDDEN");
-  });
-}
 export async function handlePreparationHttp(
   request: NextRequest,
-  mode: "read" | "preview" | "write",
+  mode: "read" | "preview" | "write" | "context" | "inspect",
 ) {
   try {
     const [auth, refusal] = await authenticateWithFamily(request);
@@ -79,7 +74,44 @@ export async function handlePreparationHttp(
       familyId: auth.user.family_id,
       tokenVersion: auth.payload.tv ?? 0,
     };
-    await authorize(prisma, actor);
+    const current = await authorizePreparationReceipt(prisma, actor);
+    const owner = eventPreparationOwner(request, auth.payload, {
+      ...auth.user,
+      role: "parent",
+    });
+    if (mode === "context")
+      return NextResponse.json(
+        preparationRecoveryContext.parse({
+          contract: PREPARATION_RECOVERY,
+          userId: actor.userId,
+          familyId: actor.familyId,
+          role: "parent",
+          owner,
+          enabled:
+            current.domainsEnabled &&
+            eventPreparationWritingEnabled() &&
+            owner !== null &&
+            (await eventPreparationStorageAvailable(prisma)) &&
+            (await scheduleStorageAvailable(prisma)),
+        }),
+        { headers },
+      );
+    if (mode === "inspect") {
+      if (
+        !owner ||
+        request.headers.get(PREPARATION_OWNER_HEADER) !== owner.scope
+      )
+        throw new EventPreparationError("FORBIDDEN");
+      const input = preparationRecoveryInput.parse(
+        JSON.parse(
+          await boundedRequestText(request, PREPARATION_INSPECTION_BYTES),
+        ),
+      );
+      return NextResponse.json(
+        await reviewPreparationRequest(prisma, actor, input.entry, owner.scope),
+        { headers },
+      );
+    }
     if (!eventPreparationReady())
       throw new EventPreparationError("UNAVAILABLE");
     const now = new Date();
@@ -107,7 +139,9 @@ export async function handlePreparationHttp(
         });
       } else {
         const input = previewInput.parse(
-          JSON.parse(await boundedRequestText(request, 1048576)),
+          JSON.parse(
+            await boundedRequestText(request, PREPARATION_REQUEST_BYTES),
+          ),
         );
         if (input.kind === "read") scope = input.scope;
         else {
@@ -123,14 +157,14 @@ export async function handlePreparationHttp(
           effects: command
             ? planEventPreparation(command, prepared.context, now)
             : null,
+          requestHash: command
+            ? hashIdempotentRequest(PREPARATION_ACTION, command)
+            : null,
         };
       });
-      return NextResponse.json(reply, { headers });
+      return NextResponse.json(preparationReadReply.parse(reply), { headers });
     }
-    const owner = eventPreparationOwner(request, auth.payload, {
-      ...auth.user,
-      role: "parent",
-    });
+
     if (
       !eventPreparationWritingEnabled() ||
       !owner ||
@@ -148,7 +182,7 @@ export async function handlePreparationHttp(
       return reply;
     }
     const command = preparationCommand.parse(
-      JSON.parse(await boundedRequestText(request, 1048576)),
+      JSON.parse(await boundedRequestText(request, PREPARATION_REQUEST_BYTES)),
     );
     if (
       command.owner.userId !== actor.userId ||
@@ -183,7 +217,7 @@ export async function handlePreparationHttp(
       {
         beforeReplay: async () => {
           try {
-            await authorize(prisma!, actor);
+            await authorizePreparationReceipt(prisma!, actor);
             return null;
           } catch (error) {
             return preparationFailure(error);

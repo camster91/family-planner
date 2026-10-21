@@ -1,6 +1,5 @@
 /** Content-minimal success proof, distinct from fresh current task/event state. */
 import { z } from "zod";
-import { hashIdempotentRequest } from "@/lib/idempotency";
 import { memberIdentityIdSchema as id } from "@/lib/member-subject-contract";
 import {
   EVENT_PREPARATION_PROTOCOL,
@@ -22,9 +21,7 @@ export const preparationReceipt = z
         sourceToken: token,
         expectedToken: token,
         planId: id.nullable(),
-        created: z
-          .array(z.object({ clientId: id, choreId: id }).strict())
-          .max(99),
+        createdCount: z.number().int().min(0).max(99),
       })
       .strict(),
   })
@@ -33,6 +30,7 @@ export function preparationReceiptMatches(
   raw: unknown,
   command: PreparationCommand,
   key: string,
+  expectedRequestHash: string,
 ) {
   const parsed = preparationReceipt.safeParse(raw);
   if (!parsed.success) return false;
@@ -49,13 +47,9 @@ export function preparationReceiptMatches(
     proof.eventId === command.eventId &&
     proof.action === command.action &&
     proof.requestKey === key &&
-    proof.requestHash === hashIdempotentRequest(PREPARATION_ACTION, command) &&
+    proof.requestHash === expectedRequestHash &&
     proof.sourceToken === command.eventSourceToken &&
     proof.expectedToken === command.expectedToken &&
-    proof.created.length === expected.length &&
-    new Set(proof.created.map((row) => row.clientId)).size ===
-      expected.length &&
-    new Set(proof.created.map((row) => row.choreId)).size === expected.length &&
-    proof.created.every((row) => expected.includes(row.clientId))
+    proof.createdCount === expected.length
   );
 }
