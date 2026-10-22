@@ -6,10 +6,11 @@
  * 2. Seeds/reconciles the fixture households at E2E_ANCHOR (`npm run fixtures:seed`).
  *    Seed is idempotent and restores anything a previous run changed.
  * 3. Clears login rate-limit windows. The app allows 30 logins per client
- *    address per 15 minutes and 10 failures per account; each project already
- *    gets its own X-Forwarded-For bucket (playwright.config.ts), but
- *    back-to-back local runs would still hit 429. Only `login:` /
- *    `login-fail:` keys are deleted, and only on a guarded DB.
+ *    address per 15 minutes, 10 failures per account and address, and 50 per
+ *    account overall; each project already gets its own X-Forwarded-For
+ *    bucket (playwright.config.ts), but back-to-back local runs would still
+ *    hit 429. Only `login:`, `login-fail:` and `login-fail-ip:` keys are
+ *    deleted, and only on a guarded DB.
  *
  * Migrations are NOT run here: run `node scripts/migrate.js` first (CI does).
  * Set E2E_SKIP_SEED=1 to skip steps 2-3 (for example against a server you manage).
@@ -41,7 +42,7 @@ export default async function globalSetup(): Promise<void> {
   await client.connect();
   try {
     await client.query(
-      `DELETE FROM "RateLimitEntry" WHERE key LIKE 'login:%' OR key LIKE 'login-fail:%'`,
+      `DELETE FROM "RateLimitEntry" WHERE key LIKE 'login:%' OR key LIKE 'login-fail:%' OR key LIKE 'login-fail-ip:%'`,
     );
   } finally {
     await client.end();

@@ -44,6 +44,7 @@ import * as elevation from '../elevation/route'
 import * as revokeSelf from '../revoke-self/route'
 import * as label from '../label/route'
 import * as parentRevoke from '../../family/devices/[id]/revoke/route'
+import { LOGIN_ACCOUNT_FAILURE_LIMIT } from '@/lib/login-lockout'
 
 const T0 = new Date('2026-09-26T12:00:00Z')
 const PIN = '482913'
@@ -473,7 +474,7 @@ describe('device routes', () => {
       db.rows('rateLimitEntry').push({
         id: 'rl-1',
         key: 'login-fail:parent-a@example.test',
-        count: 10,
+        count: LOGIN_ACCOUNT_FAILURE_LIMIT,
         windowStart: new Date(),
         resetAt: new Date(Date.now() + 10 * 60 * 1000),
       })

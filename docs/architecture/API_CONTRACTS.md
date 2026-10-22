@@ -754,3 +754,7 @@ nothing was sent after an earlier success.
 | `POST /api/allowance` | `amount` is positive, at most 1,000,000, at most 2 decimals. | 400 |
 | `PATCH /api/family` | Only `name` is writable; a sent `subscription_tier` is ignored. Returns `{ family: { id, name, subscription_tier, created_at, features } }` — never the feed token, invite code or AI settings. | unchanged |
 | `GET /api/calendar/feed` | `Cache-Control: private, max-age=300` (was `public`): the feed is guarded only by its URL token, so shared caches must not keep it. | unchanged |
+
+## Login wrong-password lockout (security review follow-up)
+
+`POST /api/auth/login` counts wrong passwords in two windows of 15 minutes (`src/lib/login-lockout.ts`): 10 per account and client address (`login-fail-ip:<ip>:<email>`), and 50 per account across all addresses (`login-fail:<email>`). Either one at its limit answers 429 with `Retry-After` before the password is checked. Previously a single 10-failure account counter let anyone who knew an email lock its owner out from everywhere; now one address only locks itself out. A successful sign-in clears both counters for that address and account. Tablet password elevation still shares the account counter at the same limit of 50, on top of its own per-tablet limits.
