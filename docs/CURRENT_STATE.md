@@ -12,6 +12,17 @@ merge/deploy still require applicable passing QA under the existing authorizatio
 Retain all earlier evidence at its recorded SHA; do not count unverified code or
 provider/native/customer acceptance as finished. The goal remains active.
 
+## Implementation-first inbox session boundary — 2026-10-22
+
+The review page now carries its verified cookie generation into current-parent
+SQL. Bounded checks/preparation reads distinguish authorized empty results from
+revoked/foreign/downgraded authority; saved/capture/change admission renews too.
+Legacy getServerUser/client identity shapes are preserved. Source/fixture field
+and formatting only; no new tests, build, browser, CI or DB queries. The disk-full
+formatting interruption was resolved by deleting only verified failed .next output;
+source/dependencies/evidence remain. Details and later QA matrix:
+`docs/plans/review-inbox-v1.md` and WEB_IMPLEMENTATION_HANDOFF.md.
+
 ## Implementation-first meal-week paging source — 2026-10-22
 
 Opt-in meal API keyset paging and the connected web Load more/read hook are now

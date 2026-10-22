@@ -551,3 +551,41 @@ are displayed honestly rather than inferred from meal dates or the current clock
 
 Unit/mounted source cases authored/unrun. Full store/privacy/lifecycle/rendered
 acceptance and broader original inbox coordination work remain; no release claim.
+
+
+## Implementation-first session-bound inbox reads — 2026-10-22
+
+Source review found the initial parent-inbox query renewed household/role but
+lost the verified cookie generation on its way from server authentication to SQL.
+`getServerActor` now exposes a server-only generation-bearing projection after the
+existing paired-device refusal and verifySessionToken path. The generation is the
+verified cookie's tv (legacy missing tv is0), never a later database value adopted
+as fresh authority. The established getServerUser four-field projection remains
+unchanged for its existing callers; tokenVersion is not serialized to inbox UI.
+
+The review server page carries that exact generation into readReviewInbox.
+Malformed/missing/negative generations and nonparent roles refuse before reads.
+Checks and preparation queries now start from a current matching User/Family row
+and use bounded LEFT JOIN LATERAL candidate reads (21 lookahead rows). Each SQL
+statement checks user ID, family, parent role and token_version together with its
+private title projection. A valid parent with no candidates produces a null
+candidate sentinel and an available empty page; no authority row produces
+forbidden, not a misleading empty state. Candidate cursors still advance through
+raw20-row windows before feature/current-source filtering. Invalid/saturated
+preparation versions continue to require review rather than clearing themselves.
+
+Saved/capture/change host admission also checks the current parent/generation
+before mounting the client-owned readers; those readers retain their own owner
+leases/API checks. Paused preparation remains read-free when readiness is off.
+There is no new receipt, store, session token, client permission, schema or write.
+The current-authority data projection is one SQL snapshot, not a claim that a
+response can be recalled after it has left the server.
+
+Only source formatting and the existing required actor fixture field were
+updated. No tests/typecheck/lint/build/browser/CI or database query was run.
+Later consolidated QA must prove current/legacy0 generations, malformed identity,
+revocation between authentication and SQL, changed role/family/deleted user,
+authorized-empty versus forbidden, saved-host admission, paused-storage behavior,
+21-row continuation, unknown source versions, paired-device refusal and absence
+of tokenVersion in browser/legacy user projections. Do not reuse old QA receipts
+as evidence for this new boundary.

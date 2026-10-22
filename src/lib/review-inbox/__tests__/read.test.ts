@@ -12,7 +12,12 @@ jest.mock("@/lib/event-preparation/storage", () => ({
 jest.mock("@/lib/calendar-planning/schedule-source", () => ({
   scheduleEventToken: jest.fn(() => "current-token"),
 }));
-const actor = { userId: "parent-a", familyId: "family-a", role: "parent" };
+const actor = {
+  userId: "parent-a",
+  familyId: "family-a",
+  role: "parent",
+  tokenVersion: 0,
+};
 const db = () => ({ $queryRaw: jest.fn() });
 beforeEach(() => jest.clearAllMocks());
 it.each(["child", "teen", "device"])(

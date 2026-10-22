@@ -161,3 +161,25 @@ EN/ES, keyboard/focus, reflow and old/native/new API compatibility.
 This bounds only the opted-in API and connected web week source. Legacy no-limit
 requests, Today dinner and list/item collections remain explicit #134 work;
 existing date indexes and authored limits are not measured scale/N+1 acceptance.
+
+
+## Implementation-first inbox generation follow-through (#123/#136)
+
+The inbox's current-parent SQL now also binds the verified cookie generation,
+carried only in the new internal getServerActor projection. getServerUser keeps
+its existing four fields; the browser receives only userId/familyId. Bounded
+lateral candidate reads distinguish a valid empty inbox from revoked/foreign/
+downgraded authority without returning private titles under an earlier session
+snapshot. Saved/capture/change host admission is renewed too. Read-free paused
+preparation and raw candidate-window continuation remain intact. Full contract,
+source pointers and deferred cases:`docs/plans/review-inbox-v1.md` latest section.
+No tests/typecheck/lint/build/browser/CI were run; existing typed fixture generation
+was updated, with formatting only. Goal remains in implementation-first phase.
+
+While saving, the disk filled and initial source formatting failed ENOSPC. The
+four edited source files were confirmed nonempty afterward. Only this checkout's
+obsolete failed .next output was removed after verifying both retained build
+manifests report exit1 at45252ce1. The source/dependencies/QA logs/manifests were
+preserved, then the intended nullable-version guard and formatting were saved.
+Ignored cleanup receipt:discarded-failed-build-final-20261022.json. This is not a
+new build or runtime pass; further testing remains deferred as instructed.

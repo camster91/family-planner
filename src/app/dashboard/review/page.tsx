@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getServerUser } from "@/lib/supabase/server";
+import { getServerActor } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { inboxQuery, readReviewInbox } from "@/lib/review-inbox/read";
 import ReviewInbox from "@/components/review/ReviewInbox";
@@ -9,7 +9,7 @@ export default async function Page({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await getServerUser();
+  const session = await getServerActor();
   if (!session) return null;
   if (session.role !== "parent" || !session.family_id) redirect("/dashboard");
   const params = await searchParams;
@@ -26,7 +26,12 @@ export default async function Page({
   if (!query.success) redirect("/dashboard/review");
   const page = await readReviewInbox(
     prisma!,
-    { userId: session.id, familyId: session.family_id, role: session.role },
+    {
+      userId: session.id,
+      familyId: session.family_id,
+      role: session.role,
+      tokenVersion: session.tokenVersion,
+    },
     query.data,
   );
   return (
