@@ -478,6 +478,28 @@ controls, canonical child grocery outcomes/Undo, broader inbox/weekly/chat entry
 points, provider/evaluation and all remaining goal work still precede consolidated
 QA. Migration/readiness/compatibility/lifecycle/rendered/release gates stay open.
 
+## Food planning selectors and prep allocations — 2026-10-22
+
+The initial owned Meals sheet now has household-scoped searchable recipe pools,
+per-choice recipes, account cooks, grocery/shopping destinations and optional
+ingredient selection. A read-only owner/query-bound selector API returns eight
+rows per page plus exact selected metadata; authorization, household filters,
+strict DTOs, bounded response sizes and delayed-owner renewal precede rendering.
+Email-free profiles remain separate from account cook identities.
+
+Prep dishes now support paged meal allocations with explicit portions, notes and
+inherited versus unassigned cooks. Old draft cook intent is preserved. Optional
+calendar departure selection uses an explicit unambiguous search interval and
+travel/get-ready buffers. Reviews show exact estimated start/finish/deadline and
+selected departure instants. Grocery-only edits retain matching read previews
+while invalidating signed confirmation; no automatic grocery or portion writes.
+Occupied prep meal slots now check the complete day, including legacy non-midnight
+rows. Selector/foreign-selection/DTO/owner/catalog/partial-allocation cases are
+authored and unrun. No tests, typecheck, lint, build, browser, API, DB, schema,
+provider, flag, push, merge or deploy action. Canonical grocery outcomes/Undo,
+prepared-portion reuse, inbox/weekly/chat entry points, provider/evaluation and the
+broader goal remain open before consolidated QA and authorized release.
+
 ## Remaining source required before activation
 
 1. Finish the compact human review of unresolved existing commitments and
@@ -488,8 +510,9 @@ QA. Migration/readiness/compatibility/lifecycle/rendered/release gates stay open
    revalidation using the concrete source/interval implementation above. Recurring
    source expansion remains held under canonical #124; no complete recurrence or
    physical availability acceptance is claimed from the new read source.
-3. Finish the initially wired Meals sheet: full recipe/catalog/cook/list/ingredient/
-   allocation/departure controls and explicit prepared-portion reuse. Extend its
+3. The Meals recipe/catalog/cook/list/ingredient/allocation/departure controls are
+   now source-authored, with acceptance unrun. Finish explicit prepared-portion
+   reuse. Extend its
    owned draft/request behavior to weekly review/chat/inbox entry points, exposing
    source, unknowns, portions and editable choices. Use existing owned-draft navigation,
    owner/generation scoping and durable review inbox contracts. Keep ordinary
@@ -499,8 +522,8 @@ QA. Migration/readiness/compatibility/lifecycle/rendered/release gates stay open
    validate only issued recipe/ingredient selections, never arbitrary IDs/URLs.
    Renew owner/features/config and full source evidence after provider latency.
    Prompts must not invent ingredients, amounts, nutrition, allergies or safety.
-5. Complete the initial human confirmation/pending/draft/exit controller's missing
-   controls and inbox integration, plus canonical child grocery outcome/Undo
+5. Complete inbox integration of the initial human confirmation/pending/draft/exit
+   controller, plus canonical child grocery outcome/Undo
    presentation. The initial Meals save/recovery wiring is authored above.
    Preserve the required legacy-writer version probes and bounded dependency
    coverage authored below; run their migration/isolation acceptance in the final

@@ -5,7 +5,8 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "@/i18n";
 import { formatRecipeAmount } from "@/lib/recipe-scaling";
 import { foodPlanView } from "@/lib/food-planning/view-contract";
-import type { FoodPlan } from "@/lib/food-planning/contract";
+import type { FoodPlan, FoodTimingResult } from "@/lib/food-planning/contract";
+import { formatScheduleInstant } from "@/lib/calendar-planning/schedule-form";
 const labels = {
   "slot-occupied": [
     "This meal slot already has a plan.",
@@ -59,10 +60,12 @@ export function FoodPlanSummary({
   busy = false,
   onChooseRecipe,
   detailsForChoice,
+  timeZone,
 }: {
   plan: FoodPlan;
   mode: "meals" | "prep";
   busy?: boolean;
+  timeZone?: string;
   onChooseRecipe?: (slotKey: string, recipeId: string) => void;
   detailsForChoice?: (key: string) => React.ReactNode;
 }) {
@@ -147,25 +150,12 @@ export function FoodPlanSummary({
                   )}
                 </p>
               )}
-            {choice.schedule && choice.schedule.state !== "not-requested" && (
-              <p className="text-subhead">
-                {choice.schedule.state === "fits"
-                  ? pick(
-                      "Estimated to fit recorded household events.",
-                      "Se estima que cabe entre los eventos registrados del hogar.",
-                    )
-                  : pick(
-                      "Cooking-window review required.",
-                      "Es necesario revisar el intervalo para cocinar.",
-                    )}
-                {choice.schedule.departure && (
-                  <>
-                    {" "}
-                    {pick("Departure", "Salida")}:{" "}
-                    {choice.schedule.departure.title}.
-                  </>
-                )}
-              </p>
+            {mode === "meals" && choice.schedule && (
+              <TimingSummary
+                timing={choice.schedule}
+                zone={timeZone}
+                locale={locale}
+              />
             )}
             <details>
               <summary className="min-h-[44px] cursor-pointer py-3 font-semibold">
@@ -295,6 +285,13 @@ export function FoodPlanSummary({
               "Se desconoce si la sesión completa cabe en el calendario.",
             )}
         </p>
+      )}
+      {mode === "prep" && plan.prepSchedule && (
+        <TimingSummary
+          timing={plan.prepSchedule}
+          zone={timeZone}
+          locale={locale}
+        />
       )}
       <details>
         <summary className="min-h-[44px] cursor-pointer py-3 font-semibold">
@@ -448,6 +445,56 @@ function PagedList({
             {es ? "Siguientes" : "Next records"}
           </button>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Display exact source instants without inferring a household timezone. */
+function TimingSummary({
+  timing,
+  zone,
+  locale,
+}: {
+  timing: FoodTimingResult;
+  zone?: string;
+  locale: string;
+}) {
+  if (timing.state === "not-requested") return null;
+  const es = locale === "es";
+  const instant = (value: string) =>
+    zone ? formatScheduleInstant(value, locale, zone) : `${value} (UTC)`;
+  return (
+    <div className="space-y-1 text-subhead">
+      <p>
+        {timing.state === "fits"
+          ? es
+            ? "Se estima que cabe entre los eventos registrados del hogar."
+            : "Estimated to fit recorded household events."
+          : es
+            ? "Es necesario revisar el intervalo para cocinar."
+            : "Cooking-window review required."}
+      </p>
+      {timing.state === "fits" && timing.start && timing.finish && (
+        <p>
+          {es ? "Inicio estimado" : "Estimated start"}: {instant(timing.start)}{" "}
+          ·{" "}
+          {es
+            ? "Fin con los márgenes seleccionados"
+            : "Finish including selected buffers"}
+          : {instant(timing.finish)}
+        </p>
+      )}
+      {timing.readyBy && (
+        <p>
+          {es ? "Terminar antes de" : "Ready by"}: {instant(timing.readyBy)}
+        </p>
+      )}
+      {timing.departure && (
+        <p className="break-words">
+          {es ? "Salida" : "Departure"}: {timing.departure.title} ·{" "}
+          {instant(timing.departure.start)}
+        </p>
       )}
     </div>
   );

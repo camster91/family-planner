@@ -1,5 +1,27 @@
 # Current State
 
+## Food planning selectors and prep allocations — 2026-10-22
+
+The initial owned Meals sheet now has household-scoped searchable recipe pools,
+per-choice recipes, account cooks, grocery/shopping destinations and optional
+ingredient selection. A read-only owner/query-bound selector API returns eight
+rows per page plus exact selected metadata; authorization, household filters,
+strict DTOs, bounded response sizes and delayed-owner renewal precede rendering.
+Email-free profiles remain separate from account cook identities.
+
+Prep dishes now support paged meal allocations with explicit portions, notes and
+inherited versus unassigned cooks. Old draft cook intent is preserved. Optional
+calendar departure selection uses an explicit unambiguous search interval and
+travel/get-ready buffers. Reviews show exact estimated start/finish/deadline and
+selected departure instants. Grocery-only edits retain matching read previews
+while invalidating signed confirmation; no automatic grocery or portion writes.
+Occupied prep meal slots now check the complete day, including legacy non-midnight
+rows. Selector/foreign-selection/DTO/owner/catalog/partial-allocation cases are
+authored and unrun. No tests, typecheck, lint, build, browser, API, DB, schema,
+provider, flag, push, merge or deploy action. Canonical grocery outcomes/Undo,
+prepared-portion reuse, inbox/weekly/chat entry points, provider/evaluation and the
+broader goal remain open before consolidated QA and authorized release.
+
 ## Initial food planning sheet and editable draft promotion — 2026-10-22
 
 Meals now has a lazy capability/role-gated personal planning sheet with one-choice

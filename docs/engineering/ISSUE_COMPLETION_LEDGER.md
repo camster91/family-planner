@@ -684,3 +684,15 @@ or new device authority. Source cases unrun. Full catalog/cook/grocery/allocatio
 departure and prepared-reuse controls, child grocery outcome/Undo, inbox/weekly/
 chat and provider/evaluation still precede consolidated QA/release. No runtime,
 API/DB/DDL/client/native/provider/flag/push/merge/deploy action; full goal/issues open.
+
+### 2026-10-22 — food selectors and allocation controls (#123/#144)
+
+Household/owner/query-bound paged recipe/account/list/departure metadata, exact
+selected reads, compact explicit grocery choices and one-at-a-time prep meal
+allocations are source-authored. Inherited versus unassigned cooks preserve old
+draft intent. Window/departure margins and exact preview instants use canonical
+wall-time handling. Signed review is invalidated on edits, including source-neutral
+grocery selection. Prep occupancy includes non-midnight rows in the selected day.
+Scoped/read/DTO/owner/catalog/partial-draft cases authored and unrun. No QA, API/DB,
+provider/flag or release action. Canonical grocery outcomes/Undo, prepared reuse,
+inbox/weekly/chat/provider/evaluation and full goal/issues remain open.

@@ -18,6 +18,11 @@ import {
 } from "@/lib/calendar-planning/schedule-form";
 import { FoodPlanSummary } from "./FoodPlanSummary";
 import { FoodSaveDetails } from "./FoodSaveDetails";
+import { FoodRecordPicker } from "./FoodRecordPicker";
+import { FoodGroceryChoices } from "./FoodGroceryChoices";
+import { FoodAllocationEditor } from "./FoodAllocationEditor";
+import { resolveScheduleWall } from "@/lib/calendar-planning/schedule-form";
+import type { FoodRecoveryContext } from "@/lib/food-planning/recovery-contract";
 import { useFoodPlanningSession } from "./useFoodPlanningSession";
 const input =
   "mt-1 min-h-11 w-full rounded-xl border border-[var(--surface-separator)] bg-[var(--surface-fill-secondary)] px-3 py-2 text-label-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)] disabled:opacity-50";
@@ -85,6 +90,10 @@ export default function FoodPlanningSheet({
       });
   }
   const messages = {
+    catalog: copy(
+      "Choose a pool of up to 50 recipes, then preview again.",
+      "Elige un grupo de hasta 50 recetas y vuelve a obtener sugerencias.",
+    ),
     load: copy(
       "Could not load saved food work.",
       "No se pudo cargar el trabajo de comidas.",
@@ -265,6 +274,39 @@ export default function FoodPlanningSheet({
                   </button>
                 ))}
               </div>
+              {session.context && (
+                <details>
+                  <summary className="min-h-[44px] py-3 cursor-pointer">
+                    {copy(
+                      "Recipe pool (optional)",
+                      "Grupo de recetas (opcional)",
+                    )}
+                  </summary>
+                  <p className="text-footnote">
+                    {copy(
+                      "For a large recipe box, choose up to 50 saved recipes to suggest from.",
+                      "Si tienes muchas recetas, elige hasta 50 recetas guardadas para las sugerencias.",
+                    )}
+                  </p>
+                  <FoodRecordPicker
+                    kind="recipes"
+                    multiple
+                    label={copy(
+                      "Suggest from these recipes",
+                      "Sugerir de estas recetas",
+                    )}
+                    emptyLabel={copy(
+                      "Use the household library",
+                      "Usar las recetas del hogar",
+                    )}
+                    values={draft.recipeIds}
+                    context={session.context}
+                    disabled={disabled}
+                    onFailure={session.reportError}
+                    onChange={(recipeIds) => update({ recipeIds })}
+                  />
+                </details>
+              )}
               <div className="grid gap-3 sm:grid-cols-2">
                 <label>
                   {copy("Prioritize", "Priorizar")}
@@ -466,6 +508,62 @@ export default function FoodPlanningSheet({
                   </>
                 )}
               </div>
+              {session.context && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <FoodRecordPicker
+                    key={`recipe-${slot.key}`}
+                    kind="recipes"
+                    label={copy("Recipe", "Receta")}
+                    emptyLabel={copy(
+                      "Suggest automatically",
+                      "Sugerir automáticamente",
+                    )}
+                    values={slot.recipeId ? [slot.recipeId] : []}
+                    context={session.context}
+                    disabled={disabled}
+                    onFailure={session.reportError}
+                    onChange={(ids) =>
+                      update({
+                        slots: draft.slots.map((row) =>
+                          row.key === slot.key
+                            ? { ...row, recipeId: ids[0] ?? "" }
+                            : row,
+                        ),
+                        groceries: draft.groceries.filter(
+                          (row) => row.key !== slot.key,
+                        ),
+                      })
+                    }
+                  />
+                  <FoodRecordPicker
+                    key={`cook-${slot.key}`}
+                    kind="people"
+                    label={copy(
+                      "Cook (optional account)",
+                      "Cocinero (cuenta opcional)",
+                    )}
+                    emptyLabel={copy(
+                      "No cook assigned",
+                      "Sin cocinero asignado",
+                    )}
+                    values={slot.cookId ? [slot.cookId] : []}
+                    context={session.context}
+                    disabled={disabled}
+                    onFailure={session.reportError}
+                    onChange={(ids) => updateSlot({ cookId: ids[0] ?? "" })}
+                  />
+                </div>
+              )}
+              {slot.recipeId &&
+                draft.recipeIds.length > 0 &&
+                !draft.recipeIds.includes(slot.recipeId) && (
+                  <p role="status">
+                    {copy(
+                      "This recipe is outside your selected pool. Add it to the pool or clear this choice.",
+                      "Esta receta no está en el grupo seleccionado. Añádela al grupo o quita esta selección.",
+                    )}
+                  </p>
+                )}
               {draft.mode === "meals" && (
                 <details>
                   <summary className="min-h-[44px] py-3 cursor-pointer">
@@ -488,10 +586,24 @@ export default function FoodPlanningSheet({
                   <Timing
                     value={slot.timing}
                     zone={draft.timeZone}
+                    context={session.context}
+                    onFailure={session.reportError}
+                    disabled={disabled}
                     es={es}
                     onChange={(timing) => updateSlot({ timing })}
                   />
                 </details>
+              )}
+              {draft.mode === "prep" && session.context && (
+                <FoodAllocationEditor
+                  key={slot.key}
+                  slot={slot}
+                  prepDay={draft.prepDay}
+                  context={session.context}
+                  disabled={disabled}
+                  onFailure={session.reportError}
+                  onChange={(allocations) => updateSlot({ allocations })}
+                />
               )}
               {draft.mode === "prep" && (
                 <details>
@@ -517,6 +629,9 @@ export default function FoodPlanningSheet({
                   <Timing
                     value={draft.prepTiming}
                     zone={draft.timeZone}
+                    context={session.context}
+                    onFailure={session.reportError}
+                    disabled={disabled}
                     es={es}
                     onChange={(prepTiming) => update({ prepTiming })}
                   />
@@ -572,6 +687,7 @@ export default function FoodPlanningSheet({
           {view && draft && (
             <FoodPlanSummary
               plan={view.plan}
+              timeZone={draft.timeZone}
               mode={draft.mode}
               busy={session.busy}
               detailsForChoice={
@@ -582,7 +698,41 @@ export default function FoodPlanningSheet({
                         choiceKey={key}
                       />
                     )
-                  : undefined
+                  : session.context
+                    ? (key) => {
+                        const choice = session.preview?.plan.slots.find(
+                          (row) => row.key === key,
+                        )?.choice;
+                        return choice ? (
+                          <FoodGroceryChoices
+                            key={key}
+                            choice={choice}
+                            selection={
+                              draft.groceries.find(
+                                (row) => row.key === key,
+                              ) ?? { key, listId: "", ingredientIds: [] }
+                            }
+                            context={session.context!}
+                            disabled={disabled}
+                            onFailure={session.reportError}
+                            onChange={(selection) =>
+                              session.change(
+                                {
+                                  ...draft,
+                                  groceries: [
+                                    ...draft.groceries.filter(
+                                      (row) => row.key !== key,
+                                    ),
+                                    selection,
+                                  ],
+                                },
+                                true,
+                              )
+                            }
+                          />
+                        ) : null;
+                      }
+                    : undefined
               }
               onChooseRecipe={(key, recipeId) => {
                 session.change({
@@ -810,14 +960,32 @@ export default function FoodPlanningSheet({
 function Timing({
   value,
   zone,
+  context,
+  onFailure,
+  disabled,
   es,
   onChange,
 }: {
   value: FoodEditorSlot["timing"];
   zone: string;
+  context: FoodRecoveryContext | null;
+  onFailure: (error: unknown) => void;
+  disabled: boolean;
   es: boolean;
   onChange: (next: FoodEditorSlot["timing"]) => void;
 }) {
+  let departureRange: { start: string; end: string } | undefined;
+  try {
+    const start = resolveScheduleWall(value.start, value.startChoice, zone),
+      end = resolveScheduleWall(value.end, value.endChoice, zone);
+    if (Date.parse(end) > Date.parse(start))
+      departureRange = {
+        start,
+        end: new Date(Date.parse(end) + 86400000).toISOString(),
+      };
+  } catch {
+    /* Preserve unfinished/fold choices, never guess a departure interval. */
+  }
   return (
     <div className="space-y-3">
       <label className="flex min-h-[44px] items-center gap-2">
@@ -890,6 +1058,85 @@ function Timing({
               );
             })}
           </div>
+          {context && departureRange ? (
+            <FoodRecordPicker
+              kind="departures"
+              label={
+                es
+                  ? "Salida que limita el horario (opcional)"
+                  : "Departure deadline (optional)"
+              }
+              emptyLabel={
+                es ? "Sin salida seleccionada" : "No departure selected"
+              }
+              values={value.departureId ? [value.departureId] : []}
+              context={context}
+              range={departureRange}
+              zone={zone}
+              disabled={disabled}
+              onFailure={onFailure}
+              onChange={(ids) =>
+                onChange({
+                  ...value,
+                  departureId: ids[0] ?? "",
+                  ...(!ids.length
+                    ? { travel: "0", departurePreparation: "0" }
+                    : {}),
+                })
+              }
+            />
+          ) : (
+            <p className="text-footnote">
+              {es
+                ? "Completa un intervalo exacto para elegir una salida del calendario."
+                : "Complete an unambiguous window to choose a calendar departure."}
+            </p>
+          )}
+          {!departureRange && value.departureId && (
+            <button
+              type="button"
+              className="btn-secondary min-h-[44px]"
+              disabled={disabled}
+              onClick={() =>
+                onChange({
+                  ...value,
+                  departureId: "",
+                  travel: "0",
+                  departurePreparation: "0",
+                })
+              }
+            >
+              {es ? "Quitar salida y márgenes" : "Clear departure and buffers"}
+            </button>
+          )}
+          {(value.departureId ||
+            value.travel !== "0" ||
+            value.departurePreparation !== "0") && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(["travel", "departurePreparation"] as const).map((key) => (
+                <label key={key}>
+                  {key === "travel"
+                    ? es
+                      ? "Viaje (min)"
+                      : "Travel (min)"
+                    : es
+                      ? "Prepararse para salir (min)"
+                      : "Getting ready to leave (min)"}
+                  <input
+                    type="number"
+                    className={input}
+                    min="0"
+                    max="240"
+                    value={value[key]}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      onChange({ ...value, [key]: event.target.value })
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-3">
             {(["before", "eating", "cleanup"] as const).map((key) => (
               <label key={key}>

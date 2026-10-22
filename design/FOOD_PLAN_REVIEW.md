@@ -56,3 +56,16 @@ promotes into its exact immutable request within the same owned journal; failed
 storage holds the sheet. Full catalog/cook/grocery/allocation/departure pickers,
 prepared reuse, child grocery outcomes and wider entry points remain source work.
 No browser or device rendering/acceptance is claimed at this checkpoint.
+
+## Selector and allocation source checkpoint
+
+Catalog/account/list/departure selection uses read-only contextual sheets with
+eight results per page, explicit search and exact selected metadata. Ingredient
+selection is opt-in and paged by five; prep allocations are edited one at a time
+with distinct inherited/unassigned cooks and whole-dish portion totals. Selected
+departures show recorded exact instants and separate travel/get-ready margins;
+preview timing shows exact estimate/deadline in the explicitly chosen zone.
+No selector or checkbox saves domain records. Selection changes invalidate signed
+review; grocery-only changes may retain an exactly matching source preview.
+All controls are source-authored; rendered/design acceptance remains unrun.
+Prepared reuse, grocery outcomes/Undo and wider entry points remain source work.

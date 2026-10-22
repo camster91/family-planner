@@ -68,3 +68,55 @@ it("requires a real DST wall time and an explicit choice for repeated clocks", (
   value.slots[0].timing.start = "2026-03-08T02:15";
   expect(() => foodDraftQuery(value)).toThrow();
 });
+
+it("preserves legacy allocation cook intent and distinguishes inherited cook from explicit none", () => {
+  const value = draft();
+  value.mode = "prep";
+  value.slots[0].cookId = "parent-a";
+  value.slots[0].allocations = [
+    {
+      date: "2026-10-22",
+      mealType: "dinner",
+      servings: "1",
+      cookId: "",
+      notes: "",
+      inheritCook: true,
+    },
+    {
+      date: "2026-10-23",
+      mealType: "lunch",
+      servings: "1",
+      cookId: "",
+      notes: "",
+      inheritCook: false,
+    },
+  ];
+  const preview = { ...makePreview(), sourceRequest: foodDraftQuery(value) };
+  const command = foodDraftCommand(value, preview, context());
+  if (command.mode !== "prep") throw new Error("fixture");
+  expect(command.input.dishes[0].meals![0].cook_id).toBeUndefined();
+  expect(command.input.dishes[0].meals![1].cook_id).toBeNull();
+  const legacy = {
+    ...value,
+    slots: [
+      {
+        ...value.slots[0],
+        allocations: [
+          {
+            date: "2026-10-22",
+            mealType: "dinner",
+            servings: "",
+            cookId: "",
+            notes: "",
+          },
+        ],
+      },
+    ],
+  };
+  expect(
+    foodEditorDraft.parse(legacy).slots[0].allocations[0].inheritCook,
+  ).toBe(false);
+  expect(() =>
+    foodDraftCommand(foodEditorDraft.parse(legacy), preview, context()),
+  ).toThrow();
+});

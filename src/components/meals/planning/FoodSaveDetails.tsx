@@ -14,6 +14,14 @@ export function FoodSaveDetails({
   const { locale } = useTranslation(),
     es = locale === "es",
     copy = (en: string, spanish: string) => (es ? spanish : en);
+  const mealLabel = (type: string) =>
+    type === "breakfast"
+      ? copy("Breakfast", "Desayuno")
+      : type === "lunch"
+        ? copy("Lunch", "Almuerzo")
+        : type === "snack"
+          ? copy("Snack", "Tentempié")
+          : copy("Dinner", "Cena");
   const command = review.input;
   const cook = (id: string | null | undefined) =>
     id
@@ -80,7 +88,7 @@ export function FoodSaveDetails({
             values={dish.meals.map((meal, i) => (
               <li key={i} className="space-y-1 break-words">
                 <p>
-                  {meal.date} · {meal.meal_type} · {meal.servings}{" "}
+                  {meal.date} · {mealLabel(meal.meal_type)} · {meal.servings}{" "}
                   {copy("portions", "porciones")}
                 </p>
                 <p>

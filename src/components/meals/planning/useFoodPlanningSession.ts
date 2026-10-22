@@ -10,6 +10,7 @@ import {
   sendFoodIntent,
   inspectFoodIntent,
   FoodOwnerChanged,
+  FoodRecipeScopeRequired,
 } from "@/lib/food-planning/client";
 import {
   foodDraftEntry,
@@ -63,7 +64,14 @@ export function useFoodPlanningSession(onSaved: () => void) {
     >({}),
     [busy, setBusy] = React.useState(false),
     [issue, setIssue] = React.useState<
-      "load" | "owner" | "storage" | "invalid" | "unknown" | "held" | null
+      | "load"
+      | "owner"
+      | "storage"
+      | "invalid"
+      | "unknown"
+      | "held"
+      | "catalog"
+      | null
     >(null);
   React.useEffect(() => {
     alive.current = true;
@@ -100,11 +108,13 @@ export function useFoodPlanningSession(onSaved: () => void) {
         setIssue("owner");
       } else
         setIssue(
-          store.current?.hasUncertainStorage()
-            ? "storage"
-            : error instanceof OwnedRequestRecoveryError
-              ? "held"
-              : "invalid",
+          error instanceof FoodRecipeScopeRequired
+            ? "catalog"
+            : store.current?.hasUncertainStorage()
+              ? "storage"
+              : error instanceof OwnedRequestRecoveryError
+                ? "held"
+                : "invalid",
         );
     },
     [showDraft],
@@ -234,7 +244,7 @@ export function useFoodPlanningSession(onSaved: () => void) {
       );
     });
   }
-  function change(next: FoodEditorDraft) {
+  function change(next: FoodEditorDraft, keepPreview = false) {
     if (
       operation.current ||
       !contextRef.current?.enabled ||
@@ -243,7 +253,16 @@ export function useFoodPlanningSession(onSaved: () => void) {
       return;
     reviewDraftStamp.current = null;
     showDraft(foodEditorDraft.parse(next));
-    setPreview(null);
+    let sameQuery = false;
+    try {
+      sameQuery =
+        !!preview &&
+        JSON.stringify(foodDraftQuery(next)) ===
+          JSON.stringify(preview.sourceRequest);
+    } catch {
+      /* Partial query cannot keep a preview. */
+    }
+    if (!keepPreview || !sameQuery) setPreview(null);
     setReview(null);
     setIssue(null);
   }
@@ -438,6 +457,7 @@ export function useFoodPlanningSession(onSaved: () => void) {
     context,
     draft,
     dirty,
+    reportError: failed,
     rows,
     preview,
     review,

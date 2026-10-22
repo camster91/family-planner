@@ -2,7 +2,14 @@
 jest.mock("../../owned-request-http", () => ({ requestOwnedJson: jest.fn() }));
 import { requestOwnedJson } from "../../owned-request-http";
 import { foodPreviewView, foodReviewView } from "../view-contract";
-import { readFoodPreview, readFoodWriteReview } from "../client";
+import {
+  readFoodPreview,
+  readFoodWriteReview,
+  readFoodOptions,
+  FoodOwnerChanged,
+  FoodRecipeScopeRequired,
+} from "../client";
+import { FOOD_OPTIONS, foodOptionsQuery } from "../options-contract";
 import { context, makeCommand } from "./recovery-fixture";
 import { makePreview, makeReview } from "./view-fixture";
 const reply = (body: unknown) => ({
@@ -130,4 +137,49 @@ it("suppresses a delayed private read after the original person scope changes", 
       }),
     );
   await expect(readFoodPreview(view.sourceRequest, current)).rejects.toThrow();
+});
+
+it("validates selector queries and renews current owner after delayed private reads", async () => {
+  const query = foodOptionsQuery.parse({ kind: "recipes", search: "rice" });
+  const result = {
+    protocol: FOOD_OPTIONS,
+    owner: makePreview().owner,
+    query,
+    items: [],
+    selected: [],
+    hasMore: false,
+  };
+  jest
+    .mocked(requestOwnedJson)
+    .mockResolvedValueOnce(
+      reply({ ...result, query: { ...query, search: "other" } }),
+    );
+  await expect(readFoodOptions(query, context())).rejects.toThrow(
+    "query changed",
+  );
+  jest
+    .mocked(requestOwnedJson)
+    .mockResolvedValueOnce(reply(result))
+    .mockResolvedValueOnce(
+      reply({
+        ...context(),
+        familyId: "family-b",
+        owner: { ...context().owner!, scope: "d".repeat(64) },
+      }),
+    );
+  await expect(readFoodOptions(query, context())).rejects.toBeInstanceOf(
+    FoodOwnerChanged,
+  );
+});
+it("offers an explicit recipe pool only for the bounded catalog refusal", async () => {
+  jest
+    .mocked(requestOwnedJson)
+    .mockResolvedValueOnce({
+      kind: "reply",
+      response: { status: 409, ok: false } as Response,
+      body: { error: { code: "RECIPES_FILTER_REQUIRED" } },
+    });
+  await expect(
+    readFoodPreview(makePreview().sourceRequest, context()),
+  ).rejects.toBeInstanceOf(FoodRecipeScopeRequired);
 });

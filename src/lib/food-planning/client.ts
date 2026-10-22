@@ -1,3 +1,8 @@
+import {
+  foodOptionsQuery,
+  foodOptionsReply,
+  type FoodOptionsQuery,
+} from "./options-contract";
 import { sameQueueOwner } from "../queue-owner-contract";
 import { foodPreviewRequest } from "./contract";
 import { foodPreviewView, foodReviewView } from "./view-contract";
@@ -24,6 +29,29 @@ import {
   type FoodRecoveryContext,
   type FoodRecoveryEntry,
 } from "./recovery-contract";
+export class FoodRecipeScopeRequired extends Error {
+  constructor() {
+    super("Choose an explicit recipe pool");
+  }
+}
+function requireRecipePool(result: { kind: string; body?: unknown }) {
+  const body = result.body;
+  if (
+    result.kind === "reply" &&
+    body &&
+    typeof body === "object" &&
+    "error" in body
+  ) {
+    const error = body.error;
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "RECIPES_FILTER_REQUIRED"
+    )
+      throw new FoodRecipeScopeRequired();
+  }
+}
 export class FoodOwnerChanged extends Error {
   constructor() {
     super("Food view owner changed");
@@ -153,6 +181,7 @@ export async function readFoodPreview(
     },
     262144,
   );
+  requireRecipePool(result);
   if (result.kind !== "reply" || !result.response.ok)
     throw new Error("Food preview unavailable");
   const view = foodPreviewView.parse(result.body);
@@ -197,6 +226,7 @@ export async function readFoodWriteReview(
     },
     262144,
   );
+  requireRecipePool(result);
   if (result.kind !== "reply" || !result.response.ok)
     throw new Error("Food review unavailable");
   const view = foodReviewView.parse(result.body);
@@ -236,4 +266,35 @@ async function renewFoodReadOwner(
   )
     throw new FoodOwnerChanged();
   requireViewOwner(owner, current);
+}
+
+/** Read options stay query/owner-bound; nothing is persisted until selection. */
+export async function readFoodOptions(
+  query: FoodOptionsQuery,
+  context: FoodRecoveryContext,
+) {
+  if (!context.owner) throw new FoodOwnerChanged();
+  const input = foodOptionsQuery.parse(query);
+  const result = await request(
+    "/api/assistant/food/options",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        [FOOD_OWNER_HEADER]: context.owner.scope,
+      },
+      body: JSON.stringify(input),
+    },
+    131072,
+  );
+  if (result.kind === "reply" && [401, 403].includes(result.response.status))
+    throw new FoodOwnerChanged();
+  if (result.kind !== "reply" || !result.response.ok)
+    throw new Error("Food choices unavailable");
+  const reply = foodOptionsReply.parse(result.body);
+  requireViewOwner(reply.owner, context);
+  if (canonicalRequestJson(reply.query) !== canonicalRequestJson(input))
+    throw new Error("Food choices query changed");
+  await renewFoodReadOwner(reply.owner, context);
+  return reply;
 }

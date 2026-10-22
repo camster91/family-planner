@@ -32,6 +32,7 @@ const allocation = z
     mealType,
     servings: numeric,
     cookId: partialId,
+    inheritCook: z.boolean().default(false),
     notes: z.string().max(2000),
   })
   .strict();
@@ -258,7 +259,7 @@ export function foodDraftCommand(
                 date: meal.date,
                 meal_type: meal.mealType,
                 servings: number(meal.servings, 1, 50),
-                cook_id: meal.cookId || null,
+                cook_id: meal.inheritCook ? undefined : meal.cookId || null,
                 notes: meal.notes || null,
               })),
             })),

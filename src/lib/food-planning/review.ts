@@ -89,7 +89,10 @@ async function readAuxiliary(
         where: {
           family_id: actor.familyId,
           OR: allocations.map((meal) => ({
-            date: parseDateOnly(meal.date)!,
+            date: {
+              gte: parseDateOnly(meal.date)!,
+              lt: parseDateOnly(addDaysToKey(meal.date, 1))!,
+            },
             meal_type: meal.meal_type,
           })),
         },

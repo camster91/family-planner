@@ -1,3 +1,5 @@
+import { foodOptionsQuery } from "./options-contract";
+import { readFoodOptions } from "./options-server";
 /** Strict person/owner-bound save and read-only receipt inspection. */
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
@@ -70,7 +72,7 @@ async function authorize(actor: FoodPlanActor, command?: ReviewedFoodWrite) {
 }
 export async function handleFoodHttp(
   request: NextRequest,
-  mode: "context" | "apply" | "inspect",
+  mode: "context" | "apply" | "inspect" | "options",
 ) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
@@ -92,7 +94,11 @@ export async function handleFoodHttp(
       !(
         await checkRateLimit(
           `food-${mode}:${actor.userId}`,
-          mode === "context" ? 120 : mode === "inspect" ? 60 : 20,
+          mode === "context"
+            ? 120
+            : mode === "inspect" || mode === "options"
+              ? 60
+              : 20,
           60000,
         )
       ).allowed
@@ -117,6 +123,15 @@ export async function handleFoodHttp(
       );
     if (!owner || request.headers.get(FOOD_OWNER_HEADER) !== owner.scope)
       return json(failure(403, "AUTH_CONTEXT_CHANGED"));
+    if (mode === "options") {
+      const query = foodOptionsQuery.parse(
+        JSON.parse(await boundedRequestText(request, 16384)),
+      );
+      const result = await readFoodOptions(prisma, actor, query);
+      if (Buffer.byteLength(JSON.stringify(result), "utf8") > 131072)
+        return json(failure(409, "UNAVAILABLE"));
+      return NextResponse.json(result, { headers });
+    }
     if (mode === "inspect") {
       const input = foodRecoveryInput.parse(
         JSON.parse(await boundedRequestText(request, 196608)),
