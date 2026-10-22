@@ -12,9 +12,8 @@ import {
   IDEMPOTENCY_MAX_BODY_CHARS,
   type EffectResult,
 } from "../idempotency";
-import { mealCreateInput, mealCreateReceipt } from "../meal-create-contract";
+import { mealCreateReceipt } from "../meal-create-contract";
 import { createMealWithReceiptInTx, MEAL_CREATE_ACTION } from "../meal-create";
-import { createMealPrepSchema } from "../meal-batches";
 import { persistMealPrepInTx } from "../meal-batch-api";
 import {
   ADD_FROM_RECIPE_ACTION,
@@ -23,90 +22,20 @@ import {
 } from "../grocery-from-recipe";
 import { foodPlanningEnabled, type FoodPlanActor } from "./server";
 
-export const FOOD_APPLY_ACTION = "food-plan.apply.v1";
-const groceries = z
-  .object({
-    key: id,
-    // Deliberately explicit. No default "all ingredients" and no inferred list.
-    listId: id,
-    ingredientIds: z
-      .array(id)
-      .min(1)
-      .max(100)
-      .refine((ids) => new Set(ids).size === ids.length),
-  })
-  .strict();
-const common = {
-  protocol: z.literal("herewoven.food-apply.v1"),
-  reviewProof: z.string().min(1).max(8192),
-  groceries: z.array(groceries).max(14),
-};
-export const reviewedFoodWrite = z
-  .discriminatedUnion("mode", [
-    z
-      .object({
-        ...common,
-        mode: z.literal("meals"),
-        meals: z
-          .array(z.object({ key: id, input: mealCreateInput }).strict())
-          .min(1)
-          .max(14),
-      })
-      .strict(),
-    z
-      .object({
-        ...common,
-        mode: z.literal("prep"),
-        dishKeys: z.array(id).min(1).max(8),
-        input: createMealPrepSchema,
-      })
-      .strict(),
-  ])
-  .superRefine((value, ctx) => {
-    const keys =
-      value.mode === "meals"
-        ? value.meals.map((row) => row.key)
-        : value.dishKeys;
-    if (
-      new Set(keys).size !== keys.length ||
-      (value.mode === "prep" && keys.length !== value.input.dishes.length) ||
-      new Set(value.groceries.map((row) => row.key)).size !==
-        value.groceries.length ||
-      value.groceries.some((row) => !keys.includes(row.key))
-    )
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Review each unique meal or dish and its grocery selection.",
-      });
-    // This path creates recipe-linked proposals only. Manual/free-text meals and
-    // bulk dishes retain their existing canonical editors and are not invented.
-    if (
-      value.mode === "meals"
-        ? value.meals.some((row) => !row.input.recipe_id)
-        : value.input.dishes.some((row) => !row.recipe_id)
-    )
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Review a canonical recipe for every choice.",
-      });
-  });
-export type ReviewedFoodWrite = z.infer<typeof reviewedFoodWrite>;
-export const foodApplyReceipt = z
-  .object({
-    meals: z.array(z.object({ key: id, mealId: id }).strict()).max(14),
-    prep: z
-      .object({
-        sessionId: id,
-        dishes: z.array(z.object({ key: id, batchId: id }).strict()).max(8),
-      })
-      .strict()
-      .nullable(),
-    groceries: z
-      .array(z.object({ key: id, requestId: id, listId: id }).strict())
-      .max(14),
-  })
-  .strict();
-export type FoodApplyReceipt = z.infer<typeof foodApplyReceipt>;
+import {
+  FOOD_APPLY_ACTION,
+  reviewedFoodWrite,
+  foodApplyReceipt,
+  type ReviewedFoodWrite,
+  type FoodApplyReceipt,
+} from "./apply-contract";
+export {
+  FOOD_APPLY_ACTION,
+  reviewedFoodWrite,
+  foodApplyReceipt,
+  type ReviewedFoodWrite,
+  type FoodApplyReceipt,
+} from "./apply-contract";
 /** Required dependency, never optional/fallback. Verification runs in the same
  * transaction before any child write. assertCurrent checks only lease/rollout
  * at the last write boundary; own meal writes must not invalidate their source. */

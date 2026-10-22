@@ -1,5 +1,5 @@
 /** Authored for consolidated QA; no effects or providers. */
-import { reviewedFoodWrite } from "../persist";
+import { reviewedFoodWrite } from "../apply-contract";
 const meal = (key: string) => ({
   key,
   input: {
@@ -13,7 +13,22 @@ const meal = (key: string) => ({
     servings: 4,
   },
 });
+const sourceRequest = {
+  plan: {
+    timeZone: "UTC",
+    slots: [
+      {
+        key: "first",
+        date: "2026-10-23",
+        mealType: "dinner",
+        servings: 4,
+        recipeId: "fixture-recipe",
+      },
+    ],
+  },
+};
 const base = () => ({
+  sourceRequest,
   protocol: "herewoven.food-apply.v1",
   mode: "meals",
   reviewProof: "fixture-proof",
@@ -68,6 +83,7 @@ describe("reviewed food write shape", () => {
   });
   it("keeps canonical prep limits, portions and next-prep constraints", () => {
     const value = {
+      sourceRequest: { plan: { ...sourceRequest.plan, mode: "prep" } },
       protocol: "herewoven.food-apply.v1",
       mode: "prep",
       reviewProof: "fixture-proof",

@@ -30,6 +30,18 @@ suite("food plan canonical atomic write composition", () => {
   });
   function input(): ReviewedFoodWrite {
     return reviewedFoodWrite.parse({
+      sourceRequest: {
+        plan: {
+          timeZone: "UTC",
+          slots: [0, 1].map((i) => ({
+            key: `slot-${i}`,
+            date: `2026-10-${23 + i}`,
+            mealType: "dinner",
+            servings: 4,
+            recipeId,
+          })),
+        },
+      },
       protocol: "herewoven.food-apply.v1",
       mode: "meals",
       reviewProof: "fixture-only-not-a-real-proof",
@@ -287,6 +299,19 @@ suite("food plan canonical atomic write composition", () => {
   });
   it("creates one unprepared multi-dish session without recording eaten food or stock consumption", async () => {
     const body = reviewedFoodWrite.parse({
+      sourceRequest: {
+        plan: {
+          timeZone: "UTC",
+          mode: "prep",
+          slots: ["a", "b"].map((key) => ({
+            key,
+            date: "2026-10-23",
+            mealType: "dinner",
+            servings: 4,
+            recipeId,
+          })),
+        },
+      },
       protocol: "herewoven.food-apply.v1",
       mode: "prep",
       reviewProof: "fixture-only",

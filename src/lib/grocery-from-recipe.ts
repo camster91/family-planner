@@ -198,6 +198,10 @@ type AddDb = TxDb
 function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
+/** Exact canonical amount shown during review and persisted by recipe adds. */
+export function recipeGroceryAmount(amount: number, baseServings: number, targetServings: number): number {
+  return round2(amount * (targetServings / baseServings))
+}
 
 /**
  * The effect behind `POST /api/lists/items/from-recipe`. `requestId` is the
@@ -294,7 +298,6 @@ export async function addRecipeToGroceriesInTx(
 
   const baseServings = recipe.servings > 0 ? recipe.servings : 1
   const targetServings = batchServings ?? input.servings ?? mealServings ?? baseServings
-  const factor = targetServings / baseServings
   const sourceKey = batchId ? `batch:${batchId}` : input.mealId ? `meal:${input.mealId}` : `recipe:${recipe.id}`
 
   const last = await db.listItem.findFirst({
@@ -312,7 +315,7 @@ export async function addRecipeToGroceriesInTx(
       content: line.ingredient.name,
       checked: false,
       quantity: 1,
-      amount: round2(line.amount * factor),
+      amount: recipeGroceryAmount(line.amount, baseServings, targetServings),
       unit: line.unit ?? line.ingredient.unit ?? null,
       ingredient_id: line.ingredient_id,
       recipe_id: recipe.id,

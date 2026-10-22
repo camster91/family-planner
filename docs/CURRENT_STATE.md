@@ -1,5 +1,25 @@
 # Current State
 
+## Food plan signed review/source renewal — 2026-10-22
+
+A bounded person-only read-review endpoint now issues an exact command/source/
+owner-bound seal with the original sixty-second lease. The internal food write
+guard renews canonical food/calendar/commitment and selected cook/list/grocery
+sources inside the actual effect transaction. It rejects changed or held choices,
+portion mismatches, foreign/missing selections and occupied prep allocation slots.
+Reviewed groceries use the exact canonical full-quantity arithmetic. Browser-safe
+command/query contracts are separate from server code; other people's session
+metadata is not projected to the browser.
+
+Cryptographic/semantic/mocked-renewal cases are authored and unrun. This does not
+expose an HTTP write endpoint or establish universal legacy-writer food version/
+ABA coverage. That coverage, compact owned review/timing/portion controls, write/
+receipt-inspection/exact journal recovery, provider projection/evaluation and
+broader inbox integration remain source work, then consolidated QA and release.
+No QA, DB/schema/provider/flag activation, push/merge/deploy or issue closure.
+See [`grounded-food-planning-v1.md`](./plans/grounded-food-planning-v1.md).
+The full goal remains active; older checkpoints below retain their history.
+
 ## Food plan canonical write composition — 2026-10-22
 
 An internal transaction adapter now composes canonical ordinary meals or one

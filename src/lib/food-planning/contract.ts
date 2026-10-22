@@ -111,6 +111,18 @@ export const foodPlanRequest = z
       });
   });
 export type FoodPlanRequest = z.infer<typeof foodPlanRequest>;
+export const foodPreviewRequest = z
+  .object({
+    plan: foodPlanRequest,
+    recipeIds: z
+      .array(id)
+      .min(1)
+      .max(50)
+      .refine((ids) => new Set(ids).size === ids.length)
+      .optional(),
+  })
+  .strict();
+
 export type FoodRecipe = {
   id: string;
   title: string;

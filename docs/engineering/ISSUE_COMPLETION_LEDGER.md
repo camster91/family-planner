@@ -608,3 +608,18 @@ Contract/disposable-DB cases authored/unrun. No endpoint or production activatio
 Concrete signed-source renewal/version coverage, owned compact review/API/exact
 recovery, provider projection/evaluation and inbox integration remain source work,
 then all consolidated QA and release gates. Full goal and issues stay open.
+
+
+### 2026-10-22 — food signed review and write-transaction renewal (#123/#144)
+
+Browser-safe frozen food commands now include their source query. A bounded,
+private person-only read-review API issues a keyed exact-owner/command/source/
+auxiliary seal with the original60-second lease. Concrete write guard renews
+canonical food/calendar/commitment and cook/list/full-quantity grocery sources
+inside the effect transaction, with renewed feasibility and selected portions.
+Prep verification/allocation conflict checks, no private session projection and
+exact shared grocery rounding are authored. Integrity/owner/tamper/lease and
+mocked renewal/held-choice/changed-source/cook cases unrun. No write endpoint or
+universal legacy-writer food version claim. Version coverage, owned compact UI,
+write/inspection/exact journal recovery, provider/evaluation/inbox integration and
+all consolidated QA/release remain; full goal and issues stay open.

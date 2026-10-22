@@ -1,6 +1,7 @@
 # Grounded food planning — #123/#122/#144
 
-2026-10-22: canonical read/planner foundation authored, unactivated and unverified.
+2026-10-22: canonical reads, planner, internal write composition and signed review
+source authored, unactivated and unverified.
 This is part of the full remaining implementation, not a delivered AI meal planner.
 
 ## Canonical foundation
@@ -179,11 +180,11 @@ recurrence interoperability (#124), consolidated QA and activation remain separa
 
 `food-planning/persist.ts` now composes ordinary meals or one canonical multi-dish
 prep session and optional explicitly selected groceries inside one serializable
-transaction. It is **not exposed by a route**. A required same-transaction source
-guard must bind the entire reviewed command, renew food/calendar evidence and
-enforce the original lease. The concrete signed review/source guard, review UI,
-API boundary and exact browser journal/inspection are still required. A supplied
-read revision or browser recipe ID alone must never activate this adapter.
+transaction. It is **not exposed by a write route**. The required same-transaction source
+guard now has a concrete signed implementation described below. Full legacy-
+writer food version coverage, review UI, apply API and exact browser journal/
+inspection are still required. A supplied read revision or browser recipe ID
+alone must never activate this adapter.
 
 The normal outer idempotency boundary reserves an exact owner/action/body root
 receipt. Current original actor/role/generation/Meals authority is checked before
@@ -212,6 +213,54 @@ signed-source verification, universal ABA detection or end-to-end acceptance.
 Required legacy-writer food version coverage remains source work before apply
 activation. No new endpoint, schema/provider/flag activation or release occurred.
 
+## Signed command review and effect-transaction renewal
+
+Browser-safe `apply-contract.ts` now includes the complete normalized food source
+query in the frozen command. `contract.ts` owns the shared preview query schema;
+server exports retain compatibility. `previewFoodPlanInTx` runs the existing
+scoped broker inside the caller's read or serializable write transaction. It does
+not open a separately committed/nested source read.
+
+`POST /api/assistant/food/review` is a person-only, rate-limited, private/no-store
+read endpoint (64KiB input,256KiB response). It returns fresh canonical plan,
+explicit command, selected cook/list display names, full canonical grocery
+amounts and a server-issued `fpr1` seal. It never calls a provider or dispatches
+an effect. The seal contains keyed hashes of exact owner/role/generation,
+whole command (including source query, dates, servings, notes, cooks, allocations,
+next prep and grocery/list/ingredient selections), source revision and auxiliary
+metadata, plus the original60-second lease. It embeds no recipe/meal/person/list
+labels. Replacing an existing supplied proof during an explicit new read review
+does not approve or send that command; UI confirmation remains a separate step.
+
+Issuance requires every chosen meal/dish to match this query's current concrete
+canonical choices, dates and exact portions, with no feasibility holds. Prep
+preserves reviewed dish order and canonical verified bulk permission. Existing
+future meal slots block prep allocations rather than being overwritten; several
+newly reviewed dishes can explicitly share one new allocation slot. Allocation
+dates are bounded to the same today-through31-day source policy. Selected cooks
+and grocery lists must exist in this household; foreign and missing identities
+share a refusal. Grocery review reads bounded canonical recipe lines and reuses
+`recipeGroceryAmount`, the exact same two-decimal calculation as persistence.
+Full amounts, not estimated shortages, are labelled in the review. Other people's
+session generation and auxiliary source metadata stay server-side; displayed
+people/lists contain only the necessary ID/name/role or type.
+
+`createFoodWriteSourceGuard` verifies the seal and original lease only when a new
+effect is attempted, then reruns the scoped food/calendar/commitment broker and
+auxiliary reads on the **actual write transaction**. Current feasibility and exact
+choice/portion matching are checked again. Source or auxiliary revision changes
+refuse, and the last write boundary checks the original lease/readiness again.
+Completed canonical receipt replay remains independent of expired sources and
+uses the write adapter's current original-authority check. The seal is integrity
+and freshness evidence, never human consent, a provider tool or actor authority.
+
+Cryptographic binding/tamper/owner/lease and mocked transaction-renewal/changed-
+source/held-choice/cook-metadata cases are authored **unrun**. New read reviews and
+write source renewal still need full real-DB/concurrency/compatibility acceptance.
+Legacy-writer food generation/ABA coverage is still required: value hashes and
+ordinary timestamps are not a universal version claim. No HTTP write endpoint,
+provider/flag activation, migration or release is established by this source.
+
 ## Remaining source required before activation
 
 1. Finish the compact human review of unresolved existing commitments and
@@ -231,8 +280,9 @@ activation. No new endpoint, schema/provider/flag activation or release occurred
    validate only issued recipe/ingredient selections, never arbitrary IDs/URLs.
    Renew owner/features/config and full source evidence after provider latency.
    Prompts must not invent ingredients, amounts, nutrition, allergies or safety.
-5. Add explicit reviewed apply adapters through canonical meal-create,
-   several-dish prep and recipe-to-groceries primitives. Preserve source provenance,
+5. Connect the internal atomic apply adapter and signed command/source guard to
+   the owned confirmation UI, strict write/inspection APIs and exact recovery.
+   Finish legacy-writer source version coverage first. Preserve source provenance,
    grocery duplicate/Undo rules, explicit ingredient selections, atomic minimal
    receipts and exact unknown-result recovery. No autonomous add, purchase,
    overwrite, consumption or portion allocation. Apply must rebuild/compare all
