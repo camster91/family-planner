@@ -174,11 +174,13 @@ export async function PATCH(request: NextRequest) {
 
     const updateData: Record<string, unknown> = {}
     if (parsed.data.name) updateData.name = parsed.data.name
-    if (parsed.data.subscription_tier) updateData.subscription_tier = parsed.data.subscription_tier
 
+    // Return only display fields: the row also holds the feed token, invite
+    // code and the encrypted AI key, which this response must not echo.
     const family = await prisma!.family.update({
       where: { id: parsed.data.familyId },
       data: updateData,
+      select: { id: true, name: true, subscription_tier: true, created_at: true, features: true },
     })
 
     return NextResponse.json({ family })
