@@ -3,6 +3,7 @@ import { z } from "zod";
 import { assistantReplySchema } from "./assistant-actions";
 export const ASSISTANT_REFERENCES_PROTOCOL =
   "herewoven.assistant-references.v1" as const;
+export const ASSISTANT_PROFILE_REVISION_HEADER = "X-Assistant-Profile-Revision";
 export const ASSISTANT_TARGET_PROOF_HEADER = "X-Assistant-Target-Proof";
 export const assistantDeleteKind = z.enum([
   "event_delete",

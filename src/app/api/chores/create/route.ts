@@ -1,3 +1,4 @@
+import { ASSISTANT_PROFILE_REVISION_HEADER } from "@/lib/assistant-reference-contract";
 import {
   assistantSourceGuard,
   authorizeAssistantSourceReplay,
@@ -80,9 +81,21 @@ export async function POST(request: NextRequest) {
       !Array.isArray(body) &&
       (body.protocol !== undefined || body.selection !== undefined)
     ) {
-      // Profile creation uses its own protocol and is not yet negotiated by
-      // the account-only AI assignee picker. Never silently skip source checks.
-      if (sourceGuard) throw new AssistantSourceRefused();
+      const revisionHeader = request.headers.get(
+        ASSISTANT_PROFILE_REVISION_HEADER,
+      );
+      if (
+        revisionHeader !== null &&
+        (!/^(0|[1-9][0-9]{0,9})$/.test(revisionHeader) ||
+          Number(revisionHeader) > 2147483647)
+      )
+        throw new AssistantSourceRefused();
+      const expectedProfileRevision =
+        revisionHeader === null ? undefined : Number(revisionHeader);
+      // The versioned assistant path must supply the reviewed profile revision;
+      // older canonical clients keep their existing explicit protocol-2 branch.
+      if (sourceGuard && expectedProfileRevision === undefined)
+        throw new AssistantSourceRefused();
       const reviewRefusal = guardReviewDocumentSubmission(
         request,
         auth,
@@ -144,7 +157,12 @@ export async function POST(request: NextRequest) {
           userId: auth.user.id,
           action: "chore.profile.create",
         },
-        profile.data,
+        expectedProfileRevision === undefined
+          ? profile.data
+          : {
+              ...profile.data,
+              assistant_profile_revision: expectedProfileRevision,
+            },
         ({ recordId }) =>
           createProfileOnlyChoreEffect(
             prisma!,
@@ -159,9 +177,11 @@ export async function POST(request: NextRequest) {
             recordId,
             new Date(),
             {
-              compactReceipt: request.headers.has(
-                REVIEW_SUBMIT_HEADERS.contract,
-              ),
+              compactReceipt:
+                expectedProfileRevision !== undefined ||
+                request.headers.has(REVIEW_SUBMIT_HEADERS.contract),
+              sourceGuard,
+              expectedProfileRevision,
             },
           ),
         {

@@ -1,3 +1,4 @@
+import type { AssistantSourceGuard } from "./assistant-source-proof";
 import { recordTimelineFactInTx } from "@/lib/review-inbox/timeline-fact";
 import type { RoutineOccurrencePolicy } from "@/lib/routine-occurrence-policy";
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -287,6 +288,7 @@ type ProfileTarget = {
   age: number | null;
   archived_at: Date | null;
   erasure_user_id: string | null;
+  revision?: number;
   legacy_mapping: { user_id: string } | null;
   account_link: { user_id: string } | null;
 };
@@ -299,6 +301,7 @@ const profileTargetSelect = {
   age: true,
   archived_at: true,
   erasure_user_id: true,
+  revision: true,
   legacy_mapping: { select: { user_id: true } },
   account_link: { select: { user_id: true } },
 } as const;
@@ -323,12 +326,8 @@ function assertProfileTarget(
   }
 }
 
-/**
- * Create the first profile-only chore under the account → household lock order.
- * The caller supplies idempotency around this transaction; this helper never
- * sends mail/notifications and never expands a series.
- */
-/** Shared current profile authority for scheduled roots; never creates login identity. */
+/** Shared active profile resolution for scheduled roots. The caller retains
+ * actor authority; resolving a subject never creates login/account identity. */
 export async function profileChoreAssigneeInTx(
   tx: Prisma.TransactionClient,
   familyId: string,
@@ -378,7 +377,11 @@ export async function createProfileOnlyChoreInTx(
   photoUrl: string | null,
   recordId: string | null,
   now = new Date(),
-  options: { compactReceipt?: boolean } = {},
+  options: {
+    compactReceipt?: boolean;
+    sourceGuard?: AssistantSourceGuard;
+    expectedProfileRevision?: number;
+  } = {},
 ): Promise<EffectResult> {
   // Refuse a recurring profile request before touching the idempotency receipt
   // or creating its template. A rollout can therefore turn this opt-in off
@@ -410,6 +413,8 @@ export async function createProfileOnlyChoreInTx(
     throw new ProfileChoreError("PROFILE_TARGET_UNAVAILABLE");
   }
 
+  await options.sourceGuard?.authorize(tx);
+
   // A takeover can overlap a slow original effect. Serialize both attempts on
   // the stable receipt after the membership locks, then re-read completion.
   if (recordId) {
@@ -430,11 +435,24 @@ export async function createProfileOnlyChoreInTx(
     }
   }
 
+  if (options.expectedProfileRevision !== undefined) {
+    await tx.$queryRaw`SELECT "id" FROM "HouseholdMember" WHERE "id"=${input.selection.memberId} AND "family_id"=${actor.familyId} FOR SHARE`;
+  }
   const target = await tx.householdMember.findFirst({
     where: { id: input.selection.memberId, family_id: actor.familyId },
     select: profileTargetSelect,
   });
   assertProfileTarget(target, actor.familyId, input.selection.memberId);
+  if (
+    options.expectedProfileRevision !== undefined &&
+    (!Number.isInteger(options.expectedProfileRevision) ||
+      options.expectedProfileRevision < 0 ||
+      target.revision !== options.expectedProfileRevision ||
+      !isProfileChoreEnabled())
+  )
+    throw new ProfileChoreError("PROFILE_TARGET_CONFLICT");
+  await options.sourceGuard?.verify(tx);
+  options.sourceGuard?.assertCurrent?.();
   const created = await tx.chore.create({
     data: {
       family_id: actor.familyId,
@@ -518,7 +536,11 @@ export async function createProfileOnlyChoreEffect(
   photoUrl: string | null,
   recordId: string | null,
   now = new Date(),
-  options: { compactReceipt?: boolean } = {},
+  options: {
+    compactReceipt?: boolean;
+    sourceGuard?: AssistantSourceGuard;
+    expectedProfileRevision?: number;
+  } = {},
 ): Promise<EffectResult> {
   return db.$transaction((tx) =>
     createProfileOnlyChoreInTx(

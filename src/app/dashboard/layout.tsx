@@ -1,3 +1,4 @@
+import { isProfileChoreEnabled } from "@/lib/profile-chore-gates";
 import { isAssistantConfirmationEnabled } from "@/lib/assistant-source-proof";
 import PreparationProvider from "@/components/calendar/preparation/PreparationProvider";
 import { eventPreparationReady } from "@/lib/event-preparation/owner";
@@ -187,6 +188,10 @@ export default async function DashboardLayout({
                         role={role}
                         todayContextEnabled={isAssistantTodayEnabled()}
                         confirmationEnabled={isAssistantConfirmationEnabled()}
+                        profileAssignmentEnabled={
+                          isProfileChoreEnabled() &&
+                          process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED === "1"
+                        }
                       />
                     </Suspense>
                   )}

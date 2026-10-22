@@ -3,6 +3,7 @@ import {
   executeAssistantAction,
   removalTargets,
   previewRemovalTarget,
+  choreAssignees,
   AssistantActionError,
   AssistantActionPreflightError,
   ActionOutcomeUnknown,
@@ -343,4 +344,113 @@ it("requires exact target proof before a sourced removal, then forwards it only 
     body: { listId: "list-a" },
   });
   expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+it("keeps account/profile namespaces distinct and sends an explicit profile selection and reviewed revision through the versioned route", async () => {
+  fetchMock.mockResolvedValueOnce(
+    ok({ members: [{ id: "same-id", name: "Account name" }] }),
+  );
+  fetchMock.mockResolvedValueOnce(
+    ok({
+      profiles: [
+        {
+          id: "same-id",
+          name: "Profile name",
+          role: "child",
+          age: 3,
+          archived_at: null,
+          revision: 4,
+        },
+      ],
+      profileChoreSupported: true,
+      profileChoreRecurrenceSupported: true,
+    }),
+  );
+  const targets = await choreAssignees(true);
+  expect(targets.map((target) => target.id)).toEqual([
+    "account:same-id",
+    "profile:same-id",
+  ]);
+  fetchMock.mockResolvedValueOnce(ok({ choreId: "created-chore" }));
+  await executeAssistantAction(
+    {
+      kind: "chore_create",
+      title: "Put away shoes",
+      date: "2026-10-22",
+      frequency: "once",
+      weekdays: [],
+      points: 10,
+      difficulty: "easy",
+    },
+    "synthetic-profile-key",
+    targets[1],
+  );
+  const [path, options] = fetchMock.mock.calls[2];
+  expect(path).toBe("/api/assistant/actions/confirm");
+  const payload = JSON.parse(options.body);
+  expect(payload.profileRevision).toBe(4);
+  expect(payload.sourceProof).toBeUndefined();
+  expect(payload.body).toMatchObject({
+    protocol: 2,
+    selection: { memberId: "same-id" },
+    frequency: "once",
+  });
+  expect(payload.body).not.toHaveProperty("assigned_to");
+  expect(payload.body).not.toHaveProperty("actingMemberId");
+});
+it("does not silently fall back to account choices when the requested profile catalog is paused or malformed", async () => {
+  fetchMock.mockResolvedValueOnce(
+    ok({ members: [{ id: "account-a", name: "Parent" }] }),
+  );
+  fetchMock.mockResolvedValueOnce(
+    ok({ profiles: [], profileChoreSupported: false }),
+  );
+  await expect(choreAssignees(true)).rejects.toBeInstanceOf(
+    ActionOutcomeUnknown,
+  );
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+it("holds unsupported profile recurrence before mutation and keeps canonical revision refusals retryable as choice reads", async () => {
+  const subject = {
+    kind: "profile" as const,
+    memberId: "member-a",
+    revision: 2,
+    recurrenceSupported: false,
+  };
+  await expect(
+    executeAssistantAction(
+      {
+        kind: "chore_create",
+        title: "Shoes",
+        frequency: "weekly",
+        weekdays: [1],
+        points: 10,
+        difficulty: "easy",
+      },
+      "synthetic-key",
+      { id: "profile:member-a", title: "Child", subject },
+    ),
+  ).rejects.toMatchObject({ code: "profileRecurrenceUnavailable" });
+  expect(fetchMock).not.toHaveBeenCalled();
+  fetchMock.mockResolvedValue({
+    ok: false,
+    status: 409,
+    json: async () => ({ error: "PROFILE_TARGET_CONFLICT" }),
+  });
+  await expect(
+    executeAssistantAction(
+      {
+        kind: "chore_create",
+        title: "Shoes",
+        date: "2026-10-22",
+        frequency: "once",
+        weekdays: [],
+        points: 10,
+        difficulty: "easy",
+      },
+      "synthetic-key",
+      { id: "profile:member-a", title: "Child", subject },
+    ),
+  ).rejects.toMatchObject({ code: "assigneeChanged" });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
 });

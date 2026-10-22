@@ -40,10 +40,12 @@ export default function AssistantHost({
   role,
   todayContextEnabled = false,
   confirmationEnabled = false,
+  profileAssignmentEnabled = false,
 }: {
   role: string;
   todayContextEnabled?: boolean;
   confirmationEnabled?: boolean;
+  profileAssignmentEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const params = useSearchParams();
@@ -175,6 +177,7 @@ export default function AssistantHost({
           onBusyChange={setPanelBusy}
           todayContextEnabled={todayContextEnabled}
           confirmationEnabled={confirmationEnabled}
+          profileAssignmentEnabled={profileAssignmentEnabled}
         />
       )}
     </>

@@ -103,6 +103,13 @@ export const assistantEnglish = {
   whoDoesIt: "Who does it?",
   choreAssignee: "Chore assignee",
   chooseMember: "Choose a family member…",
+  emailFreeProfile: "Family profile",
+  profileAssignmentDescription:
+    "This is an email-free family profile. You are adding the chore as the signed-in parent.",
+  assigneeChanged:
+    "This family member changed or is unavailable. Reload the choices and review who does this chore.",
+  profileRecurrenceUnavailable:
+    "Repeating chores are paused for this profile. Choose Once or keep the draft and use Chores.",
   repeats: "Repeats",
   choreFrequency: "Chore frequency",
   once: "Once",
@@ -268,6 +275,13 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   whoDoesIt: "¿Quién lo hace?",
   choreAssignee: "Persona asignada",
   chooseMember: "Elige un miembro de la familia…",
+  emailFreeProfile: "Perfil familiar",
+  profileAssignmentDescription:
+    "Este es un perfil familiar sin correo electrónico. Agregas la tarea como el padre o la madre que inició sesión.",
+  assigneeChanged:
+    "Este miembro de la familia cambió o no está disponible. Vuelve a cargar las opciones y revisa quién hará esta tarea.",
+  profileRecurrenceUnavailable:
+    "Las tareas repetidas están en pausa para este perfil. Elige Una vez o conserva el borrador y usa Tareas.",
   repeats: "Se repite",
   choreFrequency: "Frecuencia de la tarea",
   once: "Una vez",

@@ -1,3 +1,7 @@
+import {
+  createProfileOnlyChoreEffect,
+  profileChoreCreateSchema,
+} from "../chore-profile";
 import type { AssistantConfirmationKind } from "../assistant-reference-contract";
 import {
   readDeleteSnapshot,
@@ -50,6 +54,8 @@ suite("canonical assistant confirmation and lost-response recovery", () => {
     "FAMILY_ASSISTANT_CONFIRMATION_READY",
     "FAMILY_ASSISTANT_REFERENCES_READY",
     "ASSISTANT_TODAY_ENABLED",
+    "HOUSEHOLD_PROFILE_CHORE_ENABLED",
+    "HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY",
   ] as const;
   const saved = gates.map((key) => process.env[key]);
   const previousRandom = idempotencyRuntime.random;
@@ -359,5 +365,88 @@ suite("canonical assistant confirmation and lost-response recovery", () => {
       await db.family.deleteMany({ where: { id: foreignFamily } });
       await db.user.deleteMany({ where: { id: foreignUser } });
     }
+  });
+  it("keeps a sourced email-free profile separate from the actor and recovers a compact receipt without recreating its chore", async () => {
+    const profile = await db.householdMember.create({
+      data: {
+        family_id: familyId,
+        name: "Synthetic email-free child",
+        role: "child",
+        age: 3,
+      },
+    });
+    const input = profileChoreCreateSchema.parse({
+      protocol: 2,
+      selection: { memberId: profile.id },
+      title: "Synthetic profile task",
+      due_date: "2026-11-01",
+      frequency: "once",
+      difficulty: "easy",
+    });
+    const source = await guard("chore_create");
+    const run = (key: string, revision: number) =>
+      withIdempotency(
+        db,
+        key,
+        {
+          scope: `user:${userId}`,
+          familyId,
+          userId,
+          action: "chore.profile.create",
+        },
+        { ...input, assistant_profile_revision: revision },
+        ({ recordId }) =>
+          createProfileOnlyChoreEffect(
+            db,
+            { id: userId, familyId, tokenVersion: 0 },
+            input,
+            new Date("2026-11-01T00:00:00Z"),
+            null,
+            recordId,
+            observed,
+            {
+              sourceGuard: source,
+              expectedProfileRevision: revision,
+              compactReceipt: true,
+            },
+          ),
+        { beforeReplay: () => authorizeAssistantSourceReplay(db, source) },
+      );
+    await db.householdMember.update({
+      where: { id: profile.id },
+      data: { name: "Changed profile label", revision: { increment: 1 } },
+    });
+    await expect(run(randomUUID(), profile.revision)).rejects.toMatchObject({
+      code: "PROFILE_TARGET_CONFLICT",
+    });
+    expect(
+      await db.chore.count({
+        where: { family_id: familyId, title: input.title },
+      }),
+    ).toBe(0);
+    const key = randomUUID();
+    const result = await (await run(key, profile.revision + 1)).json();
+    expect(result).toEqual({ choreId: expect.any(String) });
+    const created = await db.chore.findUnique({
+      where: { id: result.choreId },
+    });
+    expect(created).toMatchObject({
+      created_by: userId,
+      assigned_to: null,
+      assigned_member_id: profile.id,
+    });
+    jest.mocked(Date.now).mockReturnValue(observed.getTime() + 120000);
+    await db.householdMember.update({
+      where: { id: profile.id },
+      data: { archived_at: new Date(), revision: { increment: 1 } },
+    });
+    const replay = await run(key, profile.revision + 1);
+    expect(replay.headers.get("Idempotency-Replayed")).toBe("true");
+    expect(await replay.json()).toEqual(result);
+    expect(
+      await db.chore.count({
+        where: { family_id: familyId, title: input.title },
+      }),
+    ).toBe(1);
   });
 });

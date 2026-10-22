@@ -1,5 +1,7 @@
 # Open issue completion ledger
 
+2026-10-22 profile-assignment checkpoint: gated canonical account/profile choices, explicit protocol-2/revision-bound manual or sourced chore confirmation, compact receipt replay and recurrence/refusal UI are authored. Profiles remain subjects, never actors/accounts. Cases unrun, flags unchanged/off. Broader canonical planning/version/semantic-evaluation/inbox code and consolidated QA remain; #123/#144/#128 stay open. See `docs/architecture/AI_CONFIRMATION_SOURCES.md`.
+
 2026-10-22 deletion checkpoint: all three typed account deletion adapters, bounded selected-target review/proofs, canonical lifecycle guards and atomic minimal receipts are now authored. Changed list contents and target-deleted/expired recovery cases are authored/unrun. Profile assignees, broader planning/version/eval/inbox source and all QA remain; capability off, no issue closed. Details: `docs/architecture/AI_CONFIRMATION_SOURCES.md`.
 
 2026-10-22 confirmation checkpoint: signed source renewal and fixed versioned canonical delegation now cover event/account-chore/grocery/list/note creates in source. Optional atomic list/note receipts and exact completed-receipt preservation are authored. Deletion target revisions/receipts, profile adapters, wider planning/version/evaluation/inbox and all QA remain. Gate off; cases unrun; #123/#144/#128 stay in progress. See `docs/architecture/AI_CONFIRMATION_SOURCES.md`.

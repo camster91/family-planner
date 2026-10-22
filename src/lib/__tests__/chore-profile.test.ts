@@ -539,6 +539,88 @@ describe("profile-only chore contract", () => {
     expect(choreCreate).not.toHaveBeenCalled();
   });
 
+  it("checks the reviewed profile revision and source before a new effect, while a completed receipt skips expired source verification", async () => {
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      user: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({
+            id: "parent-a",
+            family_id: "family-a",
+            role: "parent",
+            token_version: 0,
+          }),
+      },
+      householdMember: {
+        findFirst: jest.fn().mockResolvedValue({ ...baseMember, revision: 5 }),
+      },
+      chore: { create: jest.fn() },
+      idempotencyRecord: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({
+            response_status: 200,
+            response_body: { choreId: "already-created" },
+          }),
+        update: jest.fn(),
+      },
+    };
+    const db = {
+      $transaction: async (callback: (value: typeof tx) => unknown) =>
+        callback(tx),
+    };
+    const sourceGuard = {
+      actor: {
+        userId: "parent-a",
+        familyId: "family-a",
+        role: "parent",
+        generation: 0,
+      },
+      authorize: jest.fn().mockResolvedValue(undefined),
+      verify: jest.fn().mockRejectedValue(new Error("Synthetic stale source")),
+    };
+    const input = profileChoreCreateSchema.parse({
+      protocol: 2,
+      selection: { memberId: baseMember.id },
+      title: "Shoes",
+      due_date: "2026-10-22",
+      frequency: "once",
+    });
+    const run = (revision: number, receipt: string | null) =>
+      createProfileOnlyChoreEffect(
+        db as never,
+        { id: "parent-a", familyId: "family-a", tokenVersion: 0 },
+        input,
+        new Date("2026-10-22T00:00:00Z"),
+        null,
+        receipt,
+        new Date(),
+        {
+          sourceGuard,
+          expectedProfileRevision: revision,
+          compactReceipt: true,
+        },
+      );
+    await expect(run(4, null)).rejects.toMatchObject({
+      code: "PROFILE_TARGET_CONFLICT",
+    });
+    expect(sourceGuard.verify).not.toHaveBeenCalled();
+    await expect(run(5, null)).rejects.toThrow("Synthetic stale source");
+    expect(tx.chore.create).not.toHaveBeenCalled();
+    sourceGuard.verify.mockClear();
+    tx.householdMember.findFirst.mockClear();
+    expect(await run(4, "completed-receipt")).toEqual({
+      status: 200,
+      body: { choreId: "already-created" },
+    });
+    expect(sourceGuard.verify).not.toHaveBeenCalled();
+    expect(tx.householdMember.findFirst).not.toHaveBeenCalled();
+    expect(tx.chore.create).not.toHaveBeenCalled();
+  });
+
   it("uses the shared today-somewhere boundary for profile completion", async () => {
     const now = new Date("2026-10-11T00:30:00.000Z");
     const tx = {

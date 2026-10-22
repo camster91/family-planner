@@ -81,6 +81,7 @@ export type AssistantPanelProps = {
   onBusyChange: (busy: boolean) => void;
   todayContextEnabled?: boolean;
   confirmationEnabled?: boolean;
+  profileAssignmentEnabled?: boolean;
 };
 
 type AssistantError =
@@ -200,6 +201,7 @@ export default function AssistantPanel({
   onBusyChange,
   todayContextEnabled = false,
   confirmationEnabled = false,
+  profileAssignmentEnabled = false,
 }: AssistantPanelProps) {
   const router = useRouter(),
     { features } = useFeatures();
@@ -227,6 +229,11 @@ export default function AssistantPanel({
     [selected, setSelected] = React.useState(""),
     [deleteConfirm, setDeleteConfirm] = React.useState(false),
     [choiceLoadFailed, setChoiceLoadFailed] = React.useState(false);
+  const chosenSubject = targets.find(
+    (target) => target.id === selected,
+  )?.subject;
+  const profileRecurrencePaused =
+    chosenSubject?.kind === "profile" && !chosenSubject.recurrenceSupported;
   const [kind, setKind] = React.useState("bug"),
     [title, setTitle] = React.useState(""),
     [details, setDetails] = React.useState(""),
@@ -517,7 +524,7 @@ export default function AssistantPanel({
         try {
           const choices =
             proposal.action.kind === "chore_create"
-              ? await choreAssignees()
+              ? await choreAssignees(profileAssignmentEnabled)
               : proposal.action.kind.endsWith("_delete")
                 ? await removalTargets(proposal.action)
                 : null;
@@ -568,7 +575,7 @@ export default function AssistantPanel({
     try {
       const choices =
         pendingAction.kind === "chore_create"
-          ? await choreAssignees()
+          ? await choreAssignees(profileAssignmentEnabled)
           : pendingAction.kind.endsWith("_delete")
             ? await removalTargets(pendingAction)
             : null;
@@ -703,7 +710,14 @@ export default function AssistantPanel({
       (!chosen || !deleteConfirm || (sourceProof && !chosen.proof))
     )
       return;
-    if (action.kind === "chore_create" && !chosen) return;
+    if (
+      action.kind === "chore_create" &&
+      (!chosen ||
+        (chosen.subject?.kind === "profile" &&
+          action.frequency !== "once" &&
+          !chosen.subject.recurrenceSupported))
+    )
+      return;
     lock.current = true;
     consumed.current = true;
     setBusy(true);
@@ -740,9 +754,13 @@ export default function AssistantPanel({
         return;
       }
       if (e instanceof AssistantActionPreflightError) {
-        // This error is proven to occur before executeAssistantAction starts
-        // any mutation request. Keep the proposal editable and allow a retry.
+        // Local validation or a canonical pre-effect refusal proves no new
+        // effect. Keep edits; changed assignees require a read-only reload.
         consumed.current = false;
+        if (e.code === "assigneeChanged") {
+          setChoiceLoadFailed(true);
+          setSelected("");
+        }
         setError(toAssistantError(e, "actionFailed"));
         return;
       }
@@ -1056,10 +1074,18 @@ export default function AssistantPanel({
                         {targets.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.title}
+                            {t.subject?.kind === "profile"
+                              ? ` · ${msg("emailFreeProfile")}`
+                              : ""}
                           </option>
                         ))}
                       </select>
                     </label>
+                    {chosenSubject?.kind === "profile" && (
+                      <p role="status" className="text-sm text-label-secondary">
+                        {msg("profileAssignmentDescription")}
+                      </p>
+                    )}
                     <label className="block">
                       {msg("repeats")}
                       <select
@@ -1075,11 +1101,31 @@ export default function AssistantPanel({
                         className="input-apple min-h-[44px] w-full"
                       >
                         <option value="once">{msg("once")}</option>
-                        <option value="daily">{msg("daily")}</option>
-                        <option value="weekly">{msg("weekly")}</option>
-                        <option value="monthly">{msg("monthly")}</option>
+                        <option
+                          value="daily"
+                          disabled={profileRecurrencePaused}
+                        >
+                          {msg("daily")}
+                        </option>
+                        <option
+                          value="weekly"
+                          disabled={profileRecurrencePaused}
+                        >
+                          {msg("weekly")}
+                        </option>
+                        <option
+                          value="monthly"
+                          disabled={profileRecurrencePaused}
+                        >
+                          {msg("monthly")}
+                        </option>
                       </select>
                     </label>
+                    {profileRecurrencePaused && action.frequency !== "once" && (
+                      <p role="status" className="text-sm text-label-secondary">
+                        {msg("profileRecurrenceUnavailable")}
+                      </p>
+                    )}
                     {action.frequency === "weekly" ? (
                       <WeeklyDaysPicker
                         days={action.weekdays}
@@ -1266,6 +1312,8 @@ export default function AssistantPanel({
                       todayExpired ||
                       (action.kind === "chore_create" &&
                         (!selected ||
+                          (profileRecurrencePaused &&
+                            action.frequency !== "once") ||
                           (action.frequency === "weekly"
                             ? !action.weekdays.length
                             : !action.date))) ||

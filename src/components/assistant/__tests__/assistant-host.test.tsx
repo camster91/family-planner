@@ -1763,3 +1763,90 @@ it("reviews the current removal target and sends both source and target proofs o
   });
   expect(calls).toHaveLength(4);
 });
+
+// Authored/unrun: profile identity is a human choice, never an authenticated actor.
+it.each([true, false])(
+  "keeps an email-free profile explicit when recurrence support is %s",
+  async (supported) => {
+    const user = userEvent.setup();
+    const calls: Array<{ path: string; body: any }> = [];
+    global.fetch = jest.fn(async (path, options) => {
+      calls.push({
+        path: String(path),
+        body: options?.body ? JSON.parse(String(options.body)) : undefined,
+      });
+      if (path === "/api/assistant")
+        return response({
+          reply: "Choose who does it.",
+          action: {
+            kind: "chore_create",
+            title: "Put away shoes",
+            frequency: "weekly",
+            weekdays: [1, 4],
+            points: 10,
+            difficulty: "easy",
+          },
+        });
+      if (path === "/api/family/members")
+        return response({
+          members: [{ id: "same-id", name: "Signed-in parent" }],
+        });
+      if (path === "/api/family/profiles")
+        return response({
+          profiles: [
+            {
+              id: "same-id",
+              name: "Young child",
+              role: "child",
+              age: 3,
+              revision: 2,
+              archived_at: null,
+            },
+          ],
+          profileChoreSupported: true,
+          profileChoreRecurrenceSupported: supported,
+        });
+      return response({ choreId: "created-chore" });
+    }) as any;
+    render(<AssistantHost role="parent" profileAssignmentEnabled />);
+    await user.click(screen.getByRole("button", { name: "AI assistant" }));
+    await user.type(
+      screen.getByLabelText("Your message"),
+      "Make a shoes chore",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    const assignee = await screen.findByLabelText("Chore assignee");
+    await user.selectOptions(assignee, "profile:same-id");
+    expect(
+      screen.getByText(/This is an email-free family profile/),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Proposed title")).toHaveValue(
+      "Put away shoes",
+    );
+    const confirm = screen.getByRole("button", { name: "Confirm and save" });
+    if (!supported) {
+      expect(confirm).toBeDisabled();
+      expect(screen.getByLabelText("Chore frequency")).toHaveValue("weekly");
+      expect(
+        screen.getByText(/Repeating chores are paused for this profile/),
+      ).toBeInTheDocument();
+      expect(calls).toHaveLength(3);
+      return;
+    }
+    await user.click(confirm);
+    await screen.findByText("Saved “Put away shoes”.");
+    expect(calls[3].path).toBe("/api/assistant/actions/confirm");
+    expect(calls[3].body).toMatchObject({
+      kind: "chore_create",
+      profileRevision: 2,
+      body: {
+        protocol: 2,
+        selection: { memberId: "same-id" },
+        frequency: "weekly",
+        weekly_days: [1, 4],
+      },
+    });
+    expect(calls[3].body.body).not.toHaveProperty("assigned_to");
+    expect(calls).toHaveLength(4);
+  },
+);

@@ -1,5 +1,26 @@
 # Current State
 
+## AI email-free profile assignment source — 2026-10-22
+
+Parent chat now has a gated canonical account/profile picker with distinct
+namespaces, explicit profile labels and separate recurrence capability handling.
+Profile choices carry the reviewed canonical revision. The fixed versioned
+confirmation path delegates strict protocol-2 profile creation, binds revision
+into the keyed request hash and checks that profile plus any supplied Today proof
+inside the existing chore/receipt transaction. Manual profile confirmation can
+omit Today; other action types cannot use that proof exception. Profiles never
+become actors or inferred accounts. Compact receipt recovery preserves original
+current parent authority after profile/source changes; known profile refusals
+keep edits and offer read-only choice reload. Existing rollout gates stay off.
+
+Client/mounted/router/profile-source/disposable-DB cases are authored and unrun.
+Broader canonical food/recipe/schedule planning, version/semantic-evaluation/inbox
+source and all consolidated QA remain. Only source reads/edits and selected-file
+formatting occurred: no tests/types/lint/build/browser/application API/DB/schema/
+client/native/CI, provider/flag activation, push/merge/deploy or issue closure.
+See [`AI_CONFIRMATION_SOURCES.md`](./architecture/AI_CONFIRMATION_SOURCES.md).
+Full goal remains active; earlier checkpoints below retain their history.
+
 ## AI exact-target deletion source — 2026-10-22
 
 The negotiated confirmation flow now includes event/chore/list delete adapters.

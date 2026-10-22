@@ -21,7 +21,9 @@ neither human approval nor the proposed body's semantics. The user must still
 review the concrete fields and choose canonical targets.
 
 `POST /api/assistant/actions/confirm` accepts only a strict bounded envelope,
-valid idempotency key and authentic signed proof. It invokes a fixed canonical
+valid idempotency key and authentic signed proof for contextual actions. The
+explicit revision-bound manual profile assignment exception is described below.
+It invokes a fixed canonical
 handler in-process, preserving original person credentials and key. It never
 fetches a client/model-selected URL. Versioning avoids an older replica silently
 ignoring a new freshness header. Unsupported kinds are a known pre-effect
@@ -85,11 +87,54 @@ deletion/expiry under current original actor authority; ordinary no-key second
 deletes still return the canonical missing-record response. No provider delete,
 recurrence rewrite, history inference or new child/profile authority is added.
 
-Profile assignees still need explicit protocol-2 controls and canonical adapter
-integration; the account-only picker must not infer a User from a profile.
-Profile create requests still refuse through the new confirmation flow. Keep the
-capability off until profile behavior, broader source planning and recovery UI
-are complete and QA passes. Do not close #123/#144/#128 from this checkpoint.
+## Explicit email-free profile assignment
+
+The dashboard advertises profile assignment only when the existing profile setup
+and paired chore/rollback capabilities are enabled. Parent chat then reads the
+canonical account and profile directories (no new roster store or model identity
+lookup). Both reads must succeed, profile capability must remain advertised and
+the combined bounded catalog must validate; a paused/malformed profile response
+cannot silently become account-only choices. Archived profiles are excluded;
+the canonical profile directory excludes erased, linked and legacy-mapped rows.
+The browser discards account email fields and keeps names plus explicit typed
+subject metadata only. UI selection values use distinct account/profile prefixes,
+so even colliding raw IDs cannot cross namespaces. Profiles are labeled as family
+profiles and the UI states that the signed-in parent is adding the task.
+
+Profile confirmation uses the existing strict protocol-2 chore schema with
+`selection.memberId`, never `assigned_to` or an inferred account. The versioned
+confirmation envelope also requires the directory's reviewed profile revision.
+The fixed canonical handler binds that revision into the idempotency request hash
+and passes it to the existing profile-chore transaction. After current parent
+membership and completed-receipt checks, that transaction protects/rereads the
+profile, revalidates active/unlinked/unerased role/age eligibility and exact
+revision, verifies any supplied Today proof and creates the canonical chore and
+compact `{choreId}` receipt together. Source proofs remain absent from provider
+inputs. No email/account is created and no notification is sent to a profile.
+
+A manually reviewed profile chore can use this same versioned endpoint without
+Include Today or a signed contextual proof. This only authorizes the ordinary
+parent-reviewed canonical profile create, with its exact selection/revision and
+existing feature/recurrence gates; it makes no contextual freshness claim. The
+exception cannot be used for account chores or other domains. When a source proof
+is supplied it must always validate and renew; no manual fallback is used on a
+source refusal. Old replicas cannot silently ignore the revision requirement,
+since the client never falls back from the versioned endpoint to a direct write.
+Ordinary installed clients retain their existing explicit protocol-2 API contract.
+
+Profile recurrence remains separately gated. Chat keeps the proposed schedule
+intact, explains a pause and blocks confirmation rather than converting weekly
+work to Once. The user may explicitly choose Once, another assignee or the normal
+Chores editor. Known canonical profile conflicts/unavailability retain edited
+fields and offer a GET-only roster reload; unknown results stay unknown. Compact
+completed receipts replay under original current parent authority after profile
+change/archive/source expiry without creating another task or returning cached
+profile content. Recurrence rollback retains its existing pre-replay hold.
+
+All cases are authored and unrun. Keep capabilities off until consolidated QA
+passes. Broader canonical planning, version coverage, semantic evaluations and
+inbox follow-through remain source work. Do not close #123/#144/#128 from this
+checkpoint; profile deletion still follows the existing canonical protocol hold.
 
 Positive record locks are not range/predicate locks. A bounded Today window
 does not prove absence, complete schedule feasibility, meal/inventory planning

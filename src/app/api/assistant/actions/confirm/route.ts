@@ -12,6 +12,7 @@ import {
   assistantConfirmationKind,
   ASSISTANT_SOURCE_PROOF_HEADER,
   ASSISTANT_TARGET_PROOF_HEADER,
+  ASSISTANT_PROFILE_REVISION_HEADER,
 } from "@/lib/assistant-reference-contract";
 import {
   readAssistantSourceProof,
@@ -29,7 +30,8 @@ export const dynamic = "force-dynamic";
 const input = z
   .object({
     kind: assistantConfirmationKind,
-    sourceProof: z.string().min(1).max(4096),
+    sourceProof: z.string().min(1).max(4096).optional(),
+    profileRevision: z.number().int().min(0).max(2147483647).optional(),
     body: z.record(z.unknown()),
     targetProof: z.string().min(1).max(4096).optional(),
   })
@@ -80,16 +82,28 @@ export async function POST(request: NextRequest) {
         },
       );
     }
-    readAssistantSourceProof(
-      command.sourceProof,
-      {
-        userId: auth.user.id,
-        familyId: auth.user.family_id,
-        role: auth.user.role,
-        generation: auth.payload?.tv ?? 0,
-      },
-      command.kind,
-    );
+    const profileAssignment =
+      command.kind === "chore_create" && command.body.protocol === 2;
+    if (profileAssignment && command.profileRevision === undefined)
+      throw new AssistantSourceRefused();
+    if (!profileAssignment && command.profileRevision !== undefined)
+      throw new AssistantSourceRefused();
+    // A profile-only chore can be reviewed manually without transmitting Today.
+    // Every other action still requires its signed contextual source basis.
+    if (!command.sourceProof && !profileAssignment)
+      throw new AssistantSourceRefused();
+    if (command.sourceProof) {
+      readAssistantSourceProof(
+        command.sourceProof,
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload?.tv ?? 0,
+        },
+        command.kind,
+      );
+    }
     // No legacy unchecked fallback for unrecognized/future domains.
     if (!(command.kind in routes)) throw new AssistantSourceRefused();
     const route = routes[command.kind as keyof typeof routes];
@@ -102,7 +116,15 @@ export async function POST(request: NextRequest) {
       throw new AssistantSourceRefused();
     if (command.targetProof)
       headers.set(ASSISTANT_TARGET_PROOF_HEADER, command.targetProof);
-    headers.set(ASSISTANT_SOURCE_PROOF_HEADER, command.sourceProof);
+    headers.delete(ASSISTANT_SOURCE_PROOF_HEADER);
+    headers.delete(ASSISTANT_PROFILE_REVISION_HEADER);
+    if (command.sourceProof)
+      headers.set(ASSISTANT_SOURCE_PROOF_HEADER, command.sourceProof);
+    if (profileAssignment)
+      headers.set(
+        ASSISTANT_PROFILE_REVISION_HEADER,
+        String(command.profileRevision),
+      );
     const canonical = new NextRequest(new URL(route.path, request.url), {
       method: route.method,
       headers,
