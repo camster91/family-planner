@@ -1,5 +1,16 @@
 # Current State
 
+## Renewed implementation-first instruction — 2026-10-22
+
+Cameron again asked to skip tests until everything is implemented. Defer further
+local tests, builds, browser QA and pushes that trigger CI while remaining code
+is finished. Existing hosted runs and earlier evidence retain their original
+source identity. The remaining list-detail Add/Undo pagination repair now
+refreshes canonical pages instead of inserting a newly appended row into an
+unrelated page, with localized confirmation. This repair is source only and
+now has authored regression coverage awaiting consolidated QA. Merge and deployment remain
+subject to the existing release gates after implementation is complete.
+
 ## Latest execution instruction — 2026-10-22
 
 Cameron asked to defer tests until implementation is finished. Resume the

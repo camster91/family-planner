@@ -1,5 +1,25 @@
 # Open issue completion ledger
 
+## Resumed source follow-through — 2026-10-22
+
+Following Cameron's renewed implementation-first instruction, the list-detail
+Add/Undo repair now refreshes paged hosts from canonical data instead of appending
+a tail-position row to the current page. EN/ES confirmation explains that saved
+items can be on a later page. Nonpaged hosts retain immediate insertion; restored
+checked state still uses the existing owned tick queue. Regression source covers
+single creation, canonical later-page reconciliation and checked Undo recovery.
+No new test, build or browser run, CI dispatch or push accompanied this repair.
+
+The open GitHub inventory was read again:82 open issues,82 unique ledger rows,
+no missing, closed or duplicate entries. Existing capture/recipe boundaries,
+inbox/timeline mounts, routine links, shared projections and usage reservations
+remain connected; the earlier requirement source audit remains the coverage map.
+This follow-through closes the identified source repair, not runtime acceptance.
+The next phase is consolidated QA of the committed candidate, including these
+new cases. Existing hosted jobs belong to5b2503cd and cannot validate this repair.
+The full web release goal stays active; no issue is closed and no deployment is
+claimed. Native/provider/operator/customer dependencies retain their own gates.
+
 ## Latest execution instruction — 2026-10-22
 
 Cameron asked to defer tests until implementation is finished. Resume the

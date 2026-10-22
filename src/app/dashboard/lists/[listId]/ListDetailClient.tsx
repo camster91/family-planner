@@ -404,7 +404,18 @@ export default function ListDetailClient({
         ingredient_name: item.ingredient_name ?? null,
         added_by: item.added_by,
       };
-      setListItems((prev) => [...prev, restored]);
+      // The server assigns restored rows a new position at the list's end.
+      // Refresh paged hosts rather than displaying a later-page row twice.
+      if (paging) {
+        router.refresh();
+        addToast({
+          type: "success",
+          title: text("restored", { item: item.content }),
+          message: text("savedPageHint"),
+        });
+      } else {
+        setListItems((prev) => [...prev, restored]);
+      }
       if (wasChecked) void sync.setChecked(restored.id, true);
     } catch (err) {
       addToast({
@@ -492,7 +503,16 @@ export default function ListDetailClient({
         setAddError(text("addReason", { item: trimmed, reason }));
         return;
       }
-      setListItems((prev) => [...prev, toItem(data.item)]);
+      if (paging) {
+        router.refresh();
+        addToast({
+          type: "success",
+          title: text("added", { item: trimmed }),
+          message: text("savedPageHint"),
+        });
+      } else {
+        setListItems((prev) => [...prev, toItem(data.item)]);
+      }
       setNewItemText("");
     } finally {
       addingRef.current = false;

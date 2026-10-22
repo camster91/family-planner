@@ -11,6 +11,7 @@ import { ToastProvider } from '@/components/ui/toast'
 
 const mockSetChecked = jest.fn(async () => {})
 const mockDiscard = jest.fn(async () => {})
+const mockRefresh = jest.fn()
 // Queued offline ticks by item id (#162): the visible state, not the server's.
 const mockQueued = new Map<string, boolean>()
 jest.mock('../use-list-item-sync', () => ({
@@ -53,6 +54,7 @@ beforeEach(() => {
   deleteStatus = 200
   mockSetChecked.mockClear()
   mockDiscard.mockClear()
+  mockRefresh.mockClear()
   mockQueued.clear()
   window.confirm = jest.fn(() => false)
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -71,7 +73,7 @@ beforeEach(() => {
   }) as unknown as typeof fetch
 })
 
-function renderList() {
+function renderList(paging?: React.ComponentProps<typeof ListDetailClient>['paging']) {
   render(
     <ToastProvider>
       <ListDetailClient
@@ -79,6 +81,7 @@ function renderList() {
         listName="Groceries"
         listType="grocery"
         userId="u1"
+        paging={paging}
         items={[
           { id: 'a', content: 'Tofu', checked: true, quantity: 2, category: 'Protein', added_by: { name: 'Pat' }, amount: 400, unit: 'g', ingredient_id: 'ing_tofu', ingredient_name: 'Tofu' },
           { id: 'b', content: 'Milk', checked: false, quantity: 1, category: null, added_by: { name: 'Pat' } },
@@ -123,6 +126,25 @@ it('puts the row back and says so when the delete fails', async () => {
   expect(screen.queryByTestId('undo-toast')).toBeNull()
 })
 
+it('restores a paged item at the canonical tail and preserves its tick without inserting it into this page', async () => {
+  const user = userEvent.setup()
+  renderList({ continued: false, firstHref: '/dashboard/lists/l1', nextHref: '/dashboard/lists/l1?cursor=next', versionQuery: 'limit=100' })
+  const row = screen.getByRole('checkbox', { name: /Tofu/ }).closest('[data-testid="list-item"]')!.parentElement!
+  await user.click(within(row).getByRole('button', { name: 'Swipe to delete' }))
+  const toast = await screen.findByTestId('undo-toast')
+  await user.click(within(toast).getByRole('button', { name: 'Undo' }))
+
+  await screen.findByText('Restored “Tofu”')
+  expect(screen.queryByRole('checkbox', { name: /Tofu/ })).toBeNull()
+  expect(screen.getByRole('checkbox', { name: /Milk/ })).toBeTruthy()
+  expect(mockRefresh).toHaveBeenCalledTimes(1)
+  expect(calls.filter((call) => call.url === '/api/lists/items/create')).toEqual([{
+    url: '/api/lists/items/create', method: 'POST',
+    body: { listId: 'l1', content: 'Tofu', quantity: 2, category: 'Protein', amount: 400, unit: 'g', ingredient_id: 'ing_tofu' },
+  }])
+  await waitFor(() => expect(mockSetChecked).toHaveBeenCalledWith('restored', true))
+})
+
 it('Undo restores the tick the person saw, even one still queued offline, and drops the stale queued change', async () => {
   const user = userEvent.setup()
   // Milk is unticked on the server but shows ticked from a queued offline change.
@@ -138,7 +160,7 @@ it('Undo restores the tick the person saw, even one still queued offline, and dr
 })
 
 // Canonical refresh after a queued create; navigation is covered in browser tests.
-jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: jest.fn() }) }))
+jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mockRefresh }) }))
 
 // Submitted-create replay has its own real-queue component and browser suite.
 jest.mock('../PersonGroceryAdd', () => ({ PersonGroceryAdd: () => null }))

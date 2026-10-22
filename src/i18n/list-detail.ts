@@ -12,6 +12,9 @@ const en = {
   restoreFailed: "Couldn't put back “{item}”",
   deleteFailed: "Couldn't delete “{item}”",
   deleted: "Deleted “{item}”",
+  restored: "Restored “{item}”",
+  added: "Added “{item}”",
+  savedPageHint: "Saved at the end of your list. It may appear on a later page.",
   addOffline:
     "You're offline. “{item}” wasn't added. Try again when you're back online.",
   addFailed: "Couldn't add “{item}”. Check your connection and try again.",
@@ -91,6 +94,10 @@ const es: Record<keyof typeof en, string> = {
   restoreFailed: "No se pudo restaurar «{item}»",
   deleteFailed: "No se pudo eliminar «{item}»",
   deleted: "Se eliminó «{item}»",
+  restored: "Se restauró «{item}»",
+  added: "Se añadió «{item}»",
+  savedPageHint:
+    "Se guardó al final de tu lista. Puede aparecer en una página posterior.",
   addOffline:
     "Sin conexión. No se añadió «{item}». Inténtalo cuando vuelvas a tener conexión.",
   addFailed:
