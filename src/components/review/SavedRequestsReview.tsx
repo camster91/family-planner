@@ -114,6 +114,8 @@ export default function SavedRequestsReview({
     preparation: copy.savedPreparation,
     schedule: copy.savedSchedule,
     responsibility: copy.savedResponsibility,
+    recipe: copy.savedRecipe,
+    capture: copy.savedCapture,
   };
   if (suspended) return null;
   return (
@@ -134,6 +136,8 @@ export default function SavedRequestsReview({
           <option value="preparation">{copy.preparation}</option>
           <option value="schedule">{copy.schedule}</option>
           <option value="responsibility">{copy.responsibility}</option>
+          <option value="recipe">{copy.recipe}</option>
+          <option value="capture">{copy.capture}</option>
         </select>
       </label>
       <button
@@ -171,7 +175,9 @@ export default function SavedRequestsReview({
                 {new Date(row.issuedAt).toLocaleString(locale)}
               </time>
               <p className="text-footnote text-label-secondary">
-                {copy.savedUnknown}
+                {row.phase === "editing"
+                  ? copy.draftUnsubmitted
+                  : copy.savedUnknown}
               </p>
               <Link href={row.href} className="btn-plain min-h-11">
                 {copy.openSaved}

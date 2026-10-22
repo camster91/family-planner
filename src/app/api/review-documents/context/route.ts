@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
         userId: fresh.user.id,
         familyId: fresh.user.family_id,
         domain: domain.data,
+        role: fresh.user.role,
         adopted: reviewDocumentRecoveryAdopted(),
         owner,
         enabled:

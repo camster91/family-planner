@@ -1,5 +1,29 @@
 # Current State
 
+## Saved-draft inbox discovery and direct recipe recovery source — 2026-10-21
+
+The parent inbox has read-only capture/recipe document adapters using the existing
+owned snapshot lease and strict domain journal. Only fixed type/phase/time/recovery
+links leave the store; no draft content, keys or receipts are read for display or
+mutated. The context now reports current person role; downgraded/foreign/unadopted
+contexts hold discovery. Expired and submitted work is retained without calling it
+failed or retryable. A direct parent/teen `/dashboard/meals/review` host opens the
+existing recipe boundary without importing again or creating a blank draft when
+no saved work exists. It stays available during write pauses, refuses signed-in
+fridge/shared-device use, and binds initial server identity to client renewal.
+
+Capture task proposals previously reached `/api/events`. That silent domain error
+is now blocked. The preview stays available and a current parent may open the
+canonical chore form in a new tab; no assignee/points/permission is inferred. This
+is a manual handoff, not the pending durable capture/chore integration. Capture's
+owned draft host is still incomplete even though its read-only inbox adapter is
+authored. Recipe recovery/adapter and task-domain cases are authored, all unrun.
+Only source edits/inspection and selected-file formatting; no QA/checks/build/
+browser/API/SQL/DB/native/CI, activation, push/merge/deploy or issue closure.
+Full goal remains open. Next: owned CaptureBox lifecycle and canonical chore
+handoff, then remaining navigation, role/routine/inbox timeline and grounded AI.
+See the dated inbox plan checkpoint for remaining acceptance details.
+
 ## Recipe draft host and bound canonical submission source — 2026-10-21
 
 New-recipe editors (including Meals quick-add and imported recipes) now share an

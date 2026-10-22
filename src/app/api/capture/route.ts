@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
 // GET /api/capture — is capture available for this family?
 export async function GET(request: NextRequest) {
   const [auth, error] = await authenticateWithFamily(request)
-  if (error) return error
+  if (error) { error.headers.set('Cache-Control', 'private, no-store'); return error }
 
   const family = await prisma!.family.findUnique({
     where: { id: auth.user.family_id },
@@ -144,10 +144,11 @@ export async function GET(request: NextRequest) {
     configured: Boolean(config),
     model: config?.model ?? null,
     allowed,
+    role: auth.user.role,
     // The browser uses this authenticated namespace to retain only confirmed
     // recovery envelopes. It never receives provider configuration or keys.
     userId: auth.user.id,
     familyId: auth.user.family_id,
     ...(allowed ? {} : { message: CAPTURE_CHILD_MESSAGE }),
-  })
+  }, { headers: { 'Cache-Control': 'private, no-store' } })
 }

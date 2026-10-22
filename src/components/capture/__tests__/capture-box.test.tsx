@@ -1175,3 +1175,27 @@ it('keeps the existing typed draft when a later extraction is malformed', async 
   expect(screen.getByText('Dentist')).toBeVisible()
   expect((global.fetch as jest.Mock).mock.calls.some(([url]) => String(url) === '/api/events')).toBe(false)
 })
+
+// Authored only; execution remains in the consolidated QA pass.
+it.each(['parent', 'teen'])('keeps task proposals out of the event create path for %s', async (role) => {
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/capture' && init?.method === 'POST') {
+      return json(200, { draft: { kind: 'task', title: 'Wash dishes', confidence: 'high' } })
+    }
+    if (String(url) === '/api/capture') return json(200, { configured: true, allowed: true, role, userId: 'fixture-capture-parent', familyId: 'fixture-capture-family' })
+    throw new Error('Unexpected fixture endpoint')
+  }) as unknown as typeof fetch
+  const person = userEvent.setup()
+  render(<CaptureBox />)
+  await person.type(await screen.findByRole('textbox'), 'wash dishes')
+  await person.click(screen.getByRole('button', { name: 'Read it' }))
+  await screen.findByText('Wash dishes')
+  expect(screen.queryByRole('button', { name: 'Add it' })).not.toBeInTheDocument()
+  expect(screen.getByText(captureEnglish.taskNeedsReview)).toBeVisible()
+  const link = screen.queryByRole('link', { name: captureEnglish.openChoreReview })
+  if (role === 'parent') {
+    expect(link).toHaveAttribute('href', '/dashboard/chores/create')
+    expect(link).toHaveAttribute('target', '_blank')
+  } else expect(link).not.toBeInTheDocument()
+  expect(jest.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/api/events'))).toBe(false)
+})

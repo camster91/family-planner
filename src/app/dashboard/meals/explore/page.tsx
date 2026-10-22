@@ -272,6 +272,11 @@ export default function RecipeExplorePage() {
         </header>
 
         <MealViewNav active="explore" />
+        {canSave && (
+          <Link className="btn-plain min-h-11" href="/dashboard/meals/review">
+            {text("savedWork")}
+          </Link>
+        )}
 
         <section
           className="card-apple p-4 space-y-3"

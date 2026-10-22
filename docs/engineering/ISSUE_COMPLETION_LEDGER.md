@@ -510,3 +510,15 @@ Full programmatic/host exit handling and acceptance of rendered Back/failed-flus
 background/process-loss behavior remain open; do not treat authored paths as proof.
 The full goal and #123/#144/#499 stay open; consolidated QA remains after the code.
 
+
+
+### #123 / #499 draft discovery checkpoint — 2026-10-21
+
+Read-only recipe/capture document adapters, fixed phase/time/recovery projections,
+current parent renewal and direct `/dashboard/meals/review` original-editor entry
+are authored. Recipe recovery-only pages avoid importing or creating a blank
+replacement. Task capture no longer silently creates calendar events; canonical
+chore handoff is currently manual. Capture's owned host/automatic chore handoff,
+full navigation, role/routine/timeline/AI scope and consolidated QA remain open.
+See `docs/plans/review-inbox-v1.md` dated checkpoint. Cases authored/unrun; no
+activation, push/merge/deploy or closure claim.

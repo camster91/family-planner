@@ -1,5 +1,10 @@
 import { useTranslation } from "@/i18n";
 const en = {
+  recipe: "Recipe drafts & saves",
+  savedRecipe: "Saved recipe work",
+  savedCapture: "Saved quick-add work",
+  draftUnsubmitted:
+    "Not submitted yet. Open the original editor to finish or discard this draft.",
   leaveCapture:
     "Opening Recipes will leave this unfinished preview. Saved requests stay available. Leave this preview?",
   capture: "Quick add reviews",
@@ -45,6 +50,11 @@ const en = {
     "This inbox currently includes chore checks and changed event preparation. Quick add uses its existing review and recovery controls here; recipe imports open in Meals.",
 };
 const es: typeof en = {
+  recipe: "Borradores y guardados de recetas",
+  savedRecipe: "Trabajo de recetas guardado",
+  savedCapture: "Captura rápida guardada",
+  draftUnsubmitted:
+    "Aún no se ha enviado. Abre el editor original para terminar o descartar el borrador.",
   leaveCapture:
     "Abrir Recetas dejará este borrador sin terminar. Las solicitudes guardadas se conservan. ¿Salir del borrador?",
   capture: "Revisar captura rápida",

@@ -33,18 +33,38 @@ import {
   type ResponsibilityRecoveryEntry,
 } from "@/lib/responsibility-recovery";
 import { responsibilityCommand } from "@/lib/responsibility";
-export type SavedReviewKind = "preparation" | "schedule" | "responsibility";
+import { readReviewDocumentContext } from "@/lib/review-document-browser";
+import {
+  reviewDocumentContext,
+  reviewDocumentJournal,
+  reviewDocumentPayload,
+  reviewDocumentEntryMatchesContext,
+  REVIEW_DOCUMENT_MAX_BYTES,
+  type ReviewDocumentContext,
+  type ReviewDocumentEntry,
+} from "@/lib/review-document-contract";
+export type SavedReviewKind =
+  "preparation" | "schedule" | "responsibility" | "capture" | "recipe";
 export type SavedReviewItem = {
   id: string;
   kind: SavedReviewKind;
   issuedAt: string;
   href: string;
+  phase?: "editing" | "submitted";
 };
 export async function readSavedReviewRequests(
   kind: SavedReviewKind,
   expected: { userId: string; familyId: string },
 ) {
-  if (!["preparation", "schedule", "responsibility"].includes(kind))
+  if (
+    ![
+      "preparation",
+      "schedule",
+      "responsibility",
+      "capture",
+      "recipe",
+    ].includes(kind)
+  )
     throw new OwnedRequestRecoveryError("UPDATE_REQUIRED");
   let localStorage: StorageLike | null = null,
     indexedDB: IDBFactory | null = null;
@@ -74,6 +94,40 @@ export async function readSavedReviewRequests(
     )
       throw new OwnedRequestRecoveryError("OWNER_CHANGED");
     return context;
+  }
+  if (kind === "recipe" || kind === "capture") {
+    const result = await readOwnedRequestSnapshot<
+      ReviewDocumentContext,
+      ReviewDocumentEntry,
+      SavedReviewItem[]
+    >({
+      context: reviewDocumentContext,
+      journal: reviewDocumentJournal,
+      maxBytes: REVIEW_DOCUMENT_MAX_BYTES,
+      matchesContext: reviewDocumentEntryMatchesContext,
+      resolveContext: async () => {
+        const context = assertContext(await readReviewDocumentContext(kind));
+        if (!context.adopted || context.domain !== kind)
+          throw new OwnedRequestRecoveryError("DISABLED");
+        return context;
+      },
+      candidates,
+      project: (entries) =>
+        entries.map((entry, index): SavedReviewItem => {
+          const document = reviewDocumentPayload.parse(JSON.parse(entry.body));
+          return {
+            id: `${kind}-${index}`,
+            kind,
+            phase: document.phase,
+            issuedAt: new Date(document.updatedAt).toISOString(),
+            href:
+              kind === "recipe"
+                ? "/dashboard/meals/review"
+                : "/dashboard/review?source=capture",
+          };
+        }),
+    });
+    return { items: result.projection, paused: !result.enabled };
   }
   if (kind === "responsibility") {
     const result = await readOwnedRequestSnapshot<

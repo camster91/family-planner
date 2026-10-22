@@ -18,6 +18,7 @@ const baseContext = reviewDocumentContext.parse({
   familyId: "fixture-family",
   enabled: true,
   adopted: true,
+  role: "parent",
   owner: {
     kind: "person",
     ownerId: "fixture-parent",

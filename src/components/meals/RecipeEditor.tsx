@@ -36,6 +36,8 @@ function toMinutes(value: string): number | null | "invalid" {
  * Exported for tests.
  */
 export type RecipeEditorProps = {
+  recoveryIdentity?: { userId: string; familyId: string };
+  recoveryOnly?: boolean;
   onCreated?: (recipe: RecipeOption & { source_url?: string | null }) => void;
   initialRecipe?: RecipeDetailData;
   initialDraft?: {

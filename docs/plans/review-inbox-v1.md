@@ -316,3 +316,44 @@ Full programmatic/host exit handling and acceptance of rendered Back/failed-flus
 background/process-loss behavior remain open; do not treat authored paths as proof.
 The full goal and #123/#144/#499 stay open; consolidated QA remains after the code.
 
+
+
+## Draft discovery and recipe recovery entry — 2026-10-21 source checkpoint
+
+- `readSavedReviewRequests` now supports recipe/capture documents via the same
+  `readOwnedRequestSnapshot` lease and strict owned journal, with current parent
+  role/identity/domain/adoption checks before projection. One shared domain match
+  helper is used by both journal and inbox. Unknown, paused and expired entries
+  are not removed or converted into retry approvals. No journal initialize,
+  receipt read, provider request, content copy or store write occurs in discovery.
+- Rows distinguish editable work from submitted/unknown work; projection includes
+  only fixed kind, phase, update time and allowlisted original recovery URL. The
+  five-row device check remains explicit and clears on identity/overlay changes.
+- `/dashboard/meals/review` is a direct parent/teen personal recovery entry into
+  the existing recipe editor. No import is needed. A recovery-only empty result
+  stays an empty review; pre-adoption does not claim stores were checked or start
+  a new draft. Existing paused controls remain authoritative. Route/server identity
+  and client renewal agree; child/paired/fridge surfaces receive no draft host.
+- Meals exploration links to that original recovery route. EN/ES labels cover
+  editable/submitted distinction, direct entry and unadopted recovery.
+- Discovered canonical-domain defect: text `kind: task` was being confirmed via
+  calendar event create. It is now held for a parent to review in the canonical
+  chore form, opened separately so the preview stays in the original tab. The
+  availability endpoint supplies current role for that link; unknown/teen roles
+  do not receive it. Existing event/grocery confirmations are unchanged.
+
+Still required source: connect CaptureBox to the owned editable/frozen lifecycle;
+keep historical owned recovery reachable when provider extraction is disabled;
+retain legacy exact envelopes in their original recovery flow without duplicate
+migration; preserve stable per-row keys through whole-batch freeze and uncertain
+partial outcomes. Task handoff must use canonical parent-only chore creation,
+retain unknown assignment/points/schedule for explicit review, and never convert
+a task to an event or promote a profile into an actor. The current manual link is
+not that integrated workflow. Capture's inbox read adapter is not proof its owned
+host is complete. Finish full programmatic/host exits, what-changed timeline,
+role/routine links and grounded AI scope before the consolidated QA pass.
+
+Authored read-only adapter cases cover private-field exclusion, paused/expired
+editing, submitted/unknown state, foreign body/current role/adoption refusal; task
+UI cases prevent event submission for parent/teen. All unrun. Source/formatting
+only; no checks, execution, activation, issue closure or release evidence.

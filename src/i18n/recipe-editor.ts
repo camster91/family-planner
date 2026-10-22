@@ -3,8 +3,13 @@ import { useTranslation } from "@/i18n";
 
 /** Recipe-editor controls and recovery copy. Recipe content stays verbatim. */
 export const recipeEditorEnglish = {
+  draftRecoveryUnavailable:
+    "Saved-work recovery is not enabled here. Saved stores have not been checked. Return to Meals or try again later.",
+  draftReviewTitle: "Saved recipe work",
+  draftReviewHint:
+    "Continue a recipe saved on this device, or check the outcome of an earlier save. Opening this screen does not import or submit anything.",
   draftReviewClosed:
-    "This request is no longer in saved work on this device. Check your recipe box before starting another save.",
+    "No saved recipe work was found for this session on this device. Check your recipe box before starting another save.",
   draftPaused:
     "Draft saving is paused. You can review or close saved work; new changes stay unavailable.",
   draftExpired:
@@ -98,8 +103,13 @@ export const recipeEditorEnglish = {
 export type RecipeEditorMessage = keyof typeof recipeEditorEnglish;
 
 export const recipeEditorSpanish: Record<RecipeEditorMessage, string> = {
+  draftRecoveryUnavailable:
+    "La recuperación no está habilitada aquí. No se han consultado los almacenes guardados. Vuelve a Comidas o inténtalo más tarde.",
+  draftReviewTitle: "Trabajo de recetas guardado",
+  draftReviewHint:
+    "Continúa una receta guardada en este dispositivo o comprueba un guardado anterior. Abrir esta pantalla no importa ni envía nada.",
   draftReviewClosed:
-    "Esta solicitud ya no está en el trabajo guardado de este dispositivo. Revisa tus recetas antes de iniciar otro guardado.",
+    "No se encontró trabajo de recetas para esta sesión en este dispositivo. Revisa tus recetas antes de iniciar otro guardado.",
   draftPaused:
     "Los borradores están en pausa. Puedes revisar o cerrar el trabajo guardado; los nuevos cambios no están disponibles.",
   draftExpired:

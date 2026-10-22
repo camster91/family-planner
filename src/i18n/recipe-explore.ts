@@ -3,6 +3,7 @@ import { useTranslation } from "@/i18n";
 
 /** Explore-page controls and safe recovery copy. Recipe/source content stays verbatim. */
 export const recipeExploreEnglish = {
+  savedWork: "Continue saved recipe work",
   allSources: "All supported sites",
   partialSearch:
     "Some sites were unavailable. These results are incomplete; try their original search links below.",
@@ -95,6 +96,7 @@ export const recipeExploreEnglish = {
 export type RecipeExploreMessage = keyof typeof recipeExploreEnglish;
 
 export const recipeExploreSpanish: Record<RecipeExploreMessage, string> = {
+  savedWork: "Continuar una receta guardada",
   allSources: "Todos los sitios compatibles",
   partialSearch:
     "Algunos sitios no estaban disponibles. Los resultados están incompletos; prueba los enlaces de búsqueda originales.",

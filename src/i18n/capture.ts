@@ -1,5 +1,7 @@
 /** Static capture-recovery controls. Titles and saved content remain verbatim. */
 export const captureEnglish = {
+  taskNeedsReview: "A parent needs to review this task in Chores before adding it. Your preview is kept here; no task has been added.",
+  openChoreReview: "Open chore form in a new tab",
   reviewWindow: 'Showing {start}–{end} of {total}. Add includes all remaining events.',
   previousPreview: 'Previous events', nextPreview: 'Next events',
   openQuickAdd: "Open quick add",
@@ -99,6 +101,8 @@ export const captureEnglish = {
 export type CaptureMessage = keyof typeof captureEnglish;
 
 export const captureSpanish: Record<CaptureMessage, string> = {
+  taskNeedsReview: "Un adulto debe revisar esta tarea en Tareas antes de añadirla. El borrador se conserva aquí; no se ha añadido ninguna tarea.",
+  openChoreReview: "Abrir el formulario de tareas en otra pestaña",
   reviewWindow: 'Mostrando {start}–{end} de {total}. Añadir incluye todos los eventos restantes.',
   previousPreview: 'Eventos anteriores', nextPreview: 'Eventos siguientes',
   openQuickAdd: "Abrir adición rápida",

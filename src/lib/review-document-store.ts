@@ -14,6 +14,7 @@ import {
   reviewDocumentContext,
   reviewDocumentEntry,
   reviewDocumentJournal,
+  reviewDocumentEntryMatchesContext,
   reviewDocumentPayload,
   type ReviewDocumentContext,
   type ReviewDocumentEntry,
@@ -67,15 +68,7 @@ export function createReviewDocumentStore(options: Options) {
     contract: REVIEW_DOCUMENT_CONTRACT,
     maxBytes: REVIEW_DOCUMENT_MAX_BYTES,
     localDraftKind: "editable-review-document",
-    matchesContext: (entry, context) => {
-      const document = payload(entry);
-      return (
-        context.adopted &&
-        document.userId === context.userId &&
-        document.familyId === context.familyId &&
-        document.draft.domain === context.domain
-      );
-    },
+    matchesContext: reviewDocumentEntryMatchesContext,
     // A recovered intent needs explicit receipt review in sendExact below.
     // Do not authorize it simply because its JSON is structurally valid.
     reviewRecovered: async (entry) =>

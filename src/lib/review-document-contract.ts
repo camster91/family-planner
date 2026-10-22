@@ -203,6 +203,7 @@ export const reviewDocumentContext = z
     userId: id,
     familyId: id,
     domain: reviewDocumentDomain,
+    role: z.enum(["parent", "teen"]),
     enabled: z.boolean(),
     adopted: z.boolean(),
     owner: queueOwnerSchema
@@ -222,3 +223,22 @@ export type ReviewEditableDocument = z.infer<typeof reviewEditableDocument>;
 export type ReviewExactRequest = z.infer<typeof exactRequest>;
 
 export type RecipeEditableDocument = z.infer<typeof recipeEditableDocument>;
+
+/** Shared journal/discovery ownership rule. Display fields never establish identity. */
+export function reviewDocumentEntryMatchesContext(
+  entry: ReviewDocumentEntry,
+  context: ReviewDocumentContext,
+): boolean {
+  try {
+    const parsed = reviewDocumentPayload.safeParse(JSON.parse(entry.body));
+    return (
+      parsed.success &&
+      context.adopted &&
+      parsed.data.userId === context.userId &&
+      parsed.data.familyId === context.familyId &&
+      parsed.data.draft.domain === context.domain
+    );
+  } catch {
+    return false;
+  }
+}

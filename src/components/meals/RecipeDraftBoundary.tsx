@@ -105,6 +105,12 @@ export function RecipeDraftBoundary(
   }
   async function current() {
     const next = await readReviewDocumentContext("recipe");
+    const expected = callbacks.current.recoveryIdentity;
+    if (
+      expected &&
+      (expected.userId !== next.userId || expected.familyId !== next.familyId)
+    )
+      throw new OwnedRequestRecoveryError("OWNER_CHANGED");
     const prior = context.current;
     const changed =
       prior &&
@@ -172,6 +178,13 @@ export function RecipeDraftBoundary(
       }
     }
   }
+  function emptyView(enabled: boolean): View {
+    return callbacks.current.recoveryOnly
+      ? "completed"
+      : enabled
+        ? "editing"
+        : "legacy";
+  }
   async function load(token: number) {
     if (
       new URLSearchParams(window.location.search)
@@ -183,9 +196,13 @@ export function RecipeDraftBoundary(
     const next = await current();
     if (!next.adopted) {
       if (live(token)) {
-        setView("legacy");
-        setVisible(true);
-        setNotice(null);
+        setView(callbacks.current.recoveryOnly ? "hold" : "legacy");
+        setVisible(!callbacks.current.recoveryOnly);
+        setNotice(
+          callbacks.current.recoveryOnly
+            ? text("draftRecoveryUnavailable")
+            : null,
+        );
       }
       return;
     }
@@ -202,7 +219,7 @@ export function RecipeDraftBoundary(
       setSeed(undefined);
       setFormGeneration((value) => value + 1);
       setDirty(false);
-      setView(next.enabled ? "editing" : "legacy");
+      setView(emptyView(next.enabled));
     } else if (viewRef.current === "submitted" && !entry.current) {
       setView("completed");
     }
@@ -219,7 +236,7 @@ export function RecipeDraftBoundary(
             ? "submitted"
             : "choose",
         );
-      else setView(next.enabled ? "editing" : "legacy");
+      else setView(emptyView(next.enabled));
     }
     setVisible(true);
     setNotice(null);
@@ -373,7 +390,7 @@ export function RecipeDraftBoundary(
         (latest.current === null || entry.current?.body !== oldBody)
       )
         setView("choose");
-      else setView(context.current!.enabled ? "editing" : "legacy");
+      else setView(emptyView(context.current!.enabled));
       setDirty(
         latest.current !== null &&
           JSON.stringify(latest.current) !== JSON.stringify(saved?.draft),
@@ -415,7 +432,7 @@ export function RecipeDraftBoundary(
       setFormGeneration((value) => value + 1);
       setDirty(false);
       setNotice(null);
-      setView(context.current!.enabled ? "editing" : "legacy");
+      setView(emptyView(context.current!.enabled));
     });
   }
   function observeReceipt(

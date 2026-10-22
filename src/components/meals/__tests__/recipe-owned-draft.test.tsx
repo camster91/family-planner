@@ -43,6 +43,7 @@ const context = reviewDocumentContext.parse({
   domain: "recipe",
   enabled: true,
   adopted: true,
+  role: "parent",
   owner: {
     kind: "person",
     ownerId: "fixture-parent",

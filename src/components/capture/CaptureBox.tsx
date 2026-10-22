@@ -182,6 +182,7 @@ export function CaptureBox({
   const focusAfterAvailabilityRef = React.useRef(false)
   // D4 (#102): children may not use capture; the API says so via `allowed`.
   const [childBlocked, setChildBlocked] = React.useState(false)
+  const [captureRole, setCaptureRole] = React.useState<'parent' | 'teen' | null>(null)
   const [photoBusy, setPhotoBusy] = React.useState(false)
   const [photoEvents, setPhotoEvents] = React.useState<PhotoEvent[] | null>(null)
   React.useEffect(() => { onDraftStateChange?.(draft !== null || (photoEvents?.length ?? 0) > 0) }, [draft, photoEvents, onDraftStateChange])
@@ -230,6 +231,7 @@ export function CaptureBox({
     setPhotoEvents(null)
     setPhotoNote(null)
     setText('')
+    setCaptureRole(null)
     recoveryErrorKind.current = null
     setError(null)
     setSaved(null)
@@ -414,7 +416,7 @@ export function CaptureBox({
       if (!response.ok) throw new Error('Capture availability check failed')
       const value: unknown = await response.json()
       if (!value || typeof value !== 'object') throw new Error('Unreadable capture availability')
-      const data = value as { allowed?: unknown; configured?: unknown; userId?: unknown; familyId?: unknown }
+      const data = value as { allowed?: unknown; configured?: unknown; userId?: unknown; familyId?: unknown; role?: unknown }
       if (typeof data.allowed !== 'boolean' || typeof data.configured !== 'boolean') {
         throw new Error('Incomplete capture availability')
       }
@@ -426,6 +428,7 @@ export function CaptureBox({
         )
         return
       }
+      setCaptureRole(data.role === 'parent' || data.role === 'teen' ? data.role : null)
       if (!data.configured) {
         setRecoveryStorageBlocked(false)
         setUnavailable(true)
@@ -657,6 +660,9 @@ export function CaptureBox({
 
   async function confirm() {
     if (!draft) return
+    // A task proposal is not permission to create a calendar record or assign
+    // a chore. Keep it for deliberate canonical chore review by a parent.
+    if (draft.kind === 'task') { setError(msg('taskNeedsReview')); return }
     setBusy(true)
     recoveryErrorKind.current = null
     setError(null)
@@ -1018,7 +1024,18 @@ export function CaptureBox({
             <p className="text-footnote text-label-secondary mt-1">{draft.note}</p>
           )}
 
+          {draft.kind === 'task' && (
+            <div className="mt-3 space-y-2">
+              <p role="note" className="text-footnote text-label-secondary">{msg('taskNeedsReview')}</p>
+              {captureRole === 'parent' && (
+                <a href="/dashboard/chores/create" target="_blank" rel="noopener noreferrer" className="btn-tinted min-h-[44px] inline-flex items-center">
+                  {msg('openChoreReview')}
+                </a>
+              )}
+            </div>
+          )}
           <div className="flex gap-2 mt-3">
+            {draft.kind !== 'task' && (
             <button
               className="btn-filled px-4"
               onClick={confirm}
@@ -1033,6 +1050,7 @@ export function CaptureBox({
                 msg('addIt')
               )}
             </button>
+            )}
             <button
               className="btn-plain min-h-[44px] min-w-[44px] px-4"
               onClick={() => setDraft(null)}
