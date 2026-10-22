@@ -41,6 +41,7 @@ export function BulkCookingPanel({
   preparedReuse = { state: "none" },
   onDismissPreparedReuse,
   personalRecoveryAllowed = true,
+  recoveryRequested = false,
 }: {
   defaultDay: string;
   refreshKey: unknown;
@@ -51,6 +52,7 @@ export function BulkCookingPanel({
   preparedReuse?: PreparedReuseIntent;
   onDismissPreparedReuse?: () => void;
   personalRecoveryAllowed?: boolean;
+  recoveryRequested?: boolean;
 }) {
   const tBulk = useBulkCookingText();
   const locale = useDisplayLocale();
@@ -99,6 +101,7 @@ export function BulkCookingPanel({
   const recovery = useBulkRecovery(
     personalRecoveryAllowed ? scope : null,
     (receipt) => afterOwnedSave.current(receipt),
+    personalRecoveryAllowed && recoveryRequested,
   );
   React.useEffect(() => {
     if (!personalRecoveryAllowed) {
@@ -326,6 +329,11 @@ export function BulkCookingPanel({
   const current = sessions.find((row) => row.id === selected) ?? sessions[0];
   const modalSession =
     modal && sessions.find((row) => row.id === modal.sessionId);
+  const formScope =
+    scope ??
+    (recoveryRequested && recovery.context
+      ? { userId: recovery.context.userId, familyId: recovery.context.familyId }
+      : null);
   // Keep a previously loaded session visible for recovery, but do not let a
   // refresh error or in-flight reload start a new mutation from stale data.
   // Existing editors/action sheets stay mounted so their pending/unknown
@@ -415,9 +423,10 @@ export function BulkCookingPanel({
             {tBulk("add")}
           </button>
         </div>
-        {scope && personalRecoveryAllowed && (
+        {personalRecoveryAllowed && (scope || recoveryRequested) && (
           <BulkRecoveryShelf
             recovery={recovery}
+            requested={recoveryRequested}
             onRestore={() => void restoreDraft()}
             restoreError={restoreError}
             onBackHandler={rememberRecoveryBack}
@@ -704,12 +713,12 @@ export function BulkCookingPanel({
             )}
           </>
         )}
-        {scope &&
+        {formScope &&
           personalRecoveryAllowed &&
           editor &&
           !recovery.privacyHold && (
             <MealPrepEditor
-              context={scope}
+              context={formScope}
               restoredDraft={editor.restoredDraft}
               defaultDay={editor.day}
               seed={editor.seed}

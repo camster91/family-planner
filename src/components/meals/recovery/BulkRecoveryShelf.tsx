@@ -10,12 +10,14 @@ export function BulkRecoveryShelf({
   restoreError,
   onReloadStored,
   onBackHandler,
+  requested = false,
 }: {
   recovery: BulkRecovery;
   onRestore: () => void;
   restoreError: boolean;
   onReloadStored: () => void;
   onBackHandler?: (handler: () => boolean) => void;
+  requested?: boolean;
 }) {
   const { locale } = useTranslation(),
     es = locale === "es";
@@ -35,7 +37,26 @@ export function BulkRecoveryShelf({
     });
     return () => onBackHandler?.(() => false);
   }, [onBackHandler]);
-  if (recovery.mode === "legacy") return null;
+  const heading = React.useRef<HTMLHeadingElement>(null),
+    focused = React.useRef(false);
+  React.useEffect(() => {
+    if (!requested) {
+      focused.current = false;
+      return;
+    }
+    if (
+      focused.current ||
+      recovery.mode === "loading" ||
+      recovery.busy ||
+      document.visibilityState === "hidden" ||
+      !heading.current
+    )
+      return;
+    focused.current = true;
+    heading.current.focus();
+    heading.current.scrollIntoView?.({ block: "nearest" });
+  }, [requested, recovery.mode, recovery.busy]);
+  if (recovery.mode === "legacy" && !requested) return null;
   const requests = recovery.rows.filter((row) => row.kind === "meal-prep"),
     index = Math.min(position, Math.max(0, requests.length - 1)),
     entry = requests[index];
@@ -59,9 +80,17 @@ export function BulkRecoveryShelf({
         aria-label={copy("Saved bulk work", "Trabajo de preparación guardado")}
         className="rounded-xl border border-[var(--surface-separator)] p-3 space-y-3"
       >
-        <h3 className="font-semibold">
+        <h3 ref={heading} tabIndex={-1} className="font-semibold">
           {copy("Saved bulk work", "Trabajo de preparación guardado")}
         </h3>
+        {recovery.mode === "legacy" && requested && (
+          <p>
+            {copy(
+              "Owned recovery is not active here. Opening this screen does not send requests.",
+              "La recuperación propia no está activa aquí. Abrir esta pantalla no envía solicitudes.",
+            )}
+          </p>
+        )}
         {recovery.mode === "loading" && !recovery.issue && (
           <p role="status">
             {copy(

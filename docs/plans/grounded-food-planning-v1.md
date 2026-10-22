@@ -597,6 +597,32 @@ flag/push/merge/deploy or issue closure. Wider unified inbox/weekly/chat adapter
 provider/evaluation and broader goal source remain before consolidated QA and
 release. See [`meal-prep-recovery-v1.md`](./meal-prep-recovery-v1.md).
 
+## Meal and bulk work in review discovery — 2026-10-22
+
+The parent inbox Saved requests reader now supports meal planning and canonical
+bulk work through the same read-only owned-store snapshot/lease machinery as its
+existing domains. It projects generic labels, editing/submitted phase, recorded
+request times when available and fixed recovery URLs. It does not copy raw drafts,
+names, notes, request keys, IDs, proofs or quantities into inbox state. Missing
+draft/prep timestamps remain explicitly unknown. Every candidate store and current
+owner/household/generation is rechecked; discovery does not initialize a competing
+journal, inspect receipts, reconcile replicas, resend, forget or write queue data.
+
+Weekly meal/prep/food/grocery steps now offer a compact personal planning/saved-
+work disclosure. Parent/teen capability links open canonical recovery/planning;
+children receive no new private links. Navigation respects active owned drafts and
+weekly pending/storage guards, and never marks progress reviewed. No local counts
+or provider calls run on weekly mount. An explicit bulk recovery URL now obtains
+current person authority independently of a failed current-list read, preserving
+receipt inspection when targets/list data are unavailable. Editable target restore
+still requires its canonical reads; current-list failure blocks fresh saves.
+
+Adapter/readonly/owner/replica/null-time, personal-link and target-independent
+recovery cases are authored and unrun. Fridge/preparation omissions and parent
+inbox limits remain. No checks/browser/API/DB/schema/provider/flag/push/merge/deploy
+or issue closure. Broader chat/provider/AI evaluation and remaining full-goal source
+still precede consolidated QA and authorized release.
+
 ## Remaining source required before activation
 
 1. Finish the compact human review of unresolved existing commitments and
@@ -622,9 +648,9 @@ release. See [`meal-prep-recovery-v1.md`](./meal-prep-recovery-v1.md).
    validate only issued recipe/ingredient selections, never arbitrary IDs/URLs.
    Renew owner/features/config and full source evidence after provider latency.
    Prompts must not invent ingredients, amounts, nutrition, allergies or safety.
-5. Complete inbox integration of the initial human confirmation/pending/draft/exit
-   controller. Canonical child grocery outcome/Undo presentation is now source-
-   authored; acceptance is unrun. The initial Meals save/recovery wiring is authored above.
+5. Parent inbox snapshots and personal weekly planning/recovery navigation are
+   now source-authored, alongside canonical child grocery outcome/Undo controls.
+   Complete broader chat/provider integration and all unrun acceptance. The initial Meals save/recovery wiring is authored above.
    Preserve the required legacy-writer version probes and bounded dependency
    coverage authored below; run their migration/isolation acceptance in the final
    QA phase before activation. Preserve source provenance,

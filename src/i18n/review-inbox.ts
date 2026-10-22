@@ -1,5 +1,10 @@
 import { useTranslation } from "@/i18n";
 const en = {
+  food: "Meal planning drafts & saves",
+  bulk: "Bulk cooking drafts & saves",
+  savedFood: "Saved meal planning work",
+  savedBulk: "Saved bulk cooking work",
+  savedTimeUnknown: "Time not recorded for this saved work.",
   recipe: "Recipe drafts & saves",
   savedRecipe: "Saved recipe work",
   savedCapture: "Saved quick-add work",
@@ -51,6 +56,11 @@ const en = {
     "This inbox currently includes chore checks and changed event preparation. Quick add uses its existing review and recovery controls here; recipe imports open in Meals.",
 };
 const es: typeof en = {
+  food: "Borradores y guardados de planificación de comidas",
+  bulk: "Borradores y guardados de cocina por lotes",
+  savedFood: "Planificación de comidas guardada",
+  savedBulk: "Cocina por lotes guardada",
+  savedTimeUnknown: "No se registró la hora de este trabajo.",
   recipe: "Borradores y guardados de recetas",
   savedRecipe: "Trabajo de recetas guardado",
   savedCapture: "Captura rápida guardada",

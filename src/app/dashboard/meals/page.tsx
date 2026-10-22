@@ -870,6 +870,7 @@ function MealsPageInner() {
           reuseRecipeId={reuseRecipeId}
           onDismissReuse={dismissReuse}
           preparedReuse={preparedReuse}
+          recoveryRequested={searchParams.get("bulkWork") === "recovery"}
           personalRecoveryAllowed={
             searchParams.get("mode") !== "fridge" && !preparationActive
           }

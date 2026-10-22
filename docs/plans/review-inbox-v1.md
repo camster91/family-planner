@@ -527,3 +527,27 @@ No QA/runtime/DB/schema/native/provider/CI/activation/push/merge/deploy or issue
 closure is claimed. Broader routine/history facts and role/profile/shared readers,
 known-refusal recovery, grounded references/planning/evaluation/privacy-safe usage
 and the remaining ledger implementation still require follow-through before QA.
+
+## Meal planning and bulk journals — 2026-10-22
+
+The existing explicit parent Saved requests selector now includes food planning
+and canonical bulk journals, using `readOwnedRequestSnapshot` with their strict
+context/journal/matching contracts. All-store lease/probe/current-owner renewal
+rules remain unchanged; no writer/controller is initialized to show a count.
+Projection is fixed domain label, editing/submitted phase, recorded command time
+or explicit unknown, and a constructed canonical recovery URL. It excludes names,
+notes, quantities, target IDs, original keys/bodies, proofs and private source data.
+Readiness pauses retain discovery; invalid/retired/divergent/blocked/changed-owner
+stores hold rather than reporting empty. Domain recovery checks effects later.
+
+Food opens its existing person-only `foodPlan=recovery` sheet. Bulk opens
+`view=bulk&bulkWork=recovery`; that host can establish current person authority
+and inspect its own original receipts even when the current bulk-list read fails.
+The owning domain still handles editable target reads, exact retry, repair and
+acknowledged local removal. No shared/teen/child parent-inbox projection is added.
+Weekly personal links are separate capability-gated navigation into those own
+domains; they do not read journals or mark weekly progress on mount. Null times
+are displayed honestly rather than inferred from meal dates or the current clock.
+
+Unit/mounted source cases authored/unrun. Full store/privacy/lifecycle/rendered
+acceptance and broader original inbox coordination work remain; no release claim.

@@ -8,6 +8,7 @@ import SavedRequestsReview from "../SavedRequestsReview";
 import { readSavedReviewRequests } from "@/lib/review-inbox/saved-requests";
 jest.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: jest.fn() }),
 }));
 jest.mock("@/components/calendar/preparation/PreparationProvider", () => ({
   usePreparationActive: () => false,
@@ -88,4 +89,36 @@ it("ignores a late old-owner result after the current identity changes", async (
   expect(
     screen.queryByText("Saved preparation request"),
   ).not.toBeInTheDocument();
+});
+
+it("offers meal and bulk work without inventing times for unsubmitted drafts", async () => {
+  jest
+    .mocked(readSavedReviewRequests)
+    .mockResolvedValueOnce({
+      paused: true,
+      items: [
+        {
+          id: "food-0",
+          kind: "food",
+          phase: "editing",
+          issuedAt: null,
+          href: "/dashboard/meals?foodPlan=recovery",
+        },
+      ],
+    });
+  render(view());
+  const user = userEvent.setup();
+  await user.selectOptions(screen.getByRole("combobox"), "food");
+  expect(readSavedReviewRequests).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Check this device" }));
+  expect(
+    await screen.findByText("Saved meal planning work"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("Time not recorded for this saved work."),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/Not submitted yet/)).toBeInTheDocument();
+  expect(
+    screen.getByRole("option", { name: "Bulk cooking drafts & saves" }),
+  ).toBeInTheDocument();
 });

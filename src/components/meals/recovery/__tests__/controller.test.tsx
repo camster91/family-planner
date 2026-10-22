@@ -290,3 +290,23 @@ it("keeps newer edits dirty and refuses navigation when fields change during sto
   });
   expect(JSON.parse(durableEntries()[0].body).draft.servings).toBe("4");
 });
+
+it("opens explicit recovery with no current list context and never submits on discovery", async () => {
+  const { entry } = jest.requireActual(
+    "@/lib/meal-prep-recovery/__tests__/fixture",
+  );
+  mockContext = { ...mockContext, enabled: false };
+  text = JSON.stringify({
+    v: 2,
+    envelope: "herewoven.queue-store.v2",
+    state: "active",
+    owner: mockContext.owner,
+    runtime: "explicit_bulk_recovery_fixture",
+    queue: JSON.stringify({ contract: PREP_RECOVERY, entries: [entry()] }),
+  });
+  const view = renderHook(() => useBulkRecovery(null, jest.fn(), true));
+  await waitFor(() => expect(view.result.current.rows).toHaveLength(1));
+  expect(view.result.current.mode).toBe("owned");
+  expect(view.result.current.context?.enabled).toBe(false);
+  expect(sendPrepIntent).not.toHaveBeenCalled();
+});

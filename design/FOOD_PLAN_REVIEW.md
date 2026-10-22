@@ -130,3 +130,15 @@ weekly/chat orchestration remain. No readiness or provider activation is claimed
 Bulk personal recovery/forms also omit fridge mode and the active event-
 preparation surface. Changing to those views hides private form state without
 erasing its owned journal; returning requires current personal authority.
+
+## Inbox and weekly discovery extension
+
+Explicit parent inbox checks include fixed meal/bulk draft and request labels.
+Recorded request timestamps are shown only when present; raw drafts and prep food
+requests with no timestamp say unknown. No private draft content or target IDs
+are projected into inbox rows. Domain recovery opens with the original journal
+and verifies receipts itself, including during pause or failed target/list reads.
+Weekly personal meal/prep/food/grocery steps use one compact disclosure of fixed
+planning/recovery links, respect pending/owned navigation, and never count local
+work, submit a plan or mark a step automatically. Shared/child views omit these
+personal links. Source cases authored/unrun; rendered acceptance stays deferred.

@@ -1,3 +1,23 @@
+import { readFoodRecoveryContext } from "@/lib/food-planning/client";
+import {
+  foodRecoveryContext,
+  foodRecoveryJournal,
+  foodJournalMatchesContext,
+  type FoodRecoveryContext,
+  type FoodJournalEntry,
+} from "@/lib/food-planning/recovery-contract";
+import { reviewedFoodWrite } from "@/lib/food-planning/apply-contract";
+import { readPrepContext } from "@/lib/meal-prep-recovery/client";
+import {
+  prepContext,
+  prepCommand,
+  type PrepContext,
+} from "@/lib/meal-prep-recovery/contract";
+import {
+  prepJournal,
+  prepJournalMatchesContext,
+  type PrepJournalEntry,
+} from "@/lib/meal-prep-recovery/draft-contract";
 /** Browser-only adapter. Raw exact requests stay inside their original stores;
  * the inbox receives fixed labels, timestamps and allowlisted recovery URLs. */
 import { readOwnedRequestSnapshot } from "@/lib/owned-request-snapshot";
@@ -44,11 +64,17 @@ import {
   type ReviewDocumentEntry,
 } from "@/lib/review-document-contract";
 export type SavedReviewKind =
-  "preparation" | "schedule" | "responsibility" | "capture" | "recipe";
+  | "preparation"
+  | "schedule"
+  | "responsibility"
+  | "capture"
+  | "recipe"
+  | "food"
+  | "bulk";
 export type SavedReviewItem = {
   id: string;
   kind: SavedReviewKind;
-  issuedAt: string;
+  issuedAt: string | null;
   href: string;
   phase?: "editing" | "submitted";
 };
@@ -63,6 +89,8 @@ export async function readSavedReviewRequests(
       "responsibility",
       "capture",
       "recipe",
+      "food",
+      "bulk",
     ].includes(kind)
   )
     throw new OwnedRequestRecoveryError("UPDATE_REQUIRED");
@@ -94,6 +122,65 @@ export async function readSavedReviewRequests(
     )
       throw new OwnedRequestRecoveryError("OWNER_CHANGED");
     return context;
+  }
+  if (kind === "food") {
+    const result = await readOwnedRequestSnapshot<
+      FoodRecoveryContext,
+      FoodJournalEntry,
+      SavedReviewItem[]
+    >({
+      context: foodRecoveryContext,
+      journal: foodRecoveryJournal,
+      maxBytes: 768 * 1024,
+      matchesContext: foodJournalMatchesContext,
+      resolveContext: async () =>
+        assertContext(await readFoodRecoveryContext()),
+      candidates,
+      project: (entries) =>
+        entries.map((entry, index): SavedReviewItem => {
+          const command =
+            entry.kind === "food-plan"
+              ? reviewedFoodWrite.parse(JSON.parse(entry.body))
+              : null;
+          return {
+            id: `food-${index}`,
+            kind,
+            phase: entry.kind === "local-food-draft" ? "editing" : "submitted",
+            issuedAt:
+              command?.mode === "meals"
+                ? command.meals[0].input.issued_at
+                : null,
+            href: "/dashboard/meals?foodPlan=recovery",
+          };
+        }),
+    });
+    return { items: result.projection, paused: !result.enabled };
+  }
+  if (kind === "bulk") {
+    const result = await readOwnedRequestSnapshot<
+      PrepContext,
+      PrepJournalEntry,
+      SavedReviewItem[]
+    >({
+      context: prepContext,
+      journal: prepJournal,
+      maxBytes: 768 * 1024,
+      matchesContext: prepJournalMatchesContext,
+      resolveContext: async () => assertContext(await readPrepContext()),
+      candidates,
+      project: (entries) =>
+        entries.map((entry, index): SavedReviewItem => ({
+          id: `bulk-${index}`,
+          kind,
+          phase: entry.kind === "local-prep-draft" ? "editing" : "submitted",
+          issuedAt:
+            entry.kind === "meal-prep"
+              ? prepCommand.parse(JSON.parse(entry.body)).issuedAt
+              : null,
+          href: "/dashboard/meals?view=bulk&bulkWork=recovery",
+        })),
+    });
+    return { items: result.projection, paused: !result.enabled };
   }
   if (kind === "recipe" || kind === "capture") {
     const result = await readOwnedRequestSnapshot<

@@ -2,8 +2,9 @@
 
 2026-10-22: strict contracts, canonical apply/inspection endpoints, browser
 journal adapters, one panel-owned controller and existing creation/action form
-bindings plus personal restore/recovery controls are source-authored. Wider
-inbox/weekly/chat integration and acceptance remain. Cases are authored and unrun.
+bindings plus personal restore/recovery controls are source-authored. Read-only
+parent inbox discovery and personal weekly navigation are also authored. Wider
+chat/provider coordination and acceptance remain. Cases are authored and unrun.
 Nothing in this checkpoint is release acceptance.
 
 ## Canonical scope and identities
@@ -79,9 +80,11 @@ require consolidated acceptance, not an inference from authored cases.
 
 ## Remaining source and acceptance
 
-1. Add the bulk draft/frozen-request adapter to unified review inbox and weekly
-   discovery. Use the canonical personal Meals route, explicit current owner and
-   typed target navigation; do not expose local journals to shared/profile views.
+1. Parent inbox draft/frozen-request snapshots and personal weekly discovery links
+   are source-authored. Complete their actual cross-store/role/lifecycle/rendered
+   acceptance. The explicit recovery URL can inspect receipts without a successful
+   current-list read; editable target restoration remains canonical. Keep local
+   journals out of shared/profile views.
 2. Finish the broader approved food/inbox/weekly/chat/provider/evaluation work in
    `grounded-food-planning-v1.md` and the full thread objective, then reconcile
    issue/source states before consolidated QA. These controls do not complete the

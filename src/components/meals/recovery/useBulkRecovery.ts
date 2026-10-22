@@ -29,6 +29,7 @@ type Inspection = Awaited<ReturnType<typeof inspectPrepIntent>>;
 export function useBulkRecovery(
   scope: MealPrepContext | null,
   onChanged: (receipt: PrepReceipt) => void,
+  recoveryRequested = false,
 ) {
   const store = React.useRef<ReturnType<typeof browserPrepRecovery> | null>(
       null,
@@ -172,8 +173,9 @@ export function useBulkRecovery(
     );
   }
   async function load() {
-    if (!scope) return;
+    if (!scope && !recoveryRequested) return;
     if (
+      scope &&
       ctx.current &&
       (scope.userId !== ctx.current.userId ||
         scope.familyId !== ctx.current.familyId)
@@ -186,8 +188,8 @@ export function useBulkRecovery(
       if (!current()) return;
       if (
         !next.owner ||
-        scope.userId !== next.userId ||
-        scope.familyId !== next.familyId ||
+        (scope !== null &&
+          (scope.userId !== next.userId || scope.familyId !== next.familyId)) ||
         (ctx.current?.owner && !sameQueueOwner(ctx.current.owner, next.owner))
       )
         throw new PrepOwnerChanged();
@@ -212,9 +214,9 @@ export function useBulkRecovery(
   const latestLoad = React.useRef(load);
   latestLoad.current = load;
   React.useEffect(() => {
-    if (scope) void latestLoad.current();
+    if (scope || recoveryRequested) void latestLoad.current();
     else if (ctx.current) failed(new PrepOwnerChanged());
-  }, [scope?.userId, scope?.familyId]);
+  }, [scope?.userId, scope?.familyId, recoveryRequested]);
   function rawBody(raw: PrepDraft, currentContext: PrepContext) {
     return JSON.stringify(
       prepDraftPayload.parse({
@@ -524,20 +526,26 @@ export function useBulkRecovery(
       return false;
     }
   }
+  const privacyHold =
+    issue === "owner" ||
+    (!!scope &&
+      !!context &&
+      (scope.userId !== context.userId || scope.familyId !== context.familyId));
   return {
-    mode,
-    context,
-    rows,
-    draft,
+    mode: privacyHold ? ("held" as const) : mode,
+    context: privacyHold ? null : context,
+    rows: privacyHold ? [] : rows,
+    draft: privacyHold ? null : draft,
     active,
     dirty,
-    formKey,
-    confirmed,
-    inspections,
+    formKey: privacyHold ? null : formKey,
+    confirmed: privacyHold ? ({} as Record<string, PrepReceipt>) : confirmed,
+    inspections: privacyHold ? ({} as Record<string, Inspection>) : inspections,
     busy,
     issue,
-    privacyHold: issue === "owner",
+    privacyHold,
     held:
+      privacyHold ||
       mode === "held" ||
       issue === "owner" ||
       issue === "storage" ||

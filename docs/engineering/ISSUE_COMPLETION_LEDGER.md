@@ -752,3 +752,16 @@ flag-off paths remain separate. Source/mounted/Strict-Mode/owner/storage-race ca
 are authored and unrun. Wider unified inbox/weekly/chat/provider/evaluation and
 full goal source/QA/release remain. No runtime/DB/schema/provider/flag/push/merge/
 deploy action or issue closure.
+
+### 2026-10-22 — food/bulk inbox and weekly discovery (#123/#144)
+
+Parent Saved requests now reads strict food/bulk snapshots under the existing
+all-store owner lease, projecting fixed phase/label/recorded-or-unknown time and
+canonical recovery links only. No writer initialization, queue mutation, receipt
+check, resend or private body copy. Weekly personal links respect role/capability
+and pending/owned navigation without automatic progress/read/provider work. Bulk
+explicit recovery can obtain current authority independently of a failed list
+read; target restoration/fresh saves keep canonical read guards. Owner masks
+suppress mismatched projections. Source/mounted cases authored/unrun; broader
+chat/provider/evaluation and full goal source/QA/release remain. No runtime/DB/
+schema/provider/flag/push/merge/deploy action or issue closure.

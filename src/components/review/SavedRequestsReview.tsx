@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
+import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 import { useSearchParams } from "next/navigation";
 import { usePreparationActive } from "@/components/calendar/preparation/PreparationProvider";
 import { useScheduleReviewActive } from "@/components/calendar/review/ScheduleReviewProvider";
@@ -15,6 +16,7 @@ export default function SavedRequestsReview({
 }: {
   identity: { userId: string; familyId: string };
 }) {
+  const router = useDraftAwareRouter();
   const copy = useReviewInboxText(),
     locale = useDisplayLocale(),
     params = useSearchParams();
@@ -116,6 +118,8 @@ export default function SavedRequestsReview({
     responsibility: copy.savedResponsibility,
     recipe: copy.savedRecipe,
     capture: copy.savedCapture,
+    food: copy.savedFood,
+    bulk: copy.savedBulk,
   };
   if (suspended) return null;
   return (
@@ -138,6 +142,8 @@ export default function SavedRequestsReview({
           <option value="responsibility">{copy.responsibility}</option>
           <option value="recipe">{copy.recipe}</option>
           <option value="capture">{copy.capture}</option>
+          <option value="food">{copy.food}</option>
+          <option value="bulk">{copy.bulk}</option>
         </select>
       </label>
       <button
@@ -168,18 +174,38 @@ export default function SavedRequestsReview({
               <h2 className="text-headline text-label-primary">
                 {labels[row.kind]}
               </h2>
-              <time
-                dateTime={row.issuedAt}
-                className="text-footnote text-label-secondary"
-              >
-                {new Date(row.issuedAt).toLocaleString(locale)}
-              </time>
+              {row.issuedAt ? (
+                <time
+                  dateTime={row.issuedAt}
+                  className="text-footnote text-label-secondary"
+                >
+                  {new Date(row.issuedAt).toLocaleString(locale)}
+                </time>
+              ) : (
+                <p className="text-footnote text-label-secondary">
+                  {copy.savedTimeUnknown}
+                </p>
+              )}
               <p className="text-footnote text-label-secondary">
                 {row.phase === "editing"
                   ? copy.draftUnsubmitted
                   : copy.savedUnknown}
               </p>
-              <Link href={row.href} className="btn-plain min-h-11">
+              <Link
+                href={row.href}
+                className="btn-plain min-h-11"
+                onClick={(event) => {
+                  if (
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  )
+                    return;
+                  event.preventDefault();
+                  void router.push(row.href);
+                }}
+              >
                 {copy.openSaved}
               </Link>
             </li>

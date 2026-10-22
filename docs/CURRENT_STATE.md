@@ -1,5 +1,31 @@
 # Current State
 
+## Meal and bulk work in review discovery — 2026-10-22
+
+The parent inbox Saved requests reader now supports meal planning and canonical
+bulk work through the same read-only owned-store snapshot/lease machinery as its
+existing domains. It projects generic labels, editing/submitted phase, recorded
+request times when available and fixed recovery URLs. It does not copy raw drafts,
+names, notes, request keys, IDs, proofs or quantities into inbox state. Missing
+draft/prep timestamps remain explicitly unknown. Every candidate store and current
+owner/household/generation is rechecked; discovery does not initialize a competing
+journal, inspect receipts, reconcile replicas, resend, forget or write queue data.
+
+Weekly meal/prep/food/grocery steps now offer a compact personal planning/saved-
+work disclosure. Parent/teen capability links open canonical recovery/planning;
+children receive no new private links. Navigation respects active owned drafts and
+weekly pending/storage guards, and never marks progress reviewed. No local counts
+or provider calls run on weekly mount. An explicit bulk recovery URL now obtains
+current person authority independently of a failed current-list read, preserving
+receipt inspection when targets/list data are unavailable. Editable target restore
+still requires its canonical reads; current-list failure blocks fresh saves.
+
+Adapter/readonly/owner/replica/null-time, personal-link and target-independent
+recovery cases are authored and unrun. Fridge/preparation omissions and parent
+inbox limits remain. No checks/browser/API/DB/schema/provider/flag/push/merge/deploy
+or issue closure. Broader chat/provider/AI evaluation and remaining full-goal source
+still precede consolidated QA and authorized release.
+
 ## Bulk forms and owned recovery controls — 2026-10-22
 
 Bulk creation and action sheets now share one panel-owned recovery controller,

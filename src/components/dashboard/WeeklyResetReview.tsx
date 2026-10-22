@@ -9,6 +9,7 @@ import {
 } from "@/components/calendar/review/ScheduleReviewProvider";
 import { CALENDAR_CHANGED_EVENT } from "@/lib/calendar-planning/changes";
 import * as React from "react";
+import { MealPlanningReviewLinks } from "@/components/meals/planning/MealPlanningReviewLinks";
 import { ResponsibilityReviewEntry } from "@/components/responsibility/ResponsibilityProvider";
 import Link from "next/link";
 import { Dialog } from "@/components/ui/dialog";
@@ -634,6 +635,19 @@ export default function WeeklyResetReview({
                           {stateLabel(step.state)}
                         </p>
                       )}
+                      {step &&
+                        ["meals", "prep", "food", "groceries"].includes(
+                          step.id,
+                        ) && (
+                          <MealPlanningReviewLinks
+                            disabled={busy || !!pending || storageError}
+                            canNavigate={() =>
+                              !operation.current &&
+                              !pendingRef.current &&
+                              storageAction.current === null
+                            }
+                          />
+                        )}
                       {summaryLoading && <p role="status">{copy.loading}</p>}
                       {summaryError && (
                         <div role="alert">

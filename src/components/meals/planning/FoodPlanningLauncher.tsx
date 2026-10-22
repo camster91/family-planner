@@ -23,18 +23,20 @@ export function FoodPlanningLauncher({
     preparing = usePreparationActive(),
     { locale } = useTranslation(),
     es = locale === "es";
-  const recovery = params.get("foodPlan") === "recovery",
-    [open, setOpen] = React.useState(recovery);
-  const previousRecovery = React.useRef(recovery);
+  const location = params.get("foodPlan"),
+    recovery = location === "recovery",
+    requested = recovery || (location === "new" && access.enabled),
+    [open, setOpen] = React.useState(requested);
+  const previousRecovery = React.useRef(requested);
   React.useEffect(() => {
-    if (recovery && !previousRecovery.current) setOpen(true);
-    previousRecovery.current = recovery;
-  }, [recovery]);
+    if (requested && !previousRecovery.current) setOpen(true);
+    previousRecovery.current = requested;
+  }, [requested]);
   if (!access.personalRole || preparing || params.get("mode") === "fridge")
     return null;
   function close() {
     setOpen(false);
-    if (recovery) {
+    if (location === "recovery" || location === "new") {
       const next = new URLSearchParams(params.toString());
       next.delete("foodPlan");
       void router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
