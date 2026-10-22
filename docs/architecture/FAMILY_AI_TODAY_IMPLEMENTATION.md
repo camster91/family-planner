@@ -2,7 +2,9 @@
 
 2026-10-22 source update: quota reservations, private usage/cost reporting and
 parent controls are now authored; see [`AI_USAGE_CONTROLS.md`](./AI_USAGE_CONTROLS.md).
-All new gates remain off, schema/cases are unrun, and planning/semantic evaluation
+Canonical food planning, assistant handoff, optional choice feedback and versioned
+evaluation/report code are now authored; see `docs/testing/AI_EVALUATION.md`.
+All new gates remain off, schema/cases are unrun, and real semantic observations
 plus consolidated QA/release remain open. Earlier dated checkpoints below preserve
 their original source boundaries.
 

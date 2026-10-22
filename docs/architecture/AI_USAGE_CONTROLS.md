@@ -129,3 +129,15 @@ all remaining code, followed by applicable release gates and authorized deployme
 coverage, canonical food/recipe/schedule planning, versioned semantic evaluation
 fixtures/scoring and other remaining inbox/history/refusal source. Live model
 quality and provider eligibility/activation are separate from these counters.
+
+## Later source continuation — 2026-10-22
+
+Canonical food plan ranking now uses the existing observer/quota/cost bucket,
+with no unmetered fallback. Optional used/kept counts use the existing household
+opt-in aggregate writer plus atomic minimal dedup receipts, never usage prompt
+content. The parent report extension is negotiated for older-client compatibility.
+Versioned canonical and explicit reviewed-provider evaluation builders now live in
+`src/lib/ai-evaluation`; see `../testing/AI_EVALUATION.md`. They separate contract
+matches, reviewer grades, unknown measurements and actual runtime acceptance.
+No live model score, invoice, feature readiness or passing QA result is inferred.
+All source remains subject to the final consolidated checks and release gates.

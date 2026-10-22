@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "jest --forceExit",
     "test:watch": "jest --watch",
+    "test:ai:contracts": "jest --runInBand src/lib/ai-evaluation/__tests__",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots",
     "type-check": "tsc --noEmit",

@@ -1,5 +1,30 @@
 # Current State
 
+## Versioned AI evaluation code and source reconciliation — 2026-10-22
+
+The canonical AI contract evaluator now has fifteen fabricated cases with fixed
+independent expected facts and a strict content-free report. Missing cases remain
+in the denominator, duplicates/wrong dimensions refuse, and errors stay errors.
+An explicit later-QA command can write its report into ignored test-results.
+A separate eighteen-case reviewed-provider profile adds timeout, rate-limit and
+unknown-retry observations. It requires explicit review markers/times, records
+only evidence digests/fixed grades/numeric metadata, separates passed refusal cases
+from delivered usable replies, and keeps unknown cost/latency/grades unknown.
+Neither report can approve AI activation or claim overall product quality.
+
+No evaluator, test, provider, API, DB, schema/client, browser, build or CI command
+ran. Only source inspection/authoring and explicit-file formatting. The new
+`test:ai:contracts` package script is for consolidated QA after remaining code.
+See `docs/testing/AI_EVALUATION.md` for exact scope and remaining real observations.
+
+The source pass also traced current parent/own-account/shared preparation readers,
+immutable routine-copy facts, canonical editor/history consumers and timeline
+routine-copy support. Those implementations exist; older checkpoint prose saying
+those paths need initial code is historical. This is a source map, not proof of
+privacy, role, history or rendered acceptance. The full remaining web source/issue
+reconciliation continues before QA, authorized merge and deployment; no issue was
+closed or runtime readiness changed.
+
 ## Explain unresolved meal commitments — 2026-10-22
 
 The compact food review now explains missing recipes/ingredient details, uncertain

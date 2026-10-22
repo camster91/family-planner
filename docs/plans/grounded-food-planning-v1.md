@@ -724,7 +724,9 @@ remain before consolidated QA and authorized release.
 4. The minimized provider projection, opaque references, exact output validation,
    post-latency canonical reconstruction and initial versioned evaluation are now
    source-authored. Fixed opt-in used/kept feedback and parent counts are also
-   authored; complete wider cross-feature semantic fixtures. Existing usage HTTP
+   authored. Versioned canonical and reviewed-provider evaluation/report source
+   is now authored in `src/lib/ai-evaluation`; real observed results remain
+   unmeasured until consolidated QA/authorized provider review. Existing usage HTTP
    outcomes/cost accounting do not
    prove a user accepted a suggestion or a consequential write succeeded.
 5. Preserve legacy-writer version probes, bounded dependency coverage, canonical
