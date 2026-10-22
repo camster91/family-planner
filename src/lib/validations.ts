@@ -133,7 +133,8 @@ export const createFamilySchema = z.object({
 export const updateFamilySchema = z.object({
   familyId: z.string().min(1),
   name: z.string().trim().min(1).max(100).optional(),
-  subscription_tier: z.enum(['free', 'premium', 'family']).optional(),
+  // subscription_tier is deliberately absent: the plan is billing state, not
+  // a household setting a parent can switch. A sent value is ignored.
 })
 
 export const deleteFamilySchema = z.object({
@@ -337,17 +338,23 @@ export const updateUserSchema = z.object({
     .optional(),
 })
 
+// Money: at most 2 decimal places. The decimal check runs on the string form
+// because float math is unreliable (19.99 * 100 is not 1999).
+const TWO_DECIMALS = /^\d+(\.\d{1,2})?$/
+const MAX_TRANSACTION_AMOUNT = 100_000_000
+const MAX_ALLOWANCE_AMOUNT = 1_000_000
+
 // Budget - Transactions
-// Non-zero, at least 0.01, at most 2 decimal places. The decimal check runs on
-// the string form because float math is unreliable (19.99 * 100 is not 1999).
+// Positive (the direction comes from `type`), at least 0.01, at most
+// 2 decimal places, with an upper bound so totals stay meaningful.
 const amountSchema = z
   .number()
+  .finite()
   .refine((v) => v !== 0, 'Amount must not be zero')
-  .refine((v) => Math.abs(v) >= 0.01, 'Amount too small')
-  .refine(
-    (v) => /^-?\d+(\.\d{1,2})?$/.test(String(v)),
-    'Amount supports at most 2 decimal places'
-  )
+  .refine((v) => v > 0, 'Amount must be positive')
+  .refine((v) => v >= 0.01, 'Amount too small')
+  .refine((v) => v <= MAX_TRANSACTION_AMOUNT, 'Amount too large')
+  .refine((v) => TWO_DECIMALS.test(String(v)), 'Amount supports at most 2 decimal places')
 
 export const createTransactionSchema = z.object({
   amount: amountSchema,
@@ -501,7 +508,9 @@ export const createAllowanceSchema = z.object(
         invalid_type_error: 'to_user_id and positive amount required',
       })
       .finite('to_user_id and positive amount required')
-      .positive('to_user_id and positive amount required'),
+      .positive('to_user_id and positive amount required')
+      .max(MAX_ALLOWANCE_AMOUNT, 'Amount too large')
+      .refine((v) => TWO_DECIMALS.test(String(v)), 'Amount supports at most 2 decimal places'),
     reason: z.string({ invalid_type_error: 'reason must be a string' }).max(500).nullable().optional(),
   },
   { invalid_type_error: 'Request body must be a JSON object' }

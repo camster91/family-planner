@@ -122,6 +122,25 @@ describe("POST /api/upload — limits", () => {
     expect(formData).not.toHaveBeenCalled();
   });
 
+  it("refuses a chunked body with no Content-Length once it passes the limit (413, nothing parsed)", async () => {
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled++;
+        controller.enqueue(new Uint8Array(1024 * 1024));
+      },
+    });
+    const formData = jest.fn();
+    const chunked = { ...req({ as: "parentA", method: "POST" }), body, formData };
+
+    const res: any = await upload(chunked as never);
+
+    expect(res.status).toBe(413);
+    expect(formData).not.toHaveBeenCalled();
+    expect(pulled).toBeLessThan(10);
+    expect(db.rows("upload")).toHaveLength(0);
+  });
+
   it("refuses an upload that would take the household over its quota (413, no row, no file)", async () => {
     seedUpload(FAMILY_A, { created_at: FRESH, size_bytes: FAMILY_UPLOAD_QUOTA_BYTES - 5 });
 

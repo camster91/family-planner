@@ -1,4 +1,3 @@
-import { boundedRequestText, RequestBodyTooLarge } from '@/lib/bounded-request-text'
 import { createAiUsageJob, type AiUsageJob } from '@/lib/ai-usage-server'
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
@@ -11,6 +10,7 @@ import {
   resolveCaptureConfig,
 } from '@/lib/capture'
 import { prisma } from '@/lib/prisma'
+import { RequestBodyTooLargeError, readBoundedJson } from '@/lib/bounded-body'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { CAPTURE_CHILD_MESSAGE, canUseCapture } from '@/lib/role-capabilities'
 import { logRouteWarning } from '@/lib/api-error'
@@ -78,18 +78,15 @@ async function handlePOST(request: NextRequest, setMeter: (value: AiUsageJob) =>
       )
     }
 
-    // Refuse an oversized body before parsing it into memory. A request
-    // without Content-Length (chunked) is bounded by the streamed reader too.
-    const declaredLength = Number(request.headers.get('content-length'))
-    if (Number.isFinite(declaredLength) && declaredLength > MAX_CAPTURE_BODY_BYTES) {
-      return NextResponse.json({ error: IMAGE_TOO_LARGE_MESSAGE }, { status: 413 })
-    }
-
+    // Refuse an oversized body before parsing it into memory, whether or not
+    // the client declared a Content-Length.
     let body: any
     try {
-      body = JSON.parse(await boundedRequestText(request, MAX_CAPTURE_BODY_BYTES))
+      body = await readBoundedJson(request, MAX_CAPTURE_BODY_BYTES)
     } catch (error) {
-      if (error instanceof RequestBodyTooLarge) return NextResponse.json({ error: IMAGE_TOO_LARGE_MESSAGE }, { status: 413 })
+      if (error instanceof RequestBodyTooLargeError) {
+        return NextResponse.json({ error: IMAGE_TOO_LARGE_MESSAGE }, { status: 413 })
+      }
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
 

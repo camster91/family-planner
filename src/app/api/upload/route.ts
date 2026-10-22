@@ -7,6 +7,7 @@ import { log } from '@/lib/logger'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { sniffImageType } from '@/lib/image-sniff'
+import { RequestBodyTooLargeError, readBoundedFormData } from '@/lib/bounded-body'
 import { prisma } from '@/lib/prisma'
 import { chorePhotoPath } from '@/lib/chore-photos'
 import { lockHouseholdForJoin } from '@/lib/household-lock'
@@ -52,21 +53,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Refuse a body far larger than one allowed photo before buffering it.
-    const declaredLength = Number(request.headers.get('content-length'))
-    if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
-      return NextResponse.json(
-        { error: `File too large. Max: ${MAX_FILE_SIZE / 1024 / 1024}MB` },
-        { status: 413 }
-      )
-    }
-
+    // Refuse a body far larger than one allowed photo before buffering it,
+    // whether or not the client declared a Content-Length.
     // A body that is not multipart (or urlencoded) form data makes formData()
     // throw: that is the client's mistake, not a server error.
     let formData: FormData
     try {
-      formData = await request.formData()
-    } catch {
+      formData = await readBoundedFormData(request, MAX_REQUEST_BYTES)
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        return NextResponse.json(
+          { error: `File too large. Max: ${MAX_FILE_SIZE / 1024 / 1024}MB` },
+          { status: 413 }
+        )
+      }
       return NextResponse.json({ error: 'Send the photo as multipart/form-data with a "file" field' }, { status: 400 })
     }
     const file = formData.get('file')

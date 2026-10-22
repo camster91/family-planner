@@ -10,8 +10,12 @@ import { createPersonListItemInTx } from '@/lib/person-list-item-create'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { RequestBodyTooLargeError, readBoundedJson } from '@/lib/bounded-body'
 
 export const dynamic = 'force-dynamic'
+
+// One short item plus quantity, bounded before canonical parsing.
+const MAX_CAPTURE_GROCERY_BYTES = 16 * 1024
 
 /**
  * Resolve the household grocery list and add the captured item in one keyed
@@ -33,8 +37,11 @@ export async function POST(request: NextRequest) {
     if (keyError) return keyError
     let body: unknown
     try {
-      body = await request.json()
-    } catch {
+      body = await readBoundedJson(request, MAX_CAPTURE_GROCERY_BYTES)
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        return NextResponse.json({ error: 'Request is too large' }, { status: 413 })
+      }
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
     const parsed = captureGrocerySchema.safeParse(body)
