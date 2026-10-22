@@ -8,14 +8,19 @@ export function useListVersionSync({
   listId,
   version,
   generatedAt,
+  versionQuery,
   refresh,
 }: {
   listId: string;
   version?: string;
   generatedAt?: string;
+  versionQuery?: string;
   refresh: () => void;
 }) {
   const active = React.useRef(false);
+  const contextKey = `${listId}?${versionQuery ?? ""}`;
+  const currentContext = React.useRef(contextKey);
+  currentContext.current = contextKey;
   React.useEffect(() => {
     active.current = true;
     return () => {
@@ -27,11 +32,13 @@ export function useListVersionSync({
   };
   const [terminal, setTerminal] = React.useState(false);
   const checkVersion = async () => {
+    const requestedContext = contextKey;
     const response = await fetch(
-      `/api/lists/${encodeURIComponent(listId)}/version`,
+      `/api/lists/${encodeURIComponent(listId)}/version${versionQuery ? `?${versionQuery}` : ""}`,
       { cache: "no-store" },
     );
-    if (!active.current) throw new Error("List view closed");
+    if (!active.current || currentContext.current !== requestedContext)
+      throw new Error("List view closed");
     if ([401, 403, 404].includes(response.status)) {
       setTerminal(true);
       safeRefresh();
@@ -39,7 +46,8 @@ export function useListVersionSync({
     }
     if (!response.ok) throw new Error("Could not check list changes");
     const body = await response.json();
-    if (!active.current) throw new Error("List view closed");
+    if (!active.current || currentContext.current !== requestedContext)
+      throw new Error("List view closed");
     if (
       typeof body.version !== "string" ||
       !/^[a-f0-9]{64}$/.test(body.version)

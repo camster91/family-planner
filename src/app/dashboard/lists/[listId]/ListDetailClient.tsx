@@ -9,6 +9,7 @@ import {
 import { QueueStorageRecovery } from "@/components/ui/queue-storage-recovery";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useListVersionSync } from "./use-list-version-sync";
 import {
@@ -126,6 +127,12 @@ interface ListDetailClientProps {
   canDeleteItems?: boolean;
   /** Store sections (#273); only used on grocery/shopping lists. */
   sectionSort?: SectionSortProps;
+  paging?: {
+    continued: boolean;
+    firstHref: string;
+    nextHref: string | null;
+    versionQuery: string;
+  };
 }
 
 // -----------------------------------------------------------------------
@@ -142,6 +149,7 @@ export default function ListDetailClient({
   userId,
   canDeleteItems = true,
   sectionSort = DEFAULT_SECTION_SORT,
+  paging,
 }: ListDetailClientProps) {
   const storeText = useStoreSectionText();
   const text = useListDetailText();
@@ -150,6 +158,7 @@ export default function ListDetailClient({
     listId,
     version,
     generatedAt,
+    versionQuery: paging?.versionQuery,
     refresh: () => router.refresh(),
   });
   const now = useNow(60_000);
@@ -185,6 +194,7 @@ export default function ListDetailClient({
   const [movePending, setMovePending] = React.useState(false);
   const [moveError, setMoveError] = React.useState<string | null>(null);
   const storeSort = isGrocery && sortBySection;
+  const partialPage = Boolean(paging && (paging.continued || paging.nextHref));
 
   // Tick/untick goes through the offline queue (#162, OFFLINE_SYNC.md): the
   // item shows the queued state with a visible sync status until the server
@@ -221,7 +231,7 @@ export default function ListDetailClient({
     }, 3000);
   });
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const queuedIds = new Set(sync.operations.map((op) => op.payload.itemId));
     const canonical = initialItems.filter(
       (item) => !localDeletes.current.has(item.id),
@@ -232,6 +242,9 @@ export default function ListDetailClient({
       ...previous
         .filter(
           (item) =>
+            // A missing row on a partial page is not evidence of deletion.
+            // Exact pending operations remain in independent recovery controls.
+            !partialPage &&
             !canonicalIds.has(item.id) &&
             queuedIds.has(item.id) &&
             !localDeletes.current.has(item.id),
@@ -242,7 +255,7 @@ export default function ListDetailClient({
       if (!pendingDeletes.current.has(id) && !canonicalIds.has(id))
         localDeletes.current.delete(id);
     }
-  }, [initialItems, sync.operations]);
+  }, [initialItems, sync.operations, partialPage]);
 
   React.useEffect(() => {
     setSortBySection(sectionSort.enabled);
@@ -649,13 +662,21 @@ export default function ListDetailClient({
             {listName}
           </h1>
           <p className="text-footnote text-label-secondary mt-0.5">
-            {total > 0 ? text("progress", { done, total }) : text("noItems")}
+            {total > 0
+              ? text(partialPage ? "pageProgress" : "progress", { done, total })
+              : text(partialPage ? "pageEmpty" : "noItems")}
           </p>
         </div>
         <Glyph color="lists" size="md">
           <CheckSquare className="w-5 h-5 text-white" />
         </Glyph>
       </div>
+
+      {partialPage && (
+        <p role="status" className="text-footnote text-label-secondary">
+          {text("pageHint")}
+        </p>
+      )}
 
       <QueueStorageRecovery queue={sync.queue} />
       <SyncBanner
@@ -719,6 +740,10 @@ export default function ListDetailClient({
             </InsetList>
           </section>
         ))
+      ) : partialPage ? (
+        <p role="status" className="text-body text-label-secondary">
+          {text("pageEmpty")}
+        </p>
       ) : (
         <EmptyState
           icon={CheckSquare}
@@ -729,6 +754,29 @@ export default function ListDetailClient({
           title={text("noItems")}
           description={text("emptyHelp")}
         />
+      )}
+
+      {paging && (paging.continued || paging.nextHref) && (
+        <nav aria-label={text("itemPages")} className="flex flex-wrap gap-2">
+          {paging.continued && (
+            <Link
+              href={paging.firstHref}
+              prefetch={false}
+              className="btn-tinted min-h-11"
+            >
+              {text("firstItems")}
+            </Link>
+          )}
+          {paging.nextHref && (
+            <Link
+              href={paging.nextHref}
+              prefetch={false}
+              className="btn-filled min-h-11"
+            >
+              {text("nextItems")}
+            </Link>
+          )}
+        </nav>
       )}
 
       {editTarget && (

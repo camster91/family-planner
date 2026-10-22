@@ -26,6 +26,17 @@ const en = {
   accessChanged: "List access changed. Refresh or sign in again to continue.",
   progress: "{done} of {total} done",
   noItems: "No items yet",
+  itemPages: "Item pages",
+  nextItems: "Next items",
+  firstItems: "Back to first items",
+  pageProgress: "{done} of {total} shown items done",
+  pageHint:
+    "This is part of your list. Sections and progress describe shown items. New items may appear on a later page. Pending ticks remain available in recovery even when their item is not shown. Load other pages when online.",
+  pageEmpty:
+    "No items remain on this page. Return to the first items to see the current list.",
+  readFailed:
+    "We couldn’t load this list. Check pending changes in recovery and try again.",
+  notFound: "List not found",
   emptyHelp: "Add items using the field below.",
   entries: "{count} entries",
   group: "{item}, {count} entries",
@@ -59,6 +70,17 @@ const en = {
   dismiss: "Dismiss",
 } as const;
 const es: Record<keyof typeof en, string> = {
+  itemPages: "Páginas de elementos",
+  nextItems: "Siguientes elementos",
+  firstItems: "Volver a los primeros elementos",
+  pageProgress: "{done} de {total} elementos mostrados completados",
+  pageHint:
+    "Esta es una parte de tu lista. Las secciones y el progreso describen los elementos mostrados. Los nuevos pueden aparecer en otra página. Los cambios pendientes siguen disponibles en recuperación aunque su elemento no se muestre. Carga otras páginas cuando tengas conexión.",
+  pageEmpty:
+    "No quedan elementos en esta página. Vuelve a los primeros para ver la lista actual.",
+  readFailed:
+    "No se pudo cargar esta lista. Consulta los cambios pendientes en recuperación e inténtalo de nuevo.",
+  notFound: "Lista no encontrada",
   sortFailed:
     "No se pudo cambiar el orden. Comprueba la conexión e inténtalo de nuevo.",
   moveOffline: "Sin conexión. Mover un artículo necesita conexión.",

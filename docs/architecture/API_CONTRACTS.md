@@ -1057,3 +1057,31 @@ server validates its family/type before Back/deletion return links use it; it is
 only a read position, never an arbitrary return URL. Invalid context falls back
 to the first page for the filter. Creation returns to the first page. List-detail
 item reads remain unbounded at this checkpoint. Source only; QA deferred.
+
+
+### Item pages and matching version positions (#134/#135, 2026-10-22 source)
+
+The deprecated `GET /api/lists/items?listId=&limit=1..200&cursor=` now optionally
+returns `{items,nextCursor,sectionSort?}`. Legacy no-limit callers retain complete
+items and checked/position/creation ordering, no nextCursor key, the existing
+household/feature checks and deprecation headers. Paged order is position, creation
+time and ID ascending; checking a row does not move it. Cursors bind family/list
+and the exact last position/time/ID. Malformed/noncanonical/overlong/wrong-version/
+list/family/duplicate paging params, duplicate paged listId or cursor without a
+valid limit produce400. Successful responses are private/no-store. A cursor is a
+read position only; concurrent position changes require a fresh traversal.
+
+The web detail uses the same contract internally with100 rows+lookahead and an
+explicit `itemCursor` route parameter, separate from `overviewCursor` return
+context. New server snapshot renews actor generation/role/family and resolves
+only page section metadata. Partial page progress/grouping and continued-empty
+copy are explicit. A missing partial row is unknown, never proof of deletion;
+existing owner-scoped pending tick recovery remains independently reachable.
+
+`GET /api/lists/[id]/version?limit=&cursor=` optionally hashes that same bounded
+page+lookahead. Legacy unpaged hash contracts remain. Initial web hashes and page
+polls use the exact same rows; changing page invalidates outstanding poll replies.
+No new cached private DTO, automatic replay, schema/index or mutation authority.
+Legacy no-limit reads/version hashes stay unbounded, not silently truncated.
+Source authored only; compatibility/permission/sync/DB/rendered acceptance awaits
+consolidated QA, as detailed in WEB_IMPLEMENTATION_HANDOFF.md.

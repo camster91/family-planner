@@ -12,6 +12,17 @@ merge/deploy still require applicable passing QA under the existing authorizatio
 Retain all earlier evidence at its recorded SHA; do not count unverified code or
 provider/native/customer acceptance as finished. The goal remains active.
 
+## Implementation-first list item pages and matching sync — 2026-10-22
+
+List detail now reads100 items plus one lookahead in a repeatable-read snapshot
+with current actor/family/role/generation renewal and bounded section metadata.
+Explicit EN/ES Next/first controls and page-only progress/grouping avoid implying
+a partial list is complete. Partial absence no longer means deletion; independent
+pending tick recovery stays reachable. Version polling uses the same bounded
+page/lookahead, with stale page-response guards. Optional item API paging keeps
+legacy full responses and deprecation headers. Failed reads now show Retry rather
+than not-found/empty. Source/formatting only; consolidated QA remains deferred.
+
 ## Implementation-first web list pages — 2026-10-22
 
 The Lists overview now uses100-summary server pages with explicit Next/first-page

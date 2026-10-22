@@ -209,3 +209,13 @@ to the100 visible list IDs. No item content hydration or per-list count query is
 added. This bounds returned summary/group rows, not scanned index rows, latency,
 legacy API or detail collections. Measure actual execution plans/SQL and concurrent
 snapshot behavior during consolidated QA before asserting #134 scale acceptance.
+
+
+The next source checkpoint also bounds web list-detail rows/section inputs to100
+plus one lookahead and version polling to the same101 metadata rows. Optional
+item/version API paging preserves unbounded no-limit contracts. No query-per-item
+is introduced; bounded overrides and existing household section-order reads stay
+separate. Page-only group/progress copy is not an exact global completion claim.
+Measure actual SQL/plans, list position/selectivity, section preference loads,
+concurrent snapshot/hash parity and legacy/client compatibility during later QA.
+This does not assert that all callers, database scans or core domains are bounded.

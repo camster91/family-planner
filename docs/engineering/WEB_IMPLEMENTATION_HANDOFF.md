@@ -305,3 +305,58 @@ return context, empty later pages, failed reads/retry, child creation refusal,
 owned-draft navigation refusal, keyboard/Back/focus/reflow and EN/ES six sizes.
 The item-detail collection, legacy no-limit paths, Today dinners and full #134
 query/index/load/acceptance work remain separate; this is not a release pass.
+
+
+## Implementation-first list-item continuation and scoped sync (#134/#135)
+
+New `list-item-paging.ts` provides opt-in limit1..200 and canonical base64url
+positions bound to family/list, using position/created_at/ID ascending. Checked
+state is deliberately outside page order so ticks do not move rows across pages.
+Cursor shape/version/ownership/list/canonical encoding/size/duplicate/limit errors
+refuse; the position is not a snapshot or credential. Deleting an anchor does not
+prevent later reads. Explicit position edits can move rows; refresh from the first
+page for a new traversal rather than claiming snapshot completeness.
+
+The web detail uses100-row server pages with one lookahead. The new typed reader
+renews actual user role/family/session generation, reads the canonical list/rows
+and resolves page-only grocery metadata in one repeatable-read transaction.
+Rows retain creator/checker/recipe/ingredient/amount fields. No full-item-count or
+item-content hydration outside the101-row read is introduced. Actual failure now
+has localized Retry instead of a false not-found/empty result; missing/foreign
+lists stay the same minimal not-found state. Forbidden renewed authority redirects
+to the normal dashboard. No raw database error is logged. Actor/session-qualified
+client keys prevent carrying local state into a new actor generation.
+
+Item next/first links preserve validated overview return context, use fixed internal
+destinations and do not prefetch. Client identity remains stable across item-page
+navigation, preserving typed generic add text; initial item reconciliation runs
+before paint. Partial-page progress/section grouping is labelled as shown items,
+with a distinct continued-empty state and an online loading explanation. Missing
+rows in a partial snapshot are never labelled removed. Exact pending operations
+remain in the existing owner queue and independent PendingTickRecovery, including
+on missing/failed detail reads; there is no implicit discard or new replay writer.
+A complete one-page list retains its prior missing-row recovery behavior.
+
+The optional version endpoint limit/cursor query hashes the same list metadata
+and at-most101 lookahead rows as initial rendering. The client polls that exact
+page; late replies from another page context cannot signal terminal access or
+supply its version. This avoids full-list hashes mismatching partial initial data
+and repeatedly refreshing. Legacy unpaged version responses stay compatible.
+The deprecated item GET also offers optional limit/cursor and nextCursor, keeps
+its full legacy no-limit response/checked-first order and deprecation headers,
+and retains grocery sectionSort metadata. Paged GET order matches the web query.
+Successful responses are private/no-store. Canonical writes and queue contracts,
+schema/index/infrastructure/provider/readiness settings remain unchanged.
+
+Source-only formatting, no tests/typecheck/lint/build/browser/CI or DB reads.
+Consolidated QA must cover100/101/200+rows; tied positions/dates/IDs and deleted
+anchors; generic and all grocery types/section overrides/group splits; exact page
+hash parity/lookahead changes and late page polling; source/role/generation/family
+changes; malformed/duplicate/wrong-list/foreign/expired-context cursors; legacy
+API/version/deprecation compatibility; continued empty vs missing vs read failure;
+queued ticks outside the page, failed storage/retry/discard, complete-page removal,
+new additions on later pages, generic typed text across navigation and modal edit/
+move/Undo behavior; EN/ES/offline/keyboard/Back/focus/reflow on all six sizes.
+No source change proves #134 scale or #135 native lifecycle acceptance. Legacy
+unpaged API/version and Today dinner consumers plus full query/index/load/retention
+acceptance remain explicit follow-through, not silently capped legacy responses.
