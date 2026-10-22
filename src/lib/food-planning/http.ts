@@ -1,3 +1,11 @@
+import {
+  foodGroceryOutcomeInput,
+  foodGroceryUndoInput,
+} from "./grocery-outcomes-contract";
+import {
+  readFoodGroceryOutcomes,
+  undoFoodGroceryAdd,
+} from "./grocery-outcomes-server";
 import { foodOptionsQuery } from "./options-contract";
 import { readFoodOptions } from "./options-server";
 /** Strict person/owner-bound save and read-only receipt inspection. */
@@ -72,7 +80,8 @@ async function authorize(actor: FoodPlanActor, command?: ReviewedFoodWrite) {
 }
 export async function handleFoodHttp(
   request: NextRequest,
-  mode: "context" | "apply" | "inspect" | "options",
+  mode:
+    "context" | "apply" | "inspect" | "options" | "outcomes" | "undo-grocery",
 ) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
@@ -96,7 +105,7 @@ export async function handleFoodHttp(
           `food-${mode}:${actor.userId}`,
           mode === "context"
             ? 120
-            : mode === "inspect" || mode === "options"
+            : mode === "inspect" || mode === "options" || mode === "outcomes"
               ? 60
               : 20,
           60000,
@@ -123,6 +132,35 @@ export async function handleFoodHttp(
       );
     if (!owner || request.headers.get(FOOD_OWNER_HEADER) !== owner.scope)
       return json(failure(403, "AUTH_CONTEXT_CHANGED"));
+    if (mode === "outcomes" || mode === "undo-grocery") {
+      const raw: unknown = JSON.parse(
+        await boundedRequestText(request, 196608),
+      );
+      const result =
+        mode === "outcomes"
+          ? await (() => {
+              const input = foodGroceryOutcomeInput.parse(raw);
+              return readFoodGroceryOutcomes(
+                prisma!,
+                actor,
+                input.entry,
+                owner.scope,
+              );
+            })()
+          : await (() => {
+              const input = foodGroceryUndoInput.parse(raw);
+              return undoFoodGroceryAdd(
+                prisma!,
+                actor,
+                input.entry,
+                input.requestId,
+                owner.scope,
+              );
+            })();
+      if (Buffer.byteLength(JSON.stringify(result), "utf8") > 131072)
+        return json(failure(409, "UNAVAILABLE"));
+      return NextResponse.json(result, { headers });
+    }
     if (mode === "options") {
       const query = foodOptionsQuery.parse(
         JSON.parse(await boundedRequestText(request, 16384)),

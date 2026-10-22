@@ -69,3 +69,17 @@ No selector or checkbox saves domain records. Selection changes invalidate signe
 review; grocery-only changes may retain an exactly matching source preview.
 All controls are source-authored; rendered/design acceptance remains unrun.
 Prepared reuse, grocery outcomes/Undo and wider entry points remain source work.
+
+## Grocery outcome and Undo extension
+
+After a known save, an explicit read opens the original child grocery results:
+added count, already-open count, possible lookalike count/truncation, destination
+and original Undo deadline. These are historical receipt facts, not current list
+contents. Missing child details do not invalidate the confirmed meal/prep save.
+Undo is per original child request, never the whole food plan, and preserves
+checked or unrelated rows through canonical grocery rules. It runs only on an
+explicit tap. Lost/malformed responses remain unconfirmed; retries use the same
+original child target. Original durable food intents retain recovery across reload.
+No automatic Undo, new grocery add, root replay, deadline extension or private
+lookalike row text is introduced. All actions share the sheet's current-owner,
+operation, close and pending guards; final rendered acceptance stays deferred.

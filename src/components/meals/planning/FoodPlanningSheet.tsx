@@ -19,6 +19,7 @@ import {
 import { FoodPlanSummary } from "./FoodPlanSummary";
 import { FoodSaveDetails } from "./FoodSaveDetails";
 import { FoodRecordPicker } from "./FoodRecordPicker";
+import { FoodGroceryOutcomesView } from "./FoodGroceryOutcomes";
 import { FoodGroceryChoices } from "./FoodGroceryChoices";
 import { FoodAllocationEditor } from "./FoodAllocationEditor";
 import { resolveScheduleWall } from "@/lib/calendar-planning/schedule-form";
@@ -785,6 +786,12 @@ export default function FoodPlanningSheet({
                 .filter((entry) => entry.kind === "food-plan")
                 .map((entry, i) => {
                   const proof = session.inspections[entry.key];
+                  const savedReceipt =
+                    session.confirmed[entry.key] ?? proof?.receipt;
+                  const hasGroceries = !!savedReceipt?.groceries.length;
+                  const uncertainUndo = Object.values(
+                    session.groceryUndos[entry.key] ?? {},
+                  ).some((value) => value === "unknown");
                   const committed =
                     proof?.state === "committed" ||
                     !!session.confirmed[entry.key];
@@ -807,6 +814,18 @@ export default function FoodPlanningSheet({
                               "Resultado sin confirmar. Que el recibo falte o venza no demuestra que fallara el guardado.",
                             )}
                       </p>
+                      {committed && hasGroceries && (
+                        <FoodGroceryOutcomesView
+                          outcome={session.groceryOutcomes[entry.key]}
+                          undos={session.groceryUndos[entry.key]}
+                          readError={session.groceryReadErrors[entry.key]}
+                          busy={session.busy}
+                          onRead={() => void session.readGroceries(entry.key)}
+                          onUndo={(requestId) =>
+                            void session.undoGroceries(entry.key, requestId)
+                          }
+                        />
+                      )}
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -834,7 +853,7 @@ export default function FoodPlanningSheet({
                           className="btn-secondary min-h-[44px]"
                           disabled={session.busy}
                           onClick={() => {
-                            if (committed) {
+                            if (committed && !uncertainUndo) {
                               void session.dismiss(entry.key);
                               return;
                             }
@@ -910,8 +929,8 @@ export default function FoodPlanningSheet({
                 "La copia guardada reemplazará los cambios sin guardar de esta vista. No se eliminan registros del servidor.",
               )
             : copy(
-                "This only removes work from this device. An unconfirmed request may already have saved; inspect it first. No server records are undone.",
-                "Esto solo elimina trabajo de este dispositivo. Una solicitud sin confirmar puede haberse guardado; compruébala primero. No se deshacen registros del servidor.",
+                "This removes local work only. An unconfirmed save or grocery Undo may already have finished. Inspect it first. Removing this entry does not change server records.",
+                "Esto solo quita el trabajo local. Un guardado o deshacer sin confirmar puede haber terminado. Compruébalo primero. Quitar esta entrada no cambia los registros del servidor.",
               )}
         </p>
         <label className="flex min-h-[44px] items-center gap-2">

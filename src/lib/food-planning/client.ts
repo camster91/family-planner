@@ -1,4 +1,8 @@
 import {
+  foodGroceryOutcomesReply,
+  foodGroceryUndoReply,
+} from "./grocery-outcomes-contract";
+import {
   foodOptionsQuery,
   foodOptionsReply,
   type FoodOptionsQuery,
@@ -296,5 +300,118 @@ export async function readFoodOptions(
   if (canonicalRequestJson(reply.query) !== canonicalRequestJson(input))
     throw new Error("Food choices query changed");
   await renewFoodReadOwner(reply.owner, context);
+  return reply;
+}
+
+async function groceryRequest(
+  entry: FoodRecoveryEntry,
+  context: FoodRecoveryContext,
+  requestId?: string,
+) {
+  foodRecoveryEntry.parse(entry);
+  if (!context.owner || !foodEntryMatchesContext(entry, context))
+    throw new FoodOwnerChanged();
+  const command = reviewedFoodWrite.parse(JSON.parse(entry.body));
+  const result = await request(
+    `/api/assistant/food/${requestId ? "undo-grocery" : "outcomes"}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        [FOOD_OWNER_HEADER]: context.owner.scope,
+      },
+      body: JSON.stringify({
+        contract: FOOD_RECOVERY,
+        entry,
+        ...(requestId ? { requestId } : {}),
+      }),
+    },
+    131072,
+  );
+  if (result.kind === "reply" && [401, 403].includes(result.response.status))
+    throw new FoodOwnerChanged();
+  if (result.kind !== "reply" || !result.response.ok)
+    throw new Error("Grocery result unconfirmed");
+  const reply = requestId
+    ? foodGroceryUndoReply.parse(result.body)
+    : foodGroceryOutcomesReply.parse(result.body);
+  const hash = await hashBrowserIdempotentRequest(FOOD_APPLY_ACTION, command);
+  if (
+    !hash ||
+    reply.ownerScope !== context.owner.scope ||
+    reply.requestHash !== hash
+  )
+    throw new FoodOwnerChanged();
+  await renewFoodReadOwner(
+    {
+      userId: context.userId,
+      familyId: context.familyId,
+      role: context.role,
+      generation: context.owner.generation,
+    },
+    context,
+  );
+  return reply;
+}
+export async function readFoodGroceries(
+  entry: FoodRecoveryEntry,
+  context: FoodRecoveryContext,
+  receipt: import("./apply-contract").FoodApplyReceipt,
+) {
+  const reply = foodGroceryOutcomesReply.parse(
+    await groceryRequest(entry, context),
+  );
+  const command = reviewedFoodWrite.parse(JSON.parse(entry.body));
+  if (
+    !foodApplyReceiptMatches(receipt, command) ||
+    reply.outcomes.length !== receipt.groceries.length ||
+    reply.outcomes.some(
+      (row) =>
+        !receipt.groceries.some(
+          (pointer) =>
+            pointer.key === row.key &&
+            pointer.requestId === row.requestId &&
+            pointer.listId === row.listId,
+        ),
+    )
+  )
+    throw new Error("Grocery outcome targets changed");
+  if (
+    reply.outcomes.some((row) => {
+      const selection = command.groceries.find(
+        (value) => value.key === row.key,
+      )!;
+      return (
+        row.result &&
+        (row.result.createdCount + row.result.alreadyOnListCount !==
+          selection.ingredientIds.length ||
+          row.result.possibleDuplicates.some(
+            (duplicate) =>
+              !selection.ingredientIds.includes(duplicate.ingredientId),
+          ))
+      );
+    })
+  )
+    throw new Error("Grocery outcome ingredients changed");
+  return reply;
+}
+export async function undoFoodGroceries(
+  entry: FoodRecoveryEntry,
+  context: FoodRecoveryContext,
+  requestId: string,
+  receipt: import("./apply-contract").FoodApplyReceipt,
+) {
+  const command = reviewedFoodWrite.parse(JSON.parse(entry.body));
+  if (
+    !foodApplyReceiptMatches(receipt, command) ||
+    !receipt.groceries.some((row) => row.requestId === requestId)
+  )
+    throw new Error("Grocery Undo target changed");
+  // Canonical provenance-scoped Undo is safe to explicitly repeat with this same target.
+  const reply = foodGroceryUndoReply.parse(
+    await groceryRequest(entry, context, requestId),
+  );
+  if (reply.requestId !== requestId)
+    throw new Error("Grocery Undo result unconfirmed");
   return reply;
 }

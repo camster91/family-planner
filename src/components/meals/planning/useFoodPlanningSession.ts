@@ -1,4 +1,8 @@
-"use client";
+import type {
+  FoodGroceryOutcomes,
+  FoodGroceryUndo,
+} from "@/lib/food-planning/grocery-outcomes-contract";
+("use client");
 import type { FoodApplyReceipt } from "@/lib/food-planning/apply-contract";
 import * as React from "react";
 import { browserFoodRecovery } from "@/lib/food-planning/browser";
@@ -6,6 +10,8 @@ import {
   readFoodRecoveryContext,
   readFoodPreview,
   readFoodWriteReview,
+  readFoodGroceries,
+  undoFoodGroceries,
   makeFoodIntent,
   sendFoodIntent,
   inspectFoodIntent,
@@ -48,6 +54,15 @@ export function useFoodPlanningSession(onSaved: () => void) {
     flushTail = React.useRef<Promise<unknown>>(Promise.resolve()),
     callbacks = React.useRef(onSaved);
   callbacks.current = onSaved;
+  const [groceryOutcomes, setGroceryOutcomes] = React.useState<
+    Record<string, FoodGroceryOutcomes>
+  >({});
+  const [groceryReadErrors, setGroceryReadErrors] = React.useState<
+    Record<string, boolean>
+  >({});
+  const [groceryUndos, setGroceryUndos] = React.useState<
+    Record<string, Record<string, FoodGroceryUndo | "unknown">>
+  >({});
   const [, refreshSavedState] = React.useState(0);
   const [context, setContext] = React.useState<FoodRecoveryContext | null>(
       null,
@@ -103,6 +118,9 @@ export function useFoodPlanningSession(onSaved: () => void) {
         setReview(null);
         setInspections({});
         setConfirmed({});
+        setGroceryOutcomes({});
+        setGroceryReadErrors({});
+        setGroceryUndos({});
         showDraft(null);
         local.current = null;
         setIssue("owner");
@@ -386,6 +404,71 @@ export function useFoodPlanningSession(onSaved: () => void) {
   async function retry(key: string) {
     await perform((current) => send(key, true, current));
   }
+  async function groceryTarget(key: string) {
+    await flush();
+    if (!store.current) throw new Error("Food recovery unavailable");
+    const entries = await store.current.snapshot();
+    const entry = entries.find(
+      (row) => row.key === key && row.kind === "food-plan",
+    );
+    const receipt = confirmed[key] ?? inspections[key]?.receipt;
+    if (!entry || entry.kind !== "food-plan" || !receipt)
+      throw new Error("Inspect the saved food receipt first");
+    return { entry, receipt, context: await fresh() };
+  }
+  async function readGroceries(key: string) {
+    await perform(async (current) => {
+      setGroceryReadErrors((old) => ({ ...old, [key]: false }));
+      try {
+        const target = await groceryTarget(key);
+        const result = await readFoodGroceries(
+          target.entry,
+          target.context,
+          target.receipt,
+        );
+        if (current()) setGroceryOutcomes((old) => ({ ...old, [key]: result }));
+      } catch (error) {
+        if (current()) setGroceryReadErrors((old) => ({ ...old, [key]: true }));
+        if (
+          error instanceof FoodOwnerChanged ||
+          error instanceof OwnedRequestRecoveryError
+        )
+          throw error;
+      }
+    });
+  }
+  async function undoGroceries(key: string, requestId: string) {
+    await perform(async (current) => {
+      const target = await groceryTarget(key);
+      setGroceryUndos((old) => ({
+        ...old,
+        [key]: { ...old[key], [requestId]: "unknown" },
+      }));
+      try {
+        const result = await undoFoodGroceries(
+          target.entry,
+          target.context,
+          requestId,
+          target.receipt,
+        );
+        if (current()) {
+          setGroceryUndos((old) => ({
+            ...old,
+            [key]: { ...old[key], [requestId]: result },
+          }));
+          if (result.result.kind === "done") callbacks.current();
+        }
+      } catch (error) {
+        // Keep the original durable food intent and exact child target. A later
+        // explicit repeat is safe; no replay/add or new request key is created.
+        if (
+          error instanceof FoodOwnerChanged ||
+          error instanceof OwnedRequestRecoveryError
+        )
+          throw error;
+      }
+    });
+  }
   async function dismiss(key: string) {
     await perform(async (current) => {
       const discardingDraft = local.current?.key === key;
@@ -402,6 +485,21 @@ export function useFoodPlanningSession(onSaved: () => void) {
         return next;
       });
       if (current()) {
+        setGroceryOutcomes((old) => {
+          const next = { ...old };
+          delete next[key];
+          return next;
+        });
+        setGroceryUndos((old) => {
+          const next = { ...old };
+          delete next[key];
+          return next;
+        });
+        setGroceryReadErrors((old) => {
+          const next = { ...old };
+          delete next[key];
+          return next;
+        });
         setInspections((old) => {
           const next = { ...old };
           delete next[key];
@@ -463,6 +561,11 @@ export function useFoodPlanningSession(onSaved: () => void) {
     review,
     inspections,
     confirmed,
+    groceryOutcomes,
+    groceryUndos,
+    groceryReadErrors,
+    readGroceries,
+    undoGroceries,
     busy,
     issue,
     load,

@@ -1,5 +1,30 @@
 # Current State
 
+## Food grocery outcomes and canonical Undo — 2026-10-22
+
+The food sheet now has explicit original-grocery-result reads and per-add Undo.
+Root receipts remain minimal and unchanged. Separate bounded no-store endpoints
+renew current original person/role/generation, verify the signed original command,
+require its committed root/hash and follow only exact child pointers. Child action,
+owner, family, normalized request hash, selected ingredient counts and original
+creation-based Undo deadline must match before projecting details or undoing.
+Missing child details never become a failed meal/prep save. Historical added/open
+and possible free-text-lookalike counts are distinct from current list contents.
+
+Explicit Undo runs existing canonical provenance/window/checked-row rules inside
+an authorized serializable transaction. It does not undo meals/prep, replay adds,
+extend deadlines or change root receipts. Unknown replies retain the original
+owned food intent and exact child target for explicit safe repeats; no background
+Undo. UI actions share sheet operation/storage/owner/navigation guards, paginate
+one add at a time and require acknowledgement before forgetting an in-view unknown
+Undo. Original intents, not volatile result banners, retain recovery across reload.
+
+Scoped linkage/hash/foreign-root/child-unavailable/strict-DTO/canonical-Undo and
+mounted explicit-action/unknown/expiry cases are authored and unrun. No tests,
+typecheck, lint, build, browser, API, DB, schema, provider, flag, push, merge or
+deploy action. Prepared reuse, inbox/weekly/chat integration, provider/evaluation
+and broader goal source remain before consolidated QA and authorized release.
+
 ## Food planning selectors and prep allocations — 2026-10-22
 
 The initial owned Meals sheet now has household-scoped searchable recipe pools,

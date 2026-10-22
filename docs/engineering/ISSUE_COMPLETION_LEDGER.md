@@ -696,3 +696,17 @@ grocery selection. Prep occupancy includes non-midnight rows in the selected day
 Scoped/read/DTO/owner/catalog/partial-draft cases authored and unrun. No QA, API/DB,
 provider/flag or release action. Canonical grocery outcomes/Undo, prepared reuse,
 inbox/weekly/chat/provider/evaluation and full goal/issues remain open.
+
+### 2026-10-22 — food grocery child outcomes and Undo (#123/#144)
+
+Bounded person/owner-bound source endpoints and compact saved-request controls
+now project canonical original grocery counts/lookalikes/deadline and invoke
+canonical per-add Undo in an authorized transaction. The signed original command,
+committed root pointer proof and exact child action/hash/family/actor/ingredient/
+deadline bindings are required; original source freshness is not renewed for old
+receipts. Missing details preserve confirmed root status. No root schema change,
+new add/replay/background Undo or deadline extension. Original durable owned food
+intents retain exact targets after unknown replies/reload. Source/mounted cases
+are authored and unrun. Prepared reuse, inbox/weekly/chat/provider/evaluation and
+all consolidated QA/release acceptance remain; goal/issues stay open. No runtime,
+DB/schema/provider/flag/push/merge/deploy action.
