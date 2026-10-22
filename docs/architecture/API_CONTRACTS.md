@@ -1010,3 +1010,32 @@ independent provider kill switch does not erase settings. No activation occurred
 ## Login wrong-password lockout (security review follow-up)
 
 `POST /api/auth/login` counts wrong passwords in two windows of 15 minutes (`src/lib/login-lockout.ts`): 10 per account and client address (`login-fail-ip:<ip>:<email>`), and 50 per account across all addresses (`login-fail:<email>`). Either one at its limit answers 429 with `Retry-After` before the password is checked. Previously a single 10-failure account counter let anyone who knew an email lock its owner out from everywhere; now one address only locks itself out. A successful sign-in clears both counters for that address and account. Tablet password elevation still shares the account counter at the same limit of 50, on top of its own per-tablet limits.
+
+
+## Additive list-summary pagination (#134, source authored 2026-10-22)
+
+`GET /api/lists?limit=1..200&cursor=...&type=...` opts into bounded list
+summaries: `{lists, nextCursor}`. Summary fields and canonical item counts/creator
+projection remain unchanged. It reads at most limit+1 summaries; `nextCursor` is
+null only when no extra row was observed. Follow the cursor deliberately to read
+more. Do not treat a partial page as all household lists.
+
+Paged order is immutable creation time descending then ID ascending. Checking
+items or renaming a list therefore does not move it across a page boundary.
+Without `limit`, the legacy complete `{lists}` response and updated-first order
+remain; no existing installed caller is silently capped. Both successful response
+forms are private/no-store. Existing auth/household/feature checks still apply.
+
+The versioned canonical base64url cursor binds the current family and normalized
+type filter (absent/empty means all) plus the last creation time/ID. It is a read
+position, not an authorization proof or snapshot. Each request applies current
+auth and family filters independently; deleting the anchor does not prevent
+continuation. New lists created ahead of the cursor require refreshing from the
+first page. Filter/household changes must start a fresh first page.
+
+Malformed, noncanonical, overlong, wrong-version/family/filter cursors, cursor
+without limit, duplicate paging/type parameters and limits outside1..200 return
+400. Legacy arbitrary type filtering remains compatible; opted-in type scope is
+bounded to128 characters. This source is not yet connected to the server-rendered
+Lists overview or list-item detail. Legacy reads remain unbounded. No schema,
+index, mutation, capability or infrastructure change. All QA remains deferred.

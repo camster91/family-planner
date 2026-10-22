@@ -16,6 +16,12 @@ import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import { deleteListSchema } from "@/lib/validations";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import {
+  parseListPaging,
+  encodeListCursor,
+  afterListCursor,
+} from "@/lib/list-paging";
+import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -31,23 +37,47 @@ async function handleGET(request: NextRequest) {
     if (gate) return gate;
 
     const { searchParams } = new URL(request.url);
-    const type = searchParams.get("type");
+    const type = searchParams.get("type") || null;
+    const scope = { familyId: auth.user.family_id, type };
+    const paging = parseListPaging(searchParams, scope);
+    if (!paging.ok)
+      return NextResponse.json({ error: paging.error }, { status: 400 });
 
-    const where: Record<string, unknown> = { family_id: auth.user.family_id };
+    const where: Prisma.ListWhereInput = {
+      family_id: auth.user.family_id,
+      ...(paging.paged && paging.cursor ? afterListCursor(paging.cursor) : {}),
+    };
     if (type) {
       where.type = type;
     }
 
-    const lists = await prisma!.list.findMany({
+    const rows = await prisma!.list.findMany({
       where,
       include: {
         _count: { select: { items: true } },
         creator: { select: { name: true } },
       },
-      orderBy: { updated_at: "desc" },
+      // Stable creation order prevents item checks/renames moving a list across
+      // an opted-in page boundary. Legacy callers retain updated-first order.
+      orderBy: paging.paged
+        ? [{ created_at: "desc" }, { id: "asc" }]
+        : { updated_at: "desc" },
+      ...(paging.paged ? { take: paging.limit + 1 } : {}),
     });
 
-    return NextResponse.json({ lists });
+    const lists = paging.paged ? rows.slice(0, paging.limit) : rows;
+    return NextResponse.json(
+      paging.paged
+        ? {
+            lists,
+            nextCursor:
+              rows.length > paging.limit
+                ? encodeListCursor(scope, lists[lists.length - 1])
+                : null,
+          }
+        : { lists },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (error) {
     logRouteError("GET /api/lists", error, getRequestId(request));
     return NextResponse.json(

@@ -248,8 +248,10 @@ existing canonical routes, without introducing another domain write model.
 Storage/lifecycle and recipe receipt case code is authored, unrun. Only source
 inspection/edits and selected-file formatting occurred. No tests/typecheck/lint/
 build/browser/API/SQL/DB/native/CI, flag activation, push/merge or deployment.
-CaptureBox and RecipeEditor are not yet connected to this document lifecycle;
-their unsent forms remain in memory. Next: canonical transport owner binding,
+At this historical foundation checkpoint CaptureBox and RecipeEditor were not
+yet connected. The later Recipe draft host and owned Capture sections below, plus
+WEB_IMPLEMENTATION_HANDOFF.md, supersede this missing-source statement. The
+foundation checkpoint next actions were: canonical transport owner binding,
 recipe/capture host restore/freeze/retry controls, explicit refusal/duplicate-source
 resolution, read-only inbox discovery and full navigation/failed-flush protection.
 Wider role/routine/AI and ledger scope remains open; QA stays deferred.

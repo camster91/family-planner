@@ -244,3 +244,25 @@ external-tab modification/retirement, hidden/foreground refresh, dirty fields,
 explicit discard/restore and exact submitted receipt recovery. Confirm notices
 do not imply an unverified save, automatically pick a copy or enable bypassing
 journal refusal. Source completion, acceptance and release remain separate.
+
+
+## Implementation-first list API continuation (#134)
+
+Canonical GET /api/lists now offers explicit optional limit1..200 and opaque
+versioned cursor. It reads limit+1 summaries with existing count/creator fields,
+returns a cursor only when an extra row was observed and applies family/type
+scope to every page. Paged order uses created_at descending/id ascending, avoiding
+updated_at movement from ordinary checks/renames. Canonical encoding, duplicate/
+malformed/overlong/cross-family/filter/version refusal and cursor-without-limit
+handling are authored. Successful responses are private/no-store. No-limit
+clients retain the complete response and old updated-first order. DELETE and
+canonical authorization/feature rules remain unchanged.
+
+Source-only formatting; no tests/typecheck/lint/build/browser/CI or database reads.
+Later QA must compare legacy compatibility; empty/single/full/multi-page results;
+all list types; ties/deleted anchors/concurrent checks/renames/new creations;
+forged/cross-household/filter/duplicate/invalid cursors; current auth/feature
+refusals; no item hydration; and privacy-safe diagnostics. A cursor is never a
+snapshot/authority proof. The server overview, list-item detail, legacy no-limit
+reads, Today dinners and broader query/index/load acceptance remain explicit
+#134 work. This API option does not claim those consumers are paged already.

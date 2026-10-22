@@ -33,7 +33,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Broader programme: #119–#146
 
 - Event preparation execution contract (#123): `docs/plans/event-preparation-v1.md` (source in progress; not activated or verified).
-- Unified review inbox (#123): `docs/plans/review-inbox-v1.md` (initial parent read sources authored; draft adapters and QA remain).
+- Unified review inbox (#123): `docs/plans/review-inbox-v1.md` (parent reads, owned draft adapters/recovery hosts and authorized change timeline source authored; consolidated QA remains).
 
 ## Engineering references
 

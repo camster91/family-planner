@@ -15,8 +15,9 @@ it does not close issues or replace their original acceptance criteria.
 Local source now includes a personal Today layout editor (order/visibility,
 spacing, preview/save/reset/Undo and a calendar-view shortcut), role-filtered
 Explore favorites, provider-free app guidance using canonical Help content and
-a bounded Month calendar view. Device-only personalization is labelled honestly;
-account-backed sync and parent defaults still need their canonical contract.
+a bounded Month calendar view. Account-backed personalization and parent defaults
+now have the revision-bound canonical contract in
+`../architecture/DISPLAY_PREFERENCES.md`; runtime/sync acceptance remains open.
 Shared fridge data/privacy and original auth/role/feature rules stay intact.
 
 No new QA or release acceptance is claimed for this implementation phase.
@@ -30,7 +31,13 @@ A family can add everyone, including a child without an email, and coordinate to
 
 One household model, backend, authorization system and set of domain APIs serve all devices. Start from the existing responsive web and Capacitor shells. Add native capabilities where lifecycle, permissions, offline storage, audio, deep links or device management require them; do not promise native parity because a website opens in an app shell.
 
-## Evidence baseline
+## Historical evidence baseline — 2026-10-10
+
+This section preserves the original observations, not current missing-source
+claims. Current connected code paths and later QA obligations are mapped in
+`../engineering/WEB_IMPLEMENTATION_HANDOFF.md`. In particular, household-grounded
+references/planning now have source behind default-off gates; passive wake and
+real provider/hardware observations remain separate.
 
 - Production at QA start: `1454db208e3259a02fe4f6b24e828dbe057579f7`; release #467 and privacy fix #469 closed. Current source audit: `8b7dc1a`, with unrelated lowercase wordmark edits pending locally.
 - Live, isolated personal parent session: signup/verification, household onboarding, grocery create/check/reload, direct Today grocery routing, 30-minute event persistence, weekly Monday/Saturday selection including today, collapsed recurrence group, completion/undo and phone Agenda rendering.

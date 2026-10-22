@@ -12,6 +12,15 @@ merge/deploy still require applicable passing QA under the existing authorizatio
 Retain all earlier evidence at its recorded SHA; do not count unverified code or
 provider/native/customer acceptance as finished. The goal remains active.
 
+## Implementation-first compatible list API paging — 2026-10-22
+
+The canonical list-summary GET now supports optional limit/cursor paging with
+family/type-bound cursors and stable creation-time/ID order. Older no-limit
+clients retain their complete response and updated-first order. No write/schema/
+index/provider change. The web overview/detail still need their own continuation;
+this is not full collection/scale acceptance. Source formatting only; tests and
+builds remain deferred. API_CONTRACTS.md records compatibility and deferred cases.
+
 ## Implementation-first draft recovery explanations — 2026-10-22
 
 Capture and recipe draft boundaries now share EN/ES explanations for conflicting

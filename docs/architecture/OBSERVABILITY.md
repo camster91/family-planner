@@ -189,3 +189,15 @@ Scorecard JSON/text adds `herewoven.beta-count-scorecard.v1` scope metadata: cou
 thresholds only, best-effort, ordered/cohort acceptance unverified. D-6 counting
 rules and opt-in/retention behavior are unchanged. No new collection, provider,
 experiment or tracking activation. Source tests authored/unrun.
+
+
+### List-summary collection continuation — 2026-10-22 source checkpoint
+
+The canonical list GET now supports optional limit1..200/cursor with limit+1
+reads. Paged order is created_at descending/ID ascending; filter/family-bound
+positions cannot authorize reads. Legacy no-limit responses remain complete and
+unbounded. Server overview and item-detail continuation are separate outstanding
+consumers. Existing family and family/type indexes remain; no new index or query
+plan/load result is inferred from paging. Later QA must measure actual SQL/rows,
+aggregate counts, filter cardinalities and legacy/new clients on representative
+fabricated households. Source formatting only; no new execution evidence.
