@@ -1,5 +1,27 @@
 # Current State
 
+## Local optimized packaging and startup pass — 2026-10-22
+
+At22968838, the clean Next16.4.2 optimized build exits0 with private physical
+node_modules inside this checkout:TypeScript and73 static pages complete; no
+standalone tracing exclusions. Five local standalone checks pass:health/live,
+exact source version,login,register and signed-out dashboard redirect. Source/
+build-ID/hash manifest and bounded loopback-only runtime observations are retained.
+No DB/email/provider/hosted state changed. Deprecation/Tailwind warnings remain.
+The latest full suite still has50 failing suites/171 tests at2332faf4; further
+repairs, full units/DB/browser/recovery and authorized hosted release gates remain.
+Exact evidence: `docs/testing/WEB_QA_20261022.md`. This is not production acceptance.
+
+## Optimized build passes compilation; packaging recheck — 2026-10-22
+
+The patched Next16.4.2 build at22968838 exits0, including TypeScript and73 static
+pages. Local standalone output excluded27 files because the private dependencies
+were outside its tracing root. That output is not release-ready. The private
+install is now physical node_modules inside this checkout, leaving shared trees
+untouched; client generation passes again. A clean packaging retry is running at
+the same source. Exact evidence and open gates: `docs/testing/WEB_QA_20261022.md`.
+No production tracing configuration, protected merge or deployment changed.
+
 ## Client/server build boundary and dependency patches — 2026-10-22
 
 The initial optimized build failed because client rotation imports reached server
