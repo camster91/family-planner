@@ -638,3 +638,20 @@ recreation/away-back/foreign/overflow cases authored/unrun. No DDL/client/QA/fla
 provider/release action. Migration repeatability, concurrency/old-client/FK and
 rollback acceptance remain in consolidated QA; compact owned UI, apply/inspection/
 exact journal recovery, provider/evaluation and inbox source remain. Goal/issues open.
+
+
+### 2026-10-22 — food save/inspection/owned request transport (#123/#144)
+
+Strict fixed person/session-owner context/apply/inspection APIs now wrap the
+canonical atomic adapter and signed source guard. Original signed generation/role
+and canonical prep verification precede completed replay; readiness/source expiry/
+deleted targets do not prevent authorized retained receipt recovery. Live pending
+never retries; missing/abandoned only offer exact-key/body retry after renewal,
+without claiming no effect. Client checks exact echo/current owner/canonical hash,
+keeps every HTTP/timeout/malformed outcome unknown and stages immutable requests
+through existing owned journals. Food opts into inspection before every send,
+including in-session retries; prior domain defaults unchanged. Source cases unrun.
+Compact human UI/read DTO/draft/exit/pending/inbox and child grocery outcome/Undo
+wiring, provider/evaluation and remaining broader source precede consolidated QA.
+No API/DB/DDL/client/test/type/lint/build/browser/native/CI/provider/flag/release action;
+full goal/issues remain open.

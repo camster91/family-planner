@@ -180,10 +180,10 @@ recurrence interoperability (#124), consolidated QA and activation remain separa
 
 `food-planning/persist.ts` now composes ordinary meals or one canonical multi-dish
 prep session and optional explicitly selected groceries inside one serializable
-transaction. It is **not exposed by a write route**. The required same-transaction source
-guard now has a concrete signed implementation described below. Legacy-writer food version source is now authored below and remains unapplied/
-unverified. Review UI, apply API and exact browser journal/inspection are still
-required. A supplied read revision or browser recipe ID
+transaction. The strict person/owner-bound write route is now authored below. The required
+same-transaction source guard has a concrete signed implementation. Legacy-writer food version source is now authored below and remains unapplied/
+unverified. The backend APIs and exact browser request journal are authored below; compact
+human confirmation, draft/pending/inbox UI integration and acceptance remain. A supplied read revision or browser recipe ID
 alone must never activate this adapter.
 
 The normal outer idempotency boundary reserves an exact owner/action/body root
@@ -259,8 +259,8 @@ source/held-choice/cook-metadata cases are authored **unrun**. New read reviews 
 write source renewal still need full real-DB/concurrency/compatibility acceptance.
 Legacy-writer row generation/epochs are now authored below. Their migration and
 real acceptance are still required; value hashes and ordinary timestamps alone
-must never substitute for those checks. No HTTP write endpoint,
-provider/flag activation, migration or release is established by this source.
+must never substitute for those checks. The write endpoint and browser transport are now authored below; no provider/
+flag activation, migration, rendered acceptance or release is established.
 
 ## Legacy-writer food row continuity
 
@@ -319,6 +319,70 @@ full applicable consolidated gates. Rollback pauses food readiness and uses the
 prior compatible build while retaining additive columns/triggers/receipts; do not
 drop or reset version history as a routine rollback. No activation is established.
 
+## Owned save, receipt inspection and browser request journal
+
+Source now defines three fixed person endpoints: `GET /api/assistant/food/context`,
+`POST /api/assistant/food/apply` and `POST /api/assistant/food/inspect`. Authentication,
+current parent/teen role/token/family/Meals authority, rate limits and a domain-
+scoped session-owner header precede mutation/receipt access. Context retains the
+owner during a write pause and enables new saves only with Inventory, food
+readiness, existing owner-recovery/rollback gates and version storage available.
+Paired devices and missing/mismatched owner proof cannot enter this path.
+
+Apply requires a validated original key, a bounded64KiB exact command and the
+signed original role/generation/command binding. The existing idempotency boundary
+reserves the root; the canonical composition and real source guard commit all
+children/domain effects/root together. Readiness and ownership-rollout gates are
+checked for new effects, including the last guard boundary. Completed replay
+renews current original authority and command/receipt shape without needing a
+fresh source lease or target existence. Prep replay/inspection also retains the
+canonical verified-account bulk permission. This closes a source-only gap where
+a new valid account generation could otherwise have replayed an older generation's
+receipt. Retained completed receipts are historical pointers, not current-target
+existence or new-effect proof.
+
+Inspection is read-only and first matches original current authority, exact key,
+family/user/action/canonical hash and the signed original generation/role. Matching
+completed receipts return before expiry/readiness/source checks. Live in-progress
+records return pending without retry permission. Missing or abandoned records can
+become `ready` only after full current same-transaction source renewal within the
+original lease; that means the **same frozen key/body** may be deliberately retried,
+not that an earlier attempt failed. Expired/conflicting/paused/unavailable/malformed
+states never prove no effect, supply a replacement key, rewrite the intent or
+create a new proof. Inputs are bounded including nested-body escaping; replies are
+private/no-store and bounded to256KiB. No raw command/labels are logged on failure.
+
+Browser-safe contracts validate entry size/key/body, original expected person/
+household, receipt correspondence, unique choice/target/request pointers and
+consistent recovery states. Client inspection checks exact echoed body/key,
+current owner scope and an independently computed canonical request hash. Server
+`canRetry` and local `retryEligible` remain distinct; local eligibility also requires
+current enabled context and original deadline. Save sends only the frozen body/key
+to the fixed endpoint. Non-201, malformed success, timeout and HTTP refusals remain
+unknown until inspected; only a matching201 receipt confirms the attempt.
+
+`browser.ts` composes the existing owned request journal, domain-isolated owner
+scope, retirement/Web Lock rules and localStorage/IndexedDB candidate handling.
+There is no unowned fallback, background send, auto-retry or second food store.
+Four frozen entries are bounded within a768KiB journal and staged durably before
+send. A backwards-compatible `reviewBeforeEverySend` opt-in in the generic journal
+makes food inspect receipts/sources on **every** send, including in-session unknown
+retries; existing domains retain their previous recovered-only default. Recovered
+entries still require explicit user review, and delayed results still require the
+same current owner/storage lease. The journal retains entries even on success;
+only explicit confirmed dismissal or acknowledged local forgetting removes them.
+
+HTTP authority/ownership/body-bound/pause-replay/unknown cases, receipt-first state
+and original-generation refusal, client exact-body/hash/unknown handling, optional
+journal review/legacy-default and disposable-DB original-generation/prep-verification
+cases are authored **unrun**. No API was called and no real record was changed.
+Compact review/timing/portion UI, source-read DTO validation, draft/exit/pending/
+inbox integration and projection of canonical child grocery duplicate/Undo reports
+still need wiring. Root receipts stay minimal; do not silently omit those grocery
+outcomes from the final human journey. All original migration/concurrency/role/
+storage/client/rendered/release acceptance remains in consolidated QA, with flags
+unchanged/off and no source/QA/production acceptance conflation.
+
 ## Remaining source required before activation
 
 1. Finish the compact human review of unresolved existing commitments and
@@ -338,8 +402,9 @@ drop or reset version history as a routine rollback. No activation is establishe
    validate only issued recipe/ingredient selections, never arbitrary IDs/URLs.
    Renew owner/features/config and full source evidence after provider latency.
    Prompts must not invent ingredients, amounts, nutrition, allergies or safety.
-5. Connect the internal atomic apply adapter and signed command/source guard to
-   the owned confirmation UI, strict write/inspection APIs and exact recovery.
+5. Connect the authored atomic apply/source guard, strict write/inspection APIs
+   and exact owned request journal to the compact human confirmation, pending/
+   draft/exit/inbox controls and canonical grocery outcome/Undo presentation.
    Preserve the required legacy-writer version probes and bounded dependency
    coverage authored below; run their migration/isolation acceptance in the final
    QA phase before activation. Preserve source provenance,

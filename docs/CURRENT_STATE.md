@@ -1,5 +1,28 @@
 # Current State
 
+## Food save/recovery APIs and exact browser journal — 2026-10-22
+
+Source now includes person/owner-bound context, atomic apply and read-only receipt
+inspection endpoints. Completed replay renews original signed role/generation and
+current canonical bulk verification without depending on expired sources or deleted
+targets. Pending/missing/expired/conflict states never establish a failed save.
+Only an exact renewed original key/body can be retried; browser inspection checks
+echoed body/key/owner and independently computed canonical request hash.
+
+The food browser adapter uses existing owned storage/retirement leases. An opt-in
+requires receipt/source inspection before every food send, including same-screen
+unknown retries; existing domains retain recovered-only behavior. Entries remain
+durable on unknown and successful replies until explicit dismissal. All rollout
+and readiness gates stay unchanged/off; no provider/background writes are added.
+
+HTTP/recovery/client/journal and disposable-DB generation/prep-verification cases
+are authored and unrun. Compact owned UI/read DTO validation, timing/portion/draft/
+exit/pending/inbox integration and canonical grocery outcome/Undo presentation,
+provider/evaluation and broader remaining source still precede consolidated QA.
+No API/DB/migration/client/check/browser/native/CI/provider/flag action, push/merge/
+deploy or issue closure. Full goal stays active; see
+[`grounded-food-planning-v1.md`](./plans/grounded-food-planning-v1.md).
+
 ## Food source row versions — 2026-10-22
 
 Additive schema/migration source now defines insertion UUIDs and nonresettable

@@ -37,7 +37,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 
 ## Engineering references
 
-- Grounded food planning (#123/#122/#144): `docs/plans/grounded-food-planning-v1.md` (canonical reads/planner, internal atomic write composition and signed read-review/source renewal authored; positive-row version source also authored; migration acceptance, owned UI/apply/recovery, provider/evaluation and QA remain).
+- Grounded food planning (#123/#122/#144): `docs/plans/grounded-food-planning-v1.md` (canonical reads/planner, internal atomic write composition and signed read-review/source renewal authored; positive-row version source also authored; strict save/inspection and exact owned browser journal also authored; compact UI/inbox/grocery-outcome wiring, provider/evaluation, migration acceptance and QA remain).
 
 - Execution order: `docs/engineering/EXECUTION_ORDER.md`
 - Agent backlog: `docs/engineering/AGENT_BACKLOG.md`

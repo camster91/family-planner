@@ -1,3 +1,4 @@
+import { issueFoodReviewSeal } from "../review-proof";
 /** Authored/unrun. Opt-in disposable PostgreSQL only; the injected fixture guard
  * tests composition, NOT the still-required signed food-source verifier. */
 import { randomUUID } from "node:crypto";
@@ -62,6 +63,14 @@ suite("food plan canonical atomic write composition", () => {
     });
   }
   async function root(body: ReviewedFoodWrite) {
+    // Real owner/command signature; the fixture guard only bypasses source reads.
+    body.reviewProof = issueFoodReviewSeal(
+      actor,
+      body,
+      "a".repeat(64),
+      {},
+      new Date(),
+    );
     return db.idempotencyRecord.create({
       data: {
         scope: `user:${userId}`,
@@ -211,7 +220,7 @@ suite("food plan canonical atomic write composition", () => {
     });
     await expect(
       persistReviewedFoodPlan(db, actor, changed, record.id, source),
-    ).rejects.toMatchObject({ result: { status: 409 } });
+    ).rejects.toThrow();
     expect(source.verify).not.toHaveBeenCalled();
   });
   it("commits ordinary meals with normal full scaled groceries and an undo-compatible child receipt", async () => {
@@ -272,6 +281,31 @@ suite("food plan canonical atomic write composition", () => {
       ).rejects.toMatchObject({ result: { status: 403 } });
     } finally {
       process.env.FAMILY_FOOD_PLANNING_READY = "1";
+    }
+  });
+  it("does not replay an old-generation receipt into a newly authorized generation", async () => {
+    const body = input();
+    body.groceries = [];
+    const record = await root(body);
+    await persistReviewedFoodPlan(db, actor, body, record.id, guard());
+    await db.user.update({ where: { id: userId }, data: { token_version: 1 } });
+    const source = guard();
+    try {
+      await expect(
+        persistReviewedFoodPlan(
+          db,
+          { ...actor, generation: 1 },
+          body,
+          record.id,
+          source,
+        ),
+      ).rejects.toThrow();
+      expect(source.verify).not.toHaveBeenCalled();
+    } finally {
+      await db.user.update({
+        where: { id: userId },
+        data: { token_version: 0 },
+      });
     }
   });
   it("rolls back every effect if the source lease expires at the final boundary", async () => {
@@ -355,5 +389,19 @@ suite("food plan canonical atomic write composition", () => {
       amount: 200,
       source_key: `batch:${saved.prep!.dishes[0].batchId}`,
     });
+    await db.user.update({
+      where: { id: userId },
+      data: { email_verified: false },
+    });
+    try {
+      await expect(
+        persistReviewedFoodPlan(db, actor, body, record.id, guard()),
+      ).rejects.toMatchObject({ result: { status: 401 } });
+    } finally {
+      await db.user.update({
+        where: { id: userId },
+        data: { email_verified: true },
+      });
+    }
   });
 });

@@ -55,6 +55,9 @@ export type OwnedRequestJournalOptions<
   resolveContext: () => Promise<unknown>;
   candidates: (owner: QueueOwner) => QueueStore[];
   withLease?: <T>(owner: QueueOwner, run: () => Promise<T>) => Promise<T>;
+  /** Opt-in receipt/source inspection before every foreground send, including
+   * same-controller retries. Existing domains retain recovered-only behavior. */
+  reviewBeforeEverySend?: boolean;
   /** Must validate current canonical target/receipt before a deliberate recovered retry. */
   reviewRecovered?: (entry: E, context: C) => Promise<boolean>;
 };
@@ -475,10 +478,10 @@ export function createOwnedRequestJournal<
           if (!entry) return fail("INTENT_CHANGED");
           if (options.localDraftKind && entry.kind === options.localDraftKind)
             return fail("DISABLED");
+          if (held.has(key) && !reviewRecovered) return fail("REVIEW_REQUIRED");
           if (
-            held.has(key) &&
-            (!reviewRecovered ||
-              !options.reviewRecovered ||
+            (held.has(key) || options.reviewBeforeEverySend) &&
+            (!options.reviewRecovered ||
               !(await options.reviewRecovered(copy(entry), fresh)))
           )
             return fail("REVIEW_REQUIRED");

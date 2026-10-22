@@ -1,7 +1,9 @@
+import { FOOD_BODY_MAX_BYTES } from "./recovery-contract";
+import { foodWritingEnabled } from "./owner";
 import { readFoodSourceVersions } from "./source-versions";
-/** Concrete read/review + same-transaction source renewal. No HTTP apply route,
- * no provider, and no autonomous dispatch. Version storage must be applied and
- * verified; owned browser confirmation/recovery must finish before activation. */
+/** Concrete read/review + same-transaction source renewal. No provider or
+ * autonomous dispatch. Version storage must be applied and verified; the owned
+ * confirmation UI must finish before activation. */
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { reviewedFoodWrite, type ReviewedFoodWrite } from "./apply-contract";
 import {
@@ -289,11 +291,17 @@ export async function reviewFoodPlanWrite(
         readFoodReviewSeal(actor, { ...input, reviewProof }),
       );
       if (!foodPlanningEnabled()) throw new FoodReviewRefused();
+      const sealedInput = { ...input, reviewProof };
+      if (
+        Buffer.byteLength(JSON.stringify(sealedInput), "utf8") >
+        FOOD_BODY_MAX_BYTES
+      )
+        throw new FoodReviewRefused();
       return {
         owner: { ...actor },
         generatedAt: observation.generatedAt,
         expiresAt: observation.expiresAt,
-        input: { ...input, reviewProof },
+        input: sealedInput,
         plan: observation.plan,
         people: auxiliary.people.map(({ id, name, role }) => ({
           id,
@@ -316,7 +324,7 @@ export async function reviewFoodPlanWrite(
 export function createFoodWriteSourceGuard(): FoodWriteSourceGuard {
   let seal: FoodReviewSeal | null = null;
   const assertCurrent = () => {
-    if (!seal || !foodPlanningEnabled()) throw new FoodReviewRefused();
+    if (!seal || !foodWritingEnabled()) throw new FoodReviewRefused();
     assertFoodReviewLease(seal);
   };
   return {

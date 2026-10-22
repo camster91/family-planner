@@ -95,3 +95,52 @@ export const foodApplyReceipt = z
   })
   .strict();
 export type FoodApplyReceipt = z.infer<typeof foodApplyReceipt>;
+/** Pointer proof must correspond to this frozen command, not merely parse. */
+export function foodApplyReceiptMatches(
+  raw: unknown,
+  command: ReviewedFoodWrite,
+): boolean {
+  const parsed = foodApplyReceipt.safeParse(raw);
+  if (!parsed.success) return false;
+  const receipt = parsed.data;
+  const sameKeys = (
+    actual: readonly { key: string }[],
+    expected: readonly string[],
+  ) =>
+    actual.length === expected.length &&
+    new Set(actual.map((row) => row.key)).size === actual.length &&
+    actual.every((row) => expected.includes(row.key));
+  if (command.mode === "meals") {
+    if (
+      receipt.prep !== null ||
+      !sameKeys(
+        receipt.meals,
+        command.meals.map((row) => row.key),
+      ) ||
+      new Set(receipt.meals.map((row) => row.mealId)).size !==
+        receipt.meals.length
+    )
+      return false;
+  } else if (
+    receipt.meals.length ||
+    !receipt.prep ||
+    !sameKeys(receipt.prep.dishes, command.dishKeys) ||
+    new Set(receipt.prep.dishes.map((row) => row.batchId)).size !==
+      receipt.prep.dishes.length
+  )
+    return false;
+  return (
+    sameKeys(
+      receipt.groceries,
+      command.groceries.map((row) => row.key),
+    ) &&
+    new Set(receipt.groceries.map((row) => row.requestId)).size ===
+      receipt.groceries.length &&
+    receipt.groceries.every((row) =>
+      command.groceries.some(
+        (selection) =>
+          selection.key === row.key && selection.listId === row.listId,
+      ),
+    )
+  );
+}

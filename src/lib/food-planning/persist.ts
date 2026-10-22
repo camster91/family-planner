@@ -1,5 +1,6 @@
-/** Canonical write composition only. No route or provider may call this without
- * the concrete reviewed-source guard; that guard must bind the entire command,
+import { readFoodReviewSeal } from "./review-proof";
+/** Canonical write composition. The person HTTP adapter always supplies the
+ * concrete reviewed-source guard; that guard must bind the entire command,
  * renew all food/calendar evidence and enforce its original observation lease.
  * Do not return a failure from inside the transaction after the first effect. */
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -14,7 +15,7 @@ import {
 } from "../idempotency";
 import { mealCreateReceipt } from "../meal-create-contract";
 import { createMealWithReceiptInTx, MEAL_CREATE_ACTION } from "../meal-create";
-import { persistMealPrepInTx } from "../meal-batch-api";
+import { persistMealPrepInTx, authorizeMealBatchInTx } from "../meal-batch-api";
 import {
   ADD_FROM_RECIPE_ACTION,
   addFromRecipeSchema,
@@ -26,6 +27,7 @@ import {
   FOOD_APPLY_ACTION,
   reviewedFoodWrite,
   foodApplyReceipt,
+  foodApplyReceiptMatches,
   type ReviewedFoodWrite,
   type FoodApplyReceipt,
 } from "./apply-contract";
@@ -65,6 +67,7 @@ function success(result: EffectResult) {
 export async function authorizeFoodWriteInTx(
   tx: Prisma.TransactionClient,
   actor: FoodPlanActor,
+  command?: ReviewedFoodWrite,
 ) {
   await lockUser(tx, actor.userId);
   await lockHousehold(tx, actor.familyId);
@@ -88,6 +91,20 @@ export async function authorizeFoodWriteInTx(
   });
   if (!family || !isFeatureEnabled(normalizeFeatures(family.features), "meals"))
     refuse(403, "FORBIDDEN");
+  if (command?.mode === "prep") {
+    const refusal = await authorizeMealBatchInTx(tx, {
+      userId: actor.userId,
+      familyId: actor.familyId,
+      tokenVersion: actor.generation,
+    });
+    if (refusal) throw new FoodWriteRefused(refusal);
+  }
+  return {
+    inventoryEnabled: isFeatureEnabled(
+      normalizeFeatures(family.features),
+      "inventory",
+    ),
+  };
 }
 /** Root receipt is reserved by the normal idempotency boundary. Child receipts
  * are born and completed inside this transaction, never independently committed.
@@ -103,7 +120,8 @@ export async function persistReviewedFoodPlan(
   const input = reviewedFoodWrite.parse(raw);
   return db.$transaction(
     async (tx) => {
-      await authorizeFoodWriteInTx(tx, actor);
+      await authorizeFoodWriteInTx(tx, actor, input);
+      readFoodReviewSeal(actor, input); // Original role/generation; expiry is deliberately deferred for replay.
       await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id"=${recordId} FOR UPDATE`;
       const root = await tx.idempotencyRecord.findFirst({
         where: {
@@ -123,7 +141,11 @@ export async function persistReviewedFoodPlan(
       if (!root) refuse(409, "IDEMPOTENCY_IN_PROGRESS");
       if (root.response_status !== null) {
         const saved = foodApplyReceipt.safeParse(root.response_body);
-        if (root.response_status !== 201 || !saved.success)
+        if (
+          root.response_status !== 201 ||
+          !saved.success ||
+          !foodApplyReceiptMatches(root.response_body, input)
+        )
           refuse(409, "RECEIPT_UNAVAILABLE");
         return { status: 201, body: saved.data };
       }
@@ -273,7 +295,10 @@ export async function persistReviewedFoodPlan(
       if (!foodPlanningEnabled()) refuse(409, "UNAVAILABLE");
       guard.assertCurrent();
       const body = foodApplyReceipt.parse(receipt);
-      if (JSON.stringify(body).length > IDEMPOTENCY_MAX_BODY_CHARS)
+      if (
+        !foodApplyReceiptMatches(body, input) ||
+        JSON.stringify(body).length > IDEMPOTENCY_MAX_BODY_CHARS
+      )
         refuse(409, "RECEIPT_UNAVAILABLE");
       await tx.idempotencyRecord.update({
         where: { id: recordId },

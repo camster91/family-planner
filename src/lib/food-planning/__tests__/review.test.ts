@@ -1,3 +1,5 @@
+jest.mock("../owner", () => ({ foodWritingEnabled: jest.fn(() => true) }));
+import { foodWritingEnabled } from "../owner";
 jest.mock("../source-versions", () => ({
   readFoodSourceVersions: jest.fn(async () => []),
 }));
@@ -109,6 +111,7 @@ function fixture() {
 beforeEach(() => {
   jest.spyOn(Date, "now").mockReturnValue(+now);
   jest.mocked(foodPlanningEnabled).mockReturnValue(true);
+  jest.mocked(foodWritingEnabled).mockReturnValue(true);
   jest.mocked(readFoodSourceVersions).mockResolvedValue([]);
 });
 afterEach(() => {
@@ -159,7 +162,7 @@ it("refuses changed sources, modified writable fields and paused readiness", asy
   ).rejects.toThrow();
   const guard = createFoodWriteSourceGuard();
   await guard.verify(tx as never, actor, review.input);
-  jest.mocked(foodPlanningEnabled).mockReturnValue(false);
+  jest.mocked(foodWritingEnabled).mockReturnValue(false);
   expect(() => guard.assertCurrent()).toThrow();
 });
 it("refuses held, occupied, mismatched-portion and missing-source choices", () => {
