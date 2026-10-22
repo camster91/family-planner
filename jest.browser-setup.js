@@ -6,9 +6,11 @@ if (typeof document !== "undefined") {
   const { webcrypto, randomUUID } = require("node:crypto");
   const { TextEncoder, TextDecoder } = require("node:util");
   if (!globalThis.crypto?.subtle) {
-    Object.defineProperty(globalThis, "crypto", {
+    // Keep jsdom's per-environment Crypto object. Sharing Node's webcrypto
+    // object lets a suite's UUID stub leak into later suites in the same worker.
+    Object.defineProperty(globalThis.crypto, "subtle", {
       configurable: true,
-      value: webcrypto,
+      value: webcrypto.subtle,
     });
   }
   if (!globalThis.crypto.randomUUID) {

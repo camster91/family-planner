@@ -1,5 +1,14 @@
 # Current State
 
+## Consolidated QA: second full run still failing — 2026-10-22
+
+At `16382305`, the full serial suite exits1:81 failed/618 passed/82 skipped
+suites;271 failed/6679 passed/546 skipped tests. This is progress, not release
+acceptance. Types/lint/schema/configured formatting pass; lint retains44 warnings.
+The28 focused repair suites pass235 tests. The full run also exposed shared
+crypto state in browser test setup, now isolated to each jsdom environment.
+The exact evidence and unfinished gates remain in `docs/testing/WEB_QA_20261022.md`.
+
 ## Consolidated QA: first unit failures and recovery repairs — 2026-10-22
 
 The first full unit baseline at `e4aa6cdb` failed (95 failed/601 passed/82 skipped
