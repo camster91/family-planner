@@ -9,6 +9,7 @@ import {
   resolveCaptureConfig,
 } from '@/lib/capture'
 import { prisma } from '@/lib/prisma'
+import { RequestBodyTooLargeError, readBoundedJson } from '@/lib/bounded-body'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { CAPTURE_CHILD_MESSAGE, canUseCapture } from '@/lib/role-capabilities'
 import { logRouteWarning } from '@/lib/api-error'
@@ -64,17 +65,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Refuse an oversized body before parsing it into memory. A request
-    // without Content-Length (chunked) is still bounded by the field check below.
-    const declaredLength = Number(request.headers.get('content-length'))
-    if (Number.isFinite(declaredLength) && declaredLength > MAX_CAPTURE_BODY_BYTES) {
-      return NextResponse.json({ error: IMAGE_TOO_LARGE_MESSAGE }, { status: 413 })
-    }
-
+    // Refuse an oversized body before parsing it into memory, whether or not
+    // the client declared a Content-Length.
     let body: any
     try {
-      body = await request.json()
-    } catch {
+      body = await readBoundedJson(request, MAX_CAPTURE_BODY_BYTES)
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        return NextResponse.json({ error: IMAGE_TOO_LARGE_MESSAGE }, { status: 413 })
+      }
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
 

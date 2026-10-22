@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 import { HouseholdMemberIdentityConflict } from "@/lib/household-member-lifecycle";
+import { RequestBodyTooLargeError, readBoundedText } from "@/lib/bounded-body";
 
 export const dynamic = "force-dynamic";
 const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
@@ -36,25 +37,19 @@ export async function POST(
     );
   }
 
-  const declaredSize = Number(request.headers.get("content-length") ?? 0);
-  if (declaredSize > MAX_IMPORT_BYTES) {
-    return NextResponse.json(
-      { error: "Import payload exceeds 10 MB" },
-      { status: 413 },
-    );
-  }
-
   let body: unknown;
   try {
-    const raw = await request.text();
-    if (Buffer.byteLength(raw, "utf8") > MAX_IMPORT_BYTES) {
+    // Bounded while reading, so a chunked body without Content-Length
+    // cannot be buffered past the limit.
+    const raw = await readBoundedText(request, MAX_IMPORT_BYTES);
+    body = JSON.parse(raw);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
       return NextResponse.json(
         { error: "Import payload exceeds 10 MB" },
         { status: 413 },
       );
     }
-    body = JSON.parse(raw);
-  } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
