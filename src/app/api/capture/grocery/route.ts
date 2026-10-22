@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { captureGrocerySchema } from '@/lib/capture-grocery-contract'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
@@ -11,11 +11,6 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
-
-const captureGrocerySchema = z.object({
-  content: z.string().trim().min(1).max(500),
-  quantity: z.number().int().min(1).max(9999).default(1),
-})
 
 /**
  * Resolve the household grocery list and add the captured item in one keyed

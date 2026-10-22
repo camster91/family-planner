@@ -34,6 +34,7 @@
  * share of keyed requests deletes them); there is no cron (AGENTS.md).
  */
 import crypto from 'crypto'
+import { canonicalRequestJson } from '@/lib/idempotency-request-json'
 import { NextResponse } from 'next/server'
 import { logRouteError } from '@/lib/api-error'
 import type { PrismaClient } from '@prisma/client'
@@ -109,18 +110,8 @@ export function readIdempotencyKey(request: { headers: Headers }): { key: string
   return { key: value, error: null }
 }
 
-/** Key-order-independent JSON, so `{a,b}` and `{b,a}` hash the same. */
-function canonical(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value ?? null)
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([, v]) => v !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(',')}}`
-}
-
 export function hashIdempotentRequest(action: string, body: unknown): string {
-  return crypto.createHash('sha256').update(`${action}\n${canonical(body)}`).digest('hex')
+  return crypto.createHash('sha256').update(`${action}\n${canonicalRequestJson(body)}`).digest('hex')
 }
 
 function isUniqueViolation(error: unknown): boolean {

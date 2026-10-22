@@ -296,7 +296,11 @@ export function createOwnedRequestJournal<
         });
       }),
     /** Compare-and-replace a local-only draft. Network intents stay immutable. */
-    replaceLocalDraft: (input: E, expectedBody: string) =>
+    replaceLocalDraft: (
+      input: E,
+      expectedBody: string,
+      requireEnabled = false,
+    ) =>
       serial(async () => {
         const parsed = options.entry.safeParse(input);
         if (
@@ -321,7 +325,40 @@ export function createOwnedRequestJournal<
             fresh.owner,
           );
           held.add(entry.key);
-        }, true);
+        }, !requireEnabled);
+      }),
+    /** Atomically freeze an editable document into a canonical network intent.
+     * Keep its key and exact predecessor body; never rewrite a frozen intent.
+     * Persistence (including replica verification) completes before send can run.
+     */
+    promoteLocalDraft: (input: E, expectedBody: string) =>
+      serial(async () => {
+        const parsed = options.entry.safeParse(input);
+        if (
+          !parsed.success ||
+          !options.localDraftKind ||
+          parsed.data.kind === options.localDraftKind
+        )
+          return fail("INTENT_CHANGED");
+        const entry = parsed.data;
+        return checked(async (fresh) => {
+          if (!options.matchesContext(entry, fresh))
+            return fail("OWNER_CHANGED");
+          const existing = rows.find((row) => row.key === entry.key);
+          if (
+            !existing ||
+            existing.kind !== options.localDraftKind ||
+            existing.body !== expectedBody
+          )
+            return fail("INTENT_CHANGED");
+          await persist(
+            rows.map((row) => (row.key === entry.key ? copy(entry) : row)),
+            fresh.owner,
+          );
+          // This controller observed the exact durable transition. A reloaded
+          // controller still marks every recovered intent as requiring review.
+          held.delete(entry.key);
+        });
       }),
     /** Explicit user recovery only; repairs solely the exact known transition. */
     recoverStorage: () =>

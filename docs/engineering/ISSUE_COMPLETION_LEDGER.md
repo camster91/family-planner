@@ -400,3 +400,51 @@ durable owned capture/recipe draft persistence, exact submission/unknown-result
 lifecycle, wider role/device views, grounded references/evaluation and other ledger
 scope remain. QA stays deferred; #123/#144/#499 and the full goal remain open.
 
+
+
+## Owned review-document lifecycle foundation — 2026-10-21
+
+Source now defines separate bounded editable and frozen capture/recipe documents.
+Editable forms preserve all ingredient lines, partial numeric strings, empty fields,
+source/confidence/unknowns and evaluation time without saving prompts, photo bytes
+or raw provider responses. Strict bounds refuse a document rather than shortening
+it. A seven-day editable lease is fixed at creation; freezing creates a separate
+24-hour retry lease. Expiration holds the document for review, never automatically
+prunes it or permits a fresh key.
+
+The existing owned journal gains an atomic exact-predecessor promotion from local
+editable document to immutable submitted intent. Persistence/replica verification
+finishes before transport can run. Review-document adapters reuse its owner lease,
+CAS, uncertain-write recovery and erasure inventory. One document per domain is
+held; a new begin cannot overwrite existing submitted work. Exact keys and encoded
+canonical request bodies survive interrupted sends. Recovered retries first inspect
+receipts and then renew ownership/storage/gates before transport; committed deleted
+or opaque results cannot become creates or be automatically retired. Current record
+presence is required for the explicit completion cleanup. This is infrastructure
+source; domain hosts still must supply the actual canonical transport.
+
+A new authenticated context endpoint returns a person-only domain namespace and
+current write readiness. Parent/teen only; paired sessions use existing refusal.
+Historical ownership remains stable through a write pause. New edits/freezes/sends
+require existing queue recovery/rollback readiness plus the new default-off
+`FAMILY_REVIEW_DOCUMENTS_READY=1`; no flags were changed. Missing/inaccessible
+browser storage is a hold, with no unowned fallback.
+
+Recipe create receipts now have a state-only inspection endpoint that reuses the
+canonical recipe actor/household locks, role, generation and feature authority.
+It distinguishes absent, pending, expired, conflicting, present, removed and opaque
+results without returning cached recipe content or changing receipts. Capture and
+recipe receipt clients hash parsed canonical inputs using a shared serializer;
+existing capture/server fingerprint serialization is preserved. Recipe and grocery
+write schemas move into browser-safe modules and remain reexported/used by their
+existing canonical routes, without introducing another domain write model.
+
+Storage/lifecycle and recipe receipt case code is authored, unrun. Only source
+inspection/edits and selected-file formatting occurred. No tests/typecheck/lint/
+build/browser/API/SQL/DB/native/CI, flag activation, push/merge or deployment.
+CaptureBox and RecipeEditor are not yet connected to this document lifecycle;
+their unsent forms remain in memory. Next: canonical transport owner binding,
+recipe/capture host restore/freeze/retry controls, explicit refusal/duplicate-source
+resolution, read-only inbox discovery and full navigation/failed-flush protection.
+Wider role/routine/AI and ledger scope remains open; QA stays deferred.
+

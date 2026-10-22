@@ -1,3 +1,4 @@
+import { hashBrowserIdempotentRequest } from '@/lib/idempotency-request-json'
 /**
  * Small, privacy-scoped recovery envelopes for confirmed AI capture writes.
  *
@@ -190,20 +191,7 @@ export function saveCaptureRecovery(
   }
 }
 
-/** Key-order-independent JSON matching the server idempotency hash contract. */
-function canonical(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value ?? null)
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([, child]) => child !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-  return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${canonical(child)}`).join(',')}}`
-}
-
+/** Uses the same canonical serialization as server receipts. */
 export async function hashCaptureRequest(action: CaptureRecoveryAction, body: unknown): Promise<string> {
-  const subtle = globalThis.crypto?.subtle
-  if (!subtle) return ''
-  const bytes = new TextEncoder().encode(`${action}\n${canonical(body)}`)
-  const digest = await subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return hashBrowserIdempotentRequest(action, body)
 }
