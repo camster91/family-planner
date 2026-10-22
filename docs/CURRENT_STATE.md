@@ -1,5 +1,44 @@
 # Current State
 
+## Shared/profile preparation labels source — 2026-10-22
+
+The existing Today board builder now optionally projects
+`sharedPreparationContext: { [visibleChoreId]: { eventTitle } }` after its canonical
+account/profile task resolution. This is a new shared-safe title projection,
+separate from parent backlinks/origin maps. It uses only the already-shared
+schedule title (bounded to512 characters), and includes no event/routine/plan IDs,
+source tokens, cue times, completion/proof/parent-check state, descriptions,
+addresses, names of other assignees or parent edit capability. A profile remains
+a task subject, never an authenticated actor.
+
+The reader is bounded to80 deduplicated validated current board task IDs. Every
+relationship joins Event, Chore, preparation and Family ownership keys, rejects
+erased/templates, renews current account membership or active valid unlinked
+profile subject, and requires calendar/chores enabled. Profiles additionally need
+explicit protocol2 and the existing profile gate. Paused preparation, missing
+storage and protocol incompatibility omit context. Caller authentication and
+family authority remain the canonical person/device board route responsibilities;
+this is not a standalone endpoint or authorization grant.
+
+Live fridge task rows show the existing EN/ES read-only getting-ready label for
+both account and eligible email-free subjects, without another button/input.
+Canonical completion, subject selection, parent checks and Undo remain unchanged.
+The optional field participates in the existing whole-board version hash, so
+source title/link changes use ordinary board refresh. The cache allowlist
+intentionally excludes this field, and cachedSnapshot rendering omits labels even
+if a retained in-memory live response has them. Protocol2 stays online-only.
+Older clients ignore the additive field; no schema/migration/provider/scheduler,
+new persistence or polling is added.
+
+Reader/window/privacy/gate, disposable-DB household/profile/archive, cache omission
+and EN/ES presentation cases are authored and unrun. Source edits/inspection and
+selected formatting only; no tests/types/lint/build/browser/application-API/SQL/DB/
+client/native/CI, activation, push/merge/deploy or issue closure. Shared/profile
+preparation labels are source-authored, not accepted on rendered/physical devices.
+Own-account chore/history context beyond the existing child home/routine surfaces,
+other domain history/refusal UX and grounded AI/planning/evaluation/usage remain
+implementation work before consolidated QA. Full goal remains active.
+
 ## Routine copy provenance and personal chore context source — 2026-10-22
 
 Routine reuse now appends a minimal `preparation_routine_copied` Activity fact

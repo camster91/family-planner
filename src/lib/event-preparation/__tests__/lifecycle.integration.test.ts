@@ -10,6 +10,11 @@ import {
   readPreparationRoutineOrigins,
 } from "../origin";
 import { EVENT_PREPARATION_READY_ENV } from "../owner";
+import { readSharedPreparationContext } from "../shared-discovery";
+import {
+  PROFILE_CHORE_ENABLE_ENV,
+  PROFILE_CHORE_ROLLBACK_READY_ENV,
+} from "@/lib/profile-chore-gates";
 const run = process.env.RUN_DB_INTEGRATION === "1" ? describe : describe.skip;
 run("event preparation scoped metadata and canonical lifecycle", () => {
   const family = `prep-qa-${crypto.randomUUID()}`,
@@ -94,6 +99,73 @@ run("event preparation scoped metadata and canonical lifecycle", () => {
         Array<{ epoch: number }>
       >`SELECT "preparation_epoch" AS epoch FROM "Event" WHERE "id"=${eventId} AND "family_id"=${family}`
     )[0].epoch;
+  it("limits shared context to exact current household tasks and active protocol-2 profiles", async () => {
+    const { choreId } = await fixture();
+    const keys = [
+      EVENT_PREPARATION_READY_ENV,
+      PROFILE_CHORE_ENABLE_ENV,
+      PROFILE_CHORE_ROLLBACK_READY_ENV,
+    ];
+    const prior = keys.map((key) => process.env[key]);
+    keys.forEach((key) => {
+      process.env[key] = "1";
+    });
+    try {
+      const scope = {
+        familyId: family,
+        memberProtocol: 1 as const,
+        visibleChoreIds: [choreId],
+      };
+      expect(await readSharedPreparationContext(prisma!, scope)).toEqual({
+        [choreId]: { eventTitle: "Fixture event" },
+      });
+      expect(
+        await readSharedPreparationContext(prisma!, {
+          ...scope,
+          familyId: foreignFamily,
+        }),
+      ).toEqual({});
+      const memberId = `member-${crypto.randomUUID()}`;
+      await prisma!.householdMember.create({
+        data: {
+          id: memberId,
+          family_id: family,
+          name: "Fixture profile",
+          role: "child",
+          age: 3,
+        },
+        select: { id: true },
+      });
+      await prisma!.chore.update({
+        where: { id: choreId },
+        data: { assigned_to: null, assigned_member_id: memberId },
+        select: { id: true },
+      });
+      expect(await readSharedPreparationContext(prisma!, scope)).toEqual({});
+      expect(
+        await readSharedPreparationContext(prisma!, {
+          ...scope,
+          memberProtocol: 2,
+        }),
+      ).toEqual({ [choreId]: { eventTitle: "Fixture event" } });
+      await prisma!.householdMember.update({
+        where: { id: memberId },
+        data: { archived_at: new Date() },
+        select: { id: true },
+      });
+      expect(
+        await readSharedPreparationContext(prisma!, {
+          ...scope,
+          memberProtocol: 2,
+        }),
+      ).toEqual({});
+    } finally {
+      keys.forEach((key, index) => {
+        if (prior[index] === undefined) delete process.env[key];
+        else process.env[key] = prior[index];
+      });
+    }
+  });
   it("keeps copy provenance after detach, scopes it to its household, suppresses erased sources and rolls back failed facts", async () => {
     const { choreId, planId } = await fixture();
     const stackId = `stack-${crypto.randomUUID()}`,

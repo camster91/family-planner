@@ -189,7 +189,12 @@ it("refuses malformed DTOs without claiming durability", () => {
 it("does not persist protocol-2 profile boards", () => {
   const { storage, values } = store();
   expect(
-    writeDeviceBoardCache(storage, "device-a", { ...board(), memberProtocol: 2 }, now),
+    writeDeviceBoardCache(
+      storage,
+      "device-a",
+      { ...board(), memberProtocol: 2 },
+      now,
+    ),
   ).toBe(false);
   expect(values.size).toBe(0);
 });
@@ -214,4 +219,31 @@ it("tolerates missing, inaccessible and quota-limited storage", () => {
     state: "invalid",
   });
   expect(writeDeviceBoardCache(broken, "device-a", board(), now)).toBe(false);
+});
+
+/** Authored/unrun: relationship context must not survive offline storage. */
+it("omits online preparation labels and parent relationships from cached snapshots", () => {
+  const { storage, values } = store();
+  expect(
+    writeDeviceBoardCache(
+      storage,
+      "device-a",
+      {
+        ...board(),
+        sharedPreparationContext: {
+          "chore-a": { eventTitle: "ONLINE_PREPARATION_CONTEXT" },
+        },
+        preparationBacklinks: { "chore-a": "PRIVATE_EVENT_REFERENCE" },
+      },
+      now,
+    ),
+  ).toBe(true);
+  const raw = values.get("fp-device:v1:device-a:today")!;
+  expect(raw).not.toMatch(
+    /ONLINE_PREPARATION_CONTEXT|PRIVATE_EVENT_REFERENCE|sharedPreparationContext|preparationBacklinks/,
+  );
+  const restored = readDeviceBoardCache(storage, "device-a", now + 1000);
+  if (restored.state !== "ready")
+    throw new Error("Expected passive cached board");
+  expect(restored.board.sharedPreparationContext).toBeUndefined();
 });

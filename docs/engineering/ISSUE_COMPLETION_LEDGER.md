@@ -1,5 +1,7 @@
 # Open issue completion ledger
 
+2026-10-22 source checkpoint: shared/profile online preparation labels now use the canonical board window and current subject gates, without parent capabilities or cache persistence. Reader, disposable-DB, cache and EN/ES cases are authored/unrun; no activation/release. See `docs/plans/event-preparation-v1.md`. #123/#128 remain in progress.
+
 2026-10-22 source checkpoint: routine-copy immutable facts, personal parent chore/editor/history discovery and unrun lifecycle/isolation cases are authored. See `docs/plans/event-preparation-v1.md` and `docs/CURRENT_STATE.md`. #123/#128 remain in progress; no QA, activation or release evidence is claimed.
 
 Updated 2026-10-18. Canonical parents: #128 and #499. This is an execution index of existing issues, not a competing roadmap or evidence of completion.

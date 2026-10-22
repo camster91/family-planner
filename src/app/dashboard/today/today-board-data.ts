@@ -1,3 +1,4 @@
+import { readSharedPreparationContext, type SharedPreparationContext } from '@/lib/event-preparation/shared-discovery' 
 import { hiddenRoutineOccurrenceIds, scheduledOnceRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 /**
  * Shared-surface DTO for the Today board (/dashboard/today, #119 / #159).
@@ -187,6 +188,8 @@ export interface TodayBoardData {
   members: BoardMember[]
   events: BoardEvent[]
   chores: BoardChore[]
+  /** Online shared-schedule title context only; deliberately omitted by cache schema. */
+  sharedPreparationContext?: SharedPreparationContext
   /** null when meal planning is turned off for the household. */
   dinners: BoardDinner[] | null
   /** null when the role may not open lists (never for the current roles), or for a device when lists are off. */
@@ -697,6 +700,16 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     ]
   })
 
+  // Use only the exact already-resolved account/profile tasks. No parent map,
+  // plan IDs/tokens, private details or profile-as-actor inference crosses here.
+  const sharedPreparationContext = protocolError || (hasProfileRows && memberProtocol === 1)
+    ? {}
+    : await readSharedPreparationContext(db, {
+        familyId,
+        memberProtocol,
+        visibleChoreIds: boardChores.map((chore) => chore.id),
+      })
+
   return {
     generatedAt: now.toISOString(),
     memberProtocol,
@@ -721,6 +734,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
       }
     }),
     chores: boardChores,
+    ...(Object.keys(sharedPreparationContext).length ? { sharedPreparationContext } : {}),
     dinners: dinners
       ? dinners.map((d) => ({
           id: d.id,

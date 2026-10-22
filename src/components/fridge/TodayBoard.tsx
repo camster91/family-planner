@@ -993,6 +993,9 @@ export default function TodayBoard({
             {/* A personal summary may already contain all today's chore rows. */}
             {fridgeMode && showChores && (
               <ChoresRegion
+                preparationContext={
+                  cachedSnapshot ? undefined : data.sharedPreparationContext
+                }
                 people={view.chores}
                 choresHref={data.links.chores}
                 onTick={tiles.tickChore}

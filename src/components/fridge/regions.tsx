@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+import { OwnPreparationNote } from '@/components/calendar/preparation/OwnPreparationNote'
+import type { SharedPreparationContext } from '@/lib/event-preparation/shared-discovery' 
 import Link from 'next/link'
 import {
   CalendarDays,
@@ -519,8 +521,10 @@ export function ChoreRow({
   onTick,
   canTick,
   showOwner = false,
+  preparation,
   action,
 }: {
+  preparation?: SharedPreparationContext[string]
   action?: React.ReactNode
   chore: BoardChore
   name: string
@@ -536,6 +540,7 @@ export function ChoreRow({
         <BoardRoutineIcon icon={c.icon} />
       )}
       {c.title}
+      {preparation && <OwnPreparationNote title={preparation.eventTitle} />}
       {showOwner && <span className={cn(metaTextClass, 'block')}>{name}</span>}
       {c.status === 'in_progress' && (
         <span className={cn(metaTextClass, 'block')}>{text('inProgress')}</span>
@@ -571,11 +576,13 @@ export function ChoreRow({
 }
 
 export function ChoresRegion({
+  preparationContext = {},
   people,
   choresHref,
   onTick,
   canTick,
 }: {
+  preparationContext?: SharedPreparationContext
   people: PersonChores[]
   choresHref: string | null
   /** #274: tapping a chore marks it done (with Undo). Null: rows are plain text. */
@@ -617,7 +624,7 @@ export function ChoresRegion({
                     <p className={cn(metaTextClass, 'mt-1')}>{text('allDoneToday')}</p>
                   ) : (
                     <ul className="mt-1 space-y-1">
-                      {shown.map((c) => <ChoreRow key={c.id} chore={c} name={name} onTick={onTick} canTick={canTick} />)}
+                      {shown.map((c) => <ChoreRow key={c.id} chore={c} name={name} onTick={onTick} canTick={canTick} preparation={preparationContext[c.id]} />)}
                       {more > 0 && <li className={metaTextClass}>{text('more', { count: more })}</li>}
                     </ul>
                   )}

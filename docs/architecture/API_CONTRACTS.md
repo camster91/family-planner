@@ -921,3 +921,17 @@ feeds, and new completion actor/target markers are masked in the older Activity
 DTO. Existing own-Activity export and erasure still apply. Source/helper/API/
 privacy/pagination/component and replay cases are authored, all unrun. Consolidated
 Postgres/isolation/role/device/browser/localization/release gates remain pending.
+
+## Optional shared preparation labels (source, 2026-10-22)
+
+The canonical Today board DTO may include `sharedPreparationContext`, keyed only
+by task IDs already resolved into its `chores` window, with values `{ eventTitle }`
+(max512 characters). The existing preparation readiness/schema/domain gates
+apply. Protocol1 permits current account subjects; email-free profiles require
+protocol2 and the existing profile readiness gate. No parent relationship maps,
+plan/event/routine IDs, cues, notes, tokens, private proof or new write capability
+are exposed. This field joins only same-household canonical records and is part
+of the ordinary board version hash. Older clients may ignore it. The current
+offline cache allowlist deliberately strips it and cached UI omits its labels.
+No cache schema, API route, migration, polling or activation is added. Source
+cases are authored/unrun; integrated QA and release gates remain open.
