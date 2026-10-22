@@ -409,6 +409,7 @@ export async function previewFoodPlanInTx(
   assertObservationCurrent(now);
   return {
     owner: { ...actor },
+    sourceRequest: input,
     generatedAt: now.toISOString(),
     expiresAt: new Date(+now + 60000).toISOString(),
     recipeScope: input.recipeIds ? ("selected" as const) : ("library" as const),

@@ -1,5 +1,25 @@
 # Current State
 
+## Food review presentation and browser transport — 2026-10-22
+
+The initial person-only food summary now pages one meal/dish at a time and keeps
+large ingredient/commitment/prepared-portion details short. Unknown cooking time,
+calendar holds, quantity/matching limits and distinct portion counts remain explicit.
+Alternative selection emits a fresh-preview callback without saving. An existing-
+foundation design spec documents the complete intended sheet/role/recovery states.
+
+Strict browser preview/review DTOs and read helpers validate current owner,
+normalized echoed query (including dates), choices/portions, exact reviewed command
+and selected people/list/grocery IDs before rendering. Delayed reads renew current
+person scope before returning. Shared pure choice matching keeps server review
+and browser validation aligned. Source/mounted cases authored
+and unrun. The full sheet/entry points, editable/timing/portion/draft/exit/pending/
+inbox controls and canonical grocery outcome/Undo wiring, provider/evaluation and
+broader remaining source still precede consolidated QA. No rendering/API/DB/check/
+provider/flag/push/merge/deploy action or issue closure. See
+[`grounded-food-planning-v1.md`](./plans/grounded-food-planning-v1.md) and
+[`FOOD_PLAN_REVIEW.md`](../design/FOOD_PLAN_REVIEW.md). Full goal remains active.
+
 ## Food save/recovery APIs and exact browser journal — 2026-10-22
 
 Source now includes person/owner-bound context, atomic apply and read-only receipt

@@ -655,3 +655,17 @@ Compact human UI/read DTO/draft/exit/pending/inbox and child grocery outcome/Und
 wiring, provider/evaluation and remaining broader source precede consolidated QA.
 No API/DB/DDL/client/test/type/lint/build/browser/native/CI/provider/flag/release action;
 full goal/issues remain open.
+
+
+### 2026-10-22 — compact food source summary and read DTOs (#123/#144)
+
+An existing-foundation design spec and initial person-only per-choice summary now
+cover paginated expandable ingredients/commitments/prepared counts, unknown time,
+calendar holds and alternative-preview callbacks without side effects. Strict
+browser DTOs/read helpers bind current owner, echoed normalized date/query,
+selected catalog/portions, complete reviewed command and exact displayed selection
+IDs; pure choice semantics are shared with server review. Source/mounted cases
+unrun, no rendered/API/DB/provider/flag/release action. Full sheet/entry-point/
+editable/timing/portion/draft/exit/pending/inbox and grocery outcome/Undo wiring,
+provider/evaluation and broader remaining source still precede consolidated QA.
+Full goal and issues remain open.

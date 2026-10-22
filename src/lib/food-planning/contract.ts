@@ -123,6 +123,7 @@ export const foodPreviewRequest = z
   })
   .strict();
 
+export type FoodPreviewRequest = z.infer<typeof foodPreviewRequest>;
 export type FoodRecipe = {
   id: string;
   title: string;

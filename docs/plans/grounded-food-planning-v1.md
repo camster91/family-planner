@@ -383,6 +383,42 @@ outcomes from the final human journey. All original migration/concurrency/role/
 storage/client/rendered/release acceptance remains in consolidated QA, with flags
 unchanged/off and no source/QA/production acceptance conflation.
 
+## Compact source review presentation and transport
+
+`design/FOOD_PLAN_REVIEW.md` extends the existing meal journey/composition and
+approved calm-sheet direction. It records flow/state/role/draft/Back requirements,
+without claiming a newly created Figma frame or rendered approval.
+
+`view-contract.ts` validates nested preview/review payloads before browser use:
+source labels, IDs, amounts, unknowns, holds, calendar evidence, commitments,
+prepared counts and the exact60-second lease. Preview now echoes the normalized
+source query; client read rejects a different date/query even if slot keys match,
+alongside household/role/generation, selected recipe catalog and portion checks.
+Signed review compares the complete normalized command, and browser/server share
+pure `foodWriteChoicesMatch` semantics. After either private read, client helpers
+renew person scope and generation before returning delayed data for rendering. Review display people/lists/grocery choice/
+ingredient IDs must correspond exactly to the selected command; extra private
+metadata, unrelated records or held/inconsistent choices refuse before rendering.
+No keyed revision or client parser becomes authority to save.
+
+`FoodPlanSummary` is an initial person-only presentation component: one meal/dish
+at a time, labelled previous/next controls and expandable paginated ingredient,
+commitment and prepared-portion lists. Alternatives emit only a selection callback
+for a fresh preview. Scaled cooking time stays unknown despite a recorded base
+estimate. Calendar fit is explicitly an estimate against recorded household
+events; holds never become a successful feasibility claim. Existing quantities,
+recipe-default servings, unresolved states, next prep and distinct eaten/planned/
+remaining/unplanned counts remain visible. It performs no fetch/save/stock/portion
+write, and prepared portions link to canonical prep management. The parent sheet,
+edit/timing/portion controls, durable draft/exit/pending/inbox orchestration and
+confirmed grocery outcome/Undo integration remain to be wired; the component is
+not exposed as an unfinished replacement for existing Meals controls.
+
+DTO owner/query/command/nested-shape and mounted per-choice/long-list/unknown-time/
+hold/alternative cases are authored **unrun**. No app rendering, API/DB call,
+browser/source acceptance, flag activation or release was performed. Full UI,
+provider/evaluation and the other remaining sources still precede consolidated QA.
+
 ## Remaining source required before activation
 
 1. Finish the compact human review of unresolved existing commitments and
@@ -393,8 +429,9 @@ unchanged/off and no source/QA/production acceptance conflation.
    revalidation using the concrete source/interval implementation above. Recurring
    source expansion remains held under canonical #124; no complete recurrence or
    physical availability acceptance is claimed from the new read source.
-3. Add a compact existing Meals/weekly-review/chat preview that exposes source,
-   unknowns, portions and editable choices. Use existing owned-draft navigation,
+3. Wire the authored compact summary and strict read/review DTOs into the existing
+   Meals/weekly-review/chat sheet, exposing source, unknowns, portions and editable
+   choices. Use existing owned-draft navigation,
    owner/generation scoping and durable review inbox contracts. Keep ordinary
    provider-free controls usable when AI is unavailable. Complete the appropriate
    design/spec alignment before substantial new UI.

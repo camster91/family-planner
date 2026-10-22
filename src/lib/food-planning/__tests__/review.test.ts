@@ -99,6 +99,7 @@ function fixture() {
   };
   const observation = {
     owner: actor,
+    sourceRequest,
     generatedAt: now.toISOString(),
     expiresAt: new Date(+now + 60000).toISOString(),
     snapshotRevision: "a".repeat(64),

@@ -1,3 +1,7 @@
+import { sameQueueOwner } from "../queue-owner-contract";
+import { foodPreviewRequest } from "./contract";
+import { foodPreviewView, foodReviewView } from "./view-contract";
+import { canonicalRequestJson } from "../idempotency-request-json";
 /** Explicit foreground I/O only. Never auto-send, refresh a proof, change a key,
  * drop a pending request or infer no effect from an HTTP/refusal/missing receipt. */
 import { requestOwnedJson as request } from "../owned-request-http";
@@ -125,4 +129,104 @@ export async function sendFoodIntent(
     kind: "confirmed" as const,
     receipt: foodApplyReceipt.parse(result.body),
   };
+}
+
+/** Fresh read only. Edited alternatives must be sent through this query again. */
+export async function readFoodPreview(
+  query: import("./contract").FoodPreviewRequest,
+  context: FoodRecoveryContext,
+) {
+  const input = foodPreviewRequest.parse(query);
+  const result = await request(
+    "/api/assistant/food",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+    262144,
+  );
+  if (result.kind !== "reply" || !result.response.ok)
+    throw new Error("Food preview unavailable");
+  const view = foodPreviewView.parse(result.body);
+  requireViewOwner(view.owner, context);
+  for (const row of view.plan.slots) {
+    const slot = input.plan.slots.find((slot) => slot.key === row.key);
+    if (
+      !slot ||
+      [row.choice, ...row.alternatives].some(
+        (choice) =>
+          choice &&
+          (choice.servings !== slot.servings ||
+            (input.recipeIds && !input.recipeIds.includes(choice.recipeId))),
+      ) ||
+      (row.choice && slot.recipeId && row.choice.recipeId !== slot.recipeId)
+    )
+      throw new Error("Food preview choices changed");
+  }
+  if (
+    canonicalRequestJson(view.sourceRequest) !== canonicalRequestJson(input) ||
+    view.recipeScope !== (input.recipeIds ? "selected" : "library") ||
+    view.plan.slots.length !== input.plan.slots.length ||
+    view.plan.slots.some(
+      (row) => !input.plan.slots.some((slot) => slot.key === row.key),
+    )
+  )
+    throw new Error("Food preview scope changed");
+  await renewFoodReadOwner(view.owner, context);
+  return view;
+}
+export async function readFoodWriteReview(
+  command: ReviewedFoodWrite,
+  context: FoodRecoveryContext,
+) {
+  const input = reviewedFoodWrite.parse(command);
+  const result = await request(
+    "/api/assistant/food/review",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+    262144,
+  );
+  if (result.kind !== "reply" || !result.response.ok)
+    throw new Error("Food review unavailable");
+  const view = foodReviewView.parse(result.body);
+  requireViewOwner(view.owner, context);
+  if (
+    canonicalRequestJson({ ...view.input, reviewProof: undefined }) !==
+    canonicalRequestJson({ ...input, reviewProof: undefined })
+  )
+    throw new Error("Food review command changed");
+  await renewFoodReadOwner(view.owner, context);
+  return view;
+}
+function requireViewOwner(
+  owner: import("./view-contract").FoodPreviewView["owner"],
+  context: FoodRecoveryContext,
+) {
+  if (
+    !context.owner ||
+    owner.userId !== context.userId ||
+    owner.familyId !== context.familyId ||
+    owner.role !== context.role ||
+    owner.generation !== context.owner.generation
+  )
+    throw new Error("Food view owner changed");
+}
+
+/** A delayed private read belongs only to the original current person scope. */
+async function renewFoodReadOwner(
+  owner: import("./view-contract").FoodPreviewView["owner"],
+  original: FoodRecoveryContext,
+) {
+  const current = await readFoodRecoveryContext();
+  if (
+    !original.owner ||
+    !current.owner ||
+    !sameQueueOwner(original.owner, current.owner)
+  )
+    throw new Error("Food view owner changed");
+  requireViewOwner(owner, current);
 }
