@@ -1,7 +1,7 @@
 "use client";
 import { AiUsagePanel } from "@/components/assistant/AiUsagePanel";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import CalendarSubscriptionsSection from "./CalendarSubscriptionsSection";
@@ -160,6 +160,9 @@ export default function SettingsClient({
   const isParent = viewerRole === "parent";
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState("settings-account");
+  const revealCalendarReturn = useCallback(() => {
+    if (isParent) setActiveSection("settings-family");
+  }, [isParent]);
   useEffect(() => {
     const selectAnchor = () => {
       const target = document.getElementById(window.location.hash.slice(1));
@@ -913,7 +916,9 @@ export default function SettingsClient({
           <CalendarSubscriptionsSection />
 
           {/* Two-way Google/Outlook sync, #264. Hidden unless the server has it configured. */}
-          {calendarSync && <CalendarSyncSection />}
+          {calendarSync && (
+            <CalendarSyncSection onProviderReturn={revealCalendarReturn} />
+          )}
 
           {aiUsage && isParent && (
             <AiUsagePanel identity={aiUsage} refreshKey={aiProviderRevision} />

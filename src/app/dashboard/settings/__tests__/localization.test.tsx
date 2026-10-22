@@ -70,9 +70,34 @@ function api(
   ) as typeof fetch;
   return calls;
 }
+// Upstream locale changes must preserve mounted drafts even when the account
+// language selector is hidden by the active tab or by a modal.
+function LocaleSignal() {
+  const { locale, setLocale } = useTranslation();
+  return (
+    <select
+      aria-label="Test locale signal"
+      value={locale}
+      onChange={(e) => setLocale(e.target.value as "en" | "es")}
+    >
+      <option value="en">English signal</option>
+      <option value="es">Spanish signal</option>
+    </select>
+  );
+}
+function signalLocale(locale: "en" | "es") {
+  fireEvent.change(screen.getByLabelText("Test locale signal"), {
+    target: { value: locale },
+  });
+}
+async function familyTab() {
+  await screen.findByLabelText("Full Name");
+  fireEvent.click(screen.getByRole("button", { name: "Family" }));
+}
 function mounted(role: "parent" | "teen" = "parent", ai = false) {
   return render(
     <I18nProvider locale="en" persistLocale>
+      <LocaleSignal />
       <SettingsClient
         viewerRole={role}
         sharedDevice={null}
@@ -88,6 +113,7 @@ async function spanish() {
   );
 }
 beforeAll(() => {
+  HTMLElement.prototype.scrollIntoView = jest.fn();
   window.matchMedia =
     window.matchMedia ||
     ((() => ({
@@ -98,6 +124,7 @@ beforeAll(() => {
 });
 beforeEach(() => {
   refresh.mockReset();
+  window.history.replaceState({}, "", "/dashboard/settings");
   window.localStorage.clear();
   document.documentElement.lang = "en";
 });
@@ -199,6 +226,7 @@ it("beta pending/authoritative state and late notice change presentation without
   );
   render(
     <I18nProvider locale="en">
+      <LocaleSignal />
       <Switch />
       <BetaMetricsSwitch initialEnabled={false} />
     </I18nProvider>,
@@ -238,10 +266,11 @@ it("parent PIN native drafts, focus and local validation survive mounted languag
   const calls = api();
   render(
     <I18nProvider locale="en">
+      <LocaleSignal />
       <SettingsClient viewerRole="parent" sharedDevice={{ hasPin: false }} />
     </I18nProvider>,
   );
-  await screen.findByLabelText("Full Name");
+  await familyTab();
   await userEvent.click(screen.getByRole("button", { name: "Set PIN" }));
   const dialog = screen.getByRole("dialog");
   const pin = within(dialog).getByLabelText("New 6-digit PIN");
@@ -250,9 +279,7 @@ it("parent PIN native drafts, focus and local validation survive mounted languag
   const before = calls.length;
   fireEvent.submit(dialog.querySelector("form")!);
   expect(screen.getByText("The PIN must be exactly 6 digits.")).toBeVisible();
-  fireEvent.change(screen.getByLabelText("Preferred language"), {
-    target: { value: "es" },
-  });
+  signalLocale("es");
   expect(screen.getByRole("dialog")).toBe(dialog);
   expect(within(dialog).getByLabelText("PIN nuevo de 6 dígitos")).toBe(pin);
   expect(pin).toHaveValue("248");
@@ -281,7 +308,7 @@ it("subscription rename draft and late refresh counts follow locale with private
     return undefined;
   });
   mounted();
-  await screen.findByLabelText("Full Name");
+  await familyTab();
   await userEvent.click(
     (
       await screen.findByRole("heading", { name: "Subscribed calendars" })
@@ -293,20 +320,17 @@ it("subscription rename draft and late refresh counts follow locale with private
   const draft = screen.getByLabelText("New name");
   fireEvent.change(draft, { target: { value: "Private {name} 李" } });
   const draftReads = calls.length;
-  await spanish();
+  signalLocale("es");
   expect(screen.getByLabelText("Nombre nuevo")).toBe(draft);
   expect(draft).toHaveValue("Private {name} 李");
   expect(calls).toHaveLength(draftReads);
-  await userEvent.selectOptions(
-    screen.getByLabelText("Idioma preferido"),
-    "en",
-  );
+  signalLocale("en");
   await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
   await userEvent.click(
     screen.getByRole("button", { name: "Refresh School {name} 李" }),
   );
   const before = calls.length;
-  await spanish();
+  signalLocale("es");
   expect(screen.getByText("synthetic.example.test")).toBeVisible();
   expect(
     screen.getByRole("button", { name: "Actualizar School {name} 李" }),
@@ -325,10 +349,7 @@ it("subscription rename draft and late refresh counts follow locale with private
       "Actualizado: 2 nuevos, 3 cambiados, 1 eliminados.",
     ),
   ).toBeVisible();
-  await userEvent.selectOptions(
-    screen.getByLabelText("Idioma preferido"),
-    "en",
-  );
+  signalLocale("en");
   expect(
     screen.getByText("Refreshed: 2 new, 3 changed, 1 removed."),
   ).toBeVisible();
@@ -374,10 +395,11 @@ it("connected calendar picker and late sync count preserve exact private provide
   });
   render(
     <I18nProvider locale="en">
+      <LocaleSignal />
       <SettingsClient viewerRole="parent" sharedDevice={null} calendarSync />
     </I18nProvider>,
   );
-  await screen.findByLabelText("Full Name");
+  await familyTab();
   await userEvent.click(
     (
       await screen.findByRole("heading", { name: "Connected calendars" })
@@ -391,7 +413,7 @@ it("connected calendar picker and late sync count preserve exact private provide
   const select = await screen.findByLabelText("Calendar to sync");
   await userEvent.selectOptions(select, "draft-id");
   const before = calls.length;
-  await spanish();
+  signalLocale("es");
   expect(screen.getByLabelText("Calendario que se sincronizará")).toBe(select);
   expect(select).toHaveValue("draft-id");
   expect(
@@ -410,10 +432,7 @@ it("connected calendar picker and late sync count preserve exact private provide
     }),
   );
   const inFlight = calls.length;
-  await userEvent.selectOptions(
-    screen.getByLabelText("Idioma preferido"),
-    "en",
-  );
+  signalLocale("en");
   expect(
     screen.getByRole("button", { name: "Sync Google {provider} 李 now" }),
   ).toBeDisabled();
@@ -431,7 +450,7 @@ it("connected calendar picker and late sync count preserve exact private provide
     ),
   );
   expect(await screen.findByText("Synced: 3 changes in, 1 out.")).toBeVisible();
-  await spanish();
+  signalLocale("es");
   expect(
     screen.getByText("Sincronizado: 3 cambios entrantes, 1 salientes."),
   ).toBeVisible();
@@ -457,6 +476,7 @@ it("known provider-return feedback follows mounted locale once, while the query 
   try {
     render(
       <I18nProvider locale="en">
+        <LocaleSignal />
         <SettingsClient viewerRole="parent" sharedDevice={null} calendarSync />
       </I18nProvider>,
     );
@@ -467,7 +487,7 @@ it("known provider-return feedback follows mounted locale once, while the query 
       ),
     ).toBeVisible();
     const before = calls.length;
-    await spanish();
+    signalLocale("es");
     expect(
       screen.getByText(
         "No se conectó nada porque no se permitió el acceso al calendario. Vuelve a intentarlo y marca todas las casillas en la pantalla de permisos.",
@@ -498,6 +518,7 @@ it("delayed first profile load mounts household sections exactly once and does n
   );
   const view = render(
     <I18nProvider locale="es">
+      <LocaleSignal />
       <SettingsClient viewerRole="parent" sharedDevice={null} calendarSync />
     </I18nProvider>,
   );
@@ -556,7 +577,7 @@ it("AI pending key/model drafts and late saved notice survive language changes w
   );
   const view = mounted("parent", true);
   try {
-    await screen.findByLabelText("Full Name");
+    await familyTab();
     await user.click(
       screen.getByRole("heading", { name: "AI capture" }).closest("summary")!,
     );
@@ -569,7 +590,7 @@ it("AI pending key/model drafts and late saved notice survive language changes w
     const aiSection = key.closest("details")!;
     await user.click(within(aiSection).getByRole("button", { name: "Save" }));
     const before = calls.length;
-    await user.selectOptions(screen.getByLabelText("Preferred language"), "es");
+    signalLocale("es");
     expect(key).toHaveValue("synthetic-fixture-input");
     expect(screen.getByLabelText("Modelo (opcional)")).toBe(model);
     expect(model).toHaveValue("private-model-{name}-李");
@@ -587,7 +608,7 @@ it("AI pending key/model drafts and late saved notice survive language changes w
     expect(key).toHaveValue("");
     expect(key).toHaveAttribute("placeholder", "Guardada: masked {hint} 李");
     act(() => jest.advanceTimersByTime(1000));
-    await user.selectOptions(screen.getByLabelText("Idioma preferido"), "en");
+    signalLocale("en");
     expect(screen.getByText("Saved")).toBeVisible();
     act(() => jest.advanceTimersByTime(1499));
     expect(screen.getByText("Saved")).toBeVisible();
@@ -632,7 +653,7 @@ it("feed clipboard uses the literal private link and its original 2s copied noti
   );
   const view = mounted();
   try {
-    await screen.findByLabelText("Full Name");
+    await familyTab();
     await user.click(
       screen
         .getByRole("heading", { name: "Calendar feed" })
@@ -646,7 +667,7 @@ it("feed clipboard uses the literal private link and its original 2s copied noti
     expect(writeText).toHaveBeenCalledWith(url);
     const before = calls.length;
     act(() => jest.advanceTimersByTime(700));
-    await user.selectOptions(screen.getByLabelText("Preferred language"), "es");
+    signalLocale("es");
     expect(screen.getByLabelText("Tu enlace privado")).toBe(link);
     expect(link).toHaveValue(url);
     expect(screen.getByRole("button", { name: "Copiado" })).toBeVisible();
@@ -733,13 +754,19 @@ it.each(["future-outcome", "constructor", "toString"])(
     );
     const view = render(
       <I18nProvider locale="en">
+        <LocaleSignal />
         <SettingsClient viewerRole="parent" sharedDevice={null} calendarSync />
       </I18nProvider>,
     );
     try {
+      await screen.findByLabelText("Full Name");
+      expect(
+        screen.getByRole("heading", { name: "Your account" }),
+      ).toBeVisible();
+      await familyTab();
       await screen.findByRole("heading", { name: "Connected calendars" });
       const before = calls.length;
-      await spanish();
+      signalLocale("es");
       expect(window.location.search).toBe(
         `?calendar_sync=${outcome}&keep=synthetic`,
       );
@@ -765,10 +792,16 @@ it.each(["future-provider", "constructor", "toString"])(
     );
     const view = render(
       <I18nProvider locale="en">
+        <LocaleSignal />
         <SettingsClient viewerRole="parent" sharedDevice={null} calendarSync />
       </I18nProvider>,
     );
     try {
+      await screen.findByLabelText("Full Name");
+      expect(
+        screen.getByRole("heading", { name: "Your account" }),
+      ).toBeVisible();
+      await familyTab();
       await screen.findByRole("heading", { name: "Connected calendars" });
       await userEvent.click(
         screen
@@ -779,7 +812,7 @@ it.each(["future-provider", "constructor", "toString"])(
         screen.getByRole("button", { name: "Connect Future {provider} 李" }),
       ).toBeVisible();
       const before = calls.length;
-      await spanish();
+      signalLocale("es");
       expect(
         screen.getByRole("button", { name: "Conectar Future {provider} 李" }),
       ).toBeVisible();
@@ -797,11 +830,16 @@ it.each(["password", "pin", "remove"] as const)(
     api();
     render(
       <I18nProvider locale="en" persistLocale>
+        <LocaleSignal />
         <SettingsClient viewerRole="parent" sharedDevice={{ hasPin: true }} />
       </I18nProvider>,
     );
     await screen.findByLabelText("Full Name");
     await spanish();
+    if (kind !== "password")
+      fireEvent.click(
+        screen.getByRole("button", { name: "Familia" }),
+      );
     await userEvent.click(
       screen.getByRole("button", {
         name:

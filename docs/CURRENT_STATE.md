@@ -1,5 +1,18 @@
 # Current State
 
+## Settings and device admission QA repair — 2026-10-22
+
+Latest complete run at9d847a2c:26 failed /675 passed /82 skipped suites;
+72 failed /6892 passed /546 skipped tests. Subsequent settings/board repairs pass
+118 affected tests; expanded device admission matrix passes15 tests. Known calendar
+provider returns reveal their Family result; unknown outcomes remain untouched.
+Archived chores retain history labels while current planning requires active
+profiles. Person-only routes retain explicit tablet refusal and zero-write/canary
+checks; device queue endpoints and all25 kill-switch files are covered.
+Full rerun and DB/browser/recovery/final-build/hosted gates remain open.
+Evidence:`docs/testing/WEB_QA_20261022.md`.
+
+
 ## Calendar and archived profile QA repairs — 2026-10-22
 
 Latest complete run at f1f9ae13:37 failed /664 passed /82 skipped suites;

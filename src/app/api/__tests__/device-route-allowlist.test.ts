@@ -60,6 +60,9 @@ const METHODS = [
 /** The only handlers that accept a device cookie (SHARED_DEVICE.md §12.2–§12.3). */
 const DEVICE_ALLOWED_ROUTES = new Set([
   "GET /api/device/me",
+  // Owner-scoped queue recovery is an authenticated device surface (#564).
+  "GET /api/device/queue-owner",
+  "POST /api/device/queue-review",
   "GET /api/device/today",
   "GET /api/device/today/version", // #271 change version of the same board
   "POST /api/device/session/refresh",
@@ -581,6 +584,75 @@ const CALENDAR_SYNC_ROUTES = [
  * before it can become a shared-device surface.
  */
 const COMMON_PERSON_AUTH_ROUTES = [
+  // Approved person-only planning, recovery and preference APIs. Each is
+  // exercised with both cookies below, requiring the explicit device refusal,
+  // zero writes and no household canaries; this does not widen device access.
+  "POST /api/assistant/actions/confirm",
+  "POST /api/assistant/actions/target",
+  "POST /api/assistant/food/apply",
+  "GET /api/assistant/food/context",
+  "POST /api/assistant/food/feedback",
+  "POST /api/assistant/food/inspect",
+  "POST /api/assistant/food/options",
+  "POST /api/assistant/food/outcomes",
+  "POST /api/assistant/food/review",
+  "POST /api/assistant/food",
+  "POST /api/assistant/food/suggest",
+  "POST /api/assistant/food/undo-grocery",
+  "GET /api/chores/create/receipt",
+  "POST /api/chores/preparation-context",
+  "GET /api/chores/routines/independent/recovery",
+  "POST /api/chores/routines/independent/recovery",
+  "GET /api/chores/routines/independent",
+  "POST /api/chores/routines/independent",
+  "GET /api/chores/routines/recovery",
+  "POST /api/chores/routines/recovery",
+  "GET /api/chores/routines",
+  "POST /api/chores/routines",
+  "GET /api/coordination/event-preparation/picker",
+  "POST /api/coordination/event-preparation/preview",
+  "GET /api/coordination/event-preparation/recovery",
+  "POST /api/coordination/event-preparation/recovery",
+  "GET /api/coordination/event-preparation",
+  "PATCH /api/coordination/event-preparation",
+  "GET /api/coordination/responsibilities/recovery",
+  "POST /api/coordination/responsibilities/recovery",
+  "GET /api/coordination/responsibilities",
+  "PATCH /api/coordination/responsibilities",
+  "POST /api/coordination/schedule-review/preview",
+  "GET /api/coordination/schedule-review/recovery",
+  "POST /api/coordination/schedule-review/recovery",
+  "GET /api/coordination/schedule-review",
+  "PATCH /api/coordination/schedule-review",
+  "GET /api/coordination/weekly-reset/recovery",
+  "POST /api/coordination/weekly-reset/recovery",
+  "GET /api/coordination/weekly-reset",
+  "PATCH /api/coordination/weekly-reset",
+  "GET /api/coordination/weekly-reset/summary",
+  "GET /api/family/ai-usage",
+  "POST /api/family/ai-usage",
+  "GET /api/family/display-defaults",
+  "PATCH /api/family/display-defaults",
+  "GET /api/family/profile-links",
+  "POST /api/family/profile-links",
+  "GET /api/meals/bulk/[id]/recipe",
+  "POST /api/meals/bulk/recovery/apply",
+  "GET /api/meals/bulk/recovery/context",
+  "POST /api/meals/bulk/recovery/inspect",
+  "GET /api/meals/create",
+  "POST /api/meals/create",
+  "GET /api/queue/owner",
+  "POST /api/queue/review",
+  "GET /api/recipes/[id]/curation",
+  "PATCH /api/recipes/[id]/curation",
+  "GET /api/recipes/collections",
+  "POST /api/recipes/collections",
+  "GET /api/recipes/receipt",
+  "GET /api/review-documents/context",
+  "POST /api/review-documents/submit",
+  "GET /api/review/timeline",
+  "GET /api/users/display-preferences",
+  "PATCH /api/users/display-preferences",
   "GET /api/activity",
   "GET /api/auth/me",
   "POST /api/admin/imports/[source]",
@@ -1157,6 +1229,72 @@ describe("device cookie route allowlist", () => {
     expect(db.writes).toEqual([]);
   });
 
+  it("queue admission exposes only the paired owner and keeps recovery paused without the opt-in", async () => {
+    const enable = process.env.QUEUE_OWNER_RECOVERY_ENABLED;
+    const rollback = process.env.QUEUE_OWNER_RECOVERY_ROLLBACK_READY;
+    delete process.env.QUEUE_OWNER_RECOVERY_ENABLED;
+    delete process.env.QUEUE_OWNER_RECOVERY_ROLLBACK_READY;
+    try {
+      const fx = seedDevices();
+      const ownerRoute = require(
+        path.join(API_ROOT, "device/queue-owner/route.ts"),
+      );
+      const reviewRoute = require(
+        path.join(API_ROOT, "device/queue-review/route.ts"),
+      );
+      // A lingering parent cookie must never turn a tablet queue into a person's.
+      const response = await ownerRoute.GET(
+        deviceReq({ cookies: fx.d1.cookies, as: "parentA" }),
+      );
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body).toEqual({
+        contract: "herewoven.queue-owner.v1",
+        enabled: false,
+        owner: {
+          kind: "device",
+          ownerId: fx.d1.deviceId,
+          generation: 0,
+          scope: expect.stringMatching(/^[a-f0-9]{64}$/),
+          householdScope: expect.stringMatching(/^[a-f0-9]{64}$/),
+        },
+      });
+      const csrf = "c".repeat(64);
+      const refused = await reviewRoute.POST(
+        deviceReq({
+          method: "POST",
+          cookies: { ...fx.d1.cookies, csrf_token: csrf },
+          headers: { "x-csrf-token": csrf },
+          as: "parentA",
+          body: {},
+        }),
+      );
+      expect(refused.status).toBe(409);
+      const text = await bodyText(refused);
+      expect(text).toContain("QUEUE_PROTOCOL_UNAVAILABLE");
+      expect(H1_CANARIES.filter((canary) => text.includes(canary))).toEqual([]);
+      expect(text).not.toContain(FOREIGN);
+      // Device authentication records first-use/last-seen only; no queued
+      // household action or review receipt is written while recovery is off.
+      expect(db.writes).toEqual([
+        expect.objectContaining({ model: "deviceSession", op: "updateMany", args: {
+          where: { id: fx.d1.sessionId, first_used_at: null },
+          data: { first_used_at: expect.any(Date) },
+        } }),
+        expect.objectContaining({ model: "householdDevice", op: "updateMany", args: {
+          where: { id: fx.d1.deviceId, revoked_at: null },
+          data: { last_seen_at: expect.any(Date) },
+        } }),
+      ]);
+    } finally {
+      if (enable === undefined) delete process.env.QUEUE_OWNER_RECOVERY_ENABLED;
+      else process.env.QUEUE_OWNER_RECOVERY_ENABLED = enable;
+      if (rollback === undefined)
+        delete process.env.QUEUE_OWNER_RECOVERY_ROLLBACK_READY;
+      else process.env.QUEUE_OWNER_RECOVERY_ROLLBACK_READY = rollback;
+    }
+  });
+
   it("the allowlisted read routes do accept the device cookie", async () => {
     const fx = seedDevices();
     for (const p of ["me", "today", "today/version"]) {
@@ -1173,7 +1311,7 @@ describe("device cookie route allowlist", () => {
         /\/api\/(device|family\/devices)\//.test(urlPath(f) + "/") ||
         urlPath(f) === "/api/users/elevation-pin",
     );
-    expect(deviceFiles.length).toBe(23);
+    expect(deviceFiles.length).toBe(25);
     for (const file of deviceFiles) {
       const mod = require(file);
       for (const method of METHODS) {

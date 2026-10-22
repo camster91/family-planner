@@ -175,7 +175,12 @@ export async function loadWeeklyResetSummaryInTx(
       const visible = [];
       for (const row of rows) {
         const subject = readChoreSubject(row, family_id);
-        if (!subject || (subject.kind === "profile" && !profiles)) continue;
+        if (
+          !subject ||
+          (subject.kind === "profile" &&
+            (!profiles || row.assigneeMember?.archived_at !== null))
+        )
+          continue;
         const policy = await routineOccurrencePolicyInTx(tx, family_id, row.id);
         if (policy === "inactive" || policy === "unsupported") continue;
         visible.push({
