@@ -117,16 +117,74 @@ meal/portion records are changed by the preview. Compact commitment review and
 explicit reuse/allocation of prepared portions remain part of the next UI/apply
 integration, followed by consolidated QA.
 
+## Calendar and departure constraints
+
+Optional per-meal timing uses an explicit start/end ISO interval with offsets;
+prep uses one shared `prepTiming` interval for the sequential multi-dish estimate.
+A window can span a DST boundary (up to26 real hours), and its end must fall on
+the selected meal/prep day in the supplied valid viewer zone. Naive wall times,
+rollover dates, overlapping per-dish prep windows and ambiguous buffer use are
+refused by the typed request contract. No device clock becomes actor authority.
+
+Timing can name one canonical departure event and explicit extra time before
+cooking, eating, cleanup, travel and departure preparation. Travel/preparation
+buffers require a selected departure. The ready-by boundary is the earlier of
+the requested end and canonical departure start minus those two departure buffers.
+The occupied interval includes the authored recipe estimate plus extra setup,
+eating and cleanup, once per meal or shared prep session. Scaled recipe cooking
+time remains unknown; no model-extrapolated duration becomes evidence.
+
+`readFoodCalendar` uses canonical comparison predicates, source generation/epoch
+tokens and storage readiness. A range-only reader avoids an invented target and
+selects no unrelated event titles. Only explicitly selected same-family departure
+records supply a title. No descriptions, locations, attendees, creator-based
+availability, provider URLs, tokens or credentials are retrieved for timing.
+The existing reschedule path and food path now share source freshness/ownership/
+cap assessment; its24-hour check-age rule, future-check refusal and500-event/
+100-source limits remain unchanged. One extra record detects a cap. Metadata is
+read before and after comparison; every linked source must belong to the scoped
+source set. No provider synchronization or calendar connection is triggered.
+
+Unexpanded recurring roots (including those outside the requested range), invalid
+legacy intervals, stale/missing sources, missing/foreign selected identities,
+unsupported source storage and disabled Calendar are incomplete evidence, not
+free time. Known unavailable storage/features can leave food estimates visible
+with calendar holds; an actual read/transaction failure refuses the preview.
+Ignoring an explicitly named owned event only changes the declared comparison;
+it cannot cure missing sources or recurrence coverage. The selected departure
+still limits ready-by even when ignored as a busy interval. No ignore IDs are
+accepted without a requested timing window.
+
+The pure timing checker uses half-open recorded intervals and one continuous gap,
+starting no earlier than the server observation. It does not add separate short
+free gaps together. Finishing when a busy interval starts is allowed; even a
+zero-minute authored dish cannot start inside a busy interval. Meal conflicts and
+unknowns become holds. Prep checks the whole sequential sum against one shared
+window, rather than allowing several dishes to claim the same time independently.
+
+`calendarChecked` means a requested canonical comparison had complete evidence;
+per-candidate/prep `schedule.state` separately reports fits/conflict/unknown.
+`fits` is an authored-time estimate against **recorded household events**, not
+personal attendance/physical availability, future calendar completeness, food
+safety or a promise of readiness. Other events receive no guessed travel buffers.
+Source intervals/versions/statuses/departures enter the owner/query read revision;
+its original60-second lease remains unchanged. A new apply transaction must still
+renew/compare that evidence. Calendar records are never moved by this reader.
+
+Timing/source/cap/freshness/DST/zero-duration and disposable-DB foreign-departure/
+material-away-and-back cases are authored and **unrun**. Full UI/provider/apply,
+recurrence interoperability (#124), consolidated QA and activation remain separate.
+
 ## Remaining source required before activation
 
 1. Finish the compact human review of unresolved existing commitments and
    explicit prepared-portion reuse/allocation through canonical bulk APIs. The
    scoped read/virtual reservation/recorded portion reconciliation above is now
    authored; its cases and all actual acceptance remain unrun.
-2. Integrate authorized calendar source/range/recurrence/freshness coverage,
-   explicit departure and preparation/travel/eating buffers, with the canonical
-   schedule planner. `calendarChecked:false` is mandatory today. A requested
-   numeric duration limit is not a household availability or departure check.
+2. Finish owned timing controls, source-reference renewal and apply-time calendar
+   revalidation using the concrete source/interval implementation above. Recurring
+   source expansion remains held under canonical #124; no complete recurrence or
+   physical availability acceptance is claimed from the new read source.
 3. Add a compact existing Meals/weekly-review/chat preview that exposes source,
    unknowns, portions and editable choices. Use existing owned-draft navigation,
    owner/generation scoping and durable review inbox contracts. Keep ordinary

@@ -104,3 +104,13 @@ it("treats no atomic effect as a conflict, not success or a replacement request"
   ).rejects.toMatchObject({ code: "STALE" });
   expect(query).toHaveBeenCalledTimes(1);
 });
+
+it("builds a family-scoped range comparison without inventing a selected event identity", () => {
+  const predicate = scheduleComparisonPredicate("family-a", null, scope.range);
+  expect(predicate.values).toContain("family-a");
+  expect(predicate.values).not.toContain(null);
+  expect(predicate.values).toHaveLength(3);
+  expect(predicate.sql).toContain("false OR");
+  expect(predicate.sql).toContain('"recurrence" IS NOT NULL');
+  expect(predicate.sql).toContain('"end_time" <= "start_time"');
+});

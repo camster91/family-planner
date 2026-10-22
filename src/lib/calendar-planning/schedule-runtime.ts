@@ -18,8 +18,12 @@ import {
   scheduleEventToken,
   scheduleSnapshotToken,
 } from "./schedule-source";
-import { readScheduleStatuses, scheduleStatusToken } from "./schedule-status";
-export const SCHEDULE_SOURCE_FRESHNESS_MS = 24 * 60 * 60 * 1000;
+import {
+  readScheduleStatuses,
+  scheduleStatusToken,
+  assessScheduleSourceCoverage,
+} from "./schedule-status";
+export { SCHEDULE_SOURCE_FRESHNESS_MS } from "./schedule-status";
 export type ScheduleActor = {
   userId: string;
   familyId: string;
@@ -105,25 +109,8 @@ export async function prepareScheduleInTx(
     throw new ScheduleReviewError("STALE");
   if (!rows.some((row) => row.id === scope.targetId))
     throw new ScheduleReviewError("MISSING");
-  const capped = rows.length > 500 || statuses.length > 100;
-  const localSources = new Set(statuses.map((row) => `${row.kind}:${row.id}`));
-  const missingSource = rows.some(
-    (row) =>
-      (row.sourceSubscriptionId &&
-        !localSources.has(`subscription:${row.sourceSubscriptionId}`)) ||
-      (row.sourceConnectionId &&
-        !localSources.has(`connection:${row.sourceConnectionId}`)),
-  );
-  const sourcesUnavailable =
-    statuses.some(
-      (row) =>
-        row.status !== "ok" ||
-        row.checkedAt === null ||
-        !Number.isFinite(now.getTime()) ||
-        now.getTime() - row.checkedAt.getTime() >
-          SCHEDULE_SOURCE_FRESHNESS_MS ||
-        row.checkedAt.getTime() - now.getTime() > 60000,
-    ) || !!missingSource;
+  const { capped, sourcesUnavailable, missingSource } =
+    assessScheduleSourceCoverage(rows, statuses, now);
   const coverage = {
     complete: !capped && !sourcesUnavailable,
     recurrence: rows.some((row) => row.recurrence !== null)

@@ -80,11 +80,11 @@ export async function lockScheduleTarget(
  * Padding covers the largest allowed buffers (480 before, 240 after). */
 export function scheduleComparisonPredicate(
   familyId: string,
-  targetId: string,
+  targetId: string | null,
   range: ScheduleReviewSnapshot["range"],
 ) {
   id.parse(familyId);
-  id.parse(targetId);
+  if (targetId !== null) id.parse(targetId);
   const start = parseCalendarInstant(range.start),
     end = parseCalendarInstant(range.end);
   if (+end <= +start || +end - +start > CALENDAR_RANGE_MAX_MS)
@@ -93,7 +93,9 @@ export function scheduleComparisonPredicate(
     paddedEnd = new Date(+end + 480 * 60000);
   if (paddedStart.getUTCFullYear() < 1 || paddedEnd.getUTCFullYear() > 9999)
     throw new ScheduleReviewError("INVALID_WINDOW");
-  return Prisma.sql`"family_id" = ${familyId} AND ("id" = ${targetId} OR "recurrence" IS NOT NULL OR "end_time" <= "start_time" OR
+  const target =
+    targetId === null ? Prisma.sql`false` : Prisma.sql`"id" = ${targetId}`;
+  return Prisma.sql`"family_id" = ${familyId} AND (${target} OR "recurrence" IS NOT NULL OR "end_time" <= "start_time" OR
     ("start_time" < (${paddedEnd.toISOString()}::timestamptz AT TIME ZONE 'UTC') AND "end_time" > (${paddedStart.toISOString()}::timestamptz AT TIME ZONE 'UTC')))`;
 }
 export type ScheduleComparisonRow = ScheduleEventSource & {
@@ -122,6 +124,23 @@ export async function readScheduleComparisonInTx(
       "title", "start_time" AS start, "end_time" AS end, "recurrence",
       "source_subscription_id" AS "sourceSubscriptionId", "source_connection_id" AS "sourceConnectionId"
     FROM "Event" WHERE ${predicate} ORDER BY ("id" = ${targetId}) DESC, "id" LIMIT 501`);
+}
+/** Same range/root/invalid-interval policy as conflict review, without an
+ * invented target or unnecessary household event titles. Read-only callers
+ * renew actor/household authority before this helper. */
+export async function readScheduleIntervalsInTx(
+  tx: Reader,
+  familyId: string,
+  range: ScheduleReviewSnapshot["range"],
+) {
+  if (!(await scheduleStorageAvailable(tx)))
+    throw new ScheduleReviewError("UNAVAILABLE");
+  const predicate = scheduleComparisonPredicate(familyId, null, range);
+  return tx.$queryRaw<Omit<ScheduleComparisonRow, "title">[]>(Prisma.sql`
+    SELECT "id", "schedule_generation" AS generation, "schedule_epoch" AS epoch,
+      "start_time" AS start, "end_time" AS end, "recurrence",
+      "source_subscription_id" AS "sourceSubscriptionId", "source_connection_id" AS "sourceConnectionId"
+    FROM "Event" WHERE ${predicate} ORDER BY "id" LIMIT 501`);
 }
 /** Fingerprint exact authorized scope and sorted canonical insertion/material
  * versions, not content. A browser cannot turn this metadata into permission. */

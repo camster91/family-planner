@@ -289,3 +289,68 @@ it("keeps explicitly prepared portion counts separate from raw ingredient reserv
   expect(result.commitments.prepared).toEqual(source.commitments.prepared);
   expect(result.commitments.entries).toEqual([]);
 });
+
+it("holds meal calendar conflicts and checks several-dish prep against one shared sequential window", () => {
+  const source = inputs([{ ...item, amount: 1000 }]);
+  source.calendar = {
+    observedAt: "2026-10-22T12:00:00Z",
+    complete: true,
+    reasons: [],
+    ignoredEventIds: [],
+    departures: [],
+    events: [
+      {
+        id: "busy",
+        start: "2026-10-22T15:00:00Z",
+        end: "2026-10-22T16:00:00Z",
+        sourceToken: "a".repeat(64),
+        repeating: false,
+      },
+    ],
+  };
+  const blocked = foodPlanRequest.parse({
+    timeZone: "UTC",
+    slots: [
+      {
+        key: "meal",
+        date: "2026-10-22",
+        mealType: "dinner",
+        servings: 2,
+        recipeId: "recipe-a",
+        timing: { start: "2026-10-22T15:00:00Z", end: "2026-10-22T16:00:00Z" },
+      },
+    ],
+  });
+  expect(buildFoodPlan(blocked, source).slots[0].holds).toContain(
+    "calendar-conflict",
+  );
+  const prep = foodPlanRequest.parse({
+    timeZone: "UTC",
+    mode: "prep",
+    prepTiming: { start: "2026-10-22T16:00:00Z", end: "2026-10-22T17:00:00Z" },
+    slots: [
+      {
+        key: "first",
+        date: "2026-10-22",
+        mealType: "dinner",
+        servings: 2,
+        recipeId: "recipe-a",
+      },
+      {
+        key: "second",
+        date: "2026-10-22",
+        mealType: "dinner",
+        servings: 2,
+        recipeId: "recipe-b",
+      },
+    ],
+  });
+  const result = buildFoodPlan(prep, source);
+  expect(result.prepSchedule).toMatchObject({
+    state: "fits",
+    occupiedMinutes: 60,
+    start: "2026-10-22T16:00:00.000Z",
+    finish: "2026-10-22T17:00:00.000Z",
+  });
+  expect(result.calendarChecked).toBe(true);
+});

@@ -1,5 +1,7 @@
 # Open issue completion ledger
 
+2026-10-22 timing checkpoint: food previews now reuse canonical calendar comparison/source policy for explicit meal/prep windows and selected-departure buffers. Continuous gaps, shared prep duration and unknown/partial-source holds are authored; source/DST/freshness/foreign/version cases unrun. Provider/owned review/timing controls/canonical apply/recovery/eval/inbox and all QA remain; readiness stays off and no issue closed. Details: `docs/plans/grounded-food-planning-v1.md`.
+
 2026-10-22 commitment checkpoint: food previews now reconcile ordinary meals and whole pending dishes before new virtual stock allocations, project canonical prepared/eaten/planned/remaining/next-prep metadata, and hold unresolved commitments. Scoped source/portion/foreign-graph cases are authored and unrun; flags off. Calendar/provider/compact review/canonical apply/recovery/evaluation/inbox source and all QA remain. See `docs/plans/grounded-food-planning-v1.md`; no issue closed.
 
 2026-10-22 food planning foundation: canonical matching/scaling plus virtual per-slot/dish quantities, explicit unknowns/time/occupancy holds and a scoped read-only API are authored. Cases unrun, readiness off. Existing-meal/bulk commitments, calendar/provider/reference/review/apply/evaluation integration and all QA remain. See `docs/plans/grounded-food-planning-v1.md`; #123/#144/#128 stay in progress.

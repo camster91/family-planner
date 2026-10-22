@@ -1,5 +1,25 @@
 # Current State
 
+## Food planning calendar/departure source — 2026-10-22
+
+Explicit offset-aware meal windows and one shared multi-dish prep window now
+have a canonical calendar read and pure continuous-gap check. Selected owned
+departures supply ready-by constraints with explicit setup/eating/cleanup/travel/
+preparation buffers; unrelated event titles and private event/provider fields are
+not selected. The existing schedule source predicates, generation/epoch storage
+readiness and shared source freshness/ownership/cap policy are reused. Stale,
+partial, recurring, invalid or unavailable evidence stays unknown/held. Ignored
+owned events do not erase a selected departure deadline. No calendar is changed.
+
+Pure/source/shared-policy/disposable-DB timing, DST, foreign-reference and material
+version cases are authored and unrun. This remains read-only, default-off source;
+provider projection/renewal, compact owned review/timing/portion controls, canonical
+apply/recovery, semantic evaluation and inbox follow-through remain before QA.
+No tests/types/lint/build/browser/application API/DB/schema/client/native/CI,
+provider/flag activation, push/merge/deploy or issue closure occurred. See
+[`grounded-food-planning-v1.md`](./plans/grounded-food-planning-v1.md). Full goal stays
+active; earlier checkpoints below retain their history.
+
 ## Food planning commitments and prepared portions source — 2026-10-22
 
 The read-only food broker now includes current-day-through-horizon ordinary

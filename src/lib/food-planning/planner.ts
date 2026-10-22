@@ -1,3 +1,4 @@
+import { planFoodTiming } from "./timing";
 /** Canonical ingredient matching + exact same-unit virtual reservations.
  * Produces reviewed proposals only; never consumes food or schedules a meal. */
 import { indexCookInventory, matchRecipeIngredients } from "../inventory";
@@ -269,6 +270,11 @@ export function buildFoodPlan(
       )
       .map((recipe) => {
         const evaluated = candidate(recipe, slot, inputs.stock, ledger);
+        evaluated.value.schedule = planFoodTiming(
+          slot.timing,
+          evaluated.value.totalMinutes,
+          inputs.calendar,
+        );
         if (commitmentsUnresolved) {
           for (const ingredient of evaluated.value.ingredients) {
             ingredient.state = "check";
@@ -298,6 +304,16 @@ export function buildFoodPlan(
               : y.useSoonCount - x.useSoonCount;
         return (
           (x.ingredients.length ? 0 : 1) - (y.ingredients.length ? 0 : 1) ||
+          (x.schedule?.state === "conflict"
+            ? 2
+            : x.schedule?.state === "unknown"
+              ? 1
+              : 0) -
+            (y.schedule?.state === "conflict"
+              ? 2
+              : y.schedule?.state === "unknown"
+                ? 1
+                : 0) ||
           time(x) - time(y) ||
           (Number.isNaN(primary) ? 0 : primary) ||
           x.checkCount - y.checkCount ||
@@ -323,6 +339,8 @@ export function buildFoodPlan(
     if (commitmentsUnresolved) holds.push("commitments-unresolved");
     if (!Object.values(inputs.coverage).every(Boolean))
       holds.push("source-incomplete");
+    if (choice.schedule?.state === "unknown") holds.push("calendar-unknown");
+    if (choice.schedule?.state === "conflict") holds.push("calendar-conflict");
     if (choice.time === "unknown") holds.push("time-unknown");
     if (choice.time === "over-requested-limit") holds.push("time-exceeded");
     if (!choice.ingredients.length) holds.push("ingredients-unknown");
@@ -373,7 +391,21 @@ export function buildFoodPlan(
       entries: commitmentReviews,
       prepared: inputs.commitments?.prepared ?? [],
     },
-    calendarChecked: false,
+    calendarChecked:
+      (request.prepTiming !== undefined ||
+        request.slots.some((slot) => slot.timing)) &&
+      inputs.calendar?.complete === true,
+    calendar: inputs.calendar
+      ? {
+          complete: inputs.calendar.complete,
+          scope: "recorded-household-events",
+          reasons: inputs.calendar.reasons,
+          ignoredEventIds: inputs.calendar.ignoredEventIds,
+        }
+      : null,
+    prepSchedule: request.prepTiming
+      ? planFoodTiming(request.prepTiming, prepMinutes, inputs.calendar)
+      : null,
     stockReserved: false,
     writesPerformed: false,
   };

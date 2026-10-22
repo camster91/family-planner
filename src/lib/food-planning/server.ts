@@ -1,3 +1,4 @@
+import { readFoodCalendar } from "./calendar-source";
 import {
   readFoodCommitments,
   FoodCommitmentSourceUnavailable,
@@ -317,6 +318,13 @@ export async function previewFoodPlan(
         : [];
       if (preparedRecipeOwnership.length !== preparedIds.length)
         throw new FoodPlanningUnavailable();
+      const calendar = await readFoodCalendar(
+        tx,
+        actor.familyId,
+        input.plan,
+        isFeatureEnabled(features, "calendar"),
+        now,
+      );
       const plan = buildFoodPlan(input.plan, {
         recipes: normalizedRecipes,
         stock: normalizedStock,
@@ -325,6 +333,7 @@ export async function previewFoodPlan(
           mealType: row.meal_type,
         })),
         coverage: { recipes: true, stock: true, meals: true },
+        calendar: calendar?.snapshot,
         commitments: {
           horizon,
           entries: commitments.entries,
@@ -350,6 +359,7 @@ export async function previewFoodPlan(
                 dependencyRecipes,
                 preparedRecipeOwnership,
                 commitments: commitments.sources,
+                calendar: calendar?.sources ?? calendar?.snapshot ?? null,
               }),
             ),
           ]),

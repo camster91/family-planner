@@ -58,3 +58,37 @@ export function scheduleStatusToken(statuses: ScheduleSourceStatus[]) {
     )
     .digest("hex");
 }
+
+/** Shared source policy for rescheduling and food planning. No provider refresh. */
+export const SCHEDULE_SOURCE_FRESHNESS_MS = 24 * 60 * 60 * 1000;
+export function assessScheduleSourceCoverage(
+  rows: readonly {
+    sourceSubscriptionId: string | null;
+    sourceConnectionId: string | null;
+  }[],
+  statuses: ScheduleSourceStatus[],
+  now: Date,
+) {
+  const localSources = new Set(statuses.map((row) => `${row.kind}:${row.id}`));
+  const missingSource = rows.some(
+    (row) =>
+      (row.sourceSubscriptionId &&
+        !localSources.has(`subscription:${row.sourceSubscriptionId}`)) ||
+      (row.sourceConnectionId &&
+        !localSources.has(`connection:${row.sourceConnectionId}`)),
+  );
+  const sourcesUnavailable =
+    statuses.some(
+      (row) =>
+        row.status !== "ok" ||
+        row.checkedAt === null ||
+        !Number.isFinite(+now) ||
+        +now - +row.checkedAt > SCHEDULE_SOURCE_FRESHNESS_MS ||
+        +row.checkedAt - +now > 60000,
+    ) || !!missingSource;
+  return {
+    capped: rows.length > 500 || statuses.length > 100,
+    sourcesUnavailable,
+    missingSource: !!missingSource,
+  };
+}

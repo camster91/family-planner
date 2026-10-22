@@ -294,4 +294,92 @@ suite("food planning scoped canonical reads", () => {
       await db.mealPrepSession.delete({ where: { id: session.id } });
     }
   });
+  it("uses owned canonical events and material epochs for a departure window, and refuses a foreign departure identity", async () => {
+    const busy = await db.event.create({
+      data: {
+        family_id: family,
+        created_by: user,
+        title: "Own calendar fixture",
+        start_time: new Date("2026-10-22T15:00:00Z"),
+        end_time: new Date("2026-10-22T15:30:00Z"),
+        event_type: "family",
+      },
+    });
+    const departure = await db.event.create({
+      data: {
+        family_id: family,
+        created_by: user,
+        title: "Chosen canonical departure",
+        start_time: new Date("2026-10-22T17:00:00Z"),
+        end_time: new Date("2026-10-22T18:00:00Z"),
+        event_type: "family",
+      },
+    });
+    const foreign = await db.event.create({
+      data: {
+        family_id: otherFamily,
+        created_by: otherUser,
+        title: "Foreign calendar fixture",
+        start_time: new Date("2026-10-22T15:00:00Z"),
+        end_time: new Date("2026-10-22T18:00:00Z"),
+        event_type: "family",
+      },
+    });
+    const timed = foodPreviewRequest.parse({
+      recipeIds: [recipeA],
+      plan: {
+        timeZone: "UTC",
+        slots: [
+          {
+            key: "timed",
+            date: "2026-10-22",
+            mealType: "dinner",
+            servings: 2,
+            recipeId: recipeA,
+            timing: {
+              start: "2026-10-22T15:00:00Z",
+              end: "2026-10-22T18:00:00Z",
+              departureEventId: departure.id,
+              beforeCookingMinutes: 5,
+              eatingMinutes: 10,
+              cleanupMinutes: 5,
+              travelMinutes: 30,
+              departurePreparationMinutes: 10,
+            },
+          },
+        ],
+      },
+    });
+    const first = await previewFoodPlan(db, actor, timed, now);
+    expect(first.plan.calendarChecked).toBe(true);
+    expect(first.plan.slots[0].choice!.schedule).toMatchObject({
+      state: "fits",
+      start: "2026-10-22T15:30:00.000Z",
+      finish: "2026-10-22T16:10:00.000Z",
+      readyBy: "2026-10-22T16:20:00.000Z",
+    });
+    expect(JSON.stringify(first)).not.toContain("Foreign calendar fixture");
+    await db.event.update({
+      where: { id: busy.id },
+      data: { end_time: new Date("2026-10-22T16:10:00Z") },
+    });
+    const blocked = await previewFoodPlan(db, actor, timed, now);
+    expect(blocked.plan.slots[0].holds).toContain("calendar-conflict");
+    await db.event.update({
+      where: { id: busy.id },
+      data: { end_time: new Date("2026-10-22T15:30:00Z") },
+    });
+    const restored = await previewFoodPlan(db, actor, timed, now);
+    expect(restored.plan.slots[0].choice!.schedule!.state).toBe("fits");
+    expect(restored.snapshotRevision).not.toBe(first.snapshotRevision);
+    timed.plan.slots[0].timing!.departureEventId = foreign.id;
+    const unavailable = await previewFoodPlan(db, actor, timed, now);
+    expect(unavailable.plan.calendar!.reasons).toContain(
+      "departure-unavailable",
+    );
+    expect(unavailable.plan.slots[0].choice!.schedule).toMatchObject({
+      state: "unknown",
+      departure: null,
+    });
+  });
 });
