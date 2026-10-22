@@ -12,6 +12,18 @@ merge/deploy still require applicable passing QA under the existing authorizatio
 Retain all earlier evidence at its recorded SHA; do not count unverified code or
 provider/native/customer acceptance as finished. The goal remains active.
 
+
+## Implementation pass handed to consolidated QA — 2026-10-22
+
+The active goal source audit at9975866a found connected paths for every named web
+requirement and all82 open issues mapped exactly once in the ledger. This ends
+the implementation-first pass and permits consolidated QA under Cameron's
+existing sequence. It does not claim the code correct, issues accepted or release
+ready. See WEB_SOURCE_AUDIT_20261022.md for inspected paths, remaining evidence,
+legacy compatibility and external/native/operator boundaries. Earlier dated
+source/QA checkpoints remain history. The full goal stays active through repairs,
+passing applicable checks and authorized protected merge/Coolify verification.
+
 2026-10-22 timing checkpoint: food previews now reuse canonical calendar comparison/source policy for explicit meal/prep windows and selected-departure buffers. Continuous gaps, shared prep duration and unknown/partial-source holds are authored; source/DST/freshness/foreign/version cases unrun. Provider/owned review/timing controls/canonical apply/recovery/eval/inbox and all QA remain; readiness stays off and no issue closed. Details: `docs/plans/grounded-food-planning-v1.md`.
 
 2026-10-22 commitment checkpoint: food previews now reconcile ordinary meals and whole pending dishes before new virtual stock allocations, project canonical prepared/eaten/planned/remaining/next-prep metadata, and hold unresolved commitments. Scoped source/portion/foreign-graph cases are authored and unrun; flags off. Calendar/provider/compact review/canonical apply/recovery/evaluation/inbox source and all QA remain. See `docs/plans/grounded-food-planning-v1.md`; no issue closed.

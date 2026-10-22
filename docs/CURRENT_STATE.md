@@ -12,6 +12,18 @@ merge/deploy still require applicable passing QA under the existing authorizatio
 Retain all earlier evidence at its recorded SHA; do not count unverified code or
 provider/native/customer acceptance as finished. The goal remains active.
 
+
+## Implementation pass handed to consolidated QA — 2026-10-22
+
+The active goal source audit at9975866a found connected paths for every named web
+requirement and all82 open issues mapped exactly once in the ledger. This ends
+the implementation-first pass and permits consolidated QA under Cameron's
+existing sequence. It does not claim the code correct, issues accepted or release
+ready. See WEB_SOURCE_AUDIT_20261022.md for inspected paths, remaining evidence,
+legacy compatibility and external/native/operator boundaries. Earlier dated
+source/QA checkpoints remain history. The full goal stays active through repairs,
+passing applicable checks and authorized protected merge/Coolify verification.
+
 ## Implementation-first bounded Today dinner previews — 2026-10-22
 
 Today now reads at most two dinner candidates per covered UTC day, shows the
