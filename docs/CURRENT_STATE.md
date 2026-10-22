@@ -1,5 +1,17 @@
 # Current State
 
+## Database contract repairs and timezone-safe history — 2026-10-22
+
+Complete unit rerun at1429e942 passes702 suites/6971 tests (83 opt-in suites/547
+tests skipped). Full PostgreSQL rerun improves to74 passed /11 failed suites,
+542 passed /19 failed tests with no connection exhaustion. All11 failing suites
+now pass99 focused cases after repairs: timestamp-without-timezone provenance
+comparison, unchanged fixture updates, complete household deletion fixtures and
+current auth/recovery/source-version expectations. Types/lint pass (44 warnings); complete DB/unit
+reruns remain next. Browser/recovery/current-build and
+protected merge/deploy remain open. No production/provider state changed.
+Evidence:`docs/testing/WEB_QA_20261022.md`.
+
 ## PostgreSQL integration baseline and pool/profile fixes — 2026-10-22
 
 First broad DB run at944bde34:55 passed /29 failed suites;425 passed /135 failed

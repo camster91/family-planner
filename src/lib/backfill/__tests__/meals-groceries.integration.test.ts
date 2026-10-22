@@ -75,6 +75,19 @@ describeWithDatabase('meal/grocery backfill against a database', () => {
   const reverse = (familyId: string, jobId?: string) => withClient((c) => reverseFamily(c, familyId, { jobId }))
 
   let baseline: Record<string, string>
+  let baselineMeals: Array<Record<string, unknown>>
+  // Reversing recipe links restores domain content but must never roll back
+  // source epochs: a stale food review remains invalid after an away/back edit.
+  async function expectRestoredCanonical(linkTransitions: number) {
+    const actual = await hashes(CANONICAL.filter((table) => table !== 'FamilyMeal'))
+    const otherBaseline = Object.fromEntries(Object.entries(baseline).filter(([table]) => table !== 'FamilyMeal'))
+    expect(actual).toEqual(otherBaseline)
+    const meals = await pool.query('SELECT to_jsonb(x) AS row FROM "FamilyMeal" x ORDER BY id')
+    expect(meals.rows.map((entry) => entry.row)).toEqual(baselineMeals.map((row) =>
+      row.id === L.familyA.mealSameName
+        ? { ...row, food_epoch: Number(row.food_epoch) + linkTransitions }
+        : row))
+  }
   let legacyBaseline: Record<string, string>
 
   beforeAll(async () => {
@@ -86,6 +99,7 @@ describeWithDatabase('meal/grocery backfill against a database', () => {
     await resetFixtures(prisma, ds)
     await seedFixtures(prisma, ds, pw)
     baseline = await hashes(CANONICAL)
+    baselineMeals = (await pool.query('SELECT to_jsonb(x) AS row FROM "FamilyMeal" x ORDER BY id')).rows.map((entry) => entry.row)
     legacyBaseline = await hashes(LEGACY)
   })
 
@@ -320,7 +334,7 @@ describeWithDatabase('meal/grocery backfill against a database', () => {
     const b = await reverse(B)
     expect(a).toMatchObject({ jobs: 1, jobsDeleted: 1, removed: { FamilyMeal: 3, List: 2, ListItem: 3 }, unlinked: 1, kept: [] })
     expect(b).toMatchObject({ jobs: 1, jobsDeleted: 1, removed: { FamilyMeal: 0, List: 1, ListItem: 1 }, unlinked: 0, kept: [] })
-    expect(await hashes(CANONICAL)).toEqual(baseline)
+    await expectRestoredCanonical(2)
   })
 
   it('reverse keeps rows a person changed after the backfill, then finishes once they are gone', async () => {
@@ -347,7 +361,7 @@ describeWithDatabase('meal/grocery backfill against a database', () => {
     await prisma.listItem.delete({ where: { id: item.id } })
     const rest = await reverse(A)
     expect(rest).toMatchObject({ jobsDeleted: 1, removed: { List: 1 }, alreadyGone: 1, kept: [] })
-    expect(await hashes(CANONICAL)).toEqual(baseline)
+    await expectRestoredCanonical(6)
   })
 
   it('fixtures:reset still removes everything after an apply', async () => {

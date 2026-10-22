@@ -141,6 +141,8 @@ export async function readPreparationRoutineOrigins(
       day: value.origin.occurrenceDay,
     })),
   );
+  // Prisma stores this calendar day in timestamp without time zone. Applying
+  // AT TIME ZONE would shift it again when to_char uses the session timezone.
   const current = await db.$queryRaw<
     Array<{
       chore_id: string;
@@ -156,7 +158,7 @@ export async function readPreparationRoutineOrigins(
     JOIN "Chore" s ON s."id"=wanted.source_id AND s."family_id"=c."family_id" AND s."routine_stack_id"=r."id"
     JOIN "Family" f ON f."id"=c."family_id"
     WHERE c."member_subject_erased"=false AND c."is_template"=false AND s."member_subject_erased"=false AND s."is_template"=false
-      AND to_char(s."due_date" AT TIME ZONE 'UTC','YYYY-MM-DD')=wanted.day
+      AND to_char(s."due_date",'YYYY-MM-DD')=wanted.day
       AND (${profile} OR (c."assigned_to" IS NOT NULL AND s."assigned_to" IS NOT NULL))
       AND EXISTS(SELECT 1 FROM "User" u WHERE u."id"=${input.userId} AND u."family_id"=c."family_id" AND u."role"='parent'
         AND (${generation}::int IS NULL OR u."token_version"=${generation}))

@@ -85,7 +85,10 @@ run("responsibility target continuity and identity retirement", () => {
           created_by: parentId,
           assigned_to: parentId,
           title: "Fixture chore",
-          due_date: new Date("2026-10-24T00:00:00Z"),
+          // An anchor and its child occupy different scheduled occurrences.
+          due_date: new Date(recurrenceId === id
+            ? "2026-10-23T00:00:00Z"
+            : "2026-10-24T00:00:00Z"),
           recurrence_id: recurrenceId,
           is_template: recurrenceId === id,
         },
@@ -135,6 +138,7 @@ run("responsibility target continuity and identity retirement", () => {
       child = `child-${crypto.randomUUID()}`;
     await chore(root, root);
     await chore(child, root);
+    const before = await prisma!.chore.findUniqueOrThrow({ where: { id: child } });
     const first = await source("chore", child);
     await prisma!.chore.update({
       where: { id: root },
@@ -142,6 +146,7 @@ run("responsibility target continuity and identity retirement", () => {
       select: { id: true },
     });
     expect(await source("chore", child)).not.toBe(first);
+    expect(await prisma!.chore.findUniqueOrThrow({ where: { id: child } })).toEqual(before);
   });
   it("rejects foreign-family backup and ambiguous target links using real constraints", async () => {
     const id = await pickup();

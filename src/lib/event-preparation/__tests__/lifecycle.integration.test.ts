@@ -239,14 +239,22 @@ run("event preparation scoped metadata and canonical lifecycle", () => {
         tokenVersion: 0,
         choreIds: [choreId],
       };
-      expect(await readPreparationRoutineOrigins(prisma!, scope)).toEqual({
-        [choreId]: {
-          state: "available",
-          ...origin,
-          copiedAt: copiedAt.toISOString(),
-          label: "Fixture source",
-        },
-      });
+      // Chore due_date is a timestamp without timezone containing a UTC
+      // calendar day. Session timezone must never move its provenance day.
+      for (const timezone of ["UTC", "America/Toronto", "Pacific/Auckland"]) {
+        const origins = await prisma!.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT set_config('TimeZone', ${timezone}, true)`;
+          return readPreparationRoutineOrigins(tx, scope);
+        });
+        expect(origins).toEqual({
+          [choreId]: {
+            state: "available",
+            ...origin,
+            copiedAt: copiedAt.toISOString(),
+            label: "Fixture source",
+          },
+        });
+      }
       expect(
         await readPreparationRoutineOrigins(prisma!, {
           ...scope,

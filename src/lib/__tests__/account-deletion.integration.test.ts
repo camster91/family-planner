@@ -79,6 +79,13 @@ describeWithDatabase('account deletion against Postgres', () => {
     await db.householdMember.create({ data: { id: id('member'), family_id: f, name: 'Fixture child', role: 'child' } })
     await db.householdMemberLegacyMapping.create({ data: { member_id: id('member'), user_id: child, family_id: f } })
     await db.householdMemberAccountLink.create({ data: { member_id: id('member'), user_id: child, family_id: f, verified_at: t } })
+    await db.householdProfileLinkChallenge.create({ data: {
+      id: id('profile-challenge'), family_id: f, member_id: id('member'), issued_by: parent,
+      issued_token_version: 0, profile_revision: 0, token_hash: tokens.hashToken(id('profile-token')),
+      request_hash: 'a'.repeat(64), expires_at: later,
+    } })
+    await db.aiUsagePolicy.create({ data: { family_id: f } })
+    await db.aiUsageRequest.create({ data: { id: id('ai-request'), family_id: f, user_id: parent, job: 'assistant', created_at: t } })
     // Uploads (and the file on disk)
     const filename = h === 'a' ? 'a1a1a1a1a1a1a1a1.jpg' : 'b2b2b2b2b2b2b2b2.jpg'
     fs.writeFileSync(path.join(uploadDir, 'chores', filename), 'x')
@@ -107,6 +114,9 @@ describeWithDatabase('account deletion against Postgres', () => {
     })
     await db.chore.create({ data: { id: id('chore-parent'), family_id: f, title: 'Bins', assigned_to: teen, due_date: t, created_by: parent } })
     await db.choreAssignment.create({ data: { id: id('assign'), family_id: f, chore_id: id('chore'), assigned_to: child, due_date: t } })
+    await db.responsibilityState.create({ data: { id: id('responsibility'), family_id: f, chore_id: id('chore'), source_token: 'a'.repeat(64) } })
+    await db.eventPreparation.create({ data: { id: id('preparation'), family_id: f, event_id: id('event'), reviewed_event_source: 'b'.repeat(64) } })
+    await db.eventPreparationStep.create({ data: { id: id('prep-step'), family_id: f, preparation_id: id('preparation'), chore_id: id('chore'), position: 1 } })
     // Import provenance
     await db.importJob.create({ data: { id: id('job'), family_id: f, source_app: 'chorechamps', started_by: parent } })
     await db.importedRecord.create({
@@ -166,6 +176,8 @@ describeWithDatabase('account deletion against Postgres', () => {
     await db.sickDay.create({ data: { id: id('sick'), family_id: f, person_id: child, severity: 'mild', created_by: parent } })
     await db.medication.create({ data: { id: id('med'), family_id: f, sick_day_id: id('sick'), person_id: child, name: 'Syrup', dosage: '5ml', schedule: 'x', created_by: parent } })
     // Inventory and private product recognition
+    await db.recipeCollection.create({ data: { id: id('recipe-collection'), family_id: f, name: 'Favorites', name_key: 'favorites' } })
+    await db.recipeCollectionEntry.create({ data: { recipe_id: id('recipe'), collection_id: id('recipe-collection'), family_id: f } })
     await db.foodProduct.create({ data: { id: id("food-product"), family_id: f, barcode: "00036000291452", name: "Fixture product" } })
     await db.inventoryItem.create({ data: { id: id('inv'), family_id: f, name: 'Tomatoes', ingredient_id: id('ingredient'), added_by: parent } })
     await db.inventoryAdjustment.create({

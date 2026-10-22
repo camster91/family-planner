@@ -115,11 +115,11 @@ suite("canonical scheduled routine commands", () => {
     process.env[ROUTINE_SCHEDULE_WRITE_ENV] = "1";
     await prisma!.family.createMany({
       data: [
-        { id: familyId, name: "Schedule fixture", features: { chores: true } },
+        { id: familyId, name: "Schedule fixture", features: { chores: true, gamification: false } },
         {
           id: otherFamily,
           name: "Other schedule fixture",
-          features: { chores: true },
+          features: { chores: true, gamification: false },
         },
       ],
     });
@@ -356,7 +356,7 @@ suite("canonical scheduled routine commands", () => {
     } finally {
       await prisma!.family.update({
         where: { id: familyId },
-        data: { features: { chores: true } },
+        data: { features: { chores: true, gamification: false } },
       });
     }
   });
@@ -977,7 +977,13 @@ suite("canonical scheduled routine commands", () => {
         const after = await prisma!.chore.findUniqueOrThrow({
           where: { id: before.id },
         });
-        expect(after).toEqual({ ...before, recurrence_id: replacement });
+        // Reparenting is a material source edit: the trigger invalidates
+        // responsibility metadata once while preserving all other evidence.
+        expect(after).toEqual({
+          ...before,
+          recurrence_id: replacement,
+          responsibility_epoch: before.responsibility_epoch + 1,
+        });
         expect(control.due_date.getTime()).toBeLessThan(
           before.due_date.getTime(),
         );

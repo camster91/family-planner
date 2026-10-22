@@ -557,8 +557,14 @@ describeWithDatabase('recurring chore series against Postgres', () => {
           await prisma.user.update({ where: { id: PARENT }, data: { role: 'teen' } })
         },
       )
-      expect(response.status).toBe(403)
-      expect(await response.json()).toMatchObject({ error: 'Only parents or the assignee can delete chores' })
+      // Authority changed while this request waited: discard its old snapshot.
+      expect(response.status).toBe(401)
+      expect(await response.json()).toMatchObject({ error: 'Unauthorized' })
+      expect(await prisma.chore.findUnique({ where: { id: 'rsint-stale-delete' } })).not.toBeNull()
+      // A fresh request renews the teen role, then enforces target ownership.
+      const renewed = await route.DELETE(del({ choreId: 'rsint-stale-delete' }, PARENT))
+      expect(renewed.status).toBe(403)
+      expect(await renewed.json()).toMatchObject({ error: 'Only parents or the assignee can delete chores' })
       expect(await prisma.chore.findUnique({ where: { id: 'rsint-stale-delete' } })).not.toBeNull()
 
       // The role change must not remove the ordinary parent-or-assignee path:

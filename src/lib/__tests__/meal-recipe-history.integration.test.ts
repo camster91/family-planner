@@ -63,6 +63,7 @@ suite("recipe evidence at prep completion", () => {
       createMealPrepSchema.parse({
         ...context,
         prepared_on: "2026-10-19",
+        next_prep_on: null,
         dishes: recipeIds.map((recipe_id) => ({
           name: "Soup",
           recipe_id,

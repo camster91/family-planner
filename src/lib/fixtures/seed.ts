@@ -64,6 +64,24 @@ function stripId<T extends { id: string }>(row: T): Omit<T, 'id'> {
   return rest as Omit<T, 'id'>
 }
 
+/** Compare fixture values without churning source versions on an unchanged seed. */
+function sameFixtureValue(left: unknown, right: unknown): boolean {
+  if (left === right) return true
+  if (left instanceof Date && right instanceof Date) return left.getTime() === right.getTime()
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false
+  if (Array.isArray(left) !== Array.isArray(right)) return false
+  const a = left as Record<string, unknown>, b = right as Record<string, unknown>
+  const keys = Object.keys(a)
+  return keys.length === Object.keys(b).length && keys.every((key) =>
+    Object.prototype.hasOwnProperty.call(b, key) && sameFixtureValue(a[key], b[key]))
+}
+
+function fixtureChanges<T extends object>(current: object | null, desired: T): Partial<T> {
+  if (!current) return desired
+  return Object.fromEntries(Object.entries(desired).filter(([key, value]) =>
+    value !== undefined && !sameFixtureValue((current as Record<string, unknown>)[key], value))) as Partial<T>
+}
+
 /** Refuse when a non-fixture row already holds a fixture unique key. */
 async function assertNoUniqueCollisions(db: PrismaClient, ds: FixtureDataset): Promise<void> {
   const emailClash = (
@@ -139,7 +157,7 @@ export async function seedFixtures(
     const pruned: Record<string, number> = {}
 
     for (const f of ds.families) {
-      const data = stripId(f)
+      const data = fixtureChanges(await tx.family.findUnique({ where: { id: f.id } }), stripId(f))
       await tx.family.upsert({
         where: { id: f.id },
         create: f,
@@ -151,7 +169,7 @@ export async function seedFixtures(
 
     for (const u of ds.users) {
       const hash = passwordFor.get(u.id)
-      const data = stripId(u)
+      const data = fixtureChanges(await tx.user.findUnique({ where: { id: u.id } }), stripId(u))
       await tx.user.upsert({
         where: { id: u.id },
         create: { ...u, password: hash ?? (await pw.hashPassword(pw.password)) },
@@ -215,7 +233,7 @@ export async function seedFixtures(
       await tx.list.upsert({
         where: { id: l.id },
         create: l,
-        update: stripId(l) as Prisma.ListUncheckedUpdateInput,
+        update: fixtureChanges(await tx.list.findUnique({ where: { id: l.id } }), stripId(l)) as Prisma.ListUncheckedUpdateInput,
         select: { id: true },
       })
     }
@@ -233,24 +251,24 @@ export async function seedFixtures(
 
     // Meals/recipes and legacy import-generation rows (ADR-0007 backfill rehearsal, #250).
     for (const r of ds.recipes) {
-      await tx.recipe.upsert({ where: { id: r.id }, create: r, update: stripId(r) as Prisma.RecipeUncheckedUpdateInput, select: { id: true } })
+      await tx.recipe.upsert({ where: { id: r.id }, create: r, update: fixtureChanges(await tx.recipe.findUnique({ where: { id: r.id } }), stripId(r)) as Prisma.RecipeUncheckedUpdateInput, select: { id: true } })
     }
     upserted.recipes = ds.recipes.length
     for (const r of ds.ingredients) {
-      await tx.ingredient.upsert({ where: { id: r.id }, create: r, update: stripId(r) as Prisma.IngredientUncheckedUpdateInput, select: { id: true } })
+      await tx.ingredient.upsert({ where: { id: r.id }, create: r, update: fixtureChanges(await tx.ingredient.findUnique({ where: { id: r.id } }), stripId(r)) as Prisma.IngredientUncheckedUpdateInput, select: { id: true } })
     }
     upserted.ingredients = ds.ingredients.length
     for (const r of ds.recipeIngredients) {
       await tx.recipeIngredient.upsert({
         where: { id: r.id },
         create: r,
-        update: stripId(r) as Prisma.RecipeIngredientUncheckedUpdateInput,
+        update: fixtureChanges(await tx.recipeIngredient.findUnique({ where: { id: r.id } }), stripId(r)) as Prisma.RecipeIngredientUncheckedUpdateInput,
         select: { id: true },
       })
     }
     upserted.recipeIngredients = ds.recipeIngredients.length
     for (const r of ds.familyMeals) {
-      await tx.familyMeal.upsert({ where: { id: r.id }, create: r, update: stripId(r) as Prisma.FamilyMealUncheckedUpdateInput, select: { id: true } })
+      await tx.familyMeal.upsert({ where: { id: r.id }, create: r, update: fixtureChanges(await tx.familyMeal.findUnique({ where: { id: r.id } }), stripId(r)) as Prisma.FamilyMealUncheckedUpdateInput, select: { id: true } })
     }
     upserted.familyMeals = ds.familyMeals.length
     for (const r of ds.mealPlans) {
