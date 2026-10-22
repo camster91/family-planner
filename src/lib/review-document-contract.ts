@@ -204,6 +204,7 @@ export const reviewDocumentContext = z
     familyId: id,
     domain: reviewDocumentDomain,
     enabled: z.boolean(),
+    adopted: z.boolean(),
     owner: queueOwnerSchema
       .refine((owner) => owner.kind === "person")
       .nullable(),
@@ -211,7 +212,7 @@ export const reviewDocumentContext = z
   .strict()
   .refine(
     (value) =>
-      (!value.enabled || value.owner !== null) &&
+      (!value.enabled || (value.adopted && value.owner !== null)) &&
       (!value.owner || value.owner.ownerId === value.userId),
   );
 export type ReviewDocumentEntry = z.infer<typeof reviewDocumentEntry>;
@@ -219,3 +220,5 @@ export type ReviewDocumentContext = z.infer<typeof reviewDocumentContext>;
 export type ReviewDocumentPayload = z.infer<typeof reviewDocumentPayload>;
 export type ReviewEditableDocument = z.infer<typeof reviewEditableDocument>;
 export type ReviewExactRequest = z.infer<typeof exactRequest>;
+
+export type RecipeEditableDocument = z.infer<typeof recipeEditableDocument>;

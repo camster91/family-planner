@@ -1,3 +1,4 @@
+import { guardReviewDocumentSubmission } from '@/lib/review-document-submit-server'
 import { withRouteTelemetry } from '@/lib/route-telemetry'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -119,6 +120,8 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+    const reviewRefusal = guardReviewDocumentSubmission(request, auth, 'event.create')
+    if (reviewRefusal) return reviewRefusal
 
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError

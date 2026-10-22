@@ -697,16 +697,18 @@ export default function RecipeExplorePage() {
                   onSavingChange={setSaving}
                   onCancel={() => setEditor(false)}
                   onCreated={(recipe) => {
-                    setSavedId(recipe.id);
+                    setSavedId(
+                      recipe.source_url &&
+                        canonicalRecipeSource(recipe.source_url) ===
+                          canonicalRecipeSource(preview.source)
+                        ? recipe.id
+                        : null,
+                    );
                     setEditor(false);
-                    setRecipes((previous) => [
-                      {
-                        id: recipe.id,
-                        title: recipe.title,
-                        description: `Source: ${preview.source}\n${preview.description}`,
-                      },
-                      ...previous,
-                    ]);
+                    // A restored draft may come from a different source than
+                    // this preview. Refresh canonical summaries instead of
+                    // attaching the incoming preview's description to it.
+                    void loadLibrary(0);
                   }}
                 />
               </>

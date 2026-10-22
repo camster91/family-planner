@@ -56,6 +56,7 @@ export async function createRecipeWithReceipt(
   actor: Actor,
   input: Input,
   recordId: string | null,
+  retainSourceRefusal = false,
 ): Promise<EffectResult> {
   return db.$transaction(async (tx) => {
     const refused = await recipeWriteAuthority(tx, actor);
@@ -81,16 +82,30 @@ export async function createRecipeWithReceipt(
     const sourceKey = source ? recipeSourceKey(source) : null;
     if (source && !input.source_copy) {
       const duplicate = await findRecipeSource(tx, actor.familyId, source);
-      if (duplicate === "incomplete")
-        return failure(409, "RECIPE_SOURCE_CHECK_UNAVAILABLE");
-      if (duplicate)
+      if (duplicate) {
+        const code =
+          duplicate === "incomplete"
+            ? "RECIPE_SOURCE_CHECK_UNAVAILABLE"
+            : "RECIPE_SOURCE_EXISTS";
+        // Durable review requests need a terminal noncommit receipt, not a
+        // fleeting 409 followed by an absent key. A delayed copy of the old
+        // request must never create after the editor resumes with a new key.
+        // Keep only a fixed code; the source title/id is not a cached response.
+        if (retainSourceRefusal && recordId)
+          await tx.idempotencyRecord.update({
+            where: { id: recordId },
+            data: { response_status: 409, response_body: { error: { code } } },
+          });
         return {
           status: 409,
           body: {
-            error: { code: "RECIPE_SOURCE_EXISTS" },
-            existingRecipe: duplicate,
+            error: { code },
+            ...(duplicate === "incomplete"
+              ? {}
+              : { existingRecipe: duplicate }),
           },
         };
+      }
     }
     const lines = await resolveIngredientLines(
       tx,

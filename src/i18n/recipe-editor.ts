@@ -3,6 +3,47 @@ import { useTranslation } from "@/i18n";
 
 /** Recipe-editor controls and recovery copy. Recipe content stays verbatim. */
 export const recipeEditorEnglish = {
+  draftReviewClosed:
+    "This request is no longer in saved work on this device. Check your recipe box before starting another save.",
+  draftPaused:
+    "Draft saving is paused. You can review or close saved work; new changes stay unavailable.",
+  draftExpired:
+    "This draft or save has passed its retry window. It is kept for review; discard only an unsubmitted draft to start again.",
+  draftChecking: "Checking saved work…",
+  draftOwnerChanged:
+    "Your account or household changed. Reload before opening saved drafts.",
+  draftStorageHold:
+    "Saved work could not be verified. Keep this screen open and recover storage before continuing.",
+  draftFound:
+    "An unfinished recipe is saved on this device. Restore it to replace this editor, or discard it to use the current import.",
+  draftRestore: "Restore saved draft",
+  draftDiscard: "Discard draft",
+  draftDiscardConfirm:
+    "Discard this saved recipe draft and any unsaved edits? This cannot be undone.",
+  draftSaving: "Saving draft on this device…",
+  draftSaved: "Draft saved on this device.",
+  draftSubmitted:
+    "This exact save is kept on this device. Check its result or retry the same save; it will keep the original request key.",
+  draftInspect: "Check save status",
+  draftFinish: "Finish this review",
+  draftCloseKeep: "Close and keep saved work",
+  draftRecipeBox: "Open recipe box",
+  draftRecover: "Recover saved work",
+  draftCommitted: "The recipe was saved and is still in your recipe box.",
+  draftRemoved:
+    "The recipe was saved, then removed. Retrying will not recreate it. This review is kept.",
+  draftOpaque:
+    "The save completed, but its current recipe could not be verified. This review is kept.",
+  draftAbsent:
+    "No receipt is currently available. You may check the same save again within its retry window.",
+  draftPending:
+    "The original save is still being processed. Check again later.",
+  draftRefused:
+    "Access or the request could not be verified. This saved request stays locked.",
+  draftSourceRefused:
+    "This source is already saved. Open the saved recipe, or return to the draft after checking that this attempt created nothing.",
+  draftReturn: "Return to editable draft",
+
   sourceLink: "Original source ↗",
   sourceCopy: "Save a separate copy of this source",
   sourceExists:
@@ -57,6 +98,47 @@ export const recipeEditorEnglish = {
 export type RecipeEditorMessage = keyof typeof recipeEditorEnglish;
 
 export const recipeEditorSpanish: Record<RecipeEditorMessage, string> = {
+  draftReviewClosed:
+    "Esta solicitud ya no está en el trabajo guardado de este dispositivo. Revisa tus recetas antes de iniciar otro guardado.",
+  draftPaused:
+    "Los borradores están en pausa. Puedes revisar o cerrar el trabajo guardado; los nuevos cambios no están disponibles.",
+  draftExpired:
+    "Este borrador o guardado ha superado el plazo. Se conserva para revisión; descarta solo un borrador sin enviar para empezar de nuevo.",
+  draftChecking: "Comprobando el trabajo guardado…",
+  draftOwnerChanged:
+    "Tu cuenta o tu hogar ha cambiado. Recarga antes de abrir los borradores guardados.",
+  draftStorageHold:
+    "No se pudo verificar el trabajo guardado. Mantén esta pantalla abierta y recupera el almacenamiento antes de continuar.",
+  draftFound:
+    "Hay una receta sin terminar guardada en este dispositivo. Restáurala para reemplazar este editor o descártala para usar la importación actual.",
+  draftRestore: "Restaurar borrador guardado",
+  draftDiscard: "Descartar borrador",
+  draftDiscardConfirm:
+    "¿Descartar este borrador y los cambios sin guardar? No se puede deshacer.",
+  draftSaving: "Guardando el borrador en este dispositivo…",
+  draftSaved: "Borrador guardado en este dispositivo.",
+  draftSubmitted:
+    "Este guardado exacto se conserva en este dispositivo. Comprueba el resultado o repite el mismo guardado; mantendrá la clave de solicitud original.",
+  draftInspect: "Comprobar estado del guardado",
+  draftFinish: "Finalizar esta revisión",
+  draftCloseKeep: "Cerrar y conservar el trabajo",
+  draftRecipeBox: "Abrir recetas guardadas",
+  draftRecover: "Recuperar trabajo guardado",
+  draftCommitted: "La receta se guardó y sigue en tus recetas.",
+  draftRemoved:
+    "La receta se guardó y después se eliminó. Repetir no la volverá a crear. Se conserva esta revisión.",
+  draftOpaque:
+    "El guardado terminó, pero no se pudo verificar la receta actual. Se conserva esta revisión.",
+  draftAbsent:
+    "No hay un comprobante disponible ahora. Puedes comprobar el mismo guardado dentro del plazo para reintentar.",
+  draftPending:
+    "El guardado original sigue en proceso. Vuelve a comprobarlo más tarde.",
+  draftRefused:
+    "No se pudo verificar el acceso o la solicitud. La solicitud guardada sigue bloqueada.",
+  draftSourceRefused:
+    "Esta fuente ya está guardada. Abre la receta existente o vuelve al borrador tras comprobar que este intento no creó nada.",
+  draftReturn: "Volver al borrador editable",
+
   sourceLink: "Fuente original ↗",
   sourceCopy: "Guardar una copia separada de esta fuente",
   sourceExists:

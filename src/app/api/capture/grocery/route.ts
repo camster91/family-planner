@@ -1,3 +1,4 @@
+import { guardReviewDocumentSubmission } from '@/lib/review-document-submit-server'
 import { captureGrocerySchema } from '@/lib/capture-grocery-contract'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -21,6 +22,9 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+    const reviewRefusal = guardReviewDocumentSubmission(request, auth, 'capture.grocery.add')
+    if (reviewRefusal) return reviewRefusal
+
     const gate = await featureGate(auth.user.family_id, 'lists')
     if (gate) return gate
     if (!canCreateList(auth.user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

@@ -96,6 +96,45 @@ suite("recipe create replay containment", () => {
     expect((await readCreatedRecipe(db, actor, id)).status).toBe(409);
     expect(await db.recipe.count({ where: { family_id: family } })).toBe(0);
   });
+  it("retains a terminal source refusal so a delayed old create cannot run after the draft resumes", async () => {
+    const sourced = {
+      ...input,
+      source_url: "https://example.com/fixture-soup",
+    };
+    const created = await createRecipeWithReceipt(db, actor, sourced, null);
+    const existingId = (created.body as { recipeId: string }).recipeId;
+    const record = await db.idempotencyRecord.create({
+      data: {
+        scope: `user:${user}`,
+        key: "fx_recipe_refused_stable_key",
+        family_id: family,
+        user_id: user,
+        action: RECIPE_CREATE_ACTION,
+        request_hash: hashIdempotentRequest(RECIPE_CREATE_ACTION, sourced),
+        expires_at: new Date(Date.now() + 86400000),
+      },
+    });
+    expect(
+      (await createRecipeWithReceipt(db, actor, sourced, record.id, true))
+        .status,
+    ).toBe(409);
+    const saved = await db.idempotencyRecord.findUniqueOrThrow({
+      where: { id: record.id },
+    });
+    expect(saved.response_status).toBe(409);
+    expect(saved.response_body).toEqual({
+      error: { code: "RECIPE_SOURCE_EXISTS" },
+    });
+    await db.recipe.delete({ where: { id: existingId } });
+    // Source no longer exists, but the OLD exact request remains terminal.
+    expect(
+      await createRecipeWithReceipt(db, actor, sourced, record.id, true),
+    ).toEqual({
+      status: 409,
+      body: { error: { code: "RECIPE_SOURCE_EXISTS" } },
+    });
+    expect(await db.recipe.count({ where: { family_id: family } })).toBe(0);
+  });
   it("revoked session generations cannot hydrate or replay private recipe content", async () => {
     const record = await receipt();
     const result = await createRecipeWithReceipt(db, actor, input, record.id);

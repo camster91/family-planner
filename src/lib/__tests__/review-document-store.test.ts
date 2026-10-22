@@ -17,6 +17,7 @@ const baseContext = reviewDocumentContext.parse({
   userId: "fixture-parent",
   familyId: "fixture-family",
   enabled: true,
+  adopted: true,
   owner: {
     kind: "person",
     ownerId: "fixture-parent",
@@ -108,6 +109,63 @@ function fixture() {
   };
 }
 describe("owned review documents", () => {
+  it("does not adopt another controller's write during an ordinary refresh", async () => {
+    const f = fixture(),
+      first = f.build(),
+      second = f.build();
+    await first.initialize();
+    await second.initialize();
+    await first.begin(documentKey, f.draft());
+    await expect(second.refresh()).rejects.toMatchObject({
+      reason: "DIVERGENT",
+    });
+    expect((await first.refresh())[0].key).toBe(documentKey);
+  });
+  it("requires exact terminal noncommit proof before releasing a rejected create", async () => {
+    const f = fixture(),
+      store = f.build();
+    await store.initialize();
+    const editable = await store.begin(documentKey, f.draft());
+    const frozen = await store.freeze(documentKey, editable.body, requests);
+    expect(
+      await store.releaseRefused(
+        documentKey,
+        frozen.body,
+        "fixture_successor_key",
+        async () => null,
+      ),
+    ).toBeNull();
+    expect(
+      await store.releaseRefused(
+        documentKey,
+        frozen.body,
+        "fixture_successor_key",
+        async (request) => ({
+          requestKey: request.key,
+          requestBody: request.body + " ",
+          code: "RECIPE_SOURCE_EXISTS",
+        }),
+      ),
+    ).toBeNull();
+    expect((await store.read(documentKey)).entry.body).toBe(frozen.body);
+    expect(
+      await store.releaseRefused(
+        documentKey,
+        frozen.body,
+        "fixture_successor_key",
+        async (request) => ({
+          requestKey: request.key,
+          requestBody: request.body,
+          code: "RECIPE_SOURCE_EXISTS",
+        }),
+      ),
+    ).toMatchObject({
+      key: "fixture_successor_key",
+      kind: "editable-review-document",
+    });
+    expect((await store.refresh())[0].key).toBe("fixture_successor_key");
+  });
+
   it("restores all unfinished fields without coercing or shortening", async () => {
     const f = fixture(),
       store = f.build();

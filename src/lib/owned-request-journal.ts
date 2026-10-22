@@ -360,6 +360,43 @@ export function createOwnedRequestJournal<
           held.delete(entry.key);
         });
       }),
+    /** Domain-verified terminal noncommit only. Retire the exact immutable
+     * intent and retain its editable successor in one durable transition.
+     */
+    resolveToLocalDraft: (
+      input: E,
+      previousKey: string,
+      expectedBody: string,
+    ) =>
+      serial(async () => {
+        const parsed = options.entry.safeParse(input);
+        if (
+          !parsed.success ||
+          !options.localDraftKind ||
+          parsed.data.kind !== options.localDraftKind ||
+          parsed.data.key === previousKey
+        )
+          return fail("INTENT_CHANGED");
+        const entry = parsed.data;
+        return checked(async (fresh) => {
+          if (!options.matchesContext(entry, fresh))
+            return fail("OWNER_CHANGED");
+          const prior = rows.find((row) => row.key === previousKey);
+          if (
+            !prior ||
+            prior.kind === options.localDraftKind ||
+            prior.body !== expectedBody ||
+            rows.some((row) => row.key === entry.key)
+          )
+            return fail("INTENT_CHANGED");
+          await persist(
+            rows.map((row) => (row.key === previousKey ? copy(entry) : row)),
+            fresh.owner,
+          );
+          held.delete(previousKey);
+          held.add(entry.key);
+        });
+      }),
     /** Explicit user recovery only; repairs solely the exact known transition. */
     recoverStorage: () =>
       serial(async () => {
@@ -391,6 +428,18 @@ export function createOwnedRequestJournal<
           }));
         });
       }),
+    /** Refresh only the known exact baseline; never adopt a foreign writer. */
+    snapshot: () =>
+      serial(() =>
+        checked(
+          async () =>
+            rows.map((entry) => ({
+              ...copy(entry),
+              reviewRequired: held.has(entry.key),
+            })),
+          true,
+        ),
+      ),
     /** User-reviewed local dismissal or confirmed completion; no server mutation. */
     dismiss: (key: string) =>
       serial(() =>

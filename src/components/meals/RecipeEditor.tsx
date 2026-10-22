@@ -3,14 +3,18 @@
 import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { publicRecipeUrl } from "@/lib/recipe-discovery";
 import { legacyRecipeSource } from "@/lib/recipe-curation-contract";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { useRecipeEditorText } from "@/i18n/recipe-editor";
+import { RecipeDraftBoundary } from "./RecipeDraftBoundary";
+import type { RecipeEditableDocument } from "@/lib/review-document-contract";
 import type { RecipeOption } from "./RecipePicker";
 import type { RecipeDetailData } from "./RecipeDetail";
 
 interface IngredientDraft {
   key: number;
+  clientId?: string;
   name: string;
   amount: string;
   unit: string;
@@ -31,17 +35,8 @@ function toMinutes(value: string): number | null | "invalid" {
  * Inline "new recipe" panel: title, prep and cook minutes, ingredient lines.
  * Exported for tests.
  */
-export function RecipeEditor({
-  onCreated,
-  onCancel,
-  initialRecipe,
-  initialDraft,
-  onSaved,
-  onSavingChange,
-  disabled = false,
-  isMutationPending,
-}: {
-  onCreated?: (recipe: RecipeOption) => void;
+export type RecipeEditorProps = {
+  onCreated?: (recipe: RecipeOption & { source_url?: string | null }) => void;
   initialRecipe?: RecipeDetailData;
   initialDraft?: {
     source_url?: string;
@@ -60,58 +55,157 @@ export function RecipeEditor({
   disabled?: boolean;
   /** Synchronous owner guard for handlers retained before a render. */
   isMutationPending?: () => boolean;
-}) {
+};
+export type RecipeOwnedFormProps = {
+  initialOwnedDraft?: RecipeEditableDocument;
+  onDraftChange?: (draft: RecipeEditableDocument) => void;
+  onOwnedSubmit?: (
+    body: Record<string, unknown>,
+    draft: RecipeEditableDocument,
+  ) => Promise<void>;
+};
+
+export function RecipeEditor(props: RecipeEditorProps) {
+  if (props.initialRecipe) return <RecipeEditorForm {...props} />;
+  return (
+    <RecipeDraftBoundary
+      {...props}
+      renderForm={(owned) => <RecipeEditorForm {...props} {...owned} />}
+    />
+  );
+}
+
+function RecipeEditorForm({
+  onCreated,
+  onCancel,
+  initialRecipe,
+  initialDraft,
+  onSaved,
+  onSavingChange,
+  disabled = false,
+  isMutationPending,
+  initialOwnedDraft,
+  onDraftChange,
+  onOwnedSubmit,
+}: RecipeEditorProps & RecipeOwnedFormProps) {
   const text = useRecipeEditorText();
   const baseId = React.useId();
   const titleRef = React.useRef<HTMLInputElement>(null);
-  const nextKey = React.useRef(initialRecipe?.ingredients.length ?? 1);
+  const nextKey = React.useRef(
+    initialOwnedDraft?.lines.length ?? initialRecipe?.ingredients.length ?? 1,
+  );
   const [title, setTitle] = React.useState(
-    initialRecipe?.title ?? initialDraft?.title ?? "",
+    initialOwnedDraft?.title ??
+      initialRecipe?.title ??
+      initialDraft?.title ??
+      "",
   );
   const [servings, setServings] = React.useState(
-    initialRecipe
-      ? String(initialRecipe.servings ?? "")
-      : initialDraft
-        ? initialDraft.servings == null
-          ? ""
-          : String(initialDraft.servings)
-        : "2",
+    initialOwnedDraft
+      ? initialOwnedDraft.servings
+      : initialRecipe
+        ? String(initialRecipe.servings ?? "")
+        : initialDraft
+          ? initialDraft.servings == null
+            ? ""
+            : String(initialDraft.servings)
+          : "2",
   );
   const [description, setDescription] = React.useState(
-    initialRecipe?.description ?? initialDraft?.description ?? "",
+    initialOwnedDraft?.description ??
+      initialRecipe?.description ??
+      initialDraft?.description ??
+      "",
   );
   const [instructions, setInstructions] = React.useState(
-    initialRecipe?.instructions ?? initialDraft?.instructions ?? "",
+    initialOwnedDraft?.instructions ??
+      initialRecipe?.instructions ??
+      initialDraft?.instructions ??
+      "",
   );
   const [prep, setPrep] = React.useState(
-    (initialRecipe?.prep_time ?? initialDraft?.prep_time) == null
-      ? ""
-      : String(initialRecipe?.prep_time ?? initialDraft?.prep_time),
+    initialOwnedDraft
+      ? initialOwnedDraft.prep
+      : (initialRecipe?.prep_time ?? initialDraft?.prep_time) == null
+        ? ""
+        : String(initialRecipe?.prep_time ?? initialDraft?.prep_time),
   );
   const [cook, setCook] = React.useState(
-    (initialRecipe?.cook_time ?? initialDraft?.cook_time) == null
-      ? ""
-      : String(initialRecipe?.cook_time ?? initialDraft?.cook_time),
+    initialOwnedDraft
+      ? initialOwnedDraft.cook
+      : (initialRecipe?.cook_time ?? initialDraft?.cook_time) == null
+        ? ""
+        : String(initialRecipe?.cook_time ?? initialDraft?.cook_time),
   );
   const [lines, setLines] = React.useState<IngredientDraft[]>(() =>
-    initialRecipe
-      ? initialRecipe.ingredients.map((line, key) => ({
+    initialOwnedDraft
+      ? initialOwnedDraft.lines.map((line, key) => ({
           key,
-          name: line.ingredient.name,
-          amount: String(line.amount),
-          unit: line.unit ?? "",
-          note: line.note ?? "",
-          ingredientId: line.ingredient.id,
-          originalName: line.ingredient.name,
+          clientId: line.clientId,
+          name: line.name,
+          amount: line.amount,
+          unit: line.unit,
+          note: line.note,
+          ingredientId: line.ingredientId ?? undefined,
+          originalName: line.originalName ?? undefined,
         }))
-      : [{ key: 0, name: "", amount: "1", unit: "", note: "" }],
+      : initialRecipe
+        ? initialRecipe.ingredients.map((line, key) => ({
+            key,
+            name: line.ingredient.name,
+            amount: String(line.amount),
+            unit: line.unit ?? "",
+            note: line.note ?? "",
+            ingredientId: line.ingredient.id,
+            originalName: line.ingredient.name,
+          }))
+        : [{ key: 0, name: "", amount: "1", unit: "", note: "" }],
   );
   const originalLines = React.useRef(lines);
-  const sourceUrl =
-    initialDraft?.source_url ?? legacyRecipeSource(initialDraft?.description);
+  const sourceUrl = initialOwnedDraft
+    ? initialOwnedDraft.sourceUrl
+    : (initialDraft?.source_url ??
+      legacyRecipeSource(initialDraft?.description));
+  const safeSourceUrl = sourceUrl ? publicRecipeUrl(sourceUrl) : null;
   const [sourceCopy, setSourceCopy] = React.useState(
-    initialDraft?.source_copy ?? false,
+    initialOwnedDraft?.sourceCopy ?? initialDraft?.source_copy ?? false,
   );
+  const ownedDraft = React.useMemo<RecipeEditableDocument>(
+    () => ({
+      domain: "recipe",
+      title,
+      description,
+      instructions,
+      servings,
+      prep,
+      cook,
+      sourceUrl: sourceUrl ?? null,
+      sourceCopy,
+      lines: lines.map((line) => ({
+        clientId: line.clientId ?? `line-${line.key}`,
+        name: line.name,
+        amount: line.amount,
+        unit: line.unit,
+        note: line.note,
+        ingredientId: line.ingredientId ?? null,
+        originalName: line.originalName ?? null,
+      })),
+    }),
+    [
+      title,
+      description,
+      instructions,
+      servings,
+      prep,
+      cook,
+      sourceUrl,
+      sourceCopy,
+      lines,
+    ],
+  );
+  React.useEffect(() => {
+    onDraftChange?.(ownedDraft);
+  }, [ownedDraft, onDraftChange]);
   const [duplicate, setDuplicate] = React.useState<{
     id: string;
     title: string;
@@ -149,13 +243,33 @@ export function RecipeEditor({
   const addLine = () =>
     setLines((prev) => [
       ...prev,
-      { key: nextKey.current++, name: "", amount: "1", unit: "", note: "" },
+      {
+        key: nextKey.current++,
+        clientId: newIdempotencyKey(),
+        name: "",
+        amount: "1",
+        unit: "",
+        note: "",
+      },
     ]);
 
   const removeLine = (key: number) =>
     setLines((prev) => prev.filter((l) => l.key !== key));
 
   async function writeRecipe(body: Record<string, unknown>) {
+    if (onOwnedSubmit && !initialRecipe) {
+      await onOwnedSubmit(
+        {
+          ...body,
+          ...(sourceUrl
+            ? { source_url: sourceUrl, source_copy: sourceCopy }
+            : {}),
+          creation_protocol: "herewoven.recipe-create.v1",
+        },
+        ownedDraft,
+      );
+      return;
+    }
     if (!initialRecipe && !creationAttempt.current)
       creationAttempt.current = {
         key: newIdempotencyKey(),
@@ -274,6 +388,7 @@ export function RecipeEditor({
         prep_time: r.prep_time,
         cook_time: r.cook_time,
         servings: r.servings,
+        source_url: r.source_url ?? sourceUrl ?? null,
       });
   }
 
@@ -495,10 +610,10 @@ export function RecipeEditor({
       </legend>
 
       <fieldset disabled={uncertain && !initialRecipe} className="space-y-3">
-        {!initialRecipe && sourceUrl && (
+        {!initialRecipe && safeSourceUrl && (
           <div className="space-y-2">
             <a
-              href={sourceUrl}
+              href={safeSourceUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex min-h-[44px] items-center break-all"
@@ -543,10 +658,9 @@ export function RecipeEditor({
           </label>
           <input
             id={`${baseId}-servings`}
-            type="number"
-            min={1}
-            max={100}
-            step={1}
+            type="text"
+            inputMode="numeric"
+            maxLength={80}
             value={servings}
             onChange={(e) => setServings(e.target.value)}
             onKeyDown={onKeyDown}
@@ -598,10 +712,9 @@ export function RecipeEditor({
             </label>
             <input
               id={`${baseId}-prep`}
-              type="number"
+              type="text"
               inputMode="numeric"
-              min={0}
-              max={1440}
+              maxLength={80}
               value={prep}
               onChange={(e) => setPrep(e.target.value)}
               onKeyDown={onKeyDown}
@@ -617,10 +730,9 @@ export function RecipeEditor({
             </label>
             <input
               id={`${baseId}-cook`}
-              type="number"
+              type="text"
               inputMode="numeric"
-              min={0}
-              max={1440}
+              maxLength={80}
               value={cook}
               onChange={(e) => setCook(e.target.value)}
               onKeyDown={onKeyDown}

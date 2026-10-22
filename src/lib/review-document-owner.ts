@@ -26,9 +26,14 @@ export function reviewDocumentOwner(
       }
     : null;
 }
+/** Once adopted, keep this on through write pauses until owned data is retired. */
+export function reviewDocumentRecoveryAdopted() {
+  return process.env.FAMILY_REVIEW_DOCUMENTS_ROLLBACK_READY === "1";
+}
 export function reviewDocumentWritingEnabled() {
   return (
     isQueueOwnerRecoveryEnabled() &&
+    reviewDocumentRecoveryAdopted() &&
     process.env.FAMILY_REVIEW_DOCUMENTS_READY === "1"
   );
 }

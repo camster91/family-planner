@@ -1,5 +1,65 @@
 # Current State
 
+## Recipe draft host and bound canonical submission source — 2026-10-21
+
+New-recipe editors (including Meals quick-add and imported recipes) now share an
+owned document boundary around the existing labelled form. Adoption is explicit:
+`FAMILY_REVIEW_DOCUMENTS_ROLLBACK_READY=1` opts into historical document recovery;
+keep that on through write pauses until data is retired. New writes additionally
+require `FAMILY_REVIEW_DOCUMENTS_READY=1` and existing queue/rollback readiness.
+Before adoption the legacy editor does not depend on Web Locks/IndexedDB. No flags
+were changed. Once adopted, inaccessible storage or ownership uncertainty holds
+new work rather than falling back to a new unowned create.
+
+A saved unsubmitted recipe offers explicit restore/discard instead of merging into
+an incoming import. Full ingredient lines, notes, source-copy choice, unknown
+servings and partial numeric strings survive in the form contract; numeric text
+inputs avoid the browser silently sanitizing those partial strings. Restored source
+links are validated before becoming clickable. Autosave retains the full document;
+Cancel and dashboard-link exits flush it before leaving, existing Back/unload
+protection is reused, and parent close controls are notified while draft writes
+are pending. Focus/visibility/storage renewal retains the original person owner,
+masks private form content and suppresses late replies. Ordinary refresh checks
+the exact known journal baseline instead of adopting another writer's version.
+Explicit recovery preserves conflicts for restore review; uncertain storage writes
+require exact transition recovery. These are source paths, not observed UX evidence.
+
+Submission freezes the original canonical body/key before the new foreground
+`/api/review-documents/submit` compatibility boundary dispatches to the existing
+recipe/event/grocery handler. The dispatch and canonical handler both check current
+person/domain owner metadata, readiness and the frozen retry deadline. Older servers
+have no dispatch endpoint; the client never downgrades to an ordinary create. No
+second recipe/event/grocery effect implementation or background replay was added.
+The recipe host uses canonical receipt inspection before an exact retry and before
+completion cleanup; committed/removed/opaque/expired/pending outcomes remain
+separate. An interrupted success cannot be turned into a fresh create by editing.
+
+Source duplicate/check-unavailable refusals for durable recipe requests now commit
+a compact terminal 409 receipt under the existing recipe actor/household/receipt
+locks. The shared helper's non-success cleanup only removes pending receipts, so
+these completed refusals survive and replay. No recipe title/source/id is cached
+in that refusal. State-only inspection exposes a fixed refusal reason. Returning
+to editing requires that exact terminal receipt, not a transient response plus an
+absent key. The rejected request is retired into a fresh editable document in one
+CAS persistence transition; all fields remain durable. A delayed old request stays
+terminal even if the previously duplicate recipe was removed in the meantime.
+
+The import explorer refreshes canonical summaries and checks the created recipe's
+source before marking its incoming preview saved; a restored draft may represent a
+different source. Existing saved-recipe PATCH edits remain on their existing path.
+EN/ES recovery, paused, conflict, expiry and saved-work controls are authored.
+
+Added source cases for explicit full restore, unknown-result exact retries, current
+household changes, pre-adoption compatibility, dispatch owner/deadline/write gates,
+foreign-writer refresh refusal, atomic refused-intent succession and a disposable-
+Postgres delayed-request/terminal-refusal scenario. All are unrun. Source inspection,
+edits and selected-file formatting only: no tests/typecheck/lint/build/browser/API/
+SQL/DB/native/CI, activation, push/merge or deployment. CaptureBox unsent drafts still
+need this lifecycle, inbox draft discovery and wider routine/role/AI code remains.
+Full programmatic/host exit handling and acceptance of rendered Back/failed-flush/
+background/process-loss behavior remain open; do not treat authored paths as proof.
+The full goal and #123/#144/#499 stay open; consolidated QA remains after the code.
+
 ## Owned review-document lifecycle foundation — 2026-10-21
 
 Source now defines separate bounded editable and frozen capture/recipe documents.

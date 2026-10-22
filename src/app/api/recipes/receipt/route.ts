@@ -60,6 +60,32 @@ export async function GET(request: NextRequest) {
       if (record.response_status === null)
         return { status: 200, body: { state: "pending" } };
       const body = record.response_body;
+      if (
+        record.response_status === 409 &&
+        body &&
+        typeof body === "object" &&
+        !Array.isArray(body)
+      ) {
+        const error = body.error;
+        const code =
+          error && typeof error === "object" && !Array.isArray(error)
+            ? error.code
+            : null;
+        if (
+          code === "RECIPE_SOURCE_EXISTS" ||
+          code === "RECIPE_SOURCE_CHECK_UNAVAILABLE"
+        )
+          return {
+            status: 200,
+            body: {
+              state: "refused",
+              reason:
+                code === "RECIPE_SOURCE_EXISTS"
+                  ? "source-exists"
+                  : "source-check-unavailable",
+            },
+          };
+      }
       const id =
         body && typeof body === "object" && !Array.isArray(body)
           ? body.recipeId

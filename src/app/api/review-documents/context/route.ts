@@ -7,6 +7,7 @@ import { getRequestId } from "@/lib/request-id";
 import {
   reviewDocumentOwner,
   reviewDocumentWritingEnabled,
+  reviewDocumentRecoveryAdopted,
 } from "@/lib/review-document-owner";
 import {
   reviewDocumentContext,
@@ -71,6 +72,7 @@ export async function GET(request: NextRequest) {
         userId: fresh.user.id,
         familyId: fresh.user.family_id,
         domain: domain.data,
+        adopted: reviewDocumentRecoveryAdopted(),
         owner,
         enabled:
           owner !== null && featureEnabled && reviewDocumentWritingEnabled(),

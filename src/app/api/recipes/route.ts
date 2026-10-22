@@ -1,3 +1,5 @@
+import { REVIEW_SUBMIT_HEADERS } from "@/lib/review-document-submit-contract";
+import { guardReviewDocumentSubmission } from "@/lib/review-document-submit-server";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily } from "@/lib/api-auth";
@@ -114,6 +116,12 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+    const reviewRefusal = guardReviewDocumentSubmission(
+      request,
+      auth,
+      "recipe.create",
+    );
+    if (reviewRefusal) return reviewRefusal;
 
     const gate = await featureGate(auth.user.family_id, "meals");
     if (gate) return gate;
@@ -158,7 +166,14 @@ export async function POST(request: NextRequest) {
         action: RECIPE_CREATE_ACTION,
       },
       data,
-      ({ recordId }) => createRecipeWithReceipt(prisma!, actor, data, recordId),
+      ({ recordId }) =>
+        createRecipeWithReceipt(
+          prisma!,
+          actor,
+          data,
+          recordId,
+          request.headers.has(REVIEW_SUBMIT_HEADERS.contract),
+        ),
       {
         beforeReplay: () => authorizeRecipeCreation(prisma!, actor),
       },

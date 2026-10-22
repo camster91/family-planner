@@ -12,6 +12,12 @@ import type {
 } from "@/lib/review-document-contract";
 import type { ReviewReceiptState } from "@/lib/review-document-store";
 const receipt = z.union([
+  z
+    .object({
+      state: z.literal("refused"),
+      reason: z.enum(["source-exists", "source-check-unavailable"]),
+    })
+    .strict(),
   z.object({ state: z.enum(["absent", "pending", "expired"]) }).strict(),
   z
     .object({

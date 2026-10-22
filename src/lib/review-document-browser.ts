@@ -17,6 +17,8 @@ export async function readReviewDocumentContext(
     {},
     8192,
   );
+  if (reply.kind === "reply" && [401, 403, 409].includes(reply.response.status))
+    throw new OwnedRequestRecoveryError("OWNER_CHANGED");
   if (reply.kind !== "reply" || !reply.response.ok)
     throw new OwnedRequestRecoveryError("UNAVAILABLE");
   const context = reviewDocumentContext.safeParse(reply.body);

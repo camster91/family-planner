@@ -117,5 +117,15 @@ it("distinguishes pending, expired, opaque and conflicting receipts without cano
     record({ request_hash: "b".repeat(64) }),
   );
   expect((await GET(request())).status).toBe(409);
+  tx.idempotencyRecord.findFirst.mockResolvedValueOnce(
+    record({
+      response_status: 409,
+      response_body: { error: { code: "RECIPE_SOURCE_EXISTS" } },
+    }),
+  );
+  expect(await (await GET(request())).json()).toEqual({
+    state: "refused",
+    reason: "source-exists",
+  });
   expect(tx.recipe.findFirst).not.toHaveBeenCalled();
 });

@@ -28,8 +28,14 @@ type Options = Pick<
 export type ReviewReceiptState =
   | { state: "committed"; current: "present" | "removed" | "unknown" }
   | {
-      state: "absent" | "pending" | "expired" | "refused" | "duplicate-source";
-    };
+      state: "absent" | "pending" | "expired" | "duplicate-source";
+    }
+  | { state: "refused"; reason?: "source-exists" | "source-check-unavailable" };
+export type ReviewVerifiedRefusal = {
+  requestKey: string;
+  requestBody: string;
+  code: "RECIPE_SOURCE_EXISTS" | "RECIPE_SOURCE_CHECK_UNAVAILABLE";
+};
 type Editing = Extract<ReviewDocumentPayload, { phase: "editing" }>;
 function payload(entry: ReviewDocumentEntry) {
   return reviewDocumentPayload.parse(JSON.parse(entry.body));
@@ -64,6 +70,7 @@ export function createReviewDocumentStore(options: Options) {
     matchesContext: (entry, context) => {
       const document = payload(entry);
       return (
+        context.adopted &&
         document.userId === context.userId &&
         document.familyId === context.familyId &&
         document.draft.domain === context.domain
@@ -101,6 +108,7 @@ export function createReviewDocumentStore(options: Options) {
   }
   return {
     initialize: () => serial(() => journal.initialize()),
+    refresh: () => serial(() => journal.snapshot()),
     recoverStorage: () => serial(() => journal.recoverStorage()),
     hasUncertainStorage: journal.hasUncertainStorage,
     /** Expired work stays inspectable; no silent pruning or replacement. */
@@ -241,6 +249,55 @@ export function createReviewDocumentStore(options: Options) {
       serial(async () => {
         if ((await exact(key, expectedBody)).phase !== "editing") return fail();
         await journal.dismiss(key);
+      }),
+    /** A domain host may release only a freshly observed terminal refusal,
+     * rechecked against a canonical terminal noncommit receipt for this exact request. Plain
+     * absence, a lost reply or an expired lease is never sufficient to rekey.
+     */
+    releaseRefused: (
+      key: string,
+      expectedBody: string,
+      newDocumentKey: string,
+      verify: (
+        request: ReviewExactRequest,
+        context: ReviewDocumentContext,
+      ) => Promise<ReviewVerifiedRefusal | null>,
+    ) =>
+      serial(async () => {
+        const refused = await journal.inspect(key, async (entry, context) => {
+          if (entry.body !== expectedBody) return fail();
+          const document = payload(entry);
+          if (document.phase !== "submitted") return fail();
+          fresh(document);
+          for (const request of document.requests) {
+            const proof = await verify(request, context);
+            if (
+              !proof ||
+              proof.requestKey !== request.key ||
+              proof.requestBody !== request.body ||
+              (proof.code !== "RECIPE_SOURCE_EXISTS" &&
+                proof.code !== "RECIPE_SOURCE_CHECK_UNAVAILABLE")
+            )
+              return false;
+          }
+          if (
+            document.requests.some((request) => request.key === newDocumentKey)
+          )
+            return fail();
+          return document;
+        });
+        if (!refused) return null;
+        const successor = entryFor(
+          newDocumentKey,
+          newReviewDocument(
+            refused,
+            refused.draft,
+            refused.provenance,
+            options.now(),
+          ),
+        );
+        await journal.resolveToLocalDraft(successor, key, expectedBody);
+        return successor;
       }),
     /** Explicit completion review, not an automatic success cleanup. Removed
      * and unknown current records stay visible for a separate user decision.
