@@ -1,5 +1,25 @@
 # Current State
 
+## AI exact-target deletion source — 2026-10-22
+
+The negotiated confirmation flow now includes event/chore/list delete adapters.
+A read-only selected-target preview renews the original Today proof and current
+actor, locks/fingerprints the target plus bounded affected child records, and
+returns current canonical details with an opaque signed target token. Chat
+requires a new removal checkbox after that preview and sends both proofs to the
+fixed confirmation route. Missing, changed, expired, foreign or uninspectable
+evidence holds the deletion. Canonical deletion services preserve imported-event,
+profile-protocol, routine/series/history and assignee restrictions and commit a
+minimal keyed receipt with the effect; recovery does not require a deleted target.
+
+Source/token/client/mounted/disposable-DB cases are authored and unrun. Profile
+assignees, broader canonical planning/version/evaluation/inbox follow-through and
+all consolidated QA remain. Gate stays off. No tests/types/lint/build/browser/
+application API/DB/schema/client/native/CI, provider/flag activation, push/merge/
+deploy or issue closure occurred. See
+[`AI_CONFIRMATION_SOURCES.md`](./architecture/AI_CONFIRMATION_SOURCES.md). The
+full goal stays active; earlier source checkpoints below retain their history.
+
 ## AI confirmation source renewal — 2026-10-22
 
 Source proof negotiation and a fixed versioned confirmation endpoint are authored.

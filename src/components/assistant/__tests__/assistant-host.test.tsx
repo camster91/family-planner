@@ -1673,3 +1673,93 @@ it.each(["same", "different", "unavailable"] as const)(
     }
   },
 );
+
+// Authored/unrun: exact target details must load before deletion can be approved.
+it("reviews the current removal target and sends both source and target proofs only after confirmation", async () => {
+  const user = userEvent.setup();
+  const calls: Array<{ path: string; body: any }> = [];
+  const headers = {
+    "X-Assistant-Today-Protocol": "herewoven.assistant-today.v1",
+    "X-Assistant-Today-Generated-At": new Date().toISOString(),
+    "X-Assistant-Today-Expires-At": new Date(Date.now() + 60000).toISOString(),
+  };
+  global.fetch = jest.fn(async (path, options) => {
+    calls.push({
+      path: String(path),
+      body: options?.body ? JSON.parse(String(options.body)) : undefined,
+    });
+    if (path === "/api/assistant")
+      return response(
+        {
+          reply: "Choose the list to remove.",
+          action: { kind: "list_delete", title: "Supplies" },
+          sourceProof: "synthetic-source",
+        },
+        true,
+        headers,
+      );
+    if (path === "/api/lists")
+      return response({
+        lists: [
+          {
+            id: "list-a",
+            name: "Supplies",
+            type: "custom",
+            _count: { items: 1 },
+          },
+        ],
+      });
+    if (path === "/api/assistant/actions/target")
+      return response({
+        target: {
+          id: "list-a",
+          title: "Current camping supplies",
+          context: "custom",
+          itemCount: 2,
+          proof: "synthetic-target",
+        },
+      });
+    return response({ success: true });
+  }) as any;
+  render(
+    <AssistantHost role="parent" todayContextEnabled confirmationEnabled />,
+  );
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await user.click(screen.getByRole("checkbox", { name: /Include Today/i }));
+  await user.type(
+    screen.getByLabelText("Your message"),
+    "Remove the supplies list",
+  );
+  await user.click(screen.getByRole("button", { name: "Send" }));
+  const chooser = await screen.findByLabelText("Item to remove");
+  expect(
+    screen.getByRole("button", { name: "Remove selected item" }),
+  ).toBeDisabled();
+  await user.selectOptions(chooser, "list-a");
+  const consent = await screen.findByRole("checkbox", {
+    name: "I confirm removing “Current camping supplies”",
+  });
+  expect(
+    screen.getByText("This also removes 2 list items."),
+  ).toBeInTheDocument();
+  expect(calls.map((call) => call.path)).toEqual([
+    "/api/assistant",
+    "/api/lists",
+    "/api/assistant/actions/target",
+  ]);
+  await user.click(consent);
+  await user.click(
+    screen.getByRole("button", { name: "Remove selected item" }),
+  );
+  await screen.findByText("Removed “Current camping supplies”.");
+  expect(calls[3]).toEqual({
+    path: "/api/assistant/actions/confirm",
+    body: {
+      kind: "list_delete",
+      sourceProof: "synthetic-source",
+      targetProof: "synthetic-target",
+      body: { listId: "list-a" },
+    },
+  });
+  expect(calls).toHaveLength(4);
+});

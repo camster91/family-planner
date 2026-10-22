@@ -55,13 +55,41 @@ atomic receipts and current actor/feature checks for their ordinary canonical
 routes. Legacy no-key deliberate creates remain distinct; HTTP shapes/statuses
 and note-color normalization are preserved.
 
-Event/chore/list deletion still need exact selected-target revision checks,
-canonical lifecycle guards and atomic receipts before registration. Profile
-assignees need explicit protocol-2 controls and canonical adapter integration;
-the existing account-only picker must not infer a User from a profile. These
-actions currently refuse through the new endpoint. Keep the capability off
-until all supported kinds, profile behavior and recovery UI are complete and QA
-passes. Do not close #123/#144/#128 from this partial checkpoint.
+Event/chore/list deletion now has registered canonical adapters and optional
+atomic minimal receipts. Before a sourced deletion, the user selects a target
+from canonical choices. A read-only bounded `POST /api/assistant/actions/target`
+renews person/role/generation/features and the original source proof, then locks
+and reviews that one record. It returns the current canonical title/date/list
+details and item count, plus a distinct signed 60-second target token. Full
+record/dependent content remains server-side. Chat replaces stale choice details,
+requires a fresh explicit removal checkbox and sends both proofs to the fixed
+confirmation endpoint; missing/unreadable target evidence cannot start a delete.
+Preview is a read, consumes no mutation key and never authorizes a write itself.
+
+Target fingerprints include all scalar target fields and bounded directly affected
+records: event preparation/steps and calendar links; chore assignments,
+preparation link and responsibility state; list items and shopping sessions.
+Parent/child row locks protect the reviewed set against edits/deletes and FK
+inserts during effect verification. Explicit foreign dependent-family anomalies
+and erased chore subjects refuse. Each child group is capped at500 and the
+canonical serialized snapshot at1MiB; exceeding a bound requires canonical app
+controls rather than a partial chat deletion preview. Tokens contain only owner,
+kind, target ID, timing and keyed fingerprint. They are never sent to the model.
+
+The canonical deletion transaction renews authority before receipt replay, then
+checks source and exact target before a new effect, rechecks current lease/gates
+after target waits, applies the existing imported-event, profile-protocol,
+routine-schedule, recurring-anchor/history and assignee restrictions, and stores
+`{success:true}` with the deletion. Completed keyed recovery works after target
+deletion/expiry under current original actor authority; ordinary no-key second
+deletes still return the canonical missing-record response. No provider delete,
+recurrence rewrite, history inference or new child/profile authority is added.
+
+Profile assignees still need explicit protocol-2 controls and canonical adapter
+integration; the account-only picker must not infer a User from a profile.
+Profile create requests still refuse through the new confirmation flow. Keep the
+capability off until profile behavior, broader source planning and recovery UI
+are complete and QA passes. Do not close #123/#144/#128 from this checkpoint.
 
 Positive record locks are not range/predicate locks. A bounded Today window
 does not prove absence, complete schedule feasibility, meal/inventory planning

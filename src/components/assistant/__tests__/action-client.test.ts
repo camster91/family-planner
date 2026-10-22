@@ -2,6 +2,7 @@ import {
   defaultEnglishError,
   executeAssistantAction,
   removalTargets,
+  previewRemovalTarget,
   AssistantActionError,
   AssistantActionPreflightError,
   ActionOutcomeUnknown,
@@ -301,4 +302,45 @@ it("distinguishes a proven source refusal from an unknown mutation result and ne
     ),
   ).rejects.toBeInstanceOf(AssistantSourceRefusal);
   expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it("requires exact target proof before a sourced removal, then forwards it only to the fixed confirmation route", async () => {
+  const action = { kind: "list_delete" as const, title: "Supplies" };
+  await expect(
+    executeAssistantAction(
+      action,
+      "synthetic-removal-key",
+      { id: "list-a", title: "Supplies" },
+      "source-proof",
+    ),
+  ).rejects.toBeInstanceOf(AssistantActionPreflightError);
+  expect(fetchMock).not.toHaveBeenCalled();
+  fetchMock.mockResolvedValueOnce(
+    ok({
+      target: {
+        id: "list-a",
+        title: "Current supplies",
+        itemCount: 2,
+        proof: "target-proof",
+      },
+    }),
+  );
+  const reviewed = await previewRemovalTarget(action, "list-a", "source-proof");
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/assistant/actions/target");
+  fetchMock.mockResolvedValueOnce(ok({ success: true }));
+  await executeAssistantAction(
+    action,
+    "synthetic-removal-key",
+    reviewed,
+    "source-proof",
+  );
+  const [path, options] = fetchMock.mock.calls[1];
+  expect(path).toBe("/api/assistant/actions/confirm");
+  expect(JSON.parse(options.body)).toEqual({
+    kind: "list_delete",
+    sourceProof: "source-proof",
+    targetProof: "target-proof",
+    body: { listId: "list-a" },
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(2);
 });

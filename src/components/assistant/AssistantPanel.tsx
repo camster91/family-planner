@@ -19,6 +19,7 @@ import {
 import {
   executeAssistantAction,
   removalTargets,
+  previewRemovalTarget,
   choreAssignees,
   AssistantActionError,
   AssistantActionPreflightError,
@@ -649,6 +650,39 @@ export default function AssistantPanel({
     if (!valid) setTodayExpired(true);
     return valid;
   }
+  async function selectRemovalTarget(id: string) {
+    if (lock.current || !action || !action.kind.endsWith("_delete")) return;
+    setDeleteConfirm(false);
+    setSelected(id);
+    if (!id || !sourceProof) return;
+    const reviewedAction = action;
+    const reviewedProof = sourceProof;
+    lock.current = true;
+    setBusy(true);
+    setError(null);
+    setTargets((rows) =>
+      rows.map((row) =>
+        row.id === id
+          ? { ...row, proof: undefined, itemCount: undefined }
+          : row,
+      ),
+    );
+    try {
+      const target = await previewRemovalTarget(
+        reviewedAction,
+        id,
+        reviewedProof,
+      );
+      setTargets((rows) => rows.map((row) => (row.id === id ? target : row)));
+    } catch (error) {
+      setSelected("");
+      setError(toAssistantError(error, "loadChoicesFailed"));
+      if (error instanceof AssistantSourceRefusal) setTodayExpired(true);
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
   async function confirm() {
     if (
       !action ||
@@ -664,7 +698,11 @@ export default function AssistantPanel({
     }
     const removing = action.kind.endsWith("_delete"),
       chosen = targets.find((t) => t.id === selected);
-    if (removing && (!chosen || !deleteConfirm)) return;
+    if (
+      removing &&
+      (!chosen || !deleteConfirm || (sourceProof && !chosen.proof))
+    )
+      return;
     if (action.kind === "chore_create" && !chosen) return;
     lock.current = true;
     consumed.current = true;
@@ -1148,10 +1186,9 @@ export default function AssistantPanel({
                         disabled={busy}
                         aria-label={msg("itemToRemove")}
                         value={selected}
-                        onChange={(e) => {
-                          setSelected(e.target.value);
-                          setDeleteConfirm(false);
-                        }}
+                        onChange={(e) =>
+                          void selectRemovalTarget(e.target.value)
+                        }
                         className="input-apple min-h-[44px] w-full"
                       >
                         <option value="">{msg("chooseItem")}</option>
@@ -1169,20 +1206,48 @@ export default function AssistantPanel({
                     <p className="text-sm text-label-secondary">
                       {msg("deletionInfo")}
                     </p>
-                    {selected && (
-                      <label className="flex min-h-[44px] items-center gap-3">
-                        <input
-                          type="checkbox"
-                          disabled={busy}
-                          checked={deleteConfirm}
-                          onChange={(e) => setDeleteConfirm(e.target.checked)}
-                        />
-                        {msg("confirmRemoving", {
-                          title:
-                            targets.find((t) => t.id === selected)?.title ?? "",
-                        })}
-                      </label>
-                    )}
+                    {sourceProof &&
+                      selected &&
+                      targets.find((t) => t.id === selected)?.proof && (
+                        <div
+                          role="status"
+                          className="rounded-xl bg-surface-fill p-3 text-sm [overflow-wrap:anywhere]"
+                        >
+                          <p className="font-semibold">
+                            {targets.find((t) => t.id === selected)?.title}
+                          </p>
+                          <p>
+                            {targets.find((t) => t.id === selected)?.context}
+                          </p>
+                          {targets.find((t) => t.id === selected)?.itemCount !==
+                            undefined && (
+                            <p>
+                              {msg("deleteListItemCount", {
+                                count: targets.find((t) => t.id === selected)!
+                                  .itemCount!,
+                              })}
+                            </p>
+                          )}
+                          <p>{msg("deleteTargetReviewed")}</p>
+                        </div>
+                      )}
+                    {selected &&
+                      (!sourceProof ||
+                        targets.find((t) => t.id === selected)?.proof) && (
+                        <label className="flex min-h-[44px] items-center gap-3">
+                          <input
+                            type="checkbox"
+                            disabled={busy}
+                            checked={deleteConfirm}
+                            onChange={(e) => setDeleteConfirm(e.target.checked)}
+                          />
+                          {msg("confirmRemoving", {
+                            title:
+                              targets.find((t) => t.id === selected)?.title ??
+                              "",
+                          })}
+                        </label>
+                      )}
                   </>
                 )}
                 {action.kind === "open" && (
@@ -1205,7 +1270,10 @@ export default function AssistantPanel({
                             ? !action.weekdays.length
                             : !action.date))) ||
                       (action.kind.endsWith("_delete") &&
-                        (!selected || !deleteConfirm))
+                        (!selected ||
+                          !deleteConfirm ||
+                          (Boolean(sourceProof) &&
+                            !targets.find((t) => t.id === selected)?.proof)))
                     }
                     onClick={() => void confirm()}
                     className={`${target} bg-[var(--accent-fill)] text-white`}

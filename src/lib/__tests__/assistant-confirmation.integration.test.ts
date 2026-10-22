@@ -1,3 +1,14 @@
+import type { AssistantConfirmationKind } from "../assistant-reference-contract";
+import {
+  readDeleteSnapshot,
+  issueDeleteTargetProof,
+  assistantDeleteTargetGuard,
+} from "../assistant-delete-target";
+import {
+  deletePersonRecord,
+  authorizePersonDelete,
+  authorizePersonDeleteReplay,
+} from "../person-record-delete";
 /** Authored/unrun. Opt-in disposable PostgreSQL; no provider or live account. */
 import { randomUUID } from "node:crypto";
 import { assertFixtureTargetAllowed } from "../fixtures/guard";
@@ -82,7 +93,7 @@ suite("canonical assistant confirmation and lost-response recovery", () => {
     await db.user.deleteMany({ where: { id: userId } });
     await db.$disconnect();
   });
-  async function guard(kind: "event_create" | "list_create" | "note_create") {
+  async function guard(kind: AssistantConfirmationKind) {
     const snapshot = await loadReferencedAssistantToday(db, {
       ...actor,
       serverNow: observed,
@@ -213,6 +224,140 @@ suite("canonical assistant confirmation and lost-response recovery", () => {
         where: { id: userId },
         data: { token_version: 0 },
       });
+    }
+  });
+  it("refuses changed list contents even when Today is unchanged, then recovers the exact deletion receipt after deletion and expiry", async () => {
+    const list = await db.list.create({
+      data: {
+        family_id: familyId,
+        created_by: userId,
+        name: "Synthetic deletion review",
+        type: "custom",
+      },
+    });
+    const item = await db.listItem.create({
+      data: {
+        list_id: list.id,
+        added_by: userId,
+        content: "Original fixture item",
+      },
+    });
+    const source = await guard("list_delete");
+    async function targetGuard() {
+      const snapshot = await db.$transaction(async (tx) => {
+        const denied = await authorizePersonDelete(tx, actor, "list_delete");
+        if (denied) throw new Error("Fixture authority missing");
+        return readDeleteSnapshot(tx, familyId, "list_delete", list.id);
+      });
+      if (!snapshot) throw new Error("Fixture target missing");
+      const token = issueDeleteTargetProof(
+        actor,
+        "list_delete",
+        list.id,
+        snapshot,
+      );
+      return assistantDeleteTargetGuard(
+        { headers: new Headers({ "X-Assistant-Target-Proof": token }) },
+        actor,
+        "list_delete",
+        list.id,
+        true,
+      )!;
+    }
+    const old = await targetGuard();
+    await db.listItem.update({
+      where: { id: item.id },
+      data: { content: "Changed after review" },
+    });
+    await expect(
+      deletePersonRecord(db, actor, "list_delete", list.id, null, source, old),
+    ).rejects.toBeInstanceOf(AssistantSourceRefused);
+    expect(await db.list.count({ where: { id: list.id } })).toBe(1);
+    expect(await db.listItem.count({ where: { id: item.id } })).toBe(1);
+    const current = await targetGuard();
+    const key = randomUUID();
+    const run = () =>
+      withIdempotency(
+        db,
+        key,
+        { scope: `user:${userId}`, familyId, userId, action: "list.delete" },
+        { listId: list.id },
+        ({ recordId }) =>
+          deletePersonRecord(
+            db,
+            actor,
+            "list_delete",
+            list.id,
+            recordId,
+            source,
+            current,
+          ),
+        {
+          beforeReplay: () =>
+            authorizePersonDeleteReplay(db, actor, "list_delete"),
+        },
+      );
+    expect(await (await run()).json()).toEqual({ success: true });
+    expect(await db.list.count({ where: { id: list.id } })).toBe(0);
+    expect(await db.listItem.count({ where: { id: item.id } })).toBe(0);
+    jest.mocked(Date.now).mockReturnValue(observed.getTime() + 120000);
+    const replay = await run();
+    expect(replay.headers.get("Idempotency-Replayed")).toBe("true");
+    expect(await replay.json()).toEqual({ success: true });
+    await db.user.update({ where: { id: userId }, data: { token_version: 1 } });
+    try {
+      expect((await run()).status).toBe(401);
+    } finally {
+      await db.user.update({
+        where: { id: userId },
+        data: { token_version: 0 },
+      });
+    }
+  });
+  it("does not review or delete another household target through either sourced or ordinary canonical helpers", async () => {
+    const foreignFamily = `confirmation-foreign-${randomUUID()}`;
+    const foreignUser = `confirmation-foreign-${randomUUID()}`;
+    await db.family.create({
+      data: {
+        id: foreignFamily,
+        name: "Synthetic foreign household",
+        invite_code: foreignFamily,
+      },
+    });
+    try {
+      await db.user.create({
+        data: {
+          id: foreignUser,
+          family_id: foreignFamily,
+          role: "parent",
+          name: "Synthetic other parent",
+          email: `${foreignUser}@example.test`,
+        },
+      });
+      const list = await db.list.create({
+        data: {
+          family_id: foreignFamily,
+          created_by: foreignUser,
+          name: "Foreign fixture list",
+          type: "custom",
+        },
+      });
+      const snapshot = await db.$transaction((tx) =>
+        readDeleteSnapshot(tx, familyId, "list_delete", list.id),
+      );
+      expect(snapshot).toBeNull();
+      const result = await deletePersonRecord(
+        db,
+        actor,
+        "list_delete",
+        list.id,
+        null,
+      );
+      expect(result.status).toBe(403);
+      expect(await db.list.count({ where: { id: list.id } })).toBe(1);
+    } finally {
+      await db.family.deleteMany({ where: { id: foreignFamily } });
+      await db.user.deleteMany({ where: { id: foreignUser } });
     }
   });
 });

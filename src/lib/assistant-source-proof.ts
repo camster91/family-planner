@@ -185,6 +185,8 @@ export type AssistantSourceGuard = {
   actor: AssistantProofActor;
   /** Caller already holds actor and household membership locks. */
   authorize: (tx: Prisma.TransactionClient) => Promise<void>;
+  /** Recheck gates/lease after any intervening canonical target-lock waits. */
+  assertCurrent?: () => void;
   /** After completed-receipt replay, before the first effect in the same tx. */
   verify: (tx: Prisma.TransactionClient) => Promise<void>;
 };
@@ -214,6 +216,13 @@ export function assistantSourceGuard(
   return {
     actor,
     authorize,
+    assertCurrent() {
+      if (
+        !isAssistantConfirmationEnabled() ||
+        !leaseCurrent(payload, Date.now())
+      )
+        throw new AssistantSourceRefused();
+    },
     async verify(tx) {
       try {
         if (

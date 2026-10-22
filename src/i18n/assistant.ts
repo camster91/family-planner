@@ -134,6 +134,9 @@ export const assistantEnglish = {
   none: "None",
   groceryInfo:
     "Adds to your household’s grocery list when there is exactly one. Choose a list in Lists when you have several.",
+  deleteTargetReviewed:
+    "Current details checked. Changes before removal will require another review.",
+  deleteListItemCount: "This also removes {count} list items.",
   chooseExactItem: "Choose the exact item",
   itemToRemove: "Item to remove",
   chooseItem: "Choose an item…",
@@ -296,6 +299,9 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   none: "Ninguna",
   groceryInfo:
     "Se añade a la lista de compras del hogar cuando solo hay una. Elige una lista en Listas si hay varias.",
+  deleteTargetReviewed:
+    "Detalles actuales comprobados. Los cambios antes de eliminar requerirán otra revisión.",
+  deleteListItemCount: "También se eliminarán {count} artículos de la lista.",
   chooseExactItem: "Elige el artículo exacto",
   itemToRemove: "Artículo que eliminar",
   chooseItem: "Elige un artículo…",

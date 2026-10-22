@@ -1,3 +1,8 @@
+import { assistantDeleteTargetGuard } from "@/lib/assistant-delete-target";
+import {
+  deletePersonRecord,
+  authorizePersonDeleteReplay,
+} from "@/lib/person-record-delete";
 import {
   assistantSourceGuard,
   authorizeAssistantSourceReplay,
@@ -395,33 +400,47 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const event = await prisma!.event.findUnique({
-      where: { id: parsed.data.eventId },
-      select: { family_id: true, source_subscription_id: true },
-    });
-
-    if (!event) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 });
-    }
-
-    const familyError = requireFamilyMatch(
-      event.family_id,
-      auth.user.family_id,
+    const { key, error: keyError } = readIdempotencyKey(request);
+    if (keyError) return keyError;
+    const actor = {
+      userId: auth.user.id,
+      familyId: auth.user.family_id,
+      role: auth.user.role,
+      generation: auth.payload?.tv ?? 0,
+    };
+    const kind = "event_delete" as const;
+    const sourceGuard = assistantSourceGuard(request, actor, kind);
+    const targetGuard = assistantDeleteTargetGuard(
+      request,
+      actor,
+      kind,
+      parsed.data.eventId,
+      Boolean(sourceGuard),
     );
-    if (familyError) return familyError;
-
-    // Imported events are removed by removing their subscription (#232).
-    if (event.source_subscription_id) {
-      return NextResponse.json(
-        { error: EVENT_READ_ONLY_MESSAGE, code: EVENT_READ_ONLY_CODE },
-        { status: 409 },
-      );
-    }
-
-    await prisma!.event.delete({ where: { id: parsed.data.eventId } });
-
-    return NextResponse.json({ success: true });
+    return await withIdempotency(
+      prisma!,
+      key,
+      {
+        scope: `user:${actor.userId}`,
+        userId: actor.userId,
+        familyId: actor.familyId,
+        action: "event.delete",
+      },
+      parsed.data,
+      ({ recordId }) =>
+        deletePersonRecord(
+          prisma!,
+          actor,
+          kind,
+          parsed.data.eventId,
+          recordId,
+          sourceGuard,
+          targetGuard,
+        ),
+      { beforeReplay: () => authorizePersonDeleteReplay(prisma!, actor, kind) },
+    );
   } catch (error) {
+    if (error instanceof AssistantSourceRefused) return error.response();
     logRouteError("DELETE /api/events", error, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },

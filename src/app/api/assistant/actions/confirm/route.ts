@@ -11,11 +11,15 @@ import { readIdempotencyKey } from "@/lib/idempotency";
 import {
   assistantConfirmationKind,
   ASSISTANT_SOURCE_PROOF_HEADER,
+  ASSISTANT_TARGET_PROOF_HEADER,
 } from "@/lib/assistant-reference-contract";
 import {
   readAssistantSourceProof,
   AssistantSourceRefused,
 } from "@/lib/assistant-source-proof";
+import { DELETE as deleteEvent } from "@/app/api/events/route";
+import { DELETE as deleteChore } from "@/app/api/chores/route";
+import { DELETE as deleteList } from "@/app/api/lists/route";
 import { POST as createEvent } from "@/app/api/events/route";
 import { POST as createChore } from "@/app/api/chores/create/route";
 import { POST as addGrocery } from "@/app/api/lists/items/create/route";
@@ -27,14 +31,30 @@ const input = z
     kind: assistantConfirmationKind,
     sourceProof: z.string().min(1).max(4096),
     body: z.record(z.unknown()),
+    targetProof: z.string().min(1).max(4096).optional(),
   })
   .strict();
 const routes = {
-  event_create: { path: "/api/events", handler: createEvent },
-  chore_create: { path: "/api/chores/create", handler: createChore },
-  list_create: { path: "/api/lists/create", handler: createList },
-  note_create: { path: "/api/notes", handler: createNote },
-  grocery_add: { path: "/api/lists/items/create", handler: addGrocery },
+  event_delete: { path: "/api/events", handler: deleteEvent, method: "DELETE" },
+  chore_delete: { path: "/api/chores", handler: deleteChore, method: "DELETE" },
+  list_delete: { path: "/api/lists", handler: deleteList, method: "DELETE" },
+  event_create: { path: "/api/events", handler: createEvent, method: "POST" },
+  chore_create: {
+    path: "/api/chores/create",
+    handler: createChore,
+    method: "POST",
+  },
+  list_create: {
+    path: "/api/lists/create",
+    handler: createList,
+    method: "POST",
+  },
+  note_create: { path: "/api/notes", handler: createNote, method: "POST" },
+  grocery_add: {
+    path: "/api/lists/items/create",
+    handler: addGrocery,
+    method: "POST",
+  },
 } as const;
 export async function POST(request: NextRequest) {
   try {
@@ -70,17 +90,21 @@ export async function POST(request: NextRequest) {
       },
       command.kind,
     );
-    // Remaining domains must register canonical transactional guards before
-    // this rollout gate can be activated. No legacy unchecked fallback.
+    // No legacy unchecked fallback for unrecognized/future domains.
     if (!(command.kind in routes)) throw new AssistantSourceRefused();
     const route = routes[command.kind as keyof typeof routes];
     const headers = new Headers(request.headers);
     headers.delete("content-length");
     headers.delete("transfer-encoding");
     headers.set("Content-Type", "application/json");
+    headers.delete(ASSISTANT_TARGET_PROOF_HEADER);
+    if (command.kind.endsWith("_delete") && !command.targetProof)
+      throw new AssistantSourceRefused();
+    if (command.targetProof)
+      headers.set(ASSISTANT_TARGET_PROOF_HEADER, command.targetProof);
     headers.set(ASSISTANT_SOURCE_PROOF_HEADER, command.sourceProof);
     const canonical = new NextRequest(new URL(route.path, request.url), {
-      method: "POST",
+      method: route.method,
       headers,
       body: JSON.stringify(command.body),
     });

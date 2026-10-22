@@ -1,3 +1,7 @@
+import { assistantSourceGuard, AssistantSourceRefused } from '@/lib/assistant-source-proof'
+import { assistantDeleteTargetGuard } from '@/lib/assistant-delete-target'
+import { deletePersonRecord, authorizePersonDeleteReplay } from '@/lib/person-record-delete'
+import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { hiddenRoutineOccurrenceIds, scheduledOnceRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 import { refuseScheduledRoutineLegacyWrite, RoutineScheduleLegacyWriteError } from "@/lib/routine-schedule-legacy";
 import { choreJson } from "@/lib/chore-json";
@@ -441,128 +445,72 @@ class RotationNeedsSeriesError extends Error {
 /** A session revoked while this request waited cannot perform a chore write. */
 class ChoreSessionChangedError extends Error {}
 
-const RECURRING_SERIES_REQUIRES_STOP = 'RECURRING_SERIES_REQUIRES_STOP'
-const RECURRING_ANCHOR_RETAINS_HISTORY = 'RECURRING_ANCHOR_RETAINS_HISTORY'
-
-type ChoreDeleteResult =
-  | { kind: 'unauthorized' }
-  | { kind: 'deleted' }
-  | { kind: 'not-found' }
-  | { kind: 'foreign' }
-  | { kind: 'profile-unsupported' }
-  | { kind: 'forbidden'; message: string }
-  | { kind: 'requires-stop' }
-  | { kind: 'retains-history' }
-
-function isRepeatingFrequency(frequency: string): boolean {
-  return frequency === 'daily' || frequency === 'weekly' || frequency === 'monthly'
-}
-
 // DELETE - Delete one occurrence (family-scoped). A series anchor is a
 // protected lifecycle boundary: stopping is the existing parent-only PATCH
 // frequency=once flow, so a legacy row delete cannot orphan its copies.
 export async function DELETE(request: NextRequest) {
   try {
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    let body: any
+    let body: any;
     try {
-      body = await request.json()
+      body = await request.json();
     } catch {
-      return choreJson({ error: 'Invalid JSON' }, { status: 400 })
+      return choreJson({ error: "Invalid JSON" }, { status: 400 });
     }
-    const parsed = deleteChoreSchema.safeParse(body)
+    const parsed = deleteChoreSchema.safeParse(body);
     if (!parsed.success) {
-      return choreJson({ error: 'choreId is required' }, { status: 400 })
+      return choreJson({ error: "choreId is required" }, { status: 400 });
     }
 
-    const result: ChoreDeleteResult = await prisma!.$transaction(async (tx) => {
-      // Membership removal and chore writes use user-first, household-second
-      // lock order. Re-read both identities under those locks so a stale auth
-      // snapshot cannot delete after a role/family change.
-      await lockUser(tx, auth.user.id)
-      await lockHousehold(tx, auth.user.family_id)
-
-      const actor = await tx.user.findFirst({
-        where: { id: auth.user.id },
-        select: { id: true, family_id: true, role: true, token_version: true },
-      })
-      if (!actor || actor.token_version !== (auth.payload.tv ?? 0)) return { kind: 'unauthorized' }
-      if (actor.family_id !== auth.user.family_id) {
-        return { kind: 'forbidden', message: 'Only parents or the assignee can delete chores' }
-      }
-
-      const chore = await tx.chore.findUnique({
-        where: { id: parsed.data.choreId },
-        select: {
-          family_id: true,
-          assigned_to: true,
-          assigned_member_id: true,
-          recurrence_id: true,
-          is_template: true,
-          frequency: true,
-        },
-      })
-
-      if (!chore) return { kind: 'not-found' }
-      if (chore.family_id !== auth.user.family_id) return { kind: 'foreign' }
-      // Profile-only subjects cannot be deleted through the legacy account
-      // route. Keep the protocol-2 subject intact instead of inferring a User.
-      if (chore.assigned_to === null && chore.assigned_member_id != null) {
-        return { kind: 'profile-unsupported' }
-      }
-      if (actor.role !== 'parent' && chore.assigned_to !== actor.id) {
-        return { kind: 'forbidden', message: 'Only parents or the assignee can delete chores' }
-      }
-
-      await refuseScheduledRoutineLegacyWrite(tx, auth.user.family_id, parsed.data.choreId)
-
-      const selfAnchored = chore.recurrence_id === parsed.data.choreId
-      if (selfAnchored && chore.is_template && isRepeatingFrequency(chore.frequency)) {
-        return { kind: 'requires-stop' }
-      }
-
-      if (selfAnchored) {
-        const sibling = await tx.chore.findFirst({
-          where: {
-            family_id: auth.user.family_id,
-            recurrence_id: parsed.data.choreId,
-            id: { not: parsed.data.choreId },
-          },
-          select: { id: true },
-        })
-        if (sibling) return { kind: 'retains-history' }
-      }
-
-      await tx.chore.delete({ where: { id: parsed.data.choreId } })
-      return { kind: 'deleted' }
-    })
-
-    if (result.kind === 'unauthorized') return choreJson({ error: 'Unauthorized' }, { status: 401 })
-    if (result.kind === 'not-found') return choreJson({ error: 'Chore not found' }, { status: 404 })
-    if (result.kind === 'foreign') return choreJson({ error: 'Forbidden' }, { status: 403 })
-    if (result.kind === 'profile-unsupported') {
-      return choreJson(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
-    }
-    if (result.kind === 'forbidden') return choreJson({ error: result.message }, { status: 403 })
-    if (result.kind === 'requires-stop') {
-      return choreJson(
-        { error: 'Stop repeating before deleting the series anchor', code: RECURRING_SERIES_REQUIRES_STOP },
-        { status: 409 }
-      )
-    }
-    if (result.kind === 'retains-history') {
-      return choreJson(
-        { error: 'Keep the series anchor to preserve its history', code: RECURRING_ANCHOR_RETAINS_HISTORY },
-        { status: 409 }
-      )
-    }
-
-    return choreJson({ success: true })
+    const { key, error: keyError } = readIdempotencyKey(request);
+    if (keyError) return keyError;
+    const actor = {
+      userId: auth.user.id,
+      familyId: auth.user.family_id,
+      role: auth.user.role,
+      generation: auth.payload?.tv ?? 0,
+    };
+    const kind = "chore_delete" as const;
+    const sourceGuard = assistantSourceGuard(request, actor, kind);
+    const targetGuard = assistantDeleteTargetGuard(
+      request,
+      actor,
+      kind,
+      parsed.data.choreId,
+      Boolean(sourceGuard),
+    );
+    return await withIdempotency(
+      prisma!,
+      key,
+      {
+        scope: `user:${actor.userId}`,
+        userId: actor.userId,
+        familyId: actor.familyId,
+        action: "chore.delete",
+      },
+      parsed.data,
+      ({ recordId }) =>
+        deletePersonRecord(
+          prisma!,
+          actor,
+          kind,
+          parsed.data.choreId,
+          recordId,
+          sourceGuard,
+          targetGuard,
+        ),
+      { beforeReplay: () => authorizePersonDeleteReplay(prisma!, actor, kind) },
+    );
   } catch (error) {
-    if (error instanceof RoutineScheduleLegacyWriteError) return choreJson({ error: error.message, code: error.code }, { status: 409 })
-    logRouteError('DELETE /api/chores', error, getRequestId(request))
-    return choreJson({ error: 'Internal server error' }, { status: 500 })
+    if (error instanceof AssistantSourceRefused) return error.response();
+    if (error instanceof RoutineScheduleLegacyWriteError)
+      return choreJson(
+        { error: error.message, code: error.code },
+        { status: 409 },
+      );
+    logRouteError("DELETE /api/chores", error, getRequestId(request));
+    return choreJson({ error: "Internal server error" }, { status: 500 });
   }
 }

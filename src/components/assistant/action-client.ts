@@ -1,3 +1,7 @@
+import {
+  assistantDeleteKind,
+  assistantDeletePreviewSchema,
+} from "@/lib/assistant-reference-contract";
 import { requestOwnedJson } from "@/lib/owned-request-http";
 import type { ZodTypeAny, infer as ZodInfer } from "zod";
 import type { AssistantAction } from "@/lib/assistant-actions";
@@ -82,6 +86,8 @@ export type RemovalTarget = {
   title: string;
   detail?: string;
   context?: string;
+  proof?: string;
+  itemCount?: number;
 };
 export class ActionOutcomeUnknown extends AssistantActionError {}
 export class AssistantSourceRefusal extends AssistantActionError {
@@ -128,6 +134,7 @@ async function mutate(
   body: unknown,
   key: string,
   sourceProof?: string,
+  targetProof?: string,
 ) {
   if (kind === "open")
     throw new AssistantActionPreflightError("actionOpenSectionError");
@@ -135,7 +142,7 @@ async function mutate(
     ? request(
         "/api/assistant/actions/confirm",
         "POST",
-        { kind, sourceProof, body },
+        { kind, sourceProof, body, ...(targetProof ? { targetProof } : {}) },
         key,
       )
     : request(path, method, body, key);
@@ -197,6 +204,30 @@ export async function removalTargets(
   }
   return targets;
 }
+/** Read-only POST: review one selected target; no mutation or key consumed. */
+export async function previewRemovalTarget(
+  action: AssistantAction,
+  id: string,
+  sourceProof: string,
+): Promise<RemovalTarget> {
+  const kind = assistantDeleteKind.safeParse(action.kind);
+  if (!kind.success)
+    throw new AssistantActionPreflightError("chooseRemovalTarget");
+  try {
+    const result = await request("/api/assistant/actions/target", "POST", {
+      kind: kind.data,
+      id,
+      sourceProof,
+    });
+    const parsed = assistantDeletePreviewSchema.safeParse(result.target);
+    if (!parsed.success || parsed.data.id !== id)
+      throw new AssistantActionPreflightError("loadChoicesFailed");
+    return parsed.data;
+  } catch (error) {
+    if (error instanceof AssistantSourceRefusal) throw error;
+    throw new AssistantActionPreflightError("loadChoicesFailed");
+  }
+}
 export async function choreAssignees(): Promise<RemovalTarget[]> {
   const { members } = await request("/api/family/members");
   return (members ?? []).map((m: { id: string; name: string }) => ({
@@ -245,7 +276,8 @@ export async function executeAssistantAction(
     );
   }
   if (action.kind.endsWith("_delete")) {
-    if (!target) throw new AssistantActionPreflightError("chooseRemovalTarget");
+    if (!target || (sourceProof && !target.proof))
+      throw new AssistantActionPreflightError("chooseRemovalTarget");
     const config =
       action.kind === "event_delete"
         ? { path: "/api/events", field: "eventId" }
@@ -259,6 +291,7 @@ export async function executeAssistantAction(
       { [config.field]: target.id },
       key,
       sourceProof,
+      target.proof,
     );
   }
   if (action.kind === "event_create") {

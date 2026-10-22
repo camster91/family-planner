@@ -3,6 +3,22 @@ import { z } from "zod";
 import { assistantReplySchema } from "./assistant-actions";
 export const ASSISTANT_REFERENCES_PROTOCOL =
   "herewoven.assistant-references.v1" as const;
+export const ASSISTANT_TARGET_PROOF_HEADER = "X-Assistant-Target-Proof";
+export const assistantDeleteKind = z.enum([
+  "event_delete",
+  "chore_delete",
+  "list_delete",
+]);
+export const assistantDeletePreviewSchema = z
+  .object({
+    id: z.string().min(1).max(128),
+    title: z.string().min(1).max(512),
+    detail: z.string().optional(),
+    context: z.string().max(2000).optional(),
+    itemCount: z.number().int().min(0).max(500).optional(),
+    proof: z.string().min(1).max(4096),
+  })
+  .strict();
 export const ASSISTANT_SOURCE_PROOF_HEADER = "X-Assistant-Source-Proof";
 export const ASSISTANT_CONFIRMATION_PROTOCOL =
   "herewoven.assistant-confirmation.v1" as const;
