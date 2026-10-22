@@ -1,3 +1,4 @@
+import { eventPreparationReady } from "@/lib/event-preparation/owner";
 import { ChoreEditSheet } from "@/components/layout/DashboardFormSheets";
 import { getServerUser } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
@@ -22,5 +23,15 @@ export default async function Page({
         : null;
     if (href) return <RoutineScheduleHandoff href={href} sheet />;
   }
-  return <ChoreEditSheet />;
+  return (
+    <ChoreEditSheet
+      contextIdentity={
+        session?.role === "parent" &&
+        session.family_id &&
+        eventPreparationReady()
+          ? { userId: session.id, familyId: session.family_id }
+          : undefined
+      }
+    />
+  );
 }

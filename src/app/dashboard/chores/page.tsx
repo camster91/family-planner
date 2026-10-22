@@ -1,11 +1,17 @@
-import { hiddenRoutineOccurrenceIds, scheduledOnceRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
+import {
+  hiddenRoutineOccurrenceIds,
+  scheduledOnceRoutineOccurrenceIds,
+} from "@/lib/routine-occurrence-policy";
 import { publicChoreData } from "@/lib/chore-public-data";
 import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
-import { getServerUser } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
-import ChoresContent from './ChoresContent'
-import { readPreparationBacklinks } from '@/lib/event-preparation/discovery'
-import { isGamificationOn, omitChorePoints } from '@/lib/gamification-visibility'
+import { getServerUser } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
+import ChoresContent from "./ChoresContent";
+import { eventPreparationReady } from "@/lib/event-preparation/owner";
+import {
+  isGamificationOn,
+  omitChorePoints,
+} from "@/lib/gamification-visibility";
 import {
   CHORE_HISTORY_ORDER,
   CHORE_HISTORY_PAGE_SIZE,
@@ -13,31 +19,35 @@ import {
   compareChoreOrder,
   currentChoreQueries,
   encodeChoreCursor,
-} from '@/lib/chore-paging'
-import { topUpHouseholdSeries } from '@/lib/recurringChores'
-import { nextRotationMember } from '@/lib/chore-rotation'
-import { choreSubjectInclude, profileChoreActionAvailability, readChoreSubject } from '@/lib/chore-profile'
+} from "@/lib/chore-paging";
+import { topUpHouseholdSeries } from "@/lib/recurringChores";
+import { nextRotationMember } from "@/lib/chore-rotation";
+import {
+  choreSubjectInclude,
+  profileChoreActionAvailability,
+  readChoreSubject,
+} from "@/lib/chore-profile";
 
 export default async function ChoresPage() {
-  const sessionUser = await getServerUser()
+  const sessionUser = await getServerUser();
 
   if (!sessionUser) {
-    return null
+    return null;
   }
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
     select: { family_id: true, role: true },
-  })
+  });
 
-  const familyId = user?.family_id || undefined
+  const familyId = user?.family_id || undefined;
   // Points & streaks (#248). When off, no chore points or streaks are computed
   // or sent to the client.
-  const gamification = await isGamificationOn(familyId)
+  const gamification = await isGamificationOn(familyId);
 
   // Recurring series are extended on read (there is no scheduler): a series
   // nobody ticks still shows its next weeks. Bounded, idempotent, never throws.
-  if (familyId) await topUpHouseholdSeries(familyId)
+  if (familyId) await topUpHouseholdSeries(familyId);
 
   // Chores for the family (O-19 paging), bounded (`currentChoreQueries`):
   // open chores due in the last 60 days or later, verified chores due from
@@ -52,134 +62,192 @@ export default async function ChoresPage() {
   const include = {
     ...choreSubjectInclude,
     creator: { select: { name: true } },
-  } as const
-  const hiddenRoutineIds = familyId ? await hiddenRoutineOccurrenceIds(prisma!, familyId) : []
-  const queries = familyId ? currentChoreQueries(familyId) : null
+  } as const;
+  const hiddenRoutineIds = familyId
+    ? await hiddenRoutineOccurrenceIds(prisma!, familyId)
+    : [];
+  const queries = familyId ? currentChoreQueries(familyId) : null;
   const [open, awaitingCheck, history] = queries
     ? await Promise.all([
-        prisma!.chore.findMany({ ...queries.open, where: { AND: [queries.open.where, { id: { notIn: hiddenRoutineIds } }] }, include }),
+        prisma!.chore.findMany({
+          ...queries.open,
+          where: {
+            AND: [queries.open.where, { id: { notIn: hiddenRoutineIds } }],
+          },
+          include,
+        }),
         prisma!.chore.findMany({ ...queries.awaitingCheck, include }),
         prisma!.chore.findMany({
-          where: { family_id: familyId, status: 'verified', due_date: { lt: queries.historyBefore } },
+          where: {
+            family_id: familyId,
+            status: "verified",
+            due_date: { lt: queries.historyBefore },
+          },
           include,
           orderBy: choreOrderBy(CHORE_HISTORY_ORDER),
           take: CHORE_HISTORY_PAGE_SIZE + 1,
         }),
       ])
-    : [[], [], []]
-  const current = [...open, ...awaitingCheck]
-  const historyHasMore = history.length > CHORE_HISTORY_PAGE_SIZE
-  const historyPage = historyHasMore ? history.slice(0, CHORE_HISTORY_PAGE_SIZE) : history
-  const historyCursor = historyHasMore ? encodeChoreCursor(historyPage[historyPage.length - 1]) : null
-  const chores = [...historyPage, ...current].sort(compareChoreOrder)
+    : [[], [], []];
+  const current = [...open, ...awaitingCheck];
+  const historyHasMore = history.length > CHORE_HISTORY_PAGE_SIZE;
+  const historyPage = historyHasMore
+    ? history.slice(0, CHORE_HISTORY_PAGE_SIZE)
+    : history;
+  const historyCursor = historyHasMore
+    ? encodeChoreCursor(historyPage[historyPage.length - 1])
+    : null;
+  const chores = [...historyPage, ...current].sort(compareChoreOrder);
 
   // Compute streak per assignee: count of consecutive days with completed chores in last 7 days
-  const streakMap: Record<string, number> = {}
+  const streakMap: Record<string, number> = {};
   if (familyId && gamification) {
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-    sevenDaysAgo.setHours(0, 0, 0, 0)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
 
     const completedChores = await prisma!.chore.findMany({
       where: {
         family_id: familyId,
-        status: { in: ['completed', 'verified'] },
+        status: { in: ["completed", "verified"] },
         completed_at: { gte: sevenDaysAgo },
       },
       select: { assigned_to: true, completed_at: true, title: true },
-      orderBy: { completed_at: 'asc' },
-    })
+      orderBy: { completed_at: "asc" },
+    });
 
     // Group by assignee
-    const byAssignee: Record<string, Date[]> = {}
+    const byAssignee: Record<string, Date[]> = {};
     for (const c of completedChores) {
       // Profile-only chores intentionally have no account assignee. They can
       // still appear on the board, but must not be counted in account streaks.
-      if (!c.assigned_to || !c.completed_at) continue
-      if (!byAssignee[c.assigned_to]) byAssignee[c.assigned_to] = []
-      byAssignee[c.assigned_to].push(new Date(c.completed_at))
+      if (!c.assigned_to || !c.completed_at) continue;
+      if (!byAssignee[c.assigned_to]) byAssignee[c.assigned_to] = [];
+      byAssignee[c.assigned_to].push(new Date(c.completed_at));
     }
 
     for (const [assigneeId, dates] of Object.entries(byAssignee)) {
       // Get unique days
-      const daySet = new Set<string>()
-      for (const d of dates) daySet.add(d.toISOString().split('T')[0])
-      const sortedDays = Array.from(daySet).sort()
+      const daySet = new Set<string>();
+      for (const d of dates) daySet.add(d.toISOString().split("T")[0]);
+      const sortedDays = Array.from(daySet).sort();
       // Count consecutive days from today backwards
-      let streak = 0
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
+      let streak = 0;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       for (let i = 0; i < 7; i++) {
-        const checkDate = new Date(today)
-        checkDate.setDate(today.getDate() - i)
-        const dayStr = checkDate.toISOString().split('T')[0]
+        const checkDate = new Date(today);
+        checkDate.setDate(today.getDate() - i);
+        const dayStr = checkDate.toISOString().split("T")[0];
         if (daySet.has(dayStr)) {
-          streak++
+          streak++;
         } else {
-          break
+          break;
         }
       }
-      streakMap[assigneeId] = streak >= 3 ? streak : 0
+      streakMap[assigneeId] = streak >= 3 ? streak : 0;
     }
   }
 
   // Get family members for assignment
-  const familyMembers = familyId ? await prisma!.user.findMany({
-    where: { family_id: familyId },
-    select: { id: true, name: true, role: true, age: true },
-    orderBy: { role: 'desc' }
-  }) : []
+  const familyMembers = familyId
+    ? await prisma!.user.findMany({
+        where: { family_id: familyId },
+        select: { id: true, name: true, role: true, age: true },
+        orderBy: { role: "desc" },
+      })
+    : [];
 
   // Take turns (O-39): "Takes turns · next: Alex" on open rows of a rotating
   // series. One small read of the series templates on this page.
   const seriesIds = [
     ...new Set(
       chores
-        .filter((c) => c.recurrence_id && !['completed', 'verified', 'approved'].includes(c.status))
-        .map((c) => c.recurrence_id as string)
+        .filter(
+          (c) =>
+            c.recurrence_id &&
+            !["completed", "verified", "approved"].includes(c.status),
+        )
+        .map((c) => c.recurrence_id as string),
     ),
-  ]
-  const schedules = new Map<string, { frequency: string; weekly_days: number[] }>()
-  const rotations = new Map<string, string[]>()
+  ];
+  const schedules = new Map<
+    string,
+    { frequency: string; weekly_days: number[] }
+  >();
+  const rotations = new Map<string, string[]>();
   if (familyId && seriesIds.length > 0) {
     const templates = await prisma!.chore.findMany({
       where: { family_id: familyId, id: { in: seriesIds }, is_template: true },
-      select: { id: true, rotation_member_ids: true, frequency: true, weekly_days: true },
-    })
+      select: {
+        id: true,
+        rotation_member_ids: true,
+        frequency: true,
+        weekly_days: true,
+      },
+    });
     for (const t of templates) {
-      rotations.set(t.id, t.rotation_member_ids)
-      schedules.set(t.id, { frequency: t.frequency, weekly_days: t.weekly_days })
+      rotations.set(t.id, t.rotation_member_ids);
+      schedules.set(t.id, {
+        frequency: t.frequency,
+        weekly_days: t.weekly_days,
+      });
     }
   }
-  const memberNames = new Map(familyMembers.map((m) => [m.id, m.name]))
+  const memberNames = new Map(familyMembers.map((m) => [m.id, m.name]));
   const rotationNextName = (c: (typeof chores)[number]): string | null => {
-    if (!c.recurrence_id || ['completed', 'verified', 'approved'].includes(c.status)) return null
-    const nextId = nextRotationMember(rotations.get(c.recurrence_id), c.rotation_index)
-    return nextId ? (memberNames.get(nextId) ?? null) : null
-  }
+    if (
+      !c.recurrence_id ||
+      ["completed", "verified", "approved"].includes(c.status)
+    )
+      return null;
+    const nextId = nextRotationMember(
+      rotations.get(c.recurrence_id),
+      c.rotation_index,
+    );
+    return nextId ? (memberNames.get(nextId) ?? null) : null;
+  };
 
   const scheduledOnceIds = familyId
-    ? await scheduledOnceRoutineOccurrenceIds(prisma!, familyId, chores.filter((row) => row.assigned_to === null && row.assigned_member_id != null).map((row) => row.id))
-    : new Set<string>()
+    ? await scheduledOnceRoutineOccurrenceIds(
+        prisma!,
+        familyId,
+        chores
+          .filter(
+            (row) => row.assigned_to === null && row.assigned_member_id != null,
+          )
+          .map((row) => row.id),
+      )
+    : new Set<string>();
   const serializedChores = chores.map((c) => {
-    const subject = familyId ? readChoreSubject(c, familyId) : null
-    const actionAvailability = subject?.kind === 'profile' ? profileChoreActionAvailability(c, scheduledOnceIds.has(c.id) ? "scheduled-once" : "legacy") : null
-    const { assigneeMember: _assigneeMember, assignee: _assignee, ...safeChore } = c
+    const subject = familyId ? readChoreSubject(c, familyId) : null;
+    const actionAvailability =
+      subject?.kind === "profile"
+        ? profileChoreActionAvailability(
+            c,
+            scheduledOnceIds.has(c.id) ? "scheduled-once" : "legacy",
+          )
+        : null;
+    const {
+      assigneeMember: _assigneeMember,
+      assignee: _assignee,
+      ...safeChore
+    } = c;
     // The release owner regenerates Prisma in the migration checkout. Keep
     // this additive projection type-safe for the pre-generated client used by
     // older app builds while preserving the durable fields when present.
     const routineFields = c as typeof c & {
-      routine_stack_id?: string | null
-      assigned_member_id?: string | null
-      member_subject_erased?: boolean
-      is_template?: boolean
-    }
+      routine_stack_id?: string | null;
+      assigned_member_id?: string | null;
+      member_subject_erased?: boolean;
+      is_template?: boolean;
+    };
     const row = {
       ...publicChoreData(safeChore),
       // Keep account/profile subjects display-only on this board. In
       // particular, never manufacture a User for an email-free member.
       assignee: subject ? { name: subject.name } : null,
-      ...(subject?.kind === 'profile' ? { subject } : {}),
+      ...(subject?.kind === "profile" ? { subject } : {}),
       ...(actionAvailability ? { actionAvailability } : {}),
       due_date: c.due_date.toISOString(),
       created_at: c.created_at.toISOString(),
@@ -192,24 +260,31 @@ export default async function ChoresPage() {
       is_template: routineFields.is_template ?? false,
       streak: c.assigned_to ? (streakMap[c.assigned_to] ?? 0) : 0,
       rotation_next_name: rotationNextName(c),
-      recurrence_frequency: c.recurrence_id ? schedules.get(c.recurrence_id)?.frequency ?? null : null,
-      recurrence_weekly_days: c.recurrence_id ? schedules.get(c.recurrence_id)?.weekly_days ?? [] : [],
-    }
-    return gamification ? row : omitChorePoints(row)
-  })
+      recurrence_frequency: c.recurrence_id
+        ? (schedules.get(c.recurrence_id)?.frequency ?? null)
+        : null,
+      recurrence_weekly_days: c.recurrence_id
+        ? (schedules.get(c.recurrence_id)?.weekly_days ?? [])
+        : [],
+    };
+    return gamification ? row : omitChorePoints(row);
+  });
 
-  const preparationBacklinks = familyId && user?.role === 'parent'
-    ? await readPreparationBacklinks(prisma!, { userId: sessionUser.id, familyId, role: user.role, choreIds: chores.map(c => c.id) }) : {}
   return (
     <ChoresContent
-      preparationBacklinks={preparationBacklinks}
+      preparationContextEnabled={
+        user?.role === "parent" && eventPreparationReady()
+      }
       chores={serializedChores as any}
       familyMembers={familyMembers as any}
       currentUserId={sessionUser.id}
-      userRole={user?.role || 'child'}
+      userRole={user?.role || "child"}
       familyId={familyId}
-      routineSchedulesEnabled={user?.role === 'parent' && process.env[ROUTINE_SCHEDULE_READY_ENV] === '1'}
+      routineSchedulesEnabled={
+        user?.role === "parent" &&
+        process.env[ROUTINE_SCHEDULE_READY_ENV] === "1"
+      }
       historyCursor={historyCursor}
     />
-  )
+  );
 }

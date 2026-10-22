@@ -22,6 +22,7 @@ const actions: Record<TimelineAction, string> = {
   chore_rejected: "Returned a chore for another try",
   recipe_created: "Saved a recipe",
   preparation_changed: "Reviewed event preparation",
+  preparation_routine_copied: "Copied a routine step for preparation",
   schedule_changed: "Moved an event after review",
   responsibility_changed: "Updated responsibility or backup",
 };
@@ -112,6 +113,7 @@ const es: typeof en = {
     chore_rejected: "Devolvió una tarea para repetirla",
     recipe_created: "Guardó una receta",
     preparation_changed: "Revisó los preparativos",
+    preparation_routine_copied: "Copió un paso de rutina para los preparativos",
     schedule_changed: "Movió un evento tras revisarlo",
     responsibility_changed: "Actualizó responsables o suplentes",
   },

@@ -1,5 +1,7 @@
 # Open issue completion ledger
 
+2026-10-22 source checkpoint: routine-copy immutable facts, personal parent chore/editor/history discovery and unrun lifecycle/isolation cases are authored. See `docs/plans/event-preparation-v1.md` and `docs/CURRENT_STATE.md`. #123/#128 remain in progress; no QA, activation or release evidence is claimed.
+
 Updated 2026-10-18. Canonical parents: #128 and #499. This is an execution index of existing issues, not a competing roadmap or evidence of completion.
 
 **Goal:** finish approved source and plans first, then QA one integrated candidate. No issue is closed by generating this ledger. Code, plans, activation, QA, deployment, hardware and customer acceptance are separate.

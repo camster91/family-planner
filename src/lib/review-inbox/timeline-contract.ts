@@ -6,6 +6,7 @@ export const PRIVATE_TIMELINE_ACTIONS = [
   "chore_created",
   "recipe_created",
   "preparation_changed",
+  "preparation_routine_copied",
   "schedule_changed",
   "responsibility_changed",
 ] as const;

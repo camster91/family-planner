@@ -8,6 +8,7 @@ import {
 import { eventPreparationWritingEnabled } from "../owner";
 import { preparationReceiptMatches } from "../receipt-server";
 import { actor, now, preparationTestFixture } from "./test-fixture";
+import { preparationCopyFactId } from "../origin";
 jest.mock("../runtime", () => ({
   openPreparationActorInTx: jest.fn(),
   prepareEventPreparationInTx: jest.fn(),
@@ -47,6 +48,87 @@ function fixture() {
 beforeEach(() => {
   jest.clearAllMocks();
   jest.mocked(eventPreparationWritingEnabled).mockReturnValue(true);
+});
+it("records exact routine provenance in the effect transaction and never duplicates it on receipt replay", async () => {
+  const { db, tx, command, prepared } = fixture();
+  prepared.context.routine = {
+    id: "stack-a",
+    sourceToken: "d".repeat(64),
+    occurrenceDay: "2026-10-20",
+    complete: true,
+    steps: [
+      {
+        id: "source-a",
+        sourceToken: "c".repeat(64),
+        copyable: true,
+        content: {
+          title: "Pack lunch",
+          description: null,
+          subject: { kind: "account", accountId: actor.userId },
+          points: 20,
+          difficulty: "easy",
+          icon: null,
+          durationMinutes: 5,
+        },
+      },
+    ],
+  };
+  const reuse = {
+    ...command,
+    action: "reuse-routine" as const,
+    stackId: "stack-a",
+    sourceToken: "d".repeat(64),
+    occurrenceDay: "2026-10-20",
+    steps: [
+      {
+        sourceId: "source-a",
+        sourceToken: "c".repeat(64),
+        clientId: "new-step-a",
+        subject: { kind: "account" as const, accountId: actor.userId },
+        points: null,
+        dueDay: "2026-10-21",
+        cue: null,
+      },
+    ],
+  };
+  const result = await writeEventPreparation(
+    db,
+    actor,
+    reuse,
+    key,
+    "record-a",
+    now,
+  );
+  expect(result.status).toBe(200);
+  expect(tx.activity.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      data: expect.objectContaining({
+        id: preparationCopyFactId(actor.familyId, "created-chore-a"),
+        type: "preparation_routine_copied",
+        metadata: JSON.stringify({
+          timeline: 1,
+          actorKind: "person",
+          target: { kind: "chore", id: "created-chore-a" },
+          routineCopy: {
+            stackId: "stack-a",
+            sourceChoreId: "source-a",
+            occurrenceDay: "2026-10-20",
+          },
+        }),
+      }),
+    }),
+  );
+  const count = tx.activity.create.mock.calls.length;
+  expect(count).toBe(2); // Copy fact and preparation-review fact, not a completion.
+  tx.idempotencyRecord.findFirst.mockResolvedValue({
+    response_status: 200,
+    response_body: result.body,
+  });
+  expect(
+    await writeEventPreparation(db, actor, reuse, key, "record-a", now),
+  ).toEqual(result);
+  expect(tx.activity.create).toHaveBeenCalledTimes(count);
+  expect(tx.chore.create).toHaveBeenCalledTimes(1);
 });
 it("creates fresh once-only canonical work and a minimal exact receipt, then replays without another clone or target read", async () => {
   const { db, tx, command } = fixture();

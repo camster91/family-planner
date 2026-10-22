@@ -1,3 +1,4 @@
+import { eventPreparationReady } from "@/lib/event-preparation/owner";
 import EditChoreForm from "./EditChoreForm";
 import { getServerUser } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
@@ -23,5 +24,15 @@ export default async function Page({
         : null;
     if (href) return <RoutineScheduleHandoff href={href} />;
   }
-  return <EditChoreForm />;
+  return (
+    <EditChoreForm
+      contextIdentity={
+        session?.role === "parent" &&
+        session.family_id &&
+        eventPreparationReady()
+          ? { userId: session.id, familyId: session.family_id }
+          : undefined
+      }
+    />
+  );
 }

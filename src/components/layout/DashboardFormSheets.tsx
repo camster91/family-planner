@@ -96,7 +96,13 @@ export function ListCreateSheet({
   );
 }
 
-function ChoreSheet({ edit = false }: { edit?: boolean }) {
+function ChoreSheet({
+  edit = false,
+  contextIdentity,
+}: {
+  edit?: boolean;
+  contextIdentity?: { userId: string; familyId: string };
+}) {
   const [busy, setBusy] = useState(false);
   const { locale } = useTranslation();
   const copy = choreFormMessages[locale];
@@ -110,7 +116,11 @@ function ChoreSheet({ edit = false }: { edit?: boolean }) {
       }
     >
       {edit ? (
-        <EditChoreForm inSheet onBusyChange={setBusy} />
+        <EditChoreForm
+          contextIdentity={contextIdentity}
+          inSheet
+          onBusyChange={setBusy}
+        />
       ) : (
         <CreateChoreForm inSheet onBusyChange={setBusy} />
       )}
@@ -122,6 +132,8 @@ export function ChoreCreateSheet() {
   return <ChoreSheet />;
 }
 
-export function ChoreEditSheet() {
-  return <ChoreSheet edit />;
+export function ChoreEditSheet({
+  contextIdentity,
+}: { contextIdentity?: { userId: string; familyId: string } } = {}) {
+  return <ChoreSheet edit contextIdentity={contextIdentity} />;
 }

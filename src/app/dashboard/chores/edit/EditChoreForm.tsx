@@ -1,4 +1,7 @@
 "use client";
+import { RoutineOriginEntry } from "@/components/chores/RoutineOriginEntry";
+import { useChorePreparationContext } from "@/components/chores/useChorePreparationContext";
+import { PreparationEntry } from "@/components/calendar/preparation/PreparationEntry";
 import { ChoreFormSection } from "@/components/chores/ChoreFormSection";
 import { routineIconLabel } from "@/lib/routine-icons";
 import { MonthlyScheduleHint } from "@/components/chores/MonthlyScheduleHint";
@@ -50,7 +53,15 @@ const frequencyOptions: { value: Frequency; label: ChoreFormMessage }[] = [
   { value: "monthly", label: "monthly" },
 ];
 
-function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
+function EditChoreForm({
+  inSheet = false,
+  onBusyChange,
+  contextIdentity,
+}: {
+  inSheet?: boolean;
+  onBusyChange?: (busy: boolean) => void;
+  contextIdentity?: { userId: string; familyId: string };
+} = {}) {
   const { locale, t } = useTranslation();
   const message = useCallback(
     (key: ChoreFormMessage, params?: Record<string, string | number>) =>
@@ -84,6 +95,11 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
   const router = useRouter();
   const searchParams = useSearchParams();
   const choreId = searchParams.get("id");
+  const preparationContext = useChorePreparationContext(
+    contextIdentity,
+    choreId ? [choreId] : [],
+    Boolean(contextIdentity),
+  );
   const stopSeriesRequested = searchParams.get("stop") === "1";
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fieldId = useId();
@@ -93,12 +109,12 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
   const [photoError, setPhotoError] = useState(false);
   const photoUploadPending = useRef(false);
   const busy = loading || photoUploading;
-  const directNavigation = usePendingFormNavigationController(
-    busy && !inSheet,
-  );
+  const directNavigation = usePendingFormNavigationController(busy && !inSheet);
   const sheetNavigation = usePendingFormNavigation();
   const navigation = inSheet ? sheetNavigation : directNavigation;
-  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
   // Picture routines (#272).
   const [icon, setIcon] = useState<string | null>(null);
   const [routine, setRoutine] = useState("");
@@ -288,35 +304,60 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
 
   return (
     <div className={inSheet ? "" : "max-w-xl mx-auto pb-20"}>
-      {!inSheet && <>
-      {/* Back nav */}
-      <div className="px-4 pt-4">
-        {busy ? (
-          <span
-            aria-disabled="true"
-            data-testid="chore-edit-back-busy"
-            className="btn-plain text-base py-2 min-h-[44px]"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span>{message("back")}</span>
-          </span>
-        ) : (
-          <Link href="/dashboard/chores" className="btn-plain text-base py-2 min-h-[44px]">
-            <ArrowLeft className="w-5 h-5" />
-            <span>{message("back")}</span>
-          </Link>
-        )}
-      </div>
+      {!inSheet && (
+        <>
+          {/* Back nav */}
+          <div className="px-4 pt-4">
+            {busy ? (
+              <span
+                aria-disabled="true"
+                data-testid="chore-edit-back-busy"
+                className="btn-plain text-base py-2 min-h-[44px]"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span>{message("back")}</span>
+              </span>
+            ) : (
+              <Link
+                href="/dashboard/chores"
+                className="btn-plain text-base py-2 min-h-[44px]"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span>{message("back")}</span>
+              </Link>
+            )}
+          </div>
 
-      <div className="px-4 pt-4">
-        <h1 className="text-large-title font-display">{message("editTitle")}</h1>
-        <p className="text-subhead text-label-secondary mt-1">
-          {message("editDescription")}
-        </p>
-      </div>
-
-      </>}
-      <form onSubmit={handleSubmit} className={inSheet ? "space-y-4" : "mt-6 space-y-4 px-4"}>
+          <div className="px-4 pt-4">
+            <h1 className="text-large-title font-display">
+              {message("editTitle")}
+            </h1>
+            <p className="text-subhead text-label-secondary mt-1">
+              {message("editDescription")}
+            </p>
+          </div>
+        </>
+      )}
+      {choreId && contextIdentity && (
+        <div className={inSheet ? "space-y-2" : "px-4 mt-4 space-y-2"}>
+          {preparationContext.backlinks[choreId] && (
+            <PreparationEntry
+              eventId={preparationContext.backlinks[choreId]}
+              backlink
+            />
+          )}
+          {preparationContext.origins[choreId] && (
+            <RoutineOriginEntry
+              origin={preparationContext.origins[choreId]}
+              explain
+            />
+          )}
+        </div>
+      )}
+      <form
+        onSubmit={handleSubmit}
+        className={inSheet ? "space-y-4" : "mt-6 space-y-4 px-4"}
+      >
         {error && (
           <div className="card-apple p-4 border border-[var(--danger)]">
             <p className="text-body text-[var(--danger-text)]">{error}</p>
@@ -455,7 +496,10 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           summary={[
             ...(description.trim() ? [message("instructionsAdded")] : []),
             message("difficultySummary", {
-              difficulty: message(difficultyOptions.find((option) => option.value === difficulty)!.label),
+              difficulty: message(
+                difficultyOptions.find((option) => option.value === difficulty)!
+                  .label,
+              ),
             }),
             ...(gamification && points !== undefined
               ? [message("pointsSummary", { count: points })]
@@ -500,7 +544,9 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
                       : "border-[var(--surface-separator)] bg-[var(--surface-fill)] text-label-primary",
                   )}
                 >
-                  <div className="text-body font-semibold">{message(opt.label)}</div>
+                  <div className="text-body font-semibold">
+                    {message(opt.label)}
+                  </div>
                   <div className="text-caption-1 text-label-secondary mt-0.5">
                     {message(opt.description)}
                   </div>
@@ -584,7 +630,8 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
                     body: fd,
                   });
                   const data = await res.json();
-                  if (!res.ok) throw new Error(data.error || message("uploadFailed"));
+                  if (!res.ok)
+                    throw new Error(data.error || message("uploadFailed"));
                   if (
                     typeof data?.url !== "string" ||
                     !data.url.startsWith("/api/files/chores/")
@@ -669,7 +716,13 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
         </ChoreFormSection>
 
         {/* Submit */}
-        <div className={inSheet ? "sticky bottom-0 bg-[var(--surface-elevated)] pt-3 pb-1" : "pt-2"}>
+        <div
+          className={
+            inSheet
+              ? "sticky bottom-0 bg-[var(--surface-elevated)] pt-3 pb-1"
+              : "pt-2"
+          }
+        >
           <button
             type="submit"
             disabled={
@@ -689,7 +742,15 @@ function EditChoreForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
   );
 }
 
-export default function EditChorePage({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
+export default function EditChorePage({
+  inSheet = false,
+  onBusyChange,
+  contextIdentity,
+}: {
+  inSheet?: boolean;
+  onBusyChange?: (busy: boolean) => void;
+  contextIdentity?: { userId: string; familyId: string };
+} = {}) {
   const { t } = useTranslation();
   const message = useCallback(
     (key: ChoreFormMessage) => t(key, undefined, choreFormMessages),
@@ -699,13 +760,15 @@ export default function EditChorePage({ inSheet = false, onBusyChange }: { inShe
     <Suspense
       fallback={
         <div className="flex items-center justify-center py-20">
-          <div className="text-label-secondary">
-            {message("loading")}
-          </div>
+          <div className="text-label-secondary">{message("loading")}</div>
         </div>
       }
     >
-      <EditChoreForm inSheet={inSheet} onBusyChange={onBusyChange} />
+      <EditChoreForm
+        contextIdentity={contextIdentity}
+        inSheet={inSheet}
+        onBusyChange={onBusyChange}
+      />
     </Suspense>
   );
 }

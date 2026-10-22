@@ -328,3 +328,44 @@ tests/typecheck/lint/build/browser/rendered/API/native/schema/SQL/DB/client/CI,
 provider/flag activation or push/merge/deploy occurred. QA stays after remaining
 code. #123/#144/#499 and the integrated goal remain in progress.
 
+
+## Routine copy provenance and personal chore context source — 2026-10-22
+
+Routine reuse now appends a minimal `preparation_routine_copied` Activity fact
+inside the canonical new-Chore/effect/receipt transaction. A deterministic fact
+primary key binds the exact household and new task. Only exact source stack,
+source step and original occurrence day are retained; no source content,
+completion credit, proof, recurrence, future definition or private token is copied.
+Manual creates cannot supply provenance through the strict public command.
+Receipt replay returns before another copy/fact. Detaching preparation keeps the
+independent task and its fact. Existing Activity account/household export and
+erasure apply; absent provenance never claims that a task was manually created.
+
+A bounded parent-only read endpoint renews current actor/family/session generation
+under membership locks, accepts at most300 explicit current task IDs, and returns
+separate event backlinks and routine origins. Both copied and source task,
+routine, original due day, profile availability, erased-subject state and enabled
+domains are checked. Current source labels are read fresh; unavailable source
+returns only a generic state and copy time, with no old source IDs/name/link.
+Source links use exact identity and original occurrence, never label matching.
+No schema/migration or alternate task store is introduced. Private copy actions
+are excluded from the legacy member Activity/Analytics feeds.
+
+Personal parent chore rows, parent-check rows, done/history pages, routine rows
+and canonical page/sheet editor now read this separate memory-only projection.
+Later history windows trigger bounded reads; the context stays out of canonical
+Chore, shared-device and offline/cache DTOs. Blur/background/storage/identity
+changes abort and clear it; late replies cannot install data. Owner or session
+generation replacement retires the reader instead of adopting the new identity.
+Optional context failure never blocks normal chore edits/completion. EN/ES source
+and independent-task wording is authored; source actions stay outside completion.
+
+Planner, fact/projection, API admission, lifecycle and personal-hook cases are
+authored and unrun, including exact replay, real-DB rollback/detach/foreign-family/
+erasure cases prepared for the disposable database pass. This checkpoint used
+source inspection/edits and selected-file formatting only. No tests/typecheck/
+lint/build/browser/application API/SQL/DB/schema/client/native/CI, activation,
+push/merge/deploy or issue closure. Broader role/profile/shared-device readers,
+other domain history, batch-refusal UX and grounded AI/planning/evaluation/usage
+remain implementation work before consolidated QA. Full goal stays active.
+

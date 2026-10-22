@@ -142,6 +142,11 @@ it("copies selected exact routine content into new once-only work with explicit 
     subject: profile,
     points: 0,
     dueDay: "2026-10-21",
+    origin: {
+      stackId: "routine-a",
+      sourceChoreId: "source-step",
+      occurrenceDay: "2026-10-20",
+    },
   });
   expect(effect.create[0]).not.toHaveProperty("status");
   expect(effect.create[0]).not.toHaveProperty("photo_url");

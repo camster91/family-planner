@@ -110,7 +110,9 @@ function reference(
 }
 function origin(row: Candidate): TimelinePage["entries"][number]["origin"] {
   if (row.stream === "audit") return "settings";
-  return row.action === "preparation_changed"
+  return ["preparation_changed", "preparation_routine_copied"].includes(
+    row.action,
+  )
     ? "preparation"
     : row.action === "schedule_changed"
       ? "schedule"

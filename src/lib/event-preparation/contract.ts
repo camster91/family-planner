@@ -224,6 +224,7 @@ export type PreparationEffects = {
   reviewedEventSourceToken: string;
   create: (Omit<Extract<PreparationDraftStep, { kind: "new" }>, "points"> & {
     points: number;
+    origin?: { stackId: string; sourceChoreId: string; occurrenceDay: string };
   })[];
   ordered: (
     | { kind: "existing"; choreId: string; cue: PreparationCue | null }
@@ -304,6 +305,10 @@ export function planEventPreparation(
     if (!context.pointsEnabled && result > 0) return fail("POINTS_DISABLED");
     return result;
   }
+  const origins = new Map<
+    string,
+    NonNullable<PreparationEffects["create"][number]["origin"]>
+  >();
   let steps: PreparationDraftStep[];
   if (command.action === "reuse-routine") {
     const routine = context.routine;
@@ -345,6 +350,11 @@ export function planEventPreparation(
           source.sourceToken !== step.sourceToken
         )
           return fail("STALE");
+        origins.set(step.clientId, {
+          stackId: routine.id,
+          sourceChoreId: source.id,
+          occurrenceDay: routine.occurrenceDay,
+        });
         return {
           kind: "new" as const,
           clientId: step.clientId,
@@ -384,7 +394,12 @@ export function planEventPreparation(
         return fail("CUE_MISMATCH");
       const checked = create.safeParse(final);
       if (!checked.success) return fail("INVALID");
-      created.push({ ...checked.data, points: final.points });
+      const origin = origins.get(step.clientId);
+      created.push({
+        ...checked.data,
+        points: final.points,
+        ...(origin ? { origin } : {}),
+      });
       ordered.push({ kind: "new", clientId: step.clientId, cue: step.cue });
       continue;
     }

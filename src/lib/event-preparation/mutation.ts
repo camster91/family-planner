@@ -1,3 +1,4 @@
+import { recordPreparationRoutineCopyInTx } from "./origin";
 /** Internal effect only: freshly authorized/locked preparation context + pure
  * command plan required. Caller writes the minimal receipt in this transaction.
  * Never invoke this helper as an API or replay it outside owned idempotency. */
@@ -78,6 +79,14 @@ export async function applyPreparationInTx(
       },
       select: { id: true },
     });
+    if (step.origin)
+      await recordPreparationRoutineCopyInTx(
+        tx,
+        actor,
+        row.id,
+        step.origin,
+        now,
+      );
     created.push({ clientId: step.clientId, choreId: row.id });
   }
   let planId = prepared.state?.id ?? null;

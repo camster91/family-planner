@@ -4,6 +4,12 @@ import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { assertFixtureTargetAllowed } from "@/lib/fixtures/guard";
 import { eventPreparationStorageAvailable } from "../storage";
+import {
+  preparationCopyFactId,
+  recordPreparationRoutineCopyInTx,
+  readPreparationRoutineOrigins,
+} from "../origin";
+import { EVENT_PREPARATION_READY_ENV } from "../owner";
 const run = process.env.RUN_DB_INTEGRATION === "1" ? describe : describe.skip;
 run("event preparation scoped metadata and canonical lifecycle", () => {
   const family = `prep-qa-${crypto.randomUUID()}`,
@@ -88,6 +94,113 @@ run("event preparation scoped metadata and canonical lifecycle", () => {
         Array<{ epoch: number }>
       >`SELECT "preparation_epoch" AS epoch FROM "Event" WHERE "id"=${eventId} AND "family_id"=${family}`
     )[0].epoch;
+  it("keeps copy provenance after detach, scopes it to its household, suppresses erased sources and rolls back failed facts", async () => {
+    const { choreId, planId } = await fixture();
+    const stackId = `stack-${crypto.randomUUID()}`,
+      sourceId = `source-${crypto.randomUUID()}`;
+    await prisma!.routineStack.create({
+      data: {
+        id: stackId,
+        family_id: family,
+        label: "Fixture source",
+        fingerprint: "f".repeat(64),
+        created_by: parent,
+      },
+      select: { id: true },
+    });
+    await prisma!.chore.create({
+      data: {
+        id: sourceId,
+        family_id: family,
+        created_by: parent,
+        assigned_to: parent,
+        title: "Fixture source step",
+        due_date: new Date("2026-10-20T00:00:00Z"),
+        routine_stack_id: stackId,
+        frequency: "once",
+        points: 0,
+      },
+      select: { id: true },
+    });
+    const origin = {
+      stackId,
+      sourceChoreId: sourceId,
+      occurrenceDay: "2026-10-20",
+    };
+    const copiedAt = new Date("2026-10-22T12:00:00Z");
+    await expect(
+      prisma!.$transaction(async (tx) => {
+        await recordPreparationRoutineCopyInTx(
+          tx,
+          { userId: parent, familyId: family },
+          choreId,
+          origin,
+          copiedAt,
+        );
+        throw new Error("Fixture rollback");
+      }),
+    ).rejects.toThrow("Fixture rollback");
+    expect(
+      await prisma!.activity.findUnique({
+        where: { id: preparationCopyFactId(family, choreId) },
+        select: { id: true },
+      }),
+    ).toBeNull();
+    await prisma!.$transaction((tx) =>
+      recordPreparationRoutineCopyInTx(
+        tx,
+        { userId: parent, familyId: family },
+        choreId,
+        origin,
+        copiedAt,
+      ),
+    );
+    await prisma!
+      .$executeRaw`DELETE FROM "EventPreparation" WHERE "id"=${planId} AND "family_id"=${family}`;
+    const prior = process.env[EVENT_PREPARATION_READY_ENV];
+    process.env[EVENT_PREPARATION_READY_ENV] = "1";
+    try {
+      const scope = {
+        userId: parent,
+        familyId: family,
+        role: "parent",
+        tokenVersion: 0,
+        choreIds: [choreId],
+      };
+      expect(await readPreparationRoutineOrigins(prisma!, scope)).toEqual({
+        [choreId]: {
+          state: "available",
+          ...origin,
+          copiedAt: copiedAt.toISOString(),
+          label: "Fixture source",
+        },
+      });
+      expect(
+        await readPreparationRoutineOrigins(prisma!, {
+          ...scope,
+          userId: foreignParent,
+          familyId: foreignFamily,
+        }),
+      ).toEqual({});
+      await prisma!.chore.update({
+        where: { id: sourceId },
+        data: { member_subject_erased: true },
+        select: { id: true },
+      });
+      expect(await readPreparationRoutineOrigins(prisma!, scope)).toEqual({
+        [choreId]: { state: "unavailable", copiedAt: copiedAt.toISOString() },
+      });
+      await prisma!.chore.update({
+        where: { id: choreId },
+        data: { member_subject_erased: true },
+        select: { id: true },
+      });
+      expect(await readPreparationRoutineOrigins(prisma!, scope)).toEqual({});
+    } finally {
+      if (prior === undefined) delete process.env[EVENT_PREPARATION_READY_ENV];
+      else process.env[EVENT_PREPARATION_READY_ENV] = prior;
+    }
+  });
   const revision = async (planId: string) =>
     (
       await prisma!.$queryRaw<
