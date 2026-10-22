@@ -1,5 +1,23 @@
 # Current State
 
+## Clean-runner release candidate preparation — 2026-10-22
+
+Clean45252ce1 recovery receipt passes all7 steps with its exact source SHA
+(run.VxVosD). Local optimized build compiles/types/generates73 pages, then fails
+ENOSPC assembling standalone; retry also hits ENOSPC. Neither is a build pass.
+Generated checkout compiler/Jest and npm download caches were cleared without
+removing source or installed dependencies. Hosted build/browser checks are next.
+
+Fetched main755685f8 (3 new upstream commits) and merged its login/elevation
+lockout fix without conflicts; affected2 suites/59 tests pass. The same dependency
+security versions are retained. Gitleaks8.30.1 scans the tracked source and170
+branch commits clean after one exact path/rule/test-title false-positive match is
+scoped in config. Ignored local generated framework keys, fixture auth files and
+QA logs are not published and are not counted as tracked-source findings.
+Prior all-unit/DB results remain atbbb3c3b0; merged-source CI/browser acceptance,
+protected merge/deploy and native/device/store acceptance remain open.
+Evidence:`docs/testing/WEB_QA_20261022.md`.
+
 ## Full unit/database pass; recovery rehearsal pass — 2026-10-22
 
 Atbbb3c3b0 all702 unit suites/6971 tests and all85 PostgreSQL suites/561 tests

@@ -10,11 +10,13 @@ import { getRequestId } from '@/lib/request-id'
 import { deviceClock, deviceError, isSharedDeviceEnabled } from '@/lib/device-http'
 import { isPairedDeviceRequest } from '@/lib/device-session'
 import { isGamificationOn, omitUserGamification } from '@/lib/gamification-visibility'
-
-// Failed attempts allowed per account per window, independent of source IP, so
-// rotating addresses cannot brute-force one password.
-const ACCOUNT_FAILURE_LIMIT = 10
-const ACCOUNT_FAILURE_WINDOW_MS = 15 * 60 * 1000
+import {
+  LOGIN_ACCOUNT_FAILURE_LIMIT,
+  LOGIN_FAILURE_WINDOW_MS,
+  LOGIN_SOURCE_FAILURE_LIMIT,
+  loginAccountKey,
+  loginSourceKey,
+} from '@/lib/login-lockout'
 
 export const POST = withRouteTelemetry('/api/auth/login', handlePOST)
 
@@ -51,13 +53,22 @@ async function handlePOST(request: NextRequest) {
 
     const { email, password } = parsed.data
 
-    const accountKey = `login-fail:${email.toLowerCase()}`
-    const accountCheck = await isRateLimited(accountKey, ACCOUNT_FAILURE_LIMIT)
-    if (!accountCheck.allowed) {
-      return NextResponse.json(
-        { error: 'Too many login attempts. Please try again later.' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil(accountCheck.retryAfterMs / 1000)) } }
-      )
+    // Wrong passwords are limited per account and client address (tight), and
+    // per account across all addresses (a higher ceiling), so a stranger who
+    // knows an email cannot lock its owner out from everywhere (login-lockout.ts).
+    const sourceKey = loginSourceKey(email, ip)
+    const accountKey = loginAccountKey(email)
+    for (const [key, limit] of [
+      [sourceKey, LOGIN_SOURCE_FAILURE_LIMIT],
+      [accountKey, LOGIN_ACCOUNT_FAILURE_LIMIT],
+    ] as const) {
+      const check = await isRateLimited(key, limit)
+      if (!check.allowed) {
+        return NextResponse.json(
+          { error: 'Too many login attempts. Please try again later.' },
+          { status: 429, headers: { 'Retry-After': String(Math.ceil(check.retryAfterMs / 1000)) } }
+        )
+      }
     }
 
     // Explicit select — never widen this to a whole-row fetch. Returning the row
@@ -95,9 +106,11 @@ async function handlePOST(request: NextRequest) {
     const valid = await safeVerifyPassword(password, user?.password ?? null)
 
     if (!user || !valid) {
-      await checkRateLimit(accountKey, ACCOUNT_FAILURE_LIMIT, ACCOUNT_FAILURE_WINDOW_MS)
+      await checkRateLimit(sourceKey, LOGIN_SOURCE_FAILURE_LIMIT, LOGIN_FAILURE_WINDOW_MS)
+      await checkRateLimit(accountKey, LOGIN_ACCOUNT_FAILURE_LIMIT, LOGIN_FAILURE_WINDOW_MS)
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
+    await resetRateLimit(sourceKey)
     await resetRateLimit(accountKey)
 
     // Email verification gate — accounts must be confirmed before login.

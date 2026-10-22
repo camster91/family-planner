@@ -24,6 +24,7 @@ import { POST as login } from '../login/route'
 import { POST as resetPassword } from '../reset-password/route'
 import { POST as changePassword } from '../change-password/route'
 import { POST as forgotPassword } from '../forgot-password/route'
+import { LOGIN_ACCOUNT_FAILURE_LIMIT, LOGIN_SOURCE_FAILURE_LIMIT } from '@/lib/login-lockout'
 
 const PASSWORD = 'parent-a-password'
 
@@ -47,6 +48,46 @@ describe('POST /api/auth/login email normalisation', () => {
       deviceReq({ method: 'POST', path: '/api/auth/login', body: { email: 'Parent-A@example.test', password: 'nope' } })
     )
     expect(res.status).toBe(401)
+  })
+})
+
+describe('POST /api/auth/login wrong-password lockout', () => {
+  const attempt = (ip: string, password: string) =>
+    login(
+      deviceReq({ method: 'POST', path: '/api/auth/login', body: { email: 'parent-a@example.test', password }, ip })
+    )
+
+  beforeEach(() => {
+    db.reset()
+    setPassword('parentA', PASSWORD)
+  })
+
+  it('a stranger guessing from one address locks out only that address', async () => {
+    for (let i = 0; i < LOGIN_SOURCE_FAILURE_LIMIT; i++) {
+      expect((await attempt('203.0.113.66', 'wrong-guess')).status).toBe(401)
+    }
+    // That address is now refused, even with the right password.
+    expect((await attempt('203.0.113.66', PASSWORD)).status).toBe(429)
+    // The parent signs in from their own network as normal.
+    expect((await attempt('198.51.100.20', PASSWORD)).status).toBe(200)
+  })
+
+  it('still caps guessing spread across many addresses, before checking the password', async () => {
+    const perAddress = LOGIN_SOURCE_FAILURE_LIMIT
+    for (let i = 0; i < LOGIN_ACCOUNT_FAILURE_LIMIT; i++) {
+      const ip = `203.0.113.${100 + Math.floor(i / perAddress)}`
+      expect((await attempt(ip, 'wrong-guess')).status).toBe(401)
+    }
+    const res = await attempt('198.51.100.20', PASSWORD)
+    expect(res.status).toBe(429)
+    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0)
+  })
+
+  it('a successful sign-in clears that address\'s failures', async () => {
+    for (let i = 0; i < LOGIN_SOURCE_FAILURE_LIMIT - 1; i++) await attempt('203.0.113.77', 'wrong-guess')
+    expect((await attempt('203.0.113.77', PASSWORD)).status).toBe(200)
+    expect((await attempt('203.0.113.77', 'wrong-guess')).status).toBe(401)
+    expect((await attempt('203.0.113.77', PASSWORD)).status).toBe(200)
   })
 })
 

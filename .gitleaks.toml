@@ -40,3 +40,15 @@ regexTarget = "secret"
 # by the role journey. It is never a production device credential. Match only
 # this exact test value; all other values and paths retain the default scan.
 regexes = ['''^fpd1_a_e2e_anniversaries_valid$''']
+
+
+[[allowlists]]
+description = "Plain-language calendar review test title; no credential or fixture value"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^src/lib/calendar-planning/__tests__/conflict-review\.test\.ts$''']
+regexTarget = "line"
+# The default generic-key rule interprets the words after 'tokens' in this
+# one test title as a value. Match this exact title only, including it(...).
+# Other lines, test values and secret rules remain fully scanned.
+regexes = ['''it\("refuses\ foreign\ owners,\ stale\ tokens,\ unknown/duplicate\ references\ and\ out\-of\-range\ windows",\ \(\)\ =>\ \{''']
