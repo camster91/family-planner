@@ -840,3 +840,14 @@ ready to enter generation/types/lint/unit/build and later disposable-DB/rendered
 QA. This is not passing evidence or issue closure. Any discovered implementation
 failure is repaired before final release checks; full goal/acceptance and external
 native/provider/operator/customer boundaries remain unchanged.
+
+
+### 2026-10-22 — typed capture/recipe recovery explanations (#123/#144)
+
+Source read-through confirmed exact-baseline journal refresh already refuses
+foreign-tab changes before the draft host can adopt them. Both canonical draft
+hosts now share EN/ES explanations for all typed recovery reasons instead of
+mislabeling format/conflict/capacity/paused/intent failures as generic storage
+outages. Existing owner masks, explicit recovery and exact submission remain.
+See WEB_IMPLEMENTATION_HANDOFF.md for source reasoning and later QA cases.
+Formatting only; no further QA/CI or issue closure. The integrated goal stays open.

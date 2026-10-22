@@ -216,3 +216,31 @@ No schema/index/provider/scheduler/write or new permission was introduced.
 The list-summary collection, legacy list API and list-detail item collection are
 still uncapped and stay explicit #134 work. Aggregation removes item hydration
 from this overview only; it is not a complete pagination/N+1/scale acceptance claim.
+
+
+## Implementation-first recovery explanations (#123/#144)
+
+Read-through confirmed `review-document-store.refresh` calls the owned journal's
+snapshot, which renews ownership under its lease and compares all storage copies
+to the controller's exact baseline before returning rows. The apparent risk of
+refresh silently adopting another tab's changes is already prevented at this
+boundary. Preserve that refusal; do not initialize a replacement journal to bypass
+it, erase storage or convert an unknown submitted intent into a fresh request.
+
+The actual remaining usability gap was one generic storage notice for all recovery
+reasons. CaptureDraftBoundary and RecipeDraftBoundary now share fixed EN/ES copy
+for each typed reason: unavailable, owner changed, paused, unsupported format,
+divergent copies, expired review window, capacity and changed intent. The locale
+map is renewed through a ref for asynchronous controller errors. Divergence and
+unsupported formats explain preserving work/storage; capacity explains reducing
+unsubmitted input. No message includes storage contents, prompts, household fields
+or request keys. Existing owner retirement/masking, explicit recover controls,
+lease/baseline enforcement and exact unknown-result receipt paths are unchanged.
+
+Source formatting only; no tests/typecheck/lint/build/browser/CI ran. Consolidated
+QA must cover both boundaries in EN/ES, all eight reasons and ordinary transport
+errors, locale change during pending recovery, full/partial/failed persistence,
+external-tab modification/retirement, hidden/foreground refresh, dirty fields,
+explicit discard/restore and exact submitted receipt recovery. Confirm notices
+do not imply an unverified save, automatically pick a copy or enable bypassing
+journal refusal. Source completion, acceptance and release remain separate.

@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { useReviewRecoveryText } from "@/i18n/review-recovery";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/dialog";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
@@ -70,6 +71,9 @@ export function CaptureDraftBoundary(
     router = useRouter();
   const textRef = React.useRef(text);
   textRef.current = text;
+  const recoveryText = useReviewRecoveryText();
+  const recoveryTextRef = React.useRef(recoveryText);
+  recoveryTextRef.current = recoveryText;
   const callbacks = React.useRef(props);
   callbacks.current = props;
   const context = React.useRef<ReviewDocumentContext | null>(null);
@@ -182,12 +186,11 @@ export function CaptureDraftBoundary(
           error instanceof OwnedRequestRecoveryError &&
           error.reason === "OWNER_CHANGED";
         setNotice(
-          changed
-            ? textRef.current.owner
-            : error instanceof OwnedRequestRecoveryError &&
-                error.reason === "REVIEW_REQUIRED"
-              ? textRef.current.expired
-              : textRef.current.storage,
+          recoveryTextRef.current[
+            error instanceof OwnedRequestRecoveryError
+              ? error.reason
+              : "UNAVAILABLE"
+          ],
         );
         if (changed) {
           retiredOwner.current = true;
@@ -448,7 +451,7 @@ export function CaptureDraftBoundary(
         extracting ||
         choreBusy ||
         hasInput ||
-        (props.presentation === "sheet")),
+        props.presentation === "sheet"),
     {
       warnOnUnload:
         dirty || extracting || choreBusy || activity.current.hasInput,

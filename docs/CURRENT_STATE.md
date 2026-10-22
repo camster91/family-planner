@@ -12,6 +12,17 @@ merge/deploy still require applicable passing QA under the existing authorizatio
 Retain all earlier evidence at its recorded SHA; do not count unverified code or
 provider/native/customer acceptance as finished. The goal remains active.
 
+## Implementation-first draft recovery explanations — 2026-10-22
+
+Capture and recipe draft boundaries now share EN/ES explanations for conflicting
+copies, unsupported saved formats, size limits, changed intents, paused saving,
+expired retry windows, changed owners and unavailable storage. Messages contain
+no saved fields/keys, promise no automatic conflict resolution and retain the
+existing recovery/owner masking controls. The journal's exact-baseline refresh
+already refuses external changes; no replacement journal or automatic adoption
+was added. Formatting only; consolidated QA remains deferred. Details and later
+QA cases are recorded in WEB_IMPLEMENTATION_HANDOFF.md.
+
 ## Implementation-first list summary counts — 2026-10-22
 
 Lists overview now uses same-snapshot database counts instead of hydrating all

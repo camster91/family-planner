@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { useReviewRecoveryText } from "@/i18n/review-recovery";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
@@ -62,6 +63,9 @@ export function RecipeDraftBoundary(
 ) {
   const text = useRecipeEditorText(),
     router = useRouter();
+  const recoveryText = useReviewRecoveryText();
+  const recoveryTextRef = React.useRef(recoveryText);
+  recoveryTextRef.current = recoveryText;
   const callbacks = React.useRef(props);
   callbacks.current = props;
   const context = React.useRef<ReviewDocumentContext | null>(null);
@@ -149,14 +153,11 @@ export function RecipeDraftBoundary(
           error instanceof OwnedRequestRecoveryError &&
           error.reason === "OWNER_CHANGED";
         setNotice(
-          text(
-            ownerChanged
-              ? "draftOwnerChanged"
-              : error instanceof OwnedRequestRecoveryError &&
-                  error.reason === "REVIEW_REQUIRED"
-                ? "draftExpired"
-                : "draftStorageHold",
-          ),
+          recoveryTextRef.current[
+            error instanceof OwnedRequestRecoveryError
+              ? error.reason
+              : "UNAVAILABLE"
+          ],
         );
         if (ownerChanged) {
           retiredOwner.current = true;
