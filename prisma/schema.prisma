@@ -13,7 +13,7 @@ datasource db {
 model User {
   /// Read-source continuity, never an actor credential. SQL assigns insertion
   /// identity and advances every legacy update; callers cannot reset either.
-  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
   food_epoch Int @default(0) @ignore
   ai_usage_requests AiUsageRequest[]
   responsibility_coordinations ResponsibilityState[] @relation("ResponsibilityCoordinator")
@@ -168,7 +168,7 @@ model User {
 model Family {
   /// Read-source continuity, never an actor credential. SQL assigns insertion
   /// identity and advances every legacy update; callers cannot reset either.
-  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
   food_epoch Int @default(0) @ignore
   ai_usage_policy AiUsagePolicy?
   ai_usage_requests AiUsageRequest[]
@@ -450,7 +450,7 @@ model Chore {
   preparation_epoch Int @default(0)
   event_preparation_step EventPreparationStep?
   /// Consent source continuity, not a credential. Legacy material edits advance the epoch in SQL.
-  responsibility_generation String @default(dbgenerated("gen_random_uuid()::text"))
+  responsibility_generation String @default(dbgenerated("(gen_random_uuid())::text"))
   responsibility_epoch Int @default(0)
   responsibility_state ResponsibilityState?
   id             String    @id @default(cuid())
@@ -651,7 +651,7 @@ model ImportedRecord {
 model Recipe {
   /// Read-source continuity, never an actor credential. SQL assigns insertion
   /// identity and advances every legacy update; callers cannot reset either.
-  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
   food_epoch Int @default(0) @ignore
   id           String   @id @default(cuid())
   family_id    String
@@ -692,7 +692,7 @@ model RecipeCollection {
   name_key   String
   revision   Int @default(0)
   created_at DateTime @default(now())
-  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   entries RecipeCollectionEntry[]
   @@unique([id, family_id], map: "RecipeCollection_id_family_key")
   @@unique([family_id, name_key], map: "RecipeCollection_family_name_key")
@@ -711,7 +711,7 @@ model RecipeCollectionEntry {
 model Ingredient {
   /// Read-source continuity, never an actor credential. SQL assigns insertion
   /// identity and advances every legacy update; callers cannot reset either.
-  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
   food_epoch Int @default(0) @ignore
   id        String  @id @default(cuid())
   family_id String
@@ -731,7 +731,7 @@ model Ingredient {
 model RecipeIngredient {
   /// Read-source continuity, never an actor credential. SQL assigns insertion
   /// identity and advances every legacy update; callers cannot reset either.
-  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
   food_epoch Int @default(0) @ignore
   id            String  @id @default(cuid())
   recipe_id     String
@@ -955,7 +955,7 @@ model Event {
   preparation EventPreparation?
   // Source identity for explicit conflict-review proposals. Additive, default-off;
   // database triggers cover legacy writers and material away/back changes.
-  schedule_generation String @default(dbgenerated("gen_random_uuid()::text"))
+  schedule_generation String @default(dbgenerated("(gen_random_uuid())::text"))
   schedule_epoch Int @default(0)
   id          String   @id @default(cuid())
   family_id   String
@@ -1080,7 +1080,7 @@ model Notification {
 model List {
   /// Read-source continuity, never an actor credential. SQL assigns insertion
   /// identity and advances every legacy update; callers cannot reset either.
-  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
   food_epoch Int @default(0) @ignore
   id                String    @id @default(cuid())
   family_id         String
@@ -1322,7 +1322,7 @@ model RateLimitEntry {
 model MealPrepSession {
   /// Read-source continuity, never an actor credential. SQL assigns insertion
   /// identity and advances every legacy update; callers cannot reset either.
-  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
   food_epoch Int @default(0) @ignore
   id                String   @id @default(cuid())
   family_id         String
@@ -1341,7 +1341,7 @@ model MealPrepSession {
 model MealBatch {
   /// Read-source continuity, never an actor credential. SQL assigns insertion
   /// identity and advances every legacy update; callers cannot reset either.
-  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
   food_epoch Int @default(0) @ignore
   id              String   @id @default(cuid())
   family_id       String
@@ -1368,7 +1368,7 @@ model MealBatch {
 model MealBatchConsumption {
   /// Read-source continuity, never an actor credential. SQL assigns insertion
   /// identity and advances every legacy update; callers cannot reset either.
-  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
   food_epoch Int @default(0) @ignore
   id                String @id @default(cuid())
   family_id         String
@@ -1391,7 +1391,7 @@ model MealBatchConsumption {
 model FamilyMeal {
   /// Read-source continuity, never an actor credential. SQL assigns insertion
   /// identity and advances every legacy update; callers cannot reset either.
-  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
   food_epoch Int @default(0) @ignore
   id          String   @id @default(cuid())
   family_id   String
@@ -1512,7 +1512,7 @@ model EmergencyContact {
 
 model Pickup {
   /// Consent source continuity, not a credential. Legacy material edits advance the epoch in SQL.
-  responsibility_generation String @default(dbgenerated("gen_random_uuid()::text"))
+  responsibility_generation String @default(dbgenerated("(gen_random_uuid())::text"))
   responsibility_epoch Int @default(0)
   responsibility_state ResponsibilityState?
   id           String    @id @default(cuid())
@@ -1586,7 +1586,7 @@ model WishlistItem {
 
 model Handoff {
   /// Consent source continuity, not a credential. Legacy material edits advance the epoch in SQL.
-  responsibility_generation String @default(dbgenerated("gen_random_uuid()::text"))
+  responsibility_generation String @default(dbgenerated("(gen_random_uuid())::text"))
   responsibility_epoch Int @default(0)
   responsibility_state ResponsibilityState?
   id                String    @id @default(cuid())
@@ -1835,14 +1835,14 @@ model FoodProduct {
   source_url String?
   revision Int @default(0)
   updated_at DateTime @default(now()) @updatedAt
-  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   @@unique([family_id, barcode], map: "FoodProduct_family_barcode_key")
 }
 
 model InventoryItem {
   /// Read-source continuity, never an actor credential. SQL assigns insertion
   /// identity and advances every legacy update; callers cannot reset either.
-  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
   food_epoch Int @default(0) @ignore
   id            String    @id @default(cuid())
   family_id     String
@@ -2185,7 +2185,7 @@ model ResponsibilityState {
 
 // Ordering/cue links only. Canonical Chore owns assignment, due day and checks.
 model EventPreparation {
-  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  id String @id @default(dbgenerated("(gen_random_uuid())::text"))
   family_id String
   event_id String
   reviewed_event_source String
@@ -2198,7 +2198,7 @@ model EventPreparation {
   @@index([family_id])
 }
 model EventPreparationStep {
-  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  id String @id @default(dbgenerated("(gen_random_uuid())::text"))
   family_id String
   preparation_id String
   chore_id String

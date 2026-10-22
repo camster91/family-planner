@@ -1,5 +1,18 @@
 # Current State
 
+## Complete unit pass; fresh PostgreSQL16 schema repaired — 2026-10-22
+
+Full unit run at06d651db passes702 suites/6971 tests;82 DB suites/546 tests remain
+opt-in skipped in that run. Local PostgreSQL16.14 fresh migration exposed inventory
+foundation ordering; the unchanged SQL now runs before dependent food extensions.
+Interrupted-install resume and two fresh passes exit0. Prisma schema now matches
+actual UUID-default spelling and existing NoAction FK behavior; final drift check,
+validate/client generation and types/lint pass (44 warnings). No production/provider
+or hosted state changed. Guarded integration suites are next; browser/recovery,
+current-source build and protected merge/deploy remain open. Evidence:
+`docs/testing/WEB_QA_20261022.md`.
+
+
 ## Source copy inventory reconciled — 2026-10-22
 
 Reviewed copy delta now tracks637 records/652 occurrences without changing scanner

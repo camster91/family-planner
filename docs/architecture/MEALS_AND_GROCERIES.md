@@ -376,7 +376,7 @@ offline and stale states). FridgeCal-style inventory without AI: what the househ
 
 ### Model (additive)
 
-`InventoryItem` (`prisma/schema.prisma`; idempotent DDL in `scripts/migrate.js` `POST_FEATURE_SQL`, because it references `Ingredient`, which `database/migration-meal-planner-domains.sql` creates):
+`InventoryItem` (`prisma/schema.prisma`; idempotent DDL in `database/migration-meal-planner-inventory.sql`, applied by `scripts/migrate.js` immediately after the Ingredient domain foundation and before later food product/source-version migrations):
 
 | Column | Type | Notes |
 | --- | --- | --- |
