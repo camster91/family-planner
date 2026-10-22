@@ -1,5 +1,5 @@
 /** Bounded, glanceable dinner preview per UTC date; Meals owns the full collection. */
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { addUTCDays } from "@/lib/dates";
 import { COMING_UP_DAYS } from "@/lib/board-constants";
 export const BOARD_DINNER_INGREDIENT_MAX = 200;
@@ -32,41 +32,56 @@ export async function loadBoardDinners(
   const previews = await Promise.all(
     Array.from({ length: days }, async (_, index) => {
       const day = addUTCDays(start, index);
-      const rows = await db.familyMeal.findMany({
+      const query = {
         where: {
           family_id: familyId,
           meal_type: "dinner",
           date: { gte: day, lt: addUTCDays(day, 1) },
         },
-        select: {
-          id: true,
-          date: true,
-          recipe_name: true,
-          cook: { select: { name: true, family_id: true } },
-          recipe: {
-            select: {
-              title: true,
-              prep_time: true,
-              family_id: true,
-              ...(withMissing
-                ? {
-                    ingredients: {
-                      select: {
-                        ingredient: {
-                          select: { id: true, name: true, family_id: true },
-                        },
-                      },
-                      orderBy: { id: "asc" as const },
-                      take: BOARD_DINNER_INGREDIENT_MAX + 1,
-                    },
-                  }
-                : {}),
-            },
-          },
-        },
         orderBy: [{ date: "asc" }, { created_at: "asc" }, { id: "asc" }],
         take: 2,
-      });
+      } satisfies Prisma.FamilyMealFindManyArgs;
+      const commonSelect = {
+        id: true,
+        date: true,
+        recipe_name: true,
+        cook: { select: { name: true, family_id: true } },
+      } satisfies Prisma.FamilyMealSelect;
+      const recipeSelect = {
+        title: true,
+        prep_time: true,
+        family_id: true,
+      } satisfies Prisma.RecipeSelect;
+      // Separate typed queries keep nested ingredient inference exact and omit
+      // the relation entirely for shared devices, rather than casting a union.
+      const rows = withMissing
+        ? await db.familyMeal.findMany({
+            ...query,
+            select: {
+              ...commonSelect,
+              recipe: {
+                select: {
+                  ...recipeSelect,
+                  ingredients: {
+                    select: {
+                      ingredient: {
+                        select: { id: true, name: true, family_id: true },
+                      },
+                    },
+                    orderBy: { id: "asc" },
+                    take: BOARD_DINNER_INGREDIENT_MAX + 1,
+                  },
+                },
+              },
+            },
+          })
+        : await db.familyMeal.findMany({
+            ...query,
+            select: {
+              ...commonSelect,
+              recipe: { select: recipeSelect },
+            },
+          });
       const first = rows[0];
       if (!first) return null;
       return {
