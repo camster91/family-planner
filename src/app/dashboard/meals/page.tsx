@@ -18,6 +18,7 @@ import { MealDescriptionDraft } from "@/components/meals/MealDescriptionDraft";
 import { RecipeReuseLauncher } from "@/components/meals/RecipeReuseLauncher";
 import { BulkCookingPanel } from "@/components/meals/BulkCookingPanel";
 import { useBulkCookingText } from "@/i18n/bulk-cooking";
+import { useMealWeek } from "@/components/meals/use-meal-week";
 import { mealPrepListSchema, type MealPrepContext } from "@/lib/meal-batches";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { Plus, UtensilsCrossed, BookOpen, Refrigerator } from "lucide-react";
@@ -542,7 +543,17 @@ function MealsPageInner() {
     const query = params.toString();
     router.push(`${pathname}${query ? `?${query}` : ""}`);
   };
-  const [meals, setMeals] = React.useState<MealSlot[]>([]);
+  const {
+    meals,
+    loading,
+    error,
+    hasMore,
+    loadingMore,
+    moreFailed,
+    pageCount,
+    refresh: fetchMeals,
+    loadMore,
+  } = useMealWeek(anchor, t("meals.errorLoad"));
   // DayCards unmount during canonical reloads after save/delete/Undo. Keep
   // dated disclosure preferences here so those reloads do not hide the result.
   const [expandedDays, setExpandedDays] = React.useState<
@@ -555,9 +566,6 @@ function MealsPageInner() {
     () => (anchor ? buildDayPlans(meals, anchor, displayLocale) : []),
     [meals, anchor, displayLocale],
   );
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
-
   // Modal state
   const [modal, setModal] = React.useState<{
     mode: "add" | "edit";
@@ -575,49 +583,8 @@ function MealsPageInner() {
   );
   const { addToast, removeToast } = useToast();
   const showUndo = useUndoToast();
-  const mealRequest = React.useRef({ version: 0 });
-  const selectedAnchor = React.useRef<Date | null>(anchor);
-  React.useLayoutEffect(() => {
-    selectedAnchor.current = anchor;
-    const requests = mealRequest.current;
-    return () => {
-      selectedAnchor.current = null;
-      requests.version++;
-    };
-  }, [anchor]);
-
-  // Mutation and Undo callbacks can outlive their original week. Read the
-  // committed selection when refreshing, and guard both identity and order.
-  const fetchMeals = React.useCallback(async () => {
-    const requestAnchor = selectedAnchor.current;
-    if (!requestAnchor) return;
-    const request = ++mealRequest.current.version;
-    const isCurrent = () =>
-      request === mealRequest.current.version &&
-      selectedAnchor.current === requestAnchor;
-    setLoading(true);
-    setError(null);
-    try {
-      const dates = getWeekDates(requestAnchor);
-      const start = toDateOnlyLocal(dates[0]);
-      const endDate = new Date(dates[dates.length - 1]);
-      endDate.setDate(endDate.getDate() + 1);
-      const end = toDateOnlyLocal(endDate);
-      const res = await fetch(`/api/meals?start=${start}&end=${end}`);
-      if (!res.ok) throw new Error("Failed to load");
-      const data = await res.json();
-      if (isCurrent()) setMeals(data.meals ?? []);
-    } catch {
-      if (isCurrent()) setError(t("meals.errorLoad"));
-    } finally {
-      if (isCurrent()) setLoading(false);
-    }
-  }, [t]);
-
-  React.useEffect(() => {
-    void fetchMeals();
-  }, [fetchMeals, anchor]);
-
+  // Canonical reloads retain the explicit loaded depth of the selected week.
+  // The hook renews range identity for mutation/Undo callbacks that outlive it.
   const openAdd = (day: DayPlan, mealType: MealType) =>
     setModal({
       mode: "add",
@@ -992,11 +959,19 @@ function MealsPageInner() {
               {/* One empty state: an empty week is the week of "Nothing planned"
                 rows, each one the way to add that meal. No separate
                 illustrated "No meals planned yet" above it. */}
+              {hasMore && (
+                <p role="status" className="text-subhead text-label-secondary">
+                  {es
+                    ? "Hay más comidas en esta semana. Carga más para ver el plan completo."
+                    : "There are more meals in this week. Load more to see the full plan."}
+                </p>
+              )}
               <div className={styles.board}>
                 {week.map((day) => (
                   <DayCard
                     key={day.dateKey}
                     day={day}
+                    incomplete={hasMore}
                     expanded={expandedDays[day.dateKey] ?? false}
                     onToggle={() => toggleDay(day.dateKey)}
                     onAdd={openAdd}
@@ -1004,6 +979,45 @@ function MealsPageInner() {
                   />
                 ))}
               </div>
+              {(hasMore || pageCount > 1) && (
+                <div className="mt-4 space-y-2">
+                  {moreFailed && (
+                    <p
+                      role="alert"
+                      className="text-subhead text-label-secondary"
+                    >
+                      {es
+                        ? "No se pudieron cargar más comidas. Las que ya están cargadas siguen aquí."
+                        : "More meals could not be loaded. Your loaded meals are still here."}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-tinted min-h-[44px]"
+                    aria-disabled={loadingMore || !hasMore}
+                    onClick={() => {
+                      if (!loadingMore && hasMore) void loadMore();
+                    }}
+                  >
+                    {loadingMore
+                      ? es
+                        ? "Cargando más comidas…"
+                        : "Loading more meals…"
+                      : hasMore
+                        ? es
+                          ? "Cargar más comidas"
+                          : "Load more meals"
+                        : es
+                          ? "Todas las comidas cargadas"
+                          : "All meals loaded"}
+                  </button>
+                  <p role="status" className="sr-only">
+                    {es
+                      ? `${meals.length} comidas cargadas.`
+                      : `${meals.length} meals loaded.`}
+                  </p>
+                </div>
+              )}
             </>
           )}
         </section>
@@ -1039,18 +1053,22 @@ function MealsPageInner() {
  */
 function DayCard({
   day,
+  incomplete,
   expanded,
   onToggle,
   onAdd,
   onEdit,
 }: {
   day: DayPlan;
+  incomplete: boolean;
   expanded: boolean;
   onToggle: () => void;
   onAdd: (day: DayPlan, type: MealType) => void;
   onEdit: (meal: MealSlot) => void;
 }) {
   const tBulk = useBulkCookingText();
+  const { locale } = useTranslation();
+  const es = locale === "es";
   const headingId = `meals-day-${day.dateKey}`;
   const otherId = `${headingId}-other`;
 
@@ -1059,6 +1077,13 @@ function DayCard({
     (count, slot) => count + slot.meals.length,
     0,
   );
+  const otherLabel = `${es ? "Otras comidas" : "Other meals"}${
+    otherCount > 0
+      ? ` · ${otherCount}${incomplete ? "+" : ""}`
+      : incomplete
+        ? " · …"
+        : ""
+  }`;
   const renderSlots = (slots: DayPlan["slots"]) => (
     <ul className="divide-y divide-[var(--surface-separator)]">
       {slots.map((slot) => {
@@ -1078,7 +1103,15 @@ function DayCard({
               >
                 <span>
                   <span className={styles.slotLabel}>{label}</span>
-                  <span className={styles.meta}>Nothing planned</span>
+                  <span className={styles.meta}>
+                    {incomplete
+                      ? es
+                        ? "Aún no se han cargado comidas"
+                        : "No meals loaded yet"
+                      : es
+                        ? "Nada planificado"
+                        : "Nothing planned"}
+                  </span>
                 </span>
                 <Plus className="w-5 h-5 shrink-0" aria-hidden="true" />
               </button>
@@ -1166,11 +1199,11 @@ function DayCard({
         type="button"
         aria-expanded={expanded}
         aria-controls={otherId}
-        aria-label={`Other meals${otherCount > 0 ? ` · ${otherCount}` : ""}, ${day.longLabel}`}
+        aria-label={`${otherLabel}, ${day.longLabel}`}
         className={styles.disclosure}
         onClick={onToggle}
       >
-        <span>Other meals{otherCount > 0 ? ` · ${otherCount}` : ""}</span>
+        <span>{otherLabel}</span>
         <span aria-hidden="true">{expanded ? "−" : "+"}</span>
       </button>
       <div id={otherId} hidden={!expanded}>

@@ -119,3 +119,45 @@ missing implementation. Their exact next work/dependencies are now in the ledger
 
 No tests, browser/build/CI dispatch, production reads/writes, issue closures or
 acceptance claims were added during this source/plan reconciliation.
+
+
+## Implementation-first meal-week collection follow-through (#134/#122)
+
+The next proved source gap was the unbounded meal-week GET. `meal-paging.ts` now
+provides opt-in1..200 keyset reads in existing date/created_at/ID order, with
+limit+1 lookahead. Strict canonical-base64 cursors bind the current family and
+UTC date range; malformed, foreign-range and duplicate paging parameters fail400.
+The server still applies authenticated family and feature/date predicates. Cursor
+contents are read positions, never actor credentials or write proofs. Existing
+no-limit callers retain their complete plain `{ meals }` response; no installed
+client is silently capped. Both read shapes use private/no-store.
+
+The web week uses `useMealWeek` with100 rows per request and an explicit Load more
+control. A typed response is checked for range, page size, duplicate IDs and
+progress; repeated cursors cannot drive an automatic loop. Week changes abort and
+invalidate prior reads before painting old rows/completeness under a new heading.
+Only the first page loads automatically; explicit page requests extend the view.
+Mutation/Undo refreshes retain the requested depth instead of collapsing a loaded
+week to page1. It never automatically walks all records. Transient more-page
+failures preserve loaded rows and retry the same cursor. Rejected owner/role/
+feature/range reads clear the usable private snapshot. Loaded IDs reconcile once;
+there is no competing write or persistent household-data store.
+
+The week announces incompleteness and loaded-row counts in EN/ES. Unloaded slots
+say no meals loaded yet rather than Nothing planned; other-meal counts show a
+partial indicator. The continuation control remains mounted at completion with
+an inert, aria-disabled All meals loaded state, preserving its focus target.
+Ordinary complete/small weeks retain their previous empty-slot/add behavior.
+
+No schema, index, provider or background work was added. Source formatting only;
+no tests/typecheck/lint/build/browser/CI run was started. Later consolidated QA
+must cover >100 and >200 rows, equal-date/creation ties, exact limits/end-exclusive
+ranges, malformed/reused/foreign cursors, legacy response equality, all existing
+role/feature/isolation gates, schema failures, stalled/empty continuation,
+duplicate IDs, transient retry, owner refusal, overlapping refresh/more, week
+switches/unmount, mutation/Undo loaded-depth preservation, partial empty labels,
+EN/ES, keyboard/focus, reflow and old/native/new API compatibility.
+
+This bounds only the opted-in API and connected web week source. Legacy no-limit
+requests, Today dinner and list/item collections remain explicit #134 work;
+existing date indexes and authored limits are not measured scale/N+1 acceptance.
