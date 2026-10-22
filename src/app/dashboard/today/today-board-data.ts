@@ -40,6 +40,7 @@ import type { BoardWeather } from '@/lib/weather/board-weather'
 import { isRoutineIconKey } from '@/lib/routine-icons'
 import type { BoardDisplay } from '@/lib/ambient'
 import { COMING_UP_DAYS } from '@/lib/board-constants'
+import { loadBoardDinners, BOARD_DINNER_INGREDIENT_MAX, type DinnerRow } from './today-dinners'
 import { isProfileAgeAllowed, profileRoleSchema, type MemberProtocol } from '@/lib/member-subject-contract'
 import { isProfileChoreEnabled, profileChoreActionAvailability, profileChoreProtocolRefusal, readChoreSubject, type ProfileChoreActionAvailability } from '@/lib/chore-profile'
 
@@ -109,6 +110,8 @@ export interface BoardChore {
 }
 
 export interface BoardDinner {
+  /** Another dinner exists for this day; this preview is not the full collection. */
+  hasMoreDinners?: boolean
   id: string
   /** `YYYY-MM-DD` (UTC calendar day of the stored date-only value). */
   day: string
@@ -331,19 +334,6 @@ function activeUnlinkedProfile(row: ProfileBoardRow, familyId: string): boolean 
   )
 }
 
-/** A dinner row as read for the board; `ingredients` only when counting what is missing (#122). */
-interface DinnerRow {
-  id: string
-  date: Date
-  recipe_name: string | null
-  cook: { name: string } | null
-  recipe: {
-    title: string
-    prep_time: number | null
-    ingredients?: Array<{ ingredient: { id: string; name: string; family_id?: string } }>
-  } | null
-}
-
 /**
  * Missing-ingredient counts per dinner id (#122), each against the
  * inventory on the dinner's own day, with the "What can I cook" rules
@@ -358,7 +348,7 @@ async function missingIngredientCounts(
   from: Date,
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>()
-  const withIngredients = dinners.filter((d) => (d.recipe?.ingredients?.length ?? 0) > 0)
+  const withIngredients = dinners.filter((d) => (d.recipe?.ingredients?.length ?? 0) > 0 && d.recipe!.ingredients!.length <= BOARD_DINNER_INGREDIENT_MAX)
   if (withIngredients.length === 0) return counts
   const { items, truncated } = await loadCookInventory(db, familyId, { from })
   if (truncated) return counts
@@ -517,37 +507,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         })
       : Promise.resolve(null),
     features.meals
-      ? (db.familyMeal.findMany({
-          where: {
-            family_id: familyId,
-            meal_type: 'dinner',
-            date: { gte: windowStart, lt: windowEnd },
-          },
-          select: {
-            id: true,
-            date: true,
-            recipe_name: true,
-            cook: { select: { name: true } },
-            recipe: {
-              select: {
-                title: true,
-                prep_time: true,
-                // #122: ingredient ids and names only, to count what is
-                // missing; never sent (only the count leaves the server).
-                ...(withMissing
-                  ? {
-                      ingredients: {
-                        select: {
-                          ingredient: { select: { id: true, name: true, family_id: true } },
-                        },
-                      },
-                    }
-                  : {}),
-              },
-            },
-          },
-          orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-        }) as Promise<DinnerRow[]>)
+      ? loadBoardDinners(db, familyId, windowStart, windowEnd, withMissing)
       : Promise.resolve(null),
     includeShopping ? getOpenShoppingItems(db, familyId, 5, ['grocery']) : Promise.resolve(null),
     // "Use soon" (#263): only with the inventory feature on. Anchored one UTC
@@ -739,6 +699,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
       ? dinners.map((d) => ({
           id: d.id,
           day: toDateOnlyUTC(d.date),
+          hasMoreDinners: d.hasMoreDinners,
           recipeName: d.recipe_name?.trim() || null,
           cookName: d.cook?.name ?? null,
           recipeTitle: d.recipe?.title?.trim() || null,

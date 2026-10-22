@@ -71,6 +71,7 @@ const boardSchema: z.ZodType<TodayBoardData, z.ZodTypeDef, unknown> = z.object({
         cookName: text.nullable(),
         recipeTitle: text.nullable().optional(),
         prepMinutes: z.number().finite().nonnegative().nullable().optional(),
+        hasMoreDinners: z.boolean().optional(),
       }),
     )
     .max(60)

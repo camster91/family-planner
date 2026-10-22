@@ -360,3 +360,40 @@ move/Undo behavior; EN/ES/offline/keyboard/Back/focus/reflow on all six sizes.
 No source change proves #134 scale or #135 native lifecycle acceptance. Legacy
 unpaged API/version and Today dinner consumers plus full query/index/load/retention
 acceptance remain explicit follow-through, not silently capped legacy responses.
+
+
+## Implementation-first Today dinner bounds and query plan (#134/#122)
+
+The board previously loaded every dinner in its date window although dinnerOn
+renders only the first per day. `today-dinners.ts` now reads at most two candidates
+for each of the fixed six covered UTC days (covering viewer timezone extremes),
+retains the stable date/creation/ID first choice and emits one preview plus an
+optional hasMoreDinners boolean. Today and Coming up explain additional dinners
+in EN/ES; personal readers can use their existing authorized Meals destination,
+shared readers get no private link. This is a preview, never the full collection.
+
+Recipe/cook labels are kept only for current household pointers. Nested recipe
+ingredient reads take201; missing counts require at most200 complete lines plus
+complete inventory and household ingredients. Oversized/foreign/unknown data
+withholds the count, never showing a partial count as exact. Shared audiences do
+not read ingredients. The private board cache permits the optional fixed boolean
+and older saved snapshots stay valid. Canonical meal collections/mutations, AI
+loaders and their source-proof catalogs are not replaced by this display helper.
+Board and version paths still use the same builder, so more-dinner state is hashed.
+
+The new CORE_QUERY_PLAN.md maps current core query boundaries, remaining legacy
+unpaged compatibility exceptions, index/retention work and the fabricated load
+model to original #134 criteria. OBSERVABILITY.md no longer describes newly paged
+Lists/item/meal paths as missing. It explicitly distinguishes returned-row bounds
+from scans/relation SQL/performance results. No index/DDL/provider/infrastructure/
+scheduler change or manufactured load evidence is added.
+
+Source-only, formatter applied to new/selected files; no tests/typecheck/lint/build/
+browser/CI or DB read ran. Consolidated QA must exercise six-day UTC coverage and
+viewer-zone/DST extremes, many dinners in one day without hiding another day's
+first, ties and first deletion, more flag/Coming up/cache/version/old snapshots,
+foreign recipe/cook/ingredient pointers,200/201 ingredient boundaries and incomplete
+inventory, shared ingredient omission, feature-off/read failure and query fanout.
+Compare source strategies/actual SQL/latency on realistic fabricated households;
+six fixed queries can cost more than one small unbounded read. No N+1, capacity,
+production, provider or native acceptance is inferred from this code.

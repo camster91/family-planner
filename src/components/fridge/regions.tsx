@@ -362,6 +362,7 @@ export function DinnerRegion({
           </p>
         )}
         {dinner.cookName && <p data-testid="dinner-cook" className={cn(metaTextClass, 'mt-2')}>{text('cooking', { name: dinner.cookName })}</p>}
+        {dinner.hasMoreDinners && <p className={cn(metaTextClass, 'mt-2')} data-testid="dinner-more">{text(mealsHref ? 'moreDinners' : 'moreDinnersShared')}</p>}
       </div>
     )
   }
@@ -689,7 +690,10 @@ export function ComingUpRegion({
                 </ul>
               )}
               {mealsEnabled && day.dinner && (
-                <p className={cn(metaTextClass, 'mt-2 break-words')}>{text('dinnerLabel', { name: day.dinner.recipeName ?? day.dinner.recipeTitle ?? text('planned') })}</p>
+                <div className="mt-2 space-y-1">
+                  <p className={cn(metaTextClass, 'break-words')}>{text('dinnerLabel', { name: day.dinner.recipeName ?? day.dinner.recipeTitle ?? text('planned') })}</p>
+                  {day.dinner.hasMoreDinners && <p className={cn(metaTextClass, 'break-words')}>{text('moreDinnersShared')}</p>}
+                </div>
               )}
             </li>
           )

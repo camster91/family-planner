@@ -12,6 +12,16 @@ merge/deploy still require applicable passing QA under the existing authorizatio
 Retain all earlier evidence at its recorded SHA; do not count unverified code or
 provider/native/customer acceptance as finished. The goal remains active.
 
+## Implementation-first bounded Today dinner previews — 2026-10-22
+
+Today now reads at most two dinner candidates per covered UTC day, shows the
+first and explicitly signals additional dinners. This replaces the unbounded
+window read without claiming the preview is every meal. Nested ingredient reads
+use a lookahead cap; missing counts remain unknown for incomplete data. Shared
+readers still omit ingredients, cache accepts the optional more flag and canonical
+Meals remains the full collection. Query/compatibility/index/retention/load work is
+mapped in CORE_QUERY_PLAN.md. Source/formatting only; QA remains deferred.
+
 ## Implementation-first list item pages and matching sync — 2026-10-22
 
 List detail now reads100 items plus one lookahead in a repeatable-read snapshot

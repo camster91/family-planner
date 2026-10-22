@@ -27,6 +27,9 @@ export const todayBoardEnglish = {
   dinnerEmpty: "No dinner planned yet.",
   planDinner: "Plan dinner",
   dinnerPlanned: "Dinner is planned",
+  moreDinners:
+    "More dinners are planned for this day. Open Meals to see them all.",
+  moreDinnersShared: "More dinners are planned for this day.",
   dinnerTonight: "Dinner tonight",
   openMeals: "open meals",
   cooking: "Cooking: {name}",
@@ -123,6 +126,9 @@ export const todayBoardSpanish: TodayBoardMessages = {
   dinnerEmpty: "Aún no hay cena planificada.",
   planDinner: "Planificar cena",
   dinnerPlanned: "La cena está planificada",
+  moreDinners:
+    "Hay más cenas planificadas para este día. Abre Comidas para verlas todas.",
+  moreDinnersShared: "Hay más cenas planificadas para este día.",
   dinnerTonight: "Cena de esta noche",
   openMeals: "abrir comidas",
   cooking: "Cocina: {name}",
