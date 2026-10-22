@@ -93,3 +93,29 @@ only was applied. Later consolidated QA must establish EN/ES, parent/teen/child/
 unknown role, disabled features, busy/refused/successful owned exits, modified
 clicks, focus and provider-free operation. Other source/backlog reconciliation
 continues before the integrated QA candidate is frozen.
+
+
+## Original-issue source/plan reconciliation follow-through
+
+The live open inventory was re-read2026-10-22:all82 open issues have exactly one
+ledger row; no open issue is absent and no ledger issue has since closed. Original
+#254/#134/#377/#84 bodies were re-read rather than interpreting old titles as
+missing implementation. Their exact next work/dependencies are now in the ledger:
+
+- #254 is an explicitly destructive later contraction, requiring its production
+  backfill/zero-access release-cycle/recovery evidence and exact drop approval.
+  Keep legacy models/export/provenance until then; a local rehearsal is not proof.
+- #134 has accepted modular-monolith/mobile/ownership contracts and diagnostic
+  source. Existing uncapped list/item and meal/Today dinner collections remain a
+  real source/compatibility planning gap, confirmed in current meal GET and
+  OBSERVABILITY.md. Complete compatible full-result paging and domain query/load/
+  retention planning before claiming the whole architecture criterion finished;
+  do not silently hide rows or promise scale from a bounded date window.
+- #377/#84 preserve their original launch loop, production email/proxy/backup/
+  support evidence and post-release smoke, plus genuine independent-household beta
+  work. Historical master/immutable-image wording is reconciled to the currently
+  authorized protected-main/existing Coolify source-build route. This does not
+  authorize infrastructure, scheduler, provider, destructive or native changes.
+
+No tests, browser/build/CI dispatch, production reads/writes, issue closures or
+acceptance claims were added during this source/plan reconciliation.
