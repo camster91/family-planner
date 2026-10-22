@@ -27,7 +27,10 @@ export function declaresTooLarge(request: Pick<Request, 'headers'>, maxBytes: nu
 
 async function readBoundedBytes(body: ReadableStream<Uint8Array>, maxBytes: number): Promise<Uint8Array<ArrayBuffer>> {
   const reader = body.getReader()
-  const chunks: Uint8Array[] = []
+  // Copy each chunk into one growing buffer instead of keeping the chunks:
+  // a body sent as millions of tiny chunks would otherwise hold one object
+  // per chunk, far more memory than its byte count.
+  let buffer = new Uint8Array(Math.min(maxBytes, 64 * 1024))
   let total = 0
   try {
     while (true) {
@@ -38,20 +41,19 @@ async function readBoundedBytes(body: ReadableStream<Uint8Array>, maxBytes: numb
         await reader.cancel().catch(() => {})
         throw new RequestBodyTooLargeError()
       }
-      chunks.push(value)
+      if (total + value.byteLength > buffer.byteLength) {
+        const grown = new Uint8Array(Math.min(maxBytes, Math.max(buffer.byteLength * 2, total + value.byteLength)))
+        grown.set(buffer.subarray(0, total))
+        buffer = grown
+      }
+      buffer.set(value, total)
       total += value.byteLength
     }
   } finally {
     reader.releaseLock()
   }
 
-  const bytes = new Uint8Array(total)
-  let offset = 0
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-  return bytes
+  return buffer.slice(0, total)
 }
 
 /** Body as UTF-8 text. Throws RequestBodyTooLargeError past maxBytes. */

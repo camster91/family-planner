@@ -64,6 +64,12 @@ describe('bounded request body', () => {
     await expect(readBoundedText(chunkedRequest([bytes('abcde')]), 4)).rejects.toBeInstanceOf(RequestBodyTooLargeError)
   })
 
+  it('reassembles many tiny chunks in order across buffer growth', async () => {
+    const text = 'x'.repeat(70 * 1024) + 'end'
+    const chunks = Array.from(bytes(text), (b) => new Uint8Array([b]))
+    await expect(readBoundedText(chunkedRequest(chunks), 100 * 1024)).resolves.toBe(text)
+  })
+
   it('parses multipart form data with its boundary within the bound', async () => {
     const form = new FormData()
     form.append('file', new File([new Uint8Array([1, 2, 3])], 'photo.jpg', { type: 'image/jpeg' }))
