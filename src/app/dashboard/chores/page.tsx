@@ -21,7 +21,7 @@ import {
   encodeChoreCursor,
 } from "@/lib/chore-paging";
 import { topUpHouseholdSeries } from "@/lib/recurringChores";
-import { nextRotationMember } from "@/lib/chore-rotation";
+import { nextRotationMember } from "@/lib/chore-rotation-shared";
 import {
   choreSubjectInclude,
   profileChoreActionAvailability,

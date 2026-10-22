@@ -30,7 +30,7 @@ import {
   ROUTINE_ORDER_MAX,
   normalizeRoutineName,
 } from "@/lib/routine-icons";
-import { ROTATION_MIN } from "@/lib/chore-rotation";
+import { ROTATION_MIN } from "@/lib/chore-rotation-shared";
 import {
   usePendingFormNavigation,
   usePendingFormNavigationController,

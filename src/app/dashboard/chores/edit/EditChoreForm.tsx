@@ -27,7 +27,7 @@ import {
   routineRequestFields,
 } from "@/components/chores/RoutineIconPicker";
 import { TakeTurnsPicker } from "@/components/chores/TakeTurnsPicker";
-import { ROTATION_MIN, isRotating } from "@/lib/chore-rotation";
+import { ROTATION_MIN, isRotating } from "@/lib/chore-rotation-shared";
 import {
   usePendingFormNavigation,
   usePendingFormNavigationController,

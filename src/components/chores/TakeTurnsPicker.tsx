@@ -9,7 +9,7 @@
  */
 import { useId } from 'react'
 import { cn } from '@/lib/utils'
-import { ROTATION_MAX, ROTATION_MIN } from '@/lib/chore-rotation'
+import { ROTATION_MAX, ROTATION_MIN } from '@/lib/chore-rotation-shared'
 import { useTranslation } from '@/i18n'
 import { choreFormMessages, type ChoreFormMessage } from '@/i18n/chore-forms'
 
