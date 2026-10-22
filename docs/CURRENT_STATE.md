@@ -1,5 +1,15 @@
 # Current State
 
+## Full unit/database pass; recovery rehearsal pass — 2026-10-22
+
+Atbbb3c3b0 all702 unit suites/6971 tests and all85 PostgreSQL suites/561 tests
+pass. Format check passes. Backup/restore rehearsal passes81 table comparisons,
+143 restored rows, identical schema, two unchanged migration passes and Prisma
+smoke after replacing GNU-only stat with a POSIX byte count. Its guard suite
+passes16 cases; first failed rehearsal is retained. Final build/rendered/browser,
+current-source recovery receipt and protected merge/deploy are next. No hosted
+or production state changed. Evidence:`docs/testing/WEB_QA_20261022.md`.
+
 ## Database contract repairs and timezone-safe history — 2026-10-22
 
 Complete unit rerun at1429e942 passes702 suites/6971 tests (83 opt-in suites/547

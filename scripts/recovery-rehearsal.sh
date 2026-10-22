@@ -354,7 +354,8 @@ step_backup() {
   fi
   dump="${dumps[0]}"
   echo "$dump" >"$WORK_DIR/dump.path"
-  stat -c%s "$dump" >"$WORK_DIR/dump.bytes"
+  # POSIX byte count works on both GNU/Linux and macOS/BSD hosts.
+  wc -c <"$dump" | tr -d '[:space:]' >"$WORK_DIR/dump.bytes"
   sha256sum "$dump" | cut -d' ' -f1 >"$WORK_DIR/dump.sha256"
 }
 
