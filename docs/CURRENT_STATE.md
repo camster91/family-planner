@@ -1,5 +1,23 @@
 # Current State
 
+## AI confirmation source renewal — 2026-10-22
+
+Source proof negotiation and a fixed versioned confirmation endpoint are authored.
+Event/account-chore/grocery/list/note creates renew the signed Today/catalog/feature
+basis inside canonical effect transactions. List/note now have optional atomic
+receipts; the outer idempotency helper preserves a canonical completed receipt,
+including long note responses. Current actor authority precedes replay; expired
+sources never authorize a new effect. Explicit refresh retains edited proposal
+fields for a matching fresh kind and holds them on failed/mismatched refresh.
+
+See [`AI_CONFIRMATION_SOURCES.md`](./architecture/AI_CONFIRMATION_SOURCES.md).
+Deletion target revisions/receipts and profile-assignee adapters remain source
+work; the new gate stays off. Broader planning/version/eval/inbox follow-through
+and all consolidated QA remain. Unit/client/disposable-DB cases are authored and
+unrun. Only source reads/edits and selected formatting occurred: no tests/types/
+lint/build/browser/application API/DB/schema/client/native/CI, provider/flag
+activation, push/merge/deploy or issue closure. The full goal remains active.
+
 ## AI usage and estimated-cost controls source — 2026-10-22
 
 The shared provider transport now has an optional mandatory-observer quota path,

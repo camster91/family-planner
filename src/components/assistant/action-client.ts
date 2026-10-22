@@ -1,3 +1,4 @@
+import { requestOwnedJson } from "@/lib/owned-request-http";
 import type { ZodTypeAny, infer as ZodInfer } from "zod";
 import type { AssistantAction } from "@/lib/assistant-actions";
 import { nextSelectedWeekday } from "@/lib/chore-weekdays";
@@ -43,6 +44,10 @@ export const defaultEnglishError = {
   },
   actionOpenSectionError: { message: "Open this section to continue." },
   actionFailed: { message: "Action failed. Check the app before retrying." },
+  sourceChanged: {
+    message:
+      "The source information changed or expired. Refresh Today to review this proposal again.",
+  },
 } as const;
 
 export type AssistantActionErrorCode = keyof typeof defaultEnglishError;
@@ -79,29 +84,33 @@ export type RemovalTarget = {
   context?: string;
 };
 export class ActionOutcomeUnknown extends AssistantActionError {}
+export class AssistantSourceRefusal extends AssistantActionError {
+  constructor() {
+    super("sourceChanged");
+  }
+}
 async function request(
   path: string,
   method = "GET",
   body?: unknown,
   key?: string,
 ) {
-  let response: Response;
-  try {
-    response = await fetch(path, {
-      method,
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        ...(key ? { "Idempotency-Key": key } : {}),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-  } catch {
+  const result = await requestOwnedJson(path, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...(key ? { "Idempotency-Key": key } : {}),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  if (result.kind !== "reply")
     throw new ActionOutcomeUnknown(
       method === "GET" ? "loadChoicesFailed" : "connectionInterrupted",
     );
-  }
-  const data = await response.json().catch(() => null);
+  const response = result.response,
+    data: any = result.body;
+  if (response.status === 409 && data?.code === "ASSISTANT_SOURCE_REFUSED")
+    throw new AssistantSourceRefusal();
   if (!response.ok) {
     // Choice reads are safe to retry. Keep the proposal in the panel even if
     // the server returned an error body, and never treat this as a mutation.
@@ -111,6 +120,25 @@ async function request(
   }
   if (!data) throw new ActionOutcomeUnknown("unreadableResponse");
   return data;
+}
+async function mutate(
+  kind: AssistantAction["kind"],
+  path: string,
+  method: string,
+  body: unknown,
+  key: string,
+  sourceProof?: string,
+) {
+  if (kind === "open")
+    throw new AssistantActionPreflightError("actionOpenSectionError");
+  return sourceProof
+    ? request(
+        "/api/assistant/actions/confirm",
+        "POST",
+        { kind, sourceProof, body },
+        key,
+      )
+    : request(path, method, body, key);
 }
 export async function removalTargets(
   action: AssistantAction,
@@ -181,6 +209,7 @@ export async function executeAssistantAction(
   action: AssistantAction,
   key: string,
   target?: RemovalTarget,
+  sourceProof?: string,
 ) {
   if (action.kind === "chore_create") {
     if (!target) throw new AssistantActionPreflightError("chooseChoreAssignee");
@@ -196,7 +225,8 @@ export async function executeAssistantAction(
         : action.date;
     if (!anchor || !parseDateOnly(anchor))
       throw new AssistantActionPreflightError("invalidChoreSchedule");
-    return request(
+    return mutate(
+      action.kind,
       "/api/chores/create",
       "POST",
       validated(createChoreSchema, {
@@ -210,6 +240,8 @@ export async function executeAssistantAction(
           ? { weekly_days: action.weekdays }
           : {}),
       }),
+      key,
+      sourceProof,
     );
   }
   if (action.kind.endsWith("_delete")) {
@@ -220,7 +252,14 @@ export async function executeAssistantAction(
         : action.kind === "chore_delete"
           ? { path: "/api/chores", field: "choreId" }
           : { path: "/api/lists", field: "listId" };
-    return request(config.path, "DELETE", { [config.field]: target.id });
+    return mutate(
+      action.kind,
+      config.path,
+      "DELETE",
+      { [config.field]: target.id },
+      key,
+      sourceProof,
+    );
   }
   if (action.kind === "event_create") {
     const start = localDateTimeToISO(action.start),
@@ -234,16 +273,20 @@ export async function executeAssistantAction(
       location: action.location,
       event_type: "other",
     });
-    return request("/api/events", "POST", body);
+    return mutate(action.kind, "/api/events", "POST", body, key, sourceProof);
   }
   if (action.kind === "list_create")
-    return request(
+    return mutate(
+      action.kind,
       "/api/lists/create",
       "POST",
       validated(createListSchema, { name: action.title, type: action.type }),
+      key,
+      sourceProof,
     );
   if (action.kind === "note_create")
-    return request(
+    return mutate(
+      action.kind,
       "/api/notes",
       "POST",
       validated(createNoteSchema, {
@@ -251,6 +294,8 @@ export async function executeAssistantAction(
         body: action.body,
         color: "yellow",
       }),
+      key,
+      sourceProof,
     );
   if (action.kind === "grocery_add") {
     let lists: unknown;
@@ -268,11 +313,13 @@ export async function executeAssistantAction(
     );
     if (groceries.length !== 1)
       throw new AssistantActionPreflightError("chooseGroceryList");
-    return request(
+    return mutate(
+      action.kind,
       "/api/lists/items/create",
       "POST",
       { listId: groceries[0].id, content: action.title, quantity: 1 },
       key,
+      sourceProof,
     );
   }
   throw new AssistantActionError("actionOpenSectionError");

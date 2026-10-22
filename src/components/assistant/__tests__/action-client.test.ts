@@ -5,6 +5,7 @@ import {
   AssistantActionError,
   AssistantActionPreflightError,
   ActionOutcomeUnknown,
+  AssistantSourceRefusal,
 } from "../action-client";
 const fetchMock = jest.fn();
 beforeEach(() => {
@@ -91,7 +92,9 @@ it("tags grocery discovery failures as preflight but keeps item writes uncertain
 
   fetchMock.mockReset();
   fetchMock
-    .mockResolvedValueOnce(ok({ lists: [{ id: "grocery-a", type: "grocery" }] }))
+    .mockResolvedValueOnce(
+      ok({ lists: [{ id: "grocery-a", type: "grocery" }] }),
+    )
     .mockRejectedValueOnce(new Error("Offline after write started"));
   const itemWrite = executeAssistantAction(
     { kind: "grocery_add", title: "Milk" },
@@ -127,12 +130,8 @@ it("classifies a failed choice GET as safely reloadable", async () => {
     json: async () => ({ error: "Provider unavailable" }),
   });
   const result = removalTargets({ kind: "event_delete", title: "Dentist" });
-  await expect(
-    result,
-  ).rejects.toBeInstanceOf(ActionOutcomeUnknown);
-  await expect(
-    result,
-  ).rejects.toMatchObject({ code: "loadChoicesFailed" });
+  await expect(result).rejects.toBeInstanceOf(ActionOutcomeUnknown);
+  await expect(result).rejects.toMatchObject({ code: "loadChoicesFailed" });
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 it("distinguishes same-named lists by household details", async () => {
@@ -253,4 +252,53 @@ it("creates weekly chores through the canonical weekday rule and user-chosen ass
     frequency: "weekly",
   });
   jest.useRealTimers();
+});
+
+/** Authored/unrun versioned confirmation transport cases. */
+it("sends a reviewed context action only through the versioned canonical confirmation endpoint", async () => {
+  fetchMock.mockResolvedValue(ok({ event: { id: "event-a" } }));
+  await executeAssistantAction(
+    {
+      kind: "event_create",
+      title: "Reviewed title",
+      start: "2026-10-22T15:00",
+      end: "2026-10-22T15:30",
+    },
+    "stable-reviewed-key",
+    undefined,
+    "fabricated-proof",
+  );
+  const [path, options] = fetchMock.mock.calls[0];
+  expect(path).toBe("/api/assistant/actions/confirm");
+  expect(options.headers["Idempotency-Key"]).toBe("stable-reviewed-key");
+  expect(JSON.parse(options.body)).toMatchObject({
+    kind: "event_create",
+    sourceProof: "fabricated-proof",
+    body: { title: "Reviewed title" },
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+it("distinguishes a proven source refusal from an unknown mutation result and never retries", async () => {
+  fetchMock.mockResolvedValue({
+    ok: false,
+    status: 409,
+    json: async () => ({
+      error: "Source unavailable",
+      code: "ASSISTANT_SOURCE_REFUSED",
+    }),
+  });
+  await expect(
+    executeAssistantAction(
+      {
+        kind: "event_create",
+        title: "Review",
+        start: "2026-10-22T15:00",
+        end: "2026-10-22T15:30",
+      },
+      "stable-key",
+      undefined,
+      "fabricated-proof",
+    ),
+  ).rejects.toBeInstanceOf(AssistantSourceRefusal);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
 });

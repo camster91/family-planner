@@ -420,7 +420,10 @@ export async function loadAssistantTodayRows(
     .slice(0, MAX_CHORES)
     .map((chore, index) => {
       source("chore", chore, index, chore.title, {
-        dependencies: input.role === "parent" ? names : [],
+        dependencies:
+          input.role === "parent"
+            ? names.filter((member) => member.id === chore.assigned_to)
+            : [],
       });
       return {
         title: boundedText(chore.title),
@@ -445,7 +448,12 @@ export async function loadAssistantTodayRows(
   if (dinnerRow)
     source(
       "dinner",
-      dinnerRow,
+      {
+        ...dinnerRow,
+        recipe: linkedRecipe,
+        cook:
+          dinnerRow.cook?.family_id === input.familyId ? dinnerRow.cook : null,
+      },
       0,
       linkedRecipe?.title || dinnerRow.recipe_name || "Dinner",
     );

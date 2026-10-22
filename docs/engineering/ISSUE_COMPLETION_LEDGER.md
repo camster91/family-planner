@@ -1,5 +1,7 @@
 # Open issue completion ledger
 
+2026-10-22 confirmation checkpoint: signed source renewal and fixed versioned canonical delegation now cover event/account-chore/grocery/list/note creates in source. Optional atomic list/note receipts and exact completed-receipt preservation are authored. Deletion target revisions/receipts, profile adapters, wider planning/version/evaluation/inbox and all QA remain. Gate off; cases unrun; #123/#144/#128 stay in progress. See `docs/architecture/AI_CONFIRMATION_SOURCES.md`.
+
 2026-10-22 source checkpoint: AI household/person quota reservations, estimated-cost handling and parent usage/limits UI are authored with erasure/export and fail-closed pause/adoption gates. Schema/cases are unrun; #123/#144/#128 remain in progress. Details: `docs/architecture/AI_USAGE_CONTROLS.md`.
 
 2026-10-22 AI source checkpoint: `assistant-references.ts` now binds exact canonical Today records to scoped opaque IDs/revisions, negotiates legacy-compatible provider/browser contracts and renews source catalogs before resolving app links. Cases are authored/unrun; the new gate stays off. Confirmed planning-source checks, wider version coverage, semantic evaluations, quotas and usage/cost dashboard remain #123/#144 work before consolidated QA.

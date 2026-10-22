@@ -1,3 +1,8 @@
+import {
+  isAssistantConfirmationEnabled,
+  issueAssistantSourceProof,
+} from "@/lib/assistant-source-proof";
+import { ASSISTANT_CONFIRMATION_PROTOCOL } from "@/lib/assistant-reference-contract";
 import { createAiUsageJob, type AiUsageJob } from "@/lib/ai-usage-server";
 import {
   isAssistantReferencesEnabled,
@@ -444,8 +449,33 @@ async function handlePOST(
         },
         { status: 502, headers: { "Cache-Control": "private, no-store" } },
       );
+    const sourceProof =
+      todayContext &&
+      referenceCatalog &&
+      result.data.action &&
+      result.data.action.kind !== "open" &&
+      isAssistantConfirmationEnabled() &&
+      request.headers?.get("X-Assistant-Confirmation") ===
+        ASSISTANT_CONFIRMATION_PROTOCOL
+        ? issueAssistantSourceProof(
+            {
+              userId: auth.user.id,
+              familyId: auth.user.family_id,
+              role: auth.user.role,
+              generation: auth.payload?.tv ?? 0,
+            },
+            result.data.action.kind,
+            todayContext,
+            referenceCatalog,
+            features,
+          )
+        : undefined;
     return NextResponse.json(
-      { ...result.data, ...(evidence ? { evidence } : {}) },
+      {
+        ...result.data,
+        ...(evidence ? { evidence } : {}),
+        ...(sourceProof ? { sourceProof } : {}),
+      },
       {
         headers: responseHeaders(todayContext),
       },

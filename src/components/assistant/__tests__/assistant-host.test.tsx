@@ -1589,3 +1589,87 @@ it("retains a report after a malformed receipt and retries its exact original bo
   expect(bodies[1]).toBe(bodies[0]);
   expect(screen.getByLabelText("Title")).toHaveValue("");
 });
+
+// Authored/unrun: explicit source refresh cannot erase deliberate proposal edits.
+it.each(["same", "different", "unavailable"] as const)(
+  "keeps edited fields after a %s-kind source refresh and never writes automatically",
+  async (mode) => {
+    const user = userEvent.setup();
+    let calls = 0,
+      clock = 1000;
+    const headers = {
+      "X-Assistant-Today-Protocol": "herewoven.assistant-today.v1",
+      "X-Assistant-Today-Generated-At": new Date().toISOString(),
+      "X-Assistant-Today-Expires-At": new Date(
+        Date.now() + 60000,
+      ).toISOString(),
+    };
+    const paths: string[] = [];
+    global.fetch = jest.fn(async (path) => {
+      paths.push(String(path));
+      calls += 1;
+      if (calls > 1 && mode === "unavailable")
+        throw new TypeError("Synthetic unavailable refresh");
+      return response(
+        {
+          reply: "Review the proposal.",
+          sourceProof: `synthetic-proof-${calls}`,
+          action:
+            calls > 1 && mode === "different"
+              ? { kind: "grocery_add", title: "Changed kind" }
+              : {
+                  kind: "list_create",
+                  title: calls > 1 ? "Provider replacement" : "Trip",
+                  type: "custom",
+                },
+        },
+        true,
+        headers,
+      );
+    }) as any;
+    render(
+      <AssistantHost role="parent" todayContextEnabled confirmationEnabled />,
+    );
+    await user.click(screen.getByRole("button", { name: "AI assistant" }));
+    await user.click(screen.getByRole("checkbox", { name: /Include Today/i }));
+    await user.type(
+      screen.getByLabelText("Your message"),
+      "Create a trip list",
+    );
+    const spy = jest.spyOn(performance, "now").mockImplementation(() => clock);
+    try {
+      fireEvent.submit(
+        screen.getByRole("button", { name: "Send" }).closest("form")!,
+      );
+      const title = await screen.findByLabelText("Proposed title");
+      fireEvent.change(title, {
+        target: { value: "Human edited camping list" },
+      });
+      clock = 61001;
+      fireEvent(document, new Event("visibilitychange"));
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Confirm and save" }),
+        ).toBeDisabled(),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Refresh Today context" }),
+      );
+      await waitFor(() => expect(calls).toBe(2));
+      await waitFor(() =>
+        expect(screen.getByLabelText("Proposed title")).toHaveValue(
+          "Human edited camping list",
+        ),
+      );
+      const confirm = screen.getByRole("button", { name: "Confirm and save" });
+      await waitFor(() =>
+        mode === "same"
+          ? expect(confirm).toBeEnabled()
+          : expect(confirm).toBeDisabled(),
+      );
+      expect(paths).toEqual(["/api/assistant", "/api/assistant"]);
+    } finally {
+      spy.mockRestore();
+    }
+  },
+);

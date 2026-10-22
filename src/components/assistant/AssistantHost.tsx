@@ -39,9 +39,11 @@ const target =
 export default function AssistantHost({
   role,
   todayContextEnabled = false,
+  confirmationEnabled = false,
 }: {
   role: string;
   todayContextEnabled?: boolean;
+  confirmationEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const params = useSearchParams();
@@ -172,6 +174,7 @@ export default function AssistantHost({
           onClose={close}
           onBusyChange={setPanelBusy}
           todayContextEnabled={todayContextEnabled}
+          confirmationEnabled={confirmationEnabled}
         />
       )}
     </>

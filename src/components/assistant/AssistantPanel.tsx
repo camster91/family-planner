@@ -6,6 +6,7 @@ import { Mic, MicOff } from "lucide-react";
 import {
   assistantResponseSchema,
   ASSISTANT_REFERENCES_PROTOCOL,
+  ASSISTANT_CONFIRMATION_PROTOCOL,
   type AssistantEvidence,
 } from "@/lib/assistant-reference-contract";
 import { Dialog } from "@/components/ui/dialog";
@@ -21,6 +22,7 @@ import {
   choreAssignees,
   AssistantActionError,
   AssistantActionPreflightError,
+  AssistantSourceRefusal,
   ActionOutcomeUnknown,
   type AssistantActionErrorCode,
   type RemovalTarget,
@@ -77,6 +79,7 @@ export type AssistantPanelProps = {
   onClose: () => void;
   onBusyChange: (busy: boolean) => void;
   todayContextEnabled?: boolean;
+  confirmationEnabled?: boolean;
 };
 
 type AssistantError =
@@ -195,6 +198,7 @@ export default function AssistantPanel({
   onClose,
   onBusyChange,
   todayContextEnabled = false,
+  confirmationEnabled = false,
 }: AssistantPanelProps) {
   const router = useRouter(),
     { features } = useFeatures();
@@ -216,6 +220,7 @@ export default function AssistantPanel({
       null,
     ),
     [todayExpired, setTodayExpired] = React.useState(false);
+  const [sourceProof, setSourceProof] = React.useState<string | undefined>();
   const [action, setAction] = React.useState<AssistantAction | null>(null),
     [targets, setTargets] = React.useState<RemovalTarget[]>([]),
     [selected, setSelected] = React.useState(""),
@@ -359,7 +364,11 @@ export default function AssistantPanel({
     if (tab === "reports") reportsLoadGeneration.current += 1;
     onClose();
   };
-  async function requestChat(request: ChatRequest, preserveDraft = false) {
+  async function requestChat(
+    request: ChatRequest,
+    preserveDraft = false,
+    reviewedAction?: AssistantAction,
+  ) {
     if (lock.current || !canChat) return;
     lock.current = true;
     setBusy(true);
@@ -368,7 +377,14 @@ export default function AssistantPanel({
       setFailedChat(null);
     }
     setActionRecovery(null);
-    setAction(null);
+    // A source refresh holds the edited proposal until a matching fresh
+    // action kind is available. Failed refreshes must not erase user edits.
+    if (!reviewedAction) setAction(null);
+    else {
+      consumed.current = true;
+      setTodayExpired(true);
+    }
+    setSourceProof(undefined);
     setTargets([]);
     setDeleteConfirm(false);
     setChoiceLoadFailed(false);
@@ -395,6 +411,9 @@ export default function AssistantPanel({
             "Content-Type": "application/json",
             ...(includeToday
               ? { "X-Assistant-References": ASSISTANT_REFERENCES_PROTOCOL }
+              : {}),
+            ...(includeToday && confirmationEnabled
+              ? { "X-Assistant-Confirmation": ASSISTANT_CONFIRMATION_PROTOCOL }
               : {}),
           },
           body: JSON.stringify(requestBody),
@@ -447,6 +466,22 @@ export default function AssistantPanel({
       if (includeToday && !freshness)
         throw new AssistantCopyError("todayContextUnavailable");
       const proposal = parsedReply.data;
+      if (
+        includeToday &&
+        confirmationEnabled &&
+        proposal.action &&
+        proposal.action.kind !== "open" &&
+        !proposal.sourceProof
+      )
+        throw new AssistantCopyError("todayContextUnavailable");
+      if (
+        reviewedAction &&
+        (!proposal.action ||
+          proposal.action.kind !== reviewedAction.kind ||
+          !canUseAssistantAction(reviewedAction, role, features))
+      )
+        throw new AssistantCopyError("todayContextUnavailable");
+      setSourceProof(proposal.sourceProof);
       messageFinished = true;
       setError(null);
       setFailedChat(null);
@@ -472,7 +507,10 @@ export default function AssistantPanel({
         proposal.action &&
         canUseAssistantAction(proposal.action, role, features)
       ) {
-        setAction(proposal.action);
+        // The proof binds the renewed source basis and action kind; it does
+        // not approve a model body. Preserve deliberate human edits and still
+        // require a new explicit confirmation with a new key.
+        setAction(reviewedAction ?? proposal.action);
         consumed.current = false;
         actionKey.current = crypto.randomUUID();
         try {
@@ -507,7 +545,11 @@ export default function AssistantPanel({
       } else {
         setError(toChatError(e, "chatFailed"));
       }
-      setAction(null);
+      setAction(reviewedAction ?? null);
+      if (reviewedAction) {
+        setSourceProof(undefined);
+        setTodayExpired(true);
+      }
     } finally {
       lock.current = false;
       setBusy(false);
@@ -572,7 +614,11 @@ export default function AssistantPanel({
   async function retryFailedChat() {
     const request = failedChat;
     if (!request || lock.current) return;
-    await requestChat(request, true);
+    await requestChat(
+      request,
+      true,
+      todayExpired ? (action ?? undefined) : undefined,
+    );
   }
   async function refreshTodayContext() {
     const request = lastTodayRequest.current;
@@ -587,6 +633,7 @@ export default function AssistantPanel({
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
       true,
+      action ?? undefined,
     );
   }
   function hasValidTodayLease(): boolean {
@@ -626,7 +673,12 @@ export default function AssistantPanel({
     setActionRecovery(null);
     setChoiceLoadFailed(false);
     try {
-      await executeAssistantAction(action, actionKey.current, chosen);
+      await executeAssistantAction(
+        action,
+        actionKey.current,
+        chosen,
+        sourceProof,
+      );
       setMessages((prev) => [
         ...prev,
         {
@@ -642,6 +694,13 @@ export default function AssistantPanel({
       setDeleteConfirm(false);
       router.refresh();
     } catch (e) {
+      if (e instanceof AssistantSourceRefusal) {
+        setError(toAssistantError(e, "actionFailed"));
+        setTodayExpired(true);
+        // Proven refusal has no new effect. A fresh reviewed proposal gets a
+        // new key/proof; never retry an expired or unavailable basis blindly.
+        return;
+      }
       if (e instanceof AssistantActionPreflightError) {
         // This error is proven to occur before executeAssistantAction starts
         // any mutation request. Keep the proposal editable and allow a retry.

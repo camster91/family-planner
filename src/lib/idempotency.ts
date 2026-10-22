@@ -259,8 +259,10 @@ export async function withIdempotency(
 
   if (result.status >= 200 && result.status < 300) {
     try {
-      await db.idempotencyRecord.update({
-        where: { id: recordId },
+      // Keep exact receipts already completed by canonical effect transactions.
+      // The HTTP size fallback only fills an incomplete legacy receipt.
+      await db.idempotencyRecord.updateMany({
+        where: { id: recordId, response_status: null },
         data: { response_status: result.status, response_body: storableBody(result.body) as object },
       })
     } catch (error) {

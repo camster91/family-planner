@@ -1,3 +1,8 @@
+import {
+  assistantSourceGuard,
+  authorizeAssistantSourceReplay,
+  AssistantSourceRefused,
+} from "@/lib/assistant-source-proof";
 import { guardReviewDocumentSubmission } from "@/lib/review-document-submit-server";
 import { REVIEW_SUBMIT_HEADERS } from "@/lib/review-document-submit-contract";
 import {
@@ -44,6 +49,16 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+    const sourceGuard = assistantSourceGuard(
+      request,
+      {
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        role: auth.user.role,
+        generation: auth.payload?.tv ?? 0,
+      },
+      "chore_create",
+    );
 
     // Only parents can create chores (mirrors the PATCH gate — kids shouldn't
     // be able to assign work or set their own point values)
@@ -65,6 +80,9 @@ export async function POST(request: NextRequest) {
       !Array.isArray(body) &&
       (body.protocol !== undefined || body.selection !== undefined)
     ) {
+      // Profile creation uses its own protocol and is not yet negotiated by
+      // the account-only AI assignee picker. Never silently skip source checks.
+      if (sourceGuard) throw new AssistantSourceRefused();
       const reviewRefusal = guardReviewDocumentSubmission(
         request,
         auth,
@@ -269,8 +287,15 @@ export async function POST(request: NextRequest) {
           photo.value ?? null,
           recordId,
           getRequestId(request),
+          sourceGuard,
         ),
-      { beforeReplay: () => authorizePersonChoreCreation(prisma!, actor) },
+      {
+        beforeReplay: async () => {
+          const denied = await authorizePersonChoreCreation(prisma!, actor);
+          if (denied) return denied;
+          return authorizeAssistantSourceReplay(prisma!, sourceGuard);
+        },
+      },
     );
     response.headers.set("Cache-Control", "private, no-store");
     if (!response.ok || request.headers.has(REVIEW_SUBMIT_HEADERS.contract))
@@ -296,6 +321,7 @@ export async function POST(request: NextRequest) {
       : omitChorePoints(projection.chore);
     return choreJson({ chore }, { headers: response.headers });
   } catch (error) {
+    if (error instanceof AssistantSourceRefused) return error.response();
     if (error instanceof ProfileChoreError) {
       const status =
         error.code === "PROFILE_TARGET_CONFLICT"

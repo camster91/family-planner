@@ -1,3 +1,4 @@
+import type { AssistantSourceGuard } from "./assistant-source-proof";
 import { recordTimelineFactInTx } from "@/lib/review-inbox/timeline-fact";
 /** Canonical account-assigned chore create. Effect and compact keyed receipt
  * commit together; replay never creates a second series or sends another notice.
@@ -59,6 +60,7 @@ export async function createPersonChore(
   photoUrl: string | null,
   recordId: string | null,
   requestId?: string,
+  sourceGuard?: AssistantSourceGuard,
 ): Promise<EffectResult> {
   const createdRows: Created[] = [];
   const result = await db.$transaction(async (tx) => {
@@ -71,6 +73,7 @@ export async function createPersonChore(
     await lockHousehold(tx, actor.familyId);
     const denied = await personChoreCreateAuthority(tx, actor);
     if (denied) return denied;
+    await sourceGuard?.authorize(tx);
     if (recordId) {
       await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
       const receipt = await tx.idempotencyRecord.findFirst({
@@ -97,6 +100,7 @@ export async function createPersonChore(
         !(await rotationMembersInHousehold(tx, actor.familyId, rotation)))
     )
       return refusal(400, "CHORE_ASSIGNEE_UNAVAILABLE");
+    await sourceGuard?.verify(tx);
     const created = await tx.chore.create({
       data: {
         family_id: actor.familyId,

@@ -197,6 +197,8 @@ export const assistantEnglish = {
   checkNotes: "Check Notes",
   checkHelp: "Open Help",
   actionFailed: "Action failed. Check the app before retrying.",
+  sourceChanged:
+    "The source information changed or expired. Refresh Today to review this proposal again.",
   checkProposedDetails: "Check the proposed details.",
   loadChoicesFailed: "Could not load choices.",
   retryChoices: "Reload choices",
@@ -359,6 +361,8 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   checkLists: "Revisar Listas",
   checkNotes: "Revisar Notas",
   checkHelp: "Abrir Ayuda",
+  sourceChanged:
+    "La información cambió o caducó. Actualiza Hoy para revisar esta propuesta de nuevo.",
   actionFailed:
     "La acción falló. Revisa la aplicación antes de volver a intentarlo.",
   checkProposedDetails: "Revisa los detalles propuestos.",

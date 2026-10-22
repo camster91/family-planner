@@ -1,5 +1,12 @@
-import { resolveChorePhotoForWrite } from "@/lib/chore-photos";
-import { lockHouseholdForJoin, lockUser } from "@/lib/household-lock";
+import {
+  assistantSourceGuard,
+  AssistantSourceRefused,
+} from "@/lib/assistant-source-proof";
+import { readIdempotencyKey, withIdempotency } from "@/lib/idempotency";
+import {
+  createPersonList,
+  authorizeContentCreateReplay,
+} from "@/lib/person-content-create";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { featureGate } from "@/lib/feature-gate-server";
@@ -43,57 +50,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, type, description, image_url } = parsed.data;
-    const data = {
-      family_id: auth.user.family_id,
-      name,
-      type,
-      description: description ?? null,
-      created_by: auth.user.id,
-      image_url: null as string | null,
+    const { key, error: keyError } = readIdempotencyKey(request);
+    if (keyError) return keyError;
+    const actor = {
+      userId: auth.user.id,
+      familyId: auth.user.family_id,
+      role: auth.user.role,
+      generation: auth.payload?.tv ?? 0,
     };
-    // All creates renew authority under the same actor -> household locks;
-    // omitting a cover must not bypass membership/session rechecks.
-    const result = await prisma!.$transaction(async (tx) => {
-      await lockUser(tx, auth.user.id);
-      if (!(await lockHouseholdForJoin(tx, auth.user.family_id)))
-        return { error: "Household not found", status: 404 } as const;
-      const member = await tx.user.findFirst({
-        where: { id: auth.user.id, family_id: auth.user.family_id },
-        select: { role: true, token_version: true },
-      });
-      if (member && member.token_version !== (auth.payload.tv ?? 0))
-        return { error: "Unauthorized", status: 401 } as const;
-      if (!member || !canCreateList(member.role))
-        return {
-          error: "Ask a parent to create a new list.",
-          status: 403,
-        } as const;
-      if (image_url) {
-        const image = await resolveChorePhotoForWrite(
-          auth.user.family_id,
-          image_url,
-          undefined,
-          tx,
-        );
-        if (!image.ok)
-          return {
-            error: "Image not found. Upload a household image and retry.",
-            status: 400,
-          } as const;
-        data.image_url = image.value ?? null;
-      }
-      return { list: await tx.list.create({ data }) };
-    });
-    if ("error" in result)
-      return NextResponse.json(
-        { error: result.error },
-        { status: result.status },
-      );
-    const list = result.list;
-
-    return NextResponse.json({ success: true, list });
+    const sourceGuard = assistantSourceGuard(request, actor, "list_create");
+    return await withIdempotency(
+      prisma!,
+      key,
+      {
+        scope: `user:${actor.userId}`,
+        familyId: actor.familyId,
+        userId: actor.userId,
+        action: "list.create",
+      },
+      parsed.data,
+      ({ recordId }) =>
+        createPersonList(prisma!, parsed.data, actor, recordId, sourceGuard),
+      {
+        beforeReplay: () =>
+          authorizeContentCreateReplay(prisma!, actor, "lists"),
+      },
+    );
   } catch (error) {
+    if (error instanceof AssistantSourceRefused) return error.response();
     logRouteError("POST /api/lists/create", error, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },

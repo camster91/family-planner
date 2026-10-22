@@ -1,3 +1,4 @@
+import { isAssistantConfirmationEnabled } from "@/lib/assistant-source-proof";
 import PreparationProvider from "@/components/calendar/preparation/PreparationProvider";
 import { eventPreparationReady } from "@/lib/event-preparation/owner";
 import { Suspense } from "react";
@@ -185,6 +186,7 @@ export default async function DashboardLayout({
                         key={`${profile?.id}:${profile?.family_id}`}
                         role={role}
                         todayContextEnabled={isAssistantTodayEnabled()}
+                        confirmationEnabled={isAssistantConfirmationEnabled()}
                       />
                     </Suspense>
                   )}

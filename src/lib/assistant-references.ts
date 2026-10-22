@@ -153,7 +153,7 @@ export async function loadReferencedAssistantToday(
       },
       context.generatedAt,
     );
-    return { context, catalog };
+    return { context, catalog, sources: rows };
   } catch {
     return null;
   }
