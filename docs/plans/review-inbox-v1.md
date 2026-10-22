@@ -589,3 +589,9 @@ authorized-empty versus forbidden, saved-host admission, paused-storage behavior
 21-row continuation, unknown source versions, paired-device refusal and absence
 of tokenVersion in browser/legacy user projections. Do not reuse old QA receipts
 as evidence for this new boundary.
+
+The server page redirects a forbidden renewed read to /dashboard before
+serializing the old inbox/identity; normal session/role routing then determines
+the destination. This avoids presenting revocation as an empty or blank review
+screen. Transient query errors still use ordinary error recovery, not an auth
+redirect. This follow-through is also source-only and unrun.

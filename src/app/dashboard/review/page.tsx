@@ -34,6 +34,9 @@ export default async function Page({
     },
     query.data,
   );
+  // Renewed authority can change while search params/storage resolve. Do not
+  // serialize the former owner's page/identity or leave a blank review screen.
+  if (page.state === "forbidden") redirect("/dashboard");
   return (
     <ReviewInbox
       page={page}
