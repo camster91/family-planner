@@ -97,3 +97,22 @@ it("hides handoff coordination for children and all controls while the capabilit
     screen.queryByRole("button", { name: "Responsibility" }),
   ).not.toBeInTheDocument();
 });
+
+// Authored for deferred QA: pause hides new controls but must retain recovery.
+it("mounts an owned recovery URL while new responsibility changes are paused", async () => {
+  mockQuery = "responsibilityKind=chore&responsibilityId=target-a";
+  render(tree("parent", false));
+  expect(
+    await screen.findByRole("button", { name: "Close test sheet" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Responsibility" }),
+  ).not.toBeInTheDocument();
+});
+it("does not mount a child's restricted handoff recovery URL while paused", () => {
+  mockQuery = "responsibilityKind=handoff&responsibilityId=target-a";
+  render(tree("child", false, "handoff"));
+  expect(
+    screen.queryByRole("button", { name: "Close test sheet" }),
+  ).not.toBeInTheDocument();
+});

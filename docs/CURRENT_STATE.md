@@ -1,5 +1,30 @@
 # Current State
 
+## Responsibility saved-request discovery and paused host source — 2026-10-21
+
+The parent inbox saved-request adapter now includes responsibility/backup commands.
+It uses the existing strict responsibility recovery context/journal, exact person
+owner lease, 128 KiB bound, current parent identity checks and both snapshot store
+reads. Only fixed kind/time and the canonical target recovery URL are projected;
+no request key/body/source hash, subject identity/name or consent statement enters
+inbox rows. Unknown/expired/possibly committed requests are not dropped or sent.
+The original responsibility recovery endpoint remains the receipt authority.
+
+ResponsibilityProvider now separates personal recovery hosting from new-control
+readiness, matching preparation/schedule. A valid direct personal target URL can
+mount the existing recovery-first sheet while new changes are paused. New buttons
+and statement previews still require readiness; all writes keep existing server/
+journal gates. Child handoff, paired/device/fridge and sibling-overlay restrictions
+remain. The sheet may navigate between recovery targets while paused; this grants
+no write permission. Recovery initializes before current/deleted-target reads.
+
+Paused adapter, cross-household command/current-role refusal and paused-host/child
+handoff case source is authored, all unrun. Only source reads/edits and formatting;
+no QA/test/typecheck/lint/build/API/browser/native/schema/SQL/DB/client/CI,
+activation or push/merge/deploy. Capture/recipe/notice draft adapters, wider role/
+shared readers, grounded references/evaluation and other ledger code remain.
+Consolidated QA stays deferred; #123/#144/#499 and the full goal remain open.
+
 ## Read-only saved-request inbox adapters — 2026-10-21
 
 The parent Review inbox now has a Saved requests section. Preparation and schedule

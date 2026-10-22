@@ -24,7 +24,16 @@ import {
   type ScheduleRecoveryEntry,
 } from "@/lib/calendar-planning/schedule-recovery";
 import { scheduleMoveCommand } from "@/lib/calendar-planning/conflict-review";
-export type SavedReviewKind = "preparation" | "schedule";
+import { readResponsibilityContext } from "@/lib/responsibility-client";
+import {
+  responsibilityRecoveryContext,
+  responsibilityRecoveryJournal,
+  responsibilityEntryMatchesContext,
+  type ResponsibilityRecoveryContext,
+  type ResponsibilityRecoveryEntry,
+} from "@/lib/responsibility-recovery";
+import { responsibilityCommand } from "@/lib/responsibility";
+export type SavedReviewKind = "preparation" | "schedule" | "responsibility";
 export type SavedReviewItem = {
   id: string;
   kind: SavedReviewKind;
@@ -35,6 +44,8 @@ export async function readSavedReviewRequests(
   kind: SavedReviewKind,
   expected: { userId: string; familyId: string },
 ) {
+  if (!["preparation", "schedule", "responsibility"].includes(kind))
+    throw new OwnedRequestRecoveryError("UPDATE_REQUIRED");
   let localStorage: StorageLike | null = null,
     indexedDB: IDBFactory | null = null;
   try {
@@ -63,6 +74,36 @@ export async function readSavedReviewRequests(
     )
       throw new OwnedRequestRecoveryError("OWNER_CHANGED");
     return context;
+  }
+  if (kind === "responsibility") {
+    const result = await readOwnedRequestSnapshot<
+      ResponsibilityRecoveryContext,
+      ResponsibilityRecoveryEntry,
+      SavedReviewItem[]
+    >({
+      context: responsibilityRecoveryContext,
+      journal: responsibilityRecoveryJournal,
+      maxBytes: 128 * 1024,
+      matchesContext: responsibilityEntryMatchesContext,
+      resolveContext: async () =>
+        assertContext(await readResponsibilityContext()),
+      candidates,
+      project: (entries) =>
+        entries.map((entry, index): SavedReviewItem => {
+          const command = responsibilityCommand.parse(JSON.parse(entry.body));
+          const params = new URLSearchParams({
+            responsibilityKind: command.target.kind,
+            responsibilityId: command.target.id,
+          });
+          return {
+            id: `responsibility-${index}`,
+            kind,
+            issuedAt: command.issuedAt,
+            href: `/dashboard/today?${params}`,
+          };
+        }),
+    });
+    return { items: result.projection, paused: !result.enabled };
   }
   if (kind === "preparation") {
     const result = await readOwnedRequestSnapshot<

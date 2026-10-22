@@ -110,6 +110,11 @@ export default function SavedRequestsReview({
       if (current()) setBusy(false);
     }
   }
+  const labels = {
+    preparation: copy.savedPreparation,
+    schedule: copy.savedSchedule,
+    responsibility: copy.savedResponsibility,
+  };
   if (suspended) return null;
   return (
     <section aria-label={copy.saved} className="space-y-4">
@@ -128,6 +133,7 @@ export default function SavedRequestsReview({
         >
           <option value="preparation">{copy.preparation}</option>
           <option value="schedule">{copy.schedule}</option>
+          <option value="responsibility">{copy.responsibility}</option>
         </select>
       </label>
       <button
@@ -156,9 +162,7 @@ export default function SavedRequestsReview({
           {rows.slice(offset, offset + 5).map((row) => (
             <li key={row.id} className="p-4">
               <h2 className="text-headline text-label-primary">
-                {row.kind === "preparation"
-                  ? copy.savedPreparation
-                  : copy.savedSchedule}
+                {labels[row.kind]}
               </h2>
               <time
                 dateTime={row.issuedAt}

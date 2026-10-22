@@ -36,7 +36,6 @@ export default function ResponsibilityProvider({
   const scheduleActive = useScheduleReviewActive();
   const preparationActive = usePreparationActive();
   const personal =
-    enabled &&
     !scheduleActive &&
     !preparationActive &&
     ["parent", "teen", "child"].includes(role) &&
@@ -56,11 +55,12 @@ export default function ResponsibilityProvider({
   React.useEffect(() => {
     navigating.current = false;
   }, [url]);
-  const allowed = (item: ResponsibilityTarget) =>
+  const eligible = (item: ResponsibilityTarget) =>
     personal && !(role === "child" && item.kind === "handoff");
+  const allowed = (item: ResponsibilityTarget) => enabled && eligible(item);
   function open(item: ResponsibilityTarget) {
     if (
-      !allowed(item) ||
+      !eligible(item) ||
       navigating.current ||
       (target?.kind === item.kind && target.id === item.id)
     )
