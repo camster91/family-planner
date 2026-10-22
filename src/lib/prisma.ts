@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
-import pg from 'pg'
 import { attachQueryTiming, queryTimingConfig } from '@/lib/db-query-timing'
 
 const globalForPrisma = globalThis as unknown as {
@@ -17,8 +16,10 @@ function initializePrisma(): PrismaClient | undefined {
   }
 
   try {
-    const pool = new pg.Pool({ connectionString: databaseUrl })
-    const adapter = new PrismaPg(pool)
+    // The adapter owns this pool, so $disconnect releases its connections and
+    // a later query can reconnect. An externally supplied Pool is retained by
+    // default, leaking connections across short-lived client lifecycles.
+    const adapter = new PrismaPg({ connectionString: databaseUrl })
     // Opt-in, dev/test-only slow-query lines (#161, src/lib/db-query-timing.ts).
     // Off by default, and always off with NODE_ENV=production.
     const timing = queryTimingConfig()

@@ -820,7 +820,7 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
     let outerStoreFailures = 0;
     const failingRecords = new Proxy(real.idempotencyRecord, {
       get(target, property) {
-        if (property === "update" && outerStoreFailures === 0) {
+        if (property === "updateMany" && outerStoreFailures === 0) {
           return async () => {
             outerStoreFailures += 1;
             throw new Error("connection reset after transaction");
@@ -908,7 +908,7 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
       let outerStoreFailures = 0;
       const failingRecords = new Proxy(real.idempotencyRecord, {
         get(target, property) {
-          if (property === "update" && outerStoreFailures === 0) {
+          if (property === "updateMany" && outerStoreFailures === 0) {
             return async () => {
               outerStoreFailures += 1;
               throw new Error("connection reset after transaction");

@@ -1,5 +1,18 @@
 # Current State
 
+## PostgreSQL integration baseline and pool/profile fixes — 2026-10-22
+
+First broad DB run at944bde34:55 passed /29 failed suites;425 passed /135 failed
+tests. Seed twice passes. Pool ownership now releases actual PostgreSQL backends
+on disconnect and permits reconnect. Explicit generated-client admission and
+legacy-schema teardown repairs preserve email-free profile/Today proof. A controlled
+legacy32-test run followed by22 profile/Today/pool cases passes; types/lint pass
+(44 warnings). Broad DB/final-source unit reruns remain required. Previous complete
+unit pass:702 suites/6971 tests at06d651db. No release/production acceptance claim;
+DB domain failures, browser/recovery/build and protected merge/deploy remain open.
+Evidence:`docs/testing/WEB_QA_20261022.md`.
+
+
 ## Complete unit pass; fresh PostgreSQL16 schema repaired — 2026-10-22
 
 Full unit run at06d651db passes702 suites/6971 tests;82 DB suites/546 tests remain
