@@ -97,6 +97,7 @@ for (const role of ["parent", "teen", "child"] as const) {
     }, info) => {
       assertFixtureTargetAllowed(process.env);
       await parentPage.goto("/dashboard");
+      await expect(parentPage).toHaveURL(/\/dashboard\/today$/);
       const original = await browserFetch(parentPage, "/api/family/features");
       expect(original.status, original.body).toBe(200);
       const originalFeatures = JSON.parse(original.body).features;

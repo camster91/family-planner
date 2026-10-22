@@ -170,6 +170,9 @@ for (const role of ["parent", "teen", "child"] as const)
               .click();
             await expect(page).toHaveURL(/\/dashboard(?:\/)?$/);
           } else await page.goto("/dashboard");
+          await expect(page).toHaveURL(
+            role === "parent" ? /\/dashboard\/today$/ : /\/dashboard\/?$/,
+          );
           const auth = await browserFetch(page, "/api/auth/me");
           expect(auth.status).toBe(200);
           expect(JSON.parse(auth.body).user.id).toBe(FIXTURE_IDS.familyA[role]);

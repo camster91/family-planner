@@ -427,6 +427,7 @@ for (const locale of ["en", "es"] as const) {
       let setup: FeatureSetup | undefined;
       try {
         await empty.page.goto("/dashboard");
+        await expect(empty.page).toHaveURL(/\/dashboard\/today$/);
         setup = await prepareFeatures(empty.page, false);
         await empty.page.goto("/dashboard/rewards");
         await expect(
@@ -476,6 +477,7 @@ for (const locale of ["en", "es"] as const) {
       let claimCalls = 0;
       try {
         await parent.page.goto("/dashboard");
+        await expect(parent.page).toHaveURL(/\/dashboard\/today$/);
         parentSetup = await prepareFeatures(parent.page);
         const createKey = randomUUID();
         keys.push(createKey);
@@ -634,6 +636,7 @@ for (const locale of ["en", "es"] as const) {
       const ownedKeys: string[] = [];
       try {
         await parent.page.goto("/dashboard");
+        await expect(parent.page).toHaveURL(/\/dashboard\/today$/);
         setup = await prepareFeatures(parent.page);
         const createKey = randomUUID();
         ownedKeys.push(createKey);
@@ -751,6 +754,7 @@ for (const locale of ["en", "es"] as const) {
       const ownedKeys: string[] = [];
       try {
         await parent.page.goto("/dashboard");
+        await expect(parent.page).toHaveURL(/\/dashboard\/today$/);
         setup = await prepareFeatures(parent.page);
         const createKey = randomUUID();
         ownedKeys.push(createKey);

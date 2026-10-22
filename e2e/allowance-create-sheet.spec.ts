@@ -281,6 +281,7 @@ for (const locale of ["en", "es"] as const) {
       await context.unrouteAll({ behavior: "ignoreErrors" });
       try {
         await recoveryPage.goto("/dashboard");
+        await expect(recoveryPage).toHaveURL(/\/dashboard\/today$/);
         const restoredResponse = await browserSend(
           recoveryPage,
           "PATCH",
@@ -498,6 +499,7 @@ for (const locale of ["en", "es"] as const) {
       try {
         await context.unrouteAll({ behavior: "ignoreErrors" });
         await recoveryPage.goto("/dashboard");
+        await expect(recoveryPage).toHaveURL(/\/dashboard\/today$/);
         const cleanupIds = new Set<string>();
         if (allowanceId) cleanupIds.add(allowanceId);
         if (reason) {
@@ -526,6 +528,7 @@ for (const locale of ["en", "es"] as const) {
         // was closed by a failed navigation or an interrupted response.
         try {
           await recoveryPage.goto("/dashboard");
+          await expect(recoveryPage).toHaveURL(/\/dashboard\/today$/);
           const restoredResponse = await browserSend(
             recoveryPage,
             "PATCH",

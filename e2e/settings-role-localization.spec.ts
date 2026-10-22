@@ -162,6 +162,11 @@ for (const role of ["parentA", "parentB", "teen", "child"] as const)
           await page.locator('form button[type="submit"]').click();
           await expect(page).toHaveURL(/\/dashboard\/?$/);
         } else await page.goto("/dashboard");
+        await expect(page).toHaveURL(
+          role === "parentA" || role === "parentB"
+            ? /\/dashboard\/today$/
+            : /\/dashboard\/?$/,
+        );
         const auth = await browserFetch(page, "/api/auth/me");
         expect(auth.status).toBe(200);
         const user = JSON.parse(auth.body).user;

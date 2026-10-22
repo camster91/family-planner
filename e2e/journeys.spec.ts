@@ -513,6 +513,7 @@ test.describe("Family A child — handoff and allowance (D2, D5)", () => {
     });
     const parent = await parentCtx.newPage();
     await parent.goto("/dashboard");
+    await expect(parent).toHaveURL(/\/dashboard\/today$/);
     const original = JSON.parse(
       (await browserFetch(parent, "/api/family/features")).body,
     ).features;

@@ -473,6 +473,7 @@ for (const locale of ["en", "es"] as const) {
     );
 
     const bootstrap = await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     expect(bootstrap?.status()).toBe(200);
     const profileResponse = await browserFetch(page, "/api/users");
     expect(profileResponse.status, profileResponse.body).toBe(200);

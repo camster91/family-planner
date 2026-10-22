@@ -200,6 +200,7 @@ for (const locale of ["en", "es"] as const) {
     );
 
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     await expect(page.locator("html")).toHaveAttribute("lang", locale);
     const identity = await runtimeIdentity(page, info, locale);
     const featuresResponse = await browserFetch(page, "/api/family/features");

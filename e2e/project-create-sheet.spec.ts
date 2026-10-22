@@ -186,6 +186,7 @@ for (const locale of ["en", "es"] as const) {
 
       try {
         await page.goto("/dashboard");
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
         await assertFeatureIdentity(page);
         const originalFeaturesResponse = await browserFetch(
           page,

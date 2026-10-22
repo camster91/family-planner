@@ -460,6 +460,7 @@ for (const locale of ["en", "es"] as const) {
       try {
         await configureLocale(page, locale);
         await page.goto("/dashboard");
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
         const identity = await browserFetch(page, "/api/auth/me");
         expect(identity.status, identity.body).toBe(200);
         expect(JSON.parse(identity.body).user).toMatchObject({
@@ -765,6 +766,7 @@ for (const locale of ["en", "es"] as const) {
         );
         familyBContext = foreign.context;
         await foreign.page.goto("/dashboard");
+        await expect(foreign.page).toHaveURL(/\/dashboard\/today$/);
         const foreignClaim = await sendWithKey(
           foreign.page,
           "POST",

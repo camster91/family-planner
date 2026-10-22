@@ -51,6 +51,7 @@ async function begin(
 ) {
   await guard(context, baseURL, locale);
   await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/dashboard\/today$/);
   const auth = await browserFetch(page, "/api/auth/me");
   expect(auth.status).toBe(200);
   const user = JSON.parse(auth.body).user;

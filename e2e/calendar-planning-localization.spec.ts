@@ -94,6 +94,7 @@ test.beforeEach(async ({ page, context, baseURL }, info) => {
       : route.abort();
   });
   await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/dashboard\/today$/);
   const auth = await browserFetch(page, "/api/auth/me");
   expect(auth.status).toBe(200);
   expect(JSON.parse(auth.body).user.role).toBe("parent");

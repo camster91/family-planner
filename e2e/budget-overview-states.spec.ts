@@ -388,6 +388,7 @@ for (const locale of ["en", "es"] as const) {
 
       try {
         await page.goto("/dashboard");
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
         const featureResponse = await browserFetch(
           page,
           "/api/family/features",
@@ -900,6 +901,7 @@ for (const locale of ["en", "es"] as const) {
         try {
           if (featureChanged && originalFeatures) {
             await page.goto("/dashboard");
+            await expect(page).toHaveURL(/\/dashboard\/today$/);
             const restored = await browserSend(
               page,
               "PATCH",

@@ -213,6 +213,7 @@ for (const locale of ["en", "es"] as const) {
             { key: "familyPlanner_language", value: locale },
           );
           await page.goto("/dashboard");
+          await expect(page).toHaveURL(/\/dashboard\/today$/);
           await expect(page.locator("html")).toHaveAttribute("lang", locale);
           const identity = await runtimeIdentity(page, info, locale, "parent");
           const captureKey = await seedCaptureStorage(
@@ -327,6 +328,9 @@ for (const locale of ["en", "es"] as const) {
               { key: "familyPlanner_language", value: locale },
             );
             await page.goto("/dashboard");
+            await expect(page).toHaveURL(
+              deletion.role === "parent" ? /\/dashboard\/today$/ : /\/dashboard\/?$/,
+            );
             await expect(page.locator("html")).toHaveAttribute("lang", locale);
             const identity = await runtimeIdentity(
               page,

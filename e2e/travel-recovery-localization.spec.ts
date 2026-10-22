@@ -108,6 +108,7 @@ for (const locale of ["en", "es"] as const) {
     );
     await guard(context, locale);
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
 
     const auth = await browserFetch(page, "/api/auth/me");
     expect(auth.status, auth.body).toBe(200);

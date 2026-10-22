@@ -394,6 +394,7 @@ for (const locale of LOCALES) {
       let testFailure: unknown;
       try {
         await page.goto("/dashboard");
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
         await runtimeIdentity(page, info, locale, info.project.name);
         anchorId = await createWeeklyAnchor(page, info, locale, title);
         ownedIds.add(anchorId);
@@ -837,6 +838,7 @@ async function withForeignParent<T>(
   const page = await context.newPage();
   try {
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     return await fn(page);
   } finally {
     await context.close();

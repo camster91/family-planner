@@ -91,6 +91,7 @@ test("Spanish Notes feature-off state preserves parent and child role copy", asy
   // The fixture page starts at about:blank. Bootstrap the authenticated
   // origin before same-origin browserFetch/browserSend calls.
   const bootstrap = await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/dashboard\/today$/);
   expect(bootstrap?.status()).toBe(200);
   const profile = await browserFetch(page, "/api/users");
   expect(profile.status, profile.body).toBe(200);

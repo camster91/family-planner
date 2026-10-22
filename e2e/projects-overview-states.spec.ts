@@ -447,6 +447,7 @@ for (const locale of ["en", "es"] as const) {
       let primaryError: unknown;
       try {
         await page.goto("/dashboard");
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
         const identity = await browserFetch(page, "/api/auth/me");
         expect(identity.status, identity.body).toBe(200);
         expect(JSON.parse(identity.body).user).toMatchObject({
@@ -914,6 +915,7 @@ for (const locale of ["en", "es"] as const) {
         );
         const familyBPage = await familyBContext.newPage();
         await familyBPage.goto("/dashboard");
+        await expect(familyBPage).toHaveURL(/\/dashboard\/today$/);
         const foreignDetail = await browserFetch(
           familyBPage,
           `/api/projects/${projectId}`,
@@ -1025,6 +1027,7 @@ for (const locale of ["en", "es"] as const) {
       let primaryError: unknown;
       try {
         await page.goto("/dashboard");
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
         const identity = await browserFetch(page, "/api/auth/me");
         expect(identity.status, identity.body).toBe(200);
         expect(JSON.parse(identity.body).user).toMatchObject({

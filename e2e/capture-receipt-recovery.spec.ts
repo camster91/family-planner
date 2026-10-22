@@ -497,6 +497,7 @@ test.describe("capture receipt recovery", () => {
     await installLoopbackNetworkGuard(context);
 
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     const fixture = await fixtureIdentity(page);
     expect(fixture.userId).toBe(FIXTURE_IDS.familyA.parent);
     expect(fixture.familyId).toBe(FIXTURE_IDS.familyA.family);
@@ -790,6 +791,7 @@ test.describe("capture receipt recovery", () => {
     await installLoopbackNetworkGuard(context);
 
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     const { userId, familyId } = await fixtureIdentity(page);
     const { captureReady } = await installCaptureTransport(
       page,
@@ -913,6 +915,7 @@ test.describe("capture receipt recovery", () => {
     assertFixtureAndLoopback(baseURL);
     await installLoopbackNetworkGuard(context);
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     const { userId, familyId } = await fixtureIdentity(page);
     const title = "Synthetic terminal proposal";
     const { captureReady } = await installCaptureTransport(
@@ -1003,6 +1006,7 @@ test.describe("capture receipt recovery", () => {
     }, "family-planner:capture-recovery:v1:");
 
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     const fixture = await fixtureIdentity(page);
     const { captureReady } = await installCaptureTransport(
       page,
@@ -1091,6 +1095,7 @@ test.describe("capture receipt recovery", () => {
     }, "family-planner:capture-recovery:v1:");
 
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     const fixture = await fixtureIdentity(page);
     const { captureReady } = await installCaptureTransport(
       page,
@@ -1177,6 +1182,7 @@ test.describe("capture receipt recovery", () => {
       };
     }, "family-planner:capture-recovery:v1:active");
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     const fixture = await fixtureIdentity(page);
     const { captureReady } = await installCaptureTransport(
       page,
@@ -1220,6 +1226,7 @@ test.describe("capture receipt recovery", () => {
         await installLoopbackNetworkGuard(context);
 
         await page.goto("/dashboard");
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
         const fixture = await fixtureIdentity(page);
         const { captureReady } = await installCaptureTransport(
           page,
@@ -1296,6 +1303,7 @@ test.describe("capture receipt recovery", () => {
     await installLoopbackNetworkGuard(context);
 
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     const fixture = await fixtureIdentity(page);
     const { captureReady } = await installCaptureTransport(
       page,
