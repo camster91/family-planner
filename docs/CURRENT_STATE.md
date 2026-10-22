@@ -1,5 +1,15 @@
 # Current State
 
+## Consolidated QA: third full run — 2026-10-22
+
+Full run at2332faf4 exits1:50 failed/650 passed/82 skipped suites;
+171 failed/6788 passed/546 skipped tests,169.141s. The next focused settings/privacy
+and session-contract batch passes4 suites/52 tests. Privacy tests follow compact
+navigation; logout tests preserve conditional generation/recovery proof and add a
+stale-logout race. Details and failed logs: `docs/testing/WEB_QA_20261022.md`.
+Remaining full-suite failures and build/DB/browser/recovery/hosted release gates
+remain open. No production merge/deploy or activation occurred.
+
 ## Privacy and canonical receipt QA repairs — 2026-10-22
 
 The next focused batch passes12 suites/184 tests, including account/household

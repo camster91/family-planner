@@ -151,6 +151,8 @@ describe('BetaMetricsSwitch', () => {
 
 describe('Settings -> Privacy & data', () => {
   beforeAll(() => {
+    // jsdom has no layout engine; actual scrolling is checked in browser QA.
+    HTMLElement.prototype.scrollIntoView = jest.fn()
     window.matchMedia =
       window.matchMedia ||
       ((() => ({ matches: false, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia)
@@ -167,6 +169,7 @@ describe('Settings -> Privacy & data', () => {
   it('shows the switch when the page passes the household value (a parent)', async () => {
     api()
     render(<SettingsClient viewerRole="parent" sharedDevice={null} betaMetrics={{ enabled: true }} />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Privacy & data' }))
     expect(await screen.findByRole('heading', { name: 'Privacy & data' })).toBeTruthy()
     expect(screen.getByRole('switch', { name: NAME }).getAttribute('aria-checked')).toBe('true')
   })
@@ -174,6 +177,7 @@ describe('Settings -> Privacy & data', () => {
   it('has no switch without it (not a parent)', async () => {
     api()
     render(<SettingsClient viewerRole="parent" sharedDevice={null} />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Privacy & data' }))
     expect(await screen.findByRole('heading', { name: 'Privacy & data' })).toBeTruthy()
     expect(screen.queryByRole('switch', { name: NAME })).toBeNull()
   })
