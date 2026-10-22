@@ -68,7 +68,7 @@ export async function completeChore(
   db: Db,
   requestedChore: CompletableChore,
   actor: { id: string; name: string },
-  options: { photoValue?: string | null; now?: Date } = {}
+  options: { photoValue?: string | null; now?: Date; actorKind?: "person" | "device" } = {}
 ): Promise<boolean> {
   const now = options.now ?? new Date()
   const photoValue = options.photoValue ?? null
@@ -97,6 +97,8 @@ export async function completeChore(
         user_id: actor.id,
         type: 'chore_completed',
         title: `${actor.name} completed "${chore.title}"`,
+        subject_member_id: chore.assigned_member_id ?? null,
+        metadata: JSON.stringify({timeline: 1, actorKind: options.actorKind ?? "person", target: {kind: "chore", id: chore.id}}),
       },
     })
 

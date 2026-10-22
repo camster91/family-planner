@@ -51,6 +51,7 @@ suite("canonical chore create receipt integrity", () => {
   });
   beforeEach(async () => {
     await db.chore.deleteMany({ where: { family_id: familyId } });
+    await db.activity.deleteMany({ where: { family_id: familyId } });
     await db.idempotencyRecord.deleteMany({ where: { family_id: familyId } });
     await db.user.update({
       where: { id: userId },
@@ -90,6 +91,11 @@ suite("canonical chore create receipt integrity", () => {
     const first = await (await run()).json();
     expect(first).toEqual({ choreId: expect.any(String) });
     expect(await (await run()).json()).toEqual(first);
+    expect(
+      await db.activity.count({
+        where: { family_id: familyId, type: "chore_created" },
+      }),
+    ).toBe(1);
     expect(await db.chore.count({ where: { family_id: familyId } })).toBe(1);
     await db.chore.delete({ where: { id: first.choreId } });
     expect(await (await run()).json()).toEqual(first);

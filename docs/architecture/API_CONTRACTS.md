@@ -883,3 +883,41 @@ returns409, invalid headers400, unauthorized/revoked401, wrong role/household403
 profile capability withdrawal holds profile receipt access409. No title, assignee,
 points, routine, body or original receipt is returned. No background retry/pruning.
 Runtime/API/isolation acceptance remains pending consolidated QA.
+
+
+### Parent change timeline (2026-10-22 source; acceptance pending)
+
+`GET /api/review/timeline?source=all|coordination|settings&cursor=<opaque>` is
+person-parent only. Paired sessions are refused by canonical authentication;
+child/teen receive403. The reader locks the current user/household and renews
+family, parent role and session generation before any history query. Unknown or
+duplicate parameters, invalid/oversized/filter-mismatched cursors return400;
+retired session401, changed role/family403, unavailable read500. Every response
+is private/no-store. Family/actor authority is never accepted from query values.
+
+200 returns `{ owner: { userId, familyId, generation }, source, entries,
+nextCursor }`. Entries contain a bounded local stream/row ID, fixed `action`,
+ISO `at`, current actor name/kind or explicit unknown/tablet attribution, fixed
+`origin`, optional registry-validated `featureKey`, current canonical `title`
+and `target`, and `current: available|unavailable|unknown`. The target is a typed
+Event/Chore/Recipe/Pickup/Handoff/settings reference, never a saved/provider URL.
+Clients construct canonical links; each destination renews permission and owns
+its supported reversal controls. This endpoint never offers a generic Undo.
+Missing/erased/foreign record references expose no historical name, private note,
+raw metadata, cached snapshot or link. Historical Activity titles/descriptions and
+AuditLog summaries are excluded. Handoff private content is not selected.
+
+Activity and AuditLog each read at most21 candidates within a one-year horizon;
+the merged20-candidate page uses stable per-stream ordering and timestamp/ID
+continuation. Filtering can leave an empty page with a continuation cursor. This
+is not proof that no changes exist. There is no prune, cache, replay, provider or
+new persistence model. Current-source projection and client owner/epoch checks
+remain separate from the API's authenticated authority.
+
+New private coordination facts commit inside existing chore/recipe/preparation/
+schedule/responsibility effects and their receipts; completed replay creates no
+second fact. Their types stay excluded from older member Activity and Analytics
+feeds, and new completion actor/target markers are masked in the older Activity
+DTO. Existing own-Activity export and erasure still apply. Source/helper/API/
+privacy/pagination/component and replay cases are authored, all unrun. Consolidated
+Postgres/isolation/role/device/browser/localization/release gates remain pending.

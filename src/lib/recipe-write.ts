@@ -1,3 +1,4 @@
+import { recordTimelineFactInTx } from "@/lib/review-inbox/timeline-fact";
 /** Recipe creation and a compact durable receipt commit together (#460). */
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { z } from "zod";
@@ -133,6 +134,10 @@ export async function createRecipeWithReceipt(
       });
     // A pointer, not a stale recipe snapshot. Hydrate under current authority
     // after commit; a long instruction/ingredient body cannot truncate this receipt.
+    await recordTimelineFactInTx(tx, actor, "recipe_created", {
+      kind: "recipe",
+      id: recipe.id,
+    });
     const body = { recipeId: recipe.id };
     if (recordId)
       await tx.idempotencyRecord.update({

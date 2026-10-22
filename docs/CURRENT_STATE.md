@@ -1,5 +1,47 @@
 # Current State
 
+## Authorized change timeline source — 2026-10-22
+
+The parent Review inbox now includes What changed, a read-only view over the
+existing Activity and AuditLog records. An explicit refresh uses a private,
+no-store endpoint that renews current parent/session/family under canonical
+membership locks. Stable two-stream cursors retain continuation through filtered
+windows; each source reads at most21 candidates, projects at most20, and the UI
+shows five at a time. Coordination/settings filters, timestamps, canonical source
+labels and EN/ES actions are authored. Blur, storage, identity and competing
+review changes clear the memory-only projection; late replies cannot install it.
+A generation replacement latches a reload requirement rather than adopting it.
+
+The projection never uses historical Activity titles/descriptions, audit summaries,
+provider output or saved URLs for visibility. Record names/links come only from
+current same-household Event/Chore/Recipe/Pickup/Handoff reads and enabled domains;
+erased/missing/foreign targets share a non-disclosing unavailable state. Only
+current household actors are named. Tablet completions use explicit server source
+markers; older ambiguous completion rows do not claim that a selected subject was
+an actor. Settings feature labels use the canonical translated feature registry.
+Links open canonical screens that renew permissions and own any supported reversal;
+no generic timeline Undo or new mutation authority was added.
+
+Canonical account/profile chore creation, recipe creation, preparation review,
+schedule moves and changed responsibility now append minimal facts inside the
+existing effect/receipt transaction. Completed receipt replay adds no new fact;
+no-op responsibility adds none. Completion metadata distinguishes actual person
+and tablet context without inferring an actor from an email-free profile. These
+facts stay out of the old member activity/analytics feeds, and new completion
+proof/actor metadata is masked from the old activity DTO. Existing own-activity
+export and erasure rules continue; no prompts, notes or content snapshots are
+copied into the new facts. No schema/migration, scheduler or provider is added.
+
+Source/helper/API/privacy/pagination/component cases are authored and unrun;
+existing effect fixtures and replay assertions are updated. Source inspection,
+edits and selected-file formatting only. No tests/typecheck/lint/build/browser/
+application-API/SQL/DB/native/CI, activation, push/merge/deploy or issue closure.
+Actual isolation, transactions, pagination, role/device, EN/ES and responsive
+acceptance remains for consolidated QA. Routine provenance/editor/history,
+remaining role/profile/shared-device readers, other domain history coverage,
+batch-refusal interactions and grounded AI/planning/evaluation/usage remain open.
+The full goal stays active; source completion still precedes integrated QA.
+
 ## Owned draft exits and foreground read cancellation — 2026-10-22
 
 Owned capture/recipe exits now share a content-free in-memory navigation barrier.

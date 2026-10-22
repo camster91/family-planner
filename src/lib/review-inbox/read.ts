@@ -10,7 +10,7 @@ import { scheduleEventToken } from "@/lib/calendar-planning/schedule-source";
 export const inboxQuery = z
   .object({
     source: z
-      .enum(["checks", "preparation", "saved", "capture"])
+      .enum(["checks", "preparation", "saved", "capture", "changes"])
       .default("checks"),
     after: memberIdentityIdSchema.optional(),
   })
@@ -21,7 +21,7 @@ export type InboxItem = {
   kind: "check" | "preparation";
 };
 export type InboxPage = {
-  source: "checks" | "preparation" | "saved" | "capture";
+  source: "checks" | "preparation" | "saved" | "capture" | "changes";
   items: InboxItem[];
   next: string | null;
   state: "available" | "paused" | "forbidden";
@@ -40,7 +40,11 @@ export async function readReviewInbox(
     state,
   });
   if (actor.role !== "parent") return empty("forbidden");
-  if (query.source === "saved" || query.source === "capture")
+  if (
+    query.source === "saved" ||
+    query.source === "capture" ||
+    query.source === "changes"
+  )
     return empty("available");
   const after = query.after ?? "";
   if (query.source === "checks") {

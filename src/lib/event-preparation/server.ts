@@ -1,3 +1,4 @@
+import { recordTimelineFactInTx } from "@/lib/review-inbox/timeline-fact";
 import { preparationReceiptMatches } from "./receipt-server";
 /** Owned claim -> current authority/source -> canonical effect + proof in one
  * transaction. Complete receipts replay without target reads or another clone. */
@@ -102,6 +103,14 @@ export async function writeEventPreparation(
       command,
       now,
     );
+    if (effect.planId || prepared.state || effect.created.length)
+      await recordTimelineFactInTx(
+        tx,
+        actor,
+        "preparation_changed",
+        { kind: "event", id: command.eventId },
+        now,
+      );
     const body = preparationReceipt.parse({
       receipt: {
         protocol: EVENT_PREPARATION_PROTOCOL,

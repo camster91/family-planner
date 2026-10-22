@@ -65,7 +65,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return { status: 200, body: { chore: { id, status: 'completed' }, alreadyCompleted: false } }
       }
 
-      const completed = await completeChore(prisma!, chore, accountMember!, { photoValue: null, now })
+      const completed = await completeChore(prisma!, chore, accountMember!, { photoValue: null, now, actorKind: "device" })
       if (!completed) {
         return { status: 200, body: { chore: { id, status: chore.status }, alreadyCompleted: true } }
       }

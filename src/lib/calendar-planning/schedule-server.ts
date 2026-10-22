@@ -1,3 +1,4 @@
+import { recordTimelineFactInTx } from "@/lib/review-inbox/timeline-fact";
 import { scheduleReviewWritingEnabled } from "./schedule-owner";
 import type { PrismaClient } from "@prisma/client";
 import { hashIdempotentRequest, type EffectResult } from "@/lib/idempotency";
@@ -90,6 +91,13 @@ export async function writeScheduleMove(
       start: command.start,
       end: command.end,
     });
+    await recordTimelineFactInTx(
+      tx,
+      actor,
+      "schedule_changed",
+      { kind: "event", id: command.target.id },
+      now,
+    );
     const body = scheduleReceipt.parse({
       receipt: {
         protocol: SCHEDULE_REVIEW_PROTOCOL,

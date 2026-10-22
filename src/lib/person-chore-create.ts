@@ -1,3 +1,4 @@
+import { recordTimelineFactInTx } from "@/lib/review-inbox/timeline-fact";
 /** Canonical account-assigned chore create. Effect and compact keyed receipt
  * commit together; replay never creates a second series or sends another notice.
  */
@@ -132,6 +133,10 @@ export async function createPersonChore(
           });
     if (input.frequency !== "once")
       await expandSeriesInTx(tx, created.id, actor.familyId);
+    await recordTimelineFactInTx(tx, actor, "chore_created", {
+      kind: "chore",
+      id: chore.id,
+    });
     const body = { choreId: chore.id };
     if (recordId)
       await tx.idempotencyRecord.update({

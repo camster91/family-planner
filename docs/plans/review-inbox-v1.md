@@ -479,3 +479,51 @@ Consolidated QA must inspect actual host/Back/failed-flush/retirement/rapid-inpu
 focus/native-bridge/process-loss paths and the known/unknown batch-refusal UX;
 source mechanisms do not establish those acceptance claims. Remaining role,
 routine provenance/history, authorized timeline and grounded-AI scope stays open.
+
+
+## What changed — 2026-10-22 source checkpoint
+
+The parent inbox has an explicit-refresh change-history view using canonical
+Activity and AuditLog. The new personal endpoint renews current actor generation,
+parent role and family under the existing user/household locks. No paired-device,
+child or teen reader is widened. The first successful projection binds the client
+controller's generation; later replacement requires reload. Blur/hidden/storage/
+identity or competing private-review changes cancel the bounded read and clear
+private results. A render-time identity/filter key masks stale state immediately.
+There is no timeline cache, background fetch/replay, new journal or second effect.
+
+Each source reads21 ordered candidates; the merged20-candidate page preserves DB
+ordering for timestamp ties and uses stream-aware timestamp/ID continuation.
+Raw-page continuation survives disabled/filtered-empty projections. Cursors are
+strict, bounded, canonical and filter-bound; family authority always comes from
+authentication. A one-year read horizon does not create a new deletion scheduler.
+The UI shows five rows, then a short next-window or older-page action. EN/ES fixed
+actions, current feature titles, actor/source/time and explicit unavailable/unknown
+links are authored; nothing calls an empty filtered page an all-clear.
+
+Only current same-family canonical targets may supply a title/link. Old stored
+activity text, audit summaries, arbitrary URLs, tokens, notes and provider output
+never enter this DTO. Handoff notes/sitter details are not selected. Profile-only
+chore links retain their capability gate; erased subjects have no link/title.
+Older or foreign references are never resolved by names. Tablet chore completion
+is marked by its server caller; ambiguous old completion rows say actor unknown
+rather than attributing the action to a selected subject. Audit tablet actors stay
+generic. Canonical record screens retain permission checks and supported reversal
+controls; no unsupported historical Undo is promised or implemented in the inbox.
+
+New content-minimal facts are written within account/profile chore create, recipe
+create, preparation review, schedule move and changed-responsibility transactions,
+before their receipt commits. Replay cannot duplicate them. Empty nonexistent
+preparation and unchanged responsibility do not manufacture content changes.
+Existing completion rows gain target and actual person/device markers. New private
+fact types are excluded from old Activity/Analytics surfaces; new markers are
+masked in the older member Activity DTO. Existing own-export/erasure remains the
+canonical lifecycle. This is app history, not content-bearing analytics telemetry.
+
+Read helper, two-household/role API, legacy-feed privacy, actor distinction,
+filtered-empty continuation and mounted five-row/generation cases are authored,
+all unrun. Existing transaction fixtures and atomic replay assertions are updated.
+No QA/runtime/DB/schema/native/provider/CI/activation/push/merge/deploy or issue
+closure is claimed. Broader routine/history facts and role/profile/shared readers,
+known-refusal recovery, grounded references/planning/evaluation/privacy-safe usage
+and the remaining ledger implementation still require follow-through before QA.

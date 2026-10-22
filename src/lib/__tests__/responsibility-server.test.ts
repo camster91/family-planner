@@ -57,6 +57,7 @@ const context: ResponsibilityContext = {
 };
 function fixture() {
   const tx = {
+    activity: { create: jest.fn(async () => ({ id: "fixture-activity" })) },
     $queryRaw: jest.fn(async () => []),
     idempotencyRecord: {
       findFirst: jest.fn(async () => ({

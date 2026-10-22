@@ -36,6 +36,7 @@ const en = {
   title: "Review inbox",
   intro:
     "Check current work and timing changes. Each item opens its normal review; nothing is approved here automatically.",
+  changes: "What changed",
   checks: "Parent checks",
   preparation: "Preparation timing",
   openChecks: "Open chore checks",
@@ -86,6 +87,7 @@ const es: typeof en = {
   title: "Bandeja de revisión",
   intro:
     "Revisa tareas y cambios de horario. Cada elemento abre su revisión habitual; aquí no se aprueba nada automáticamente.",
+  changes: "Qué cambió",
   checks: "Revisión de tareas",
   preparation: "Horario de preparativos",
   openChecks: "Abrir revisión de tareas",

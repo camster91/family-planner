@@ -1,3 +1,4 @@
+import { PRIVATE_TIMELINE_ACTIONS } from "@/lib/review-inbox/timeline-contract";
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       // Exclude legacy analytics rows (which share the Activity model). The
       // shared filter escapes the LIKE wildcard so real rows such as
       // `event_created` and `events_imported` stay in the feed.
-      type: { not: legacyAnalyticsTypeFilter() },
+      type: { not: legacyAnalyticsTypeFilter(), notIn: [...PRIVATE_TIMELINE_ACTIONS] },
     }
     if (before) {
       where.created_at = { lt: before }
@@ -57,7 +58,15 @@ export async function GET(request: NextRequest) {
       take: limit,
     })
 
-    return NextResponse.json({ activities })
+    // New read-proof/actor markers belong to the parent timeline, not the old
+    // all-member activity DTO. Older metadata remains compatible.
+    const publicActivities = activities.map(row => {
+      if (!row.metadata) return row;
+      try { if (JSON.parse(row.metadata)?.timeline === 1) return {...row, metadata: null}; }
+      catch { /* Existing malformed metadata is not a new timeline marker. */ }
+      return row;
+    })
+    return NextResponse.json({ activities: publicActivities }, {headers: {"Cache-Control": "private, no-store"}})
   } catch (error) {
     logRouteError('GET /api/activity', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

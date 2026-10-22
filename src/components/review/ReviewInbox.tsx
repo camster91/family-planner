@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import ChangeTimeline from "./ChangeTimeline";
 import SavedRequestsReview from "./SavedRequestsReview";
 import CaptureInboxReview from "./CaptureInboxReview";
 import * as React from "react";
@@ -39,18 +40,18 @@ export default function ReviewInbox({
         </p>
       </header>
       <nav aria-label={copy.title} className="flex flex-wrap gap-2">
-        {(["checks", "preparation", "saved", "capture"] as const).map(
-          (source) => (
-            <Link
-              key={source}
-              href={href(source)}
-              aria-current={source === page.source ? "page" : undefined}
-              className="btn-tinted min-h-11"
-            >
-              {copy[source]}
-            </Link>
-          ),
-        )}
+        {(
+          ["checks", "preparation", "saved", "capture", "changes"] as const
+        ).map((source) => (
+          <Link
+            key={source}
+            href={href(source)}
+            aria-current={source === page.source ? "page" : undefined}
+            className="btn-tinted min-h-11"
+          >
+            {copy[source]}
+          </Link>
+        ))}
       </nav>
       {(captureOpened === identityKey || page.source === "capture") && (
         <CaptureInboxReview
@@ -58,7 +59,9 @@ export default function ReviewInbox({
           active={page.source === "capture"}
         />
       )}
-      {page.source === "capture" ? null : page.source === "saved" ? (
+      {page.source === "changes" ? (
+        <ChangeTimeline key={identityKey} identity={identity} />
+      ) : page.source === "capture" ? null : page.source === "saved" ? (
         <SavedRequestsReview identity={identity} />
       ) : page.state === "paused" ? (
         <p role="status">{copy.paused}</p>

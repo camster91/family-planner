@@ -22,6 +22,7 @@ function fixture() {
     ReturnType<typeof prepareEventPreparationInTx>
   >;
   const tx = {
+    activity: { create: jest.fn(async () => ({ id: "fixture-activity" })) },
     $queryRaw: jest.fn(async () => [
       { id: actor.userId, role: "parent", token_version: actor.tokenVersion },
     ]),
@@ -98,6 +99,7 @@ it("creates fresh once-only canonical work and a minimal exact receipt, then rep
   expect(replay).toEqual(result);
   expect(prepareEventPreparationInTx).toHaveBeenCalledTimes(1);
   expect(tx.chore.create).toHaveBeenCalledTimes(1);
+  expect(tx.activity.create).toHaveBeenCalledTimes(1);
 });
 it("refuses stale source, no matching claim, wrong owner, paused writes and changed-token actor before canonical effects", async () => {
   for (const state of [

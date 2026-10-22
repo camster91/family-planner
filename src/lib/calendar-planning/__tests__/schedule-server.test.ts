@@ -77,6 +77,7 @@ const command = previewScheduleMove(
 );
 function fixture() {
   const tx = {
+    activity: { create: jest.fn(async () => ({ id: "fixture-activity" })) },
     $queryRaw: jest.fn(async () => []),
     idempotencyRecord: {
       findFirst: jest.fn(async () => ({
@@ -104,15 +105,13 @@ function fixture() {
     .mocked(openScheduleActorInTx)
     .mockResolvedValue({ role: "parent", features: defaultFeatures() });
   jest.mocked(prepareScheduleInTx).mockResolvedValue(prepared);
-  jest
-    .mocked(applyComparedScheduleMoveInTx)
-    .mockResolvedValue({
-      id: "event-a",
-      generation: prepared.compared[0].generation,
-      epoch: 1,
-      start: new Date(command.start),
-      end: new Date(command.end),
-    });
+  jest.mocked(applyComparedScheduleMoveInTx).mockResolvedValue({
+    id: "event-a",
+    generation: prepared.compared[0].generation,
+    epoch: 1,
+    start: new Date(command.start),
+    end: new Date(command.end),
+  });
   jest.mocked(scheduleReviewWritingEnabled).mockReturnValue(true);
   return { tx, db, prepared };
 }
@@ -186,12 +185,10 @@ it("refuses a paused writer, demoted actor and changed snapshot before any time 
   jest
     .mocked(openScheduleActorInTx)
     .mockResolvedValue({ role: "parent", features: defaultFeatures() });
-  jest
-    .mocked(prepareScheduleInTx)
-    .mockResolvedValue({
-      ...prepared,
-      snapshot: { ...snapshot, snapshotToken: "c".repeat(64) },
-    });
+  jest.mocked(prepareScheduleInTx).mockResolvedValue({
+    ...prepared,
+    snapshot: { ...snapshot, snapshotToken: "c".repeat(64) },
+  });
   await expect(
     writeScheduleMove(db, actor, command, key, "receipt-a", now),
   ).rejects.toMatchObject({ code: "STALE" });

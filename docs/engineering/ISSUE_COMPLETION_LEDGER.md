@@ -557,3 +557,17 @@ sign-out privacy cleanup stays separate. Focused helper/mounted cases are unrun;
 source is not Back, native bridge, process-loss, isolation or visual acceptance.
 Full QA/release and role/routine/timeline/grounded-AI work remain open. No flags,
 provider/DB/native/CI execution, push/merge/deploy or issue closure.
+
+
+### #123 / #499 authorized change timeline — 2026-10-22
+
+Parent-only What changed now reads existing Activity/AuditLog with current
+actor/session/household renewal, stable bounded cursors, canonical target links,
+five-row EN/ES windows and private projection clearing. Current record proof
+replaces historical private text/URLs; ambiguous/tablet subjects are not claimed
+as actors. New chore/recipe/preparation/schedule/responsibility facts commit with
+their existing canonical effects/receipts and stay out of older member feeds.
+Source/API/helper/component and replay/privacy cases are authored, all unrun.
+No activation/QA/merge/deploy/closure claim. Routine provenance/history, broader
+role/profile/shared readers, other history coverage, refusal UX and grounded AI
+references/planning/evaluation/usage remain open; full goal remains active.

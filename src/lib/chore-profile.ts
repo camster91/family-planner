@@ -1,3 +1,4 @@
+import { recordTimelineFactInTx } from "@/lib/review-inbox/timeline-fact";
 import type { RoutineOccurrencePolicy } from "@/lib/routine-occurrence-policy";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { EffectResult } from "@/lib/idempotency";
@@ -487,6 +488,13 @@ export async function createProfileOnlyChoreInTx(
     subject,
     created_at: now,
   });
+  await recordTimelineFactInTx(
+    tx,
+    { userId: actor.id, familyId: actor.familyId },
+    "chore_created",
+    { kind: "chore", id: chore.id },
+    now,
+  );
   const body = options.compactReceipt ? { choreId: chore.id } : { chore: dto };
   if (recordId) {
     await tx.idempotencyRecord.update({

@@ -1,3 +1,4 @@
+import { recordTimelineFactInTx } from "@/lib/review-inbox/timeline-fact";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { hashIdempotentRequest, type EffectResult } from "@/lib/idempotency";
 import {
@@ -105,6 +106,14 @@ export async function writeResponsibility(
         planned.state,
         command.expectedRevision,
         opened.current?.id ?? null,
+      );
+    if (planned.changed)
+      await recordTimelineFactInTx(
+        tx,
+        actor,
+        "responsibility_changed",
+        command.target,
+        now,
       );
     const body = responsibilityReceipt.parse({
       receipt: {
