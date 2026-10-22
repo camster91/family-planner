@@ -1,5 +1,23 @@
 # Current State
 
+## Implementation-first handoff to consolidated web QA — 2026-10-22
+
+The scoped approved web flows now have connected source paths: owned capture/
+recipe drafts and exact recovery; role/profile/shared projections; routine copy
+provenance/editor/history; inbox and authorized timeline; grounded references/
+canonical food planning/confirmation; private usage/feedback/evaluation; aligned
+contextual web discovery. The requirement-to-code/QA map is
+`docs/engineering/WEB_IMPLEMENTATION_HANDOFF.md`. Earlier initial-code gaps below
+are historical checkpoints, not evidence those paths are still absent.
+
+This is implementation handoff, not verified correctness or completion. The next
+phase is consolidated local generation/types/lint/unit/build, then disposable-DB/
+compatibility/concurrency and rendered role/state/locale/accessibility checks.
+Repairs are expected if checks expose gaps. No check, flag activation, push, merge
+or deployment is claimed by this handoff; the full goal remains active through
+verification and authorized release. Native/store/hardware/provider/customer
+acceptance and gated external decisions remain distinct in existing issues.
+
 ## Versioned AI evaluation code and source reconciliation — 2026-10-22
 
 The canonical AI contract evaluator now has fifteen fabricated cases with fixed

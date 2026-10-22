@@ -819,3 +819,12 @@ routine-copy provenance/editor/history projection and timeline support exist;
 earlier initial-code gaps in historical checkpoints are not current evidence of
 absence. Full-source/issue reconciliation and all runtime/DB/provider/browser/
 release acceptance remain. No checks, provider/flag/push/merge/deploy or closure.
+
+### 2026-10-22 — implementation-first web handoff
+
+`WEB_IMPLEMENTATION_HANDOFF.md` maps each active web-goal requirement to connected
+canonical code paths and its required consolidated acceptance. Initial source is
+ready to enter generation/types/lint/unit/build and later disposable-DB/rendered
+QA. This is not passing evidence or issue closure. Any discovered implementation
+failure is repaired before final release checks; full goal/acceptance and external
+native/provider/operator/customer boundaries remain unchanged.

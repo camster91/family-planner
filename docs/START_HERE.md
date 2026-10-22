@@ -37,6 +37,8 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 
 ## Engineering references
 
+- Current implementation-to-QA handoff: `docs/engineering/WEB_IMPLEMENTATION_HANDOFF.md` (source coverage only; runtime acceptance and release remain).
+
 - AI evaluation source/observation contract (#144): `docs/testing/AI_EVALUATION.md` (versioned builders/fixtures authored; no evaluation or provider run claimed).
 
 - Canonical bulk draft/action recovery (#123/#144): `docs/plans/meal-prep-recovery-v1.md` (contracts/endpoints/browser journal, panel-owned controller and bulk form/discovery/recovery source authored; parent inbox/personal weekly discovery source also authored; broader chat/provider coordination and all acceptance remain).
