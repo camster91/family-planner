@@ -294,4 +294,15 @@ describe("POST /api/capture — a family's own base URL is fetched with DNS pinn
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/public address/i);
   });
+  // Authored/unrun post-provider owner-renewal boundary.
+  it("withholds a draft after the actor moves household during extraction", async () => {
+    mockAuth.mockResolvedValueOnce([{payload:{userId:parentA.id},user:parentA},null])
+      .mockResolvedValueOnce([{payload:{userId:parentA.id},user:{...parentA,family_id:"family-B"}},null]);
+    const response=await POST(makeRequest({text:"Dentist tomorrow"}));
+    expect(response.status).toBe(409);
+    const body=await response.json();
+    expect(body.draft).toBeUndefined();
+    expect(body.code).toBe("CAPTURE_SOURCE_CHANGED");
+  });
+
 });

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import SavedRequestsReview from "./SavedRequestsReview";
+import CaptureInboxReview from "./CaptureInboxReview";
 import * as React from "react";
 import type { InboxPage } from "@/lib/review-inbox/read";
 import { useReviewInboxText } from "@/i18n/review-inbox";
@@ -19,6 +20,13 @@ export default function ReviewInbox({
 }) {
   const copy = useReviewInboxText();
   const [window, setWindow] = React.useState(0);
+  const identityKey = JSON.stringify([identity.userId, identity.familyId]);
+  const [captureOpened, setCaptureOpened] = React.useState<string | null>(
+    page.source === "capture" ? identityKey : null,
+  );
+  React.useEffect(() => {
+    if (page.source === "capture") setCaptureOpened(identityKey);
+  }, [page.source, identityKey]);
   React.useEffect(() => setWindow(0), [page]);
   const shown = page.items.slice(window, window + 5);
   if (page.state === "forbidden") return null;
@@ -31,18 +39,26 @@ export default function ReviewInbox({
         </p>
       </header>
       <nav aria-label={copy.title} className="flex flex-wrap gap-2">
-        {(["checks", "preparation", "saved"] as const).map((source) => (
-          <Link
-            key={source}
-            href={href(source)}
-            aria-current={source === page.source ? "page" : undefined}
-            className="btn-tinted min-h-11"
-          >
-            {copy[source]}
-          </Link>
-        ))}
+        {(["checks", "preparation", "saved", "capture"] as const).map(
+          (source) => (
+            <Link
+              key={source}
+              href={href(source)}
+              aria-current={source === page.source ? "page" : undefined}
+              className="btn-tinted min-h-11"
+            >
+              {copy[source]}
+            </Link>
+          ),
+        )}
       </nav>
-      {page.source === "saved" ? (
+      {(captureOpened === identityKey || page.source === "capture") && (
+        <CaptureInboxReview
+          key={identityKey}
+          active={page.source === "capture"}
+        />
+      )}
+      {page.source === "capture" ? null : page.source === "saved" ? (
         <SavedRequestsReview identity={identity} />
       ) : page.state === "paused" ? (
         <p role="status">{copy.paused}</p>

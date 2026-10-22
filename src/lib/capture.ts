@@ -15,6 +15,7 @@
 // If neither is set, capture reports itself unavailable and the rest of the app
 // is unaffected.
 
+import { captureTextReview, capturePhotoReview, type CaptureTextReview, type CapturePhotoReview, type CaptureEventReview } from './capture-review-contract'
 import { decryptSecret } from './secret-box'
 import { assertPublicProviderUrl } from './outbound-url'
 import { isUnsafeAddressError, safeFetch } from './safe-fetch'
@@ -53,17 +54,7 @@ export interface CaptureConfig {
 
 export type CaptureKind = 'event' | 'task' | 'listitem'
 
-export interface CaptureDraft {
-  kind: CaptureKind
-  title: string
-  start_time?: string // ISO, events/tasks
-  end_time?: string // ISO, optional
-  location?: string
-  event_type?: 'school' | 'sports' | 'appointment' | 'family' | 'work' | 'other'
-  list_name?: string // for listitem
-  confidence: 'high' | 'medium' | 'low'
-  note?: string // shown to the user when the model is unsure
-}
+export type CaptureDraft = CaptureTextReview
 
 // Per-family row shape we need from the database. Kept structural so this file
 // does not import prisma directly.
@@ -308,42 +299,15 @@ export async function draftFromText(text: string, config: CaptureConfig): Promis
     SYSTEM_PROMPT
   )
 
-  const d = parsed as Partial<CaptureDraft>
-  if (!d || typeof d.title !== 'string' || !d.title.trim()) {
-    throw new CaptureError('The AI provider returned no usable title')
-  }
-
-  const kinds: CaptureKind[] = ['event', 'task', 'listitem']
-  const kind = kinds.includes(d.kind as CaptureKind) ? (d.kind as CaptureKind) : 'event'
-
-  return {
-    kind,
-    title: d.title.trim().slice(0, 200),
-    start_time: d.start_time || undefined,
-    end_time: d.end_time || undefined,
-    location: d.location || undefined,
-    event_type: d.event_type || 'other',
-    list_name: d.list_name || undefined,
-    confidence: d.confidence === 'high' || d.confidence === 'medium' ? d.confidence : 'low',
-    note: d.note || undefined,
-  }
+  const result = captureTextReview.safeParse(parsed)
+  if (!result.success) throw new CaptureError('The AI provider returned an unsupported draft. Please try again.')
+  return result.data
 }
 
 // Screenshot capture: read a flyer/timetable image and extract its events.
 // Returns proposals only — nothing is saved here.
-export interface ImageEventProposal {
-  title: string
-  start_time?: string
-  end_time?: string
-  location?: string
-  event_type?: 'school' | 'sports' | 'appointment' | 'family' | 'work' | 'other'
-}
-
-export interface ImageCaptureResult {
-  events: ImageEventProposal[]
-  confidence: 'high' | 'medium' | 'low'
-  note?: string
-}
+export type ImageEventProposal = CaptureEventReview
+export type ImageCaptureResult = CapturePhotoReview
 
 export async function draftFromImage(
   base64: string,
@@ -370,25 +334,9 @@ export async function draftFromImage(
     IMAGE_PROMPT
   )
 
-  const d = parsed as Partial<ImageCaptureResult>
-  const rawEvents = Array.isArray(d?.events) ? d.events : []
-
-  const events: ImageEventProposal[] = rawEvents
-    .filter((e) => e && typeof e.title === 'string' && e.title.trim())
-    .slice(0, 20)
-    .map((e) => ({
-      title: e.title.trim().slice(0, 200),
-      start_time: e.start_time || undefined,
-      end_time: e.end_time || undefined,
-      location: e.location || undefined,
-      event_type: e.event_type || 'other',
-    }))
-
-  return {
-    events,
-    confidence: d?.confidence === 'high' || d?.confidence === 'medium' ? d.confidence : 'low',
-    note: d?.note || undefined,
-  }
+  const result = capturePhotoReview.safeParse(parsed)
+  if (!result.success) throw new CaptureError('The AI provider returned unsupported events. Please try again.')
+  return result.data
 }
 
 

@@ -1,5 +1,14 @@
 import { useTranslation } from "@/i18n";
 const en = {
+  leaveCapture:
+    "Opening Recipes will leave this unfinished preview. Saved requests stay available. Leave this preview?",
+  capture: "Quick add reviews",
+  captureHint:
+    "Review notices and quick-add suggestions here, or check earlier saved requests. Adding anything still needs your confirmation.",
+  recipeDrafts: "Review recipe imports",
+  recipeHint:
+    "Recipe imports open in Meals, where you can edit the extracted recipe, check unknown details and review duplicates before saving.",
+  loadingReview: "Opening review…",
   saved: "Saved requests",
   schedule: "Schedule changes",
   savedType: "Type of saved request",
@@ -33,9 +42,18 @@ const en = {
   more: "There may be more to review. Check the next page.",
   paused: "Preparation review is not available yet.",
   scope:
-    "This inbox currently includes chore checks and changed event preparation. Extracted notices and recipe drafts still use their existing review screens.",
+    "This inbox currently includes chore checks and changed event preparation. Quick add uses its existing review and recovery controls here; recipe imports open in Meals.",
 };
 const es: typeof en = {
+  leaveCapture:
+    "Abrir Recetas dejará este borrador sin terminar. Las solicitudes guardadas se conservan. ¿Salir del borrador?",
+  capture: "Revisar captura rápida",
+  captureHint:
+    "Revisa avisos y sugerencias o consulta solicitudes guardadas. Para añadir algo debes confirmarlo.",
+  recipeDrafts: "Revisar recetas importadas",
+  recipeHint:
+    "Las importaciones se abren en Comidas para editar la receta, revisar datos desconocidos y duplicados antes de guardar.",
+  loadingReview: "Abriendo revisión…",
   saved: "Solicitudes guardadas",
   schedule: "Cambios de horario",
   savedType: "Tipo de solicitud guardada",
@@ -69,7 +87,7 @@ const es: typeof en = {
   more: "Quedan registros por consultar. Continúa a la página siguiente.",
   paused: "La revisión de preparativos aún no está disponible.",
   scope:
-    "Esta bandeja incluye revisiones de tareas y cambios de preparativos. Los avisos extraídos y borradores de recetas mantienen sus pantallas de revisión actuales.",
+    "Esta bandeja incluye revisiones de tareas y cambios de preparativos. La captura rápida usa aquí sus controles habituales de revisión y recuperación; las recetas importadas se abren en Comidas.",
 };
 export function useReviewInboxText() {
   return useTranslation().locale === "es" ? es : en;

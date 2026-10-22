@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { captureTextReview, capturePhotoReview, type CaptureTextReview, type CaptureEventReview } from '@/lib/capture-review-contract'
 import { Sparkles, Loader2, Check, X, ListPlus, CalendarDays, ClipboardList, Camera } from 'lucide-react'
 import { CAPTURE_CHILD_MESSAGE } from '@/lib/role-capabilities'
 import { newIdempotencyKey } from '@/lib/idempotency-key'
@@ -32,28 +33,9 @@ function toInstant(value: string | undefined): string | undefined {
 // Small, focused capture box. One input. Type a phrase, confirm what it understood.
 // Deliberately not a chat: there is no conversation, no history, one job.
 
-type DraftKind = 'event' | 'task' | 'listitem'
-
-interface Draft {
-  kind: DraftKind
-  title: string
-  start_time?: string
-  end_time?: string
-  location?: string
-  event_type?: string
-  list_name?: string
-  confidence: 'high' | 'medium' | 'low'
-  note?: string
-}
-
-// A proposed event extracted from a photo. Same shape as a draft minus the kind.
-interface PhotoEvent {
-  title: string
-  start_time?: string
-  end_time?: string
-  location?: string
-  event_type?: string
-}
+type DraftKind = CaptureTextReview['kind']
+type Draft = CaptureTextReview
+type PhotoEvent = CaptureEventReview
 
 class CaptureClientError extends Error {
   constructor(readonly key: CaptureMessage) {
@@ -162,6 +144,7 @@ export function CaptureBox({
   open = true,
   onClose,
   onAvailabilityChange,
+  onDraftStateChange,
 }: {
   /** Called after anything is saved, so the host page can re-request its data. */
   onSaved?: () => void
@@ -171,6 +154,8 @@ export function CaptureBox({
   open?: boolean
   /** Called by the shared Dialog when the sheet can be dismissed. */
   onClose?: () => void
+  /** Boolean only: lets an inbox host protect navigation without copying draft content. */
+  onDraftStateChange?: (pending: boolean) => void
   /** Reports the server-side setup/role gate to a launcher host. */
   onAvailabilityChange?: (availability: CaptureAvailability) => void
 } = {}) {
@@ -199,7 +184,10 @@ export function CaptureBox({
   const [childBlocked, setChildBlocked] = React.useState(false)
   const [photoBusy, setPhotoBusy] = React.useState(false)
   const [photoEvents, setPhotoEvents] = React.useState<PhotoEvent[] | null>(null)
+  React.useEffect(() => { onDraftStateChange?.(draft !== null || (photoEvents?.length ?? 0) > 0) }, [draft, photoEvents, onDraftStateChange])
   const [photoNote, setPhotoNote] = React.useState<string | null>(null)
+  const [photoOffset, setPhotoOffset] = React.useState(0)
+  React.useEffect(() => setPhotoOffset(0), [photoEvents])
   const [recoveryOperations, setRecoveryOperations] = React.useState<CaptureRecoveryEnvelope[]>([])
   const [recoveryBusyKey, setRecoveryBusyKey] = React.useState<string | null>(null)
   const [recoveryMessage, setRecoveryMessage] = React.useState<string | null>(null)
@@ -217,6 +205,8 @@ export function CaptureBox({
   const retiredOperationKeys = React.useRef(new Set<string>())
   const photoEventsRef = React.useRef<PhotoEvent[] | null>(null)
   const photoWorkRef = React.useRef(0)
+  const captureWorkRef = React.useRef(0)
+  React.useEffect(() => () => { captureWorkRef.current++; photoWorkRef.current++ }, [])
   const textInputRef = React.useRef<HTMLInputElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const inSheet = presentation === 'sheet'
@@ -226,6 +216,10 @@ export function CaptureBox({
   const operations = React.useRef(new WeakMap<object, { key: string; at: number; body?: string }>())
   const clearRecoveryBoundary = React.useCallback((userId?: string, familyId?: string): boolean => {
     const knownIdentity = recoveryIdentity.current
+    captureWorkRef.current++
+    photoWorkRef.current++
+    setBusy(false)
+    setPhotoBusy(false)
     recoveryMutationReady.current = false
     recoveryRows.current.clear()
     operationProposals.current.clear()
@@ -627,29 +621,37 @@ export function CaptureBox({
   async function interpret() {
     const phrase = text.trim()
     if (!phrase) return
+    const workId = ++captureWorkRef.current
+    const current = () => captureWorkRef.current === workId
     setBusy(true)
     recoveryErrorKind.current = null
     setError(null)
     setSaved(null)
-    setDraft(null)
     try {
       const res = await fetch('/api/capture', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: phrase }),
       })
+      if (!current()) return
       if (res.status === 401 || res.status === 403) {
         revokeCaptureAccess()
         throw new CaptureClientError('recoveryAccessUnavailable')
       }
       const data = await res.json()
+      if (!current()) return
       if (!res.ok) throw new Error(data.error || msg('couldNotRead'))
-      setDraft(data.draft)
+      const parsed = captureTextReview.safeParse(data?.draft)
+      if (!parsed.success) throw new CaptureClientError('couldNotRead')
+      setPhotoEvents(null)
+      setPhotoNote(null)
+      setDraft(parsed.data)
     } catch (e) {
+      if (!current()) return
       recoveryErrorKind.current = recoveryBoundaryErrorKind(e)
       setError(localizeError(e, 'couldNotRead'))
     } finally {
-      setBusy(false)
+      if (current()) setBusy(false)
     }
   }
 
@@ -690,13 +692,11 @@ export function CaptureBox({
   // Read a photo/screenshot and propose the events it contains.
   async function interpretPhoto(file: File) {
     const workId = ++photoWorkRef.current
+    const current = () => photoWorkRef.current === workId
     setPhotoBusy(true)
     recoveryErrorKind.current = null
     setError(null)
     setSaved(null)
-    setDraft(null)
-    setPhotoEvents(null)
-    setPhotoNote(null)
     try {
       // Downscale before sending: keeps the upload small and the cost low.
       // A phone photo is several MB; the model does not need that detail.
@@ -706,21 +706,27 @@ export function CaptureBox({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: base64, mimeType }),
       })
+      if (!current()) return
       if (res.status === 401 || res.status === 403) {
         revokeCaptureAccess()
         throw new CaptureClientError('recoveryAccessUnavailable')
       }
       const data = await res.json()
+      if (!current()) return
       if (!res.ok) throw new Error(data.error || msg('couldNotReadPhoto'))
-      const events: PhotoEvent[] = data?.image?.events || []
-      setPhotoEvents(events)
-      setPhotoNote(data?.image?.note ?? null)
+      const parsed = capturePhotoReview.safeParse(data?.image)
+      if (!parsed.success) throw new CaptureClientError('couldNotReadPhoto')
+      if (photoWorkRef.current !== workId) return
+      setDraft(null)
+      setPhotoEvents(parsed.data.events)
+      setPhotoNote(parsed.data.note ?? null)
     } catch (e) {
+      if (!current()) return
       recoveryErrorKind.current = recoveryBoundaryErrorKind(e)
       setError(localizeError(e, 'couldNotReadPhoto'))
     } finally {
       if (photoWorkRef.current === workId) setPhotoBusy(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      if (current() && fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -1050,14 +1056,14 @@ export function CaptureBox({
 
           {photoEvents.length > 0 && (
             <ul className="space-y-2">
-              {photoEvents.map((ev, i) => (
-                <li key={i} className="flex items-start gap-2">
+              {photoEvents.slice(photoOffset, photoOffset + 5).map((ev, i) => (
+                <li key={photoOffset + i} className="flex items-start gap-2">
                   <button
                     className="btn-plain -my-2 min-h-[44px] min-w-[44px] p-1 shrink-0"
                     aria-label={msg('removeEvent', { title: ev.title })}
                     disabled={photoBusy}
                     onClick={() =>
-                      setPhotoEvents((prev) => (prev ? prev.filter((_, j) => j !== i) : prev))
+                      setPhotoEvents((prev) => (prev ? prev.filter(current => current !== ev) : prev))
                     }
                   >
                     <X className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1073,6 +1079,14 @@ export function CaptureBox({
               ))}
             </ul>
           )}
+
+          {photoEvents.length > 5 && <div className="mt-3 space-y-2">
+            <p className="text-footnote text-label-secondary" role="status">{msg('reviewWindow', { start: photoOffset + 1, end: Math.min(photoOffset + 5, photoEvents.length), total: photoEvents.length })}</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="btn-plain min-h-[44px]" disabled={photoOffset === 0 || photoBusy || busy} onClick={() => setPhotoOffset(value => Math.max(0, value - 5))}>{msg('previousPreview')}</button>
+              <button type="button" className="btn-plain min-h-[44px]" disabled={photoOffset + 5 >= photoEvents.length || photoBusy || busy} onClick={() => setPhotoOffset(value => value + 5)}>{msg('nextPreview')}</button>
+            </div>
+          </div>}
 
           {photoNote && (
             <p className="text-footnote text-label-secondary mt-2">{photoNote}</p>

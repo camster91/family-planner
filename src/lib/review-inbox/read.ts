@@ -9,7 +9,9 @@ import { eventPreparationStorageAvailable } from "@/lib/event-preparation/storag
 import { scheduleEventToken } from "@/lib/calendar-planning/schedule-source";
 export const inboxQuery = z
   .object({
-    source: z.enum(["checks", "preparation", "saved"]).default("checks"),
+    source: z
+      .enum(["checks", "preparation", "saved", "capture"])
+      .default("checks"),
     after: memberIdentityIdSchema.optional(),
   })
   .strict();
@@ -19,7 +21,7 @@ export type InboxItem = {
   kind: "check" | "preparation";
 };
 export type InboxPage = {
-  source: "checks" | "preparation" | "saved";
+  source: "checks" | "preparation" | "saved" | "capture";
   items: InboxItem[];
   next: string | null;
   state: "available" | "paused" | "forbidden";
@@ -38,7 +40,8 @@ export async function readReviewInbox(
     state,
   });
   if (actor.role !== "parent") return empty("forbidden");
-  if (query.source === "saved") return empty("available");
+  if (query.source === "saved" || query.source === "capture")
+    return empty("available");
   const after = query.after ?? "";
   if (query.source === "checks") {
     const rows = await db.$queryRaw<

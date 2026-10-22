@@ -1,5 +1,54 @@
 # Current State
 
+## Canonical capture review inbox host and normalized drafts — 2026-10-21
+
+The parent inbox has a Quick add reviews pane that lazily mounts the existing
+CaptureBox only after that category is opened. This is the actual domain editor
+and receipt recovery, not a second read-only adapter that prunes legacy data just
+to count it. Existing setup/role/private-session checks and exact canonical sends
+remain authoritative. No provider call occurs merely to open the pane. Normal
+legacy capture initialization still runs its existing local recovery housekeeping.
+
+Once opened, its in-memory draft stays mounted while switching inbox categories
+or beneath preparation/schedule/responsibility overlays. A user/household identity
+key resets the host before another identity can inherit the old form. The recipe
+handoff opens the existing Meals explorer/import editor with its current unknown-
+servings/source/duplicate review. The handoff warns before leaving an unfinished
+capture preview; it does not copy form content or pretend it is durable. Other
+route exits/reloads and full owned draft navigation protection still need work.
+
+One browser-safe strict capture review schema now owns normalized text/photo
+proposal types for server and client. Null provider optional fields remain unknown;
+missing confidence is conservatively low. Unsupported kinds/types/timestamps,
+private extra fields, overlong text and >20-event batches are refused rather than
+silently guessed, truncated, filtered or rendered as an empty batch. Syntax/Date
+parse checks do not prove named-zone DST validity or semantic source accuracy;
+existing canonical confirmation remains required. Recipe's existing typed preview
+contract/editor stays canonical; no duplicate parser is introduced.
+
+Failed replacement extraction keeps the previous typed/photo draft and note.
+Only valid success replaces it. Generation guards suppress late extraction
+responses after revocation/unmount; post-provider server renewal rechecks original
+actor/token/role/household and provider configuration before returning proposals.
+Changed access/configuration withholds the result. Credentials compare in memory
+only. No canonical record or receipt is created by extraction. Source/photo result
+accuracy and injection resistance still require the deferred evaluation pass.
+
+Photo review displays five remaining proposals at a time, preserves actual object
+identity/removal and original exact pending keys, and explicitly says Add covers
+all remaining events, including other pages. Confirmation still uses the original
+whole remaining batch; no duplicated or alternative canonical write path is added.
+EN/ES pagination, scope, draft-warning and handoff copy are authored.
+
+Normalized malformed/null/bounds/privacy cases, failed-replacement preservation,
+post-provider household change and inbox pane/identity case code are authored,
+all unrun. Only source inspection/edits and selected-file formatting. No tests/
+typecheck/lint/build/browser/rendered/API/native/schema/SQL/DB/client/CI,
+activation or push/merge/deploy occurred. Unsent drafts are still in memory:
+durable owned capture/recipe draft persistence, exact submission/unknown-result
+lifecycle, wider role/device views, grounded references/evaluation and other ledger
+scope remain. QA stays deferred; #123/#144/#499 and the full goal remain open.
+
 ## Responsibility saved-request discovery and paused host source — 2026-10-21
 
 The parent inbox saved-request adapter now includes responsibility/backup commands.

@@ -78,6 +78,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
 
+    async function proposalReply(body: unknown) {
+      const [current, refusal] = await authenticateWithFamily(request)
+      if (refusal) { refusal.headers.set('Cache-Control', 'private, no-store'); return refusal }
+      if (current.user.id !== auth.user.id || current.user.family_id !== auth.user.family_id || current.user.role !== auth.user.role || (current.payload?.tv ?? 0) !== (auth.payload?.tv ?? 0) || !canUseCapture(current.user.role)) {
+        return NextResponse.json({ error: 'Your account or household changed. Please try again.', code: 'CAPTURE_SOURCE_CHANGED' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+      }
+      const latest = await prisma!.family.findUnique({ where: { id: current.user.family_id }, select: { capture_ai_key_enc: true, capture_ai_base_url: true, capture_ai_model: true } })
+      const latestConfig = resolveCaptureConfig(latest)
+      // Credentials stay in memory: never log the differing values.
+      if (!latest || !latestConfig || JSON.stringify(latestConfig) !== JSON.stringify(config)) return NextResponse.json({ error: 'Capture settings changed. Please try again.', code: 'CAPTURE_SOURCE_CHANGED' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+      return NextResponse.json(body, { headers: { 'Cache-Control': 'private, no-store' } })
+    }
+
     // Image path: extract several events from a photo/screenshot.
     if (typeof body?.imageBase64 === 'string' && body.imageBase64) {
       if (body.imageBase64.length > MAX_IMAGE_BASE64_LENGTH) {
@@ -88,7 +101,7 @@ export async function POST(request: NextRequest) {
           ? body.mimeType
           : 'image/jpeg'
       const result = await draftFromImage(body.imageBase64, mimeType, config)
-      return NextResponse.json({ image: result })
+      return await proposalReply({ image: result })
     }
 
     // Text path: one phrase, one draft.
@@ -98,7 +111,7 @@ export async function POST(request: NextRequest) {
     }
 
     const draft = await draftFromText(text, config)
-    return NextResponse.json({ draft })
+    return await proposalReply({ draft })
   } catch (error) {
     // Only messages written for users are returned; anything else (network
     // errors, DNS failures) stays in the server log.

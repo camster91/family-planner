@@ -1149,3 +1149,29 @@ it('keeps a logical refusal when forbidden-role recovery purge cannot be confirm
     Storage.prototype.removeItem = originalRemoveItem
   }
 })
+
+// Authored/unrun: a replacement parse failure must not erase the reviewed draft.
+it('keeps the existing typed draft when a later extraction is malformed', async () => {
+  mockFetch(() => 201)
+  const baseFetch = global.fetch
+  let previews = 0
+  global.fetch = jest.fn(async (input, init) => {
+    if (String(input) === '/api/capture' && init?.method === 'POST') {
+      previews++
+      if (previews > 1) return json(200, { draft: { kind: 'unexpected', title: { private: 'not text' } } })
+    }
+    return baseFetch(input, init)
+  }) as typeof fetch
+  render(<CaptureBox />)
+  const user = userEvent.setup()
+  const input = screen.getByLabelText(captureEnglish.captureInputLabel)
+  await user.type(input, 'Dentist Tuesday')
+  await user.click(screen.getByRole('button', { name: captureEnglish.readIt }))
+  expect(await screen.findByText('Dentist')).toBeVisible()
+  await user.clear(input)
+  await user.type(input, 'Another notice')
+  await user.click(screen.getByRole('button', { name: captureEnglish.readIt }))
+  await screen.findByText(captureEnglish.couldNotRead)
+  expect(screen.getByText('Dentist')).toBeVisible()
+  expect((global.fetch as jest.Mock).mock.calls.some(([url]) => String(url) === '/api/events')).toBe(false)
+})

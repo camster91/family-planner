@@ -1,5 +1,7 @@
 /** Static capture-recovery controls. Titles and saved content remain verbatim. */
 export const captureEnglish = {
+  reviewWindow: 'Showing {start}–{end} of {total}. Add includes all remaining events.',
+  previousPreview: 'Previous events', nextPreview: 'Next events',
   openQuickAdd: "Open quick add",
   availabilityRetry:
     "Quick add could not connect. Try again when you have a connection.",
@@ -97,6 +99,8 @@ export const captureEnglish = {
 export type CaptureMessage = keyof typeof captureEnglish;
 
 export const captureSpanish: Record<CaptureMessage, string> = {
+  reviewWindow: 'Mostrando {start}–{end} de {total}. Añadir incluye todos los eventos restantes.',
+  previousPreview: 'Eventos anteriores', nextPreview: 'Eventos siguientes',
   openQuickAdd: "Abrir adición rápida",
   availabilityRetry:
     "No se pudo conectar la adición rápida. Inténtalo de nuevo cuando tengas conexión.",
