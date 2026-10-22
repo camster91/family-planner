@@ -41,9 +41,9 @@ const provenance = {
   unknowns: ["servings"],
   evaluatedAt: null,
 };
-function fixture() {
+function fixture(domain: "recipe" | "capture" = "recipe") {
   let value: string | null = null;
-  let context = baseContext;
+  let context = { ...baseContext, domain };
   let now = 100000;
   let throwAfterWrite = false;
   const storage: QueueStore = {
@@ -110,6 +110,101 @@ function fixture() {
   };
 }
 describe("owned review documents", () => {
+  it("keeps every original capture request after partial success and an unknown result", async () => {
+    const f = fixture("capture"),
+      store = f.build();
+    await store.initialize();
+    const rows = ["first", "second"].map((clientId) => ({
+      clientId,
+      kind: "event" as const,
+      title: clientId,
+      startTime: "2026-10-21T12:00:00Z",
+      endTime: "",
+      location: "",
+      eventType: "other",
+      listName: "",
+      quantity: "1",
+    }));
+    const document = newReviewDocument(
+      baseContext,
+      { domain: "capture", rows, note: "" },
+      { ...provenance, source: "photo-review", sourceUrl: null },
+      100000,
+    );
+    const editable = await store.begin(documentKey, document);
+    const requests = rows.map((row) => ({
+      key: `fixture_${row.clientId}_request`,
+      action: "event.create" as const,
+      body: JSON.stringify({ title: row.title, start_time: row.startTime }),
+    }));
+    const frozen = await store.freeze(documentKey, editable.body, requests);
+    const send = jest.fn(async () => {
+      throw new Error("fixture reply lost");
+    });
+    await store.sendExact(
+      documentKey,
+      frozen.body,
+      requests[0].key,
+      async () => ({ state: "committed", current: "present" }),
+      send,
+    );
+    expect(send).not.toHaveBeenCalled();
+    await expect(
+      store.sendExact(
+        documentKey,
+        frozen.body,
+        requests[1].key,
+        async () => ({ state: "absent" }),
+        send,
+      ),
+    ).rejects.toThrow("fixture reply lost");
+    const restored = f.build();
+    await restored.initialize();
+    expect((await restored.read(documentKey)).entry.body).toBe(frozen.body);
+    const retry = jest.fn(async () => "checked");
+    await restored.sendExact(
+      documentKey,
+      frozen.body,
+      requests[1].key,
+      async () => ({ state: "absent" }),
+      retry,
+    );
+    expect(retry).toHaveBeenCalledWith(
+      requests[1],
+      expect.objectContaining({ domain: "capture" }),
+    );
+    expect((await restored.read(documentKey)).entry.body).toBe(frozen.body);
+  });
+  it("only retires a removed committed result after explicit acknowledgement", async () => {
+    const f = fixture(),
+      store = f.build();
+    await store.initialize();
+    const editable = await store.begin(documentKey, f.draft());
+    const frozen = await store.freeze(documentKey, editable.body, requests);
+    expect(
+      await store.retireConfirmed(documentKey, frozen.body, async () => ({
+        state: "committed",
+        current: "removed",
+      })),
+    ).toBe(false);
+    expect(
+      await store.retireConfirmed(
+        documentKey,
+        frozen.body,
+        async () => ({ state: "committed", current: "unknown" }),
+        { acknowledgeRemoved: true },
+      ),
+    ).toBe(false);
+    expect(
+      await store.retireConfirmed(
+        documentKey,
+        frozen.body,
+        async () => ({ state: "committed", current: "removed" }),
+        { acknowledgeRemoved: true },
+      ),
+    ).toBe(true);
+  });
+
   it("does not adopt another controller's write during an ordinary refresh", async () => {
     const f = fixture(),
       first = f.build(),

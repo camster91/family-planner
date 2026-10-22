@@ -522,3 +522,15 @@ chore handoff is currently manual. Capture's owned host/automatic chore handoff,
 full navigation, role/routine/timeline/AI scope and consolidated QA remain open.
 See `docs/plans/review-inbox-v1.md` dated checkpoint. Cases authored/unrun; no
 activation, push/merge/deploy or closure claim.
+
+
+### #123 / #499 owned capture source — 2026-10-22
+
+The owned capture host, normalized extraction handoff, full editable fields,
+provider-off recovery/manual rows, whole-batch freezing, exact partial/unknown
+retry, current-record proof and acknowledged removed-result finish are authored.
+Legacy envelopes stay in a separate original recovery-only pane. Hidden hosts
+release navigation ownership; current person/family/role and source epochs renew.
+Helper, partial-batch storage and owned UI cases are authored/unrun; no activation,
+QA or release claim. Integrated chore handoff, full exits/read cancellation and
+remaining role/routine/timeline/AI scope are still open. See the dated inbox plan.

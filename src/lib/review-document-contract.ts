@@ -156,8 +156,12 @@ export const reviewDocumentPayload = z
         (document.draft.domain === "recipe"
           ? document.requests.length === 1 &&
             document.requests[0].action === "recipe.create"
-          : document.requests.every(
-              (request) => request.action !== "recipe.create",
+          : document.requests.length === document.draft.rows.length &&
+            document.draft.rows.every((row, index) =>
+              row.kind === "event"
+                ? document.requests[index].action === "event.create"
+                : row.kind === "listitem" &&
+                  document.requests[index].action === "capture.grocery.add",
             ));
     }
     if (!valid)

@@ -1,5 +1,38 @@
 # Current State
 
+## Owned capture review/batch recovery source — 2026-10-22
+
+CaptureBox now selects the existing legacy flow before adoption and the owned
+review host after adoption. The host restores full editable text/photo proposals,
+notes, partial quantities and original time strings without persisting prompts,
+photos or raw provider output. AI extraction reuses the original capture reader;
+normalized replacements reach the existing owner journal, and failed/empty/late
+reads preserve the prior review. Manual event/grocery rows work without a provider.
+Five-row editors and submitted-result windows keep the whole batch intact.
+
+Confirmation validates real ISO/local instants and decimal quantities, refuses task
+conversion, then durably freezes every canonical request/key before dispatching
+through the existing bound submit route. Partial/unknown batches keep all original
+requests; receipt checks renew authority and storage before retry. Present, removed,
+opaque, pending, absent, expired and refused states remain distinct. Explicit finish
+requires committed/current proof; removed results require a separate acknowledged
+finish and are never recreated. The original legacy envelopes remain in their own
+explicit recovery-only pane, including when extraction is unconfigured.
+
+Hidden/closed capture hosts release global link/Back ownership; pending reviewed
+fields may finish their local save. Original context/generation/role is renewed on
+return, private content is masked during checks, and native file-picker return can
+renew before accepting a file. These are authored source paths, not device/browser
+acceptance. Existing legacy cases explicitly target the preserved legacy flow;
+new helper/store/owned UI cases are authored, all unrun. Only source inspection,
+edits and selected-file formatting. No tests/typecheck/lint/build/browser/API/SQL/DB/
+native/CI, flag activation, push/merge/deploy or issue closure occurred.
+
+Still open: integrated parent-only chore handoff (the current link remains manual),
+full programmatic/host navigation and foreground-read cancellation, remaining
+role/routine provenance/history, inbox timeline and grounded AI/evaluation/usage
+scope. Consolidated QA follows remaining source completion. Full goal stays active.
+
 ## Saved-draft inbox discovery and direct recipe recovery source — 2026-10-21
 
 The parent inbox has read-only capture/recipe document adapters using the existing

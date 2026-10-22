@@ -357,3 +357,54 @@ Authored read-only adapter cases cover private-field exclusion, paused/expired
 editing, submitted/unknown state, foreign body/current role/adoption refusal; task
 UI cases prevent event submission for parent/teen. All unrun. Source/formatting
 only; no checks, execution, activation, issue closure or release evidence.
+
+
+## Owned capture host — 2026-10-22 source checkpoint
+
+`CaptureDraftBoundary` now owns the capture lane of the existing review-document
+journal. The original reader runs in extraction-only mode after adoption; it does
+not initialize/write the old envelope store or submit canonical records. Full
+allowlisted fields and fixed provenance/unknown markers become an editable local
+document. Original input/photo/provider bytes never enter it. Explicit replacement
+review and source epochs keep failed/empty/stale reads from replacing prior work.
+Manual event/grocery rows and saved review remain available without an AI provider.
+
+Capture review fields preserve partial strings and stable client IDs, validate
+source instants without natural-language parsing/calendar rollover/DST-gap repair,
+and keep user notes/source list context for review. Grocery confirmation names the
+household grocery destination; no arbitrary list name becomes a record identifier.
+Tasks are retained for parent-only canonical chore review, never submitted as
+calendar events. Event/grocery rows and frozen request cardinality/action kinds
+are bound in the strict document contract. Every remaining row across every page
+is frozen before the first submit; request keys/bodies never change after unknown
+or partial success. Both editable and frozen windows show five rows at a time.
+
+Retries inspect the original receipt before transport, and a single-request proof
+read now renews the same journal lease after a successful response. Stored batch
+content is not filtered down to failed rows. Explicit completion requires fresh
+committed/current evidence for every request. A separate acknowledgement can finish
+known removed items while keeping them deleted; opaque/expired/absent/pending
+results cannot be dismissed as successes or silently rekeyed. Parent host refresh
+also follows recovered committed proof, not just a newly observed 2xx response.
+
+Earlier envelopes remain in an explicit legacy recovery-only pane. That mode can
+initialize/read their original store when extraction is unconfigured, hides new
+prompt/photo inputs, and keeps the original receipt controls; it does not copy or
+merge those requests into the owned journal. Before adoption the existing legacy
+form remains independent of browser owned-storage support. Existing unit cases now
+name the legacy path, alongside new owned capture cases; no test run is claimed.
+
+Original person/session/family/role and exact storage baseline remain authoritative
+through focus, visibility, storage and open/closed host changes. Closed sheets and
+hidden inbox categories do not intercept another screen's dashboard navigation.
+Transient source input is kept only in its screen and warns on leaving. Camera/file
+picker return renews ownership before a provider read can proceed; late proposals
+cannot stage after a newer source epoch. These mechanisms still need deferred
+rendered/physical-device acceptance. No source-only claim establishes Back, focus,
+privacy, timeout, no-loss or visual correctness in a live browser/device.
+
+Source still required: integrated task-to-chore handoff with explicit assignment/
+points/schedule review, full programmatic/host exits and cancellable foreground
+reads; broader role/routine/inbox timeline/AI scope. Finish those before running
+consolidated QA. All new helper/storage/UI cases remain unrun; no flags, DB/schema,
+provider activation, push/merge/deploy or issue state changed.

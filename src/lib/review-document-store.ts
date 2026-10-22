@@ -182,6 +182,27 @@ export function createReviewDocumentStore(options: Options) {
           return results;
         }),
       ),
+    inspectReceipt: (
+      key: string,
+      expectedBody: string,
+      requestKey: string,
+      inspect: (
+        request: ReviewExactRequest,
+        context: ReviewDocumentContext,
+      ) => Promise<ReviewReceiptState>,
+    ) =>
+      serial(() =>
+        journal.inspect(key, async (entry, context) => {
+          if (entry.body !== expectedBody) return fail();
+          const document = payload(entry);
+          if (document.phase !== "submitted") return fail();
+          const request = document.requests.find(
+            (row) => row.key === requestKey,
+          );
+          if (!request) return fail();
+          return inspect(request, context);
+        }),
+      ),
     /** Deliberate exact retry only. Each attempt renews owner/gate/storage;
      * receipt reads finish before transport, then authority renews once more.
      * Unknown/pending/expired/refused outcomes leave the entire document frozen.
@@ -302,6 +323,7 @@ export function createReviewDocumentStore(options: Options) {
         request: ReviewExactRequest,
         context: ReviewDocumentContext,
       ) => Promise<ReviewReceiptState>,
+      options: { acknowledgeRemoved?: boolean } = {},
     ) =>
       serial(async () => {
         const complete = await journal.inspect(key, async (entry, context) => {
@@ -310,7 +332,11 @@ export function createReviewDocumentStore(options: Options) {
           if (document.phase !== "submitted") return fail();
           for (const request of document.requests) {
             const result = await inspect(request, context);
-            if (result.state !== "committed" || result.current !== "present")
+            if (
+              result.state !== "committed" ||
+              (result.current !== "present" &&
+                !(options.acknowledgeRemoved && result.current === "removed"))
+            )
               return false;
           }
           return true;

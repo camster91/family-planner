@@ -7,6 +7,13 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 import { CaptureSheet } from "../CaptureSheet";
+// These existing cases cover the pre-adoption sheet/legacy-envelope path.
+// Owned capture integration has its own actor/storage/batch cases.
+jest.mock("../CaptureBox", () => {
+  const actual = jest.requireActual("../CaptureBox");
+  return { ...actual, CaptureBox: actual.LegacyCaptureBox };
+});
+
 
 if (!globalThis.crypto?.subtle)
   Object.defineProperty(globalThis, "crypto", {

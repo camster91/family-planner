@@ -1,9 +1,16 @@
 /** Static capture-recovery controls. Titles and saved content remain verbatim. */
 export const captureEnglish = {
-  taskNeedsReview: "A parent needs to review this task in Chores before adding it. Your preview is kept here; no task has been added.",
+  ownedStorageHold:
+    "The reviewed fields could not be saved safely. Recover saved work before trying again.",
+  noEarlierRequests:
+    "No earlier requests were found for this account and household in this browser.",
+  taskNeedsReview:
+    "A parent needs to review this task in Chores before adding it. Your preview is kept here; no task has been added.",
   openChoreReview: "Open chore form in a new tab",
-  reviewWindow: 'Showing {start}–{end} of {total}. Add includes all remaining events.',
-  previousPreview: 'Previous events', nextPreview: 'Next events',
+  reviewWindow:
+    "Showing {start}–{end} of {total}. Add includes all remaining events.",
+  previousPreview: "Previous events",
+  nextPreview: "Next events",
   openQuickAdd: "Open quick add",
   availabilityRetry:
     "Quick add could not connect. Try again when you have a connection.",
@@ -101,10 +108,17 @@ export const captureEnglish = {
 export type CaptureMessage = keyof typeof captureEnglish;
 
 export const captureSpanish: Record<CaptureMessage, string> = {
-  taskNeedsReview: "Un adulto debe revisar esta tarea en Tareas antes de añadirla. El borrador se conserva aquí; no se ha añadido ninguna tarea.",
+  ownedStorageHold:
+    "No se pudieron guardar los campos con seguridad. Recupera el trabajo guardado antes de repetir.",
+  noEarlierRequests:
+    "No se encontraron solicitudes anteriores de esta cuenta y hogar en este navegador.",
+  taskNeedsReview:
+    "Un adulto debe revisar esta tarea en Tareas antes de añadirla. El borrador se conserva aquí; no se ha añadido ninguna tarea.",
   openChoreReview: "Abrir el formulario de tareas en otra pestaña",
-  reviewWindow: 'Mostrando {start}–{end} de {total}. Añadir incluye todos los eventos restantes.',
-  previousPreview: 'Eventos anteriores', nextPreview: 'Eventos siguientes',
+  reviewWindow:
+    "Mostrando {start}–{end} de {total}. Añadir incluye todos los eventos restantes.",
+  previousPreview: "Eventos anteriores",
+  nextPreview: "Eventos siguientes",
   openQuickAdd: "Abrir adición rápida",
   availabilityRetry:
     "No se pudo conectar la adición rápida. Inténtalo de nuevo cuando tengas conexión.",

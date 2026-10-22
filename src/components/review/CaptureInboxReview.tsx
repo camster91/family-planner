@@ -32,7 +32,7 @@ export default function CaptureInboxReview({ active }: { active: boolean }) {
     >
       <p className="text-body text-label-secondary">{copy.captureHint}</p>
       <React.Suspense fallback={<p role="status">{copy.loadingReview}</p>}>
-        <Capture onDraftStateChange={setHasDraft} />
+        <Capture open={!hidden} onDraftStateChange={setHasDraft} />
       </React.Suspense>
       <div className="border-t border-[var(--surface-separator)] pt-4">
         <p className="text-footnote text-label-secondary">{copy.recipeHint}</p>
