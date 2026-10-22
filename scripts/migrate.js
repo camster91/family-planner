@@ -4,6 +4,12 @@
 // 3. Creates/updates tables to match the current Prisma schema
 // 4. Runs any database/migration-*.sql files (sorted alphabetically, idempotent)
 // 5. Runs POST_FEATURE_SQL (changes to tables those files create)
+// Food source continuity columns (food_generation / food_epoch) for Family,
+// User, Recipe, RecipeIngredient, Ingredient, InventoryItem, FamilyMeal,
+// MealPrepSession, MealBatch, MealBatchConsumption and List are installed with
+// their required INSERT/UPDATE triggers by the sorted per-feature file
+// database/migration-zzzzzzzzz-food-source-versions.sql. Keep that file and
+// prisma/schema.prisma aligned; do not install columns without their triggers.
 // Called from docker-entrypoint.sh before starting the server
 //
 // IMPORTANT: This file MUST stay in sync with prisma/schema.prisma.

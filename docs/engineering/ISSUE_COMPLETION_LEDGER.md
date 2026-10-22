@@ -623,3 +623,18 @@ mocked renewal/held-choice/changed-source/cook cases unrun. No write endpoint or
 universal legacy-writer food version claim. Version coverage, owned compact UI,
 write/inspection/exact journal recovery, provider/evaluation/inbox integration and
 all consolidated QA/release remain; full goal and issues stay open.
+
+
+### 2026-10-22 — food positive-row continuity (#123/#144)
+
+Eleven canonical food/actor/family/list tables now have additive schema/migration
+source for fresh insertion UUIDs and monotonic update epochs, enabled-ALWAYS
+legacy-writer triggers, forged-reset refusal and nonwrapping exhaustion. Fixed,
+bounded family-scoped metadata reads require exact column/trigger readiness and
+complete positive source IDs, including both owners of a recipe line. Broker and
+signed auxiliary review now hash those versions without exposing arrays. No new
+shared counter/collection lock/domain store. Unit/source/disposable-DB raw-writer,
+recreation/away-back/foreign/overflow cases authored/unrun. No DDL/client/QA/flag/
+provider/release action. Migration repeatability, concurrency/old-client/FK and
+rollback acceptance remain in consolidated QA; compact owned UI, apply/inspection/
+exact journal recovery, provider/evaluation and inbox source remain. Goal/issues open.

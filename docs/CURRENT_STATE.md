@@ -1,5 +1,24 @@
 # Current State
 
+## Food source row versions — 2026-10-22
+
+Additive schema/migration source now defines insertion UUIDs and nonresettable
+per-update epochs across the eleven canonical food/identity/list source tables.
+Enabled-ALWAYS insert/update triggers cover ordinary legacy SQL writers, reject
+forged version resets and refuse exhaustion. No shared household counter/lock or
+new domain store is added. The food broker and signed review bind bounded,
+strictly household-scoped positive dependency versions; missing storage/trigger/
+row metadata refuses. Version arrays remain server-side.
+
+Metadata/source and disposable-DB raw-writer/recreation/away-back/foreign/overflow
+cases are authored and unrun. No migration, client generation, QA, flag/provider
+activation, push/merge/deploy or issue closure occurred. Trigger/default/constraint,
+repeat migration, concurrency/compatibility and rollback acceptance must pass in
+the consolidated QA phase. Owned compact review/timing/portion controls, strict
+apply/receipt inspection/exact journal recovery, provider/evaluation and broader
+inbox integration remain source work. Full goal remains active; see
+[`grounded-food-planning-v1.md`](./plans/grounded-food-planning-v1.md).
+
 ## Food plan signed review/source renewal — 2026-10-22
 
 A bounded person-only read-review endpoint now issues an exact command/source/

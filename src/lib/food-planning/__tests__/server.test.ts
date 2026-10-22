@@ -1,3 +1,7 @@
+jest.mock("../source-versions", () => ({
+  readFoodSourceVersions: jest.fn(async () => []),
+}));
+import { readFoodSourceVersions } from "../source-versions";
 /** Authored/unrun. Mocked snapshots do not prove PostgreSQL isolation. */
 jest.mock("../../auth", () => ({
   getJwtSecret: () => "synthetic-food-planning-key",
@@ -22,6 +26,7 @@ const query = foodPreviewRequest.parse({
 const original = process.env.FAMILY_FOOD_PLANNING_READY;
 beforeEach(() => {
   process.env.FAMILY_FOOD_PLANNING_READY = "1";
+  jest.mocked(readFoodSourceVersions).mockReset().mockResolvedValue([]);
   jest.spyOn(Date, "now").mockReturnValue(+now);
 });
 afterEach(() => {
@@ -212,4 +217,33 @@ it("loads commitments from today even when the requested new slot starts later",
     required: 100,
     recordedAvailable: 100,
   });
+});
+it("binds the bounded dependency graph's row versions even when source values return unchanged", async () => {
+  const { tx, db } = fixture();
+  const version = {
+    kind: "Ingredient" as const,
+    id: "ingredient-a",
+    generation: "50171c0a-725e-4d28-8318-79c61f284120",
+    epoch: 0,
+  };
+  jest
+    .mocked(readFoodSourceVersions)
+    .mockResolvedValueOnce([version])
+    .mockResolvedValueOnce([{ ...version, epoch: 2 }]);
+  const first = await previewFoodPlan(db as never, actor, query, now);
+  const restored = await previewFoodPlan(db as never, actor, query, now);
+  expect(first.plan).toEqual(restored.plan);
+  expect(first.snapshotRevision).not.toBe(restored.snapshotRevision);
+  expect(readFoodSourceVersions).toHaveBeenLastCalledWith(
+    tx,
+    actor.familyId,
+    expect.objectContaining({
+      Family: [actor.familyId],
+      User: [actor.userId],
+      Recipe: ["recipe-a"],
+      RecipeIngredient: ["line-a"],
+      Ingredient: ["ingredient-a", "ingredient-a"],
+      InventoryItem: ["stock-a"],
+    }),
+  );
 });

@@ -19,7 +19,10 @@ suite("food planning scoped canonical reads", () => {
   };
   const now = new Date("2026-10-22T12:00:00Z");
   const previous = process.env.FAMILY_FOOD_PLANNING_READY;
-  let recipeA: string, recipeB: string, foreignRecipe: string;
+  let recipeA: string,
+    recipeB: string,
+    foreignRecipe: string,
+    ingredientA: string;
   beforeAll(async () => {
     assertFixtureTargetAllowed(process.env);
     db = (await import("../../prisma")).prisma!;
@@ -48,6 +51,7 @@ suite("food planning scoped canonical reads", () => {
     const ingredient = await db.ingredient.create({
       data: { family_id: family, name: "Rice", unit: "g" },
     });
+    ingredientA = ingredient.id;
     const createRecipe = (title: string) =>
       db.recipe.create({
         data: {
@@ -381,5 +385,13 @@ suite("food planning scoped canonical reads", () => {
       state: "unknown",
       departure: null,
     });
+  });
+  it("changes the source identity after ingredient values return to their original state", async () => {
+    const first = await previewFoodPlan(db, actor, query(), now);
+    await db.$executeRaw`UPDATE "Ingredient" SET "name"='Synthetic temporary rice' WHERE "id"=${ingredientA}`;
+    await db.$executeRaw`UPDATE "Ingredient" SET "name"='Rice' WHERE "id"=${ingredientA}`;
+    const restored = await previewFoodPlan(db, actor, query(), now);
+    expect(restored.plan).toEqual(first.plan);
+    expect(restored.snapshotRevision).not.toBe(first.snapshotRevision);
   });
 });

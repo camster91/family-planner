@@ -1,6 +1,7 @@
+import { readFoodSourceVersions } from "./source-versions";
 /** Concrete read/review + same-transaction source renewal. No HTTP apply route,
- * no provider, and no autonomous dispatch. Universal food version coverage and
- * owned browser confirmation/recovery remain required before activation. */
+ * no provider, and no autonomous dispatch. Version storage must be applied and
+ * verified; owned browser confirmation/recovery must finish before activation. */
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { reviewedFoodWrite, type ReviewedFoodWrite } from "./apply-contract";
 import {
@@ -240,7 +241,11 @@ async function readAuxiliary(
       }),
     };
   });
-  return { people, lists, groceries, occupiedAllocations };
+  const sourceVersions = await readFoodSourceVersions(tx, actor.familyId, {
+    User: cookIds,
+    List: listIds,
+  });
+  return { people, lists, groceries, occupiedAllocations, sourceVersions };
 }
 export async function reviewFoodPlanWrite(
   db: Pick<PrismaClient, "$transaction">,

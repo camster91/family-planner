@@ -181,9 +181,9 @@ recurrence interoperability (#124), consolidated QA and activation remain separa
 `food-planning/persist.ts` now composes ordinary meals or one canonical multi-dish
 prep session and optional explicitly selected groceries inside one serializable
 transaction. It is **not exposed by a write route**. The required same-transaction source
-guard now has a concrete signed implementation described below. Full legacy-
-writer food version coverage, review UI, apply API and exact browser journal/
-inspection are still required. A supplied read revision or browser recipe ID
+guard now has a concrete signed implementation described below. Legacy-writer food version source is now authored below and remains unapplied/
+unverified. Review UI, apply API and exact browser journal/inspection are still
+required. A supplied read revision or browser recipe ID
 alone must never activate this adapter.
 
 The normal outer idempotency boundary reserves an exact owner/action/body root
@@ -210,8 +210,8 @@ late failure rollback, final-boundary expiry, full scaled grocery amounts/Undo,
 paused-rollout replay after target deletion, actor-generation refusal and one
 multi-dish session. Fixture guards in those cases prove composition only, not
 signed-source verification, universal ABA detection or end-to-end acceptance.
-Required legacy-writer food version coverage remains source work before apply
-activation. No new endpoint, schema/provider/flag activation or release occurred.
+Legacy-writer food row version source is now authored below; its migration and
+acceptance remain required before apply activation. No new endpoint, schema/provider/flag activation or release occurred.
 
 ## Signed command review and effect-transaction renewal
 
@@ -257,9 +257,67 @@ and freshness evidence, never human consent, a provider tool or actor authority.
 Cryptographic binding/tamper/owner/lease and mocked transaction-renewal/changed-
 source/held-choice/cook-metadata cases are authored **unrun**. New read reviews and
 write source renewal still need full real-DB/concurrency/compatibility acceptance.
-Legacy-writer food generation/ABA coverage is still required: value hashes and
-ordinary timestamps are not a universal version claim. No HTTP write endpoint,
+Legacy-writer row generation/epochs are now authored below. Their migration and
+real acceptance are still required; value hashes and ordinary timestamps alone
+must never substitute for those checks. No HTTP write endpoint,
 provider/flag activation, migration or release is established by this source.
+
+## Legacy-writer food row continuity
+
+`migration-zzzzzzzzz-food-source-versions.sql` and matching Prisma source add
+`food_generation` and `food_epoch` to Family, User, Recipe, RecipeIngredient,
+Ingredient, InventoryItem, FamilyMeal, MealPrepSession, MealBatch,
+MealBatchConsumption and List. The existing migration runner discovers the file
+after the canonical tables are created. **No migration or client generation has
+run.** These internal fields are `@ignore` in Prisma Client and read only through
+the bounded raw metadata helper, avoiding automatic widening of ordinary ORM
+response DTOs. Installed older clients need not send or understand the fields.
+
+One generic enabled-ALWAYS BEFORE INSERT/UPDATE trigger assigns a fresh UUID on
+each insertion, ignoring a supplied old identity/epoch. Updates preserve the old
+insertion identity and increment the old epoch, ignoring attempted resets. Every
+update counts, including no-ops and updates to fields outside the planner's
+projection. This is deliberately conservative; unrelated edits can require a new
+review rather than depending on a brittle material-field allowlist. Exhaustion
+refuses the update instead of freezing, wrapping or reusing an old version. There
+is no new family-wide counter, collection lock, storage model or ordinary-writer
+adoption requirement. Privileged schema/trigger tampering is not an app guarantee.
+
+`source-versions.ts` checks all eleven tables for nonnull typed fields and the
+exact enabled insertion/update trigger function. It reads only kind/ID/generation/
+epoch for the positive dependency graph in the same source transaction. All rows
+are household-scoped; recipe lines require both owned recipe and owned ingredient.
+Missing, foreign, malformed, duplicated or partially returned metadata refuses.
+Selectors are fixed table names, deduplicated and bounded (6000 per kind,20000
+combined); arbitrary dynamic tables are not accepted. Queries use existing primary
+keys and add no content/prose/email/secret selection.
+
+The broker includes actor/family, candidate and dependency recipe/line/ingredient,
+linked stock ingredient, inventory, relevant meal/allocation, session, dish and
+active consumption versions in its keyed source revision. Signed review also
+binds selected cook and target grocery-list versions in its server-only auxiliary
+hash. A value edited away/back, restored timestamp or deleted/recreated positive
+source ID cannot silently retain that row's previous version under ordinary SQL
+writers. Version arrays and other people's session metadata are not projected to
+the browser or provider. Completed receipt recovery remains independent of new
+source/trigger readiness and cannot recreate records.
+
+These are **positive-row continuity checks**, not a historical log, absence lock,
+future availability promise, privileged-DB guarantee or proof that a source graph
+is complete. Fresh whole-query/range reconstruction, caps, household/role gates,
+canonical calendar versions and the write transaction's isolation still apply.
+Concurrent source edits can serialize before/after an overlapping transaction;
+QA must verify intended ordering/refusal/receipt recovery rather than assert a
+stronger physical-world availability claim.
+
+Metadata/cap/foreign/incomplete cases, broker/auxiliary restored-value hashes and
+disposable-DB all-eleven-table raw update/reset, insert/recreate, ingredient-away/
+back, cross-family line and overflow cases are authored **unrun**. Before release,
+run the full migration twice on an isolated restore, generate the client, verify
+triggers/defaults/constraints and old/new-writer/FK/concurrency behavior, then the
+full applicable consolidated gates. Rollback pauses food readiness and uses the
+prior compatible build while retaining additive columns/triggers/receipts; do not
+drop or reset version history as a routine rollback. No activation is established.
 
 ## Remaining source required before activation
 
@@ -282,7 +340,9 @@ provider/flag activation, migration or release is established by this source.
    Prompts must not invent ingredients, amounts, nutrition, allergies or safety.
 5. Connect the internal atomic apply adapter and signed command/source guard to
    the owned confirmation UI, strict write/inspection APIs and exact recovery.
-   Finish legacy-writer source version coverage first. Preserve source provenance,
+   Preserve the required legacy-writer version probes and bounded dependency
+   coverage authored below; run their migration/isolation acceptance in the final
+   QA phase before activation. Preserve source provenance,
    grocery duplicate/Undo rules, explicit ingredient selections, atomic minimal
    receipts and exact unknown-result recovery. No autonomous add, purchase,
    overwrite, consumption or portion allocation. Apply must rebuild/compare all

@@ -1,3 +1,4 @@
+import { readFoodSourceVersions } from "./source-versions";
 import { readFoodCalendar } from "./calendar-source";
 import {
   readFoodCommitments,
@@ -352,6 +353,34 @@ export async function previewFoodPlanInTx(
       prepared: commitments.prepared,
     },
   });
+  const graphRecipes = [...recipes, ...dependencyRecipes];
+  const sourceVersions = await readFoodSourceVersions(tx, actor.familyId, {
+    Family: [actor.familyId],
+    User: [actor.userId],
+    Recipe: [
+      ...graphRecipes.map((row) => row.id),
+      ...preparedRecipeOwnership.map((row) => row.id),
+    ],
+    RecipeIngredient: graphRecipes.flatMap((row) =>
+      row.ingredients.map((line) => line.id),
+    ),
+    Ingredient: [
+      ...graphRecipes.flatMap((row) =>
+        row.ingredients.map((line) => line.ingredient.id),
+      ),
+      ...inventory.flatMap((row) =>
+        row.ingredient_id ? [row.ingredient_id] : [],
+      ),
+    ],
+    InventoryItem: inventory.map((row) => row.id),
+    FamilyMeal: [
+      ...meals.map((row) => row.id),
+      ...commitments.sources.allocations.map((row) => row.id),
+    ],
+    MealPrepSession: commitments.sources.sessions.map((row) => row.id),
+    MealBatch: commitments.sources.batches.map((row) => row.id),
+    MealBatchConsumption: commitments.sources.consumption.map((row) => row.id),
+  });
   assertObservationCurrent(now);
   // Read identity only. This is neither the assistant action proof nor an
   // approval token; future apply must rebuild canonical evidence in its tx.
@@ -364,6 +393,7 @@ export async function previewFoodPlanInTx(
         features,
         JSON.parse(
           JSON.stringify({
+            sourceVersions,
             recipes,
             inventory,
             meals,

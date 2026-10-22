@@ -1,3 +1,7 @@
+jest.mock("../source-versions", () => ({
+  readFoodSourceVersions: jest.fn(async () => []),
+}));
+import { readFoodSourceVersions } from "../source-versions";
 /** Authored/unrun. Mock renewal boundaries; real DB isolation is separate. */
 jest.mock("../../auth", () => ({
   getJwtSecret: () => "synthetic-food-review-secret",
@@ -105,6 +109,7 @@ function fixture() {
 beforeEach(() => {
   jest.spyOn(Date, "now").mockReturnValue(+now);
   jest.mocked(foodPlanningEnabled).mockReturnValue(true);
+  jest.mocked(readFoodSourceVersions).mockResolvedValue([]);
 });
 afterEach(() => {
   jest.restoreAllMocks();
@@ -235,6 +240,23 @@ it("shows exact full recipe grocery amounts and binds later auxiliary changes", 
   tx.list.findMany.mockResolvedValue([
     { id: "list-a", name: "Renamed list", type: "grocery", updated_at: now },
   ] as never);
+  await expect(
+    createFoodWriteSourceGuard().verify(tx as never, actor, review.input),
+  ).rejects.toThrow();
+});
+it("refuses an auxiliary source restored to the same visible values with a later epoch", async () => {
+  const { input, db, tx } = fixture();
+  const version = {
+    kind: "List" as const,
+    id: "list-a",
+    generation: "50171c0a-725e-4d28-8318-79c61f284120",
+    epoch: 0,
+  };
+  jest.mocked(readFoodSourceVersions).mockResolvedValueOnce([version]);
+  const review = await reviewFoodPlanWrite(db as never, actor, input, now);
+  jest
+    .mocked(readFoodSourceVersions)
+    .mockResolvedValueOnce([{ ...version, epoch: 2 }]);
   await expect(
     createFoodWriteSourceGuard().verify(tx as never, actor, review.input),
   ).rejects.toThrow();

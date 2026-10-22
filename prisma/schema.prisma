@@ -11,6 +11,10 @@ datasource db {
 
 // User model
 model User {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_epoch Int @default(0) @ignore
   ai_usage_requests AiUsageRequest[]
   responsibility_coordinations ResponsibilityState[] @relation("ResponsibilityCoordinator")
   responsibility_backups ResponsibilityState[] @relation("ResponsibilityBackupAccount")
@@ -162,6 +166,10 @@ model User {
 }
 
 model Family {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_epoch Int @default(0) @ignore
   ai_usage_policy AiUsagePolicy?
   ai_usage_requests AiUsageRequest[]
   event_preparations EventPreparation[]
@@ -641,6 +649,10 @@ model ImportedRecord {
 }
 
 model Recipe {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id           String   @id @default(cuid())
   family_id    String
   title        String
@@ -697,6 +709,10 @@ model RecipeCollectionEntry {
 }
 
 model Ingredient {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id        String  @id @default(cuid())
   family_id String
   name      String
@@ -713,6 +729,10 @@ model Ingredient {
 }
 
 model RecipeIngredient {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id            String  @id @default(cuid())
   recipe_id     String
   ingredient_id String
@@ -1058,6 +1078,10 @@ model Notification {
 }
 
 model List {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id                String    @id @default(cuid())
   family_id         String
   name              String
@@ -1296,6 +1320,10 @@ model RateLimitEntry {
 
 // Bulk sessions/portions share the household and canonical meal slots.
 model MealPrepSession {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id                String   @id @default(cuid())
   family_id         String
   prepared_on       DateTime
@@ -1311,6 +1339,10 @@ model MealPrepSession {
 }
 
 model MealBatch {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id              String   @id @default(cuid())
   family_id       String
   prep_session_id String
@@ -1334,6 +1366,10 @@ model MealBatch {
 }
 
 model MealBatchConsumption {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id                String @id @default(cuid())
   family_id         String
   batch_id          String
@@ -1353,6 +1389,10 @@ model MealBatchConsumption {
 }
 
 model FamilyMeal {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id          String   @id @default(cuid())
   family_id   String
   date        DateTime
@@ -1800,6 +1840,10 @@ model FoodProduct {
 }
 
 model InventoryItem {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("gen_random_uuid()::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id            String    @id @default(cuid())
   family_id     String
   name          String
