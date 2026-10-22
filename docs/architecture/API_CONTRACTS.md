@@ -741,3 +741,16 @@ authenticated availability plus a verified recovery store before making a
 request. A partial photo batch reports confirmed successes separately from
 remaining rows that were blocked, so storage/access failures never claim that
 nothing was sent after an earlier success.
+
+## Request-body bounds and response tightening (security review, PR #591)
+
+| Route | Contract | Errors |
+|---|---|---|
+| `POST /api/upload` | Multipart body is read through `readBoundedFormData` (`src/lib/bounded-body.ts`) and abandoned once it passes 6 MB (one 5 MB photo plus framing), whether or not `Content-Length` is sent. A declared length over the bound is refused before reading. | 413 `File too large`; 400 not form data |
+| `POST /api/capture` | JSON body bounded the same way at the base64 image limit plus 64 KB. | 413 image too large; 400 `Invalid JSON` |
+| `POST /api/capture/grocery` | JSON body bounded at 16 KB. | 413 `Request is too large`; 400 `Invalid JSON` |
+| `POST /api/admin/imports/[source]` | JSON body bounded at 10 MB while reading. | 413 `Import payload exceeds 10 MB`; 400 `Invalid JSON` |
+| `POST`/`PATCH /api/budget/transactions` | `amount` is positive (direction comes from `type`), 0.01 to 100,000,000, at most 2 decimals. | 400 |
+| `POST /api/allowance` | `amount` is positive, at most 1,000,000, at most 2 decimals. | 400 |
+| `PATCH /api/family` | Only `name` is writable; a sent `subscription_tier` is ignored. Returns `{ family: { id, name, subscription_tier, created_at, features } }` — never the feed token, invite code or AI settings. | unchanged |
+| `GET /api/calendar/feed` | `Cache-Control: private, max-age=300` (was `public`): the feed is guarded only by its URL token, so shared caches must not keep it. | unchanged |
