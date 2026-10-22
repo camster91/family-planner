@@ -12,6 +12,7 @@ function fixture() {
   const { original, proposal } = aiFixture();
   return {
     protocol: FOOD_AI,
+    feedbackTicket: null,
     original,
     proposal,
     evidence: [
@@ -94,4 +95,23 @@ it("rejects delayed owner/capability changes, expired results and altered evalua
       readFoodAiSuggestion(result.original.sourceRequest, "", ctx),
     ).rejects.toThrow();
   }
+});
+it("sends only optional fixed feedback and never retries or fails a food draft because counting failed", async () => {
+  const { sendFoodAiFeedback } = await import("../client");
+  const ticket = `faf1.1792670400000.00000000-0000-4000-8000-000000000000.${"a".repeat(64)}`;
+  transport.mockRejectedValueOnce(new Error("offline"));
+  await expect(sendFoodAiFeedback(ticket, "used", context())).resolves.toBe(
+    "unavailable",
+  );
+  expect(transport).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(transport.mock.calls[0][1]!.body as string)).toEqual({
+    ticket,
+    decision: "used",
+  });
+  transport.mockResolvedValueOnce(
+    response({ protocol: "herewoven.food-ai-feedback.v1", state: "skipped" }),
+  );
+  await expect(sendFoodAiFeedback(ticket, "kept", context())).resolves.toBe(
+    "skipped",
+  );
 });

@@ -33,6 +33,10 @@ export const assistantDestinationLabels: Record<
     "sick-days": "Sick days & meds",
     routines: "Routines",
     recipes: "Recipe explorer",
+    "food-plan": "Plan meals",
+    "bulk-prep": "Plan several prep dishes",
+    "food-recovery": "Saved meal planning work",
+    "bulk-recovery": "Saved bulk cooking work",
   },
   es: {
     today: "Hoy",
@@ -62,6 +66,10 @@ export const assistantDestinationLabels: Record<
     "sick-days": "Días de enfermedad y medicinas",
     routines: "Rutinas",
     recipes: "Explorar recetas",
+    "food-plan": "Planificar comidas",
+    "bulk-prep": "Planificar varios platos",
+    "food-recovery": "Trabajo de comidas guardado",
+    "bulk-recovery": "Cocina por lotes guardada",
   },
 };
 

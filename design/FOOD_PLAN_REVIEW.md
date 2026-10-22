@@ -155,3 +155,15 @@ changed recipes lose old grocery selections. No auto-save, new writer, private
 shared-device UI or confirmation bypass. Existing provider-free suggestions remain
 available during provider failure/pause. EN/ES source is authored; rendered,
 keyboard/Back, lifecycle, privacy and viewport acceptance remain unrun.
+
+## Chat handoff and optional choice counts
+
+Chat opens fixed canonical meal/prep or own recovery destinations through existing
+owned navigation. It never copies model content into a food draft, overwrites saved
+work or submits/retries. Local planning links remain provider-free. If the household
+already opted into usage counts, the AI review explains that explicit Use/Keep
+shares one content-free count. Use occurs after durable draft adoption; close and
+expiry are not dismissal. Optional feedback cannot block editing, navigation or
+save recovery. Parent usage distinguishes choice counts, API accepted replies and
+actual domain saves. Existing usage-count opt-out removes aggregates. No new
+user/provider activation or rendered acceptance is implied.

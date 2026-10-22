@@ -7,9 +7,11 @@ import { useFoodPlanningAccess } from "./FoodPlanningAccess";
 export function MealPlanningReviewLinks({
   disabled,
   canNavigate,
+  onNavigated,
 }: {
   disabled: boolean;
   canNavigate: () => boolean;
+  onNavigated?: () => void;
 }) {
   const access = useFoodPlanningAccess();
   return access.personalRole ? (
@@ -17,6 +19,7 @@ export function MealPlanningReviewLinks({
       enabled={access.enabled}
       disabled={disabled}
       canNavigate={canNavigate}
+      onNavigated={onNavigated}
     />
   ) : null;
 }
@@ -24,10 +27,12 @@ function Links({
   enabled,
   disabled,
   canNavigate,
+  onNavigated,
 }: {
   enabled: boolean;
   disabled: boolean;
   canNavigate: () => boolean;
+  onNavigated?: () => void;
 }) {
   const router = useDraftAwareRouter(),
     { locale } = useTranslation(),
@@ -83,7 +88,9 @@ function Links({
               )
                 return;
               event.preventDefault();
-              void router.push(link.href);
+              void router.push(link.href).then((navigated) => {
+                if (navigated) onNavigated?.();
+              });
             }}
           >
             {link.label}

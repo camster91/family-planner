@@ -209,3 +209,26 @@ it("keeps the model's feature map and open catalog truthful for role and depende
   );
   expect(childCatalog).not.toContain('"kind":"open"');
 });
+
+/** Authored/unrun. Fixed handoffs never encode generated household content. */
+it("hands meal/prep planning and recovery to fixed canonical screens with role/dependency gates", () => {
+  const f = allFeaturesOn();
+  const expected = {
+    "food-plan": "/dashboard/meals?foodPlan=new",
+    "bulk-prep": "/dashboard/meals?view=bulk&foodPlan=new",
+    "food-recovery": "/dashboard/meals?foodPlan=recovery",
+    "bulk-recovery": "/dashboard/meals?view=bulk&bulkWork=recovery",
+  } as const;
+  for (const destination of Object.keys(expected) as Array<keyof typeof expected>) {
+    const action = { kind: "open", destination } as const;
+    expect(assistantDestination(destination)).toBe(expected[destination]);
+    expect(canUseAssistantAction(action, "parent", f)).toBe(true);
+    expect(canUseAssistantAction(action, "teen", f)).toBe(true);
+    expect(canUseAssistantAction(action, "child", f)).toBe(false);
+    expect(canUseAssistantAction(action, "teen", { ...f, meals: false })).toBe(false);
+    expect(assistantReplySchema.safeParse({ reply: "Review in Meals", action: { ...action, recipeId: "invented" } }).success).toBe(false);
+  }
+  expect(canUseAssistantAction({ kind: "open", destination: "food-plan" }, "teen", { ...f, inventory: false })).toBe(false);
+  expect(canUseAssistantAction({ kind: "open", destination: "food-recovery" }, "teen", { ...f, inventory: false })).toBe(true);
+  expect(assistantPrompt("parent", f)).toContain("never claim that chat created meals");
+});

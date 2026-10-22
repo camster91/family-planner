@@ -1,4 +1,9 @@
-import { foodAiRequest, foodAiSuggestion } from "./ai-contract";
+import {
+  foodAiRequest,
+  foodAiSuggestion,
+  foodAiFeedbackInput,
+  foodAiFeedbackReply,
+} from "./ai-contract";
 import { evaluateFoodAiProposal, foodAiLeaseCurrent } from "./ai-evaluation";
 import {
   foodGroceryOutcomesReply,
@@ -467,4 +472,33 @@ export async function readFoodAiSuggestion(
   )
     throw new Error("Food AI unavailable");
   return suggestion;
+}
+
+/** Best-effort optional choice count. No provider, prompts, private source body,
+ * offline outbox, automatic retry, domain write or effect on draft/save success. */
+export async function sendFoodAiFeedback(
+  ticket: string,
+  decision: "used" | "kept",
+  context: FoodRecoveryContext,
+): Promise<"recorded" | "skipped" | "unavailable"> {
+  try {
+    if (!context.owner) return "unavailable";
+    const body = foodAiFeedbackInput.parse({ ticket, decision });
+    const result = await request(
+      "/api/assistant/food/feedback",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [FOOD_OWNER_HEADER]: context.owner.scope,
+        },
+        body: JSON.stringify(body),
+      },
+      2048,
+    );
+    if (result.kind !== "reply" || !result.response.ok) return "unavailable";
+    return foodAiFeedbackReply.parse(result.body).state;
+  } catch {
+    return "unavailable";
+  }
 }

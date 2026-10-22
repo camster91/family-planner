@@ -35,6 +35,8 @@ describe('BETA_METRICS allowlist', () => {
   it('is the fixed list the beta criteria need, and nothing that could carry content', () => {
     expect([...BETA_METRICS]).toEqual([
       'member_joined',
+      'food_ai_choices_used',
+      'food_ai_choices_kept',
       'event_created',
       'meal_planned',
       'chore_assigned',

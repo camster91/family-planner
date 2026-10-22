@@ -1,4 +1,8 @@
 "use client";
+import {
+  AI_USAGE_FEEDBACK_HEADER,
+  AI_USAGE_FEEDBACK_PROTOCOL,
+} from "@/lib/ai-usage-contract";
 import * as React from "react";
 import Link from "next/link";
 import { useTranslation } from "@/i18n";
@@ -118,9 +122,11 @@ export function AiUsagePanel({
         {
           method: write ? "POST" : "GET",
           signal: controller.signal,
-          ...(body
-            ? { headers: { "Content-Type": "application/json" }, body }
-            : {}),
+          headers: {
+            [AI_USAGE_FEEDBACK_HEADER]: AI_USAGE_FEEDBACK_PROTOCOL,
+            ...(body ? { "Content-Type": "application/json" } : {}),
+          },
+          ...(body ? { body } : {}),
         },
         128 * 1024,
       );
@@ -305,7 +311,12 @@ export function AiUsagePanel({
                   <dd>{attempts}</dd>
                 </div>
                 <div>
-                  <dt>{copy("Accepted replies", "Respuestas aceptadas")}</dt>
+                  <dt>
+                    {copy(
+                      "Accepted API replies",
+                      "Respuestas aceptadas por la API",
+                    )}
+                  </dt>
                   <dd>{accepted}</dd>
                 </div>
                 <div>
@@ -328,6 +339,31 @@ export function AiUsagePanel({
                   </dd>
                 </div>
               </dl>
+              {data.suggestionFeedback && (
+                <section className="space-y-2">
+                  <h3 className="font-semibold">
+                    {copy(
+                      "Meal suggestion choices this month",
+                      "Opciones de sugerencias de comidas este mes",
+                    )}
+                  </h3>
+                  <p>
+                    {copy("Used in a draft", "Usadas en un borrador")}:{" "}
+                    {data.suggestionFeedback.used} ·{" "}
+                    {copy(
+                      "Kept original choices",
+                      "Opciones originales conservadas",
+                    )}
+                    : {data.suggestionFeedback.kept}
+                  </p>
+                  <p className="text-footnote text-label-secondary">
+                    {copy(
+                      "Optional household usage counts. These are explicit Use/Keep choices, not saved meals, recipe ratings or dietary checks. No recipe details or preferences are stored in these counts. Turning usage counts off deletes them.",
+                      "Recuentos de uso opcionales del hogar. Son decisiones explícitas de Usar/Conservar, no comidas guardadas, valoraciones ni comprobaciones dietéticas. No guardan detalles de recetas ni preferencias. Al desactivarlos se eliminan.",
+                    )}
+                  </p>
+                </section>
+              )}
               <p className="text-footnote text-label-secondary">
                 {copy(
                   "Calls without a price estimate",

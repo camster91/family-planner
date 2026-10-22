@@ -659,6 +659,40 @@ provider/flag/push/merge/deploy or issue closure. Broader chat handoff, fixed-vo
 accept/dismiss telemetry and cross-feature evaluation source remain before final
 consolidated QA and authorized release; the full goal remains active.
 
+## Assistant meal handoff and optional suggestion counts — 2026-10-22
+
+Chat now supports fixed canonical meal/prep planning and own saved-work recovery
+links. The action schema accepts only named destinations; no generated dates,
+record IDs, preferences, arbitrary URLs or write payloads enter a handoff. Existing
+role/feature checks and draft-aware navigation remain. The local assistant panel
+also offers the existing compact planning/recovery disclosure without a provider
+call or journal read. Destination hosts retain current capability, recovery,
+shared/fridge and preparation guards; chat does not submit, retry or replace work.
+
+Optional Use/Keep counts are source-authored under the existing household usage-
+count opt-in. An opaque signed, person/family/role/generation-bound ten-minute
+ticket permits one fixed decision. Current person and opt-in are locked/rechecked;
+a strict aggregate write and minimal deduplication receipt commit together. Same-
+body retry replays; a contradictory decision refuses. Off creates no count or
+receipt. Existing opt-out deletes aggregates, and old receipts prevent recounting
+a previous decision after re-enabling. No prompt, preference, recipe details,
+source IDs, provider output or raw ticket is stored in count/receipt content.
+Receipts use existing seven-day lifecycle; aggregates retain existing thirteen-
+month privacy rules. No new table, migration, scheduler or provider call.
+
+Only an explicit Use after durable draft adoption or Keep sends feedback. Closing,
+expiry, unknown replies, failure and navigation do not imply a decision. Feedback
+failure never changes the draft/save outcome, and no offline outbox/automatic
+retry is added. The parent AI panel can request separate monthly Use/Keep counts;
+legacy report responses omit the extension unless the client sends its versioned
+header. API reply acceptance remains distinct from choices and domain saves.
+
+Role/schema/client/proof/opt-out/replay/API and guarded disposable-PostgreSQL race/
+rollback cases are authored and **unrun**. No tests/typecheck/lint/build/browser/
+API/DB/schema/provider/flag/push/merge/deploy or issue closure. Remaining food
+commitment review, wider semantic evaluation and full-goal source reconciliation
+precede consolidated QA and authorized release. The full goal stays active.
+
 ## Remaining source and acceptance before activation
 
 1. Finish the compact human review of unresolved existing commitments, without
@@ -669,12 +703,14 @@ consolidated QA and authorized release; the full goal remains active.
    apply-time checks are source-authored. Recurring source expansion stays held
    under canonical #124; do not claim complete recurrence/physical availability.
 3. Meals catalog/cook/list/ingredient/allocation/departure controls and optional AI
-   draft adoption are source-authored. Finish broader assistant/chat handoff using
-   canonical owned navigation, never implicit save or private layout context.
+   draft adoption are source-authored. Fixed assistant/chat handoff and local
+   recovery links are also authored, using canonical owned navigation without
+   implicit saves or private layout context.
 4. The minimized provider projection, opaque references, exact output validation,
    post-latency canonical reconstruction and initial versioned evaluation are now
-   source-authored. Complete cross-feature semantic fixtures and privacy-safe
-   accepted/dismissed feedback. Existing usage HTTP outcomes/cost accounting do not
+   source-authored. Fixed opt-in used/kept feedback and parent counts are also
+   authored; complete wider cross-feature semantic fixtures. Existing usage HTTP
+   outcomes/cost accounting do not
    prove a user accepted a suggestion or a consequential write succeeded.
 5. Preserve legacy-writer version probes, bounded dependency coverage, canonical
    grocery duplicate/Undo rules, explicit ingredient choices, minimal atomic

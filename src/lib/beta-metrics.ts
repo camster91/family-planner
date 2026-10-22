@@ -8,9 +8,8 @@
  *
  * - One `BetaMetricDaily` row per household, UTC day and metric name, holding
  *   a count. No user id, no text, no content, no role.
- * - Metric names are the fixed list `BETA_METRICS`, derived from the beta
- *   criteria and nothing more. An unknown name is a type error and, at run
- *   time, a logged no-op.
+ * - Fixed `BETA_METRICS` names cover beta criteria and optional suggestion
+ *   outcomes. Unknown names are rejected without recording content.
  * - Per-household opt-in (`Family.beta_metrics_enabled`, default off). While
  *   off nothing is counted; a parent turning it off deletes the household's
  *   rows (`setBetaMetricsEnabled`).
@@ -18,7 +17,9 @@
  *   than that (no scheduled job). Deleted with the household.
  * - Recording never fails the caller's request: every error is caught and
  *   logged without the household id. Callers record only after their own write
- *   committed, with the base client (never inside their transaction).
+ *   committed, with the base client. The separate strict transactional helper
+ *   couples content-free feedback counts to their deduplication receipt; its
+ *   failure rolls back feedback only, never the user's domain action.
  *
  * This file is the only writer of the table (source-scan test in
  * src/lib/__tests__/beta-metrics.test.ts).
@@ -28,6 +29,9 @@ import type { Prisma, PrismaClient } from '@prisma/client'
 export const BETA_METRICS = [
   // Activation: family creation, invite (a member joined), first assignment.
   'member_joined',
+  // Optional, fixed-vocabulary AI choices; never prompt/recipe/record content.
+  'food_ai_choices_used',
+  'food_ai_choices_kept',
   // Weekly core loop: plans week -> assigns chore -> child completes ->
   // parent verifies -> child claims reward.
   'event_created',
@@ -93,23 +97,38 @@ export async function recordBetaMetric(
       return
     }
     if (typeof familyId !== 'string' || familyId.length === 0) return
-    const now = options.now ?? new Date()
-    const day = utcDay(now)
-    const cutoff = retentionCutoffDay(now)
-    await db.$executeRaw`
-      WITH target AS (
-        SELECT "id" FROM "Family" WHERE "id" = ${familyId} AND "beta_metrics_enabled" = true FOR SHARE
-      ), bumped AS (
-        INSERT INTO "BetaMetricDaily" ("family_id", "day", "metric", "count")
-        SELECT "id", ${day}::date, ${metric}, 1 FROM target
-        ON CONFLICT ("family_id", "day", "metric") DO UPDATE SET "count" = "BetaMetricDaily"."count" + 1
-        RETURNING 1
-      )
-      DELETE FROM "BetaMetricDaily"
-      WHERE "family_id" = ${familyId} AND "day" < ${cutoff}::date AND EXISTS (SELECT 1 FROM bumped)`
+    await appendBetaMetric(db, familyId, metric, options.now ?? new Date())
   } catch (error) {
     logFailure(error)
   }
+}
+
+/** Strict aggregate write for the content-free feedback receipt transaction.
+ * Existing domain mutations keep using recordBetaMetric after their commit. */
+export async function recordBetaMetricInTransaction(
+  db: RecorderDb,
+  familyId: string,
+  metric: DirectBetaMetric,
+  options: { now?: Date } = {}
+): Promise<void> {
+  if (!isBetaMetric(metric) || metric.startsWith('first_chore_') || typeof familyId !== 'string' || !familyId)
+    throw new Error('Beta metric unavailable')
+  await appendBetaMetric(db, familyId, metric, options.now ?? new Date())
+}
+async function appendBetaMetric(db: RecorderDb, familyId: string, metric: DirectBetaMetric, now: Date) {
+  const day = utcDay(now)
+  const cutoff = retentionCutoffDay(now)
+  await db.$executeRaw`
+    WITH target AS (
+      SELECT "id" FROM "Family" WHERE "id" = ${familyId} AND "beta_metrics_enabled" = true FOR SHARE
+    ), bumped AS (
+      INSERT INTO "BetaMetricDaily" ("family_id", "day", "metric", "count")
+      SELECT "id", ${day}::date, ${metric}, 1 FROM target
+      ON CONFLICT ("family_id", "day", "metric") DO UPDATE SET "count" = "BetaMetricDaily"."count" + 1
+      RETURNING 1
+    )
+    DELETE FROM "BetaMetricDaily"
+    WHERE "family_id" = ${familyId} AND "day" < ${cutoff}::date AND EXISTS (SELECT 1 FROM bumped)`
 }
 
 /**

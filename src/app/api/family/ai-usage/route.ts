@@ -1,3 +1,4 @@
+import { readFoodAiFeedbackCounts } from "@/lib/food-planning/ai-feedback";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
@@ -6,7 +7,12 @@ import {
   boundedRequestText,
   RequestBodyTooLarge,
 } from "@/lib/bounded-request-text";
-import { aiUsagePolicyCommand, aiUsageReport } from "@/lib/ai-usage-contract";
+import {
+  aiUsagePolicyCommand,
+  aiUsageReport,
+  AI_USAGE_FEEDBACK_HEADER,
+  AI_USAGE_FEEDBACK_PROTOCOL,
+} from "@/lib/ai-usage-contract";
 import {
   AiUsageError,
   isAiUsageAdopted,
@@ -53,6 +59,9 @@ async function run(request: NextRequest, write: boolean) {
         );
       }
     }
+    const feedbackRequested =
+      request.headers.get(AI_USAGE_FEEDBACK_HEADER) ===
+      AI_USAGE_FEEDBACK_PROTOCOL;
     const result = await prisma!.$transaction(async (tx) => {
       await lockUser(tx, auth.user.id);
       await lockHousehold(tx, auth.user.family_id);
@@ -96,6 +105,7 @@ async function run(request: NextRequest, write: boolean) {
           capture_ai_key_enc: true,
           capture_ai_base_url: true,
           capture_ai_model: true,
+          beta_metrics_enabled: true,
         },
       });
       if (!family)
@@ -166,12 +176,25 @@ async function run(request: NextRequest, write: boolean) {
             config && saved.pricedConfigHash === aiConfigHash(config),
           ),
           configVersion: config ? aiConfigHash(config) : null,
+          suggestionFeedback:
+            feedbackRequested && family.beta_metrics_enabled
+              ? await readFoodAiFeedbackCounts(tx, owner.familyId, now)
+              : null,
           days: await readAiUsageDays(tx, owner.familyId, now),
           month: now.toISOString().slice(0, 7),
           today: now.toISOString().slice(0, 10),
         }),
       };
     });
+    if (
+      result.status === 200 &&
+      !feedbackRequested &&
+      "suggestionFeedback" in result.body
+    ) {
+      const { suggestionFeedback, ...legacy } = result.body;
+      void suggestionFeedback;
+      return reply(legacy, result.status);
+    }
     return reply(result.body, result.status);
   } catch (error) {
     return reply(

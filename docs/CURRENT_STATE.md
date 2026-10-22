@@ -1,5 +1,39 @@
 # Current State
 
+## Assistant meal handoff and optional suggestion counts — 2026-10-22
+
+Chat now supports fixed canonical meal/prep planning and own saved-work recovery
+links. The action schema accepts only named destinations; no generated dates,
+record IDs, preferences, arbitrary URLs or write payloads enter a handoff. Existing
+role/feature checks and draft-aware navigation remain. The local assistant panel
+also offers the existing compact planning/recovery disclosure without a provider
+call or journal read. Destination hosts retain current capability, recovery,
+shared/fridge and preparation guards; chat does not submit, retry or replace work.
+
+Optional Use/Keep counts are source-authored under the existing household usage-
+count opt-in. An opaque signed, person/family/role/generation-bound ten-minute
+ticket permits one fixed decision. Current person and opt-in are locked/rechecked;
+a strict aggregate write and minimal deduplication receipt commit together. Same-
+body retry replays; a contradictory decision refuses. Off creates no count or
+receipt. Existing opt-out deletes aggregates, and old receipts prevent recounting
+a previous decision after re-enabling. No prompt, preference, recipe details,
+source IDs, provider output or raw ticket is stored in count/receipt content.
+Receipts use existing seven-day lifecycle; aggregates retain existing thirteen-
+month privacy rules. No new table, migration, scheduler or provider call.
+
+Only an explicit Use after durable draft adoption or Keep sends feedback. Closing,
+expiry, unknown replies, failure and navigation do not imply a decision. Feedback
+failure never changes the draft/save outcome, and no offline outbox/automatic
+retry is added. The parent AI panel can request separate monthly Use/Keep counts;
+legacy report responses omit the extension unless the client sends its versioned
+header. API reply acceptance remains distinct from choices and domain saves.
+
+Role/schema/client/proof/opt-out/replay/API and guarded disposable-PostgreSQL race/
+rollback cases are authored and **unrun**. No tests/typecheck/lint/build/browser/
+API/DB/schema/provider/flag/push/merge/deploy or issue closure. Remaining food
+commitment review, wider semantic evaluation and full-goal source reconciliation
+precede consolidated QA and authorized release. The full goal stays active.
+
 ## Metered AI meal choices and explicit draft adoption — 2026-10-22
 
 An optional personal Meals AI path is now source-authored. It ranks at most four

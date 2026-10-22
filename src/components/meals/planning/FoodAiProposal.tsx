@@ -75,6 +75,14 @@ export function FoodAiProposal({
           "Usar copia las recetas al borrador y actualiza las comprobaciones del hogar. Se quitan las selecciones de compra de las recetas cambiadas. Guardar requiere revisión y confirmación aparte. Las sugerencias caducan al minuto.",
         )}
       </p>
+      {suggestion.feedbackTicket && (
+        <p className="text-footnote text-label-secondary">
+          {copy(
+            "Your household has usage counts on. Use/Keep shares one choice count without recipe details or your preference. You can turn counts off in Settings.",
+            "Tu hogar tiene los recuentos de uso activados. Usar/Conservar comparte un recuento sin detalles de recetas ni tu preferencia. Puedes desactivarlos en Ajustes.",
+          )}
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"

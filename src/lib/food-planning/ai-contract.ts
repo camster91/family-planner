@@ -40,9 +40,25 @@ export const foodAiEvaluation = z
     preferenceAssessment: z.literal("human-review"),
   })
   .strict();
+export const foodAiFeedbackTicket = z
+  .string()
+  .regex(/^faf1\.[0-9]{13}\.[a-f0-9-]{36}\.[a-f0-9]{64}$/);
+export const foodAiFeedbackInput = z
+  .object({
+    ticket: foodAiFeedbackTicket,
+    decision: z.enum(["used", "kept"]),
+  })
+  .strict();
+export const foodAiFeedbackReply = z
+  .object({
+    protocol: z.literal("herewoven.food-ai-feedback.v1"),
+    state: z.enum(["recorded", "skipped"]),
+  })
+  .strict();
 export const foodAiSuggestion = z
   .object({
     protocol: z.literal(FOOD_AI),
+    feedbackTicket: foodAiFeedbackTicket.nullable().default(null),
     original: foodPreviewView,
     proposal: foodPreviewView,
     evidence: z

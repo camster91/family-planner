@@ -1,5 +1,7 @@
 /** Content-free usage contracts; safe for client and transport type imports. */
 import { z } from "zod";
+export const AI_USAGE_FEEDBACK_HEADER = "X-AI-Feedback-Report";
+export const AI_USAGE_FEEDBACK_PROTOCOL = "herewoven.food-ai-feedback.v1";
 import { memberIdentityIdSchema as id } from "./member-subject-contract";
 export const aiUsageOwner = z
   .object({
@@ -87,6 +89,14 @@ export const aiUsageReport = z
       .string()
       .regex(/^[a-f0-9]{64}$/)
       .nullable(),
+    suggestionFeedback: z
+      .object({
+        used: z.string().regex(/^(0|[1-9][0-9]*)$/),
+        kept: z.string().regex(/^(0|[1-9][0-9]*)$/),
+      })
+      .strict()
+      .nullable()
+      .default(null),
     days: z.array(aiUsageDay).max(31),
     month: z.string().regex(/^\d{4}-\d{2}$/),
     today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

@@ -778,3 +778,18 @@ cases are authored/unrun; no nutrition, preference or product-quality score is
 claimed. New readiness example stays off. Broader assistant handoff, acceptance/
 dismissal telemetry and cross-feature evaluation remain source work before final
 QA. No runtime/provider/DB/schema/flag/push/merge/deploy or issue closure.
+
+### 2026-10-22 — assistant handoff and opt-in suggestion feedback (#123/#144)
+
+Fixed meal/prep/recovery destinations and the local personal planning disclosure
+use existing role/feature/owned-navigation guards without chat-to-write payloads.
+Signed opaque feedback permits one used/kept decision under current person/role/
+generation and household count opt-in. Strict existing aggregate writes and minimal
+seven-day dedup receipts share a transaction; retries cannot recount or change the
+decision. Opt-out deletes aggregates; no feedback content is collected when off.
+Use is recorded only after durable raw-draft adoption, not as a saved meal. Parent
+monthly counts use an explicitly negotiated report extension; old report responses
+keep their shape. No new schema/provider/flag activation. Source/API/client/proof/
+privacy and guarded real-PG race/rollback cases authored/unrun. Remaining food
+commitment review, cross-feature semantic evaluation and wider goal source precede
+consolidated QA/release. No runtime/QA/push/merge/deploy/closure claim.

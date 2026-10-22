@@ -10,6 +10,7 @@ import {
   readFoodRecoveryContext,
   readFoodPreview,
   readFoodAiSuggestion,
+  sendFoodAiFeedback,
   readFoodWriteReview,
   readFoodGroceries,
   undoFoodGroceries,
@@ -369,6 +370,12 @@ export function useFoodPlanningSession(onSaved: () => void) {
   }
   function dismissAi() {
     if (operation.current) return;
+    if (aiSuggestion?.feedbackTicket && contextRef.current)
+      void sendFoodAiFeedback(
+        aiSuggestion.feedbackTicket,
+        "kept",
+        contextRef.current,
+      );
     aiDraftStamp.current = null;
     setAiSuggestion(null);
   }
@@ -393,6 +400,8 @@ export function useFoodPlanningSession(onSaved: () => void) {
       // Durable editing first. A failed preview never loses the chosen draft,
       // dispatches writes, or reuses the provider result as an action proof.
       await flush();
+      if (current() && suggestion.feedbackTicket)
+        void sendFoodAiFeedback(suggestion.feedbackTicket, "used", ctx);
       const result = await readFoodPreview(foodDraftQuery(next), ctx);
       if (current()) setPreview(result);
     });

@@ -23,9 +23,11 @@ import {
   FoodAiRefused,
 } from "./ai-catalog";
 import { foodAiEnabled } from "./ai-gates";
+import { issueFoodAiFeedback } from "./ai-feedback";
 import { evaluateFoodAiProposal } from "./ai-evaluation";
 export const foodAiFamilySelect = {
   features: true,
+  beta_metrics_enabled: true,
   capture_ai_key_enc: true,
   capture_ai_base_url: true,
   capture_ai_model: true,
@@ -79,7 +81,7 @@ export async function suggestFoodPlan(
       })),
     },
   });
-  const proposal = await db.$transaction(
+  const reconstructed = await db.$transaction(
     async (tx) => {
       // Anchor the original lease and source window; provider latency cannot
       // refresh evidence age. Both requests read the same current RR snapshot.
@@ -112,20 +114,27 @@ export async function suggestFoodPlan(
           canonicalRequestJson(features)
       )
         throw new FoodAiRefused("AI_SOURCE_CHANGED");
-      return foodPreviewView.parse(
-        await previewFoodPlanInTx(
-          tx,
-          actor,
-          chosen,
-          new Date(original.generatedAt),
+      return {
+        feedbackEnabled: family.beta_metrics_enabled,
+        view: foodPreviewView.parse(
+          await previewFoodPlanInTx(
+            tx,
+            actor,
+            chosen,
+            new Date(original.generatedAt),
+          ),
         ),
-      );
+      };
     },
     { isolationLevel: "RepeatableRead", timeout: 15000 },
   );
+  const proposal = reconstructed.view;
   const evaluation = evaluateFoodAiProposal(original, proposal);
   const result = foodAiSuggestion.parse({
     protocol: FOOD_AI,
+    feedbackTicket: reconstructed.feedbackEnabled
+      ? issueFoodAiFeedback(actor)
+      : null,
     original,
     proposal,
     evidence,
