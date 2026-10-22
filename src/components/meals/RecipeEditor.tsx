@@ -460,11 +460,16 @@ function RecipeEditorForm({
       return;
     }
     const baseServings = Number(servings);
+    // Legacy unknowns are not a guessed base count. An unrelated edit must
+    // omit that unchanged field; creates and changed counts still validate.
+    const unchangedUnknownServings =
+      !!initialRecipe && initialRecipe.servings == null && servings === "";
     if (
-      !servings.trim() ||
-      !Number.isInteger(baseServings) ||
-      baseServings < 1 ||
-      baseServings > 100
+      !unchangedUnknownServings &&
+      (!servings.trim() ||
+        !Number.isInteger(baseServings) ||
+        baseServings < 1 ||
+        baseServings > 100)
     ) {
       setError(text("invalidServings"));
       return;
@@ -555,7 +560,7 @@ function RecipeEditorForm({
       const originalDrafts = initialRecipe
         ? {
             title: initialRecipe.title,
-            servings: String(initialRecipe.servings ?? 2),
+            servings: String(initialRecipe.servings ?? ""),
             description: initialRecipe.description ?? "",
             instructions: initialRecipe.instructions ?? "",
             prep_time:

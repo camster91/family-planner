@@ -1,6 +1,9 @@
 /**
  * @jest-environment jsdom
  */
+jest.mock("@/lib/review-document-browser", () =>
+  require("@/__tests__/helpers/legacy-recipe-review").legacyRecipeReviewMock(),
+);
 import * as React from "react";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -358,7 +361,7 @@ describe("/dashboard/meals", () => {
       await user.click(
         within(dialog).getByRole("button", { name: "New recipe" }),
       );
-      const editor = screen.getByTestId("recipe-quick-create");
+      const editor = await screen.findByTestId("recipe-quick-create");
       await user.type(
         within(editor).getByLabelText("Recipe name"),
         "Inline soup",
@@ -474,7 +477,7 @@ describe("/dashboard/meals", () => {
       let enter: (() => void) | undefined;
       if (editorOpen) {
         await user.click(newRecipe);
-        const editor = screen.getByTestId("recipe-quick-create");
+        const editor = await screen.findByTestId("recipe-quick-create");
         const title = within(editor).getByLabelText("Recipe name");
         await user.type(title, "Do not orphan this recipe");
         attempt = handler<() => void>(
@@ -530,7 +533,7 @@ describe("/dashboard/meals", () => {
         calls.filter((c) => c.url === "/api/recipes" && c.method === "POST"),
       ).toHaveLength(0);
       if (editorOpen) {
-        expect(screen.getByTestId("recipe-quick-create")).toHaveProperty(
+        expect(await screen.findByTestId("recipe-quick-create")).toHaveProperty(
           "disabled",
           true,
         );
@@ -547,9 +550,14 @@ describe("/dashboard/meals", () => {
         calls.filter((c) => c.url === "/api/recipes" && c.method === "POST"),
       ).toHaveLength(0);
       await act(async () => {
-        resolve({ ok: true, status: 200, json: async () => ({}) } as Response);
+        resolve({
+          ok: true,
+          status: 200,
+          json: async () =>
+            method === "POST" ? { mealId: "created_fixture" } : {},
+        } as Response);
       });
-      expect(screen.queryByRole("dialog")).toBeNull();
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     },
   );
   it("blocks owning meal dismissal and submission while inline recipe creation is pending", async () => {
@@ -561,7 +569,7 @@ describe("/dashboard/meals", () => {
       within(dialog).getByRole("button", { name: "New recipe" }),
     );
     await user.type(
-      within(screen.getByTestId("recipe-quick-create")).getByLabelText(
+      within(await screen.findByTestId("recipe-quick-create")).getByLabelText(
         "Recipe name",
       ),
       "Inline soup",
@@ -707,7 +715,11 @@ describe("/dashboard/meals", () => {
         c.url.startsWith("/api/meals?"),
       ).length;
       await act(async () => {
-        resolveMutation({ ok: true, json: async () => ({}) } as Response);
+        resolveMutation({
+          ok: true,
+          json: async () =>
+            action === "undo" ? { mealId: "restored_fixture" } : {},
+        } as Response);
       });
       await waitFor(() =>
         expect(
@@ -1114,12 +1126,17 @@ describe("/dashboard/meals", () => {
     await user.click(within(toast).getByRole("button", { name: "Undo" }));
     await waitFor(() =>
       expect(
-        calls.some((c) => c.url === "/api/meals" && c.method === "POST"),
+        calls.some((c) => c.url === "/api/meals/create" && c.method === "POST"),
       ).toBe(true),
     );
     expect(
-      calls.find((c) => c.url === "/api/meals" && c.method === "POST")!.body,
+      calls.find((c) => c.url === "/api/meals/create" && c.method === "POST")!
+        .body,
     ).toEqual({
+      protocol: "herewoven.meal-create.v1",
+      expected_user_id: "fixture_parent",
+      expected_family_id: "fixture_family",
+      issued_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       date: today,
       meal_type: "dinner",
       recipe_name: "Green salad",
@@ -1404,7 +1421,8 @@ describe("/dashboard/meals", () => {
     await user.type(within(dialog).getByLabelText("Recipe name"), "Porridge");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(await screen.findByText("Recipe name is too long")).toBeTruthy();
-    expect(screen.getByText("Couldn't add the meal")).toBeTruthy();
+    expect(screen.getAllByText("Recipe name is too long")).toHaveLength(1);
+    expect(screen.queryByText("Couldn't add the meal")).toBeNull();
     expect(window.alert).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeTruthy();
   });

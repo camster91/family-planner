@@ -1,5 +1,16 @@
 # Current State
 
+## Recipe/meal QA repair batch — 2026-10-22
+
+Ten affected recipe/meal suites pass114 tests; full types/lint pass (44 warnings).
+Source repairs preserve unchanged legacy unknown recipe servings, bound collection
+requests, and block inline recipe actions through the canonical meal-create
+pending/unknown state. Existing same-batch action, Undo/navigation, exact request,
+role/recovery and localization assertions pass with current explicit fixtures.
+No null create or guessed count was added. Build/smoke evidence at22968838 is for
+the prior code and is not final-candidate acceptance. Full units/DB/rendered/
+recovery/hosted release gates remain open. Evidence:`docs/testing/WEB_QA_20261022.md`.
+
 ## Local optimized packaging and startup pass — 2026-10-22
 
 At22968838, the clean Next16.4.2 optimized build exits0 with private physical

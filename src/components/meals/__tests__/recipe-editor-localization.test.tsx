@@ -1,4 +1,10 @@
 /** @jest-environment jsdom */
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+}));
+jest.mock("@/lib/review-document-browser", () =>
+  require("@/__tests__/helpers/legacy-recipe-review").legacyRecipeReviewMock(),
+);
 import * as React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -92,12 +98,16 @@ it("localizes validation and keeps the draft after a rejected save", async () =>
   render(
     withSpanish(<RecipeEditor onCreated={jest.fn()} onCancel={jest.fn()} />),
   );
-  await user.click(screen.getByRole("button", { name: "Guardar receta" }));
+  await user.click(
+    await screen.findByRole("button", { name: "Guardar receta" }),
+  );
   expect(screen.getByRole("alert").textContent).toBe(
     "Escribe un nombre para la receta.",
   );
-  await user.type(screen.getByLabelText("Nombre de la receta"), "Sopa");
-  await user.click(screen.getByRole("button", { name: "Guardar receta" }));
+  await user.type(await screen.findByLabelText("Nombre de la receta"), "Sopa");
+  await user.click(
+    await screen.findByRole("button", { name: "Guardar receta" }),
+  );
 
   await waitFor(() =>
     expect(screen.getByRole("alert").textContent).toBe(
@@ -129,8 +139,10 @@ it("localizes the pending save state", async () => {
   render(
     withSpanish(<RecipeEditor onCreated={jest.fn()} onCancel={jest.fn()} />),
   );
-  await user.type(screen.getByLabelText("Nombre de la receta"), "Sopa");
-  await user.click(screen.getByRole("button", { name: "Guardar receta" }));
+  await user.type(await screen.findByLabelText("Nombre de la receta"), "Sopa");
+  await user.click(
+    await screen.findByRole("button", { name: "Guardar receta" }),
+  );
   expect(screen.getByRole("button", { name: "Guardando…" })).toBeTruthy();
   expect(
     (screen.getByTestId("recipe-quick-create") as HTMLFieldSetElement).disabled,

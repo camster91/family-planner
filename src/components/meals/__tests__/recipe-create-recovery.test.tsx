@@ -1,4 +1,10 @@
 /** @jest-environment jsdom */
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+}));
+jest.mock("@/lib/review-document-browser", () =>
+  require("@/__tests__/helpers/legacy-recipe-review").legacyRecipeReviewMock(),
+);
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { RecipeEditor } from "../RecipeEditor";
 test("uncertain creation retries exactly its original tagged body and key, with fields locked", async () => {
@@ -20,7 +26,7 @@ test("uncertain creation retries exactly its original tagged body and key, with 
       }),
     });
   render(<RecipeEditor onCreated={created} onCancel={() => {}} />);
-  fireEvent.change(screen.getByLabelText("Recipe name"), {
+  fireEvent.change(await screen.findByLabelText("Recipe name"), {
     target: { value: "Fixture soup" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Save recipe" }));

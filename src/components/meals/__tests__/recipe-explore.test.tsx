@@ -1,4 +1,7 @@
 /** @jest-environment jsdom */
+jest.mock("@/lib/review-document-browser", () =>
+  require("@/__tests__/helpers/legacy-recipe-review").legacyRecipeReviewMock(),
+);
 import * as React from "react";
 import {
   render,
@@ -11,6 +14,7 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import Explore from "@/app/dashboard/meals/explore/page";
 jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 jest.mock("@/components/ui/feature-gate", () => ({
@@ -53,6 +57,8 @@ function setup(role = "parent") {
       calls.push(body);
       return response({ recipe: { id: "new-fixture", title: body.title } });
     }
+    if (String(url) === "/api/recipes/collections")
+      return response({ collections: [] });
     throw new Error("unexpected fixture request");
   }) as jest.Mock;
   return calls;

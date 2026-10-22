@@ -8,6 +8,7 @@ import {
   collectionName,
 } from "@/lib/recipe-curation-contract";
 import { useRecipeCurationText } from "@/i18n/recipe-curation";
+import { requestOwnedJson } from "@/lib/owned-request-http";
 type Collection = { id: string; name: string; revision: number };
 export function RecipeCollections({
   value,
@@ -42,12 +43,13 @@ export function RecipeCollections({
     const own = ++generation.current;
     setLoading(true);
     try {
-      const response = await fetch("/api/recipes/collections", {
-        cache: "no-store",
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!response.ok) throw new Error();
-      const result = collectionResponse.parse(await response.json());
+      const response = await requestOwnedJson(
+        "/api/recipes/collections",
+        {},
+        128 * 1024,
+      );
+      if (response.kind !== "reply" || !response.response.ok) throw new Error();
+      const result = collectionResponse.parse(response.body);
       if (own !== generation.current) return;
       setRows(result.collections);
       setUncertain(false);
@@ -96,14 +98,20 @@ export function RecipeCollections({
     setBusy(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/recipes/collections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-        signal: AbortSignal.timeout(15000),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error();
+      const response = await requestOwnedJson(
+        "/api/recipes/collections",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        },
+        32 * 1024,
+      );
+      if (response.kind !== "reply" || !response.response.ok) throw new Error();
+      const body = response.body as {
+        deleted?: unknown;
+        collection?: unknown;
+      } | null;
       if (own !== generation.current) return;
       if (remove) {
         if (body?.deleted !== true || !selected) throw new Error();

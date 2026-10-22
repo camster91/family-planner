@@ -1,4 +1,10 @@
 /** @jest-environment jsdom */
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+}));
+jest.mock("@/lib/review-document-browser", () =>
+  require("@/__tests__/helpers/legacy-recipe-review").legacyRecipeReviewMock(),
+);
 import { fireEvent, render, screen } from "@testing-library/react";
 import { RecipeEditor } from "../RecipeEditor";
 const originalFetch = global.fetch;
@@ -20,9 +26,9 @@ it("leaves imported unknown servings empty and refuses a guessed default", async
       }}
     />,
   );
-  expect(screen.getByRole("spinbutton", { name: "Base servings" })).toHaveValue(
-    null,
-  );
+  expect(
+    await screen.findByRole("textbox", { name: "Base servings" }),
+  ).toHaveValue("");
   fireEvent.click(screen.getByRole("button", { name: "Save recipe" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Base servings must be a whole number from 1 to 100.",
@@ -45,11 +51,15 @@ it("preserves an over-limit imported method and asks for explicit shortening bef
       }}
     />,
   );
-  expect(screen.getByRole("textbox", { name: "Method" })).toHaveValue(method);
+  expect(await screen.findByRole("textbox", { name: "Method" })).toHaveValue(
+    method,
+  );
   fireEvent.click(screen.getByRole("button", { name: "Save recipe" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "nothing has been saved or removed",
   );
   expect(global.fetch).not.toHaveBeenCalled();
-  expect(screen.getByRole("textbox", { name: "Method" })).toHaveValue(method);
+  expect(await screen.findByRole("textbox", { name: "Method" })).toHaveValue(
+    method,
+  );
 });

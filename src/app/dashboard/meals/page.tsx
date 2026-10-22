@@ -334,8 +334,10 @@ function MealModal({
             onChange={handleRecipeChange}
             initialRecipe={initial?.recipe ?? defaultRecipe ?? null}
             onCreatingChange={handleRecipeCreatingChange}
-            disabled={saving}
-            isMutationPending={isMealMutationPending}
+            disabled={saving || creation.locked}
+            isMutationPending={() =>
+              isMealMutationPending() || creation.isPending()
+            }
           />
           <div>
             <label
