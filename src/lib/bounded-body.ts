@@ -25,7 +25,7 @@ export function declaresTooLarge(request: Pick<Request, 'headers'>, maxBytes: nu
   return Number.isFinite(declared) && declared > maxBytes
 }
 
-async function readBoundedBytes(body: ReadableStream<Uint8Array>, maxBytes: number): Promise<Uint8Array> {
+async function readBoundedBytes(body: ReadableStream<Uint8Array>, maxBytes: number): Promise<Uint8Array<ArrayBuffer>> {
   const reader = body.getReader()
   const chunks: Uint8Array[] = []
   let total = 0

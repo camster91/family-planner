@@ -9,10 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 import { HouseholdMemberIdentityConflict } from "@/lib/household-member-lifecycle";
-import {
-  RequestBodyTooLargeError,
-  readBoundedText,
-} from "@/lib/bounded-body";
+import { RequestBodyTooLargeError, readBoundedText } from "@/lib/bounded-body";
 
 export const dynamic = "force-dynamic";
 const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
