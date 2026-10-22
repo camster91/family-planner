@@ -1,3 +1,5 @@
+import { isAiUsageAdopted } from './ai-usage-gates'
+import { reportedTokenCount, type ProviderUsageObserver } from './ai-usage-contract'
 import type { AssistantReferenceCatalog } from "./assistant-references";
 // Small, focused AI capture layer.
 //
@@ -184,12 +186,15 @@ function throwIfTimedOut(err: unknown, signal: AbortSignal): void {
   }
 }
 
-async function callModel(
+async function callModelTransport(
   config: CaptureConfig,
   userContent: Array<Record<string, unknown>>,
   systemPrompt: string,
-  assistantLimits = false
+  assistantLimits = false,
+  observer?: ProviderUsageObserver
 ): Promise<unknown> {
+  if (process.env.FAMILY_AI_PROVIDER_DISABLED === '1') throw new CaptureError('AI is paused. Use the app controls instead.', 503)
+  if (isAiUsageAdopted() && !observer) throw new CaptureError('AI usage needs a compatible request. Refresh before trying again.', 503)
   const { apiKey, baseUrl, model } = config
 
   if (config.userSuppliedUrl) {
@@ -208,6 +213,16 @@ async function callModel(
   // check above and the connection. The deployment endpoint is trusted.
   const doFetch = config.userSuppliedUrl ? safeFetch : fetch
 
+  const maxOutputTokens = assistantLimits ? 1300 : 4096
+  const providerBody = JSON.stringify({
+    model,
+    messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }],
+    temperature: 0, max_tokens: maxOutputTokens, response_format: { type: 'json_object' },
+  })
+  const inputBytes = Buffer.byteLength(providerBody, 'utf8')
+  if (inputBytes > 8_000_000) throw new CaptureError('The AI request is too large. Reduce the image or message size.', 413)
+  await observer?.start({ inputBytes, maxOutputTokens })
+  if (process.env.FAMILY_AI_PROVIDER_DISABLED === '1') throw new CaptureError('AI is paused. Use the app controls instead.', 503)
   let res: Response
   try {
     res = await doFetch(`${baseUrl}/chat/completions`, {
@@ -220,17 +235,7 @@ async function callModel(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent },
-        ],
-        temperature: 0,
-        ...(assistantLimits ? { max_tokens: 1300 } : {}),
-        // Ask for JSON where the provider supports it; harmless where it does not.
-        response_format: { type: 'json_object' },
-      }),
+      body: providerBody,
     })
   } catch (err) {
     throwIfTimedOut(err, signal)
@@ -245,9 +250,9 @@ async function callModel(
     throw new CaptureError(`The AI provider returned an error (${res.status}). Check the key and provider in Settings.`)
   }
 
-  let data: { choices?: Array<{ message?: { content?: string } }> }
+  let data: { choices?: Array<{ message?: { content?: string } }>; usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } }
   try {
-    if (assistantLimits && res.body) {
+    if (res.body) {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let bytes = 0
@@ -257,7 +262,7 @@ async function callModel(
           const chunk = await reader.read()
           if (chunk.done) break
           bytes += chunk.value.byteLength
-          if (bytes > 64 * 1024) {
+          if (bytes > (assistantLimits ? 64 : 256) * 1024) {
             await reader.cancel()
             throw new CaptureError('The AI answer was too large')
           }
@@ -273,6 +278,7 @@ async function callModel(
     throwIfTimedOut(err, signal)
     throw new CaptureError('The AI provider returned an unreadable answer')
   }
+  observer?.reported({ inputTokens: reportedTokenCount(data.usage?.prompt_tokens), outputTokens: reportedTokenCount(data.usage?.completion_tokens) })
   const raw = data.choices?.[0]?.message?.content
   if (!raw) throw new CaptureError('The AI provider returned no content')
 
@@ -287,7 +293,12 @@ async function callModel(
 }
 
 // Public entry point used by the API route.
-export async function draftFromText(text: string, config: CaptureConfig): Promise<CaptureDraft> {
+async function callModel(config: CaptureConfig, userContent: Array<Record<string, unknown>>, prompt: string, assistantLimits = false, observer?: ProviderUsageObserver): Promise<unknown> {
+  try { return await callModelTransport(config, userContent, prompt, assistantLimits, observer) }
+  catch (error) { observer?.failed(error instanceof CaptureError && error.message === TIMEOUT_MESSAGE ? 'timeout' : 'error'); throw error }
+}
+
+export async function draftFromText(text: string, config: CaptureConfig, observer?: ProviderUsageObserver): Promise<CaptureDraft> {
   const trimmed = text.trim()
   if (!trimmed) throw new CaptureError('Nothing to capture', 400)
   if (trimmed.length > 500) throw new CaptureError('Phrase is too long (max 500 characters)', 400)
@@ -297,7 +308,7 @@ export async function draftFromText(text: string, config: CaptureConfig): Promis
     [
       { type: 'text', text: `${todayContext()}\n\nPhrase: ${trimmed}` },
     ],
-    SYSTEM_PROMPT
+    SYSTEM_PROMPT, false, observer
   )
 
   const result = captureTextReview.safeParse(parsed)
@@ -313,7 +324,8 @@ export type ImageCaptureResult = CapturePhotoReview
 export async function draftFromImage(
   base64: string,
   mimeType: string,
-  config: CaptureConfig
+  config: CaptureConfig,
+  observer?: ProviderUsageObserver
 ): Promise<ImageCaptureResult> {
   if (!base64) throw new CaptureError('No image provided', 400)
 
@@ -332,7 +344,7 @@ export async function draftFromImage(
         image_url: { url: `data:${mimeType};base64,${base64}` },
       },
     ],
-    IMAGE_PROMPT
+    IMAGE_PROMPT, false, observer
   )
 
   const result = capturePhotoReview.safeParse(parsed)
@@ -347,7 +359,8 @@ export async function structuredAssistantReply(
   config: CaptureConfig,
   prompt: string,
   todayContext?: AssistantTodayTransportContext,
-  references?: Array<AssistantReferenceCatalog[number]["provider"]>
+  references?: Array<AssistantReferenceCatalog[number]["provider"]>,
+  observer?: ProviderUsageObserver
 ): Promise<unknown> {
   const userContent: Array<Record<string, unknown>> = [
     { type: 'text', text: JSON.stringify(context) },
@@ -364,5 +377,5 @@ export async function structuredAssistantReply(
     type: 'text',
     text: `<assistant-source-references untrusted="true">${JSON.stringify({ protocol: 'herewoven.assistant-references.v1', references })}</assistant-source-references>`,
   })
-  return callModel(config, userContent, prompt, true)
+  return callModel(config, userContent, prompt, true, observer)
 }

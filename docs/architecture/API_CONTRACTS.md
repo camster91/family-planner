@@ -971,3 +971,25 @@ authorization/confirmation. Active Today lease is required for source links in
 the chat; citation objects are excluded from subsequent chat request messages.
 Source/schema/catalog/transport/UI cases are authored/unrun. Gate stays off;
 confirmed-plan grounding, eval/cost gates and consolidated release QA remain open.
+
+## Parent AI usage controls (source, 2026-10-22)
+
+`GET /api/family/ai-usage`: current authenticated parent-person only, private/
+no-store, membership/session renewal, explicit paired-device refusal. Adoption is
+required; missing storage is503. Returns strict owner, readiness/pause, policy and
+revision, reviewed provider fingerprint/live sanitized label, current month/day
+and at most31 UTC daily aggregates. No per-user calls, prompts, replies, source
+records, credentials or full URLs are exposed. Unknown tokens/costs are explicit.
+
+`POST`:8KiB strict `{owner,expectedRevision,configVersion,policy}` with bounded
+enabled/daily limits, nullable integer micro-USD month estimate limit and both
+input/output rates per million tokens. Current identity/provider and revision
+conflicts require refresh. No provider/key/model/subscription change or provider
+call occurs. Source cases are unrun. See `AI_USAGE_CONTROLS.md`.
+
+Assistant/capture request/reply bodies stay compatible; their server-owned
+controllers meter the shared provider transport only after opt-in. Both usage
+gates are required; rollback adoption persists while calls pause. Partial opt-in
+never falls back to legacy unmetered calls. Quota/readiness/source holds use429/
+503/409 safe errors. Normal deterministic app work remains independent. The new
+independent provider kill switch does not erase settings. No activation occurred.

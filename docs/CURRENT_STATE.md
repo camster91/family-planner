@@ -1,5 +1,23 @@
 # Current State
 
+## AI usage and estimated-cost controls source — 2026-10-22
+
+The shared provider transport now has an optional mandatory-observer quota path,
+parent limits/reporting API and compact EN/ES Settings panel. Additive policy and
+content-free reservation schema/SQL, current user/family/provider/price binding,
+atomic request limits, conservative unknown-cost handling, pause-time reply holds,
+export and erasure semantics are authored. Both usage/rollback gates are required
+for dispatch; default-off examples and a separate provider kill switch are added.
+No provider, paid service, secret or flag was activated.
+
+See [`AI_USAGE_CONTROLS.md`](./architecture/AI_USAGE_CONTROLS.md) for exact quota,
+integer USD estimates, storage/retention/privacy, compatibility and rollback rules.
+Source/unit/API/UI/disposable-DB cases are authored and **unrun**. No migration,
+tests/types/lint/build/browser/application API/SQL/DB/client/native/CI, push/merge/
+deploy or issue closure occurred. Remaining source includes confirmed planning
+checks, broader version coverage, food/recipe/schedule planning, semantic evals and
+inbox/history/refusal follow-through, then consolidated QA. Full goal stays active.
+
 ## Exact AI source-reference catalog source — 2026-10-22
 
 Explicit Include Today requests may now negotiate

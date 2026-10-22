@@ -1,4 +1,5 @@
 "use client";
+import { AiUsagePanel } from "@/components/assistant/AiUsagePanel";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -146,12 +147,14 @@ export default function SettingsClient({
   betaMetrics = null,
   calendarSync = false,
   aiCaptureSettings = false,
+  aiUsage,
 }: {
   viewerRole: SettingsViewerRole;
   sharedDevice: { hasPin: boolean } | null;
   betaMetrics?: { enabled: boolean } | null;
   calendarSync?: boolean;
   aiCaptureSettings?: boolean;
+  aiUsage?: { userId: string; familyId: string };
 }) {
   const copy = useSettingsCopy();
   const isParent = viewerRole === "parent";
@@ -233,6 +236,7 @@ export default function SettingsClient({
 
   // AI capture provider state. The key is never loaded back into the form —
   // the API returns only a masked hint, so the field stays empty on load.
+  const [aiProviderRevision, setAiProviderRevision] = useState(0);
   const [aiKey, setAiKey] = useState("");
   const [aiKeyHint, setAiKeyHint] = useState<string | null>(null);
   const [aiConfigured, setAiConfigured] = useState(false);
@@ -352,6 +356,7 @@ export default function SettingsClient({
       setAiConfigured(Boolean(data.configured));
       setAiKeyHint(data.keyHint ?? null);
       setAiKey("");
+      setAiProviderRevision((value) => value + 1);
       setAiMessage(settingsFeedback(clear ? "aiRemoved" : "saved"));
       setTimeout(() => setAiMessage(null), 2500);
     } catch (e) {
@@ -909,6 +914,10 @@ export default function SettingsClient({
 
           {/* Two-way Google/Outlook sync, #264. Hidden unless the server has it configured. */}
           {calendarSync && <CalendarSyncSection />}
+
+          {aiUsage && isParent && (
+            <AiUsagePanel identity={aiUsage} refreshKey={aiProviderRevision} />
+          )}
 
           {/* AI capture: the household's provider key. Only when the deployment
               turns the form on, a key is already saved, or a parent follows the explicit AI setup link. */}

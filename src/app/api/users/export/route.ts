@@ -1,3 +1,4 @@
+import { exportAiUsage } from '@/lib/ai-usage-server'
 import { exportEventPreparation } from '@/lib/event-preparation/storage'
 import { exportWeeklyReset } from '@/lib/weekly-reset-storage'
 import { exportResponsibilityState } from '@/lib/responsibility-storage'
@@ -525,7 +526,9 @@ export async function GET(request: NextRequest) {
       userId, familyId, role: me?.role,
       eventIds: events.map(row => row.id), choreIds: chores.map(row => row.id),
     })
+    const aiUsage = await exportAiUsage(prisma!, userId, familyId, me?.role)
     const exportData = {
+      ...(aiUsage === undefined ? {} : { aiUsage }),
       exportedAt: new Date().toISOString(),
       ...(eventPreparation === undefined ? {} : { eventPreparation }),
       ...(weeklyReset === undefined ? {} : { weeklyReset }),

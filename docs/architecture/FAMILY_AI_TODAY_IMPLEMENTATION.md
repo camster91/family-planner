@@ -1,5 +1,11 @@
 # Family AI Today broker implementation state
 
+2026-10-22 source update: quota reservations, private usage/cost reporting and
+parent controls are now authored; see [`AI_USAGE_CONTROLS.md`](./AI_USAGE_CONTROLS.md).
+All new gates remain off, schema/cases are unrun, and planning/semantic evaluation
+plus consolidated QA/release remain open. Earlier dated checkpoints below preserve
+their original source boundaries.
+
 ## Exact AI source-reference catalog source — 2026-10-22
 
 Explicit Include Today requests may now negotiate

@@ -11,6 +11,7 @@ datasource db {
 
 // User model
 model User {
+  ai_usage_requests AiUsageRequest[]
   responsibility_coordinations ResponsibilityState[] @relation("ResponsibilityCoordinator")
   responsibility_backups ResponsibilityState[] @relation("ResponsibilityBackupAccount")
   responsibility_statements_about ResponsibilityState[] @relation("ResponsibilityPrimaryAccount")
@@ -161,6 +162,8 @@ model User {
 }
 
 model Family {
+  ai_usage_policy AiUsagePolicy?
+  ai_usage_requests AiUsageRequest[]
   event_preparations EventPreparation[]
   event_preparation_steps EventPreparationStep[]
   responsibility_states ResponsibilityState[]
@@ -2166,4 +2169,42 @@ model EventPreparationStep {
   @@unique([chore_id, family_id], map: "EventPreparationStep_chore_id_family_id_key")
   @@unique([preparation_id, position], map: "EventPreparationStep_plan_position_key")
   @@index([family_id])
+}
+
+/// Content-free AI limits. All money is integer micro-USD at parent-entered rates.
+model AiUsagePolicy {
+  family_id String @id
+  revision Int @default(0)
+  enabled Boolean @default(true)
+  daily_limit Int @default(120)
+  user_daily_limit Int @default(40)
+  monthly_budget_microusd BigInt?
+  input_rate BigInt?
+  output_rate BigInt?
+  priced_config_hash String?
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// Reservation precedes dispatch; pending/unknown outcomes never refund quota.
+model AiUsageRequest {
+  id String @id
+  family_id String
+  user_id String?
+  job String
+  created_at DateTime @db.Timestamptz(6)
+  finished_at DateTime? @db.Timestamptz(6)
+  outcome String @default("pending")
+  provider_status String @default("unconfirmed")
+  latency_ms Int?
+  input_tokens Int?
+  output_tokens Int?
+  input_rate BigInt?
+  output_rate BigInt?
+  reserved_microusd BigInt?
+  estimated_microusd BigInt?
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  @@index([family_id, created_at], map: "AiUsageRequest_family_time_idx")
+  @@index([user_id, created_at], map: "AiUsageRequest_user_time_idx")
 }
