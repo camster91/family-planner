@@ -12,6 +12,16 @@ merge/deploy still require applicable passing QA under the existing authorizatio
 Retain all earlier evidence at its recorded SHA; do not count unverified code or
 provider/native/customer acceptance as finished. The goal remains active.
 
+## Implementation-first web list pages — 2026-10-22
+
+The Lists overview now uses100-summary server pages with explicit Next/first-page
+navigation. Type filters query the full household, fixed bounded type aggregates
+keep counts/discovery exact, and checked-item aggregates cover only page IDs in
+the same renewed-authority snapshot. Later empty pages do not claim an empty
+household. List detail/Back/delete return context preserves the validated overview
+cursor. Formatting/source only; tests and rendered QA remain deferred. List-item
+detail and legacy unpaged API consumers still need separate follow-through.
+
 ## Implementation-first compatible list API paging — 2026-10-22
 
 The canonical list-summary GET now supports optional limit/cursor paging with

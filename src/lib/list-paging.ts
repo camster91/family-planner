@@ -2,6 +2,7 @@
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 export const LIST_PAGE_MAX = 200;
+export const LIST_OVERVIEW_PAGE_SIZE = 100;
 type Scope = { familyId: string; type: string | null };
 type Cursor = { createdAt: Date; id: string };
 const cursorSchema = z.tuple([

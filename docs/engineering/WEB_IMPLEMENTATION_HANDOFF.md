@@ -266,3 +266,42 @@ refusals; no item hydration; and privacy-safe diagnostics. A cursor is never a
 snapshot/authority proof. The server overview, list-item detail, legacy no-limit
 reads, Today dinners and broader query/index/load acceptance remain explicit
 #134 work. This API option does not claim those consumers are paged already.
+
+
+## Implementation-first web Lists overview continuation (#134)
+
+`readListOverview` now reads at most101 summaries for a100-row server page using
+the canonical family/type cursor and creation-descending/ID-ascending order.
+The existing repeatable-read actor/family/role/session renewal remains. Server
+filtering covers the entire household, not just visible rows. One aggregate over
+the six fixed known type keys supplies exact filter counts and legacy meal-plan/
+shopping discovery even when absent from the page. Checked-item group results
+are restricted to the at-most100 displayed IDs plus household scope; count/creator/
+image/total fields keep their prior semantics. No item contents are hydrated.
+
+The overview parses cursor positions against current family/type, resets invalid
+positions to that filter's first page and uses explicit localized Next lists /
+Back to first page navigation. The Next link does not prefetch. Continued empty
+pages have their own explanation instead of a false household-empty/create-first
+state. Server-owned filters never optimistically relabel a previous page while
+navigation is pending or a draft exit is refused. Nonpaged component hosts retain
+their existing local filter behavior. EN/ES copy explains paged creation order and
+whole-household type counts.
+
+Opening a detail carries only a fixed `overviewCursor` parameter; the detail page
+validates it against current family/filter before exposing return context. Back,
+missing-list Back and successful list deletion return to that page/filter.
+There is no arbitrary return URL or new read authority. Create continues returning
+to the first page, where the newest created list is visible. Native no-limit API
+contracts, canonical mutations, owned pending tick recovery and shared-device
+policy are unchanged. No schema/index/infrastructure/provider activation.
+
+Source/formatting only: no tests/typecheck/lint/build/browser/CI or DB queries.
+Later QA must cover100/101/200+lists, creation-time ties, selected type absent from
+first all-page, cross-family/changed-filter/malformed/duplicate cursors, exact
+counts under concurrent ticks/renames/deletes and session/role changes, unknown
+legacy types, direct detail and deleted anchors, return after deletion, invalid
+return context, empty later pages, failed reads/retry, child creation refusal,
+owned-draft navigation refusal, keyboard/Back/focus/reflow and EN/ES six sizes.
+The item-detail collection, legacy no-limit paths, Today dinners and full #134
+query/index/load/acceptance work remain separate; this is not a release pass.

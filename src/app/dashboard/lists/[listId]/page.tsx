@@ -6,6 +6,7 @@ import ListDetailClient from './ListDetailClient'
 import DeleteListButton from './DeleteListButton'
 import ListsBackLink from './ListsBackLink'
 import { listTypeFilter } from '@/lib/list-type-filter'
+import { parseListPaging, LIST_OVERVIEW_PAGE_SIZE } from '@/lib/list-paging'
 import { PersonGroceryAdd } from './PersonGroceryAdd'
 import type { ListType } from '@/types'
 import { canChangeListSectionSort, canDeleteListOrItem } from '@/lib/role-capabilities'
@@ -22,9 +23,10 @@ export const dynamic = 'force-dynamic'
 
 export default async function ListDetailPage({ params, searchParams }: {
   params: Promise<{ listId: string }>
-  searchParams?: Promise<{ type?: string | string[] }>
+  searchParams?: Promise<{ type?: string | string[]; overviewCursor?: string | string[] }>
 }) {
-  const returnFilter = listTypeFilter((await searchParams)?.type)
+  const query = await searchParams
+  const returnFilter = listTypeFilter(query?.type)
   const resolvedParams = await params
   const sessionUser = await getServerUser()
 
@@ -35,6 +37,14 @@ export default async function ListDetailPage({ params, searchParams }: {
     select: { id: true, family_id: true },
   })
   if (!user) return null
+  // This is overview return context only, never list-item paging or authority.
+  let returnCursor: string | null = null
+  if (user.family_id && typeof query?.overviewCursor === 'string') {
+    const position = parseListPaging(new URLSearchParams({ limit: String(LIST_OVERVIEW_PAGE_SIZE), cursor: query.overviewCursor }), {
+      familyId: user.family_id, type: returnFilter,
+    })
+    if (position.ok && position.paged) returnCursor = query.overviewCursor
+  }
   // D9 (#102): every member may add and tick items; deleting a list or an
   // item is parent-only (the API enforces it; the page hides the controls).
   const canDelete = canDeleteListOrItem(sessionUser.role)
@@ -81,7 +91,7 @@ export default async function ListDetailPage({ params, searchParams }: {
   if (!list) {
     return (
       <div className="max-w-4xl mx-auto px-4 pb-20">
-        <div className="mb-8"><ListsBackLink filter={returnFilter} /></div>
+        <div className="mb-8"><ListsBackLink filter={returnFilter} cursor={returnCursor} /></div>
         <div className="card-apple p-8 text-center">
           <h1 className="text-title-3 text-label-primary">List not found</h1>
         </div>
@@ -112,8 +122,8 @@ export default async function ListDetailPage({ params, searchParams }: {
     <div className="max-w-2xl mx-auto">
       {/* Nav */}
       <div className="flex items-center justify-between px-4 pt-4 mb-4">
-        <ListsBackLink filter={returnFilter} />
-        {canDelete && <DeleteListButton listId={list.id} listName={list.name} returnFilter={returnFilter} />}
+        <ListsBackLink filter={returnFilter} cursor={returnCursor} />
+        {canDelete && <DeleteListButton listId={list.id} listName={list.name} returnFilter={returnFilter} returnCursor={returnCursor} />}
       </div>
 
       {list.image_url && <div className="px-4 mb-4">

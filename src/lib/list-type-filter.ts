@@ -3,18 +3,42 @@
  * old `/dashboard/lists/type/[type]` pages redirect to it.
  */
 
-export const LIST_TYPE_KEYS = ['grocery', 'todo', 'meal_plan', 'wishlist', 'shopping', 'custom'] as const
+export const LIST_TYPE_KEYS = [
+  "grocery",
+  "todo",
+  "meal_plan",
+  "wishlist",
+  "shopping",
+  "custom",
+] as const;
 
-export type ListTypeKey = (typeof LIST_TYPE_KEYS)[number]
+export type ListTypeKey = (typeof LIST_TYPE_KEYS)[number];
 
 /** A known list type, or null (an unknown or missing `?type=` shows every list). */
-export function listTypeFilter(value: string | string[] | null | undefined): ListTypeKey | null {
-  const v = Array.isArray(value) ? value[0] : value
-  return v && (LIST_TYPE_KEYS as readonly string[]).includes(v) ? (v as ListTypeKey) : null
+export function listTypeFilter(
+  value: string | string[] | null | undefined,
+): ListTypeKey | null {
+  const v = Array.isArray(value) ? value[0] : value;
+  return v && (LIST_TYPE_KEYS as readonly string[]).includes(v)
+    ? (v as ListTypeKey)
+    : null;
 }
 
 /** Where a type filter lives: `/dashboard/lists?type=<type>`, or every list for an unknown type. */
-export function listsFilterHref(value: string | string[] | null | undefined): string {
-  const type = listTypeFilter(value)
-  return type ? `/dashboard/lists?type=${type}` : '/dashboard/lists'
+export function listsFilterHref(
+  value: string | string[] | null | undefined,
+): string {
+  const type = listTypeFilter(value);
+  return type ? `/dashboard/lists?type=${type}` : "/dashboard/lists";
+}
+
+/** Fixed internal destination; the server validates any cursor before reading. */
+export function listsPageHref(
+  value: string | string[] | null | undefined,
+  cursor?: string | null,
+): string {
+  const base = listsFilterHref(value);
+  return cursor
+    ? `${base}${listTypeFilter(value) ? "&" : "?"}cursor=${encodeURIComponent(cursor)}`
+    : base;
 }

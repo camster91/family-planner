@@ -1039,3 +1039,21 @@ without limit, duplicate paging/type parameters and limits outside1..200 return
 bounded to128 characters. This source is not yet connected to the server-rendered
 Lists overview or list-item detail. Legacy reads remain unbounded. No schema,
 index, mutation, capability or infrastructure change. All QA remains deferred.
+
+
+### Connected web overview (2026-10-22 source follow-through)
+
+`/dashboard/lists?type=&cursor=` now uses the same position contract internally
+with100-row pages and explicit Next/first navigation. Its server reader retains
+current actor generation/role/family checks and derives counts within one
+repeatable-read snapshot. Type counts group only the six fixed known types;
+item progress groups only the at-most100 displayed IDs. Type filters are applied
+to the household query before paging. Continued empty pages never mean an empty
+household. The existing canonical API remains optional for installed callers;
+this server view does not fetch the unbounded no-limit API.
+
+Detail links carry `overviewCursor` separately from any item pagination. The
+server validates its family/type before Back/deletion return links use it; it is
+only a read position, never an arbitrary return URL. Invalid context falls back
+to the first page for the filter. Creation returns to the first page. List-detail
+item reads remain unbounded at this checkpoint. Source only; QA deferred.

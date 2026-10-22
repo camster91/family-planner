@@ -201,3 +201,11 @@ consumers. Existing family and family/type indexes remain; no new index or query
 plan/load result is inferred from paging. Later QA must measure actual SQL/rows,
 aggregate counts, filter cardinalities and legacy/new clients on representative
 fabricated households. Source formatting only; no new execution evidence.
+
+
+The subsequent web overview source also opts into100-row server pages. Its type
+count aggregate has at most six groups and the checked-item aggregate is scoped
+to the100 visible list IDs. No item content hydration or per-list count query is
+added. This bounds returned summary/group rows, not scanned index rows, latency,
+legacy API or detail collections. Measure actual execution plans/SQL and concurrent
+snapshot behavior during consolidated QA before asserting #134 scale acceptance.
