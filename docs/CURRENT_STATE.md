@@ -1,5 +1,18 @@
 # Current State
 
+## Source copy inventory reconciled — 2026-10-22
+
+Reviewed copy delta now tracks637 records/652 occurrences without changing scanner
+coverage or waiving new findings. A removed-device badge uses its existing EN/ES
+catalog; mounted locale regression proves no repeated request. Four focused suites
+pass21 tests; types/lint pass (44 warnings). Full baseline is still14 failed
+suites/36 tests at5edccfa6; subsequent targeted recovery/UI tests pass181 checks.
+Full unit rerun and local disposable PostgreSQL16 validation are next; rendered,
+recovery, final build and hosted release gates remain open. Broader #142 debt
+remains explicit. Evidence:`docs/testing/UI_COPY_RECONCILIATION_20261022.md` and
+`docs/testing/WEB_QA_20261022.md`.
+
+
 ## Recovery scripts and compact UI QA repairs — 2026-10-22
 
 Latest full run at5edccfa6:14 failed /687 passed /82 skipped suites;

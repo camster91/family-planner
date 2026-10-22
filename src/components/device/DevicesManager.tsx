@@ -201,7 +201,7 @@ function StatusBadge({ device }: { device: ManagedDevice }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--surface-fill)] px-3 py-1 text-[14px] font-semibold text-label-primary">
       <CircleSlash className="h-4 w-4" aria-hidden="true" />
-      Removed
+      {text("removed")}
     </span>
   );
 }
