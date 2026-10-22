@@ -60,6 +60,7 @@ export const mealPrepActionSchema = z.discriminatedUnion("action", [
     .object({
       ...contextFields,
       action: z.literal("allocate"),
+      require_prepared: z.literal(true).optional(),
       batch_id: id,
       meals: allocations.min(1),
       restore_allocation_key: id.optional(),
@@ -143,6 +144,7 @@ const mealDto = z.object({
 const batchDto = z.object({
   id,
   name: z.string().min(1).max(200),
+  portions_complete: z.boolean().optional(),
   total_servings: z.number().int().min(1).max(50),
   reserve_storage: z.enum(["fridge", "freezer"]),
   recipe_id: id.nullable(),

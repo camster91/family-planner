@@ -4,6 +4,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nProvider } from "@/i18n";
 import { BulkCookingPanel } from "../BulkCookingPanel";
 
+jest.mock("@/components/layout/pending-form-navigation", () => ({
+  usePendingFormNavigationController: () => ({
+    releaseBeforeNavigation: async () => true,
+  }),
+}));
+
 jest.mock("@/components/ui/use-display-locale", () => ({
   useDisplayLocale: () => "en-CA",
 }));
@@ -92,5 +98,76 @@ describe("bulk cooking refresh recovery", () => {
       expect(portions).toBeEnabled();
     });
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("prepared dish reuse handoff (authored/unrun)", () => {
+  it("loads an older exact session and opens only its canonical allocation sheet without posting", async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(reply(200, { ...payload(null), sessions: [] }))
+      .mockResolvedValueOnce(
+        reply(200, {
+          ...payload(null),
+          sessions: [
+            {
+              ...session,
+              prepared_at: "2026-01-05T10:00:00.000Z",
+              batches: [{ ...session.batches[0], portions_complete: true }],
+            },
+          ],
+        }),
+      );
+    global.fetch = fetchMock;
+    render(
+      <I18nProvider locale="en">
+        <BulkCookingPanel
+          defaultDay="2026-01-05"
+          refreshKey="initial"
+          onMealsChanged={jest.fn()}
+          onContext={jest.fn()}
+          preparedReuse={{
+            state: "target",
+            target: { sessionId: "prep-1", batchId: "batch-1" },
+          }}
+          onDismissPreparedReuse={jest.fn()}
+        />
+      </I18nProvider>,
+    );
+    expect(await screen.findByTestId("meal-prep-action")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/meals/bulk?sessionId=prep-1", {
+      cache: "no-store",
+    });
+    expect(
+      fetchMock.mock.calls.every(
+        ([, init]) => !init?.method || init.method === "GET",
+      ),
+    ).toBe(true);
+  });
+  it("does not replace an unavailable target with the first visible dish", async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(reply(200, payload(null)))
+      .mockResolvedValueOnce(reply(404, {}));
+    global.fetch = fetchMock;
+    render(
+      <I18nProvider locale="en">
+        <BulkCookingPanel
+          defaultDay="2026-01-05"
+          refreshKey="initial"
+          onMealsChanged={jest.fn()}
+          onContext={jest.fn()}
+          preparedReuse={{
+            state: "target",
+            target: { sessionId: "missing-prep", batchId: "missing-batch" },
+          }}
+          onDismissPreparedReuse={jest.fn()}
+        />
+      </I18nProvider>,
+    );
+    expect(
+      await screen.findByText(/requested dish could not be checked/),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("meal-prep-action")).not.toBeInTheDocument();
   });
 });

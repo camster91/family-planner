@@ -710,3 +710,17 @@ intents retain exact targets after unknown replies/reload. Source/mounted cases
 are authored and unrun. Prepared reuse, inbox/weekly/chat/provider/evaluation and
 all consolidated QA/release acceptance remain; goal/issues stay open. No runtime,
 DB/schema/provider/flag/push/merge/deploy action.
+
+### 2026-10-22 — exact prepared-dish reuse entry (#123/#144)
+
+A personal food-review CTA now persists its owned draft before handing an exact
+prepared session/batch to canonical allocation controls. Current household reads
+include older exact sessions and hold missing/unprepared/full/incomplete targets;
+no substitute dish or automatic mutation. Canonical bounded bulk projections now
+provide optional completeness metadata, and an additive prepared-only allocation
+field is checked in the effect transaction. Legacy request/response compatibility
+is preserved at the source level, with acceptance unrun. Pure/mounted/disposable-
+DB cases authored/unrun. Durable owned bulk draft/unknown-action recovery remains
+required before the whole reuse workflow is source-complete. Wider entry points,
+provider/evaluation, full goal and all QA/release remain open. No runtime/DB/schema/
+provider/flag/push/merge/deploy or issue closure.

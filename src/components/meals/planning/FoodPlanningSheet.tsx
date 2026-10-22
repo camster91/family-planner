@@ -1,6 +1,8 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
+import { preparedReuseHref } from "@/lib/prepared-meal-reuse";
+import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 import { Dialog } from "@/components/ui/dialog";
 import { useTranslation } from "@/i18n";
 import { useOwnedDraftExit } from "@/components/layout/owned-draft-navigation";
@@ -38,6 +40,7 @@ export default function FoodPlanningSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const router = useDraftAwareRouter();
   const session = useFoodPlanningSession(onSaved),
     latest = React.useRef(session),
     { locale } = useTranslation(),
@@ -691,6 +694,14 @@ export default function FoodPlanningSheet({
               timeZone={draft.timeZone}
               mode={draft.mode}
               busy={session.busy}
+              onReusePrepared={
+                session.context?.canPrep
+                  ? (target) => {
+                      if (!session.busy)
+                        void router.push(preparedReuseHref(target));
+                    }
+                  : undefined
+              }
               detailsForChoice={
                 session.review
                   ? (key) => (

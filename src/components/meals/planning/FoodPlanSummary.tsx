@@ -61,11 +61,13 @@ export function FoodPlanSummary({
   onChooseRecipe,
   detailsForChoice,
   timeZone,
+  onReusePrepared,
 }: {
   plan: FoodPlan;
   mode: "meals" | "prep";
   busy?: boolean;
   timeZone?: string;
+  onReusePrepared?: (target: { sessionId: string; batchId: string }) => void;
   onChooseRecipe?: (slotKey: string, recipeId: string) => void;
   detailsForChoice?: (key: string) => React.ReactNode;
 }) {
@@ -392,6 +394,24 @@ export function FoodPlanSummary({
                     </>
                   )}
                 </p>
+                {onReusePrepared && dish.unplanned > 0 && (
+                  <button
+                    type="button"
+                    className="btn-secondary min-h-[44px] mt-2"
+                    disabled={busy}
+                    onClick={() =>
+                      onReusePrepared({
+                        sessionId: dish.sessionId,
+                        batchId: dish.batchId,
+                      })
+                    }
+                  >
+                    {pick(
+                      "Plan meals from these portions",
+                      "Planificar comidas con estas porciones",
+                    )}
+                  </button>
+                )}
               </li>
             ))}
           </PagedList>

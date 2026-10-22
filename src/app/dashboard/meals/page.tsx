@@ -2,6 +2,7 @@
 import { FoodPlanningLauncher } from "@/components/meals/planning/FoodPlanningLauncher";
 
 import * as React from "react";
+import { preparedReuseIntent } from "@/lib/prepared-meal-reuse";
 import styles from "./meals-board.module.css";
 import Link from "next/link";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
@@ -492,6 +493,7 @@ function MealsPageInner() {
   const displayLocale = useDisplayLocale();
   const searchParams = useSearchParams();
   const reuseRecipeId = searchParams.get("recipe");
+  const preparedReuse = preparedReuseIntent(searchParams);
   const pathname = usePathname();
   const router = useRouter();
   // Keep the existing rolling week: today plus six days, not a locale-dependent
@@ -500,6 +502,14 @@ function MealsPageInner() {
     const next = new URLSearchParams(searchParams.toString());
     next.delete("recipe");
     router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
+      scroll: false,
+    });
+  };
+  const dismissPreparedReuse = () => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("preparedSession");
+    next.delete("preparedBatch");
+    void router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
       scroll: false,
     });
   };
@@ -857,6 +867,8 @@ function MealsPageInner() {
         <BulkCookingPanel
           reuseRecipeId={reuseRecipeId}
           onDismissReuse={dismissReuse}
+          preparedReuse={preparedReuse}
+          onDismissPreparedReuse={dismissPreparedReuse}
           defaultDay={anchor ? startKey : toDateOnlyLocal(new Date())}
           refreshKey={meals}
           onMealsChanged={() => void fetchMeals()}

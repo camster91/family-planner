@@ -1,6 +1,10 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
+import {
+  resolvePreparedReuse,
+  type PreparedReuseIntent,
+} from "@/lib/prepared-meal-reuse";
 import { useBulkCookingText } from "@/i18n/bulk-cooking";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import {
@@ -27,6 +31,8 @@ export function BulkCookingPanel({
   onContext,
   reuseRecipeId,
   onDismissReuse,
+  preparedReuse = { state: "none" },
+  onDismissPreparedReuse,
 }: {
   defaultDay: string;
   refreshKey: unknown;
@@ -34,10 +40,25 @@ export function BulkCookingPanel({
   onContext: (scope: MealPrepContext | null) => void;
   reuseRecipeId?: string | null;
   onDismissReuse?: () => void;
+  preparedReuse?: PreparedReuseIntent;
+  onDismissPreparedReuse?: () => void;
 }) {
   const tBulk = useBulkCookingText();
   const locale = useDisplayLocale();
   const id = React.useId();
+  const es = locale.startsWith("es");
+  const reuseKey =
+    preparedReuse.state === "target"
+      ? `${preparedReuse.target.sessionId}/${preparedReuse.target.batchId}`
+      : preparedReuse.state;
+  const reuseRef = React.useRef(preparedReuse);
+  reuseRef.current = preparedReuse;
+  const handledReuse = React.useRef<string | null>(null);
+  const previousReuse = React.useRef<string | null>(null);
+  const [reuseProblem, setReuseProblem] = React.useState<
+    "unavailable" | "unprepared" | "full" | null
+  >(null);
+
   const [sessions, setSessions] = React.useState<MealPrepSummary[]>([]);
   const [scope, setScope] = React.useState<MealPrepContext | null>(null);
   const scopeRef = React.useRef<MealPrepContext | null>(null);
@@ -60,12 +81,21 @@ export function BulkCookingPanel({
     batchId?: string;
     consumptionId?: string;
   } | null>(null);
+  const modalRef = React.useRef(modal),
+    editorRef = React.useRef(editor);
+  modalRef.current = modal;
+  editorRef.current = editor;
   const request = React.useRef(0);
   const onContextRef = React.useRef(onContext);
   onContextRef.current = onContext;
   const load = React.useCallback(
     async (next?: string): Promise<MealPrepSummary[] | null> => {
       const version = ++request.current;
+      const requestedReuse = reuseRef.current;
+      const requestedKey =
+        requestedReuse.state === "target"
+          ? `${requestedReuse.target.sessionId}/${requestedReuse.target.batchId}`
+          : requestedReuse.state;
       setLoading(true);
       setError(false);
       try {
@@ -95,7 +125,12 @@ export function BulkCookingPanel({
           scopeRef.current &&
           (scopeRef.current.familyId !== data.context.familyId ||
             scopeRef.current.userId !== data.context.userId);
-        const target = preferredSession.current ?? selectedRef.current;
+        const target =
+          preferredSession.current ??
+          (requestedReuse.state === "target"
+            ? requestedReuse.target.sessionId
+            : null) ??
+          selectedRef.current;
         let visible = data.sessions;
         if (
           !next &&
@@ -169,6 +204,30 @@ export function BulkCookingPanel({
           visible.some((row) => row.id === preferredSession.current)
         )
           preferredSession.current = null;
+        const liveReuse = reuseRef.current;
+        const liveKey =
+          liveReuse.state === "target"
+            ? `${liveReuse.target.sessionId}/${liveReuse.target.batchId}`
+            : liveReuse.state;
+        if (
+          !next &&
+          requestedReuse.state === "target" &&
+          liveKey === requestedKey &&
+          handledReuse.current !== requestedKey
+        ) {
+          const resolved = resolvePreparedReuse(visible, requestedReuse.target);
+          if (resolved.state !== "ready") setReuseProblem(resolved.state);
+          else if (!modalRef.current && !editorRef.current) {
+            setReuseProblem(null);
+            handledReuse.current = requestedKey;
+            setSelected(resolved.session.id);
+            setModal({
+              kind: "allocate",
+              sessionId: resolved.session.id,
+              batchId: resolved.batch.id,
+            });
+          }
+        }
         return visible;
       } catch {
         if (version === request.current) setError(true);
@@ -180,8 +239,17 @@ export function BulkCookingPanel({
     [],
   );
   React.useEffect(() => {
+    if (previousReuse.current !== reuseKey) {
+      previousReuse.current = reuseKey;
+      handledReuse.current = null;
+      setReuseProblem(null);
+      preferredSession.current =
+        reuseRef.current.state === "target"
+          ? reuseRef.current.target.sessionId
+          : null;
+    }
     void load();
-  }, [load, refreshKey]);
+  }, [load, refreshKey, reuseKey]);
   React.useEffect(
     () => () => {
       request.current++;
@@ -207,6 +275,7 @@ export function BulkCookingPanel({
     if (sessionId) preferredSession.current = sessionId;
     setEditor(null);
     setModal(null);
+    if (reuseRef.current.state !== "none") onDismissPreparedReuse?.();
     void load().then((latest) => {
       if (sessionId && latest?.some((row) => row.id === sessionId))
         setSelected(sessionId);
@@ -232,6 +301,48 @@ export function BulkCookingPanel({
           {tBulk("add")}
         </button>
       </div>
+      {(preparedReuse.state === "invalid" || reuseProblem) && (
+        <div
+          role="status"
+          className="space-y-2 rounded-xl border border-[var(--surface-separator)] p-3"
+        >
+          <p>
+            {preparedReuse.state === "invalid"
+              ? es
+                ? "El enlace de porciones no es válido. No se ha elegido otro plato."
+                : "This portions link is invalid. No other dish was selected for reuse."
+              : reuseProblem === "unprepared"
+                ? es
+                  ? "El plato ya no figura como preparado. Revisa la sesión antes de reutilizar porciones."
+                  : "This dish is not currently recorded as prepared. Review the session before reusing portions."
+                : reuseProblem === "full"
+                  ? es
+                    ? "Este plato no tiene porciones sin planificar. No se cambió ninguna comida."
+                    : "This dish has no unplanned portions. No meals were changed."
+                  : es
+                    ? "No se pudo comprobar el plato solicitado. No se abrió otro plato."
+                    : "The requested dish could not be checked. No other dish was opened."}
+          </p>
+          {preparedReuse.state === "target" && (
+            <button
+              type="button"
+              className="btn-tinted min-h-[44px]"
+              disabled={loading}
+              onClick={() => void load()}
+            >
+              {tBulk("reload")}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-tinted min-h-[44px]"
+            disabled={loading}
+            onClick={onDismissPreparedReuse}
+          >
+            {es ? "Quitar solicitud de reutilización" : "Clear reuse request"}
+          </button>
+        </div>
+      )}
       {forbidden ? (
         <p className="text-subhead text-label-secondary">
           {tBulk("forbidden")}
@@ -480,12 +591,21 @@ export function BulkCookingPanel({
       {scope && modal && modalSession && (
         <MealPrepActionSheet
           kind={modal.kind}
+          requirePrepared={
+            preparedReuse.state === "target" &&
+            modal.kind === "allocate" &&
+            modal.sessionId === preparedReuse.target.sessionId &&
+            modal.batchId === preparedReuse.target.batchId
+          }
           context={scope}
           session={modalSession}
           batch={modalSession.batches.find((row) => row.id === modal.batchId)}
           consumptionId={modal.consumptionId}
           freshWritesBlocked={mutationsBlocked}
-          onClose={() => setModal(null)}
+          onClose={() => {
+            setModal(null);
+            if (reuseRef.current.state !== "none") onDismissPreparedReuse?.();
+          }}
           onSaved={() => saved()}
           onReload={() => load()}
         />

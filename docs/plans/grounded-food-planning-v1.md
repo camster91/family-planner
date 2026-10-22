@@ -525,10 +525,36 @@ typecheck, lint, build, browser, API, DB, schema, provider, flag, push, merge or
 deploy action. Prepared reuse, inbox/weekly/chat integration, provider/evaluation
 and broader goal source remain before consolidated QA and authorized release.
 
+## Specific prepared-dish reuse handoff — 2026-10-22
+
+The personal food review can now hand off an exact prepared session/batch with
+unplanned portions to its canonical Plan portions sheet through owned draft-aware
+navigation. The destination reloads current household-scoped data, including an
+older exact session beyond the first page, and refuses missing/unprepared/full/
+incomplete targets without opening a different dish. Invalid or conflicting URL
+intents have an explicit clear/reload state. Links do not allocate or mark food
+eaten, reserve raw stock, or add groceries.
+
+The canonical bulk read now probes51 and projects50 meal/consumption rows with
+optional `portions_complete` metadata; older clients retain bounded arrays, while
+this new reuse handoff holds older/incomplete projections. A backwards-compatible
+optional `require_prepared: true` allocation field is rechecked under the existing
+effect transaction before creating meals. Current canonical role/verification,
+portion budget, household and receipt rules remain. Source unit/mounted/disposable-
+DB cases are authored and unrun. Bulk action draft/unknown recovery is still
+memory-held; durable owned bulk editor/action recovery must be implemented before
+claiming this entire reuse workflow source-complete or release-ready.
+
+No tests/typecheck/lint/build/browser/API/DB/schema/provider/flag/push/merge/deploy
+or issue closure. Wider inbox/weekly/chat, provider/evaluation and broader goal
+source remain before consolidated QA and authorized release.
+
 ## Remaining source required before activation
 
 1. Finish the compact human review of unresolved existing commitments and
-   explicit prepared-portion reuse/allocation through canonical bulk APIs. The
+   explicit prepared-portion reuse/allocation through canonical bulk APIs. Specific
+   prepared-dish navigation and canonical prepared/completeness guards are now
+   authored; durable owned bulk action/editor recovery remains source work. The
    scoped read/virtual reservation/recorded portion reconciliation above is now
    authored; its cases and all actual acceptance remain unrun.
 2. Finish owned timing controls, source-reference renewal and apply-time calendar

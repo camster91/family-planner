@@ -414,4 +414,33 @@ run("multi-dish prep transactions", () => {
       ).status,
     ).toBe(409);
   });
+  it("rechecks prepared-only reuse in the canonical effect transaction without marking portions eaten", async () => {
+    const reserved = await receipt();
+    const created = await prisma!.$transaction((tx) =>
+      persistMealPrepInTx(tx, actor, draft(), reserved.id),
+    );
+    const saved = created.body as { sessionId: string; batchIds: string[] };
+    const input = {
+      action: "allocate",
+      require_prepared: true,
+      batch_id: saved.batchIds[0],
+      meals: [{ date: "2026-10-14", meal_type: "lunch", servings: 1 }],
+    };
+    const before = await prisma!.familyMeal.count({
+      where: { batch_id: saved.batchIds[0] },
+    });
+    expect((await action(input)).status).toBe(409);
+    expect(
+      await prisma!.familyMeal.count({
+        where: { batch_id: saved.batchIds[0] },
+      }),
+    ).toBe(before);
+    await action({ action: "prepared", session_id: saved.sessionId });
+    expect((await action(input)).status).toBe(201);
+    expect(
+      await prisma!.mealBatchConsumption.count({
+        where: { batch_id: saved.batchIds[0] },
+      }),
+    ).toBe(0);
+  });
 });

@@ -83,3 +83,16 @@ original child target. Original durable food intents retain recovery across relo
 No automatic Undo, new grocery add, root replay, deadline extension or private
 lookalike row text is introduced. All actions share the sheet's current-owner,
 operation, close and pending guards; final rendered acceptance stays deferred.
+
+## Existing prepared-dish handoff
+
+A specific prepared dish with recorded unplanned portions can open its canonical
+Plan portions sheet. This is a navigation intent, never a prepared/eaten/grocery
+mutation. Persist the food draft through existing owned navigation before leaving.
+The destination reloads the exact household-scoped session, including older pages;
+it must not substitute a different dish when missing, no longer prepared or full.
+Show the current canonical portion counts before explicit allocation. No raw stock
+reservation or recipe grocery add follows reuse. Current prepared/personal role
+authority and canonical submit-time portion checks remain required. Existing bulk
+action draft/unknown recovery needs durable owner-scoped follow-through before
+this whole reuse workflow is release-ready; link wiring is not that acceptance.

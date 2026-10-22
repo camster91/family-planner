@@ -25,6 +25,7 @@ export function MealPrepActionSheet({
   consumptionId,
   context,
   freshWritesBlocked = false,
+  requirePrepared = false,
   onClose,
   onSaved,
   onReload,
@@ -35,12 +36,14 @@ export function MealPrepActionSheet({
   consumptionId?: string;
   context: MealPrepContext;
   freshWritesBlocked?: boolean;
+  requirePrepared?: boolean;
   onClose: () => void;
   onSaved: () => void;
   onReload: () => Promise<MealPrepSummary[] | null>;
 }) {
   const tBulk = useBulkCookingText();
   const origin = React.useRef(context);
+  const requirePreparedOrigin = React.useRef(requirePrepared);
   const prefix = React.useId();
   const counts = batch
     ? batchPortionCounts(batch.total_servings, batch.meals, batch.consumption)
@@ -117,6 +120,9 @@ export function MealPrepActionSheet({
         ? {
             ...scope,
             action: kind,
+            ...(requirePreparedOrigin.current
+              ? { require_prepared: true }
+              : {}),
             batch_id: batch?.id,
             meals: meals.map((row) => ({
               ...row,

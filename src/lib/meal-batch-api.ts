@@ -319,6 +319,8 @@ export async function persistMealPrepInTx(
     );
     if (counts.unplanned < 0) return batchFailure(409, "STATE_CHANGED");
     if (input.action === "allocate") {
+      if (input.require_prepared && !batch.prep_session.prepared_at)
+        return batchFailure(409, "PREP_NOT_READY");
       let consumedOnRestore = 0;
       if (input.restore_allocation_key) {
         if (
