@@ -1,5 +1,8 @@
 "use client";
 import * as React from "react";
+import { useBulkFormDraft } from "./recovery/BulkRecoveryContext";
+import { navigateAfterOwnedDrafts } from "@/lib/owned-draft-exit";
+import type { PrepDraft } from "@/lib/meal-prep-recovery/draft-contract";
 import { Dialog } from "@/components/ui/dialog";
 import { useBulkCookingText } from "@/i18n/bulk-cooking";
 import {
@@ -26,6 +29,7 @@ export function MealPrepActionSheet({
   context,
   freshWritesBlocked = false,
   requirePrepared = false,
+  restoredDraft,
   onClose,
   onSaved,
   onReload,
@@ -37,13 +41,16 @@ export function MealPrepActionSheet({
   context: MealPrepContext;
   freshWritesBlocked?: boolean;
   requirePrepared?: boolean;
+  restoredDraft?: Extract<PrepDraft, { kind: "action" }>;
   onClose: () => void;
   onSaved: () => void;
   onReload: () => Promise<MealPrepSummary[] | null>;
 }) {
   const tBulk = useBulkCookingText();
   const origin = React.useRef(context);
-  const requirePreparedOrigin = React.useRef(requirePrepared);
+  const requirePreparedOrigin = React.useRef(
+    restoredDraft?.requirePrepared ?? requirePrepared,
+  );
   const prefix = React.useId();
   const counts = batch
     ? batchPortionCounts(batch.total_servings, batch.meals, batch.consumption)
@@ -58,23 +65,47 @@ export function MealPrepActionSheet({
             .reduce((n, row) => n + row.servings, 0)
       : 0;
   };
-  const [mealId, setMealId] = React.useState(() =>
-    counts && counts.unplanned > 0
-      ? ""
-      : (batch?.meals.find((row) => remainingFor(row.id) > 0)?.id ?? ""),
+  const [mealId, setMealId] = React.useState(
+    () =>
+      restoredDraft?.mealId ??
+      (counts && counts.unplanned > 0
+        ? ""
+        : (batch?.meals.find((row) => remainingFor(row.id) > 0)?.id ?? "")),
   );
   const initialMealId = React.useRef(mealId);
-  const [servings, setServings] = React.useState("1");
-  const [meals, setMeals] = React.useState<AllocationDraft[]>([]);
+  const [servings, setServings] = React.useState(
+    restoredDraft?.servings ?? "1",
+  );
+  const [meals, setMeals] = React.useState<AllocationDraft[]>(
+    restoredDraft?.meals ?? [],
+  );
   const [nextDay, setNextDay] = React.useState(
-    session.next_prep_on ? toDateOnlyUTC(session.next_prep_on) : "",
+    restoredDraft?.nextDay ??
+      (session.next_prep_on ? toDateOnlyUTC(session.next_prep_on) : ""),
   );
   const expectedNext = React.useRef(
-    session.next_prep_on ? toDateOnlyUTC(session.next_prep_on) : null,
+    restoredDraft
+      ? restoredDraft.expectedNext
+      : session.next_prep_on
+        ? toDateOnlyUTC(session.next_prep_on)
+        : null,
   );
   const [invalid, setInvalid] = React.useState(false);
   const [discard, setDiscard] = React.useState(false);
   const [reloading, setReloading] = React.useState(false);
+  useBulkFormDraft({
+    kind: "action",
+    action: kind,
+    sessionId: session.id,
+    ...(batch ? { batchId: batch.id } : {}),
+    ...(consumptionId ? { consumptionId } : {}),
+    requirePrepared: requirePreparedOrigin.current,
+    mealId,
+    servings,
+    meals,
+    nextDay,
+    expectedNext: expectedNext.current,
+  });
   const mutation = useMealPrepMutation(onSaved, { freshWritesBlocked });
   const dirty =
     kind === "allocate"
@@ -85,15 +116,19 @@ export function MealPrepActionSheet({
           ? nextDay !== (expectedNext.current ?? "")
           : false;
   React.useEffect(() => {
-    if (!dirty) return;
+    if (!dirty || mutation.owned) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  }, [dirty, mutation.owned]);
   const close = () => {
+    if (mutation.owned) {
+      if (!mutation.closeBlocked) void navigateAfterOwnedDrafts(onClose);
+      return;
+    }
     if (mutation.isPending()) return;
     if (dirty) setDiscard(true);
     else onClose();
@@ -210,7 +245,7 @@ export function MealPrepActionSheet({
         variant="form"
         title={title}
         description={batch?.name}
-        onClose={mutation.locked ? undefined : close}
+        onClose={mutation.closeBlocked ? undefined : close}
         closeLabel={tBulk("close")}
         className="sm:max-w-xl"
         testId="meal-prep-action"
@@ -303,6 +338,7 @@ export function MealPrepActionSheet({
               })}
             </p>
           )}
+          {mutation.completed && <p role="status">{tBulk("saveConfirmed")}</p>}
           {(invalid || mutation.error) && (
             <p role="alert" className="text-subhead text-[var(--danger-text)]">
               {mutation.error ?? tBulk("invalid")}
@@ -333,7 +369,7 @@ export function MealPrepActionSheet({
               <button
                 type="button"
                 className="btn-filled min-h-[44px]"
-                disabled={mutation.busy}
+                disabled={mutation.retryBlocked}
                 onClick={() => void mutation.retry()}
               >
                 {mutation.busy ? tBulk("saving") : tBulk("retry")}
@@ -343,7 +379,7 @@ export function MealPrepActionSheet({
                 type="submit"
                 className="btn-filled min-h-[44px]"
                 disabled={
-                  mutation.busy ||
+                  mutation.locked ||
                   reloading ||
                   freshWritesBlocked ||
                   (kind === "allocate" && meals.length === 0)
@@ -361,10 +397,10 @@ export function MealPrepActionSheet({
             <button
               type="button"
               className="btn-tinted min-h-[44px]"
-              disabled={mutation.locked}
+              disabled={mutation.closeBlocked}
               onClick={close}
             >
-              {tBulk("cancel")}
+              {mutation.owned ? tBulk("close") : tBulk("cancel")}
             </button>
             {mutation.error && !mutation.unknown && !freshWritesBlocked && (
               <button

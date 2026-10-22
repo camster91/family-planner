@@ -569,12 +569,41 @@ source work. This foundation is not a completed durable bulk UI or release. No
 QA/API/DB/schema/provider/flag/push/merge/deploy or issue closure. Full goal remains
 active; see [`meal-prep-recovery-v1.md`](./meal-prep-recovery-v1.md).
 
+## Bulk forms and owned recovery controls — 2026-10-22
+
+Bulk creation and action sheets now share one panel-owned recovery controller,
+strict raw-field conversion and existing CAS journal. Draft fields debounce into
+local storage; close/navigation flush the latest form reader. Save compares the
+current raw draft and actual canonical payload before atomic draft promotion,
+then explicitly inspects/sends that immutable key/body. Unknown replies retain
+frozen requests; confirmed results remain separate from later read/storage errors.
+Fields cannot turn a saved request into a second save. Closing an owned sheet
+keeps its work and receipts rather than implicitly discarding it.
+
+Compact EN/ES controls provide draft restore, one-request-at-a-time inspection/
+exact retry/known-result dismissal, acknowledged local forgetting/stored-copy
+reload and exact storage repair. Action restore reloads the same canonical target;
+missing, incomplete or unprepared reuse targets preserve the draft. Prepared-dish
+handoff waits for recovery state and cannot overwrite an existing draft. Back and
+owned exit guards preserve current readers; newer edits during a storage write
+remain dirty and prevent navigation until durable. Owner changes suppress private
+work without erasing original storage. Existing empty owned envelopes preserve
+adoption through a pause, so new web work does not silently fall back to legacy.
+Legacy flag-off/no-journal journeys remain separate; readiness stays off.
+
+Conversion/controller/form/shelf/Strict-Mode/owner/pause/storage-race cases are
+authored and unrun. No tests/typecheck/lint/build/browser/API/DB/schema/provider/
+flag/push/merge/deploy or issue closure. Wider unified inbox/weekly/chat adapters,
+provider/evaluation and broader goal source remain before consolidated QA and
+release. See [`meal-prep-recovery-v1.md`](./meal-prep-recovery-v1.md).
+
 ## Remaining source required before activation
 
 1. Finish the compact human review of unresolved existing commitments and
    explicit prepared-portion reuse/allocation through canonical bulk APIs. Specific
-   prepared-dish navigation and canonical prepared/completeness guards are now
-   authored; durable owned bulk action/editor recovery remains source work. The
+   prepared-dish navigation, canonical prepared/completeness guards and durable
+   owned bulk action/editor recovery are now source-authored; broader inbox/weekly
+   integration and all acceptance remain. The
    scoped read/virtual reservation/recorded portion reconciliation above is now
    authored; its cases and all actual acceptance remain unrun.
 2. Finish owned timing controls, source-reference renewal and apply-time calendar

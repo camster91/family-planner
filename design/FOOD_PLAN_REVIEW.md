@@ -113,3 +113,20 @@ Editable restore must reload the same canonical target first; target absence mus
 not erase a frozen request. Stored work, confirmed receipts and volatile form state
 remain distinct. Storage repair and acknowledged forgetting use existing owned
 CAS/retirement/history-exit machinery; readiness remains off pending full QA.
+
+## Bulk form/controller source checkpoint
+
+Creation/action forms now register one latest raw reader with their panel-owned
+journal. Raw input survives local close/navigation; strict current payload and
+editable predecessor must match before promotion to a frozen request. The compact
+EN/ES recovery shelf pages one request, restores the exact canonical target, and
+separates inspect/retry, known success, exact storage repair, acknowledged local
+forgetting and acknowledged stored-copy reload. Back closes acknowledgement
+before the underlying form. An adopted empty journal remains owned during pause.
+Prepared reuse waits for draft ownership; no mount/restore/repair auto-submit.
+Cases authored/unrun; rendered/device/source-to-screen acceptance and wider inbox/
+weekly/chat orchestration remain. No readiness or provider activation is claimed.
+
+Bulk personal recovery/forms also omit fridge mode and the active event-
+preparation surface. Changing to those views hides private form state without
+erasing its owned journal; returning requires current personal authority.

@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { z } from "zod";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
+import { useBulkRecoveryContext } from "./recovery/BulkRecoveryContext";
 import { useBulkCookingText } from "@/i18n/bulk-cooking";
 
 const id = z.string().min(1).max(128);
@@ -22,6 +23,7 @@ export function useMealPrepMutation(
   onSaved: (receipt: z.infer<typeof result>) => void,
   hookOptions: { freshWritesBlocked?: boolean } = {},
 ) {
+  const recovery = useBulkRecoveryContext();
   const tBulk = useBulkCookingText();
   const inFlight = useRef(false);
   const freshWritesBlocked = useRef(Boolean(hookOptions.freshWritesBlocked));
@@ -39,6 +41,15 @@ export function useMealPrepMutation(
     url = "/api/meals/bulk/actions",
     requestOptions: { allowWhenFreshWritesBlocked?: boolean } = {},
   ) => {
+    if (recovery && recovery.mode !== "legacy") {
+      if (
+        freshWritesBlocked.current &&
+        !requestOptions.allowWhenFreshWritesBlocked
+      )
+        return;
+      await recovery.save(body, url);
+      return;
+    }
     if (inFlight.current) return;
     if (
       freshWritesBlocked.current &&
@@ -135,8 +146,49 @@ export function useMealPrepMutation(
                     : errorCode.endsWith("UNAVAILABLE")
                       ? tBulk("unavailable")
                       : tBulk("invalid");
+  if (recovery && recovery.mode !== "legacy") {
+    const key = recovery.formKey;
+    const frozen = key
+      ? recovery.rows.some((row) => row.key === key && row.kind === "meal-prep")
+      : false;
+    const completed = !!key && !!recovery.confirmed[key];
+    const blocked =
+      recovery.mode !== "owned" ||
+      recovery.held ||
+      !recovery.context?.enabled ||
+      !key;
+    return {
+      save,
+      owned: true,
+      completed,
+      busy: recovery.busy,
+      unknown: frozen && !completed,
+      locked: recovery.busy || blocked || frozen,
+      closeBlocked: recovery.busy || recovery.storageUncertain(),
+      retryBlocked:
+        recovery.busy || recovery.held || !recovery.context?.enabled,
+      error: recovery.issue
+        ? tBulk(
+            recovery.issue === "owner"
+              ? "forbidden"
+              : recovery.issue === "storage" || recovery.issue === "held"
+                ? "unavailable"
+                : "invalid",
+          )
+        : null,
+      isPending: () => recovery.isBusy() || blocked || frozen,
+      clearError: recovery.clearError,
+      retry: async () => {
+        if (key) await recovery.retry(key);
+      },
+    };
+  }
   return {
     save,
+    owned: false,
+    completed: false,
+    closeBlocked: busy || unknown,
+    retryBlocked: busy,
     busy,
     unknown,
     locked: busy || unknown,

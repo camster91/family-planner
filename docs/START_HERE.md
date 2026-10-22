@@ -37,7 +37,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 
 ## Engineering references
 
-- Canonical bulk draft/action recovery (#123/#144): `docs/plans/meal-prep-recovery-v1.md` (strict contracts/endpoints/browser journal source authored; bulk form/controller/discovery wiring and all acceptance remain).
+- Canonical bulk draft/action recovery (#123/#144): `docs/plans/meal-prep-recovery-v1.md` (contracts/endpoints/browser journal, panel-owned controller and bulk form/discovery/recovery source authored; wider inbox/weekly adapters and all acceptance remain).
 
 - Grounded food planning (#123/#122/#144): `docs/plans/grounded-food-planning-v1.md` (canonical reads/planner, internal atomic write composition and signed read-review/source renewal authored; positive-row version source also authored; strict save/inspection and exact owned browser journal also authored; compact UI/inbox/grocery-outcome wiring, provider/evaluation, migration acceptance and QA remain).
 

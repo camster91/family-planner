@@ -257,6 +257,8 @@ export function createOwnedRequestJournal<
   }
   return {
     writesAvailable: () => writesEnabled,
+    /** Existing durable envelope, including an empty adopted journal. */
+    hasSavedJournal: () => baseline?.some((value) => value !== null) ?? false,
     hasUncertainStorage: () => uncertain !== null,
     initialize: () =>
       serial(async () => {

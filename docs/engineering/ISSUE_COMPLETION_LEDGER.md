@@ -738,3 +738,17 @@ authored and unrun. One panel-owned bulk UI/controller, raw restore/flush/promot
 recovery/discovery/inbox integration and broader goal source/QA/release remain.
 Existing forms still use memory-only requests at this checkpoint. No API/DB/QA/
 provider/flag/push/merge/deploy action or issue closure. See the bulk recovery plan.
+
+### 2026-10-22 — bulk form/controller and recovery shelf (#123/#144)
+
+One panel-owned controller now binds strict raw create/action drafts to existing
+canonical forms and exact immutable promotion-before-send. Owned close/navigation
+retains work; newer edits during storage stay dirty and block premature exit.
+Compact EN/ES exact-target restore/inspect/retry/known-result/repair/acknowledged
+forget/stored-copy reload controls and Back guards are authored. Prepared reuse
+waits for draft ownership; missing targets preserve work. Empty owned envelopes
+retain adoption during pause with no silent legacy fallback. Legacy no-envelope
+flag-off paths remain separate. Source/mounted/Strict-Mode/owner/storage-race cases
+are authored and unrun. Wider unified inbox/weekly/chat/provider/evaluation and
+full goal source/QA/release remain. No runtime/DB/schema/provider/flag/push/merge/
+deploy action or issue closure.

@@ -1,5 +1,35 @@
 # Current State
 
+## Bulk forms and owned recovery controls — 2026-10-22
+
+Bulk creation and action sheets now share one panel-owned recovery controller,
+strict raw-field conversion and existing CAS journal. Draft fields debounce into
+local storage; close/navigation flush the latest form reader. Save compares the
+current raw draft and actual canonical payload before atomic draft promotion,
+then explicitly inspects/sends that immutable key/body. Unknown replies retain
+frozen requests; confirmed results remain separate from later read/storage errors.
+Fields cannot turn a saved request into a second save. Closing an owned sheet
+keeps its work and receipts rather than implicitly discarding it.
+
+Compact EN/ES controls provide draft restore, one-request-at-a-time inspection/
+exact retry/known-result dismissal, acknowledged local forgetting/stored-copy
+reload and exact storage repair. Action restore reloads the same canonical target;
+missing, incomplete or unprepared reuse targets preserve the draft. Prepared-dish
+handoff waits for recovery state and cannot overwrite an existing draft. Back and
+owned exit guards preserve current readers; newer edits during a storage write
+remain dirty and prevent navigation until durable. Owner changes suppress private
+work without erasing original storage. Existing empty owned envelopes preserve
+adoption through a pause, so new web work does not silently fall back to legacy.
+Legacy flag-off/no-journal journeys remain separate; readiness stays off. Personal
+recovery/forms are omitted from fridge mode and while event preparation owns the
+sheet; no private owner context is seeded into layout.
+
+Conversion/controller/form/shelf/Strict-Mode/owner/pause/storage-race cases are
+authored and unrun. No tests/typecheck/lint/build/browser/API/DB/schema/provider/
+flag/push/merge/deploy or issue closure. Wider unified inbox/weekly/chat adapters,
+provider/evaluation and broader goal source remain before consolidated QA and
+release. See [`meal-prep-recovery-v1.md`](./plans/meal-prep-recovery-v1.md).
+
 ## Bulk owned-recovery source foundation — 2026-10-22
 
 Strict local-only create/action draft and frozen canonical bulk request contracts,

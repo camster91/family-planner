@@ -59,6 +59,8 @@ export const bulkCookingEnglish = {
   planningNote:
     "Portions left reflect what you record here, not an automatic inventory count.",
   addMeal: "Add a meal",
+  saveConfirmed:
+    "Save confirmed. Close this sheet to continue; the saved receipt stays available.",
   removeMeal: "Remove meal",
   mealDate: "Meal day",
   mealType: "Meal",
@@ -174,6 +176,8 @@ export const bulkCookingSpanish: Messages = {
   planningNote:
     "Las porciones restantes reflejan lo que registras aquí, no un inventario automático.",
   addMeal: "Añadir comida",
+  saveConfirmed:
+    "Guardado confirmado. Cierra esta hoja para continuar; el recibo sigue disponible.",
   removeMeal: "Quitar comida",
   mealDate: "Día de la comida",
   mealType: "Comida",

@@ -10,6 +10,30 @@ jest.mock("@/components/layout/pending-form-navigation", () => ({
   }),
 }));
 
+// These cases preserve the legacy flag-off journeys; owned storage/controller
+// behavior is covered by the dedicated bulk recovery mounted cases.
+jest.mock("../recovery/useBulkRecovery", () => ({
+  useBulkRecovery: () => ({
+    mode: "legacy",
+    context: null,
+    rows: [],
+    draft: null,
+    active: false,
+    dirty: false,
+    formKey: null,
+    confirmed: {},
+    inspections: {},
+    busy: false,
+    held: false,
+    privacyHold: false,
+    issue: null,
+    changed: jest.fn(),
+    attach: jest.fn(),
+    detach: jest.fn(),
+    prepareLeave: async () => true,
+  }),
+}));
+
 jest.mock("@/components/ui/use-display-locale", () => ({
   useDisplayLocale: () => "en-CA",
 }));
@@ -170,4 +194,42 @@ describe("prepared dish reuse handoff (authored/unrun)", () => {
     ).toBeInTheDocument();
     expect(screen.queryByTestId("meal-prep-action")).not.toBeInTheDocument();
   });
+});
+
+it("omits personal recovery and allocation handoff on the shared surface (authored/unrun)", async () => {
+  const fetchMock = jest
+    .fn()
+    .mockResolvedValue(
+      reply(200, {
+        ...payload(null),
+        sessions: [
+          {
+            ...session,
+            prepared_at: "2026-01-05T10:00:00.000Z",
+            batches: [{ ...session.batches[0], portions_complete: true }],
+          },
+        ],
+      }),
+    );
+  global.fetch = fetchMock;
+  render(
+    <I18nProvider locale="en">
+      <BulkCookingPanel
+        defaultDay="2026-01-05"
+        refreshKey="shared"
+        personalRecoveryAllowed={false}
+        onMealsChanged={jest.fn()}
+        onContext={jest.fn()}
+        preparedReuse={{
+          state: "target",
+          target: { sessionId: "prep-1", batchId: "batch-1" },
+        }}
+      />
+    </I18nProvider>,
+  );
+  expect(
+    await screen.findByRole("button", { name: "Plan portions" }),
+  ).toBeDisabled();
+  expect(screen.queryByTestId("meal-prep-action")).not.toBeInTheDocument();
+  expect(screen.queryByText("Saved bulk work")).not.toBeInTheDocument();
 });

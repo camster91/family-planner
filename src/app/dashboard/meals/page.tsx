@@ -1,4 +1,5 @@
 "use client";
+import { usePreparationActive } from "@/components/calendar/preparation/PreparationProvider";
 import { FoodPlanningLauncher } from "@/components/meals/planning/FoodPlanningLauncher";
 
 import * as React from "react";
@@ -494,6 +495,7 @@ function MealsPageInner() {
   const searchParams = useSearchParams();
   const reuseRecipeId = searchParams.get("recipe");
   const preparedReuse = preparedReuseIntent(searchParams);
+  const preparationActive = usePreparationActive();
   const pathname = usePathname();
   const router = useRouter();
   // Keep the existing rolling week: today plus six days, not a locale-dependent
@@ -868,6 +870,9 @@ function MealsPageInner() {
           reuseRecipeId={reuseRecipeId}
           onDismissReuse={dismissReuse}
           preparedReuse={preparedReuse}
+          personalRecoveryAllowed={
+            searchParams.get("mode") !== "fridge" && !preparationActive
+          }
           onDismissPreparedReuse={dismissPreparedReuse}
           defaultDay={anchor ? startKey : toDateOnlyLocal(new Date())}
           refreshKey={meals}

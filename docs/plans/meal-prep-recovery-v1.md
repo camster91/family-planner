@@ -1,8 +1,10 @@
 # Durable canonical bulk editor/action recovery — #123/#144/#128
 
-2026-10-22: strict contracts, canonical apply/inspection endpoints and browser
-journal adapters are source-authored. Forms/discovery/restore UI are not wired.
-Cases are authored and unrun. Nothing in this checkpoint is release acceptance.
+2026-10-22: strict contracts, canonical apply/inspection endpoints, browser
+journal adapters, one panel-owned controller and existing creation/action form
+bindings plus personal restore/recovery controls are source-authored. Wider
+inbox/weekly/chat integration and acceptance remain. Cases are authored and unrun.
+Nothing in this checkpoint is release acceptance.
 
 ## Canonical scope and identities
 
@@ -46,26 +48,48 @@ completed matching receipt remains readable after expiry/pause. Nonmatching or
 lost save replies remain unknown, preserving the same key/body. No fallback to a
 new key or unowned write after adoption/storage failure is permitted.
 
-## Remaining source work
+## Form and recovery source checkpoint
 
-1. Wire one panel-owned controller into existing `useMealPrepMutation`, creation
-   editor and action sheets; do not mount competing journals for one editable
-   document. Debounce raw fields, flush on close/navigation and promote the exact
-   editable predecessor atomically before sending. Preserve exact requests when
-   promotion/storage/receipt outcomes are uncertain.
-2. Add canonical personal recovery discovery, editable restore and compact
-   pending/inspect/exact-retry/known-result/acknowledged-forget/repair controls.
-   Restoring an action must reload its exact canonical session/batch first.
-   Missing targets may block editing but cannot erase an unresolved request.
-   Keep dialogs mounted through reload failures; current source state must block
-   fresh writes without destroying pending recovery.
-3. Preserve existing new-request behavior/installed-client compatibility while
-   the readiness gate is off. Once an owned journal has been adopted, pausing
-   readiness must retain explicit inspection/recovery, with no silent legacy
-   fallback. Do not activate the new path until its full applicable QA passes.
-4. Connect prepared-dish handoff and wider inbox/weekly discovery, and reconcile
-   the source/acceptance ledger and open issues. Prepared reuse is not complete
-   merely because the navigation intent is implemented.
+`src/components/meals/recovery/useBulkRecovery.ts` owns one journal per canonical
+bulk panel. `BulkRecoveryContext.tsx` gives existing create/action forms their
+latest raw reader and delegates saves through `useMealPrepMutation`. Strict
+`draft-input.ts` conversion must match both the actual submission and unchanged
+raw/local predecessor before promotion. Opening/restoring never submits. Failed
+promotion cannot dispatch; exact repair can expose the frozen original without
+sending it. Matching success remains known after subsequent read failures.
+
+`BulkRecoveryShelf.tsx` provides bounded personal draft/request discovery and
+explicit inspect/retry/repair/acknowledged-forget/stored-copy reload controls.
+Stored-copy reload cannot replace an uncertain transition; repair comes first.
+Back dismisses its acknowledgement before the underlying form. Closing owned
+forms retains drafts/requests; confirmed forms remain readonly until Close.
+Personal recovery/forms are omitted in fridge mode and while the event preparation
+sheet owns the view; no private owner is seeded in layout. Action restore refreshes
+the exact same session/batch/consumption and complete portion metadata. Missing targets never erase unresolved requests or substitute
+another dish. Prepared reuse waits for recovery/draft ownership to settle.
+
+Existing empty owned envelopes remain evidence of adoption during a pause; the
+new path does not silently downgrade an adopted journal to unowned legacy writes.
+Legacy flag-off/no-envelope journeys and installed public canonical clients remain
+compatible. Owner/generation failures suppress private state without deleting old
+storage. Storage races retain newer dirty fields and block navigation until the
+current reader is durable; exact requests retain keys/bodies through reload.
+Raw restoration/ownership/Strict Mode and all actual lifecycle behavior still
+require consolidated acceptance, not an inference from authored cases.
+
+## Remaining source and acceptance
+
+1. Add the bulk draft/frozen-request adapter to unified review inbox and weekly
+   discovery. Use the canonical personal Meals route, explicit current owner and
+   typed target navigation; do not expose local journals to shared/profile views.
+2. Finish the broader approved food/inbox/weekly/chat/provider/evaluation work in
+   `grounded-food-planning-v1.md` and the full thread objective, then reconcile
+   issue/source states before consolidated QA. These controls do not complete the
+   wider programme or native/store/physical-device deliverables.
+3. Run all applicable consolidated correctness, privacy, storage, history/focus,
+   restart, stale/permission, compatibility, PostgreSQL/concurrency and rendered
+   responsive/EN/ES/accessibility/release checks, then fix failures and complete
+   authorized merge/deployment. Keep source completion and acceptance distinct.
 
 ## Deferred acceptance and rollout
 

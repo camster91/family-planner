@@ -1,5 +1,12 @@
 "use client";
 import * as React from "react";
+import { BulkRecoveryProvider } from "./recovery/BulkRecoveryContext";
+import { useBulkRecovery } from "./recovery/useBulkRecovery";
+import { BulkRecoveryShelf } from "./recovery/BulkRecoveryShelf";
+import type { PrepDraft } from "@/lib/meal-prep-recovery/draft-contract";
+import { useOwnedDraftExit } from "@/components/layout/owned-draft-navigation";
+import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
+import { navigateAfterOwnedDrafts } from "@/lib/owned-draft-exit";
 import Link from "next/link";
 import {
   resolvePreparedReuse,
@@ -33,6 +40,7 @@ export function BulkCookingPanel({
   onDismissReuse,
   preparedReuse = { state: "none" },
   onDismissPreparedReuse,
+  personalRecoveryAllowed = true,
 }: {
   defaultDay: string;
   refreshKey: unknown;
@@ -42,6 +50,7 @@ export function BulkCookingPanel({
   onDismissReuse?: () => void;
   preparedReuse?: PreparedReuseIntent;
   onDismissPreparedReuse?: () => void;
+  personalRecoveryAllowed?: boolean;
 }) {
   const tBulk = useBulkCookingText();
   const locale = useDisplayLocale();
@@ -74,17 +83,54 @@ export function BulkCookingPanel({
     day: string;
     seed?: MealPrepSummary;
     recipe?: RecipeOption;
+    restoredDraft?: Extract<PrepDraft, { kind: "create" }>;
   } | null>(null);
   const [modal, setModal] = React.useState<{
     kind: PrepActionKind;
     sessionId: string;
     batchId?: string;
     consumptionId?: string;
+    restoredDraft?: Extract<PrepDraft, { kind: "action" }>;
   } | null>(null);
-  const modalRef = React.useRef(modal),
-    editorRef = React.useRef(editor);
-  modalRef.current = modal;
-  editorRef.current = editor;
+  const [restoreError, setRestoreError] = React.useState(false);
+  const afterOwnedSave = React.useRef<
+    (receipt: import("@/lib/meal-prep-recovery/contract").PrepReceipt) => void
+  >(() => undefined);
+  const recovery = useBulkRecovery(
+    personalRecoveryAllowed ? scope : null,
+    (receipt) => afterOwnedSave.current(receipt),
+  );
+  React.useEffect(() => {
+    if (!personalRecoveryAllowed) {
+      setEditor(null);
+      setModal(null);
+    }
+  }, [personalRecoveryAllowed]);
+  const ownedActive =
+    recovery.mode === "owned" &&
+    (recovery.active || recovery.busy || recovery.issue === "storage");
+  const latestRecovery = React.useRef(recovery);
+  latestRecovery.current = recovery;
+  const recoveryBack = React.useRef<(() => boolean) | null>(null);
+  const rememberRecoveryBack = React.useCallback((handler: () => boolean) => {
+    recoveryBack.current = handler;
+  }, []);
+  const ownedNavigation = usePendingFormNavigationController(ownedActive, {
+    warnOnUnload:
+      recovery.busy || recovery.dirty || recovery.issue === "storage",
+    onBack: () => {
+      if (recoveryBack.current?.()) return;
+      void navigateAfterOwnedDrafts(() => {
+        setEditor(null);
+        setModal(null);
+      });
+    },
+  });
+  useOwnedDraftExit(
+    ownedActive,
+    () => latestRecovery.current.prepareLeave(),
+    () => ownedNavigation.releaseBeforeNavigation(),
+  );
   const request = React.useRef(0);
   const onContextRef = React.useRef(onContext);
   onContextRef.current = onContext;
@@ -92,10 +138,6 @@ export function BulkCookingPanel({
     async (next?: string): Promise<MealPrepSummary[] | null> => {
       const version = ++request.current;
       const requestedReuse = reuseRef.current;
-      const requestedKey =
-        requestedReuse.state === "target"
-          ? `${requestedReuse.target.sessionId}/${requestedReuse.target.batchId}`
-          : requestedReuse.state;
       setLoading(true);
       setError(false);
       try {
@@ -204,30 +246,6 @@ export function BulkCookingPanel({
           visible.some((row) => row.id === preferredSession.current)
         )
           preferredSession.current = null;
-        const liveReuse = reuseRef.current;
-        const liveKey =
-          liveReuse.state === "target"
-            ? `${liveReuse.target.sessionId}/${liveReuse.target.batchId}`
-            : liveReuse.state;
-        if (
-          !next &&
-          requestedReuse.state === "target" &&
-          liveKey === requestedKey &&
-          handledReuse.current !== requestedKey
-        ) {
-          const resolved = resolvePreparedReuse(visible, requestedReuse.target);
-          if (resolved.state !== "ready") setReuseProblem(resolved.state);
-          else if (!modalRef.current && !editorRef.current) {
-            setReuseProblem(null);
-            handledReuse.current = requestedKey;
-            setSelected(resolved.session.id);
-            setModal({
-              kind: "allocate",
-              sessionId: resolved.session.id,
-              batchId: resolved.batch.id,
-            });
-          }
-        }
         return visible;
       } catch {
         if (version === request.current) setError(true);
@@ -250,6 +268,48 @@ export function BulkCookingPanel({
     }
     void load();
   }, [load, refreshKey, reuseKey]);
+  React.useEffect(() => {
+    if (
+      !personalRecoveryAllowed ||
+      loading ||
+      error ||
+      preparedReuse.state !== "target" ||
+      handledReuse.current === reuseKey ||
+      modal ||
+      editor ||
+      recovery.draft ||
+      recovery.held ||
+      (recovery.mode !== "legacy" &&
+        (recovery.mode !== "owned" || !recovery.context?.enabled))
+    )
+      return;
+    const resolved = resolvePreparedReuse(sessions, preparedReuse.target);
+    if (resolved.state !== "ready") {
+      setReuseProblem(resolved.state);
+      return;
+    }
+    handledReuse.current = reuseKey;
+    setReuseProblem(null);
+    setSelected(resolved.session.id);
+    setModal({
+      kind: "allocate",
+      sessionId: resolved.session.id,
+      batchId: resolved.batch.id,
+    });
+  }, [
+    personalRecoveryAllowed,
+    loading,
+    error,
+    reuseKey,
+    sessions,
+    modal,
+    editor,
+    recovery.mode,
+    recovery.draft,
+    recovery.held,
+    recovery.context?.enabled,
+    preparedReuse,
+  ]);
   React.useEffect(
     () => () => {
       request.current++;
@@ -270,7 +330,60 @@ export function BulkCookingPanel({
   // refresh error or in-flight reload start a new mutation from stale data.
   // Existing editors/action sheets stay mounted so their pending/unknown
   // receipt hooks can still finish or retry against the original request.
-  const mutationsBlocked = loading || error;
+  const recoveryBlocked =
+    recovery.mode !== "legacy" &&
+    (recovery.mode !== "owned" ||
+      recovery.held ||
+      !recovery.context?.enabled ||
+      (recovery.draft !== null && !recovery.active));
+  const mutationsBlocked =
+    !personalRecoveryAllowed || loading || error || recoveryBlocked;
+  afterOwnedSave.current = (receipt) => {
+    if ("sessionId" in receipt) preferredSession.current = receipt.sessionId;
+    void load();
+    onMealsChanged();
+  };
+  async function restoreDraft() {
+    const draft = recovery.draft;
+    setRestoreError(false);
+    if (
+      !draft ||
+      recovery.busy ||
+      recovery.active ||
+      !recovery.context?.enabled ||
+      !(await recovery.prepareLeave())
+    )
+      return;
+    if (draft.kind === "create") {
+      setEditor({ day: draft.day, restoredDraft: draft });
+      return;
+    }
+    preferredSession.current = draft.sessionId;
+    const latest = await load();
+    const session = latest?.find((row) => row.id === draft.sessionId),
+      batch = session?.batches.find((row) => row.id === draft.batchId);
+    if (
+      !session ||
+      (draft.batchId && !batch) ||
+      (draft.consumptionId &&
+        !batch?.consumption.some((row) => row.id === draft.consumptionId)) ||
+      ((draft.action === "allocate" || draft.action === "eaten") &&
+        batch?.portions_complete !== true) ||
+      (draft.requirePrepared && !session.prepared_at) ||
+      !(await recovery.prepareLeave())
+    ) {
+      setRestoreError(true);
+      return;
+    }
+    setSelected(session.id);
+    setModal({
+      kind: draft.action,
+      sessionId: session.id,
+      ...(batch ? { batchId: batch.id } : {}),
+      ...(draft.consumptionId ? { consumptionId: draft.consumptionId } : {}),
+      restoredDraft: draft,
+    });
+  }
   const saved = (sessionId?: string) => {
     if (sessionId) preferredSession.current = sessionId;
     setEditor(null);
@@ -283,333 +396,361 @@ export function BulkCookingPanel({
     onMealsChanged();
   };
   return (
-    <section
-      aria-labelledby={`${id}-title`}
-      className="rounded-2xl border border-[var(--surface-separator)] bg-[var(--surface-grouped)] p-4 sm:p-5 space-y-4"
-      data-testid="bulk-cooking-panel"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id={`${id}-title`} className="text-title-2 font-display">
-          {tBulk("title")}
-        </h2>
-        <button
-          type="button"
-          className="btn-filled min-h-[44px]"
-          disabled={!scope || forbidden || mutationsBlocked}
-          onClick={() => setEditor({ day: defaultDay })}
-        >
-          {tBulk("add")}
-        </button>
-      </div>
-      {(preparedReuse.state === "invalid" || reuseProblem) && (
-        <div
-          role="status"
-          className="space-y-2 rounded-xl border border-[var(--surface-separator)] p-3"
-        >
-          <p>
-            {preparedReuse.state === "invalid"
-              ? es
-                ? "El enlace de porciones no es válido. No se ha elegido otro plato."
-                : "This portions link is invalid. No other dish was selected for reuse."
-              : reuseProblem === "unprepared"
+    <BulkRecoveryProvider value={recovery}>
+      <section
+        aria-labelledby={`${id}-title`}
+        className="rounded-2xl border border-[var(--surface-separator)] bg-[var(--surface-grouped)] p-4 sm:p-5 space-y-4"
+        data-testid="bulk-cooking-panel"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id={`${id}-title`} className="text-title-2 font-display">
+            {tBulk("title")}
+          </h2>
+          <button
+            type="button"
+            className="btn-filled min-h-[44px]"
+            disabled={!scope || forbidden || mutationsBlocked}
+            onClick={() => setEditor({ day: defaultDay })}
+          >
+            {tBulk("add")}
+          </button>
+        </div>
+        {scope && personalRecoveryAllowed && (
+          <BulkRecoveryShelf
+            recovery={recovery}
+            onRestore={() => void restoreDraft()}
+            restoreError={restoreError}
+            onBackHandler={rememberRecoveryBack}
+            onReloadStored={() =>
+              void recovery.reloadStored(() => {
+                setEditor(null);
+                setModal(null);
+              })
+            }
+          />
+        )}
+        {(preparedReuse.state === "invalid" || reuseProblem) && (
+          <div
+            role="status"
+            className="space-y-2 rounded-xl border border-[var(--surface-separator)] p-3"
+          >
+            <p>
+              {preparedReuse.state === "invalid"
                 ? es
-                  ? "El plato ya no figura como preparado. Revisa la sesión antes de reutilizar porciones."
-                  : "This dish is not currently recorded as prepared. Review the session before reusing portions."
-                : reuseProblem === "full"
+                  ? "El enlace de porciones no es válido. No se ha elegido otro plato."
+                  : "This portions link is invalid. No other dish was selected for reuse."
+                : reuseProblem === "unprepared"
                   ? es
-                    ? "Este plato no tiene porciones sin planificar. No se cambió ninguna comida."
-                    : "This dish has no unplanned portions. No meals were changed."
-                  : es
-                    ? "No se pudo comprobar el plato solicitado. No se abrió otro plato."
-                    : "The requested dish could not be checked. No other dish was opened."}
-          </p>
-          {preparedReuse.state === "target" && (
+                    ? "El plato ya no figura como preparado. Revisa la sesión antes de reutilizar porciones."
+                    : "This dish is not currently recorded as prepared. Review the session before reusing portions."
+                  : reuseProblem === "full"
+                    ? es
+                      ? "Este plato no tiene porciones sin planificar. No se cambió ninguna comida."
+                      : "This dish has no unplanned portions. No meals were changed."
+                    : es
+                      ? "No se pudo comprobar el plato solicitado. No se abrió otro plato."
+                      : "The requested dish could not be checked. No other dish was opened."}
+            </p>
+            {preparedReuse.state === "target" && (
+              <button
+                type="button"
+                className="btn-tinted min-h-[44px]"
+                disabled={loading}
+                onClick={() => void load()}
+              >
+                {tBulk("reload")}
+              </button>
+            )}
             <button
               type="button"
               className="btn-tinted min-h-[44px]"
               disabled={loading}
+              onClick={onDismissPreparedReuse}
+            >
+              {es ? "Quitar solicitud de reutilización" : "Clear reuse request"}
+            </button>
+          </div>
+        )}
+        {forbidden ? (
+          <p className="text-subhead text-label-secondary">
+            {tBulk("forbidden")}
+          </p>
+        ) : error ? (
+          <div role="alert" className="space-y-2">
+            <p className="text-subhead text-[var(--danger-text)]">
+              {tBulk("loadError")}
+            </p>
+            <button
+              type="button"
+              className="btn-tinted min-h-[44px]"
               onClick={() => void load()}
             >
               {tBulk("reload")}
             </button>
-          )}
-          <button
-            type="button"
-            className="btn-tinted min-h-[44px]"
-            disabled={loading}
-            onClick={onDismissPreparedReuse}
-          >
-            {es ? "Quitar solicitud de reutilización" : "Clear reuse request"}
-          </button>
-        </div>
-      )}
-      {forbidden ? (
-        <p className="text-subhead text-label-secondary">
-          {tBulk("forbidden")}
-        </p>
-      ) : error ? (
-        <div role="alert" className="space-y-2">
-          <p className="text-subhead text-[var(--danger-text)]">
-            {tBulk("loadError")}
+          </div>
+        ) : loading && !current ? (
+          <p role="status" className="text-subhead text-label-secondary">
+            {tBulk("loading")}
           </p>
-          <button
-            type="button"
-            className="btn-tinted min-h-[44px]"
-            onClick={() => void load()}
-          >
-            {tBulk("reload")}
-          </button>
-        </div>
-      ) : loading && !current ? (
-        <p role="status" className="text-subhead text-label-secondary">
-          {tBulk("loading")}
-        </p>
-      ) : !current ? (
-        <p className="text-subhead text-label-secondary">{tBulk("empty")}</p>
-      ) : null}
-      {reuseRecipeId &&
-        onDismissReuse &&
-        scope &&
-        !forbidden &&
-        !mutationsBlocked &&
-        !editor &&
-        !modal && (
-          <RecipeReuseLauncher
-            recipeId={reuseRecipeId}
-            onDismiss={onDismissReuse}
-            kind="prep"
-            onUse={(recipe) => setEditor({ day: defaultDay, recipe })}
-          />
-        )}
-      {current && !forbidden && (
-        <>
-          <label className="block text-subhead" htmlFor={`${id}-session`}>
-            {tBulk("stepPrep")}
-            <select
-              id={`${id}-session`}
-              className="input-field w-full mt-1"
-              value={current.id}
-              onChange={(e) => setSelected(e.target.value)}
-            >
-              {sessions.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {formatDay(row.prepared_on)} ·{" "}
-                  {row.batches.map((batch) => batch.name).join(", ")}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-subhead font-semibold">
-              {current.prepared_at ? tBulk("prepared") : tBulk("plannedPrep")}
-            </p>
-            {!current.prepared_at && (
-              <button
-                type="button"
-                className="btn-tinted min-h-[44px]"
-                onClick={() =>
-                  setModal({ kind: "prepared", sessionId: current.id })
-                }
-                disabled={mutationsBlocked}
+        ) : !current ? (
+          <p className="text-subhead text-label-secondary">{tBulk("empty")}</p>
+        ) : null}
+        {reuseRecipeId &&
+          onDismissReuse &&
+          scope &&
+          !forbidden &&
+          !mutationsBlocked &&
+          !editor &&
+          !modal && (
+            <RecipeReuseLauncher
+              recipeId={reuseRecipeId}
+              onDismiss={onDismissReuse}
+              kind="prep"
+              onUse={(recipe) => setEditor({ day: defaultDay, recipe })}
+            />
+          )}
+        {current && !forbidden && (
+          <>
+            <label className="block text-subhead" htmlFor={`${id}-session`}>
+              {tBulk("stepPrep")}
+              <select
+                id={`${id}-session`}
+                className="input-field w-full mt-1"
+                value={current.id}
+                onChange={(e) => setSelected(e.target.value)}
               >
-                {tBulk("markPrepared")}
-              </button>
-            )}
-          </div>
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {current.batches.map((batch) => {
-              const counts = batchPortionCounts(
-                batch.total_servings,
-                batch.meals,
-                batch.consumption,
-              );
-              return (
-                <article
-                  key={batch.id}
-                  className="rounded-xl border border-[var(--surface-separator)] bg-[var(--surface-card)] p-4 space-y-3 min-w-0"
-                  aria-label={batch.name}
-                >
-                  <h3 className="text-headline break-words">{batch.name}</h3>
-                  <p
-                    className="text-subhead text-label-secondary"
-                    role="status"
-                  >
-                    {tBulk("total", { count: batch.total_servings })} ·{" "}
-                    {tBulk("eaten", { count: counts.eaten })} ·{" "}
-                    {tBulk("remaining", { count: counts.remaining })}
-                  </p>
-                  <p className="text-footnote text-label-secondary">
-                    {tBulk("planned", { count: counts.planned })} ·{" "}
-                    {tBulk("unplanned", { count: counts.unplanned })} ·{" "}
-                    {batch.reserve_storage === "freezer"
-                      ? tBulk("freezer")
-                      : tBulk("fridge")}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {(batch.recipe_id || batch.recipe_snapshot_at) && (
-                      <Link
-                        className="btn-tinted min-h-[44px]"
-                        aria-disabled={mutationsBlocked}
-                        onClick={(event) => {
-                          if (mutationsBlocked) event.preventDefault();
-                        }}
-                        href={`/dashboard/inventory?cookBatch=${encodeURIComponent(batch.id)}`}
-                      >
-                        {locale.startsWith("es")
-                          ? "Revisar alimentos usados"
-                          : "Review food used"}
-                      </Link>
-                    )}
-                    <button
-                      type="button"
-                      className="btn-tinted min-h-[44px]"
-                      onClick={() =>
-                        setModal({
-                          kind: "allocate",
-                          sessionId: current.id,
-                          batchId: batch.id,
-                        })
-                      }
-                      disabled={mutationsBlocked || counts.unplanned <= 0}
-                    >
-                      {tBulk("schedule")}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-tinted min-h-[44px]"
-                      disabled={
-                        mutationsBlocked ||
-                        !current.prepared_at ||
-                        counts.remaining <= 0
-                      }
-                      onClick={() =>
-                        setModal({
-                          kind: "eaten",
-                          sessionId: current.id,
-                          batchId: batch.id,
-                        })
-                      }
-                    >
-                      {tBulk("recordEaten")}
-                    </button>
-                    {batch.consumption[0] && (
-                      <button
-                        type="button"
-                        className="btn-tinted min-h-[44px]"
-                        disabled={mutationsBlocked}
-                        onClick={() =>
-                          setModal({
-                            kind: "undo-eaten",
-                            sessionId: current.id,
-                            batchId: batch.id,
-                            consumptionId: batch.consumption[0].id,
-                          })
-                        }
-                      >
-                        {tBulk("undoEaten")}
-                      </button>
-                    )}
-                  </div>
-                  {current.prepared_at &&
-                    (batch.recipe_id || batch.recipe_snapshot_at) && (
-                      <PreparedRecipe batchId={batch.id} />
-                    )}
-                  {batch.recipe_id && !current.prepared_at && (
-                    <AddToGroceriesButton
-                      recipeId={batch.recipe_id}
-                      batchId={batch.id}
-                      label={tBulk("groceries")}
-                      disabled={mutationsBlocked}
-                    />
-                  )}
-                </article>
-              );
-            })}
-          </div>
-          <div className="rounded-xl bg-[var(--surface-fill)] p-3 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-subhead">
-              <strong>{tBulk("nextPrep")}</strong> ·{" "}
-              {current.next_prep_on
-                ? formatDay(current.next_prep_on)
-                : tBulk("noNext")}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="btn-tinted min-h-[44px]"
-                disabled={mutationsBlocked}
-                onClick={() =>
-                  setModal({ kind: "next-prep", sessionId: current.id })
-                }
-              >
-                {tBulk("changeNext")}
-              </button>
-              {current.next_prep_on && (
+                {sessions.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {formatDay(row.prepared_on)} ·{" "}
+                    {row.batches.map((batch) => batch.name).join(", ")}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-subhead font-semibold">
+                {current.prepared_at ? tBulk("prepared") : tBulk("plannedPrep")}
+              </p>
+              {!current.prepared_at && (
                 <button
                   type="button"
-                  className="btn-filled min-h-[44px]"
-                  disabled={mutationsBlocked}
+                  className="btn-tinted min-h-[44px]"
                   onClick={() =>
-                    setEditor({
-                      day: toDateOnlyUTC(current.next_prep_on!),
-                      seed: current,
-                    })
+                    setModal({ kind: "prepared", sessionId: current.id })
                   }
+                  disabled={mutationsBlocked}
                 >
-                  {tBulk("planNext")}
+                  {tBulk("markPrepared")}
                 </button>
               )}
             </div>
-          </div>
-          <p className="text-footnote text-label-secondary">
-            {tBulk("planningNote")}
-          </p>
-          {cursor && (
-            <button
-              type="button"
-              className="btn-tinted min-h-[44px]"
-              disabled={loading || error}
-              onClick={() => void load(cursor)}
-            >
-              {tBulk("more")}
-            </button>
+            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {current.batches.map((batch) => {
+                const counts = batchPortionCounts(
+                  batch.total_servings,
+                  batch.meals,
+                  batch.consumption,
+                );
+                return (
+                  <article
+                    key={batch.id}
+                    className="rounded-xl border border-[var(--surface-separator)] bg-[var(--surface-card)] p-4 space-y-3 min-w-0"
+                    aria-label={batch.name}
+                  >
+                    <h3 className="text-headline break-words">{batch.name}</h3>
+                    <p
+                      className="text-subhead text-label-secondary"
+                      role="status"
+                    >
+                      {tBulk("total", { count: batch.total_servings })} ·{" "}
+                      {tBulk("eaten", { count: counts.eaten })} ·{" "}
+                      {tBulk("remaining", { count: counts.remaining })}
+                    </p>
+                    <p className="text-footnote text-label-secondary">
+                      {tBulk("planned", { count: counts.planned })} ·{" "}
+                      {tBulk("unplanned", { count: counts.unplanned })} ·{" "}
+                      {batch.reserve_storage === "freezer"
+                        ? tBulk("freezer")
+                        : tBulk("fridge")}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {(batch.recipe_id || batch.recipe_snapshot_at) && (
+                        <Link
+                          className="btn-tinted min-h-[44px]"
+                          aria-disabled={mutationsBlocked}
+                          onClick={(event) => {
+                            if (mutationsBlocked) event.preventDefault();
+                          }}
+                          href={`/dashboard/inventory?cookBatch=${encodeURIComponent(batch.id)}`}
+                        >
+                          {locale.startsWith("es")
+                            ? "Revisar alimentos usados"
+                            : "Review food used"}
+                        </Link>
+                      )}
+                      <button
+                        type="button"
+                        className="btn-tinted min-h-[44px]"
+                        onClick={() =>
+                          setModal({
+                            kind: "allocate",
+                            sessionId: current.id,
+                            batchId: batch.id,
+                          })
+                        }
+                        disabled={mutationsBlocked || counts.unplanned <= 0}
+                      >
+                        {tBulk("schedule")}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-tinted min-h-[44px]"
+                        disabled={
+                          mutationsBlocked ||
+                          !current.prepared_at ||
+                          counts.remaining <= 0
+                        }
+                        onClick={() =>
+                          setModal({
+                            kind: "eaten",
+                            sessionId: current.id,
+                            batchId: batch.id,
+                          })
+                        }
+                      >
+                        {tBulk("recordEaten")}
+                      </button>
+                      {batch.consumption[0] && (
+                        <button
+                          type="button"
+                          className="btn-tinted min-h-[44px]"
+                          disabled={mutationsBlocked}
+                          onClick={() =>
+                            setModal({
+                              kind: "undo-eaten",
+                              sessionId: current.id,
+                              batchId: batch.id,
+                              consumptionId: batch.consumption[0].id,
+                            })
+                          }
+                        >
+                          {tBulk("undoEaten")}
+                        </button>
+                      )}
+                    </div>
+                    {current.prepared_at &&
+                      (batch.recipe_id || batch.recipe_snapshot_at) && (
+                        <PreparedRecipe batchId={batch.id} />
+                      )}
+                    {batch.recipe_id && !current.prepared_at && (
+                      <AddToGroceriesButton
+                        recipeId={batch.recipe_id}
+                        batchId={batch.id}
+                        label={tBulk("groceries")}
+                        disabled={mutationsBlocked}
+                      />
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+            <div className="rounded-xl bg-[var(--surface-fill)] p-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-subhead">
+                <strong>{tBulk("nextPrep")}</strong> ·{" "}
+                {current.next_prep_on
+                  ? formatDay(current.next_prep_on)
+                  : tBulk("noNext")}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-tinted min-h-[44px]"
+                  disabled={mutationsBlocked}
+                  onClick={() =>
+                    setModal({ kind: "next-prep", sessionId: current.id })
+                  }
+                >
+                  {tBulk("changeNext")}
+                </button>
+                {current.next_prep_on && (
+                  <button
+                    type="button"
+                    className="btn-filled min-h-[44px]"
+                    disabled={mutationsBlocked}
+                    onClick={() =>
+                      setEditor({
+                        day: toDateOnlyUTC(current.next_prep_on!),
+                        seed: current,
+                      })
+                    }
+                  >
+                    {tBulk("planNext")}
+                  </button>
+                )}
+              </div>
+            </div>
+            <p className="text-footnote text-label-secondary">
+              {tBulk("planningNote")}
+            </p>
+            {cursor && (
+              <button
+                type="button"
+                className="btn-tinted min-h-[44px]"
+                disabled={loading || error}
+                onClick={() => void load(cursor)}
+              >
+                {tBulk("more")}
+              </button>
+            )}
+          </>
+        )}
+        {scope &&
+          personalRecoveryAllowed &&
+          editor &&
+          !recovery.privacyHold && (
+            <MealPrepEditor
+              context={scope}
+              restoredDraft={editor.restoredDraft}
+              defaultDay={editor.day}
+              seed={editor.seed}
+              initialRecipe={editor.recipe}
+              freshWritesBlocked={mutationsBlocked}
+              onClose={() => setEditor(null)}
+              onSaved={saved}
+              onReload={() => load()}
+            />
           )}
-        </>
-      )}
-      {scope && editor && (
-        <MealPrepEditor
-          context={scope}
-          defaultDay={editor.day}
-          seed={editor.seed}
-          initialRecipe={editor.recipe}
-          freshWritesBlocked={mutationsBlocked}
-          onClose={() => setEditor(null)}
-          onSaved={saved}
-          onReload={() => load()}
-        />
-      )}
-      {scope && modal && modalSession && (
-        <MealPrepActionSheet
-          kind={modal.kind}
-          requirePrepared={
-            preparedReuse.state === "target" &&
-            modal.kind === "allocate" &&
-            modal.sessionId === preparedReuse.target.sessionId &&
-            modal.batchId === preparedReuse.target.batchId
-          }
-          context={scope}
-          session={modalSession}
-          batch={modalSession.batches.find((row) => row.id === modal.batchId)}
-          consumptionId={modal.consumptionId}
-          freshWritesBlocked={mutationsBlocked}
-          onClose={() => {
-            setModal(null);
-            if (reuseRef.current.state !== "none") onDismissPreparedReuse?.();
-          }}
-          onSaved={() => saved()}
-          onReload={() => load()}
-        />
-      )}
-    </section>
+        {scope &&
+          personalRecoveryAllowed &&
+          modal &&
+          modalSession &&
+          !recovery.privacyHold && (
+            <MealPrepActionSheet
+              kind={modal.kind}
+              restoredDraft={modal.restoredDraft}
+              requirePrepared={
+                preparedReuse.state === "target" &&
+                modal.kind === "allocate" &&
+                modal.sessionId === preparedReuse.target.sessionId &&
+                modal.batchId === preparedReuse.target.batchId
+              }
+              context={scope}
+              session={modalSession}
+              batch={modalSession.batches.find(
+                (row) => row.id === modal.batchId,
+              )}
+              consumptionId={modal.consumptionId}
+              freshWritesBlocked={mutationsBlocked}
+              onClose={() => {
+                setModal(null);
+                if (reuseRef.current.state !== "none")
+                  onDismissPreparedReuse?.();
+              }}
+              onSaved={() => saved()}
+              onReload={() => load()}
+            />
+          )}
+      </section>
+    </BulkRecoveryProvider>
   );
 }
