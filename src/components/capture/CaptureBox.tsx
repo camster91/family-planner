@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { requestOwnedJson, runOwnedForeground } from "@/lib/owned-request-http";
+import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { CaptureDraftBoundary } from "./CaptureDraftBoundary";
 import {
   captureReviewDocument,
@@ -80,34 +82,79 @@ function recoveryBoundaryErrorKind(
 async function downscaleImage(
   file: File,
   maxEdge = 1600,
+  signal?: AbortSignal,
 ): Promise<{ base64: string; mimeType: string }> {
+  if (signal?.aborted) throw new CaptureClientError("readInterrupted");
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new CaptureClientError("fileReadFailed"));
+    const cleanup = () => {
+      signal?.removeEventListener("abort", stop);
+      reader.onload = null;
+      reader.onerror = null;
+      reader.onabort = null;
+    };
+    const stop = () => {
+      cleanup();
+      reader.abort();
+      reject(new CaptureClientError("readInterrupted"));
+    };
+    reader.onload = () => {
+      const value = String(reader.result);
+      cleanup();
+      resolve(value);
+    };
+    reader.onerror = () => {
+      cleanup();
+      reject(new CaptureClientError("fileReadFailed"));
+    };
+    reader.onabort = () => {
+      cleanup();
+      reject(new CaptureClientError("readInterrupted"));
+    };
+    signal?.addEventListener("abort", stop, { once: true });
     reader.readAsDataURL(file);
   });
-
+  if (signal?.aborted) throw new CaptureClientError("readInterrupted");
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const el = new Image();
-    el.onload = () => resolve(el);
-    el.onerror = () => reject(new CaptureClientError("imageReadFailed"));
+    const cleanup = () => {
+      signal?.removeEventListener("abort", stop);
+      el.onload = null;
+      el.onerror = null;
+    };
+    const stop = () => {
+      cleanup();
+      el.removeAttribute("src");
+      reject(new CaptureClientError("readInterrupted"));
+    };
+    el.onload = () => {
+      cleanup();
+      resolve(el);
+    };
+    el.onerror = () => {
+      cleanup();
+      el.removeAttribute("src");
+      reject(new CaptureClientError("imageReadFailed"));
+    };
+    signal?.addEventListener("abort", stop, { once: true });
     el.src = dataUrl;
   });
-
-  const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
-  const w = Math.max(1, Math.round(img.width * scale));
-  const h = Math.max(1, Math.round(img.height * scale));
-
   const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new CaptureClientError("imageProcessFailed");
-  ctx.drawImage(img, 0, 0, w, h);
-
-  const out = canvas.toDataURL("image/jpeg", 0.82);
-  return { base64: out.split(",")[1] || "", mimeType: "image/jpeg" };
+  try {
+    if (signal?.aborted) throw new CaptureClientError("readInterrupted");
+    const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+    canvas.width = Math.max(1, Math.round(img.width * scale));
+    canvas.height = Math.max(1, Math.round(img.height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new CaptureClientError("imageProcessFailed");
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const out = canvas.toDataURL("image/jpeg", 0.82);
+    return { base64: out.split(",")[1] || "", mimeType: "image/jpeg" };
+  } finally {
+    img.removeAttribute("src");
+    canvas.width = 0;
+    canvas.height = 0;
+  }
 }
 
 const KIND_MESSAGE: Record<DraftKind, CaptureMessage> = {
@@ -192,6 +239,8 @@ export type CaptureBoxProps = {
   onAvailabilityChange?: (availability: CaptureAvailability) => void;
 };
 export type CaptureExtraction = {
+  /** The owned host cancels only a foreground source read, never a mutation. */
+  registerReadCancellation?: (cancel: () => void) => () => void;
   begin: () => Promise<number | null>;
   accept: (
     document: CaptureEditableDocument,
@@ -209,7 +258,11 @@ export function CaptureBox(props: CaptureBoxProps = {}) {
         <LegacyCaptureBox {...props} {...overrides} />
       )}
       renderExtractor={(extraction) => (
-        <LegacyCaptureBox presentation="inline" extraction={extraction} />
+        <LegacyCaptureBox
+          presentation="inline"
+          open={props.open}
+          extraction={extraction}
+        />
       )}
     />
   );
@@ -258,6 +311,7 @@ export function LegacyCaptureBox({
     "loading" | CaptureAvailability
   >("loading");
   const [checkingAvailability, setCheckingAvailability] = React.useState(false);
+  const availabilityController = React.useRef<AbortController | null>(null);
   const availabilityRef = React.useRef<"loading" | CaptureAvailability>(
     "loading",
   );
@@ -311,6 +365,49 @@ export function LegacyCaptureBox({
   const photoEventsRef = React.useRef<PhotoEvent[] | null>(null);
   const photoWorkRef = React.useRef(0);
   const captureWorkRef = React.useRef(0);
+  const readController = React.useRef<AbortController | null>(null);
+  const phraseRef = React.useRef(text);
+  phraseRef.current = text;
+  const [reading, setReading] = React.useState(false);
+  const readInterruptedText = React.useRef(msg("readInterrupted"));
+  readInterruptedText.current = msg("readInterrupted");
+  const cancelRead = React.useCallback(() => {
+    if (!readController.current) return;
+    readController.current.abort();
+    readController.current = null;
+    captureWorkRef.current++;
+    photoWorkRef.current++;
+    setReading(false);
+    setBusy(false);
+    setPhotoBusy(false);
+    extraction?.activity({
+      busy: false,
+      hasInput: Boolean(phraseRef.current.trim()),
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setError(readInterruptedText.current);
+  }, [extraction]);
+  React.useEffect(
+    () => extraction?.registerReadCancellation?.(cancelRead),
+    [extraction, cancelRead],
+  );
+  React.useEffect(() => {
+    if (!open || privacyHidden) cancelRead();
+  }, [open, privacyHidden, cancelRead]);
+  React.useEffect(() => {
+    const hidden = () => {
+      if (document.visibilityState === "hidden") cancelRead();
+    };
+    window.addEventListener("blur", cancelRead);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      window.removeEventListener("blur", cancelRead);
+      document.removeEventListener("visibilitychange", hidden);
+      readController.current?.abort();
+      readController.current = null;
+      availabilityController.current?.abort();
+    };
+  }, [cancelRead]);
   React.useEffect(
     () => () => {
       captureWorkRef.current++;
@@ -330,6 +427,9 @@ export function LegacyCaptureBox({
   const clearRecoveryBoundary = React.useCallback(
     (userId?: string, familyId?: string): boolean => {
       const knownIdentity = recoveryIdentity.current;
+      readController.current?.abort();
+      readController.current = null;
+      setReading(false);
       captureWorkRef.current++;
       photoWorkRef.current++;
       setBusy(false);
@@ -567,16 +667,31 @@ export function LegacyCaptureBox({
   // without a full page reload.
   const checkAvailability = React.useCallback(async () => {
     const recoveringFromTransientFailure = availabilityRef.current === "retry";
+    availabilityController.current?.abort();
+    const controller = new AbortController();
+    availabilityController.current = controller;
+    const current = () =>
+      extractionMounted.current &&
+      !controller.signal.aborted &&
+      availabilityController.current === controller;
     recoveryMutationReady.current = false;
     setCheckingAvailability(true);
     try {
-      const response = await fetch("/api/capture");
+      const result = await requestOwnedJson(
+        "/api/capture",
+        { signal: controller.signal },
+        8192,
+      );
+      if (!current()) return;
+      if (result.kind !== "reply")
+        throw new Error("Capture availability unavailable");
+      const response = result.response;
       if (response.status === 401 || response.status === 403) {
         revokeCaptureAccess();
         return;
       }
       if (!response.ok) throw new Error("Capture availability check failed");
-      const value: unknown = await response.json();
+      const value: unknown = result.body;
       if (!value || typeof value !== "object")
         throw new Error("Unreadable capture availability");
       const data = value as {
@@ -673,10 +788,14 @@ export function LegacyCaptureBox({
         setError(null);
       }
     } catch {
+      if (!current()) return;
       setAvailability("retry");
       onAvailabilityChange?.("retry");
     } finally {
-      setCheckingAvailability(false);
+      if (current()) {
+        availabilityController.current = null;
+        setCheckingAvailability(false);
+      }
     }
   }, [
     onAvailabilityChange,
@@ -688,6 +807,14 @@ export function LegacyCaptureBox({
 
   React.useEffect(() => {
     void checkAvailability();
+    const refresh = () => {
+      if (document.visibilityState !== "hidden") void checkAvailability();
+    };
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      availabilityController.current?.abort();
+    };
   }, [checkAvailability]);
 
   React.useEffect(() => {
@@ -847,28 +974,55 @@ export function LegacyCaptureBox({
     const ownerEpoch = extraction ? await extraction.begin() : undefined;
     if (extraction && (ownerEpoch == null || !extractionMounted.current))
       return;
+    if (readController.current) return;
+    const controller = new AbortController();
+    readController.current = controller;
+    setReading(true);
     const workId = ++captureWorkRef.current;
-    const current = () => captureWorkRef.current === workId;
+    const current = () =>
+      extractionMounted.current &&
+      !controller.signal.aborted &&
+      captureWorkRef.current === workId;
     setBusy(true);
     recoveryErrorKind.current = null;
     setError(null);
     setSaved(null);
     try {
-      const res = await fetch("/api/capture", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: phrase }),
-      });
+      const result = await runOwnedForeground(
+        async (signal) => {
+          const response = await fetch("/api/capture", {
+            method: "POST",
+            cache: "no-store",
+            credentials: "same-origin",
+            signal,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: phrase }),
+          });
+          const body = await readBoundedJsonResponse(
+            response,
+            signal,
+            256 * 1024,
+          );
+          return { kind: "reply" as const, response, body };
+        },
+        { signal: controller.signal, timeoutMs: 45000 },
+      );
       if (!current()) return;
+      if (result.kind !== "reply")
+        throw new CaptureClientError("readInterrupted");
+      const res = result.response;
       if (res.status === 401 || res.status === 403) {
         revokeCaptureAccess();
         throw new CaptureClientError("recoveryAccessUnavailable");
       }
-      const data = await res.json();
-      if (!current()) return;
-      if (!res.ok) throw new Error(data.error || msg("couldNotRead"));
+      if (!res.ok) throw new CaptureClientError("couldNotRead");
+      const data = result.body as { draft?: unknown } | null;
       const parsed = captureTextReview.safeParse(data?.draft);
       if (!parsed.success) throw new CaptureClientError("couldNotRead");
+      if (readController.current === controller) {
+        readController.current = null;
+        setReading(false);
+      }
       if (extraction) {
         const reviewed = captureReviewDocument(
           { ...parsed.data, clientId: newIdempotencyKey(), quantity: "1" },
@@ -899,6 +1053,10 @@ export function LegacyCaptureBox({
       recoveryErrorKind.current = recoveryBoundaryErrorKind(e);
       setError(localizeError(e, "couldNotRead"));
     } finally {
+      if (readController.current === controller) {
+        readController.current = null;
+        if (extractionMounted.current) setReading(false);
+      }
       if (current()) setBusy(false);
     }
   }
@@ -966,32 +1124,59 @@ export function LegacyCaptureBox({
     const ownerEpoch = extraction ? await extraction.begin() : undefined;
     if (extraction && (ownerEpoch == null || !extractionMounted.current))
       return;
+    if (readController.current) return;
+    const controller = new AbortController();
+    readController.current = controller;
+    setReading(true);
     const workId = ++photoWorkRef.current;
-    const current = () => photoWorkRef.current === workId;
+    const current = () =>
+      extractionMounted.current &&
+      !controller.signal.aborted &&
+      photoWorkRef.current === workId;
     setPhotoBusy(true);
     recoveryErrorKind.current = null;
     setError(null);
     setSaved(null);
     try {
-      // Downscale before sending: keeps the upload small and the cost low.
-      // A phone photo is several MB; the model does not need that detail.
-      const { base64, mimeType } = await downscaleImage(file);
-      const res = await fetch("/api/capture", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType }),
-      });
+      const result = await runOwnedForeground(
+        async (signal) => {
+          // This deadline also covers FileReader/image decode. An ignored abort
+          // may finish decoding later, but must never start a provider request.
+          const { base64, mimeType } = await downscaleImage(file, 1600, signal);
+          if (signal.aborted) throw new Error("Capture read stopped");
+          const response = await fetch("/api/capture", {
+            method: "POST",
+            cache: "no-store",
+            credentials: "same-origin",
+            signal,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageBase64: base64, mimeType }),
+          });
+          const body = await readBoundedJsonResponse(
+            response,
+            signal,
+            256 * 1024,
+          );
+          return { kind: "reply" as const, response, body };
+        },
+        { signal: controller.signal, timeoutMs: 45000 },
+      );
       if (!current()) return;
+      if (result.kind !== "reply")
+        throw new CaptureClientError("readInterrupted");
+      const res = result.response;
       if (res.status === 401 || res.status === 403) {
         revokeCaptureAccess();
         throw new CaptureClientError("recoveryAccessUnavailable");
       }
-      const data = await res.json();
-      if (!current()) return;
-      if (!res.ok) throw new Error(data.error || msg("couldNotReadPhoto"));
+      if (!res.ok) throw new CaptureClientError("couldNotReadPhoto");
+      const data = result.body as { image?: unknown } | null;
       const parsed = capturePhotoReview.safeParse(data?.image);
       if (!parsed.success) throw new CaptureClientError("couldNotReadPhoto");
-      if (photoWorkRef.current !== workId) return;
+      if (readController.current === controller) {
+        readController.current = null;
+        setReading(false);
+      }
       if (extraction) {
         const reviewed = captureReviewDocument(
           null,
@@ -1024,6 +1209,10 @@ export function LegacyCaptureBox({
       recoveryErrorKind.current = recoveryBoundaryErrorKind(e);
       setError(localizeError(e, "couldNotReadPhoto"));
     } finally {
+      if (readController.current === controller) {
+        readController.current = null;
+        if (extractionMounted.current) setReading(false);
+      }
       if (photoWorkRef.current === workId) setPhotoBusy(false);
       if (current() && fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -1311,6 +1500,16 @@ export function LegacyCaptureBox({
             </button>
           </div>
         </>
+      )}
+
+      {reading && !extraction && (
+        <button
+          type="button"
+          className="btn-plain min-h-11 mt-2"
+          onClick={cancelRead}
+        >
+          {msg("cancelRead")}
+        </button>
       )}
 
       {error && (

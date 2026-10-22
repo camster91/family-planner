@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { Dialog } from "@/components/ui/dialog";
 import CreateListForm from "@/app/dashboard/lists/create/CreateListForm";
 import CreateChoreForm from "@/app/dashboard/chores/create/CreateChoreForm";

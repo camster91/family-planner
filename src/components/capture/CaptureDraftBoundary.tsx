@@ -3,6 +3,8 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/dialog";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
+import { navigateAfterOwnedDrafts } from "@/lib/owned-draft-exit";
+import { useOwnedDraftExit } from "@/components/layout/owned-draft-navigation";
 import { useRoutineLinkNavigation } from "@/components/chores/useRoutineLinkNavigation";
 import { useCaptureDraftText } from "@/i18n/capture-drafts";
 import {
@@ -78,6 +80,7 @@ export function CaptureDraftBoundary(
   const latest = React.useRef(empty()),
     provenance = React.useRef(manual()),
     acknowledged = React.useRef("");
+  const retiredOwner = React.useRef(false);
   const initialized = React.useRef(false),
     mounted = React.useRef(false),
     epoch = React.useRef(0),
@@ -85,6 +88,7 @@ export function CaptureDraftBoundary(
     idle = React.useRef(Promise.resolve());
   const savingOnly = React.useRef(false);
   const previousOpen = React.useRef(props.open !== false);
+  const cancelSourceRead = React.useRef<(() => void) | null>(null);
   const phaseRef = React.useRef<Phase>("loading"),
     authorized = React.useRef(false);
   const activity = React.useRef({ busy: false, hasInput: false });
@@ -186,6 +190,7 @@ export function CaptureDraftBoundary(
               : textRef.current.storage,
         );
         if (changed) {
+          retiredOwner.current = true;
           authorized.current = false;
           setVisible(false);
           setPhase("hold");
@@ -252,12 +257,15 @@ export function CaptureDraftBoundary(
     mounted.current = true;
     void run(load);
     const hide = () => {
+      cancelSourceRead.current?.();
       epoch.current++;
       authorized.current = false;
       setVisible(false);
     };
     const refresh = () => {
       if (document.visibilityState !== "hidden") {
+        cancelSourceRead.current?.();
+        epoch.current++;
         authorized.current = false;
         setVisible(false);
         void run(load);
@@ -271,6 +279,7 @@ export function CaptureDraftBoundary(
     document.addEventListener("visibilitychange", visibility);
     return () => {
       mounted.current = false;
+      cancelSourceRead.current?.();
       epoch.current++;
       window.removeEventListener("blur", hide);
       window.removeEventListener("focus", refresh);
@@ -284,6 +293,7 @@ export function CaptureDraftBoundary(
     const open = props.open !== false;
     if (previousOpen.current === open) return;
     previousOpen.current = open;
+    cancelSourceRead.current?.();
     epoch.current++;
     authorized.current = false;
     setVisible(false);
@@ -347,6 +357,13 @@ export function CaptureDraftBoundary(
   }, [dirty, busy, visible, notice, phase, props.open]);
   const extraction = React.useMemo<CaptureExtraction>(
     () => ({
+      registerReadCancellation: (cancel) => {
+        cancelSourceRead.current = cancel;
+        return () => {
+          if (cancelSourceRead.current === cancel)
+            cancelSourceRead.current = null;
+        };
+      },
       begin: async () => {
         if (flight.current) await idle.current;
         if (
@@ -393,6 +410,7 @@ export function CaptureDraftBoundary(
         });
       },
       refuse: () => {
+        cancelSourceRead.current?.();
         epoch.current++;
         authorized.current = false;
         setVisible(false);
@@ -439,26 +457,55 @@ export function CaptureDraftBoundary(
       },
     },
   );
-  async function close(href?: string) {
-    if (activity.current.busy || choreBusy) return;
+  async function prepareLeave() {
+    if (retiredOwner.current) return true;
+    cancelSourceRead.current?.();
+    if (activity.current.busy || choreBusy) return false;
     if (flight.current) await idle.current;
-    if (!authorized.current || !visible) return;
+    if (
+      !authorized.current ||
+      callbacks.current.open === false ||
+      document.visibilityState === "hidden"
+    )
+      return false;
     if (phaseRef.current === "choose" && dirty) {
       setNotice(text.resolveConflict);
-      return;
+      return false;
     }
-    if (activity.current.hasInput && !window.confirm(text.leaveInput)) return;
-    await run(async (token) => {
+    if (activity.current.hasInput && !window.confirm(text.leaveInput))
+      return false;
+    let prepared = false;
+    const checked = await run(async (token) => {
       if (phaseRef.current === "editing") {
         await flush();
+        if (
+          fingerprint(latest.current, provenance.current) !==
+            acknowledged.current &&
+          (latest.current.rows.length > 0 || latest.current.note)
+        )
+          throw new OwnedRequestRecoveryError("INTENT_CHANGED");
         if (live(token)) setDirty(false);
-      }
-      if (
-        !live(token) ||
-        !(await navigation.releaseBeforeNavigation()) ||
-        !live(token)
-      )
-        return;
+      } else await current();
+      prepared = live(token) && authorized.current;
+    });
+    return checked && prepared;
+  }
+  async function releaseLeave() {
+    const token = epoch.current;
+    return (
+      (retiredOwner.current || authorized.current) &&
+      (await navigation.releaseBeforeNavigation()) &&
+      live(token)
+    );
+  }
+  useOwnedDraftExit(
+    props.open !== false && phase !== "legacy",
+    prepareLeave,
+    releaseLeave,
+  );
+  async function close(href?: string) {
+    if (!mounted.current || callbacks.current.open === false) return;
+    await navigateAfterOwnedDrafts(() => {
       if (href) router.push(href);
       else if (callbacks.current.onClose) callbacks.current.onClose();
       else router.back();
@@ -771,6 +818,16 @@ export function CaptureDraftBoundary(
             <fieldset disabled={disabled}>
               {props.renderExtractor(extraction)}
             </fieldset>
+            {extracting && (
+              <button
+                type="button"
+                className="btn-plain min-h-11"
+                disabled={busy}
+                onClick={() => cancelSourceRead.current?.()}
+              >
+                {text.stopRead}
+              </button>
+            )}
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -958,7 +1015,7 @@ export function CaptureDraftBoundary(
         open={props.open ?? true}
         title={text.title}
         onClose={
-          !busy && !extracting && !choreBusy
+          !busy && !choreBusy
             ? () => {
                 void close();
               }

@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useWeeklyResetText } from "@/i18n/weekly-reset";
 import { toDateOnlyLocal } from "@/lib/dates";
 import { addDaysToKey } from "@/lib/local-day-key";
@@ -40,19 +41,35 @@ export default function WeeklyResetLauncher({
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     });
   }, [open]);
+  function observeNavigation(
+    request: Promise<boolean>,
+    previous: string | null,
+  ) {
+    void request.then((allowed) => {
+      if (!allowed) {
+        closing.current = false;
+        opening.current = false;
+        pushed.current = previous;
+      }
+    });
+  }
   function close() {
     if (closing.current) return;
+    const previousPushed = pushed.current;
     closing.current = true;
     const target = `${pathname}?${params}`;
     if (pushed.current === target) {
       pushed.current = null;
-      router.back();
+      observeNavigation(router.back(), previousPushed);
     } else {
       const next = new URLSearchParams(params.toString());
       next.delete("weeklyReview");
-      router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
-        scroll: false,
-      });
+      observeNavigation(
+        router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
+          scroll: false,
+        }),
+        previousPushed,
+      );
     }
   }
   return (
@@ -62,12 +79,16 @@ export default function WeeklyResetLauncher({
         className="my-3 min-h-11 rounded-xl border border-[var(--surface-separator)] px-4 py-2 text-callout font-medium text-label-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]"
         onClick={() => {
           if (open || opening.current) return;
+          const previousPushed = pushed.current;
           opening.current = true;
           const next = new URLSearchParams(params.toString());
           next.set("weeklyReview", "1");
           const target = `${pathname}?${next}`;
           pushed.current = target;
-          router.push(target, { scroll: false });
+          observeNavigation(
+            router.push(target, { scroll: false }),
+            previousPushed,
+          );
         }}
       >
         {copy.open}

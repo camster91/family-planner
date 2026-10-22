@@ -3,7 +3,8 @@
 import * as React from "react";
 import styles from "./meals-board.module.css";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { MealViewNav } from "@/components/meals/MealViewNav";
 import {
   mealCreateContext,

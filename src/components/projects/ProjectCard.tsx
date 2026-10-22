@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { cn } from "@/lib/utils";
 import { Glyph } from "@/components/ui/glyph";
 import { useProjectOverviewText } from "@/i18n/project-overview";

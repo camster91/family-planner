@@ -63,6 +63,10 @@ beforeAll(() => {
     set src(_v: string) {
       setTimeout(() => this.onload?.(), 0)
     }
+    removeAttribute(_name: string) {
+      this.onload = null
+      this.onerror = null
+    }
   }
   ;(global as unknown as { Image: unknown }).Image = FakeImage
   HTMLCanvasElement.prototype.getContext = jest.fn(() => ({ drawImage: jest.fn() })) as never

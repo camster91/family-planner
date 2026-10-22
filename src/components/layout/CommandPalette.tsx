@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { X, ChevronRight, Search } from "lucide-react";
 import { SearchField } from "@/components/ui/search-field";
 import { MORE_HREF, navItemDisplayName, navItems } from "@/lib/nav-items";
@@ -86,8 +86,9 @@ export default function CommandPalette({
   const searchHref = `/dashboard/search?q=${encodeURIComponent(searchWords)}`;
 
   const handleNavigate = (href: string) => {
-    router.push(href);
-    onClose();
+    void router.push(href).then((allowed) => {
+      if (allowed) onClose();
+    });
   };
 
   if (!open) return null;
@@ -207,7 +208,9 @@ export default function CommandPalette({
                     <Icon className="w-4 h-4 text-label-secondary" />
                   </div>
                   <span className="text-body text-label-primary flex-1">
-                    {item.href === MORE_HREF ? more("title") : navItemDisplayName(item, featureTitles)}
+                    {item.href === MORE_HREF
+                      ? more("title")
+                      : navItemDisplayName(item, featureTitles)}
                   </span>
                   <ChevronRight className="w-4 h-4 text-label-tertiary shrink-0" />
                 </button>

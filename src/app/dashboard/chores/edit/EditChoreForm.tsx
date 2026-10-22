@@ -5,7 +5,8 @@ import { MonthlyScheduleHint } from "@/components/chores/MonthlyScheduleHint";
 import { WeeklyDaysPicker } from "@/components/chores/WeeklyDaysPicker";
 
 import { useState, useEffect, useRef, useId, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Camera } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";

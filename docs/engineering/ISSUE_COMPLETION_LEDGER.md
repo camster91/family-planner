@@ -545,3 +545,15 @@ receipt reads handle account/profile recovery without cached private contents.
 Legacy no-key and profile-gated callers retain their paths. Source/mounted/API/
 disposable-DB cases are authored and unrun. No QA/activation/merge/deploy/closure
 claim. Navigation/cancellation and wider role/routine/timeline/AI scope remain open.
+
+
+### #123 / #499 exit and source-read coordination — 2026-10-22
+
+Owned capture/recipe preparation, global route barrier and history release are
+connected to all 27 current non-session route-changing callers. Hidden-host and
+retired-owner behavior, provider/overlay refusal handling, bounded cancellable
+text/photo/metadata reads and late-response suppression are authored. Existing
+sign-out privacy cleanup stays separate. Focused helper/mounted cases are unrun;
+source is not Back, native bridge, process-loss, isolation or visual acceptance.
+Full QA/release and role/routine/timeline/grounded-AI work remain open. No flags,
+provider/DB/native/CI execution, push/merge/deploy or issue closure.

@@ -1,5 +1,5 @@
 "use client";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { Dialog } from "@/components/ui/dialog";
 import { useRoutineScheduleText } from "@/i18n/routine-schedule";
 export function RoutineScheduleHandoff({

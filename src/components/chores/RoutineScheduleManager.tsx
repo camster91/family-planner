@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import Link from "next/link";
 import { useRoutineLinkNavigation } from "./useRoutineLinkNavigation";
 import { parseDateOnly } from "@/lib/dates";

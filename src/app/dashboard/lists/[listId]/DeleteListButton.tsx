@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { Trash2 } from "lucide-react";
 import { listsFilterHref, type ListTypeKey } from "@/lib/list-type-filter";
 import { Dialog } from "@/components/ui/dialog";

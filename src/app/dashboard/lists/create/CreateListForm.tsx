@@ -2,7 +2,7 @@
 
 import { ListImagePicker } from "@/components/lists/ListImagePicker";
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { Plus, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";

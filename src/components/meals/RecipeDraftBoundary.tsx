@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { useRecipeEditorText } from "@/i18n/recipe-editor";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
+import { navigateAfterOwnedDrafts } from "@/lib/owned-draft-exit";
+import { useOwnedDraftExit } from "@/components/layout/owned-draft-navigation";
 import { useRoutineLinkNavigation } from "@/components/chores/useRoutineLinkNavigation";
 import {
   browserReviewDocument,
@@ -78,6 +80,8 @@ export function RecipeDraftBoundary(
     epoch = React.useRef(0),
     flight = React.useRef(false);
   const initialized = React.useRef(false);
+  const authorized = React.useRef(false);
+  const retiredOwner = React.useRef(false);
   const idle = React.useRef<Promise<void>>(Promise.resolve());
   const viewRef = React.useRef<View>("loading");
   const [view, setViewState] = React.useState<View>("loading");
@@ -155,6 +159,8 @@ export function RecipeDraftBoundary(
           ),
         );
         if (ownerChanged) {
+          retiredOwner.current = true;
+          authorized.current = false;
           setVisible(false);
           setView("hold");
           latest.current = null;
@@ -238,6 +244,7 @@ export function RecipeDraftBoundary(
         );
       else setView(emptyView(next.enabled));
     }
+    authorized.current = true;
     setVisible(true);
     setNotice(null);
   }
@@ -245,11 +252,14 @@ export function RecipeDraftBoundary(
     mounted.current = true;
     void run(load);
     const hide = () => {
+      authorized.current = false;
       epoch.current += 1;
       setVisible(false);
     };
     const refresh = () => {
       if (document.visibilityState !== "hidden") {
+        authorized.current = false;
+        epoch.current += 1;
         setVisible(false);
         void run(load);
       }
@@ -262,6 +272,7 @@ export function RecipeDraftBoundary(
     document.addEventListener("visibilitychange", visibility);
     return () => {
       mounted.current = false;
+      authorized.current = false;
       epoch.current += 1;
       window.removeEventListener("blur", hide);
       window.removeEventListener("focus", refresh);
@@ -338,22 +349,47 @@ export function RecipeDraftBoundary(
       },
     },
   );
-  async function close(href?: string) {
+  async function prepareLeave() {
+    if (retiredOwner.current) return true;
     if (flight.current) await idle.current;
     if (
-      !visible ||
+      !authorized.current ||
+      document.visibilityState === "hidden" ||
       callbacks.current.disabled ||
       callbacks.current.isMutationPending?.()
     )
-      return;
-    await run(async (token) => {
-      if (viewRef.current === "editing") await flush();
-      if (
-        !live(token) ||
-        !(await navigation.releaseBeforeNavigation()) ||
-        !live(token)
-      )
-        return;
+      return false;
+    let prepared = false;
+    const checked = await run(async (token) => {
+      if (viewRef.current === "editing") {
+        await flush();
+        if (
+          latest.current &&
+          JSON.stringify(latest.current) !== acknowledged.current
+        )
+          throw new OwnedRequestRecoveryError("INTENT_CHANGED");
+        if (live(token)) setDirty(false);
+      } else await current();
+      prepared = live(token) && authorized.current;
+    });
+    return checked && prepared;
+  }
+  async function releaseLeave() {
+    const token = epoch.current;
+    return (
+      (retiredOwner.current || authorized.current) &&
+      (await navigation.releaseBeforeNavigation()) &&
+      live(token)
+    );
+  }
+  useOwnedDraftExit(
+    view !== "legacy" && context.current?.adopted !== false,
+    prepareLeave,
+    releaseLeave,
+  );
+  async function close(href?: string) {
+    if (!mounted.current) return;
+    await navigateAfterOwnedDrafts(() => {
       if (href) router.push(href);
       else callbacks.current.onCancel();
     });
@@ -383,6 +419,7 @@ export function RecipeDraftBoundary(
       setReceipt(null);
       setDuplicate(null);
       setNotice(null);
+      authorized.current = true;
       setVisible(true);
       if (saved?.phase === "submitted") setView("submitted");
       else if (

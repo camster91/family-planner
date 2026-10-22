@@ -1,7 +1,8 @@
 "use client";
 import * as React from "react";
 import { PREPARATION_CHANGED_EVENT } from "@/lib/event-preparation/changes";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { memberIdentityIdSchema } from "@/lib/member-subject-contract";
 import { isValidTimeZone } from "@/lib/calendar-import/timezone";
@@ -70,6 +71,18 @@ export default function PreparationProvider({
       }
     }
   }, [url, !!location]);
+  function observeNavigation(
+    request: Promise<boolean>,
+    previous: string | null,
+  ) {
+    void request.then((allowed) => {
+      if (!allowed) {
+        navigating.current = false;
+        pushed.current = previous;
+        closing.current = false;
+      }
+    });
+  }
   function open(input: PreparationLocation) {
     const checked = locationSchema.safeParse(input);
     if (
@@ -92,29 +105,37 @@ export default function PreparationProvider({
     next.set("prepareEvent", input.eventId);
     next.set("prepareZone", input.timeZone);
     const target = `${path}?${next}`;
+    const previousPushed = pushed.current;
     navigating.current = true;
     if (location) {
       pushed.current = null;
-      router.replace(target, { scroll: false });
+      observeNavigation(
+        router.replace(target, { scroll: false }),
+        previousPushed,
+      );
     } else {
       pushed.current = target;
-      router.push(target, { scroll: false });
+      observeNavigation(router.push(target, { scroll: false }), previousPushed);
     }
   }
   function close() {
     if (navigating.current) return;
     closing.current = true;
+    const previousPushed = pushed.current;
     navigating.current = true;
     if (pushed.current === url) {
       pushed.current = null;
-      router.back();
+      observeNavigation(router.back(), previousPushed);
     } else {
       const next = new URLSearchParams(params.toString());
       next.delete("prepareEvent");
       next.delete("prepareZone");
-      router.replace(`${path}${next.size ? `?${next}` : ""}`, {
-        scroll: false,
-      });
+      observeNavigation(
+        router.replace(`${path}${next.size ? `?${next}` : ""}`, {
+          scroll: false,
+        }),
+        previousPushed,
+      );
     }
   }
   return (

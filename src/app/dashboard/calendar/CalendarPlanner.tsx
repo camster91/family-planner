@@ -8,7 +8,7 @@ import {
   calendarPlannerMessages,
   type CalendarPlannerMessage,
 } from "@/i18n/calendar-planner";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import {
   addDays,
@@ -211,9 +211,14 @@ export function CalendarPlanner({
     });
   const move = (key: string, nextView = view) => {
     if (!planningRange(key, nextView, local)) return;
-    setDate(key);
-    setView(nextView);
-    router.replace(planningHref(key, nextView), { scroll: false });
+    void router
+      .replace(planningHref(key, nextView), { scroll: false })
+      .then((allowed) => {
+        if (allowed) {
+          setDate(key);
+          setView(nextView);
+        }
+      });
   };
   const filtered = React.useMemo(
     () => data.filter((e) => matchesSource(e, filter)),

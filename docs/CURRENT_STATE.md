@@ -1,5 +1,43 @@
 # Current State
 
+## Owned draft exits and foreground read cancellation — 2026-10-22
+
+Owned capture/recipe exits now share a content-free in-memory navigation barrier.
+Every active editor prepares and proves its original draft before any same-URL
+history sentinel is released. Failed saves, ownership/epoch changes, replacement
+editors and repeated navigation attempts stop the route transition. Approved local
+close callbacks can synchronously call their host router without another save.
+Hidden capture hosts do not claim navigation. Owner-retired editors clear private
+fields, retain original storage and can leave without touching a new account's
+store. Explicit sign-out retains its established privacy cleanup/raw-router path.
+
+All 27 current non-session application callers of push/replace/back found in the
+source use the shared draft-aware router; refresh-only callers remain unchanged.
+Command palette/assistant navigation wait for approval, and preparation/schedule/
+responsibility/weekly-reset controls restore their navigation refs on refusal.
+Calendar date/view changes wait for an accepted route update. Ordinary navigation
+without an active owned editor keeps its synchronous route call. Existing pending
+form Back/unload/history machinery is reused rather than patched or replaced.
+
+Capture source reads now have a 45-second whole-job client deadline, including
+photo decoding, plus streamed response bounds. Stop reading, blur/background,
+host dismissal and unmount cancel only source reads. A late decode cannot start a
+provider fetch after cancellation, and ignored aborts settle the client without
+replacing the original review. Typed phrases remain in memory; raw photos/prompts
+are never put in the owned document. Availability reads use the existing bounded
+15-second transport and suppress stale/unmounted responses. Focus/storage renewal
+advances epochs in both owned hosts. Abort is not a noncommit proof for canonical
+writes, and no claim is made that a client abort stops provider execution/billing;
+server deadlines remain separate.
+
+New pure transport/barrier and mounted capture cases are authored and unrun.
+Only source inspection, edits and selected-file formatting occurred: no tests,
+typecheck/lint/build/browser/API/SQL/DB/native/CI, activation, push/merge/deploy or
+issue closure. Back/native bridge/process-loss/privacy/visual acceptance remains
+for consolidated QA. Role/profile/shared-device views, routine provenance/history,
+authorized timeline, domain-refusal batch recovery interactions and grounded AI
+references/planning/evaluation/usage still need follow-through. Full goal is active.
+
 ## Captured chore review and atomic create receipts — 2026-10-22
 
 Owned capture now opens the existing canonical chore form in a nested review

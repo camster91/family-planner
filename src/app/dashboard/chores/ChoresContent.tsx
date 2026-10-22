@@ -6,7 +6,7 @@ import { ResponsibilityButton } from "@/components/responsibility/Responsibility
 import * as React from "react";
 import { Plus, CheckSquare, ChevronDown, Flame } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { RecurringChoreRows } from "@/components/chores/RecurringChoreRows";
 import { ChoreViewControls, type ChorePresentation } from "@/components/chores/ChoreViewControls";
 import { useChoreOverviewText } from "@/i18n/chore-overview";

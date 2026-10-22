@@ -440,3 +440,42 @@ No runtime, privacy, visual, device or release acceptance is claimed. No flags,
 provider, database, CI, push/merge/deploy or issue status was changed. Next work
 remains the full navigation/foreground cancellation contract and the remaining
 role/routine history/inbox timeline/grounded-AI implementation before consolidated QA.
+
+
+## Owned draft navigation and read cancellation — 2026-10-22 source checkpoint
+
+Capture and recipe use a shared in-memory exit barrier with no copied document
+content. Active editors all prepare before any history sentinel releases. Each
+preparation renews original identity/storage and flushes the latest reviewed
+fields; changed work/owner or a failed save refuses navigation. A registered
+owner disappearing/changing during preparation, a failed release and concurrent
+requests also refuse. Approved synchronous host navigation reuses the same commit
+instead of recursively preparing. Existing Back/unload and dashboard anchor
+interception remain; local close and app-owned programmatic routes now use the
+same barrier. Hidden capture hosts are inactive. Owner-retired views can leave
+after private fields are cleared without adopting another person's store.
+
+The 27 current non-session route-changing callers use the draft-aware router.
+Command palette and assistant close only after accepted navigation; overlay
+providers reset pending navigation refs on refusal. Calendar view/date state
+waits for the accepted URL change. Refresh-only methods keep existing behavior;
+explicit sign-out keeps its canonical privacy cleanup and raw-router exception.
+Future route-changing code must use the wrapper or the owned controller's
+already-prepared commit; it must not invent a browser-history monkey patch.
+
+Source reads (not canonical effects) now have foreground cancellation, full-job
+45-second deadlines covering image decoding, 256 KiB response bounds and stale
+reply suppression. Stop controls stay outside disabled owned fields. Blur/hidden
+host/close/unmount cancels reads; original reviewed rows and typed phrases remain.
+Metadata availability reads are separately bounded at15 seconds and discard stale
+responses. The shared bounded request utility honors external signals even when
+native fetch ignores them; cancellation means unknown, never proof of noncommit.
+Server/provider execution deadlines and cost are separate from client cancellation.
+
+Transport/barrier and mounted no-loss/late-source cases are authored, all unrun.
+Only source inspection/editing and selected-file formatting. No runtime checks,
+activation, provider, database, native, CI, push/merge/deploy or issue closure.
+Consolidated QA must inspect actual host/Back/failed-flush/retirement/rapid-input/
+focus/native-bridge/process-loss paths and the known/unknown batch-refusal UX;
+source mechanisms do not establish those acceptance claims. Remaining role,
+routine provenance/history, authorized timeline and grounded-AI scope stays open.

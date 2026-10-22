@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRoutineLinkNavigation } from "./useRoutineLinkNavigation";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { Dialog } from "@/components/ui/dialog";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { IndependentRoutineEditor } from "@/components/chores/IndependentRoutineEditor";

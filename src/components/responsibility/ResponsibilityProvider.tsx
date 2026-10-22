@@ -2,7 +2,8 @@
 import { usePreparationActive } from "@/components/calendar/preparation/PreparationProvider";
 import { useScheduleReviewActive } from "@/components/calendar/review/ScheduleReviewProvider";
 import * as React from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   responsibilityTarget,
   type ResponsibilityTarget,
@@ -58,6 +59,17 @@ export default function ResponsibilityProvider({
   const eligible = (item: ResponsibilityTarget) =>
     personal && !(role === "child" && item.kind === "handoff");
   const allowed = (item: ResponsibilityTarget) => enabled && eligible(item);
+  function observeNavigation(
+    request: Promise<boolean>,
+    previous: string | null,
+  ) {
+    void request.then((allowed) => {
+      if (!allowed) {
+        navigating.current = false;
+        pushed.current = previous;
+      }
+    });
+  }
   function open(item: ResponsibilityTarget) {
     if (
       !eligible(item) ||
@@ -65,6 +77,7 @@ export default function ResponsibilityProvider({
       (target?.kind === item.kind && target.id === item.id)
     )
       return;
+    const previousPushed = pushed.current;
     navigating.current = true;
     const next = new URLSearchParams(params.toString());
     next.set("responsibilityKind", item.kind);
@@ -72,25 +85,35 @@ export default function ResponsibilityProvider({
     const destination = `${pathname}?${next}`;
     if (target) {
       pushed.current = null;
-      router.replace(destination, { scroll: false });
+      observeNavigation(
+        router.replace(destination, { scroll: false }),
+        previousPushed,
+      );
     } else {
       pushed.current = destination;
-      router.push(destination, { scroll: false });
+      observeNavigation(
+        router.push(destination, { scroll: false }),
+        previousPushed,
+      );
     }
   }
   function close() {
     if (navigating.current) return;
+    const previousPushed = pushed.current;
     navigating.current = true;
     if (pushed.current === url) {
       pushed.current = null;
-      router.back();
+      observeNavigation(router.back(), previousPushed);
     } else {
       const next = new URLSearchParams(params.toString());
       next.delete("responsibilityKind");
       next.delete("responsibilityId");
-      router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
-        scroll: false,
-      });
+      observeNavigation(
+        router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
+          scroll: false,
+        }),
+        previousPushed,
+      );
     }
   }
   return (

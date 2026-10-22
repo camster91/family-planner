@@ -1,5 +1,8 @@
 /** Static capture-recovery controls. Titles and saved content remain verbatim. */
 export const captureEnglish = {
+  cancelRead: "Stop reading",
+  readInterrupted:
+    "Reading stopped. Your previous review is kept. Try reading again, or select the photo again.",
   ownedStorageHold:
     "The reviewed fields could not be saved safely. Recover saved work before trying again.",
   noEarlierRequests:
@@ -108,6 +111,9 @@ export const captureEnglish = {
 export type CaptureMessage = keyof typeof captureEnglish;
 
 export const captureSpanish: Record<CaptureMessage, string> = {
+  cancelRead: "Detener lectura",
+  readInterrupted:
+    "La lectura se detuvo. Se conserva tu revisión anterior. Vuelve a leer o selecciona de nuevo la foto.",
   ownedStorageHold:
     "No se pudieron guardar los campos con seguridad. Recupera el trabajo guardado antes de repetir.",
   noEarlierRequests:

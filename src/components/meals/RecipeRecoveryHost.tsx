@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { RecipeEditor } from "./RecipeEditor";
 import { useRecipeEditorText } from "@/i18n/recipe-editor";
 

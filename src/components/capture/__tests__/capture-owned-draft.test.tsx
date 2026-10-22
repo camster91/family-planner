@@ -1,7 +1,13 @@
 /** @jest-environment jsdom */
 /** Authored source cases; execution and rendered acceptance remain deferred. */
 import * as React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
 }));
@@ -18,6 +24,7 @@ jest.mock("@/lib/review-document-browser", () => ({
   browserReviewDocument: jest.fn(),
 }));
 import { CaptureBox } from "../CaptureBox";
+import { navigateAfterOwnedDrafts } from "@/lib/owned-draft-exit";
 import {
   readReviewDocumentContext,
   browserReviewDocument,
@@ -226,4 +233,86 @@ it("clears private rendered fields when renewed household ownership changes", as
     screen.queryByRole("textbox", { name: "Title" }),
   ).not.toBeInTheDocument();
   expect(store.sendExact).not.toHaveBeenCalled();
+});
+
+it("blocks programmatic navigation if the original owned draft cannot be persisted", async () => {
+  render(<CaptureBox />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Add groceries manually" }),
+  );
+  fireEvent.change(screen.getByLabelText("Title"), {
+    target: { value: "Keep this unsaved item" },
+  });
+  store.begin.mockRejectedValueOnce(new Error("fixture-storage-unavailable"));
+  const navigate = jest.fn();
+  let allowed: boolean | undefined;
+  await act(async () => {
+    allowed = await navigateAfterOwnedDrafts(navigate);
+  });
+  expect(allowed).toBe(false);
+  expect(navigate).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("Title")).toHaveValue("Keep this unsaved item");
+  expect(store.freeze).not.toHaveBeenCalled();
+  expect(store.sendExact).not.toHaveBeenCalled();
+});
+it("lets the owner stop a source read while normal controls are disabled and ignores its late reply", async () => {
+  let reply!: (value: Response) => void;
+  const pending = new Promise<Response>((resolve) => {
+    reply = resolve;
+  });
+  global.fetch = jest.fn(async (_url: string, init?: RequestInit) =>
+    init?.method === "POST"
+      ? pending
+      : ({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            configured: true,
+            allowed: true,
+            role: "parent",
+            userId: context.userId,
+            familyId: context.familyId,
+          }),
+        } as Response),
+  ) as typeof fetch;
+  const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
+  try {
+    render(<CaptureBox />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Add groceries manually" }),
+    );
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Original grocery" },
+    });
+    fireEvent.change(
+      await screen.findByLabelText("What would you like to add?"),
+      { target: { value: "Read this synthetic phrase" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Read it" }));
+    const stop = await screen.findByRole("button", { name: "Stop reading" });
+    await waitFor(() => expect(stop).toBeEnabled());
+    fireEvent.click(stop);
+    await act(async () => {
+      reply({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          draft: {
+            kind: "task",
+            title: "Late source proposal",
+            confidence: "high",
+          },
+        }),
+      } as Response);
+      await pending;
+    });
+    expect(screen.getByLabelText("Title")).toHaveValue("Original grocery");
+    expect(screen.getByLabelText("What would you like to add?")).toHaveValue(
+      "Read this synthetic phrase",
+    );
+    expect(store.freeze).not.toHaveBeenCalled();
+    expect(store.sendExact).not.toHaveBeenCalled();
+  } finally {
+    confirm.mockRestore();
+  }
 });

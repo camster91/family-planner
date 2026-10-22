@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { InsetList, ListRow, SectionHeader } from "@/components/ui/list-row";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ILLUSTRATIONS } from "@/lib/brand-illustrations";

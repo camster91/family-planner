@@ -2,7 +2,8 @@
 import { usePreparationActive } from "@/components/calendar/preparation/PreparationProvider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import * as React from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   scheduleReviewScope,
   type ScheduleReviewScope,
@@ -63,6 +64,18 @@ export default function ScheduleReviewProvider({
       }
     }
   }, [url, isOpen]);
+  function observeNavigation(
+    request: Promise<boolean>,
+    previous: string | null,
+  ) {
+    void request.then((allowed) => {
+      if (!allowed) {
+        navigating.current = false;
+        pushed.current = previous;
+        closing.current = false;
+      }
+    });
+  }
   function open(input: ScheduleReviewScope) {
     const nextScope = scheduleReviewScope.safeParse(input);
     if (
@@ -72,6 +85,7 @@ export default function ScheduleReviewProvider({
       (scope && JSON.stringify(scope) === JSON.stringify(nextScope.data))
     )
       return;
+    const previousPushed = pushed.current;
     navigating.current = true;
     const next = new URLSearchParams(params.toString());
     next.delete("prepareEvent");
@@ -85,19 +99,23 @@ export default function ScheduleReviewProvider({
     const target = `${pathname}?${next}`;
     if (scope) {
       pushed.current = null;
-      router.replace(target, { scroll: false });
+      observeNavigation(
+        router.replace(target, { scroll: false }),
+        previousPushed,
+      );
     } else {
       pushed.current = target;
-      router.push(target, { scroll: false });
+      observeNavigation(router.push(target, { scroll: false }), previousPushed);
     }
   }
   function close() {
     if (navigating.current) return;
     closing.current = true;
+    const previousPushed = pushed.current;
     navigating.current = true;
     if (pushed.current === url) {
       pushed.current = null;
-      router.back();
+      observeNavigation(router.back(), previousPushed);
     } else {
       const next = new URLSearchParams(params.toString());
       for (const key of [
@@ -107,9 +125,12 @@ export default function ScheduleReviewProvider({
         "reviewZone",
       ])
         next.delete(key);
-      router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
-        scroll: false,
-      });
+      observeNavigation(
+        router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
+          scroll: false,
+        }),
+        previousPushed,
+      );
     }
   }
   return (

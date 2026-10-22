@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
+import { useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { Dialog } from "@/components/ui/dialog";
 import { toDateOnlyLocal } from "@/lib/dates";

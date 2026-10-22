@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { Mic, MicOff } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { useFeatures } from "@/components/providers/features-provider";
@@ -593,8 +593,7 @@ export default function AssistantPanel({
       return;
     if (!hasValidTodayLease()) return;
     if (action.kind === "open") {
-      close();
-      router.push(assistantDestination(action.destination));
+      if (await router.push(assistantDestination(action.destination))) close();
       return;
     }
     const removing = action.kind.endsWith("_delete"),

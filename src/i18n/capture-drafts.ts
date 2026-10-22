@@ -18,6 +18,7 @@ const en = {
     "Some source details were uncertain. Review every field before adding.",
   title: "Quick add",
   checking: "Checking saved work…",
+  stopRead: "Stop reading",
   found:
     "A quick-add review is saved on this device. Restore it or discard the unsubmitted draft.",
   restore: "Restore review",
@@ -112,6 +113,7 @@ const es: typeof en = {
     "Algunos detalles de la fuente eran inciertos. Revisa cada campo antes de añadir.",
   title: "Añadir rápido",
   checking: "Comprobando el trabajo guardado…",
+  stopRead: "Detener lectura",
   found:
     "Hay una revisión guardada en este dispositivo. Restáurala o descarta el borrador sin enviar.",
   restore: "Restaurar revisión",
