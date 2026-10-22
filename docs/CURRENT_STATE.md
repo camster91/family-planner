@@ -1,5 +1,15 @@
 # Current State
 
+## Compact settings role checks aligned — 2026-10-22
+
+All8 settings role cases pass across the actual compact client tabs and a separate
+Node server-projection suite. Teen negative checks include hidden private content;
+DB role/secret/child-redirect assertions remain. No cases or role protections were
+removed. Types/lint pass (44 warnings). Recipe/meal source atc357fade also has114
+affected passing tests, but latest full suite is still the older50-failure baseline.
+A new complete run is next. DB/browser/recovery/build-for-final-candidate and hosted
+release gates remain open. Evidence:`docs/testing/WEB_QA_20261022.md`.
+
 ## Recipe/meal QA repair batch — 2026-10-22
 
 Ten affected recipe/meal suites pass114 tests; full types/lint pass (44 warnings).
