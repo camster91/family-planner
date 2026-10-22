@@ -6,6 +6,8 @@ import Link from "next/link";
 import { publicRecipeUrl } from "@/lib/recipe-discovery";
 import { legacyRecipeSource } from "@/lib/recipe-curation-contract";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import { runOwnedForeground } from "@/lib/owned-request-http";
+import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { useRecipeEditorText } from "@/i18n/recipe-editor";
 import { RecipeDraftBoundary } from "./RecipeDraftBoundary";
 import type { RecipeEditableDocument } from "@/lib/review-document-contract";
@@ -295,21 +297,37 @@ function RecipeEditorForm({
       setError(text("expiredCreate"));
       return;
     }
-    const res = await fetch(
-      initialRecipe
-        ? `/api/recipes/${encodeURIComponent(initialRecipe.id)}`
-        : "/api/recipes",
-      {
-        method: initialRecipe ? "PATCH" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(attempt ? { [IDEMPOTENCY_HEADER]: attempt.key } : {}),
-        },
-        body: attempt?.body ?? JSON.stringify(body),
-        signal: AbortSignal.timeout(30_000),
+    const result = await runOwnedForeground(
+      async (signal) => {
+        const response = await fetch(
+          initialRecipe
+            ? `/api/recipes/${encodeURIComponent(initialRecipe.id)}`
+            : "/api/recipes",
+          {
+            method: initialRecipe ? "PATCH" : "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(attempt ? { [IDEMPOTENCY_HEADER]: attempt.key } : {}),
+            },
+            body: attempt?.body ?? JSON.stringify(body),
+            signal,
+          },
+        );
+        const reply = await readBoundedJsonResponse(
+          response,
+          signal,
+          1024 * 1024,
+        );
+        return { kind: "reply" as const, response, reply };
       },
+      { timeoutMs: 30_000 },
     );
-    const data = (await res.json().catch(() => null)) as {
+    if (result.kind !== "reply") {
+      markUncertain();
+      return;
+    }
+    const res = result.response;
+    const data = result.reply as {
       recipe?: RecipeDetailData;
       error?: { code?: string };
       existingRecipe?: { id?: unknown; title?: unknown };
