@@ -24,8 +24,15 @@ import {
   type FoodRecoveryContext,
   type FoodRecoveryEntry,
 } from "./recovery-contract";
+export class FoodOwnerChanged extends Error {
+  constructor() {
+    super("Food view owner changed");
+  }
+}
 export async function readFoodRecoveryContext() {
   const result = await request("/api/assistant/food/context", {}, 16384);
+  if (result.kind === "reply" && [401, 403].includes(result.response.status))
+    throw new FoodOwnerChanged();
   if (result.kind !== "reply" || !result.response.ok)
     throw new Error("Food recovery unavailable");
   return foodRecoveryContext.parse(result.body);
@@ -213,7 +220,7 @@ function requireViewOwner(
     owner.role !== context.role ||
     owner.generation !== context.owner.generation
   )
-    throw new Error("Food view owner changed");
+    throw new FoodOwnerChanged();
 }
 
 /** A delayed private read belongs only to the original current person scope. */
@@ -227,6 +234,6 @@ async function renewFoodReadOwner(
     !current.owner ||
     !sameQueueOwner(original.owner, current.owner)
   )
-    throw new Error("Food view owner changed");
+    throw new FoodOwnerChanged();
   requireViewOwner(owner, current);
 }

@@ -1,4 +1,5 @@
 "use client";
+import { FoodPlanningLauncher } from "@/components/meals/planning/FoodPlanningLauncher";
 
 import * as React from "react";
 import styles from "./meals-board.module.css";
@@ -829,6 +830,13 @@ function MealsPageInner() {
       </div>
 
       <MealViewNav active={view === "bulk" ? "prep" : "plan"} />
+      <FoodPlanningLauncher
+        day={anchor ? startKey : toDateOnlyLocal(new Date())}
+        mode={view === "bulk" ? "prep" : "meals"}
+        onSaved={() => {
+          void fetchMeals();
+        }}
+      />
       {view === "week" && reuseRecipeId && anchor && !modal && (
         <RecipeReuseLauncher
           recipeId={reuseRecipeId}

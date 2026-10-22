@@ -669,3 +669,18 @@ unrun, no rendered/API/DB/provider/flag/release action. Full sheet/entry-point/
 editable/timing/portion/draft/exit/pending/inbox and grocery outcome/Undo wiring,
 provider/evaluation and broader remaining source still precede consolidated QA.
 Full goal and issues remain open.
+
+
+### 2026-10-22 — initial Meals planning sheet and owned editor (#123/#144)
+
+A lazy personal/role/capability entry now wires one-choice Meals/prep editing,
+strict partial-field/wall-time conversion, suggestions/exact confirmation and
+saved requests. One local-only draft plus immutable intents share the owned
+journal; exact CAS promotion preserves its key before send. Back/close flush and
+lease checks, synchronous revision/operation guards, owner/lifecycle suppression,
+known-success preservation and acknowledged local forgetting are source-authored.
+Current own prep verification is projected/rechecked; no private layout context
+or new device authority. Source cases unrun. Full catalog/cook/grocery/allocation/
+departure and prepared-reuse controls, child grocery outcome/Undo, inbox/weekly/
+chat and provider/evaluation still precede consolidated QA/release. No runtime,
+API/DB/DDL/client/native/provider/flag/push/merge/deploy action; full goal/issues open.

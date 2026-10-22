@@ -419,6 +419,65 @@ hold/alternative cases are authored **unrun**. No app rendering, API/DB call,
 browser/source acceptance, flag activation or release was performed. Full UI,
 provider/evaluation and the other remaining sources still precede consolidated QA.
 
+## Initial Meals sheet and editable-to-frozen transition
+
+The Meals page now has a lazy personal planner entry behind the unchanged food
+capability flag. Layout passes only capability and role; the sheet fetches its own
+current person/household/owner context on explicit opening. Child/paired/shared-
+fridge and active profile-preparation surfaces do not mount it. The explicit
+`?foodPlan=recovery` entry remains available to eligible people during a write
+pause; it never enables a new mutation. Existing manual Meals/Prep controls remain.
+
+`editor.ts` stores raw unfinished dates/numbers, per-choice notes/recipe/cook/
+storage/allocation fields, optional whole-session settings and local wall-time
+choices. Canonical request/write schemas validate before preview/review. Shared
+schedule wall-time resolution refuses nonexistent clocks and requires an explicit
+choice on a DST fold. Several meals and one multi-dish prep remain separate;
+prep limits/next prep/whole-dish portions use canonical schemas. Default shortened
+labels for long imported recipes are shown in exact confirmation and do not alter
+the recipe identity/title.
+
+The existing owned food journal now supports one `local-food-draft` plus up to
+four immutable requests within its overall byte bound. Local draft payloads bind
+person/household; only network entries are accepted by backend inspection/apply
+schemas. Debounced local saves and close/Back preparation use exact predecessor
+CAS under the existing lease. Human confirmation atomically promotes that same
+entry/key to the exact reviewed network body before any send. Failed/uncertain
+persistence cannot dispatch. Repair adopts only the known transition and preserves
+newer unsaved editable input; explicit stored-copy adoption/forgetting remains a
+separate acknowledged action. Older network-only readers encountering a newer
+local-draft kind must hold/update rather than silently omit or overwrite it;
+actual installed-client/rollback acceptance remains unverified.
+
+The initial sheet edits one choice at a time, with separate suggestion and exact
+save review steps. Current implementation includes date/meal/portions/priority,
+repeat suggestions, prep label/storage/next day, time budgets and shared/per-meal
+cooking windows with explicit setup/eating/cleanup. Recipe alternatives renew the
+preview without saving. Exact confirmation displays actual cooks, notes, prep
+allocations and selected full grocery amounts from the signed command, including
+restored draft choices. Account verification is projected only as an own-person
+prep capability and is rechecked before prep promotion/effect. This source is
+not a fully finished editor: full recipe-catalog/cook/list/ingredient/allocation/
+departure pickers and explicit prepared-portion reuse are still required below.
+
+The session controller guards double actions synchronously, invalidates a review
+immediately on an edit, binds confirmation to the exact draft revision/deadline,
+separates background local saves from network operations and suppresses delayed
+private results on lifecycle/owner changes. A matching201 save stays known even
+if a later receipt inspection cannot be read. Unknown writes remain frozen;
+receipt inspection and exact retry are explicit. Known receipt dismissal does
+not remove canonical records; unknown local forgetting is acknowledged and never
+asserts no effect. Back/close/link exits flush/verify owned work and release the
+existing history sentinel before navigation; stored clean work does not need an
+unload warning. This remains authored behavior, not rendered evidence.
+
+Partial-field/DST/query-command matching, local-only/no-send/exact-promotion,
+review-edit race and known-success controller cases are authored **unrun**.
+No mounted/browser/API/DB/native check or flag activation occurred. Full editor
+controls, canonical child grocery outcomes/Undo, broader inbox/weekly/chat entry
+points, provider/evaluation and all remaining goal work still precede consolidated
+QA. Migration/readiness/compatibility/lifecycle/rendered/release gates stay open.
+
 ## Remaining source required before activation
 
 1. Finish the compact human review of unresolved existing commitments and
@@ -429,9 +488,10 @@ provider/evaluation and the other remaining sources still precede consolidated Q
    revalidation using the concrete source/interval implementation above. Recurring
    source expansion remains held under canonical #124; no complete recurrence or
    physical availability acceptance is claimed from the new read source.
-3. Wire the authored compact summary and strict read/review DTOs into the existing
-   Meals/weekly-review/chat sheet, exposing source, unknowns, portions and editable
-   choices. Use existing owned-draft navigation,
+3. Finish the initially wired Meals sheet: full recipe/catalog/cook/list/ingredient/
+   allocation/departure controls and explicit prepared-portion reuse. Extend its
+   owned draft/request behavior to weekly review/chat/inbox entry points, exposing
+   source, unknowns, portions and editable choices. Use existing owned-draft navigation,
    owner/generation scoping and durable review inbox contracts. Keep ordinary
    provider-free controls usable when AI is unavailable. Complete the appropriate
    design/spec alignment before substantial new UI.
@@ -439,9 +499,9 @@ provider/evaluation and the other remaining sources still precede consolidated Q
    validate only issued recipe/ingredient selections, never arbitrary IDs/URLs.
    Renew owner/features/config and full source evidence after provider latency.
    Prompts must not invent ingredients, amounts, nutrition, allergies or safety.
-5. Connect the authored atomic apply/source guard, strict write/inspection APIs
-   and exact owned request journal to the compact human confirmation, pending/
-   draft/exit/inbox controls and canonical grocery outcome/Undo presentation.
+5. Complete the initial human confirmation/pending/draft/exit controller's missing
+   controls and inbox integration, plus canonical child grocery outcome/Undo
+   presentation. The initial Meals save/recovery wiring is authored above.
    Preserve the required legacy-writer version probes and bounded dependency
    coverage authored below; run their migration/isolation acceptance in the final
    QA phase before activation. Preserve source provenance,

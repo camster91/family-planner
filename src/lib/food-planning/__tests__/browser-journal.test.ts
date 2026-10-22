@@ -4,9 +4,10 @@ import type { QueueStore } from "../../offline-queue";
 import {
   FOOD_RECOVERY,
   foodRecoveryContext,
-  foodRecoveryEntry,
+  foodJournalEntry,
+  type FoodJournalEntry,
   foodRecoveryJournal,
-  foodEntryMatchesContext,
+  foodJournalMatchesContext,
 } from "../recovery-contract";
 import { context, makeEntry } from "./recovery-fixture";
 function fixture(always: boolean) {
@@ -26,9 +27,9 @@ function fixture(always: boolean) {
       runtime: "fixture_food_journal_runtime",
       contract: FOOD_RECOVERY,
       context: foodRecoveryContext,
-      entry: foodRecoveryEntry,
+      entry: foodJournalEntry,
       journal: foodRecoveryJournal,
-      matchesContext: foodEntryMatchesContext,
+      matchesContext: foodJournalMatchesContext,
       maxBytes: 768 * 1024,
       resolveContext: async () => context(),
       candidates: () => [store],
@@ -44,7 +45,7 @@ it("requires fresh receipt/source inspection even for an in-session unknown retr
     entry = makeEntry();
   await journal.initialize();
   await journal.stage(entry);
-  const send = jest.fn(async (_entry: typeof entry, _scope: string) => ({
+  const send = jest.fn(async (_entry: FoodJournalEntry, _scope: string) => ({
     kind: "unknown",
   }));
   await journal.send(entry.key, false, send);
@@ -71,7 +72,7 @@ it("retains recovered-only behavior for existing domains that do not opt in", as
     entry = makeEntry();
   await journal.initialize();
   await journal.stage(entry);
-  const send = jest.fn(async (_entry: typeof entry, _scope: string) => ({
+  const send = jest.fn(async (_entry: FoodJournalEntry, _scope: string) => ({
     kind: "unknown",
   }));
   await journal.send(entry.key, false, send);

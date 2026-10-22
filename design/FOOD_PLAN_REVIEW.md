@@ -45,3 +45,14 @@ keyboard/focus/Back, long text/reflow, light/dark and role/privacy boundaries.
 No graphic, image-generation, Figma mutation or deployment is needed for this
 bounded extension. Full orchestration and acceptance remain in the food plan and
 #123/#144/#128; the summary component alone is not a shipped planning flow.
+
+
+## Initial sheet source checkpoint
+
+The Meals launcher, raw editable draft, per-choice sheet, exact save details and
+pending-request controller are now authored behind the unchanged flag. The
+capability wrapper contains no private owner context. One editable document
+promotes into its exact immutable request within the same owned journal; failed
+storage holds the sheet. Full catalog/cook/grocery/allocation/departure pickers,
+prepared reuse, child grocery outcomes and wider entry points remain source work.
+No browser or device rendering/acceptance is claimed at this checkpoint.

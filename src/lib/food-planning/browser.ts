@@ -10,9 +10,9 @@ import { readFoodRecoveryContext, inspectFoodIntent } from "./client";
 import {
   FOOD_RECOVERY,
   foodRecoveryContext,
-  foodRecoveryEntry,
+  foodJournalEntry,
   foodRecoveryJournal,
-  foodEntryMatchesContext,
+  foodJournalMatchesContext,
 } from "./recovery-contract";
 export function browserFoodRecovery(original: {
   userId: string;
@@ -33,11 +33,12 @@ export function browserFoodRecovery(original: {
   return createOwnedRequestJournal({
     runtime: newIdempotencyKey(),
     context: foodRecoveryContext,
-    entry: foodRecoveryEntry,
+    entry: foodJournalEntry,
     journal: foodRecoveryJournal,
     contract: FOOD_RECOVERY,
     maxBytes: 768 * 1024,
-    matchesContext: foodEntryMatchesContext,
+    matchesContext: foodJournalMatchesContext,
+    localDraftKind: "local-food-draft",
     reviewBeforeEverySend: true,
     resolveContext: async () => {
       const context = await readFoodRecoveryContext();
@@ -54,6 +55,7 @@ export function browserFoodRecovery(original: {
         indexedDB,
       }).candidates,
     reviewRecovered: async (entry, context) =>
+      entry.kind === "food-plan" &&
       (await inspectFoodIntent(entry, context)).retryEligible,
   });
 }

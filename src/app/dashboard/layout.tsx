@@ -1,3 +1,5 @@
+import { FoodPlanningAccess } from "@/components/meals/planning/FoodPlanningAccess";
+import { foodPlanningEnabled } from "@/lib/food-planning/server";
 import { isProfileChoreEnabled } from "@/lib/profile-chore-gates";
 import { isAssistantConfirmationEnabled } from "@/lib/assistant-source-proof";
 import PreparationProvider from "@/components/calendar/preparation/PreparationProvider";
@@ -171,7 +173,12 @@ export default async function DashboardLayout({
                       {/* "You're offline" (O-41): sticky under the top bar, above the tab bar's area. */}
                       <OfflineBanner className="top-16" />
                       <div className="w-full px-4 sm:px-6 lg:px-8 py-5 md:py-6">
-                        <ErrorBoundary>{children}</ErrorBoundary>
+                        <FoodPlanningAccess
+                          enabled={foodPlanningEnabled()}
+                          role={role}
+                        >
+                          <ErrorBoundary>{children}</ErrorBoundary>
+                        </FoodPlanningAccess>
                       </div>
                     </main>
 

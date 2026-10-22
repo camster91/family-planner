@@ -1,3 +1,4 @@
+import { foodDraftEntry, foodDraftPayload } from "./editor";
 /** Browser-safe exact-request recovery. No background dispatch or new-key retry. */
 import { z } from "zod";
 import { queueOwnerSchema } from "../queue-owner-contract";
@@ -14,6 +15,7 @@ export const foodRecoveryContext = z
   .object({
     contract: z.literal(FOOD_RECOVERY),
     enabled: z.boolean(),
+    canPrep: z.boolean().default(false),
     owner: queueOwnerSchema
       .refine((owner) => owner.kind === "person")
       .nullable(),
@@ -47,16 +49,32 @@ export const foodRecoveryEntry = z
     }
   });
 export type FoodRecoveryEntry = z.infer<typeof foodRecoveryEntry>;
+export const foodJournalEntry = z.union([foodRecoveryEntry, foodDraftEntry]);
+export type FoodJournalEntry = z.infer<typeof foodJournalEntry>;
+export function foodJournalMatchesContext(
+  entry: FoodJournalEntry,
+  context: FoodRecoveryContext,
+) {
+  if (entry.kind === "food-plan")
+    return foodEntryMatchesContext(entry, context);
+  const payload = foodDraftPayload.parse(JSON.parse(entry.body));
+  return (
+    payload.userId === context.userId && payload.familyId === context.familyId
+  );
+}
 export const foodRecoveryJournal = z
   .object({
     contract: z.literal(FOOD_RECOVERY),
-    entries: z.array(foodRecoveryEntry).max(4),
+    entries: z.array(foodJournalEntry).max(5),
   })
   .strict()
   .refine(
     (value) =>
       new Set(value.entries.map((row) => row.key)).size ===
-      value.entries.length,
+        value.entries.length &&
+      value.entries.filter((row) => row.kind === "local-food-draft").length <=
+        1 &&
+      value.entries.filter((row) => row.kind === "food-plan").length <= 4,
   );
 export const foodRecoveryInput = z
   .object({ contract: z.literal(FOOD_RECOVERY), entry: foodRecoveryEntry })

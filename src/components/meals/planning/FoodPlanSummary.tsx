@@ -58,11 +58,13 @@ export function FoodPlanSummary({
   mode,
   busy = false,
   onChooseRecipe,
+  detailsForChoice,
 }: {
   plan: FoodPlan;
   mode: "meals" | "prep";
   busy?: boolean;
   onChooseRecipe?: (slotKey: string, recipeId: string) => void;
+  detailsForChoice?: (key: string) => React.ReactNode;
 }) {
   const { locale } = useTranslation(),
     es = locale === "es";
@@ -244,6 +246,7 @@ export function FoodPlanSummary({
             </ul>
           </div>
         )}
+        {detailsForChoice?.(row.key)}
         {onChooseRecipe && row.alternatives.length > 0 && (
           <details>
             <summary className="min-h-[44px] cursor-pointer py-3 font-semibold">

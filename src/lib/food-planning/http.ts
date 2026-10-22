@@ -108,6 +108,7 @@ export async function handleFoodHttp(
             foodWritingEnabled() &&
             (await foodSourceStorageAvailable(prisma)),
           owner,
+          canPrep: current.canPrep === true,
           userId: actor.userId,
           familyId: actor.familyId,
           role: actor.role,

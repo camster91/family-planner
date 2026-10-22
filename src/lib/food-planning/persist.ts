@@ -75,7 +75,12 @@ export async function authorizeFoodWriteInTx(
   await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id"=${actor.familyId} FOR SHARE`;
   const current = await tx.user.findUnique({
     where: { id: actor.userId },
-    select: { family_id: true, role: true, token_version: true },
+    select: {
+      family_id: true,
+      role: true,
+      token_version: true,
+      email_verified: true,
+    },
   });
   if (
     !current ||
@@ -100,6 +105,7 @@ export async function authorizeFoodWriteInTx(
     if (refusal) throw new FoodWriteRefused(refusal);
   }
   return {
+    ...(current.email_verified === true ? { canPrep: true as const } : {}),
     inventoryEnabled: isFeatureEnabled(
       normalizeFeatures(family.features),
       "inventory",

@@ -1,5 +1,26 @@
 # Current State
 
+## Initial food planning sheet and editable draft promotion — 2026-10-22
+
+Meals now has a lazy capability/role-gated personal planning sheet with one-choice
+editing, suggestions, exact confirmation and durable saved-request recovery.
+Layout seeds no owner/household data; shared/fridge/profile-preparation surfaces
+are omitted, and a recovery URL can open during a write pause. Raw unfinished
+fields remain in a local-only owned draft. Human confirmation promotes the same
+key/body atomically before send; uncertain promotion cannot dispatch. Existing
+CAS/retirement/history-exit machinery is reused, with owner/lifecycle holds and
+known201 outcomes kept separate from subsequent read failures.
+
+Initial controls include multi-meal/prep choice, date/portions/priority, repeat
+suggestions, prep storage/label/next day and strict wall-time cooking windows/
+budgets. Actual command cooks/notes/allocations/full grocery selections are shown
+before confirmation. Full recipe/catalog/cook/grocery/allocation/departure pickers,
+prepared-portion reuse, grocery outcome/Undo and inbox/weekly/chat wiring still
+remain, alongside provider/evaluation and broader unfinished source. Raw-field/
+DST/promotion/race/known-success cases authored and unrun. No QA/rendered/API/DB/
+DDL/client/native/provider/flag/push/merge/deploy action or issue closure. Full goal
+remains active; see [`grounded-food-planning-v1.md`](./plans/grounded-food-planning-v1.md).
+
 ## Food review presentation and browser transport — 2026-10-22
 
 The initial person-only food summary now pages one meal/dish at a time and keeps
