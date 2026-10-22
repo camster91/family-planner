@@ -1,6 +1,7 @@
 import { erasePersonalImportProvenanceInTx } from '@/lib/account-erasure-imports'
 import { clearHouseholdEventPreparationInTx } from '@/lib/event-preparation/storage'
 import { clearHouseholdResponsibilityInTx } from '@/lib/responsibility-storage'
+import { deleteOptionalHouseholdMetadataInTx, isOptionalDeletionMetadata } from '@/lib/account-deletion-optional'
 import { eraseRetainedAccountHistoryInTx } from '@/lib/account-erasure-history'
 import { expandSeriesInTx } from '@/lib/recurringChores'
 import { handOverRoutineControlRootsInTx, handOverHistoricalRoutineControlsInTx } from '@/lib/routine-root-handover'
@@ -630,7 +631,6 @@ type Scope =
   | { kind: 'familyOrMembers'; column: string }
 
 export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scope; why: string }> = [
-  { model: 'responsibilityState', scope: { kind: 'family' }, why: 'consent and backup metadata before canonical targets/identities; compatibility-probed SQL' },
   // 1. Shared devices: sessions (access + refresh tokens), pairings, devices.
   { model: 'deviceSession', scope: { kind: 'family' }, why: 'device access and refresh tokens' },
   { model: 'devicePairing', scope: { kind: 'family' }, why: 'pending pairing codes' },
@@ -639,6 +639,10 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'betaMetricDaily', scope: { kind: 'family' }, why: 'beta usage counts (#287)' },
   { model: 'householdDevice', scope: { kind: 'family' }, why: 'paired tablets (and any elevation)' },
   { model: 'parentElevationPin', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'tablet PINs' },
+  { model: 'responsibilityState', scope: { kind: 'family' }, why: 'consent and backup metadata before canonical targets/identities; compatibility-probed SQL' },
+  { model: 'householdProfileLinkChallenge', scope: { kind: 'family' }, why: 'expiring profile-link proofs before identities; compatibility-probed SQL' },
+  { model: 'aiUsageRequest', scope: { kind: 'family' }, why: 'content-free AI reservations, outcomes and accounting; compatibility-probed SQL' },
+  { model: 'aiUsagePolicy', scope: { kind: 'family' }, why: 'household AI quota/pricing policy; compatibility-probed SQL' },
   { model: 'householdMemberAccountLink', scope: { kind: 'family' }, why: 'dormant verified account links (#480)' },
   { model: 'householdMemberLegacyMapping', scope: { kind: 'family' }, why: 'dormant legacy identity mappings (#480)' },
   // 2. Tokens and links that could still reach the household.
@@ -817,7 +821,8 @@ export async function deleteHousehold(
 
       // 4. Every household-scoped table, in order.
       for (const step of HOUSEHOLD_DELETION_PLAN) {
-        if (step.model === 'responsibilityState') await clearHouseholdResponsibilityInTx(tx, familyId)
+        if (isOptionalDeletionMetadata(step.model)) await deleteOptionalHouseholdMetadataInTx(tx, familyId, step.model)
+        else if (step.model === 'responsibilityState') await clearHouseholdResponsibilityInTx(tx, familyId)
         else if (step.model === 'eventPreparationStep') await clearHouseholdEventPreparationInTx(tx, familyId, 'steps')
         else if (step.model === 'eventPreparation') await clearHouseholdEventPreparationInTx(tx, familyId, 'plans')
         else await tx[step.model].deleteMany({ where: whereFor(step.scope, familyId, memberIds) })

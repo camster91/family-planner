@@ -318,3 +318,25 @@ Habit/Reward/BadgeDefinition records, their mappings and import jobs retain thei
 existing household retention/handover policy. Normal import replay behavior is
 unchanged; this does not automatically reimport or recreate anything. Current and
 former-member source cases are authored; runtime acceptance is deferred.
+
+## Additive profile-link and AI accounting metadata
+
+Whole-household deletion explicitly clears `HouseholdProfileLinkChallenge`,
+`AiUsageRequest` and `AiUsagePolicy` before profiles/accounts. Each fixed SQL
+cleanup probes table presence and binds the already-authorized household ID;
+missing additive tables during rollback are skipped, while probe/delete failures
+abort the surrounding transaction. This works without newer Prisma delegates.
+Shared-device credentials still go first. Canonical FK cascades remain backstops.
+
+Permanent single-account erasure retains content-free household AI accounting,
+with `AiUsageRequest.user_id` anonymized by its reviewed `SET NULL` FK. A profile
+link challenge is a credential proof: issuer/claimant/profile erasure removes it
+by cascade; it is never exported as a token or used to reconstruct erased people.
+Responsibility consent metadata cascades when its subject/decision actor is erased;
+it never transfers an accepted decision to a replacement person. Canonical target
+history follows its existing separate erasure rules. Exact FK classifications are
+in `member-relation-inventory.json` and `member-subject-inventory.json`.
+
+Unit evidence covers fixed scoped statements, missing-table compatibility, error
+propagation and two-household deletion/export. Real PostgreSQL FK/rollback and
+migration acceptance remain separate required checks; no live account was changed.

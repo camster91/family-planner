@@ -1,5 +1,19 @@
 # Current State
 
+## Privacy and canonical receipt QA repairs — 2026-10-22
+
+The next focused batch passes12 suites/184 tests, including account/household
+deletion, safe exports/recipe collections, User/member FK inventories and
+notes/recipe/chore isolation/rotation. Full types/lint pass (44 lint warnings).
+Household deletion now explicitly probes/clears additive profile-link and AI
+accounting/policy tables before identities, preserving missing-table rollback
+compatibility and device-credential-first ordering. Inventories classify80 User
+relations and9 member relations with explicit erasure decisions. Test fixtures
+now model standard Response.ok, chore erasure defaults, raw SELECT arrays and
+recipe collection relationships; permission checks remain real. Exact evidence:
+`docs/testing/WEB_QA_20261022.md`. Real PostgreSQL/migration, full-unit, build,
+browser/recovery and production release gates remain open; no live data changed.
+
 ## Consolidated QA: second full run still failing — 2026-10-22
 
 At `16382305`, the full serial suite exits1:81 failed/618 passed/82 skipped

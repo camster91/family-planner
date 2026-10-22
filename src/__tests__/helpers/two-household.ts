@@ -127,7 +127,7 @@ function seed(): Tables {
       id: `chore-${f}`, family_id, title: `${tag} dishes`, description: null, points: 10,
       assigned_to: `child-${f}`, due_date: SOON, status: 'pending', frequency: 'once',
       difficulty: 'easy', created_by: `parent-${f}`, photo_url: `/api/files/chores/${f === 'a' ? 'aaaaaaaaaaaaaaaa' : 'bbbbbbbbbbbbbbbb'}.jpg`,
-      recurrence_id: null, completed_at: null, created_at: T0,
+      recurrence_id: null, completed_at: null, member_subject_erased: false, created_at: T0,
     })),
     choreAssignment: [],
     // D3 ownership records. Empty at seed: the seeded chore photos above are
@@ -315,6 +315,13 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
     family: { model: 'family', fk: 'family_id' },
     creator: { model: 'user', fk: 'created_by' },
     ingredients: { model: 'recipeIngredient', fk: 'recipe_id', many: true },
+    collection_entries: { model: 'recipeCollectionEntry', fk: 'recipe_id', many: true },
+  },
+  recipeCollection: { family: { model: 'family', fk: 'family_id' } },
+  recipeCollectionEntry: {
+    family: { model: 'family', fk: 'family_id' },
+    collection: { model: 'recipeCollection', fk: 'collection_id' },
+    recipe: { model: 'recipe', fk: 'recipe_id' },
   },
   recipeIngredient: {
     recipe: { model: 'recipe', fk: 'recipe_id' },
@@ -790,6 +797,7 @@ function delegate(model: string) {
     create: async (args: any) => {
       log('create', args)
       const row: Row = { id: db.nextId(model), created_at: new Date() }
+      if (model === 'chore' || model === 'choreAssignment') row.member_subject_erased = false
       applyData(model, row, args.data)
       if (violatesUnique(model, all(), row)) throw uniqueViolation(model)
       all().push(row)
@@ -801,6 +809,7 @@ function delegate(model: string) {
       let count = 0
       for (const d of data) {
         const row: Row = { id: db.nextId(model), created_at: new Date() }
+        if (model === 'chore' || model === 'choreAssignment') row.member_subject_erased = false
         applyData(model, row, d)
         if (violatesUnique(model, all(), row)) {
           if (args.skipDuplicates) continue
@@ -900,6 +909,8 @@ export const fakePrisma: any = new Proxy(
       }
       if (prop === '$queryRaw') return async (strings: TemplateStringsArray, ...values: unknown[]) => {
         const sql = strings.join('?').replace(/\s+/g, ' ').trim()
+        // Only the three additive metadata-table probes used by deletion.
+        if (/^SELECT to_regclass\('public\."(HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy)"'\) IS NOT NULL AS present$/.test(sql)) return [{ present: true }]
         // Exact source query for private scheduled-root metadata. Locks are
         // intentionally no-ops in this fixture; concurrency needs real PG.
         if (sql.startsWith('SELECT "routine_series_config" FROM "Chore"')) {
@@ -935,10 +946,17 @@ export const fakePrisma: any = new Proxy(
             return { schedule_config: row.routine_series_config ?? (root && root.family_id === familyId ? root.routine_series_config : null) ?? null }
           }))
         }
-        return 0
+        // A raw SELECT always returns rows, including an empty result. Unknown
+        // fixture queries grant no permission or schema readiness by default.
+        return []
       }
       if (prop === '$executeRaw') return async (strings: TemplateStringsArray, ...values: unknown[]) => {
         const sql = strings.join('?').replace(/\s+/g, ' ').trim()
+        const optionalMetadata = /^DELETE FROM "(HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy)" WHERE "family_id" = \?$/.exec(sql)
+        if (optionalMetadata) {
+          const model = optionalMetadata[1][0].toLowerCase() + optionalMetadata[1].slice(1)
+          return fakePrisma[model].deleteMany({ where: { family_id: values[0] } }).then((result: { count: number }) => result.count)
+        }
         // Exact source erasure statement; no generic SQL interpretation.
         if (sql.startsWith('UPDATE "Message" SET "read_by" = array_remove')) {
           const userId = values[0], familyId = values[1]
@@ -1020,6 +1038,9 @@ class MockNextResponse {
     this.body = body
     this.status = init?.status ?? 200
     this.headers = new Headers(init?.headers)
+  }
+  get ok() {
+    return this.status >= 200 && this.status < 300
   }
   async json() {
     return typeof this.body === 'string' ? JSON.parse(this.body) : this.body

@@ -442,5 +442,41 @@
     "fields": ["status_changed_by"],
     "kind": "actor",
     "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+  },
+  {
+    "relation": "AiUsageRequest.user",
+    "fields": ["user_id"],
+    "kind": "actor",
+    "migration": "Authenticated account that reserved the AI job, never a profile subject. Keep content-free household quota/cost history; permanent User deletion sets only user_id to null through its SetNull FK. Household deletion removes the usage rows. No prompts, names, model output or provider credentials belong here."
+  },
+  {
+    "relation": "ResponsibilityState.backupAccount",
+    "fields": ["backup_account_id", "family_id"],
+    "kind": "member",
+    "migration": "Account-backed proposed backup, separate from the signed-in decision actor. Archive/link changes require fresh canonical review. Account erasure cascades consent metadata, without assigning the canonical task or inventing acceptance by another person."
+  },
+  {
+    "relation": "ResponsibilityState.backupActor",
+    "fields": ["backup_by_id", "family_id"],
+    "kind": "actor",
+    "migration": "Authenticated account that recorded the backup decision, separate from subject/coordinator. Parent-recorded profile answers remain explicitly attributed to the parent. Permanent account erasure cascades consent metadata and never transfers an accepted decision."
+  },
+  {
+    "relation": "ResponsibilityState.coordinator",
+    "fields": ["coordinator_id", "family_id"],
+    "kind": "account",
+    "migration": "Signed-in household coordinator, never inferred from a selected profile. Archive retains consent metadata but current permission is renewed before action; permanent deletion of this account cascades the consent row rather than assigning its acceptance to a successor. Canonical target ownership is separate."
+  },
+  {
+    "relation": "ResponsibilityState.primaryAccount",
+    "fields": ["primary_subject_account_id", "family_id"],
+    "kind": "member",
+    "migration": "Account-backed primary subject of this exact responsibility consent, separate from the authenticated decision actor and canonical target. Never translate a matching name into identity. Account erasure cascades this metadata; do not transfer an old acceptance to a successor."
+  },
+  {
+    "relation": "ResponsibilityState.primaryActor",
+    "fields": ["primary_by_id", "family_id"],
+    "kind": "actor",
+    "migration": "Authenticated account that recorded the primary decision; profile presentation never confers this authority. Preserve exact actor/method provenance while present. Permanent account erasure cascades the consent row; never rewrite the historical decision as a successor action."
   }
 ]

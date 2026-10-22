@@ -46,6 +46,10 @@ jest.mock("@/lib/prisma", () => {
       transaction: { findMany: findMany() },
       project: { findMany: findMany() },
       recipe: { findMany: findMany() },
+      recipeCollection: { findMany: findMany() },
+      foodProduct: { findMany: findMany() },
+      // These tests cover pre-expand storage: optional metadata probes are absent.
+      $queryRaw: jest.fn().mockResolvedValue([]),
       mealPrepSession: { findMany: findMany() },
       mealPlan: { findMany: findMany() },
       shoppingList: { findMany: findMany() },

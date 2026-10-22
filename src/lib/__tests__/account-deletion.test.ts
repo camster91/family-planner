@@ -26,6 +26,12 @@ type Row = Record<string, any>
 
 function seedExtras() {
   const t = new Date('2026-09-01T00:00:00Z')
+  for (const model of ['householdProfileLinkChallenge', 'aiUsageRequest', 'aiUsagePolicy']) {
+    db.rows(model).push(
+      { id: `${model}-a`, family_id: FAMILY_A, user_id: 'parent-a' },
+      { id: `${model}-b`, family_id: FAMILY_B, user_id: 'parent-b' },
+    )
+  }
   const both = (fn: (f: 'a' | 'b', family: string) => Row) => [fn('a', FAMILY_A), fn('b', FAMILY_B)]
   db.rows('householdMember').push(...both((f, family_id) => ({ id: `member-${f}`, family_id, name: 'Fixture profile' })))
   db.rows('householdMemberLegacyMapping').push(...both((f, family_id) => ({ user_id: `child-${f}`, member_id: `member-${f}`, family_id })))
@@ -164,6 +170,10 @@ describe('deletion plan', () => {
     const order = HOUSEHOLD_DELETION_PLAN.map((s) => s.model)
     expect(order[0]).toBe('deviceSession')
     expect(order[order.length - 1]).toBe('user')
+    for (const metadata of ['responsibilityState', 'householdProfileLinkChallenge', 'aiUsageRequest', 'aiUsagePolicy']) {
+      expect(order.indexOf(metadata)).toBeGreaterThan(order.indexOf('parentElevationPin'))
+      expect(order.indexOf(metadata)).toBeLessThan(order.indexOf('householdMember'))
+    }
     expect(order.indexOf('listItem')).toBeLessThan(order.indexOf('list'))
     expect(order.indexOf('event')).toBeLessThan(order.indexOf('calendarConnection'))
   })

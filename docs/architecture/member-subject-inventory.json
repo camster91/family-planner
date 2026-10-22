@@ -54,5 +54,21 @@
     "onDelete": "Cascade",
     "onUpdate": "NoAction",
     "decision": "Private expiring owner proof scoped to an existing stable same-household profile. No authority or completed identity is inferred from a challenge. Profile erasure cascades credential metadata; archive, revision changes, removal and incompatible links prevent confirmation. Never copy token hashes into shared DTOs or reconstruct erased subjects."
+  },
+  {
+    "relation": "ResponsibilityState.backupMember",
+    "fields": ["backup_member_id", "family_id"],
+    "references": ["id", "family_id"],
+    "onDelete": "Cascade",
+    "onUpdate": "NoAction",
+    "decision": "Canonical profile backup subject of consent metadata, never an authenticated actor or competing task owner. Archive retains the row but makes current action eligibility fail closed; linking requires renewed canonical subject proof, never name matching. Explicit profile erasure cascades this consent row through its composite household FK. Preserve canonical chore/pickup history under its own erasure rules; never transfer acceptance to a different identity."
+  },
+  {
+    "relation": "ResponsibilityState.primaryMember",
+    "fields": ["primary_subject_member_id", "family_id"],
+    "references": ["id", "family_id"],
+    "onDelete": "Cascade",
+    "onUpdate": "NoAction",
+    "decision": "Canonical profile primary subject of consent metadata, never an authenticated actor or competing task owner. Archive retains the row but makes current action eligibility fail closed; linking requires renewed canonical subject proof, never name matching. Explicit profile erasure cascades this consent row through its composite household FK. Preserve canonical chore/pickup history under its own erasure rules; never transfer acceptance to a different identity."
   }
 ]
