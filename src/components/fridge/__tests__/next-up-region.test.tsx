@@ -180,7 +180,7 @@ it("omits personal preparation by default even if a relationship prop is supplie
   show({
     events: [event("event-a")],
     preparationBacklinks: { "task-a": "event-a" },
-    chores: [{ member, open: [chore("task-a")], doneCount: 0 }],
+    chores: [{ member, open: [chore("task-a")], doneCount: 0, awaitingCheckCount: 0 }],
   });
   expect(
     screen.queryByRole("button", { name: /Prepare|Backlink/ }),
@@ -192,7 +192,7 @@ it("keeps preparation navigation outside the canonical chore completion button",
     preparationEnabled: true,
     events: [event("event-a")],
     preparationBacklinks: { "task-a": "event-a" },
-    chores: [{ member, open: [chore("task-a")], doneCount: 0 }],
+    chores: [{ member, open: [chore("task-a")], doneCount: 0, awaitingCheckCount: 0 }],
     onTick,
   });
   expect(screen.getByRole("button", { name: "Prepare event-a" })).toBeVisible();

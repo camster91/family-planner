@@ -40,7 +40,7 @@ function Harness() {
 async function submit(label = copy.getCode) {
   await act(async () => {
     fireEvent.submit(
-      screen.getByRole("button", { name: label, exact: true }).closest("form")!,
+      screen.getByRole("button", { name: label }).closest("form")!,
     );
   });
 }
@@ -65,7 +65,7 @@ it.each(["claimed", "paired"] as const)(
       init?.method === "POST"
         ? reply(pairing())
         : { ok: true, json: () => body.promise },
-    ) as typeof fetch;
+    ) as unknown as typeof fetch;
     const view = render(<Harness />);
     try {
       await submit();
@@ -92,13 +92,13 @@ it("does not let a previous poll replace a reopened dialog's code or keep pollin
       );
     if (init?.method === "DELETE") return reply({});
     return { ok: true, json: () => oldBody.promise };
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   const view = render(<Harness />);
   try {
     await submit();
     await tick(PAIRING_POLL_MS);
     fireEvent.click(
-      screen.getByRole("button", { name: copy.close, exact: true }),
+      screen.getByRole("button", { name: copy.close }),
     );
     const count = (fetch as jest.Mock).mock.calls.length;
     await tick(20000);
@@ -122,13 +122,13 @@ it("retires only the abandoned code when creation JSON finishes after close and 
         ? { ok: true, json: () => oldBody.promise }
         : reply(pairing("new-pair", "NEWC1234"));
     return reply({});
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   const view = render(<Harness />);
   try {
     await submit();
     fireEvent.submit(
       screen
-        .getByRole("button", { name: copy.getCode, exact: true })
+        .getByRole("button", { name: copy.getCode })
         .closest("form")!,
     );
     expect(
@@ -137,7 +137,7 @@ it("retires only the abandoned code when creation JSON finishes after close and 
       ),
     ).toHaveLength(1);
     fireEvent.click(
-      screen.getByRole("button", { name: copy.close, exact: true }),
+      screen.getByRole("button", { name: copy.close }),
     );
     fireEvent.click(screen.getByText("Reopen fixture"));
     await submit();
@@ -166,7 +166,7 @@ it("single-flights confirmation and does not revive connecting after expiry", as
     if (String(path).endsWith("/confirm")) return confirm.promise;
     if (init?.method === "POST") return reply(pairing());
     return reply({ status: "claimed" });
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   const view = render(<Harness />);
   try {
     await submit();

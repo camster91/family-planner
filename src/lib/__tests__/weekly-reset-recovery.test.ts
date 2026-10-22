@@ -29,7 +29,7 @@ const entry = {
 };
 const ownerScope = "a".repeat(64);
 const context = {
-  contract: WEEKLY_RESET_RECOVERY,
+  contract: WEEKLY_RESET_RECOVERY as typeof WEEKLY_RESET_RECOVERY,
   userId: actor.userId,
   familyId: actor.familyId,
   enabled: false,
@@ -191,7 +191,7 @@ it("holds different intent/account use of an existing key instead of revealing i
 it("requires matching original actor/scope/action on a claimed committed receipt", () => {
   expect(
     weeklyResetRecoveryReview.safeParse({
-      contract: WEEKLY_RESET_RECOVERY,
+      contract: WEEKLY_RESET_RECOVERY as typeof WEEKLY_RESET_RECOVERY,
       ownerScope,
       entry,
       state: "committed",
@@ -212,7 +212,7 @@ it("requires matching original actor/scope/action on a claimed committed receipt
   ).toBe(false);
   expect(
     weeklyResetRecoveryReview.safeParse({
-      contract: WEEKLY_RESET_RECOVERY,
+      contract: WEEKLY_RESET_RECOVERY as typeof WEEKLY_RESET_RECOVERY,
       ownerScope,
       entry: { ...entry, body: "{" },
       state: "unavailable",

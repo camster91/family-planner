@@ -15,6 +15,7 @@ const report: AiUsageReport = {
   ready: true,
   providerPaused: false,
   providerLabel: null,
+  suggestionFeedback: null,
   revision: 1,
   configVersion: null,
   policy: defaultAiUsagePolicy,

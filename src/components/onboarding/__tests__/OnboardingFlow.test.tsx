@@ -60,7 +60,7 @@ describe("family creation next step", () => {
         new Promise((resolve) => {
           finish = resolve;
         }),
-    ) as typeof fetch;
+    ) as unknown as typeof fetch;
     await enterFamily();
     const name = screen.getByRole("textbox", { name: /family name/i });
     const create = screen.getByRole("button", { name: /create family/i });
@@ -104,7 +104,7 @@ describe("family creation next step", () => {
         if (String(input) === "/api/auth/me")
           return stalled === "fetch" ? late : { ok: true, json: () => late };
         throw new Error("Unexpected fixture request");
-      }) as typeof fetch;
+      }) as unknown as typeof fetch;
       try {
         await act(async () => {
           fireEvent.click(

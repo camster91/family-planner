@@ -1,6 +1,6 @@
 /** Stream-bounded JSON decoding, including abort-ignoring native bridge fallback. */
 /** Even implementations that ignore AbortSignal must settle the owner promptly. */
-function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+export function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
     const abort = () => reject(new Error("Response read aborted"));
     if (signal.aborted) {

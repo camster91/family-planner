@@ -47,7 +47,7 @@ it.each(["network", "http", "invalid-body", "missing-list"] as const)(
           return failure === "missing-list" ? {} : { subscriptions: [] };
         },
       };
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     await mount();
     expect(await screen.findByRole("alert")).toHaveTextContent(
       settingsMessages.en.subscriptionsLoadFailed,

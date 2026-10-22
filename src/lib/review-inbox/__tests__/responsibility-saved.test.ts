@@ -30,7 +30,7 @@ jest.mock("@/lib/owned-queue-persistence", () => ({
   rememberQueueOwner: jest.fn(),
 }));
 const context = {
-  contract: RESPONSIBILITY_RECOVERY,
+  contract: RESPONSIBILITY_RECOVERY as typeof RESPONSIBILITY_RECOVERY,
   enabled: false,
   userId: "parent-a",
   familyId: "family-a",
@@ -62,7 +62,7 @@ function stored(body = command) {
     owner: context.owner,
     runtime: "responsibility_saved_fixture",
     queue: JSON.stringify({
-      contract: RESPONSIBILITY_RECOVERY,
+      contract: RESPONSIBILITY_RECOVERY as typeof RESPONSIBILITY_RECOVERY,
       entries: [
         {
           kind: "responsibility",

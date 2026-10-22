@@ -12,7 +12,7 @@ import { I18nProvider, useTranslation } from '@/i18n'
 import { TakeTurnsPicker } from '@/components/chores/TakeTurnsPicker'
 import { RoutineFields, RoutineIconPicker } from '@/components/chores/RoutineIconPicker'
 import CreateChorePage from '../create/page'
-import EditChorePage from '../edit/page'
+import EditChorePage from '../edit/EditChoreForm'
 import ChoresContent from '../ChoresContent'
 import { ToastProvider } from '@/components/ui/toast'
 

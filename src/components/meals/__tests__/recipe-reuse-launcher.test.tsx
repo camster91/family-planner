@@ -18,7 +18,7 @@ afterEach(() => {
   global.fetch = originalFetch;
 });
 it("reads canonical metadata without writing and requires an explicit editor action", async () => {
-  global.fetch = jest.fn(async () => reply("fixture_recipe")) as typeof fetch;
+  global.fetch = jest.fn(async () => reply("fixture_recipe")) as unknown as typeof fetch;
   const use = jest.fn();
   render(
     <RecipeReuseLauncher
@@ -46,7 +46,7 @@ it("drops old metadata when a route names another recipe", async () => {
       new Promise((resolve) => {
         finish = resolve;
       }),
-  ) as typeof fetch;
+  ) as unknown as typeof fetch;
   const view = render(
     <RecipeReuseLauncher
       recipeId="fixture_old"

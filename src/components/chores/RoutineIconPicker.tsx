@@ -25,7 +25,6 @@ export interface RoutineIconPickerProps {
   onChange: (key: string | null) => void;
   /** Prefix for element ids (two pickers on one page stay distinct). */
   idPrefix?: string;
-  preservePartialNumbers?: boolean;
 }
 
 /**
@@ -169,6 +168,7 @@ function PickerButton({
 }
 
 export interface RoutineFieldsProps {
+  preservePartialNumbers?: boolean;
   routine: string;
   onRoutineChange: (value: string) => void;
   /** Step number as typed ('' for none). */

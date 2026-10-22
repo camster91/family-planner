@@ -1,5 +1,20 @@
 # Current State
 
+## Consolidated web QA: initial static repairs — 2026-10-22
+
+Prisma client generation passed with Node22.23.3/Client7.10.0. The initial full
+typecheck found107 diagnostics; repairs reduced them to14, then0, with a final
+exit-0 repeat. Full lint initially found1 error/44 warnings; after repairing the
+app-link fixture it exits0 with0 errors/44 warnings. No checks or assertions were
+removed/suppressed. Failed and final logs are retained. Exact scope and commands:
+`docs/testing/WEB_QA_20261022.md`.
+
+Repairs include missing runtime imports, partial routine draft/send typing,
+owner-journal metadata and async typing, immutable captured context, selector/page
+props and fixture/API-contract mismatches. This is initial local QA evidence,
+not full acceptance. Unit/build/database/browser/compatibility/hosted/recovery and
+release gates remain; no production/flag/provider/push/merge/deploy change occurred.
+
 ## Implementation-first handoff to consolidated web QA — 2026-10-22
 
 The scoped approved web flows now have connected source paths: owned capture/

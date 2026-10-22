@@ -52,7 +52,7 @@ it("keeps the reader owner and exact add after lost response then a later refusa
             possibleDuplicatesTruncated: false,
           }),
         };
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   render(
     <AddToGroceriesButton recipeId="recipe" onPendingChange={ownership} />,
   );

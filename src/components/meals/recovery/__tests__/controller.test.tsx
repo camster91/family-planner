@@ -28,8 +28,8 @@ import { prepDraftInput } from "@/lib/meal-prep-recovery/draft-input";
 import { createOwnedRequestJournal } from "@/lib/owned-request-journal";
 import type { QueueStore } from "@/lib/offline-queue";
 import { useBulkRecovery } from "../useBulkRecovery";
-const raw = () =>
-  prepDraft.parse({
+const raw = () => {
+  const value = prepDraft.parse({
     kind: "action",
     action: "allocate",
     sessionId: "prep-a",
@@ -41,6 +41,9 @@ const raw = () =>
     nextDay: "",
     expectedNext: null,
   });
+  if (value.kind !== "action") throw new Error("Expected action fixture");
+  return value;
+};
 let mockContext = context(),
   text: string | null = null,
   failWrite = false;

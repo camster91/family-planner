@@ -196,9 +196,9 @@ export async function loadAssistantTodayRows(
   const { localDate, localStart, localEnd, dateStart, dateEnd } = day;
   const inventoryHorizon = addUTCDays(dateStart, DEFAULT_USE_SOON_DAYS);
   const sources: AssistantSourceRow[] = [];
-  function source(
+  function source<R extends { id?: string; created_at?: Date }>(
     kind: AssistantSourceRow["kind"],
-    row: { id?: string; created_at?: Date },
+    row: R,
     index: number,
     label: string,
     extra?: { containerId?: string; dependencies?: unknown },

@@ -929,10 +929,10 @@ export const fakePrisma: any = new Proxy(
         if (sql.startsWith('SELECT s."schedule_config" AS schedule_config')) {
           const familyId = values[0], stackId = values[1], selected = values[3] as string[]
           const stack = db.find('routineStack', String(stackId))
-          const rows = stack?.family_id === familyId ? [{ schedule_config: stack.schedule_config ?? null }] : []
+          const rows = stack && stack.family_id === familyId ? [{ schedule_config: stack.schedule_config ?? null }] : []
           return rows.concat(db.rows('chore').filter(row => row.family_id === familyId && selected.includes(String(row.id))).map(row => {
             const root = db.find('chore', String(row.recurrence_id))
-            return { schedule_config: row.routine_series_config ?? (root?.family_id === familyId ? root.routine_series_config : null) ?? null }
+            return { schedule_config: row.routine_series_config ?? (root && root.family_id === familyId ? root.routine_series_config : null) ?? null }
           }))
         }
         return 0

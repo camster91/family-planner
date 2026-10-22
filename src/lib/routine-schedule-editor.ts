@@ -1,3 +1,4 @@
+import { isRoutineIconKey } from "@/lib/routine-icons";
 import { routineScheduleCommand } from "@/lib/routine-schedule";
 /** Parent form state. Stable client/root IDs, never label-based adoption. */
 import { newIdempotencyKey } from "@/lib/idempotency-key";
@@ -11,8 +12,9 @@ import type {
 } from "@/lib/routine-schedule-view";
 import type { RoutineScheduleDraft } from "@/lib/routine-schedule-client";
 type Create = Extract<RoutineScheduleCommand, { action: "create" }>;
-export type RoutineEditorStep = Omit<Create["steps"][number], "subject"> & {
+export type RoutineEditorStep = Omit<Create["steps"][number], "subject" | "icon"> & {
   subject: Create["steps"][number]["subject"] | null;
+  icon: string | null;
 };
 export type RoutineEditorDraft = {
   stackId: string | null;
@@ -100,10 +102,11 @@ export function routineEditorCommand(
 ): RoutineScheduleDraft {
   if (draft.steps.some((step) => step.subject === null))
     throw new Error("Choose a family member");
-  const steps = draft.steps.map((step) => ({
-    ...step,
-    subject: step.subject!,
-  }));
+  const steps = draft.steps.map((step) => {
+    const icon = step.icon;
+    if (icon !== null && !isRoutineIconKey(icon)) throw new Error("Choose a supported routine picture");
+    return { ...step, subject: step.subject!, icon };
+  });
   const content = {
     label: draft.label,
     anchor: draft.anchor.trim() || null,

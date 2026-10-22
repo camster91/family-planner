@@ -73,7 +73,7 @@ it("keeps a durable staged request but does not send if closed during storage", 
   jest.mocked(makePreparationIntent).mockResolvedValue(f.entry);
   f.journal.stage.mockImplementation(
     () =>
-      new Promise((done) => {
+      new Promise<void>((done) => {
         release = done;
       }),
   );

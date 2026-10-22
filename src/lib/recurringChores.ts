@@ -1,3 +1,4 @@
+import { isProfileChoreRecurrenceSupported } from '@/lib/profile-chore-gates'
 import { topUpScheduledOnceSteps } from '@/lib/routine-once-top-up'
 import { nextDueDate, startOfDay } from '@/lib/chore-recurrence-dates'
 export { nextDueDate, startOfDay } from '@/lib/chore-recurrence-dates'

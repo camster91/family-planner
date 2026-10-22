@@ -175,6 +175,7 @@ export async function persistReviewedFoodPlan(
         familyId: actor.familyId,
         tokenVersion: actor.generation,
       };
+      const rootExpiresAt = root.expires_at;
       let childIndex = 0;
       async function child(action: string, body: unknown) {
         const row = await tx.idempotencyRecord.create({
@@ -185,7 +186,7 @@ export async function persistReviewedFoodPlan(
             family_id: actor.familyId,
             action,
             request_hash: hashIdempotentRequest(action, body),
-            expires_at: root.expires_at,
+            expires_at: rootExpiresAt,
           },
           select: { id: true },
         });

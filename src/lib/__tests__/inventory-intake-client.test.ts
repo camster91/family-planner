@@ -24,7 +24,7 @@ it("keeps reviewed body/key independent of later edits and reports uncertainty w
     .mockResolvedValueOnce({
       ok: true,
       json: async () => ({ itemId: "fixture_item" }),
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
   expect(await postInventoryIntake(intent)).toEqual({ kind: "unknown" });
   expect(await postInventoryIntake(intent)).toEqual({
     kind: "confirmed",
@@ -49,7 +49,7 @@ it("does not treat malformed success or an old server reply as confirmed stock",
   global.fetch = jest.fn(async () => ({
     ok: true,
     json: async () => ({ success: true }),
-  })) as typeof fetch;
+  })) as unknown as typeof fetch;
   expect(await postInventoryIntake(intent)).toEqual({ kind: "unknown" });
 });
 

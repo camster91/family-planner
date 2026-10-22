@@ -25,7 +25,7 @@ export async function runOwnedForeground<T>(
     return await Promise.race([
       // Deferral gives an abort in the current turn priority over starting work.
       Promise.resolve()
-        .then(() =>
+        .then(async (): Promise<T | { kind: "unknown" }> =>
           controller.signal.aborted
             ? { kind: "unknown" as const }
             : work(controller.signal),

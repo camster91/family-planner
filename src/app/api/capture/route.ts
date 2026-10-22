@@ -93,10 +93,11 @@ async function handlePOST(request: NextRequest, setMeter: (value: AiUsageJob) =>
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
 
+    const initialAuth = auth
     async function proposalReply(body: unknown) {
       const [current, refusal] = await authenticateWithFamily(request)
       if (refusal) { refusal.headers.set('Cache-Control', 'private, no-store'); return refusal }
-      if (current.user.id !== auth.user.id || current.user.family_id !== auth.user.family_id || current.user.role !== auth.user.role || (current.payload?.tv ?? 0) !== (auth.payload?.tv ?? 0) || !canUseCapture(current.user.role)) {
+      if (current.user.id !== initialAuth.user.id || current.user.family_id !== initialAuth.user.family_id || current.user.role !== initialAuth.user.role || (current.payload?.tv ?? 0) !== (initialAuth.payload?.tv ?? 0) || !canUseCapture(current.user.role)) {
         return NextResponse.json({ error: 'Your account or household changed. Please try again.', code: 'CAPTURE_SOURCE_CHANGED' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
       }
       const latest = await prisma!.family.findUnique({ where: { id: current.user.family_id }, select: { capture_ai_key_enc: true, capture_ai_base_url: true, capture_ai_model: true } })

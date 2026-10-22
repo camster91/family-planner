@@ -27,7 +27,7 @@ it("retains exact key/body after uncertainty and a later household refusal", asy
     return writes === 2
       ? response(403, { error: { code: "AUTH_CONTEXT_CHANGED" } })
       : response(201, { mealId: "fixture_meal" });
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   const saved = jest.fn();
   const { result } = renderHook(() => useMealCreation(true, saved));
   await waitFor(() => expect(result.current.ready).toBe(true));
@@ -68,7 +68,7 @@ it("retains exact key/body after uncertainty and a later household refusal", asy
 it("cannot create before an authoritative context is loaded", async () => {
   global.fetch = jest.fn(async () =>
     response(403, { error: { code: "FORBIDDEN" } }),
-  ) as typeof fetch;
+  ) as unknown as typeof fetch;
   const { result } = renderHook(() => useMealCreation(true, jest.fn()));
   await waitFor(() => expect(result.current.contextError).toBe(true));
   await act(async () => {

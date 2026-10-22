@@ -448,7 +448,7 @@ export function CaptureDraftBoundary(
         extracting ||
         choreBusy ||
         hasInput ||
-        (props.presentation === "sheet" && props.open !== false)),
+        (props.presentation === "sheet")),
     {
       warnOnUnload:
         dirty || extracting || choreBusy || activity.current.hasInput,

@@ -523,7 +523,7 @@ export async function mutateRoutineStackInTx<T extends object>(
     await refuseScheduledOccurrenceStackWrite(
       tx,
       actor.familyId,
-      draft.stack_id,
+      draft.stack_id ?? null,
       selectedIds,
     );
   } catch (error) {

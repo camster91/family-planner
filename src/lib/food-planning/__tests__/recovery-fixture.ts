@@ -8,7 +8,7 @@ import {
 export const actor = {
   userId: "parent-a",
   familyId: "family-a",
-  role: "parent",
+  role: "parent" as const,
   generation: 0,
 };
 export const now = new Date("2026-10-22T12:00:00Z");

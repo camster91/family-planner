@@ -50,7 +50,7 @@ export function withOwnedQueueLease<T>(
     locks,
   );
 }
-export function withQueueLease<T>(
+export async function withQueueLease<T>(
   name: string,
   run: () => Promise<T>,
   locks: Pick<LockManager, "request"> | null = typeof navigator === "undefined"
@@ -58,7 +58,7 @@ export function withQueueLease<T>(
     : (navigator.locks ?? null),
 ): Promise<T> {
   if (!locks) return Promise.reject(new OwnedQueueLeaseError());
-  return locks.request(
+  return await locks.request(
     name,
     { mode: "exclusive", ifAvailable: true },
     async (lock) => {

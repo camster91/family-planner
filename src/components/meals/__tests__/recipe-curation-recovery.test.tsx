@@ -28,7 +28,7 @@ test("an uncertain favorite write retains the choice and requires explicit refre
           favorite: false,
           collectionIds: [],
         });
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   render(<RecipeCuration id="fx_recipe" title="Fixture soup" />);
   fireEvent.click(
     screen.getByRole("button", { name: "Organize recipe: Fixture soup" }),

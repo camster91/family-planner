@@ -30,7 +30,7 @@ afterEach(() => {
 it("reports missing legacy evidence without loading today's canonical recipe", async () => {
   global.fetch = jest.fn(async () =>
     response({ batchId: "fixture_batch", state: "not-recorded" }),
-  ) as typeof fetch;
+  ) as unknown as typeof fetch;
   render(<PreparedRecipe batchId="fixture_batch" />);
   fireEvent.click(screen.getByRole("button", { name: "Recipe used" }));
   await screen.findByText(/Recipe details were not recorded/);
@@ -43,7 +43,7 @@ it("reports missing legacy evidence without loading today's canonical recipe", a
 it("renders archived evidence and never asks for the current recipe", async () => {
   global.fetch = jest.fn(async () =>
     response(recorded("fixture_batch", "Original fixture soup")),
-  ) as typeof fetch;
+  ) as unknown as typeof fetch;
   render(<PreparedRecipe batchId="fixture_batch" />);
   fireEvent.click(screen.getByRole("button", { name: "Recipe used" }));
   await screen.findByRole("heading", { name: "Original fixture soup" });
@@ -57,7 +57,7 @@ it("drops a late response after the selected batch changes", async () => {
       new Promise((resolve) => {
         resolveFirst = resolve;
       }),
-  ) as typeof fetch;
+  ) as unknown as typeof fetch;
   const view = render(<PreparedRecipe batchId="fixture_old" />);
   fireEvent.click(screen.getByRole("button", { name: "Recipe used" }));
   view.rerender(<PreparedRecipe batchId="fixture_new" />);
@@ -70,7 +70,7 @@ it("drops a late response after the selected batch changes", async () => {
 it("refuses future record formats without a guessed current-recipe fallback", async () => {
   const body = recorded("fixture_batch", "Future fixture");
   body.snapshot.v = 2;
-  global.fetch = jest.fn(async () => response(body)) as typeof fetch;
+  global.fetch = jest.fn(async () => response(body)) as unknown as typeof fetch;
   render(<PreparedRecipe batchId="fixture_batch" />);
   fireEvent.click(screen.getByRole("button", { name: "Recipe used" }));
   await screen.findByRole("alert");

@@ -539,8 +539,8 @@ export function ownerQueueStore(options: Options) {
       // reviewed wire request, not just the id, before any network mutation.
       const spec = QUEUEABLE_ACTIONS[op.action] as {
         method: string;
-        path: string | ((payload: typeof op.payload) => string);
-        body: (payload: typeof op.payload) => Record<string, unknown>;
+        path: string | ((payload: NonNullable<typeof op>["payload"]) => string);
+        body: (payload: NonNullable<typeof op>["payload"]) => Record<string, unknown>;
       };
       const path =
         typeof spec.path === "function" ? spec.path(op.payload) : spec.path;

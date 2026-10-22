@@ -20,7 +20,7 @@ jest.mock("@/lib/owned-queue-persistence", () => ({
   rememberQueueOwner: jest.fn(),
 }));
 const context = {
-  contract: REVIEW_DOCUMENT_CONTRACT,
+  contract: REVIEW_DOCUMENT_CONTRACT as typeof REVIEW_DOCUMENT_CONTRACT,
   domain: "recipe" as const,
   role: "parent" as const,
   userId: "fixture-parent",
@@ -83,7 +83,7 @@ function stored(
     owner: context.owner,
     runtime: "fixture_review_inbox_runtime",
     queue: JSON.stringify({
-      contract: REVIEW_DOCUMENT_CONTRACT,
+      contract: REVIEW_DOCUMENT_CONTRACT as typeof REVIEW_DOCUMENT_CONTRACT,
       entries: [
         { key: "private_document_key", kind, body: JSON.stringify(document) },
       ],

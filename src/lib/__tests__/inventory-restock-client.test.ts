@@ -79,7 +79,7 @@ it("does not put a private replacement name into a URL and checks read scope bef
           }),
         }),
         json,
-      }) as Response,
+      }) as unknown as Response,
   );
   await expect(
     readRestockReview(

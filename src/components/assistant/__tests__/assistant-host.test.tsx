@@ -1564,7 +1564,7 @@ it("retains a report after a malformed receipt and retries its exact original bo
     return response({
       report: bodies.length === 1 ? {} : { id: "confirmed-report" },
     });
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   const view = render(<AssistantHost role="parent" />);
   await user.click(screen.getByRole("button", { name: "Report / Suggest" }));
   await user.type(screen.getByLabelText("Title"), "Private report draft");

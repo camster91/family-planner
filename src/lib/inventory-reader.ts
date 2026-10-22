@@ -1,3 +1,4 @@
+import { abortable } from "@/lib/bounded-json-response";
 /** One bounded refresh generation. No persistence, provider or mutation. */
 import {
   inventoryReadPage,
@@ -85,7 +86,7 @@ export async function readInventorySnapshot(options: {
       offset !== null && page < INVENTORY_ITEM_MAX_PAGES;
       page++
     ) {
-      const reply = await get(
+      const reply: InventoryRead<z.infer<typeof inventoryReadPage>> = await get(
         `/api/inventory?${q}&limit=${INVENTORY_ITEM_PAGE_SIZE}&offset=${offset}`,
         inventoryReadPage,
       );

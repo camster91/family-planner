@@ -24,7 +24,7 @@ export default async function InventoryPage({
   searchParams,
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
-} = {}) {
+}) {
   const query = await searchParams;
   const validQuery =
     !(query?.cookBatch && query?.cookRecipe) &&

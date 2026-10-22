@@ -192,7 +192,7 @@ export function useFoodPlanningSession(onSaved: () => void) {
     setRows(entries);
     const editable =
       entries.find(
-        (row): row is LocalEntry => row.kind === "local-food-draft",
+        (row): row is typeof row & LocalEntry => row.kind === "local-food-draft",
       ) ?? null;
     local.current = editable;
     if (adoptDraft)
@@ -263,7 +263,7 @@ export function useFoodPlanningSession(onSaved: () => void) {
       setConfirmed({});
       local.current =
         entries.find(
-          (row): row is LocalEntry => row.kind === "local-food-draft",
+          (row): row is typeof row & LocalEntry => row.kind === "local-food-draft",
         ) ?? null;
       showDraft(
         local.current

@@ -147,3 +147,10 @@ it("retains an unrelated or newer draft when confirming an older request", () =>
     routineDraftMatchesCommand(draft, { ...original, action: "stop" }),
   ).toBe(false);
 });
+
+it("preserves an unsupported picture in a local draft but refuses it at the send boundary", () => {
+  const draft = routineDraftFromState(state());
+  draft.steps[0].icon = "unsupported-local-picture";
+  expect(draft.steps[0].icon).toBe("unsupported-local-picture");
+  expect(() => routineEditorCommand(draft)).toThrow("Choose a supported routine picture");
+});

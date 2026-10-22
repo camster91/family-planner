@@ -21,7 +21,7 @@ async function records(
   selected: boolean,
 ): Promise<FoodOption[]> {
   const ids = selected ? { id: { in: query.selectedIds } } : {};
-  const page = selected
+  const page: { take: number; skip?: number } = selected
     ? { take: 50 }
     : { skip: query.offset, take: FOOD_OPTIONS_PAGE + 1 };
   if (selected && !query.selectedIds.length) return [];

@@ -1,5 +1,6 @@
 /** @jest-environment jsdom */
 import * as React from "react";
+import Link from "next/link";
 import { act, fireEvent, render } from "@testing-library/react";
 import { useRoutineLinkNavigation } from "../useRoutineLinkNavigation";
 
@@ -11,7 +12,7 @@ function Harness({
   navigate: (href: string) => Promise<void>;
 }) {
   useRoutineLinkNavigation(active, navigate);
-  return <a href="/dashboard/chores?view=routines">Return</a>;
+  return <Link href="/dashboard/chores?view=routines">Return</Link>;
 }
 function click(anchor: Element, init: MouseEventInit = {}) {
   const event = new MouseEvent("click", {

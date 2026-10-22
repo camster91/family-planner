@@ -164,7 +164,7 @@ export function useBulkRecovery(
       return;
     setRows(entries);
     local.current =
-      entries.find((row): row is Local => row.kind === "local-prep-draft") ??
+      entries.find((row): row is typeof row & Local => row.kind === "local-prep-draft") ??
       null;
     setDraft(
       local.current
@@ -201,7 +201,7 @@ export function useBulkRecovery(
       setContext(next);
       setRows(entries);
       local.current =
-        entries.find((row): row is Local => row.kind === "local-prep-draft") ??
+        entries.find((row): row is typeof row & Local => row.kind === "local-prep-draft") ??
         null;
       setDraft(
         local.current
@@ -547,7 +547,6 @@ export function useBulkRecovery(
     held:
       privacyHold ||
       mode === "held" ||
-      issue === "owner" ||
       issue === "storage" ||
       issue === "held",
     load,

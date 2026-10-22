@@ -136,7 +136,7 @@ suite("ordinary meal atomic confirmation", () => {
           await operation(tx);
           throw new Error("Fixture transaction failure");
         }),
-    } as Pick<NonNullable<typeof prisma>, "$transaction">;
+    } as unknown as Pick<NonNullable<typeof prisma>, "$transaction">;
     await expect(
       createMealWithReceipt(failingDb, actor, body, r.id),
     ).rejects.toThrow("Fixture transaction failure");

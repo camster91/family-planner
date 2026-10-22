@@ -32,7 +32,7 @@ const step = {
   duration_minutes: 10,
 };
 const saved: RoutineScheduleConfig = {
-  protocol: "herewoven.routine-schedule.v1",
+  protocol: "herewoven.routine-schedule.v1" as const,
   state: "active",
   effective_on: "2026-10-21",
   anchor: "After breakfast",
@@ -40,7 +40,7 @@ const saved: RoutineScheduleConfig = {
   steps: [{ template_id: step.template_id }],
 };
 const base = {
-  protocol: "herewoven.routine-schedule.v1",
+  protocol: "herewoven.routine-schedule.v1" as const,
   expected_user_id: "fixture-parent",
   expected_family_id: "fixture-family",
   issued_at: "2026-10-20T23:59:00.000Z",
