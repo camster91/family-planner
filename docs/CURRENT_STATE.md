@@ -1,5 +1,16 @@
 # Current State
 
+## Inventory capture recovery tests aligned — 2026-10-22
+
+Five inventory suites pass48 tests with valid receipts, exact lost-response retry
+bytes/keys, translated private drafts and the original Undo/focus timing. Tests
+await actual navigation release; production recovery behavior is unchanged.
+Types/lint pass (44 warnings). Prior settings/board and device admission repair
+is committed at48ae6b68; full baseline remains26 failing suites/72 tests at9d847a2c.
+Full rerun plus DB/browser/recovery/final-build/hosted checks remain open.
+Evidence:`docs/testing/WEB_QA_20261022.md`.
+
+
 ## Settings and device admission QA repair — 2026-10-22
 
 Latest complete run at9d847a2c:26 failed /675 passed /82 skipped suites;

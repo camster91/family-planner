@@ -141,7 +141,7 @@ it("keeps the unadopted path free of storage negotiation", async () => {
   fireEvent.click(screen.getByText("Send original"));
   await screen.findByText("confirmed");
   expect(browserInventoryRecovery).not.toHaveBeenCalled();
-  expect(postInventoryIntake).toHaveBeenCalledWith(entry);
+  expect(postInventoryIntake).toHaveBeenCalledWith(entry, undefined);
 });
 it("stages exact bytes before sending proof and waits for confirmed local dismissal", async () => {
   mount();

@@ -4,7 +4,14 @@ import {
   INVENTORY_READ_SCOPE_HEADER,
 } from "@/lib/inventory-read-scope";
 import "@testing-library/jest-dom";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import { I18nProvider, useTranslation } from "@/i18n";
 import { ToastProvider } from "@/components/ui/toast";
 import InventoryClient from "../InventoryClient";
@@ -150,6 +157,7 @@ function switchLanguage() {
   fireEvent.click(screen.getByText("Switch language"));
 }
 beforeEach(() => {
+  window.history.replaceState({}, "", "/dashboard/inventory");
   Object.defineProperty(navigator, "onLine", {
     value: true,
     configurable: true,
@@ -246,14 +254,21 @@ it.each(["fallback", "network", "raw"] as const)(
         : "Guardado rechazado. Revisa tu cuenta, hogar y acceso al inventario. Se conserva el borrador.",
     );
     expect(within(modal).getByLabelText("Nombre")).toHaveValue(name);
-    fireEvent.click(
-      within(modal).getByRole("button", {
-        name: outcome === "network" ? "Comprobar mismo guardado" : "Guardar",
-      }),
-    );
+    // The refusal releases its pending navigation claim before enabling Save.
+    const retry = await within(modal).findByRole("button", {
+      name: outcome === "network" ? "Comprobar mismo guardado" : "Guardar",
+    });
+    await waitFor(() => expect(retry).toBeEnabled());
+    fireEvent.click(retry);
     await settle();
     const writes = calls.filter((c) => c.method !== "GET");
     expect(writes).toHaveLength(2);
+    if (outcome !== "network")
+      await waitFor(() =>
+        expect(
+          within(modal).getByRole("button", { name: "Guardar" }),
+        ).toBeEnabled(),
+      );
     if (outcome === "network") expect(writes[0]).toEqual(writes[1]);
     expect(writes[0].url).toBe("/api/inventory/intake");
     expect((writes[0].body as { item: unknown }).item).toEqual({
@@ -278,7 +293,7 @@ it("updates owned success notice and undo title/action without reloading, replay
   await settle();
   fireEvent.click(screen.getByRole("button", { name: "Used " + name }));
   await settle();
-  const toast = screen.getByTestId("undo-toast");
+  const toast = await screen.findByTestId("undo-toast");
   expect(toast).toHaveTextContent("Used " + name);
   act(() => jest.advanceTimersByTime(4000));
   const count = calls.length;
@@ -308,7 +323,7 @@ it("keeps native focus, paused undo and its canonical callback through a locale 
   await settle();
   fireEvent.click(screen.getByRole("button", { name: "Used " + name }));
   await settle();
-  const toast = screen.getByTestId("undo-toast");
+  const toast = await screen.findByTestId("undo-toast");
   const undo = within(toast).getByRole("button", { name: "Undo" });
   act(() => undo.focus());
   act(() => jest.advanceTimersByTime(9000));
@@ -330,7 +345,9 @@ it("keeps native focus, paused undo and its canonical callback through a locale 
     kind: "undo",
     adjustment_id: "synthetic+adjust",
   });
-  expect(screen.getByTestId("inventory-notice")).toHaveTextContent(
-    "Se repuso " + name + ".",
+  await waitFor(() =>
+    expect(screen.getByTestId("inventory-notice")).toHaveTextContent(
+      "Se repuso " + name + ".",
+    ),
   );
 });

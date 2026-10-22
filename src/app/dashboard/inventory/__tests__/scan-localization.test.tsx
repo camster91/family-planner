@@ -1,6 +1,13 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import { I18nProvider, useTranslation } from "@/i18n";
 import { ScanFridgeDialog } from "../ScanFridgeDialog";
 import { IDEMPOTENCY_HEADER } from "@/lib/idempotency-key";
@@ -193,7 +200,7 @@ it("preserves private edited rows/canonical location/selection and stable keys t
   fireEvent.click(screen.getByTestId("scan-add"));
   await act(async () => {});
   expect(fetch).toHaveBeenCalledTimes(4);
-  expect(onDone).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
   expect(onDone).toHaveBeenCalledWith("Added 2 items from your photo.");
   const creates = (fetch as jest.Mock).mock.calls.slice(1);
   expect(JSON.parse(creates[0][1].body).item).toEqual({

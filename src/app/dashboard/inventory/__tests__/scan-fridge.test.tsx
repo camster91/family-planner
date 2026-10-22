@@ -245,7 +245,7 @@ describe("Scan fridge", () => {
                 retryable: false,
               },
             })
-          : json(201, { item: {} }),
+          : json(201, { item: { id: "fixture-confirmed" } }),
     });
     const dialog = await openAndScan(user);
     await within(dialog).findAllByTestId("scan-suggestion");
@@ -259,7 +259,7 @@ describe("Scan fridge", () => {
     const left = within(dialog).getAllByTestId("scan-suggestion");
     expect(left).toHaveLength(2); // the failed one and the unticked one
     expect(within(left[0]).getByTestId("scan-row-error")).toHaveTextContent(
-      "Name is too long",
+      "This item was not confirmed. Review your account, household and item details before trying again.",
     );
 
     await user.click(
