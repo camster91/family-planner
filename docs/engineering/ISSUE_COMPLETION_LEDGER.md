@@ -1,5 +1,7 @@
 # Open issue completion ledger
 
+2026-10-22 food planning foundation: canonical matching/scaling plus virtual per-slot/dish quantities, explicit unknowns/time/occupancy holds and a scoped read-only API are authored. Cases unrun, readiness off. Existing-meal/bulk commitments, calendar/provider/reference/review/apply/evaluation integration and all QA remain. See `docs/plans/grounded-food-planning-v1.md`; #123/#144/#128 stay in progress.
+
 2026-10-22 profile-assignment checkpoint: gated canonical account/profile choices, explicit protocol-2/revision-bound manual or sourced chore confirmation, compact receipt replay and recurrence/refusal UI are authored. Profiles remain subjects, never actors/accounts. Cases unrun, flags unchanged/off. Broader canonical planning/version/semantic-evaluation/inbox code and consolidated QA remain; #123/#144/#128 stay open. See `docs/architecture/AI_CONFIRMATION_SOURCES.md`.
 
 2026-10-22 deletion checkpoint: all three typed account deletion adapters, bounded selected-target review/proofs, canonical lifecycle guards and atomic minimal receipts are now authored. Changed list contents and target-deleted/expired recovery cases are authored/unrun. Profile assignees, broader planning/version/eval/inbox source and all QA remain; capability off, no issue closed. Details: `docs/architecture/AI_CONFIRMATION_SOURCES.md`.

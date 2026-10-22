@@ -37,6 +37,8 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 
 ## Engineering references
 
+- Grounded food planning (#123/#122/#144): `docs/plans/grounded-food-planning-v1.md` (canonical read/planner foundation authored; provider/calendar/commitment/review/apply and QA remain).
+
 - Execution order: `docs/engineering/EXECUTION_ORDER.md`
 - Agent backlog: `docs/engineering/AGENT_BACKLOG.md`
 - Definition of done: `docs/engineering/DEFINITION_OF_DONE.md`

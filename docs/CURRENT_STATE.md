@@ -1,5 +1,25 @@
 # Current State
 
+## Canonical food planning read foundation — 2026-10-22
+
+A default-off read-only food preview now has source contracts for several meal
+slots or several dishes in one prep session, serving-scaled ingredient estimates,
+canonical inventory matching/expiry semantics, isolated candidate ledgers and
+cross-slot virtual quantity allocation. Unknown amounts/units/scaled cooking time
+remain explicit. Existing meal slots are held, not overwritten. A scoped parent/
+teen repeatable-read broker checks current owner/generation/features and bounded
+canonical recipe/ingredient/inventory/meal sources; its API calls no provider and
+performs no meal/grocery/inventory writes. Unit/source/disposable-DB cases are
+written and unrun. Example env flag is0; no real flag was changed.
+
+This is a foundation, not end-to-end AI planning. Existing-meal/bulk commitments,
+calendar constraints, provider projection/ref renewal, compact owned review/apply
+UI and canonical atomic write/recovery adapters plus semantic evaluations remain
+source work. See [`grounded-food-planning-v1.md`](./plans/grounded-food-planning-v1.md).
+All consolidated QA remains deferred. No tests/types/lint/build/browser/application
+API/DB/schema/client/native/CI, provider/flag activation, push/merge/deploy or issue
+closure occurred. Full goal stays active.
+
 ## AI email-free profile assignment source — 2026-10-22
 
 Parent chat now has a gated canonical account/profile picker with distinct

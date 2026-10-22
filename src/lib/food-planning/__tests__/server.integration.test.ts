@@ -1,0 +1,174 @@
+/** Authored/unrun: opt-in disposable PostgreSQL, no provider or canonical writes by preview. */
+import { randomUUID } from "node:crypto";
+import { assertFixtureTargetAllowed } from "../../fixtures/guard";
+import { defaultFeatures } from "../../features";
+import { previewFoodPlan, foodPreviewRequest } from "../server";
+const suite = process.env.RUN_DB_INTEGRATION === "1" ? describe : describe.skip;
+jest.setTimeout(60000);
+suite("food planning scoped canonical reads", () => {
+  let db: NonNullable<typeof import("../../prisma").prisma>;
+  const family = `food-plan-${randomUUID()}`,
+    otherFamily = `food-plan-other-${randomUUID()}`;
+  const user = `food-plan-${randomUUID()}`,
+    otherUser = `food-plan-other-${randomUUID()}`;
+  const actor = {
+    userId: user,
+    familyId: family,
+    role: "parent",
+    generation: 0,
+  };
+  const now = new Date("2026-10-22T12:00:00Z");
+  const previous = process.env.FAMILY_FOOD_PLANNING_READY;
+  let recipeA: string, recipeB: string, foreignRecipe: string;
+  beforeAll(async () => {
+    assertFixtureTargetAllowed(process.env);
+    db = (await import("../../prisma")).prisma!;
+    for (const [id, userId] of [
+      [family, user],
+      [otherFamily, otherUser],
+    ]) {
+      await db.family.create({
+        data: {
+          id,
+          name: "Synthetic food planner",
+          invite_code: id,
+          features: { ...defaultFeatures(), meals: true, inventory: true },
+        },
+      });
+      await db.user.create({
+        data: {
+          id: userId,
+          family_id: id,
+          name: "Synthetic parent",
+          email: `${userId}@example.test`,
+          role: "parent",
+        },
+      });
+    }
+    const ingredient = await db.ingredient.create({
+      data: { family_id: family, name: "Rice", unit: "g" },
+    });
+    const createRecipe = (title: string) =>
+      db.recipe.create({
+        data: {
+          family_id: family,
+          created_by: user,
+          title,
+          servings: 2,
+          prep_time: 5,
+          cook_time: 15,
+          ingredients: {
+            create: { ingredient_id: ingredient.id, amount: 100, unit: "g" },
+          },
+        },
+      });
+    recipeA = (await createRecipe("Synthetic rice A")).id;
+    recipeB = (await createRecipe("Synthetic rice B")).id;
+    foreignRecipe = (
+      await db.recipe.create({
+        data: {
+          family_id: otherFamily,
+          created_by: otherUser,
+          title: "Foreign fixture recipe",
+          servings: 2,
+        },
+      })
+    ).id;
+    await db.inventoryItem.create({
+      data: {
+        family_id: family,
+        name: "Rice",
+        ingredient_id: ingredient.id,
+        amount: 150,
+        unit: "g",
+        status: "active",
+      },
+    });
+    process.env.FAMILY_FOOD_PLANNING_READY = "1";
+  });
+  beforeEach(() => {
+    jest.spyOn(Date, "now").mockReturnValue(+now);
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+  afterAll(async () => {
+    if (previous === undefined) delete process.env.FAMILY_FOOD_PLANNING_READY;
+    else process.env.FAMILY_FOOD_PLANNING_READY = previous;
+    if (!db) return;
+    await db.family.deleteMany({
+      where: { id: { in: [family, otherFamily] } },
+    });
+    await db.user.deleteMany({ where: { id: { in: [user, otherUser] } } });
+    await db.$disconnect();
+  });
+  const query = () =>
+    foodPreviewRequest.parse({
+      recipeIds: [recipeA, recipeB],
+      plan: {
+        timeZone: "UTC",
+        slots: [
+          {
+            key: "first",
+            date: "2026-10-22",
+            mealType: "dinner",
+            servings: 2,
+            recipeId: recipeA,
+          },
+          {
+            key: "second",
+            date: "2026-10-23",
+            mealType: "dinner",
+            servings: 2,
+            recipeId: recipeB,
+          },
+        ],
+      },
+    });
+  it("plans against owned stock without mutating stock, meals or activity, then preserves an occupied canonical slot", async () => {
+    const result = await previewFoodPlan(db, actor, query(), now);
+    expect(result.plan.slots[0].choice!.ingredients[0].state).toBe("covered");
+    expect(result.plan.slots[1].choice!.ingredients[0].shortfall).toBe(50);
+    expect(JSON.stringify(result)).not.toContain("Foreign fixture recipe");
+    expect(
+      (await db.inventoryItem.findFirst({ where: { family_id: family } }))!
+        .amount,
+    ).toBe(150);
+    expect(await db.familyMeal.count({ where: { family_id: family } })).toBe(0);
+    expect(await db.activity.count({ where: { family_id: family } })).toBe(0);
+    await db.familyMeal.create({
+      data: {
+        family_id: family,
+        created_by: user,
+        date: new Date("2026-10-23T00:00:00Z"),
+        meal_type: "dinner",
+        recipe_id: recipeB,
+      },
+    });
+    const occupied = await previewFoodPlan(db, actor, query(), now);
+    expect(occupied.plan.slots[1]).toMatchObject({
+      choice: null,
+      holds: ["slot-occupied"],
+    });
+    expect(occupied.snapshotRevision).not.toBe(result.snapshotRevision);
+    expect(await db.familyMeal.count({ where: { family_id: family } })).toBe(1);
+  });
+  it("does not resolve a foreign selected recipe or a replaced session generation", async () => {
+    await expect(
+      previewFoodPlan(
+        db,
+        actor,
+        { ...query(), recipeIds: [foreignRecipe] },
+        now,
+      ),
+    ).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    await db.user.update({ where: { id: user }, data: { token_version: 1 } });
+    try {
+      await expect(
+        previewFoodPlan(db, actor, query(), now),
+      ).rejects.toMatchObject({ code: "CONTEXT_CHANGED" });
+    } finally {
+      await db.user.update({ where: { id: user }, data: { token_version: 0 } });
+    }
+  });
+});
