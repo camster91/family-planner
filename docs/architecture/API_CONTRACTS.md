@@ -750,7 +750,7 @@ nothing was sent after an earlier success.
 | `POST /api/capture` | JSON body bounded the same way at the base64 image limit plus 64 KB. | 413 image too large; 400 `Invalid JSON` |
 | `POST /api/capture/grocery` | JSON body bounded at 16 KB. | 413 `Request is too large`; 400 `Invalid JSON` |
 | `POST /api/admin/imports/[source]` | JSON body bounded at 10 MB while reading. | 413 `Import payload exceeds 10 MB`; 400 `Invalid JSON` |
-| `POST`/`PATCH /api/budget/transactions` | `amount` is positive (direction comes from `type`), 0.01 to 100,000,000, at most 2 decimals. | 400 |
+| `POST /api/budget/transactions`, `PATCH /api/budget/transactions/[id]` | `amount` is positive (direction comes from `type`), 0.01 to 100,000,000, at most 2 decimals. | 400 |
 | `POST /api/allowance` | `amount` is positive, at most 1,000,000, at most 2 decimals. | 400 |
 | `PATCH /api/family` | Only `name` is writable; a sent `subscription_tier` is ignored. Returns `{ family: { id, name, subscription_tier, created_at, features } }` — never the feed token, invite code or AI settings. | unchanged |
 | `GET /api/calendar/feed` | `Cache-Control: private, max-age=300` (was `public`): the feed is guarded only by its URL token, so shared caches must not keep it. | unchanged |
