@@ -1,5 +1,18 @@
 # Current State
 
+## Client/server build boundary and dependency patches — 2026-10-22
+
+The initial optimized build failed because client rotation imports reached server
+lifecycle/Node crypto. Pure rotation rules now have a browser-safe module, with
+server exports retained. The production dependency audit found2 critical packages;
+the patch lock now uses Next16.4.2 and transitive DOMPurify3.4.17 and audits clean.
+An isolated dependency install replaces only this checkout's symlink; the shared
+runtime tree was preserved. Client generation/types/lint pass;11 focused suites/
+205 tests pass (44 lint warnings). Full-suite failures and new optimized-build/
+DB/browser/recovery/hosted checks remain. No protected merge, deployment, provider
+activation or production data change occurred. Exact logs and limits:
+`docs/testing/WEB_QA_20261022.md`.
+
 ## Consolidated QA: third full run — 2026-10-22
 
 Full run at2332faf4 exits1:50 failed/650 passed/82 skipped suites;
