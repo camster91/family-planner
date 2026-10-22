@@ -1,14 +1,15 @@
+"use client";
 import type {
   FoodGroceryOutcomes,
   FoodGroceryUndo,
 } from "@/lib/food-planning/grocery-outcomes-contract";
-("use client");
 import type { FoodApplyReceipt } from "@/lib/food-planning/apply-contract";
 import * as React from "react";
 import { browserFoodRecovery } from "@/lib/food-planning/browser";
 import {
   readFoodRecoveryContext,
   readFoodPreview,
+  readFoodAiSuggestion,
   readFoodWriteReview,
   readFoodGroceries,
   undoFoodGroceries,
@@ -24,6 +25,7 @@ import {
   foodEditorDraft,
   foodDraftQuery,
   foodDraftCommand,
+  copyFoodAiChoices,
   newFoodDraft,
   type FoodEditorDraft,
 } from "@/lib/food-planning/editor";
@@ -38,6 +40,7 @@ import type {
 import { OwnedRequestRecoveryError } from "@/lib/owned-request-journal";
 import { sameQueueOwner } from "@/lib/queue-owner-contract";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
+import type { FoodAiSuggestion } from "@/lib/food-planning/ai-contract";
 type LocalEntry = Extract<FoodJournalEntry, { kind: "local-food-draft" }>;
 type Inspection = Awaited<ReturnType<typeof inspectFoodIntent>>;
 export function useFoodPlanningSession(onSaved: () => void) {
@@ -47,6 +50,9 @@ export function useFoodPlanningSession(onSaved: () => void) {
     contextRef = React.useRef<FoodRecoveryContext | null>(null),
     local = React.useRef<LocalEntry | null>(null),
     draftRef = React.useRef<FoodEditorDraft | null>(null);
+  const aiDraftStamp = React.useRef<string | null>(null);
+  const [aiSuggestion, setAiSuggestion] =
+    React.useState<FoodAiSuggestion | null>(null);
   const alive = React.useRef(false),
     reviewDraftStamp = React.useRef<string | null>(null);
   const epoch = React.useRef(0),
@@ -85,6 +91,7 @@ export function useFoodPlanningSession(onSaved: () => void) {
       | "invalid"
       | "unknown"
       | "held"
+      | "ai"
       | "catalog"
       | null
     >(null);
@@ -97,6 +104,8 @@ export function useFoodPlanningSession(onSaved: () => void) {
     };
   }, []);
   const showDraft = React.useCallback((value: FoodEditorDraft | null) => {
+    aiDraftStamp.current = null;
+    setAiSuggestion(null);
     draftRef.current = value;
     setDraft(value);
   }, []);
@@ -312,6 +321,8 @@ export function useFoodPlanningSession(onSaved: () => void) {
   }
   async function previewDraft() {
     await perform(async (current) => {
+      aiDraftStamp.current = null;
+      setAiSuggestion(null);
       await flush();
       const value = draftRef.current;
       if (!value) return;
@@ -321,6 +332,69 @@ export function useFoodPlanningSession(onSaved: () => void) {
         setPreview(result);
         setReview(null);
       }
+    });
+  }
+  async function askAi() {
+    await perform(async (current) => {
+      setAiSuggestion(null);
+      aiDraftStamp.current = null;
+      setReview(null);
+      reviewDraftStamp.current = null;
+      await flush();
+      const value = draftRef.current;
+      if (!value) return;
+      const stamp = JSON.stringify(value),
+        ctx = await fresh();
+      try {
+        const result = await readFoodAiSuggestion(
+          foodDraftQuery(value),
+          value.aiPreference,
+          ctx,
+        );
+        if (current() && JSON.stringify(draftRef.current) === stamp) {
+          setPreview(null);
+          aiDraftStamp.current = stamp;
+          setAiSuggestion(result);
+        }
+      } catch (error) {
+        if (
+          error instanceof FoodOwnerChanged ||
+          error instanceof OwnedRequestRecoveryError ||
+          error instanceof FoodRecipeScopeRequired
+        )
+          throw error;
+        if (current()) setIssue("ai");
+      }
+    });
+  }
+  function dismissAi() {
+    if (operation.current) return;
+    aiDraftStamp.current = null;
+    setAiSuggestion(null);
+  }
+  async function acceptAi() {
+    await perform(async (current) => {
+      await flush();
+      const value = draftRef.current,
+        suggestion = aiSuggestion;
+      if (
+        !value ||
+        !suggestion ||
+        JSON.stringify(value) !== aiDraftStamp.current
+      )
+        throw new Error("Refresh AI choices");
+      const ctx = await fresh();
+      if (!ctx.enabled || !ctx.canAskAi) throw new Error("Food AI paused");
+      const next = copyFoodAiChoices(value, suggestion);
+      reviewDraftStamp.current = null;
+      setPreview(null);
+      setReview(null);
+      showDraft(next);
+      // Durable editing first. A failed preview never loses the chosen draft,
+      // dispatches writes, or reuses the provider result as an action proof.
+      await flush();
+      const result = await readFoodPreview(foodDraftQuery(next), ctx);
+      if (current()) setPreview(result);
     });
   }
   async function reviewDraft() {
@@ -559,6 +633,10 @@ export function useFoodPlanningSession(onSaved: () => void) {
     rows,
     preview,
     review,
+    aiSuggestion,
+    askAi,
+    acceptAi,
+    dismissAi,
     inspections,
     confirmed,
     groceryOutcomes,

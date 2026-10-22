@@ -1,3 +1,4 @@
+import { foodAiEnabled } from "./ai-gates";
 import {
   foodGroceryOutcomeInput,
   foodGroceryUndoInput,
@@ -124,6 +125,7 @@ export async function handleFoodHttp(
             (await foodSourceStorageAvailable(prisma)),
           owner,
           canPrep: current.canPrep === true,
+          canAskAi: foodAiEnabled(),
           userId: actor.userId,
           familyId: actor.familyId,
           role: actor.role,

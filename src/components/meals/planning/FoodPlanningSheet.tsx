@@ -18,6 +18,7 @@ import {
   scheduleWallChoices,
   formatScheduleInstant,
 } from "@/lib/calendar-planning/schedule-form";
+import { FoodAiProposal } from "./FoodAiProposal";
 import { FoodPlanSummary } from "./FoodPlanSummary";
 import { FoodSaveDetails } from "./FoodSaveDetails";
 import { FoodRecordPicker } from "./FoodRecordPicker";
@@ -94,6 +95,10 @@ export default function FoodPlanningSheet({
       });
   }
   const messages = {
+    ai: copy(
+      "AI choices could not be checked. Your draft is kept; use Find suggestions or try AI again.",
+      "No se pudieron comprobar las opciones de IA. Se conserva el borrador; usa Buscar sugerencias o vuelve a intentarlo.",
+    ),
     catalog: copy(
       "Choose a pool of up to 50 recipes, then preview again.",
       "Elige un grupo de hasta 50 recetas y vuelve a obtener sugerencias.",
@@ -687,6 +692,56 @@ export default function FoodPlanningSheet({
                 )}
               </p>
             </fieldset>
+          )}
+          {draft && session.context?.canAskAi && !session.review && (
+            <details className="rounded-xl border border-[var(--surface-separator)] p-3">
+              <summary className="min-h-11 cursor-pointer py-2 font-semibold">
+                {copy(
+                  "Ask AI for meal choices",
+                  "Pedir opciones de comidas a la IA",
+                )}
+              </summary>
+              <div className="space-y-3">
+                <p className="text-footnote text-label-secondary">
+                  {copy(
+                    "Optional: AI compares up to four current recipe options per choice. It sends recipe names, ingredients, recorded food amounts, timing estimates and this preference to your configured AI provider. It cannot change your records. You can use Find suggestions without AI.",
+                    "Opcional: la IA compara hasta cuatro recetas actuales por opción. Envía nombres de recetas, ingredientes, cantidades registradas, estimaciones de tiempo y esta preferencia al proveedor de IA configurado. No puede cambiar tus registros. Puedes usar Buscar sugerencias sin IA.",
+                  )}
+                </p>
+                <label className="block">
+                  {copy(
+                    "Cooking preference (optional)",
+                    "Preferencia de cocina (opcional)",
+                  )}
+                  <textarea
+                    className={input}
+                    maxLength={1000}
+                    rows={2}
+                    disabled={disabled}
+                    value={draft.aiPreference}
+                    onChange={(event) =>
+                      update({ aiPreference: event.target.value })
+                    }
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="btn-secondary min-h-[44px]"
+                  disabled={disabled}
+                  onClick={() => void session.askAi()}
+                >
+                  {copy("Ask AI", "Preguntar a la IA")}
+                </button>
+              </div>
+            </details>
+          )}
+          {draft && session.aiSuggestion && (
+            <FoodAiProposal
+              suggestion={session.aiSuggestion}
+              busy={disabled}
+              onUse={() => void session.acceptAi()}
+              onDismiss={session.dismissAi}
+            />
           )}
           {view && draft && (
             <FoodPlanSummary

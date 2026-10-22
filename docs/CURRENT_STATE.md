@@ -1,5 +1,41 @@
 # Current State
 
+## Metered AI meal choices and explicit draft adoption — 2026-10-22
+
+An optional personal Meals AI path is now source-authored. It ranks at most four
+canonical recipe candidates per slot through opaque, owner/source/slot-bound
+references. The minimized provider packet contains recipe/ingredient names,
+recorded quantities and timing/calendar-state estimates, not canonical IDs,
+URLs, owner metadata, notes, instructions or event names. A shared opaque recipe
+identity supports repeat constraints. Output is strict reference selection only;
+invented/cross-slot references, missing slots, extra actions and unintended repeats
+refuse. Pinned recipes remain pinned. Incomplete/occupied/unresolved-commitment
+sources refuse before provider dispatch; unknown quantities/durations remain held
+estimates rather than invented facts.
+
+The server requires existing quota/cost observation with no unmetered fallback,
+renews person/role/generation/features/provider configuration and original source
+identity after latency, then reconstructs the selected query in the same canonical
+read snapshot. The original one-minute lease is never refreshed. The new example
+`FAMILY_FOOD_AI_READY=0` also requires existing food/AI-usage gates; no real settings
+or provider activation changed. Usage uses the existing assistant accounting
+bucket; API outcome counts are not user acceptance or successful domain saves.
+
+The EN/ES sheet offers explicit optional provider disclosure and a durable local
+cooking preference. AI choices render separately, one at a time. Use these choices
+copies recipe IDs into the owned draft, clears groceries for changed recipes,
+persists editing, and obtains a new canonical preview. Exact save review and
+confirmation remain separate. Dismiss, failure, pause and expiry preserve the raw
+draft and provider-free controls. No meal/prep/grocery/stock write follows a reply.
+
+Versioned grounding/feasibility metrics validate issued choices, intent, owner,
+servings, pins, repeats and original lease. They do not rate nutrition, safety,
+preference satisfaction or overall app quality. Catalog/client/editor/service/UI
+cases are authored and **unrun**. No test/typecheck/lint/build/browser/API/DB/schema/
+provider/flag/push/merge/deploy or issue closure. Broader chat handoff, fixed-vocabulary
+accept/dismiss telemetry and cross-feature evaluation source remain before final
+consolidated QA and authorized release; the full goal remains active.
+
 ## Meal and bulk work in review discovery — 2026-10-22
 
 The parent inbox Saved requests reader now supports meal planning and canonical

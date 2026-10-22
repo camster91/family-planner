@@ -142,3 +142,16 @@ Weekly personal meal/prep/food/grocery steps use one compact disclosure of fixed
 planning/recovery links, respect pending/owned navigation, and never count local
 work, submit a plan or mark a step automatically. Shared/child views omit these
 personal links. Source cases authored/unrun; rendered acceptance stays deferred.
+
+## Optional AI choice review
+
+Use a secondary disclosure on the existing personal sheet, with explicit provider
+context disclosure, an optional durable cooking preference and Ask AI. No provider
+work on mount. A separate paged read summary offers Use these choices or Keep my
+choices, without provider prose or a misleading quality percentage. State unknown
+quantities/time, safety/preference limits and one-minute expiry. Use copies only
+issued recipe identities into the owned raw draft and refreshes canonical checks;
+changed recipes lose old grocery selections. No auto-save, new writer, private
+shared-device UI or confirmation bypass. Existing provider-free suggestions remain
+available during provider failure/pause. EN/ES source is authored; rendered,
+keyboard/Back, lifecycle, privacy and viewport acceptance remain unrun.

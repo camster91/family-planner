@@ -765,3 +765,16 @@ read; target restoration/fresh saves keep canonical read guards. Owner masks
 suppress mismatched projections. Source/mounted cases authored/unrun; broader
 chat/provider/evaluation and full goal source/QA/release remain. No runtime/DB/
 schema/provider/flag/push/merge/deploy action or issue closure.
+
+### 2026-10-22 — metered grounded AI meal choices (#123/#144)
+
+Optional minimized provider ranking now uses exact opaque per-slot references,
+shared recipe identities, strict output, pinned/repeat guards and canonical
+post-latency reconstruction under the original lease. Existing quota/cost observer
+is mandatory. Explicit EN/ES AI disclosure/preference/review and durable draft-only
+adoption preserve provider-free/manual controls and separate exact confirmation.
+Versioned source/intent feasibility metrics and catalog/client/editor/service/UI
+cases are authored/unrun; no nutrition, preference or product-quality score is
+claimed. New readiness example stays off. Broader assistant handoff, acceptance/
+dismissal telemetry and cross-feature evaluation remain source work before final
+QA. No runtime/provider/DB/schema/flag/push/merge/deploy or issue closure.

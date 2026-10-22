@@ -1,3 +1,5 @@
+import { foodAiRequest, foodAiSuggestion } from "./ai-contract";
+import { evaluateFoodAiProposal, foodAiLeaseCurrent } from "./ai-evaluation";
 import {
   foodGroceryOutcomesReply,
   foodGroceryUndoReply,
@@ -270,6 +272,7 @@ async function renewFoodReadOwner(
   )
     throw new FoodOwnerChanged();
   requireViewOwner(owner, current);
+  return current;
 }
 
 /** Read options stay query/owner-bound; nothing is persisted until selection. */
@@ -414,4 +417,54 @@ export async function undoFoodGroceries(
   if (reply.requestId !== requestId)
     throw new Error("Grocery Undo result unconfirmed");
   return reply;
+}
+
+/** Explicit optional provider read. No write key or receipt is created. */
+export async function readFoodAiSuggestion(
+  query: import("./contract").FoodPreviewRequest,
+  preference: string,
+  context: FoodRecoveryContext,
+) {
+  if (!context.enabled || !context.canAskAi || !context.owner)
+    throw new Error("Food AI unavailable");
+  const input = foodAiRequest.parse({ sourceRequest: query, preference });
+  const result = await request(
+    "/api/assistant/food/suggest",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        [FOOD_OWNER_HEADER]: context.owner.scope,
+      },
+      body: JSON.stringify(input),
+    },
+    655360,
+  );
+  requireRecipePool(result);
+  if (result.kind === "reply" && [401, 403].includes(result.response.status))
+    throw new FoodOwnerChanged();
+  if (result.kind !== "reply" || !result.response.ok)
+    throw new Error("Food AI suggestion unavailable");
+  const suggestion = foodAiSuggestion.parse(result.body);
+  requireViewOwner(suggestion.original.owner, context);
+  requireViewOwner(suggestion.proposal.owner, context);
+  if (
+    canonicalRequestJson(suggestion.original.sourceRequest) !==
+      canonicalRequestJson(input.sourceRequest) ||
+    !foodAiLeaseCurrent(suggestion.original) ||
+    canonicalRequestJson(
+      evaluateFoodAiProposal(suggestion.original, suggestion.proposal),
+    ) !== canonicalRequestJson(suggestion.evaluation)
+  )
+    throw new Error("Food AI sources changed");
+  const latest = await renewFoodReadOwner(suggestion.original.owner, context);
+  if (
+    !latest.enabled ||
+    !latest.canAskAi ||
+    !latest.owner ||
+    !sameQueueOwner(latest.owner, context.owner) ||
+    !foodAiLeaseCurrent(suggestion.original)
+  )
+    throw new Error("Food AI unavailable");
+  return suggestion;
 }

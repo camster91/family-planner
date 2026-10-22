@@ -1,3 +1,5 @@
+import { foodAiSuggestion, type FoodAiSuggestion } from "./ai-contract";
+import { evaluateFoodAiProposal, foodAiLeaseCurrent } from "./ai-evaluation";
 /** Browser-safe partial editor state; validation occurs before source reads/sends. */
 import { z } from "zod";
 import { memberIdentityIdSchema as id } from "../member-subject-contract";
@@ -58,6 +60,7 @@ export const foodEditorDraft = z
     timeZone: z.string().max(100),
     priority: z.enum(["use-soon", "least-shopping", "quick"]),
     repeatRecipes: z.boolean(),
+    aiPreference: z.string().max(1000).default(""),
     prepDay: z.string().max(10),
     nextPrepDay: z.string().max(10),
     prepMaxMinutes: numeric,
@@ -129,6 +132,7 @@ export function newFoodDraft(
     prepTiming: emptyFoodTiming(),
     priority: "use-soon",
     repeatRecipes: false,
+    aiPreference: "",
     slots: [newFoodSlot(day)],
     recipeIds: [],
     ignoredCalendarEventIds: [],
@@ -299,4 +303,42 @@ function defaultDishLabel(title: string) {
     label += letter;
   }
   return `${label}…`;
+}
+
+/** Copies only issued recipe identities into a current raw draft. This is not a
+ * save: caller persists the draft and obtains a fresh canonical preview/review. */
+export function copyFoodAiChoices(
+  raw: FoodEditorDraft,
+  reply: FoodAiSuggestion,
+) {
+  const draft = foodEditorDraft.parse(raw),
+    suggestion = foodAiSuggestion.parse(reply);
+  if (
+    !foodAiLeaseCurrent(suggestion.original) ||
+    canonicalRequestJson(foodDraftQuery(draft)) !==
+      canonicalRequestJson(suggestion.original.sourceRequest) ||
+    canonicalRequestJson(
+      evaluateFoodAiProposal(suggestion.original, suggestion.proposal),
+    ) !== canonicalRequestJson(suggestion.evaluation)
+  )
+    throw new Error("Refresh AI choices");
+  const selected = new Map(
+    suggestion.proposal.plan.slots.map((row) => [
+      row.key,
+      row.choice!.recipeId,
+    ]),
+  );
+  const changed = new Set(
+    draft.slots
+      .filter((row) => row.recipeId !== selected.get(row.key))
+      .map((row) => row.key),
+  );
+  return foodEditorDraft.parse({
+    ...draft,
+    slots: draft.slots.map((row) => ({
+      ...row,
+      recipeId: selected.get(row.key),
+    })),
+    groceries: draft.groceries.filter((row) => !changed.has(row.key)),
+  });
 }

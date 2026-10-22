@@ -623,48 +623,69 @@ inbox limits remain. No checks/browser/API/DB/schema/provider/flag/push/merge/de
 or issue closure. Broader chat/provider/AI evaluation and remaining full-goal source
 still precede consolidated QA and authorized release.
 
-## Remaining source required before activation
+## Metered AI meal choices and explicit draft adoption — 2026-10-22
 
-1. Finish the compact human review of unresolved existing commitments and
-   explicit prepared-portion reuse/allocation through canonical bulk APIs. Specific
-   prepared-dish navigation, canonical prepared/completeness guards and durable
-   owned bulk action/editor recovery are now source-authored; broader inbox/weekly
-   integration and all acceptance remain. The
-   scoped read/virtual reservation/recorded portion reconciliation above is now
-   authored; its cases and all actual acceptance remain unrun.
-2. Finish owned timing controls, source-reference renewal and apply-time calendar
-   revalidation using the concrete source/interval implementation above. Recurring
-   source expansion remains held under canonical #124; no complete recurrence or
-   physical availability acceptance is claimed from the new read source.
-3. The Meals recipe/catalog/cook/list/ingredient/allocation/departure controls are
-   now source-authored, with acceptance unrun. Finish explicit prepared-portion
-   reuse. Extend its
-   owned draft/request behavior to weekly review/chat/inbox entry points, exposing
-   source, unknowns, portions and editable choices. Use existing owned-draft navigation,
-   owner/generation scoping and durable review inbox contracts. Keep ordinary
-   provider-free controls usable when AI is unavailable. Complete the appropriate
-   design/spec alignment before substantial new UI.
-4. Add the allowlisted provider projection and opaque exact record references;
-   validate only issued recipe/ingredient selections, never arbitrary IDs/URLs.
-   Renew owner/features/config and full source evidence after provider latency.
-   Prompts must not invent ingredients, amounts, nutrition, allergies or safety.
-5. Parent inbox snapshots and personal weekly planning/recovery navigation are
-   now source-authored, alongside canonical child grocery outcome/Undo controls.
-   Complete broader chat/provider integration and all unrun acceptance. The initial Meals save/recovery wiring is authored above.
-   Preserve the required legacy-writer version probes and bounded dependency
-   coverage authored below; run their migration/isolation acceptance in the final
-   QA phase before activation. Preserve source provenance,
-   grocery duplicate/Undo rules, explicit ingredient selections, atomic minimal
-   receipts and exact unknown-result recovery. No autonomous add, purchase,
-   overwrite, consumption or portion allocation. Apply must rebuild/compare all
-   relevant source identities/ranges in the effect transaction; this preview's
-   keyed revision alone cannot authorize a write or universal ABA claim.
-6. Add versioned semantic evaluation/scoring and privacy-safe accepted/dismissed/
-   success/refusal telemetry through existing AI usage controls. Then complete
-   consolidated unit/API/real-PostgreSQL/concurrency/role/compatibility/browser/
-   accessibility/release checks and fix failures before activation or deployment.
+An optional personal Meals AI path is now source-authored. It ranks at most four
+canonical recipe candidates per slot through opaque, owner/source/slot-bound
+references. The minimized provider packet contains recipe/ingredient names,
+recorded quantities and timing/calendar-state estimates, not canonical IDs,
+URLs, owner metadata, notes, instructions or event names. A shared opaque recipe
+identity supports repeat constraints. Output is strict reference selection only;
+invented/cross-slot references, missing slots, extra actions and unintended repeats
+refuse. Pinned recipes remain pinned. Incomplete/occupied/unresolved-commitment
+sources refuse before provider dispatch; unknown quantities/durations remain held
+estimates rather than invented facts.
 
-Pure planner, scoped source and disposable-DB cases are authored and **unrun**.
-No migration/provider/flag activation, live household data change, native/store
-acceptance or release is established by this foundation. #123/#144/#128 remain
-open; full thread goal remains active.
+The server requires existing quota/cost observation with no unmetered fallback,
+renews person/role/generation/features/provider configuration and original source
+identity after latency, then reconstructs the selected query in the same canonical
+read snapshot. The original one-minute lease is never refreshed. The new example
+`FAMILY_FOOD_AI_READY=0` also requires existing food/AI-usage gates; no real settings
+or provider activation changed. Usage uses the existing assistant accounting
+bucket; API outcome counts are not user acceptance or successful domain saves.
+
+The EN/ES sheet offers explicit optional provider disclosure and a durable local
+cooking preference. AI choices render separately, one at a time. Use these choices
+copies recipe IDs into the owned draft, clears groceries for changed recipes,
+persists editing, and obtains a new canonical preview. Exact save review and
+confirmation remain separate. Dismiss, failure, pause and expiry preserve the raw
+draft and provider-free controls. No meal/prep/grocery/stock write follows a reply.
+
+Versioned grounding/feasibility metrics validate issued choices, intent, owner,
+servings, pins, repeats and original lease. They do not rate nutrition, safety,
+preference satisfaction or overall app quality. Catalog/client/editor/service/UI
+cases are authored and **unrun**. No test/typecheck/lint/build/browser/API/DB/schema/
+provider/flag/push/merge/deploy or issue closure. Broader chat handoff, fixed-vocabulary
+accept/dismiss telemetry and cross-feature evaluation source remain before final
+consolidated QA and authorized release; the full goal remains active.
+
+## Remaining source and acceptance before activation
+
+1. Finish the compact human review of unresolved existing commitments, without
+   implying free-text commitments consume zero food. Exact prepared-dish navigation,
+   canonical allocation checks, owned bulk forms/recovery, parent inbox snapshots
+   and personal weekly links are source-authored above; their acceptance is unrun.
+2. Owned timing controls, concrete calendar reads, source-reference renewal and
+   apply-time checks are source-authored. Recurring source expansion stays held
+   under canonical #124; do not claim complete recurrence/physical availability.
+3. Meals catalog/cook/list/ingredient/allocation/departure controls and optional AI
+   draft adoption are source-authored. Finish broader assistant/chat handoff using
+   canonical owned navigation, never implicit save or private layout context.
+4. The minimized provider projection, opaque references, exact output validation,
+   post-latency canonical reconstruction and initial versioned evaluation are now
+   source-authored. Complete cross-feature semantic fixtures and privacy-safe
+   accepted/dismissed feedback. Existing usage HTTP outcomes/cost accounting do not
+   prove a user accepted a suggestion or a consequential write succeeded.
+5. Preserve legacy-writer version probes, bounded dependency coverage, canonical
+   grocery duplicate/Undo rules, explicit ingredient choices, minimal atomic
+   receipts and exact unknown recovery. Run migration/isolation/concurrency and
+   effect-transaction source renewal acceptance in final QA. No autonomous add,
+   purchase, overwrite, consumption or portion allocation is in scope.
+6. Finish the full thread's other remaining code/plans first, then run consolidated
+   unit/API/real-PostgreSQL/concurrency/role/compatibility/browser/accessibility and
+   release checks, fix failures, and perform the authorized merge/deployment.
+
+Pure planner, scoped source, AI selection and disposable-DB cases are authored and
+**unrun**. No migration/provider/flag activation, live household data change,
+native/store acceptance or release is established. #123/#144/#128 remain open;
+the full thread goal remains active.

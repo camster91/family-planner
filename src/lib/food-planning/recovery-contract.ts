@@ -16,6 +16,7 @@ export const foodRecoveryContext = z
     contract: z.literal(FOOD_RECOVERY),
     enabled: z.boolean(),
     canPrep: z.boolean().default(false),
+    canAskAi: z.boolean().default(false),
     owner: queueOwnerSchema
       .refine((owner) => owner.kind === "person")
       .nullable(),
