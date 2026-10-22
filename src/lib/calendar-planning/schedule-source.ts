@@ -40,7 +40,13 @@ export function scheduleEventToken(
   familyId: string,
   raw: ScheduleEventSource,
 ): string {
-  const value = source.safeParse(raw);
+  // Database readers also carry times and source metadata. Validate the exact
+  // version projection; those extra canonical fields are not token inputs.
+  const value = source.safeParse({
+    id: raw?.id,
+    generation: raw?.generation,
+    epoch: raw?.epoch,
+  });
   if (!value.success || !id.safeParse(familyId).success)
     throw new ScheduleReviewError("UNAVAILABLE");
   return createHash("sha256")

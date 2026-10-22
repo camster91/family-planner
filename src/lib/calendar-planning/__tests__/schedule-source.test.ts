@@ -43,6 +43,16 @@ it("binds household, insertion generation and material epoch, including away/bac
     scheduleEventToken("family-a", { ...source, epoch: 2147483647 }),
   ).toThrow();
 });
+it("accepts enriched canonical rows without binding unrelated content, while rejecting invalid versions", () => {
+  const row = { ...source, title: "Private title", start: new Date() };
+  expect(scheduleEventToken("family-a", row)).toBe(
+    scheduleEventToken("family-a", source),
+  );
+  expect(() =>
+    scheduleEventToken("family-a", { ...row, generation: "invalid" }),
+  ).toThrow();
+  expect(() => scheduleEventToken("family-a", { ...row, epoch: -1 })).toThrow();
+});
 it("binds owner/session/zone/range/coverage and sorted comparison sources without order dependence", () => {
   const token = scheduleSnapshotToken(scope);
   for (const changed of [

@@ -444,6 +444,7 @@ describe("profile-only chore contract", () => {
       },
       householdMember: { findFirst: jest.fn().mockResolvedValue(baseMember) },
       chore: { create: choreCreate },
+      activity: { create: jest.fn().mockResolvedValue({ id: "timeline-a" }) },
     };
     const db = {
       $transaction: async (callback: (value: typeof tx) => unknown) =>
@@ -545,26 +546,22 @@ describe("profile-only chore contract", () => {
     const tx = {
       $queryRaw: jest.fn().mockResolvedValue([]),
       user: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({
-            id: "parent-a",
-            family_id: "family-a",
-            role: "parent",
-            token_version: 0,
-          }),
+        findUnique: jest.fn().mockResolvedValue({
+          id: "parent-a",
+          family_id: "family-a",
+          role: "parent",
+          token_version: 0,
+        }),
       },
       householdMember: {
         findFirst: jest.fn().mockResolvedValue({ ...baseMember, revision: 5 }),
       },
       chore: { create: jest.fn() },
       idempotencyRecord: {
-        findFirst: jest
-          .fn()
-          .mockResolvedValue({
-            response_status: 200,
-            response_body: { choreId: "already-created" },
-          }),
+        findFirst: jest.fn().mockResolvedValue({
+          response_status: 200,
+          response_body: { choreId: "already-created" },
+        }),
         update: jest.fn(),
       },
     };
@@ -624,7 +621,11 @@ describe("profile-only chore contract", () => {
   it("uses the shared today-somewhere boundary for profile completion", async () => {
     const now = new Date("2026-10-11T00:30:00.000Z");
     const tx = {
-      $queryRaw: jest.fn().mockResolvedValue([]),
+      $queryRaw: jest.fn(async (query: TemplateStringsArray) =>
+        query.join("?").includes('FROM "Chore" c LEFT JOIN')
+          ? [{ id: "chore-a", own_config: null, series_config: null }]
+          : [],
+      ),
       chore: {
         findFirst: jest.fn().mockResolvedValue({
           id: "chore-a",
@@ -664,13 +665,25 @@ describe("profile-only chore contract", () => {
 
     expect(result).toBe("completed");
     expect(tx.chore.updateMany).toHaveBeenCalled();
+    expect(tx.deviceAuditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          subject_member_id: baseMember.id,
+          actor_user_id: null,
+        }),
+      }),
+    );
   });
 
   it("finds the matching completion audit when a newer audit belongs to another chore", async () => {
     const now = new Date("2026-10-11T12:00:00.000Z");
     const matchingAuditAt = new Date("2026-10-11T11:59:00.000Z");
     const tx = {
-      $queryRaw: jest.fn().mockResolvedValue([]),
+      $queryRaw: jest.fn(async (query: TemplateStringsArray) =>
+        query.join("?").includes('FROM "Chore" c LEFT JOIN')
+          ? [{ id: "chore-a", own_config: null, series_config: null }]
+          : [],
+      ),
       chore: {
         findFirst: jest.fn().mockResolvedValue({
           id: "chore-a",
@@ -716,6 +729,51 @@ describe("profile-only chore contract", () => {
     expect(result).toBe("reopened");
     expect(tx.chore.updateMany).toHaveBeenCalled();
   });
+
+  it.each(["complete", "undo"] as const)(
+    "refuses %s for an archived profile without writes",
+    async (action) => {
+      const tx = {
+        $queryRaw: jest.fn().mockResolvedValue([]),
+        chore: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: "chore-a",
+            assigned_to: null,
+            assigned_member_id: baseMember.id,
+            member_subject_erased: false,
+            status: "completed",
+          }),
+          updateMany: jest.fn(),
+        },
+        householdMember: {
+          findFirst: jest.fn().mockResolvedValue({
+            ...baseMember,
+            archived_at: new Date("2026-10-20T12:00:00Z"),
+          }),
+        },
+        deviceAuditEvent: { create: jest.fn() },
+      };
+      const db = {
+        $transaction: async (callback: (value: typeof tx) => unknown) =>
+          callback(tx),
+      };
+      const input = {
+        choreId: "chore-a",
+        familyId: "family-a",
+        memberId: baseMember.id,
+        deviceId: "device-a",
+        now: new Date("2026-10-22T12:00:00Z"),
+        windowMs: 120000,
+      };
+      const result =
+        action === "complete"
+          ? await completeProfileChoreInTx(db as never, input)
+          : await reopenProfileChoreInTx(db as never, input);
+      expect(result).toBe("profile_unavailable");
+      expect(tx.chore.updateMany).not.toHaveBeenCalled();
+      expect(tx.deviceAuditEvent.create).not.toHaveBeenCalled();
+    },
+  );
 
   it("keeps the database trigger aligned with profile role and age rules", () => {
     const migration = readFileSync(

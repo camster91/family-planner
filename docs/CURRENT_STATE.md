@@ -1,5 +1,16 @@
 # Current State
 
+## Calendar and archived profile QA repairs — 2026-10-22
+
+Latest complete run at f1f9ae13:37 failed /664 passed /82 skipped suites;
+102 failed /6858 passed /546 skipped tests. Subsequent repairs pass80 affected
+tests across11 suites and33 contract checks across4 suites. Calendar version tokens
+accept enriched canonical rows; archived profile history keeps its label while
+active-state action guards remain. Types/lint pass (44 warnings). No tests removed
+or newly skipped. Full rerun and DB/browser/recovery/final-build/hosted release
+gates remain open. Evidence:`docs/testing/WEB_QA_20261022.md`.
+
+
 ## Compact settings role checks aligned — 2026-10-22
 
 All8 settings role cases pass across the actual compact client tabs and a separate

@@ -106,7 +106,7 @@ it("bounds schedule fields before returning the shared-safe child preview", asyn
   expect(tx.event.findMany).toHaveBeenCalledWith(
     expect.objectContaining({
       where: expect.objectContaining({ family_id: actor.familyId }),
-      select: { title: true, start_time: true, end_time: true },
+      select: { id: true, title: true, start_time: true, end_time: true },
       take: 9,
     }),
   );

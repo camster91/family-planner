@@ -6,10 +6,10 @@ jest.mock('@/lib/feature-gate-server', () => ({ featureGate: jest.fn(async () =>
 
 jest.mock('@/lib/household-lock', () => {
   const actual = jest.requireActual('@/lib/household-lock')
-  return { ...actual, lockUser: jest.fn(actual.lockUser), lockHouseholdForJoin: jest.fn(actual.lockHouseholdForJoin) }
+  return { ...actual, lockUser: jest.fn(actual.lockUser), lockHousehold: jest.fn(actual.lockHousehold) }
 })
 
-import { lockUser, lockHouseholdForJoin } from '@/lib/household-lock'
+import { lockUser, lockHousehold } from '@/lib/household-lock'
 import { POST } from '../create/route'
 import { db, req, writesTo } from '@/__tests__/helpers/two-household'
 import { createListSchema } from '@/lib/validations'
@@ -55,16 +55,16 @@ it.each([false, true])('renews membership, role and session under locks (cover: 
   const response = await POST(req({ as: 'teenA', method: 'POST', body: { name: 'Teen list', type: 'custom', image_url } }))
   expect(response.status).toBe(200)
   const first = jest.mocked(lockUser).mock.invocationCallOrder[0]
-  expect(first).toBeLessThan(jest.mocked(lockHouseholdForJoin).mock.invocationCallOrder[0])
+  expect(first).toBeLessThan(jest.mocked(lockHousehold).mock.invocationCallOrder[0])
 })
 it.each([
   [false, 'revoked', 401], [true, 'revoked', 401],
-  [false, 'removed', 403], [true, 'removed', 403],
-  [false, 'child', 403], [true, 'child', 403],
+  [false, 'removed', 401], [true, 'removed', 401],
+  [false, 'child', 401], [true, 'child', 401],
 ] as const)('refuses stale create after waiting (cover %s, %s)', async (withCover, change, status) => {
   db.rows('upload').push({ id: 'owned', filename: 'abcdef0123456789.jpg', family_id: 'family-A' })
-  const real = jest.requireActual('@/lib/household-lock').lockHouseholdForJoin
-  jest.mocked(lockHouseholdForJoin).mockImplementationOnce(async (tx, familyId) => {
+  const real = jest.requireActual('@/lib/household-lock').lockHousehold
+  jest.mocked(lockHousehold).mockImplementationOnce(async (tx, familyId) => {
     const exists = await real(tx, familyId)
     const user = db.find('user', 'parent-a')!
     if (change === 'revoked') user.token_version += 1

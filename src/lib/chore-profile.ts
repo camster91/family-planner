@@ -152,7 +152,6 @@ export function readChoreSubject(
     !member ||
     member.id !== row.assigned_member_id ||
     member.family_id !== familyId ||
-    member.archived_at !== null ||
     member.erasure_user_id !== null ||
     member.legacy_mapping !== null ||
     member.account_link !== null ||

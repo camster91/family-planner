@@ -161,6 +161,7 @@ it("retains a partial chore editor but only freezes an explicitly reviewed canon
   });
   const task = {
     ...row,
+    clientId: "fixture_task",
     kind: "task" as const,
     title: draft.title,
     chore: { draft, reviewed: null },

@@ -9,8 +9,17 @@ import fs from 'fs'
 import path from 'path'
 import { messages } from '@/i18n'
 import { emergencyMessages } from '@/i18n/emergency'
+import { routineScheduleMessages } from '@/i18n/routine-schedule'
 
 const SRC = path.join(__dirname, '..', '..')
+// These components bind their bare t() to the typed routine translator.
+// Keep this explicit: importing the catalog must not exempt unrelated UI.
+const ROUTINE_SCOPED_FILES = new Set([
+  'IndependentRoutineEditor', 'IndependentRoutineManager',
+  'IndependentSavedRequestDetails', 'RoutineSavedRequestDetails',
+  'RoutineScheduleEditor', 'RoutineScheduleEntry',
+  'RoutineScheduleHandoff', 'RoutineScheduleManager',
+].map(name => `components/chores/${name}.tsx`))
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -70,19 +79,29 @@ describe('translation keys', () => {
   it('every literal t() key used in src exists as an English string', () => {
     const missing = [...usedKeys()]
       .filter(([key, files]) => files.some(file => {
-        // Only this route receives the scoped Emergency translator. Other
-        // files must still resolve against the global dictionary.
+        // Validate scoped keys only where that translator is explicitly bound.
+        // Other files still resolve against the global dictionary.
         const routeMessage = file === 'app/dashboard/emergency/page.tsx'
           ? lookup(emergencyMessages.en, key)
-          : undefined
+          : ROUTINE_SCOPED_FILES.has(file)
+            ? lookup(routineScheduleMessages.en, key)
+            : undefined
         return typeof routeMessage !== 'string' && typeof lookup(messages.en, key) !== 'string'
       }))
       .map(([key, files]) => `${key} (${[...new Set(files)].join(', ')})`)
     expect(missing).toEqual([])
   })
 
+  it('scoped routine files bind their t() to the routine translator', () => {
+    for (const file of ROUTINE_SCOPED_FILES) {
+      const text = fs.readFileSync(path.join(SRC, file), 'utf8')
+      expect(text).toMatch(/const t = useRoutineScheduleText\(\)/)
+      expect(text).not.toMatch(/(?:const|let|var|,)\s*\{[^{}]*\bt\b[^{}]*\}\s*=\s*useTranslation\(/)
+    }
+  })
+
   it('Spanish has the same keys as English', () => {
-    for (const catalog of [messages, emergencyMessages]) {
+    for (const catalog of [messages, emergencyMessages, routineScheduleMessages]) {
       const en = leafKeys(catalog.en).sort()
       const es = leafKeys(catalog.es).sort()
       expect(es.filter((k) => !en.includes(k))).toEqual([])

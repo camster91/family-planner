@@ -10,7 +10,7 @@ import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '@/components/ui/toast'
 
 const mockT = (key: string) => key
-jest.mock('@/i18n', () => ({ useTranslation: () => ({ t: mockT }) }))
+jest.mock('@/i18n', () => ({ useTranslation: () => ({ t: mockT, locale: 'en' }) }))
 jest.mock('@/components/ui/feature-gate', () => ({
   FeatureGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
