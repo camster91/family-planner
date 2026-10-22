@@ -677,7 +677,7 @@ after a failure). All return `429 RATE_LIMITED` with `Retry-After`.
 | `device-elev-fail:<deviceId>:<userId>` | 5 _failure-only_           | 15 min       | wrong PIN/password for one parent on one tablet                                                                              |
 | `device-elev-fail:<deviceId>`          | 10 _failure-only_          | 15 min       | any parent on one tablet                                                                                                     |
 | `device-elev-fail-acct:<userId>`       | 10 _failure-only_          | 1 h          | one parent across all tablets; on trip set `ParentElevationPin.locked_until = now + 1 h` and audit `device.elevation_locked` |
-| `login-fail:<email>`                   | existing 10 _failure-only_ | 15 min       | password-method elevation shares the login account key                                                                       |
+| `login-fail:<email>`                   | existing 50 _failure-only_ | 15 min       | password-method elevation shares the login account key                                                                       |
 | `device-revoke:<userId>`               | 30                         | 1 h          | revoke/rename per parent                                                                                                     |
 | `device-pin-set:<userId>`              | 5                          | 1 h          | PIN set/change (requires current password)                                                                                   |
 

@@ -25,13 +25,13 @@ import {
   startElevation,
 } from '@/lib/device-session'
 import { getRequestId } from '@/lib/request-id'
+import { LOGIN_ACCOUNT_FAILURE_LIMIT, LOGIN_FAILURE_WINDOW_MS, loginAccountKey } from '@/lib/login-lockout'
 
 const MIN = 60 * 1000
 // SHARED_DEVICE.md §11. All failure-only: checked before, counted on failure.
 const DEVICE_USER_LIMIT = 5
 const DEVICE_LIMIT = 10
 const ACCOUNT_LIMIT = 10
-const LOGIN_ACCOUNT_LIMIT = 10 // shared with POST /api/auth/login
 const LOCK_MS = 60 * MIN
 
 
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     })
     const target = user && user.family_id === familyId && user.role === 'parent' ? user : null
     const accountKey = target ? `device-elev-fail-acct:${target.id}` : null
-    const loginKey = target ? `login-fail:${target.email.toLowerCase()}` : null
+    const loginKey = target ? loginAccountKey(target.email) : null
 
     let secretHash: string | null = null
     if (target && method === 'pin') {
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     }
     if (target && method === 'password') {
       // Password fallback shares the login account lockout.
-      const loginCheck = await isRateLimited(loginKey!, LOGIN_ACCOUNT_LIMIT)
+      const loginCheck = await isRateLimited(loginKey!, LOGIN_ACCOUNT_FAILURE_LIMIT)
       if (!loginCheck.allowed) return rateLimited(loginCheck)
       secretHash = target.password ?? null
     }
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       await checkRateLimit(deviceKey, DEVICE_LIMIT, 15 * MIN)
       if (target) {
         const account = await checkRateLimit(accountKey!, ACCOUNT_LIMIT, 60 * MIN)
-        if (method === 'password') await checkRateLimit(loginKey!, LOGIN_ACCOUNT_LIMIT, 15 * MIN)
+        if (method === 'password') await checkRateLimit(loginKey!, LOGIN_ACCOUNT_FAILURE_LIMIT, LOGIN_FAILURE_WINDOW_MS)
         if (account.remaining === 0) {
           await prisma!.parentElevationPin.updateMany({
             where: { user_id: target.id },

@@ -71,7 +71,7 @@ npx playwright show-report                                   # HTML report (play
 `npm run test:e2e` does, in order:
 
 1. `webServer` runs `node e2e/support/serve.mjs`: `npm run build` (skipped with `E2E_SKIP_BUILD=1`), then `next start` on port 3100 with the E2E server clock shim.
-2. `e2e/global-setup.ts` checks `DATABASE_URL` with the fixture guard (`assertFixtureTargetAllowed`, so it refuses production-like targets and requires `FIXTURES_ALLOW=1`), runs `npm run fixtures:seed` at the anchor, and deletes `login:*` / `login-fail:*` rate-limit rows so repeated runs do not hit 429.
+2. `e2e/global-setup.ts` checks `DATABASE_URL` with the fixture guard (`assertFixtureTargetAllowed`, so it refuses production-like targets and requires `FIXTURES_ALLOW=1`), runs `npm run fixtures:seed` at the anchor, and deletes `login:*`, `login-fail:*` and `login-fail-ip:*` rate-limit rows so repeated runs do not hit 429.
 3. The `setup` project signs in; the viewport projects run with one worker (they share one database).
 
 ### Environment variables
