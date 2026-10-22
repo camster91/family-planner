@@ -749,6 +749,14 @@ export default function FoodPlanningSheet({
               timeZone={draft.timeZone}
               mode={draft.mode}
               busy={session.busy}
+              onOpenCommitment={(target) => {
+                if (!session.busy)
+                  void router.push(
+                    target.kind === "meal"
+                      ? `/dashboard/meals?start=${encodeURIComponent(target.date)}`
+                      : "/dashboard/meals?view=bulk",
+                  );
+              }}
               onReusePrepared={
                 session.context?.canPrep
                   ? (target) => {

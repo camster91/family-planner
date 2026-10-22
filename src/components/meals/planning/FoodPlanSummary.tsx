@@ -1,6 +1,5 @@
 "use client";
 import * as React from "react";
-import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "@/i18n";
 import { formatRecipeAmount } from "@/lib/recipe-scaling";
@@ -52,6 +51,31 @@ const labels = {
   FoodPlan["slots"][number]["holds"][number],
   [string, string]
 >;
+const commitmentReasons = {
+  "recipe-unknown": [
+    "This meal has no available saved recipe. Review or link its recipe in Meals.",
+    "Esta comida no tiene una receta guardada disponible. Revísala o vincúlala en Comidas.",
+  ],
+  "ingredients-unknown": [
+    "The linked recipe has no complete ingredient details.",
+    "La receta vinculada no tiene los detalles de ingredientes completos.",
+  ],
+  "quantity-unknown": [
+    "The portions, ingredient quantity, comparable units or recorded stock amount need checking.",
+    "Hay que comprobar las porciones, cantidades de ingredientes, unidades comparables o existencias registradas.",
+  ],
+  "prep-state-unknown": [
+    "This session has consumption recorded but is not marked prepared. Review its current prep and portion history.",
+    "Esta sesión tiene consumo registrado pero no está marcada como preparada. Revisa su estado e historial de porciones.",
+  ],
+  "overdue-prep": [
+    "This unprepared session is dated earlier than the planning window. Review its date and actual prep state.",
+    "Esta sesión sin preparar tiene una fecha anterior al período del plan. Revisa su fecha y estado real.",
+  ],
+} satisfies Record<
+  FoodPlan["commitments"]["entries"][number]["holds"][number],
+  [string, string]
+>;
 /** Person-only projection supplied by the caller. Does not fetch, save, consume
  * or persist source data; edited alternatives must go through a fresh preview. */
 export function FoodPlanSummary({
@@ -62,12 +86,17 @@ export function FoodPlanSummary({
   detailsForChoice,
   timeZone,
   onReusePrepared,
+  onOpenCommitment,
 }: {
   plan: FoodPlan;
   mode: "meals" | "prep";
   busy?: boolean;
   timeZone?: string;
   onReusePrepared?: (target: { sessionId: string; batchId: string }) => void;
+  onOpenCommitment?: (target: {
+    kind: "meal" | "prep-dish";
+    date: string;
+  }) => void;
   onChooseRecipe?: (slotKey: string, recipeId: string) => void;
   detailsForChoice?: (key: string) => React.ReactNode;
 }) {
@@ -350,6 +379,50 @@ export function FoodPlanSummary({
                       <> · {pick("Needs review", "Necesita revisión")}</>
                     )}
                   </p>
+                  {entry.holds.length > 0 && (
+                    <details className="mt-2">
+                      <summary className="min-h-11 cursor-pointer py-2">
+                        {pick(
+                          "Why this needs review",
+                          "Por qué necesita revisión",
+                        )}
+                      </summary>
+                      <ul className="list-disc space-y-1 pl-5 text-subhead">
+                        {entry.holds.map((hold) => (
+                          <li key={hold}>{pick(...commitmentReasons[hold])}</li>
+                        ))}
+                      </ul>
+                      <p className="text-footnote text-label-secondary mt-2">
+                        {pick(
+                          "Correct the recorded recipe, portions or prep state in the original feature, then refresh this plan. Unknown food needs are not treated as zero. Opening a feature does not resolve this hold or change stock.",
+                          "Corrige la receta, las porciones o el estado de preparación en la función original y actualiza este plan. Las necesidades desconocidas no se consideran cero. Abrir una función no resuelve este impedimento ni cambia existencias.",
+                        )}
+                      </p>
+                      {onOpenCommitment && (
+                        <button
+                          type="button"
+                          className="btn-secondary min-h-[44px] mt-2"
+                          disabled={busy}
+                          onClick={() =>
+                            onOpenCommitment({
+                              kind: entry.kind,
+                              date: entry.originalDate,
+                            })
+                          }
+                        >
+                          {entry.kind === "meal"
+                            ? pick(
+                                "Open Meals for this date",
+                                "Abrir comidas de esta fecha",
+                              )
+                            : pick(
+                                "Open bulk cooking",
+                                "Abrir cocina por lotes",
+                              )}
+                        </button>
+                      )}
+                    </details>
+                  )}
                 </li>
               ))}
             </PagedList>
@@ -415,12 +488,24 @@ export function FoodPlanSummary({
               </li>
             ))}
           </PagedList>
-          <Link
-            href="/dashboard/meals?view=bulk"
-            className="btn-secondary inline-flex min-h-[44px] items-center"
-          >
-            {pick("Manage prepared portions", "Gestionar porciones preparadas")}
-          </Link>
+          {onOpenCommitment && (
+            <button
+              type="button"
+              className="btn-secondary min-h-[44px]"
+              disabled={busy}
+              onClick={() =>
+                onOpenCommitment({
+                  kind: "prep-dish",
+                  date: plan.commitments.prepared[0].preparedOn,
+                })
+              }
+            >
+              {pick(
+                "Manage prepared portions",
+                "Gestionar porciones preparadas",
+              )}
+            </button>
+          )}
         </details>
       )}
     </section>

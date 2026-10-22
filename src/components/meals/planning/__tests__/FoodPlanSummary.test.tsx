@@ -68,3 +68,38 @@ it("keeps feasibility holds explicit and changing an alternative only emits a pr
   fireEvent.click(screen.getByRole("button", { name: "Another recipe" }));
   expect(choose).toHaveBeenCalledWith("dinner", "recipe-b");
 });
+it("explains unresolved source records and hands correction to canonical navigation without clearing holds", () => {
+  const plan = makePreview().plan,
+    open = jest.fn();
+  plan.commitments.complete = false;
+  plan.existingMealReservationsChecked = true;
+  plan.commitments.entries = [
+    {
+      id: "synthetic-existing-meal",
+      kind: "meal",
+      date: "2026-10-22",
+      originalDate: "2026-10-22",
+      label: "Synthetic free-text meal",
+      recipeId: null,
+      servings: null,
+      servingsBasis: "unknown",
+      ingredients: [],
+      holds: ["recipe-unknown"],
+    },
+  ];
+  render(<FoodPlanSummary plan={plan} mode="meals" onOpenCommitment={open} />);
+  fireEvent.click(screen.getByText(/Existing meal commitments/));
+  fireEvent.click(screen.getByText("Why this needs review"));
+  expect(
+    screen.getByText(/This meal has no available saved recipe/),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/Unknown food needs are not treated as zero/),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Open Meals for this date" }),
+  );
+  expect(open).toHaveBeenCalledWith({ kind: "meal", date: "2026-10-22" });
+  expect(plan.commitments.complete).toBe(false);
+  expect(plan.commitments.entries[0].holds).toEqual(["recipe-unknown"]);
+});

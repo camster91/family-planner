@@ -793,3 +793,12 @@ keep their shape. No new schema/provider/flag activation. Source/API/client/proo
 privacy and guarded real-PG race/rollback cases authored/unrun. Remaining food
 commitment review, cross-feature semantic evaluation and wider goal source precede
 consolidated QA/release. No runtime/QA/push/merge/deploy/closure claim.
+
+### 2026-10-22 — unresolved food commitment correction (#123/#144)
+
+Compact EN/ES fixed reasons and canonical date/bulk navigation now explain source
+holds without override or implied zero food. Guarded owned navigation also replaces
+the raw prepared-management link; AI read summaries cannot bypass the raw draft.
+No exact-record editor claim or mutation follows navigation. Mounted cases authored/
+unrun. Wider semantic evaluation and full-goal source audit precede final QA and
+authorized release. No runtime/schema/provider/flag/push/merge/deploy/closure.

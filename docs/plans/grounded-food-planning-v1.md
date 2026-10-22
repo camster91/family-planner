@@ -693,10 +693,25 @@ API/DB/schema/provider/flag/push/merge/deploy or issue closure. Remaining food
 commitment review, wider semantic evaluation and full-goal source reconciliation
 precede consolidated QA and authorized release. The full goal stays active.
 
+## Explain unresolved meal commitments — 2026-10-22
+
+The compact food review now explains missing recipes/ingredient details, uncertain
+portions/units/recorded stock, inconsistent prep history and overdue unprepared
+sessions in EN/ES. Correction buttons open canonical Meals at the recorded date
+or Bulk cooking through the owning sheet's draft-aware router. These are navigation
+intents, not exact-record edit claims, hold overrides, completed reviews, stock
+writes or assumptions that free-text needs are zero. The prepared-portions manage
+control also uses that guarded callback; read-only AI summaries have no raw link
+that bypasses the owned draft. Refresh must rebuild sources before save review.
+Mounted source coverage is authored/unrun. No QA/browser/API/DB/schema/flag/provider/
+push/merge/deploy or closure. Wider semantic evaluation and full-goal source audit
+remain before consolidated QA and authorized release.
+
 ## Remaining source and acceptance before activation
 
-1. Finish the compact human review of unresolved existing commitments, without
-   implying free-text commitments consume zero food. Exact prepared-dish navigation,
+1. Compact unresolved commitment reasons and guarded canonical correction
+   navigation are now source-authored; free-text needs never imply zero food.
+   Exact prepared-dish navigation,
    canonical allocation checks, owned bulk forms/recovery, parent inbox snapshots
    and personal weekly links are source-authored above; their acceptance is unrun.
 2. Owned timing controls, concrete calendar reads, source-reference renewal and

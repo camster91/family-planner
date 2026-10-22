@@ -1,5 +1,19 @@
 # Current State
 
+## Explain unresolved meal commitments — 2026-10-22
+
+The compact food review now explains missing recipes/ingredient details, uncertain
+portions/units/recorded stock, inconsistent prep history and overdue unprepared
+sessions in EN/ES. Correction buttons open canonical Meals at the recorded date
+or Bulk cooking through the owning sheet's draft-aware router. These are navigation
+intents, not exact-record edit claims, hold overrides, completed reviews, stock
+writes or assumptions that free-text needs are zero. The prepared-portions manage
+control also uses that guarded callback; read-only AI summaries have no raw link
+that bypasses the owned draft. Refresh must rebuild sources before save review.
+Mounted source coverage is authored/unrun. No QA/browser/API/DB/schema/flag/provider/
+push/merge/deploy or closure. Wider semantic evaluation and full-goal source audit
+remain before consolidated QA and authorized release.
+
 ## Assistant meal handoff and optional suggestion counts — 2026-10-22
 
 Chat now supports fixed canonical meal/prep planning and own saved-work recovery
