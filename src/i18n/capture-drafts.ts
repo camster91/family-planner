@@ -40,6 +40,7 @@ const en = {
     "Your typed phrase stays only in this screen. Leave it? Reviewed fields will be kept.",
   manualEvent: "Add event manually",
   manualGrocery: "Add groceries manually",
+  manualTask: "Add chore manually",
   previous: "Previous",
   next: "Next",
   editTitle: "Title",
@@ -56,15 +57,17 @@ const en = {
   work: "Work",
   other: "Other",
   unknownType: "Review event type",
-  task: "Task · parent review needed",
+  task: "Task",
   taskHint:
-    "A parent must review tasks in Chores. Keep this draft until then; tasks are never submitted as calendar events.",
-  chore: "Open chore form in another tab",
+    "A parent must choose the assignee and schedule. Reviewing keeps this task in the batch; nothing is created until you confirm all reviewed items.",
+  chore: "Review chore",
+  editChore: "Chore reviewed · edit",
+  reviewChore: "Use reviewed task",
   remove: "Remove from this review",
   groceryHint:
     "Grocery confirmations use your household grocery list. The suggested list name is kept with this review.",
   batchHint:
-    "Confirmation includes every remaining event and grocery item, including other pages. Review tasks in Chores first.",
+    "Confirmation includes every remaining event, reviewed chore and grocery item, including other pages.",
   confirm: "Add reviewed items",
   groceryConfirm: "Add to groceries",
   invalid:
@@ -133,6 +136,7 @@ const es: typeof en = {
     "La frase escrita solo está en esta pantalla. ¿Salir? Se conservarán los campos revisados.",
   manualEvent: "Añadir evento manualmente",
   manualGrocery: "Añadir compra manualmente",
+  manualTask: "Añadir tarea manualmente",
   previous: "Anterior",
   next: "Siguiente",
   editTitle: "Título",
@@ -149,15 +153,17 @@ const es: typeof en = {
   work: "Trabajo",
   other: "Otro",
   unknownType: "Revisa el tipo de evento",
-  task: "Tarea · necesita revisión de un adulto",
+  task: "Tarea",
   taskHint:
-    "Un adulto debe revisar las tareas en Tareas. Conserva este borrador; las tareas nunca se envían como eventos.",
-  chore: "Abrir tareas en otra pestaña",
+    "Un adulto debe elegir la persona y el horario. Revisar conserva la tarea en el lote; no se crea hasta confirmar todos los elementos.",
+  chore: "Revisar tarea",
+  editChore: "Tarea revisada · editar",
+  reviewChore: "Usar tarea revisada",
   remove: "Quitar de esta revisión",
   groceryHint:
     "Las compras se añaden a la lista de compra del hogar. El nombre sugerido se conserva en esta revisión.",
   batchHint:
-    "La confirmación incluye todos los eventos y compras restantes, incluso otras páginas. Revisa primero las tareas en Tareas.",
+    "La confirmación incluye todos los eventos, tareas revisadas y compras restantes, incluso otras páginas.",
   confirm: "Añadir lo revisado",
   groceryConfirm: "Añadir a la compra",
   invalid:

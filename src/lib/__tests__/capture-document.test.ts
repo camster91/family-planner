@@ -6,6 +6,7 @@ import {
 } from "../capture-document";
 import { reviewDocumentPayload } from "../review-document-contract";
 import type { CaptureEditableDocument } from "../capture-document";
+import { captureChoreDraft } from "../capture-chore-review";
 const row = {
   clientId: "fixture_event",
   kind: "event" as const,
@@ -138,4 +139,61 @@ it("binds a frozen batch to every reviewed row's domain and count", () => {
       },
     }).success,
   ).toBe(false);
+});
+
+it("retains a partial chore editor but only freezes an explicitly reviewed canonical task", () => {
+  const draft = captureChoreDraft.parse({
+    title: "Fixture task",
+    description: "Parent instructions",
+    points: "1.",
+    assignment: { kind: "account", id: "" },
+    dueDate: "2099-",
+    weeklyStart: "",
+    frequency: "weekly",
+    difficulty: "medium",
+    weeklyDays: [1, 4],
+    photoUrl: null,
+    icon: null,
+    routine: "Morning",
+    routineOrder: "2.",
+    takeTurns: false,
+    rotation: [],
+  });
+  const task = {
+    ...row,
+    kind: "task" as const,
+    title: draft.title,
+    chore: { draft, reviewed: null },
+  };
+  expect(JSON.parse(JSON.stringify(task)).chore.draft).toEqual(draft);
+  expect(() =>
+    captureRequestDrafts({ domain: "capture", note: "", rows: [task] }),
+  ).toThrow("CAPTURE_TASK_REVIEW_REQUIRED");
+  const reviewed = {
+    action: "chore.create" as const,
+    body: JSON.stringify({
+      title: draft.title,
+      points: 10,
+      assigned_to: "fixture-child-account",
+      due_date: "2099-10-05",
+      frequency: "weekly",
+      weekly_days: [1, 4],
+    }),
+  };
+  const batch: CaptureEditableDocument = {
+    domain: "capture",
+    note: "",
+    rows: [row, { ...task, chore: { draft, reviewed } }],
+  };
+  expect(captureRequestDrafts(batch).map((item) => item.action)).toEqual([
+    "event.create",
+    "chore.create",
+  ]);
+  expect(captureRequestDrafts(batch)[1].body).toBe(reviewed.body);
+  expect(() =>
+    captureRequestDrafts({
+      ...batch,
+      rows: [{ ...batch.rows[1], title: "Changed after review" }],
+    }),
+  ).toThrow("CAPTURE_TASK_REVIEW_REQUIRED");
 });

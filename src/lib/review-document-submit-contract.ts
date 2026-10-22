@@ -6,7 +6,11 @@ export const REVIEW_SUBMIT_HEADERS = {
   expires: "X-Review-Document-Expires",
 } as const;
 export type ReviewSubmitAction =
-  "recipe.create" | "event.create" | "capture.grocery.add";
+  | "recipe.create"
+  | "event.create"
+  | "capture.grocery.add"
+  | "chore.create"
+  | "chore.profile.create";
 export function reviewSubmitDomain(action: ReviewSubmitAction) {
   return action === "recipe.create"
     ? ("recipe" as const)

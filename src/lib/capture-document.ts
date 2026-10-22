@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createEventSchema } from "@/lib/validations";
 import { captureGrocerySchema } from "@/lib/capture-grocery-contract";
 import { parseCalendarInstant } from "@/lib/calendar-planning/range";
+import { parseReviewedChore } from "@/lib/capture-chore-review";
 import {
   captureEditableDocument,
   type ReviewDocumentPayload,
@@ -22,7 +23,11 @@ export type CaptureFormText = CaptureTextReview & {
 };
 export type CaptureFormEvent = CaptureEventReview & { clientId: string };
 export type CaptureRequestDraft = {
-  action: "event.create" | "capture.grocery.add";
+  action:
+    | "event.create"
+    | "capture.grocery.add"
+    | "chore.create"
+    | "chore.profile.create";
   body: string;
 };
 
@@ -89,7 +94,8 @@ export function captureDocumentUnknowns(
   for (const row of document.rows) {
     if (!row.title.trim()) values.add("title");
     if (row.kind === "event" && !row.startTime) values.add("event-start");
-    if (row.kind === "task") values.add("task-parent-review");
+    if (row.kind === "task" && !row.chore?.reviewed)
+      values.add("task-parent-review");
     if (row.kind === "listitem" && row.listName)
       values.add("suggested-list-destination");
     if (row.kind === "listitem" && !row.quantity.trim()) values.add("quantity");
@@ -102,7 +108,17 @@ export function captureRequestDrafts(
   const parsed = captureEditableDocument.parse(document);
   if (!parsed.rows.length) throw new Error("CAPTURE_EMPTY_REVIEW");
   return parsed.rows.map((row): CaptureRequestDraft => {
-    if (row.kind === "task") throw new Error("CAPTURE_TASK_REVIEW_REQUIRED");
+    if (row.kind === "task") {
+      const reviewed = row.chore?.reviewed;
+      if (!reviewed) throw new Error("CAPTURE_TASK_REVIEW_REQUIRED");
+      const body = parseReviewedChore(
+        reviewed.action,
+        JSON.parse(reviewed.body),
+      );
+      if (body.title !== row.title.trim())
+        throw new Error("CAPTURE_TASK_REVIEW_REQUIRED");
+      return reviewed;
+    }
     if (row.kind === "listitem") {
       if (!/^[0-9]+$/.test(row.quantity.trim()))
         throw new Error("CAPTURE_INVALID_QUANTITY");

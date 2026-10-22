@@ -16,6 +16,9 @@ export function submitReviewDocumentRequest(
   expiresAt: number,
 ) {
   if (
+    ((request.action === "chore.create" ||
+      request.action === "chore.profile.create") &&
+      context.role !== "parent") ||
     !context.enabled ||
     !context.owner ||
     context.domain !== reviewSubmitDomain(request.action)

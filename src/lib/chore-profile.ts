@@ -1,12 +1,8 @@
 import type { RoutineOccurrencePolicy } from "@/lib/routine-occurrence-policy";
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { z } from "zod";
-import { updateChoreSchema } from "@/lib/validations";
 import type { EffectResult } from "@/lib/idempotency";
-import { normalizedWeekdays } from "@/lib/chore-weekdays";
 import {
   isProfileAgeAllowed,
-  memberIdentityIdSchema,
   profileRoleSchema,
 } from "@/lib/member-subject-contract";
 import { lockHousehold, lockUser } from "@/lib/household-lock";
@@ -28,48 +24,11 @@ export {
 export const PROFILE_CHORE_UNSUPPORTED_CODE =
   "MEMBER_PROTOCOL_UNAVAILABLE" as const;
 
-export const profileChoreCreateSchema = z
-  .object({
-    protocol: z.literal(2),
-    selection: z.object({ memberId: memberIdentityIdSchema }).strict(),
-    title: z.string().trim().min(1).max(200),
-    description: z.string().max(1000).trim().nullable().optional(),
-    points: z.number().int().min(0).max(1000).default(10),
-    due_date: z
-      .string()
-      .refine((value) => !Number.isNaN(Date.parse(value)), "Invalid date"),
-    difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
-    frequency: z.enum(["once", "daily", "weekly", "monthly"]).default("once"),
-    weekly_days: z.array(z.number().int().min(0).max(6)).max(7).default([]),
-    photo_url: z.string().max(500).nullable().optional(),
-    icon: updateChoreSchema.innerType().shape.icon,
-    routine: updateChoreSchema.innerType().shape.routine,
-    routine_order: updateChoreSchema.innerType().shape.routine_order,
-  })
-  .strict()
-  .superRefine((value, context) => {
-    const days = [...new Set(value.weekly_days)].sort((a, b) => a - b);
-    if (value.frequency === "weekly" && days.length === 0) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["weekly_days"],
-        message: "Select at least one weekday for a weekly profile chore.",
-      });
-    }
-    if (value.frequency !== "weekly" && days.length > 0) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["weekly_days"],
-        message: "Weekdays are only valid for weekly profile chores.",
-      });
-    }
-  })
-  .transform((value) => ({
-    ...value,
-    weekly_days: normalizedWeekdays(value.weekly_days),
-  }));
-
-export type ProfileChoreCreateInput = z.infer<typeof profileChoreCreateSchema>;
+import type { ProfileChoreCreateInput } from "@/lib/profile-chore-create-contract";
+export {
+  profileChoreCreateSchema,
+  type ProfileChoreCreateInput,
+} from "@/lib/profile-chore-create-contract";
 
 export type ProfileChoreErrorCode =
   | "PROFILE_CHORE_UNSUPPORTED"
@@ -412,12 +371,13 @@ function profileChoreResponse(chore: ProfileChoreDTO): ProfileChoreDTO {
  */
 export async function createProfileOnlyChoreInTx(
   tx: ProfileCreateTx,
-  actor: { id: string; familyId: string },
+  actor: { id: string; familyId: string; tokenVersion?: number },
   input: ProfileChoreCreateInput,
   dueDate: Date,
   photoUrl: string | null,
   recordId: string | null,
   now = new Date(),
+  options: { compactReceipt?: boolean } = {},
 ): Promise<EffectResult> {
   // Refuse a recurring profile request before touching the idempotency receipt
   // or creating its template. A rollout can therefore turn this opt-in off
@@ -437,12 +397,14 @@ export async function createProfileOnlyChoreInTx(
 
   const currentActor = await tx.user.findUnique({
     where: { id: actor.id },
-    select: { id: true, family_id: true, role: true },
+    select: { id: true, family_id: true, role: true, token_version: true },
   });
   if (
     !currentActor ||
     currentActor.family_id !== actor.familyId ||
-    currentActor.role !== "parent"
+    currentActor.role !== "parent" ||
+    (actor.tokenVersion !== undefined &&
+      currentActor.token_version !== actor.tokenVersion)
   ) {
     throw new ProfileChoreError("PROFILE_TARGET_UNAVAILABLE");
   }
@@ -454,6 +416,8 @@ export async function createProfileOnlyChoreInTx(
     const receipt = await tx.idempotencyRecord.findFirst({
       where: {
         id: recordId,
+        scope: `user:${actor.id}`,
+        action: "chore.profile.create",
         family_id: actor.familyId,
         user_id: actor.id,
       },
@@ -523,7 +487,7 @@ export async function createProfileOnlyChoreInTx(
     subject,
     created_at: now,
   });
-  const body = { chore: dto };
+  const body = options.compactReceipt ? { choreId: chore.id } : { chore: dto };
   if (recordId) {
     await tx.idempotencyRecord.update({
       where: { id: recordId },
@@ -540,12 +504,13 @@ export async function createProfileOnlyChoreInTx(
 
 export async function createProfileOnlyChoreEffect(
   db: ProfileCreateDb,
-  actor: { id: string; familyId: string },
+  actor: { id: string; familyId: string; tokenVersion?: number },
   input: ProfileChoreCreateInput,
   dueDate: Date,
   photoUrl: string | null,
   recordId: string | null,
   now = new Date(),
+  options: { compactReceipt?: boolean } = {},
 ): Promise<EffectResult> {
   return db.$transaction((tx) =>
     createProfileOnlyChoreInTx(
@@ -556,6 +521,7 @@ export async function createProfileOnlyChoreEffect(
       photoUrl,
       recordId,
       now,
+      options,
     ),
   );
 }
@@ -563,7 +529,7 @@ export async function createProfileOnlyChoreEffect(
 /** Legacy direct helper used by non-keyed callers and existing server code. */
 export async function createProfileOnlyChore(
   db: ProfileCreateDb,
-  actor: { id: string; familyId: string },
+  actor: { id: string; familyId: string; tokenVersion?: number },
   input: ProfileChoreCreateInput,
   dueDate: Date,
   photoUrl: string | null,

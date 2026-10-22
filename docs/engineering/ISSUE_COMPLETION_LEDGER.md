@@ -534,3 +534,14 @@ release navigation ownership; current person/family/role and source epochs renew
 Helper, partial-batch storage and owned UI cases are authored/unrun; no activation,
 QA or release claim. Integrated chore handoff, full exits/read cancellation and
 remaining role/routine/timeline/AI scope are still open. See the dated inbox plan.
+
+
+### #123 / #499 captured chore review — 2026-10-22
+
+Canonical chore form review is now inside owned capture, with explicit parent
+assignment/schedule, full partial state and whole-batch exact submission. Account
+chore/series creation and pointer receipts commit atomically; state-only canonical
+receipt reads handle account/profile recovery without cached private contents.
+Legacy no-key and profile-gated callers retain their paths. Source/mounted/API/
+disposable-DB cases are authored and unrun. No QA/activation/merge/deploy/closure
+claim. Navigation/cancellation and wider role/routine/timeline/AI scope remain open.

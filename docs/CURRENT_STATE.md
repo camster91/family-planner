@@ -1,5 +1,37 @@
 # Current State
 
+## Captured chore review and atomic create receipts — 2026-10-22
+
+Owned capture now opens the existing canonical chore form in a nested review
+sheet, rather than handing a task to a blank page in another tab. Parent review
+starts without an inferred assignee; editable assignment kind/ID, schedule,
+weekdays, rotation, instructions, points, routine fields and uploaded-photo path
+stay with the original capture document. Partial date/number strings survive.
+Review-only form submission creates no chore or request key; it returns the
+reviewed canonical body to the batch. Any later task edit clears that approval.
+Parent-only manual chores are also available without a provider. Confirmation
+freezes all event/chore/grocery rows together; task bodies cannot become events.
+
+The existing account chore create now supports optional idempotency keys, with
+chore/series and compact pointer receipt committed in the same transaction.
+Overlapping takeovers re-read completion under the receipt lock; post-create
+metrics/notifications run only for the effect that actually created the chore.
+Unkeyed legacy callers retain deliberate distinct creates and fresh chore DTOs.
+Bound review requests use the canonical route, original body/key and parent/
+household/session checks; profile assignment retains protocol-2 and rollout gates.
+A new read-only chore receipt endpoint returns fixed state/current-presence only,
+never a cached title, assignee, points or routine. It renews current parent/session
+and household under membership locks and treats erased/removed chores as removed.
+
+All of this is authored source, not verified runtime behavior. Added cases cover
+review-only UI, partial fields, task domain binding, receipt privacy/conflicts,
+lost replies, overlapping effects, rollback and authority renewal; none were run.
+Only source inspection, edits and selected-file formatting occurred. No QA,
+typecheck/lint/build/browser/API/SQL/DB/native/CI, activation, push/merge/deploy or
+issue closure. Remaining navigation/read cancellation, role/routine/timeline and
+AI grounding/evaluation/usage work stays open. Full goal remains active; integrated
+QA follows all remaining source completion.
+
 ## Owned capture review/batch recovery source — 2026-10-22
 
 CaptureBox now selects the existing legacy flow before adoption and the owned

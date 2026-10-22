@@ -856,3 +856,30 @@ fresh-write flags remain off. Ordinary chore JSON/page projections strip private
 metadata and legacy root writes hold under lock. Recurrence holds rather than
 ignores non-null metadata. Adapter/anchor actions/recovery/routes/UI and QA remain
 open; no public or offline capability is added. See routine-schedule-v1 plan.
+
+
+### Captured chore create recovery (2026-10-22, source; unverified)
+
+`POST /api/chores/create` additionally accepts an optional `Idempotency-Key` for
+account assignment (`chore.create`). Existing unkeyed requests remain distinct
+creates; ordinary keyed/unkeyed clients receive a fresh authorized `{ chore }`
+projection. The canonical chore/series and minimal `{ choreId }` receipt commit
+in one transaction under actor/assignee/household then receipt locks. Takeovers
+re-read completion, so a committed effect is never repeated. Bound owned-review
+requests receive only the pointer and preserve their original wire body/key.
+Profile requests retain their existing required-key `chore.profile.create`
+protocol-2/gated path; bound requests opt into compact pointers. No schema change.
+
+`GET /api/chores/create/receipt` requires a current parent person session plus
+`Idempotency-Key`, `X-Chore-Create-Action` (`chore.create` or
+`chore.profile.create`) and a 64-character lower-case hex `X-Chore-Request-Hash`
+computed from canonical parsed input. The endpoint renews token generation,
+parent role and household under membership locks before reading the same user
+scope/family/action/hash. It is private/no-store and read-only. Responses contain
+only `{ state: absent|pending|expired }` or
+`{ state: committed, current: present|removed|unknown }`; erased subjects count as
+removed, unrecognized/non-success receipts as unknown. Conflicting action/hash
+returns409, invalid headers400, unauthorized/revoked401, wrong role/household403;
+profile capability withdrawal holds profile receipt access409. No title, assignee,
+points, routine, body or original receipt is returned. No background retry/pruning.
+Runtime/API/isolation acceptance remains pending consolidated QA.

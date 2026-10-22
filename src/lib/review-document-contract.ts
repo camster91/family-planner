@@ -6,6 +6,10 @@ import { queueOwnerSchema } from "@/lib/queue-owner-contract";
 import { createRecipeSchema } from "@/lib/recipe-input-contract";
 import { createEventSchema } from "@/lib/validations";
 import { captureGrocerySchema } from "@/lib/capture-grocery-contract";
+import {
+  captureChoreReview,
+  parseReviewedChore,
+} from "@/lib/capture-chore-review";
 
 export const REVIEW_DOCUMENT_CONTRACT = "herewoven.review-document.v1";
 export const REVIEW_DOCUMENT_MAX_BYTES = 3 * 1024 * 1024;
@@ -38,6 +42,7 @@ const partialCaptureRow = z
     eventType: z.string().max(80),
     listName: z.string().max(200),
     quantity: z.string().max(80),
+    chore: captureChoreReview.optional(),
   })
   .strict();
 export const captureEditableDocument = z
@@ -90,13 +95,31 @@ export const reviewEditableDocument = z.discriminatedUnion("domain", [
 const exactRequest = z
   .object({
     key,
-    action: z.enum(["event.create", "capture.grocery.add", "recipe.create"]),
+    action: z.enum([
+      "event.create",
+      "capture.grocery.add",
+      "recipe.create",
+      "chore.create",
+      "chore.profile.create",
+    ]),
     body: z.string().min(1).max(REVIEW_DOCUMENT_BODY_BYTES),
   })
   .strict()
   .superRefine((request, ctx) => {
     try {
       const value: unknown = JSON.parse(request.body);
+      if (
+        request.action === "chore.create" ||
+        request.action === "chore.profile.create"
+      ) {
+        parseReviewedChore(request.action, value);
+        if (
+          new TextEncoder().encode(request.body).byteLength >
+          REVIEW_DOCUMENT_BODY_BYTES
+        )
+          throw new Error("invalid");
+        return;
+      }
       const schema =
         request.action === "event.create"
           ? createEventSchema.strict()
@@ -160,8 +183,14 @@ export const reviewDocumentPayload = z
             document.draft.rows.every((row, index) =>
               row.kind === "event"
                 ? document.requests[index].action === "event.create"
-                : row.kind === "listitem" &&
-                  document.requests[index].action === "capture.grocery.add",
+                : row.kind === "listitem"
+                  ? document.requests[index].action === "capture.grocery.add"
+                  : Boolean(
+                      row.chore?.reviewed &&
+                      document.requests[index].action ===
+                        row.chore.reviewed.action &&
+                      document.requests[index].body === row.chore.reviewed.body,
+                    ),
             ));
     }
     if (!valid)

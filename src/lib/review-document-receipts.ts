@@ -3,7 +3,8 @@ import { z } from "zod";
 import { hashBrowserIdempotentRequest } from "@/lib/idempotency-request-json";
 import { createRecipeSchema } from "@/lib/recipe-input-contract";
 import { captureGrocerySchema } from "@/lib/capture-grocery-contract";
-import { createEventSchema } from "@/lib/validations";
+import { createEventSchema, createChoreSchema } from "@/lib/validations";
+import { profileChoreCreateSchema } from "@/lib/profile-chore-create-contract";
 import { requestOwnedJson } from "@/lib/owned-request-http";
 import { OwnedRequestRecoveryError } from "@/lib/owned-request-journal";
 import type {
@@ -44,19 +45,35 @@ export async function inspectReviewDocumentReceipt(
       ? createRecipeSchema.parse(body)
       : request.action === "event.create"
         ? createEventSchema.parse(body)
-        : captureGrocerySchema.parse(body);
+        : request.action === "chore.create"
+          ? createChoreSchema.parse(body)
+          : request.action === "chore.profile.create"
+            ? profileChoreCreateSchema.parse(body)
+            : captureGrocerySchema.parse(body);
   const hash = await hashBrowserIdempotentRequest(request.action, parsed);
   if (!/^[a-f0-9]{64}$/.test(hash))
     throw new OwnedRequestRecoveryError("UNAVAILABLE");
   const recipe = request.action === "recipe.create";
+  const chore =
+    request.action === "chore.create" ||
+    request.action === "chore.profile.create";
+  if (chore && context.role !== "parent")
+    throw new OwnedRequestRecoveryError("OWNER_CHANGED");
   const headers = new Headers({ "Idempotency-Key": request.key });
   if (recipe) headers.set("X-Recipe-Request-Hash", hash);
-  else {
+  else if (chore) {
+    headers.set("X-Chore-Create-Action", request.action);
+    headers.set("X-Chore-Request-Hash", hash);
+  } else {
     headers.set("X-Capture-Action", request.action);
     headers.set("X-Capture-Request-Hash", hash);
   }
   const result = await requestOwnedJson(
-    recipe ? "/api/recipes/receipt" : "/api/capture/receipt",
+    recipe
+      ? "/api/recipes/receipt"
+      : chore
+        ? "/api/chores/create/receipt"
+        : "/api/capture/receipt",
     { headers },
     8192,
   );

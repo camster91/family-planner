@@ -1,3 +1,4 @@
+import { POST as createChore } from "@/app/api/chores/create/route";
 import { NextResponse, type NextRequest } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { guardReviewDocumentSubmission } from "@/lib/review-document-submit-server";
@@ -25,7 +26,9 @@ export async function POST(request: NextRequest) {
     if (
       action !== "recipe.create" &&
       action !== "event.create" &&
-      action !== "capture.grocery.add"
+      action !== "capture.grocery.add" &&
+      action !== "chore.create" &&
+      action !== "chore.profile.create"
     )
       return NextResponse.json(
         { error: { code: "INVALID_REVIEW_SUBMISSION" } },
@@ -41,11 +44,14 @@ export async function POST(request: NextRequest) {
       true,
     );
     if (refusal) return refusal;
-    const result = await (action === "recipe.create"
-      ? createRecipe(request)
-      : action === "event.create"
-        ? createEvent(request)
-        : addGrocery(request));
+    const result = await (action === "chore.create" ||
+    action === "chore.profile.create"
+      ? createChore(request)
+      : action === "recipe.create"
+        ? createRecipe(request)
+        : action === "event.create"
+          ? createEvent(request)
+          : addGrocery(request));
     result.headers.set("Cache-Control", "private, no-store");
     return result;
   } catch (error) {

@@ -33,6 +33,22 @@ const auth = {
     tv: 0,
   } as TokenPayload,
 };
+it("refuses account/profile chore submission by a teen before deriving an owner", () => {
+  jest.mocked(reviewDocumentOwner).mockClear();
+  for (const action of ["chore.create", "chore.profile.create"] as const) {
+    const result = guardReviewDocumentSubmission(
+      request({ [H.action]: action }),
+      {
+        ...auth,
+        user: { ...auth.user, role: "teen" },
+      },
+      action,
+      true,
+    );
+    expect(result?.status).toBe(403);
+  }
+  expect(reviewDocumentOwner).not.toHaveBeenCalled();
+});
 function request(extra: Record<string, string> = {}) {
   return {
     headers: new Headers({

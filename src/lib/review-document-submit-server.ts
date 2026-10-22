@@ -46,6 +46,11 @@ export function guardReviewDocumentSubmission(
     !isValidIdempotencyKey(request.headers.get("Idempotency-Key") ?? "")
   )
     return refuse(400, "INVALID_REVIEW_SUBMISSION");
+  if (
+    (action === "chore.create" || action === "chore.profile.create") &&
+    auth.user.role !== "parent"
+  )
+    return refuse(403, "REVIEW_PARENT_REQUIRED");
   const owner = reviewDocumentOwner(
     request,
     {

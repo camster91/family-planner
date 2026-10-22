@@ -93,6 +93,7 @@ export function CaptureDraftBoundary(
   const [draft, setDraftState] = React.useState(empty),
     [dirty, setDirty] = React.useState(false),
     [busy, setBusy] = React.useState(false);
+  const [choreBusy, setChoreBusy] = React.useState(false);
   const [extracting, setExtracting] = React.useState(false),
     [hasInput, setHasInput] = React.useState(false),
     [notice, setNotice] = React.useState<string | null>(null);
@@ -427,17 +428,19 @@ export function CaptureDraftBoundary(
       phase !== "legacy" &&
       (dirty ||
         extracting ||
+        choreBusy ||
         hasInput ||
         (props.presentation === "sheet" && props.open !== false)),
     {
-      warnOnUnload: dirty || extracting || activity.current.hasInput,
+      warnOnUnload:
+        dirty || extracting || choreBusy || activity.current.hasInput,
       onBack: () => {
         void close();
       },
     },
   );
   async function close(href?: string) {
-    if (activity.current.busy) return;
+    if (activity.current.busy || choreBusy) return;
     if (flight.current) await idle.current;
     if (!authorized.current || !visible) return;
     if (phaseRef.current === "choose" && dirty) {
@@ -464,7 +467,7 @@ export function CaptureDraftBoundary(
   useRoutineLinkNavigation(
     props.open !== false &&
       phase !== "legacy" &&
-      (dirty || extracting || hasInput),
+      (dirty || extracting || choreBusy || hasInput),
     async (href) => {
       await close(href);
     },
@@ -592,12 +595,20 @@ export function CaptureDraftBoundary(
       !authorized.current ||
       phaseRef.current !== "editing" ||
       activity.current.busy ||
+      choreBusy ||
       !context.current?.enabled
     )
       return;
     if (activity.current.hasInput && !window.confirm(text.unreadInput)) return;
     const snapshot = latest.current,
       source = provenance.current;
+    if (
+      snapshot.rows.some((row) => row.kind === "task") &&
+      context.current?.role !== "parent"
+    ) {
+      setNotice(text.taskHint);
+      return;
+    }
     let requests: ReturnType<typeof captureRequestDrafts>;
     try {
       requests = captureRequestDrafts(snapshot);
@@ -648,7 +659,7 @@ export function CaptureDraftBoundary(
       }
     });
   }
-  function add(kind: "event" | "listitem") {
+  function add(kind: "event" | "listitem" | "task") {
     if (latest.current.rows.length >= 20) return;
     const clientId = newIdempotencyKey();
     change({
@@ -692,6 +703,7 @@ export function CaptureDraftBoundary(
   const disabled =
     (busy && !savingOnly.current) ||
     extracting ||
+    choreBusy ||
     !visible ||
     !context.current?.enabled ||
     Boolean(store.current?.hasUncertainStorage());
@@ -776,6 +788,16 @@ export function CaptureDraftBoundary(
               >
                 {text.manualGrocery}
               </button>
+              {context.current?.role === "parent" && (
+                <button
+                  type="button"
+                  className="btn-plain min-h-11"
+                  disabled={disabled || draft.rows.length >= 20}
+                  onClick={() => add("task")}
+                >
+                  {text.manualTask}
+                </button>
+              )}
             </div>
             <CaptureDraftFields
               value={draft}
@@ -783,6 +805,7 @@ export function CaptureDraftBoundary(
               disabled={disabled}
               parent={context.current?.role === "parent"}
               focusClientId={focusRow}
+              onChoreBusyChange={setChoreBusy}
             />
             {(draft.rows.length > 0 || entry.current) && (
               <>
@@ -796,7 +819,7 @@ export function CaptureDraftBoundary(
                   <button
                     type="button"
                     className="btn-filled min-h-11"
-                    disabled={disabled || !draft.rows.length}
+                    disabled={disabled || choreBusy || !draft.rows.length}
                     onClick={() => void confirm()}
                   >
                     {draft.rows.length === 1 &&
@@ -935,7 +958,7 @@ export function CaptureDraftBoundary(
         open={props.open ?? true}
         title={text.title}
         onClose={
-          !busy && !extracting
+          !busy && !extracting && !choreBusy
             ? () => {
                 void close();
               }

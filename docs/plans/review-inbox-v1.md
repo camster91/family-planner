@@ -408,3 +408,35 @@ points/schedule review, full programmatic/host exits and cancellable foreground
 reads; broader role/routine/inbox timeline/AI scope. Finish those before running
 consolidated QA. All new helper/storage/UI cases remain unrun; no flags, DB/schema,
 provider activation, push/merge/deploy or issue state changed.
+
+
+## Captured chore review — 2026-10-22 source checkpoint
+
+The earlier manual handoff is replaced with the existing chore editor in a nested
+sheet inside owned capture. Parent choice is explicit; no source name becomes an
+account/profile identifier, and no inferred schedule/points/description is imported.
+Full partial editor fields live on the existing capture row, excluding raw photos
+or prompts. A deliberately reviewed canonical body is invalidated by later edits.
+The editor makes no chore write; batch confirmation freezes all original rows and
+keys before any event/chore/grocery effect. Account/profile chore actions go through
+the bound dispatcher and existing canonical endpoint, never the event endpoint.
+
+Account creation now has an atomic compact receipt alongside the canonical chore
+and recurrence expansion. Current parent/session/household and assignee/rotation
+membership renew in the locked transaction. A completed takeover returns the
+original pointer without another create or notice. Legacy no-key creates and
+ordinary hydrated responses remain separate from bound review responses. Profile
+creation preserves the existing strict protocol-2 and private capability gates;
+bound review opts into compact receipts and current token-generation validation.
+The new state-only receipt route checks current parent authority before looking
+up an original same-user/family/action/hash key. Missing, pending, expired,
+committed-present, removed/erased and opaque states remain distinct. It never
+replays a mutation or returns cached chore contents. The owned store's existing
+receipt-first retry/finish protocol now handles both chore actions too.
+
+Source cases are authored but unrun, including a guarded disposable-Postgres suite
+for lost response/takeover/rollback and authority changes. Formatting is not QA.
+No runtime, privacy, visual, device or release acceptance is claimed. No flags,
+provider, database, CI, push/merge/deploy or issue status was changed. Next work
+remains the full navigation/foreground cancellation contract and the remaining
+role/routine history/inbox timeline/grounded-AI implementation before consolidated QA.
