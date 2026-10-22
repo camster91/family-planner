@@ -165,11 +165,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/[listId]/page.tsx",
-    "text": "List not found",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/meals/page.tsx",
     "text": "Add",
     "count": 1
@@ -258,16 +253,6 @@
     "file": "src/app/dashboard/meals/page.tsx",
     "text": "No pudimos comprobar tu hogar. El borrador se conserva.",
     "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Nothing planned",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Other meals",
-    "count": 2
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",

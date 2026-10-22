@@ -186,7 +186,7 @@ describe('More list', () => {
     )
     expect(screen.getByRole('heading', { name: 'Explorar' })).toBeTruthy()
     expect(
-      screen.getByRole('link', { name: /Inventario de alimentos/ }).getAttribute('href'),
+      within(screen.getByTestId('more-list')).getByRole('link', { name: /Inventario de alimentos/ }).getAttribute('href'),
     ).toBe('/dashboard/inventory')
     expect(
       screen.getByRole('link', { name: /Mesada y deudas/ }).getAttribute('href'),

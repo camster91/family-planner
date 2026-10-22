@@ -13,6 +13,8 @@ import HelpContent from '../HelpContent'
 import DashboardNav from '@/components/layout/DashboardNav'
 import { SUPPORT_EMAIL, SUPPORT_EMAIL_PENDING_TEXT, supportEmail } from '@/lib/support'
 import type { NavUser } from '@/types'
+import { defaultFeatures } from '@/lib/features'
+let mockHelpFeatures = defaultFeatures()
 
 jest.mock('next/link', () => ({
   __esModule: true,
@@ -23,8 +25,7 @@ jest.mock('next/link', () => ({
   ),
 }))
 jest.mock('@/components/providers/features-provider', () => {
-  const { defaultFeatures } = jest.requireActual('@/lib/features')
-  return { useFeatures: () => ({ features: defaultFeatures() }) }
+  return { useFeatures: () => ({ features: mockHelpFeatures }) }
 })
 jest.mock('next/navigation', () => ({
   usePathname: () => '/dashboard',
@@ -42,6 +43,7 @@ jest.mock('@/lib/prisma', () => ({
 
 beforeEach(() => {
   mockRole = 'parent'
+  mockHelpFeatures = defaultFeatures()
 })
 
 async function section(name: string) {
@@ -58,6 +60,13 @@ async function openSections() {
 }
 
 describe('Help page', () => {
+  it('keeps disabled reward guidance readable without offering an unavailable destination', async () => {
+    render(await HelpPage())
+    await openSections()
+    expect(screen.getAllByRole('link').map(link => link.getAttribute('href'))).not.toContain('/dashboard/rewards')
+    expect(screen.getByRole('heading', { level: 2, name: 'Chores and rewards' })).toBeTruthy()
+  })
+
   it('renders a heading and every help section', async () => {
     render(await HelpPage())
     expect(screen.getByRole('heading', { level: 1, name: 'Help' })).toBeTruthy()
@@ -73,7 +82,8 @@ describe('Help page', () => {
     }
   })
 
-  it('links to the real pages for each task', async () => {
+  it('links to the real pages for each task when the feature is enabled', async () => {
+    mockHelpFeatures = { ...defaultFeatures(), gamification: true, rewards: true }
     render(await HelpPage())
     await openSections()
     const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'))

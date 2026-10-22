@@ -19,6 +19,7 @@ import { RecipeReuseLauncher } from "@/components/meals/RecipeReuseLauncher";
 import { BulkCookingPanel } from "@/components/meals/BulkCookingPanel";
 import { useBulkCookingText } from "@/i18n/bulk-cooking";
 import { useMealWeek } from "@/components/meals/use-meal-week";
+import { useMealWeekText } from "@/i18n/meal-week";
 import { mealPrepListSchema, type MealPrepContext } from "@/lib/meal-batches";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { Plus, UtensilsCrossed, BookOpen, Refrigerator } from "lucide-react";
@@ -491,6 +492,7 @@ function supportedMealWeek(start: string): Date | null {
 
 function MealsPageInner() {
   const { t, locale } = useTranslation();
+  const tWeek = useMealWeekText();
   const es = locale === "es";
   // Food inventory (#263) is a separate, opt-in feature; link to it when on.
   const inventoryOn = useFeatureEnabled("inventory");
@@ -961,9 +963,7 @@ function MealsPageInner() {
                 illustrated "No meals planned yet" above it. */}
               {hasMore && (
                 <p role="status" className="text-subhead text-label-secondary">
-                  {es
-                    ? "Hay más comidas en esta semana. Carga más para ver el plan completo."
-                    : "There are more meals in this week. Load more to see the full plan."}
+                  {tWeek("partial")}
                 </p>
               )}
               <div className={styles.board}>
@@ -986,9 +986,7 @@ function MealsPageInner() {
                       role="alert"
                       className="text-subhead text-label-secondary"
                     >
-                      {es
-                        ? "No se pudieron cargar más comidas. Las que ya están cargadas siguen aquí."
-                        : "More meals could not be loaded. Your loaded meals are still here."}
+                      {tWeek("moreFailed")}
                     </p>
                   )}
                   <button
@@ -999,22 +997,16 @@ function MealsPageInner() {
                       if (!loadingMore && hasMore) void loadMore();
                     }}
                   >
-                    {loadingMore
-                      ? es
-                        ? "Cargando más comidas…"
-                        : "Loading more meals…"
-                      : hasMore
-                        ? es
-                          ? "Cargar más comidas"
-                          : "Load more meals"
-                        : es
-                          ? "Todas las comidas cargadas"
-                          : "All meals loaded"}
+                    {tWeek(
+                      loadingMore
+                        ? "loading"
+                        : hasMore
+                          ? "loadMore"
+                          : "complete",
+                    )}
                   </button>
                   <p role="status" className="sr-only">
-                    {es
-                      ? `${meals.length} comidas cargadas.`
-                      : `${meals.length} meals loaded.`}
+                    {tWeek("loaded", { count: meals.length })}
                   </p>
                 </div>
               )}
@@ -1068,6 +1060,7 @@ function DayCard({
 }) {
   const tBulk = useBulkCookingText();
   const { locale } = useTranslation();
+  const tWeek = useMealWeekText();
   const es = locale === "es";
   const headingId = `meals-day-${day.dateKey}`;
   const otherId = `${headingId}-other`;
@@ -1077,7 +1070,7 @@ function DayCard({
     (count, slot) => count + slot.meals.length,
     0,
   );
-  const otherLabel = `${es ? "Otras comidas" : "Other meals"}${
+  const otherLabel = `${tWeek("otherMeals")}${
     otherCount > 0
       ? ` · ${otherCount}${incomplete ? "+" : ""}`
       : incomplete
@@ -1104,13 +1097,7 @@ function DayCard({
                 <span>
                   <span className={styles.slotLabel}>{label}</span>
                   <span className={styles.meta}>
-                    {incomplete
-                      ? es
-                        ? "Aún no se han cargado comidas"
-                        : "No meals loaded yet"
-                      : es
-                        ? "Nada planificado"
-                        : "Nothing planned"}
+                    {tWeek(incomplete ? "notLoaded" : "nothingPlanned")}
                   </span>
                 </span>
                 <Plus className="w-5 h-5 shrink-0" aria-hidden="true" />

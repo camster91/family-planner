@@ -56,6 +56,22 @@ const LASAGNA = {
 
 type Call = { url: string; method: string; body: unknown };
 
+function mealPage(meals: unknown[], url?: string) {
+  const query = url ? new URL(url, "https://example.test").searchParams : null;
+  return {
+    meals: meals.filter((row) => {
+      const date = (row as { date?: unknown })?.date;
+      return (
+        !query ||
+        typeof date !== "string" ||
+        (date >= `${query.get("start")}T00:00:00.000Z` &&
+          date < `${query.get("end")}T00:00:00.000Z`)
+      );
+    }),
+    nextCursor: null,
+  };
+}
+
 function setup({
   meals,
   mealsStatus = 200,
@@ -89,7 +105,7 @@ function setup({
       if (url.startsWith("/api/meals?"))
         return json(
           mealsStatus,
-          mealsStatus === 200 ? { meals } : { error: "boom" },
+          mealsStatus === 200 ? mealPage(meals, url) : { error: "boom" },
         );
       if (url === "/api/family/members")
         return json(membersStatus, {
@@ -237,6 +253,7 @@ describe("/dashboard/meals", () => {
       release({
         ok: true,
         json: async () => ({
+          nextCursor: null,
           meals: [
             {
               ...dinnerA,
@@ -679,7 +696,7 @@ describe("/dashboard/meals", () => {
             resolveMutation = resolve;
           });
         }
-        if (url === "/api/meals?start=2026-12-08&end=2026-12-15") {
+        if (url === "/api/meals?start=2026-12-08&end=2026-12-15&limit=100") {
           calls.push({ url, method: "GET", body: undefined });
           if (++selectedReads === 1)
             return new Promise<Response>((resolve) => {
@@ -687,7 +704,7 @@ describe("/dashboard/meals", () => {
             });
           return {
             ok: true,
-            json: async () => ({ meals: [selectedMeal] }),
+            json: async () => mealPage([selectedMeal]),
           } as Response;
         }
         return original(input, init);
@@ -728,14 +745,14 @@ describe("/dashboard/meals", () => {
       );
       expect(
         calls.filter((c) => c.url.startsWith("/api/meals?")).at(-1)?.url,
-      ).toBe("/api/meals?start=2026-12-08&end=2026-12-15");
+      ).toBe("/api/meals?start=2026-12-08&end=2026-12-15&limit=100");
       expect((await screen.findByTestId("meal-row")).textContent).toContain(
         "Green salad",
       );
       await act(async () => {
         resolveWindow({
           ok: true,
-          json: async () => ({ meals: [] }),
+          json: async () => mealPage([]),
         } as Response);
       });
       expect(screen.getByTestId("meal-row").textContent).toContain(
@@ -813,7 +830,7 @@ describe("/dashboard/meals", () => {
     await user.click(screen.getByRole("button", { name: "Next week" }));
     expect(await screen.findByTestId("meal-row")).toBeTruthy();
     await act(async () => {
-      resolve({ ok: true, json: async () => ({ meals: [] }) } as Response);
+      resolve({ ok: true, json: async () => mealPage([]) } as Response);
     });
     expect(screen.getByTestId("meal-row").textContent).toContain("Tacos");
   });
@@ -905,7 +922,9 @@ describe("/dashboard/meals", () => {
       expect(cards[0].getAttribute("data-day")).toBe(start);
       const end = start === "2026-03-08" ? "2026-03-15" : "2026-11-08";
       expect(
-        calls.some((c) => c.url === `/api/meals?start=${start}&end=${end}`),
+        calls.some(
+          (c) => c.url === `/api/meals?start=${start}&end=${end}&limit=100`,
+        ),
       ).toBe(true);
     },
   );
@@ -971,7 +990,7 @@ describe("/dashboard/meals", () => {
       expect(cards[0].getAttribute("data-day")).toBe(start);
       expect(
         calls.filter((c) => c.url.startsWith("/api/meals?")).map((c) => c.url),
-      ).toEqual([`/api/meals?start=${start}&end=${end}`]);
+      ).toEqual([`/api/meals?start=${start}&end=${end}&limit=100`]);
       const button = screen.getByRole("button", { name: blocked });
       expect(button).toHaveProperty("disabled", true);
       await user.click(button);
@@ -1051,7 +1070,8 @@ describe("/dashboard/meals", () => {
     await waitFor(() =>
       expect(
         calls.some(
-          (c) => c.url === "/api/meals?start=2026-12-28&end=2027-01-04",
+          (c) =>
+            c.url === "/api/meals?start=2026-12-28&end=2027-01-04&limit=100",
         ),
       ).toBe(true),
     );
@@ -1063,7 +1083,8 @@ describe("/dashboard/meals", () => {
     await waitFor(() =>
       expect(
         calls.some(
-          (c) => c.url === "/api/meals?start=2027-01-04&end=2027-01-11",
+          (c) =>
+            c.url === "/api/meals?start=2027-01-04&end=2027-01-11&limit=100",
         ),
       ).toBe(true),
     );

@@ -138,7 +138,7 @@ function listDetailHref(
   const query = new URLSearchParams();
   if (type) query.set("type", type);
   if (cursor) query.set("overviewCursor", cursor);
-  return `/dashboard/lists/${encodeURIComponent(id)}${query.size ? `?${query}` : ""}`;
+  return `/dashboard/lists/${encodeURIComponent(id)}${query.toString() ? `?${query}` : ""}`;
 }
 
 // -----------------------------------------------------------------------

@@ -214,7 +214,7 @@ it("withholds the form after a renewed household changes", async () => {
     .mockResolvedValue({ ...context, familyId: "fixture-family-b" });
   fireEvent(window, new Event("focus"));
   await screen.findByText(
-    "Your account or household changed. Reload before opening saved drafts.",
+    "Your account or household changed. Reload before opening saved work.",
   );
   expect(
     screen.queryByRole("textbox", { name: "Recipe name" }),

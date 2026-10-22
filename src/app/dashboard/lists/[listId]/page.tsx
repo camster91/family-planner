@@ -54,7 +54,7 @@ export default async function ListDetailPage({
   const firstQuery = new URLSearchParams();
   if (returnFilter) firstQuery.set("type", returnFilter);
   if (returnCursor) firstQuery.set("overviewCursor", returnCursor);
-  const firstHref = `/dashboard/lists/${encodeURIComponent(listId)}${firstQuery.size ? `?${firstQuery}` : ""}`;
+  const firstHref = `/dashboard/lists/${encodeURIComponent(listId)}${firstQuery.toString() ? `?${firstQuery}` : ""}`;
   const positions = new URLSearchParams({ limit: String(LIST_ITEM_PAGE_SIZE) });
   for (const value of Array.isArray(query?.itemCursor)
     ? query.itemCursor
@@ -162,7 +162,7 @@ export default async function ListDetailPage({
           continued: Boolean(paging.cursor),
           firstHref,
           nextHref: snapshot.nextCursor
-            ? `${firstHref}${firstQuery.size ? "&" : "?"}itemCursor=${encodeURIComponent(snapshot.nextCursor)}`
+            ? `${firstHref}${firstQuery.toString() ? "&" : "?"}itemCursor=${encodeURIComponent(snapshot.nextCursor)}`
             : null,
           versionQuery: new URLSearchParams({
             limit: String(LIST_ITEM_PAGE_SIZE),
