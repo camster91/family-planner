@@ -1,5 +1,15 @@
 # Current State
 
+## Consolidated QA active after completed source pass — 2026-10-22
+
+The implementation-first pass is complete, including the canonical-page list
+Add/Undo repair. Consolidated QA is now active under Cameron's sequence. Current
+follow-through fixes QA parent-home synchronization and its formatting; application
+and migration source remain stable. Earlier implementation-only/deferred-test
+entries below retain their original checkpoint meaning. See WEB_QA_20261022.md
+and PR595 / the existing #128 checkpoint for current failures, repairs, source
+identities and running gates. No production merge/deploy or activation is claimed.
+
 ## Renewed implementation-first instruction — 2026-10-22
 
 Cameron again asked to skip tests until everything is implemented. Defer further

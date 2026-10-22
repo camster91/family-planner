@@ -329,7 +329,9 @@ for (const locale of ["en", "es"] as const) {
             );
             await page.goto("/dashboard");
             await expect(page).toHaveURL(
-              deletion.role === "parent" ? /\/dashboard\/today$/ : /\/dashboard\/?$/,
+              deletion.role === "parent"
+                ? /\/dashboard\/today$/
+                : /\/dashboard\/?$/,
             );
             await expect(page.locator("html")).toHaveAttribute("lang", locale);
             const identity = await runtimeIdentity(
