@@ -19,6 +19,19 @@ const en = {
   join: "Join with a family code",
   joinHelp:
     "Open ‘In person instead’ on the Invite page. The other person signs in with their own account and enters the code on Join a family. Codes join people as a child or teen.",
+  tasks: "Chores",
+  routines: "Routines and habit stacks",
+  routinesHelp:
+    "Parents can group related chores into an ordered routine, choose who each step is for and add an anchor or estimated time. Use the routine controls to manage its schedule. Each step keeps its own completion and parent review; adults can have routines too.",
+  prep: "Cook several dishes together",
+  prepHelp:
+    "Open Meals → Prep. Group several dishes in one session, set their portions and storage, then choose the meals that will use them. Mark the session prepared after cooking, record portions eaten and set the next prep date. Planning a dish does not mark it cooked or eaten.",
+  recipes: "Find, save and reuse recipes",
+  recipesHelp:
+    "Open Meals → Explore recipes. Find a recipe or import its link, then review the ingredients, quantities and servings before saving. Review possible duplicates, mark favorites and organize collections. A saved recipe can be reused in the meal plan or a prep session.",
+  inventory: "Food inventory",
+  inventoryHelp:
+    "When Food inventory is on, open it to see what is in the fridge, freezer or pantry and what to use soon. Parents and teens can add or correct food. Children can view it. Scan results are suggestions to review; manual entry remains available.",
   choresHelp:
     "Choose a person, a one-off date or repeating days. A completed chore waits for a parent to check. Repeating chores can be grouped as a series; routines keep related steps together.",
   rewards: "Rewards",
@@ -75,6 +88,19 @@ const es: Record<HelpMessage, string> = {
   join: "Unirse con un código familiar",
   joinHelp:
     "Abre «En persona» en Invitaciones. La otra persona inicia sesión con su propia cuenta e introduce el código en Unirse a una familia. Los códigos permiten unirse como niño o niña o adolescente.",
+  tasks: "Tareas",
+  routines: "Rutinas y hábitos encadenados",
+  routinesHelp:
+    "Los padres pueden reunir tareas relacionadas en una rutina ordenada, elegir para quién es cada paso y añadir una referencia o duración estimada. Usa los controles de la rutina para gestionar su horario. Cada paso conserva su propio estado y revisión; los adultos también pueden tener rutinas.",
+  prep: "Cocina varios platos juntos",
+  prepHelp:
+    "Abre Comidas → Preparación. Agrupa varios platos en una sesión, indica sus porciones y almacenamiento y elige las comidas que los usarán. Marca la sesión como preparada después de cocinar, registra las porciones consumidas y elige la próxima preparación. Planificar un plato no lo marca como cocinado ni consumido.",
+  recipes: "Encuentra, guarda y reutiliza recetas",
+  recipesHelp:
+    "Abre Comidas → Explorar recetas. Busca una receta o importa su enlace y revisa ingredientes, cantidades y porciones antes de guardar. Revisa posibles duplicados, marca favoritas y organiza colecciones. Puedes reutilizar una receta guardada en el plan de comidas o en una sesión de preparación.",
+  inventory: "Inventario de alimentos",
+  inventoryHelp:
+    "Cuando el inventario esté activado, ábrelo para ver qué hay en la nevera, el congelador o la despensa y qué conviene usar pronto. Los padres y adolescentes pueden añadir o corregir alimentos; los niños pueden consultarlos. Los resultados del escaneo son sugerencias para revisar y la entrada manual sigue disponible.",
   choresHelp:
     "Elige una persona, una fecha única o días de repetición. Una tarea completada espera la revisión de un padre o una madre. Las tareas repetidas se agrupan como una serie y las rutinas reúnen pasos relacionados.",
   rewards: "Recompensas",

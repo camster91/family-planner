@@ -8,9 +8,21 @@ import { canRoleAccessPath } from "@/lib/kid-access";
 import { APP_HELP_TOPICS } from "@/lib/app-help-topics";
 import { useHelpText } from "@/i18n/help";
 import { useTranslation } from "@/i18n";
+import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 
 /** Local documentation lookup: no model request, household context or write tool. */
-export default function AppGuide({ role }: { role: string }) {
+export default function AppGuide({
+  role,
+  disabled,
+  canNavigate,
+  onNavigated,
+}: {
+  role: string;
+  disabled: boolean;
+  canNavigate: () => boolean;
+  onNavigated?: () => void;
+}) {
+  const router = useDraftAwareRouter();
   const [query, setQuery] = React.useState("");
   const { features } = useFeatures();
   const text = useHelpText();
@@ -21,14 +33,18 @@ export default function AppGuide({ role }: { role: string }) {
     (topic) =>
       (!topic.feature || isFeatureEnabled(features, topic.feature)) &&
       (!topic.href.startsWith("/dashboard") ||
-        canRoleAccessPath(role, topic.href.split(/[?#]/)[0])) &&
+        (["parent", "teen", "child"].includes(role) &&
+          canRoleAccessPath(role, topic.href.split(/[?#]/)[0]))) &&
       (!q ||
         [text(topic.title), text(topic.answer)].some((value) =>
           value.toLocaleLowerCase().includes(q),
         )),
   );
   return (
-    <details className="rounded-2xl border border-[var(--surface-separator)] p-3">
+    <details
+      data-app-guide
+      className="rounded-2xl border border-[var(--surface-separator)] p-3"
+    >
       <summary className="min-h-[44px] cursor-pointer content-center text-body font-semibold">
         {es ? "Guía de la app · sin IA" : "App guide · no AI needed"}
       </summary>
@@ -60,6 +76,25 @@ export default function AppGuide({ role }: { role: string }) {
             </p>
             <Link
               href={topic.href}
+              aria-disabled={disabled}
+              tabIndex={disabled ? -1 : undefined}
+              onClick={(event) => {
+                if (disabled || !canNavigate()) {
+                  event.preventDefault();
+                  return;
+                }
+                if (
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                )
+                  return;
+                event.preventDefault();
+                void router.push(topic.href).then((navigated) => {
+                  if (navigated) onNavigated?.();
+                });
+              }}
               className="mt-2 inline-flex min-h-[44px] items-center text-subhead font-semibold text-[var(--accent-text)]"
             >
               {text(topic.title)} →

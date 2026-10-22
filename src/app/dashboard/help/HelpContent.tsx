@@ -8,6 +8,9 @@ import { LargeHeader } from "@/components/ui/large-header";
 import { supportEmail } from "@/lib/support";
 import { canRoleAccessPath } from "@/lib/kid-access";
 import { useHelpText } from "@/i18n/help";
+import { APP_HELP_TOPICS } from "@/lib/app-help-topics";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { useFeatures } from "@/components/providers/features-provider";
 
 function PageLink({
   href,
@@ -18,9 +21,12 @@ function PageLink({
   role?: string | null;
   children: React.ReactNode;
 }) {
+  const { features } = useFeatures();
+  const topic = APP_HELP_TOPICS.find((candidate) => candidate.href === href);
   if (
-    href.startsWith("/dashboard") &&
-    !canRoleAccessPath(role, href.split(/[?#]/)[0])
+    (topic?.feature && !isFeatureEnabled(features, topic.feature)) ||
+    (href.startsWith("/dashboard") &&
+      !canRoleAccessPath(role, href.split(/[?#]/)[0]))
   )
     return <span className="font-medium text-label-primary">{children}</span>;
   return (
@@ -130,6 +136,12 @@ export default function HelpContent({
           {text("choresHelp")}
         </Item>
         <Item
+          title={text("routines")}
+          link={link("/dashboard/chores/routines", text("routines"))}
+        >
+          {text("routinesHelp")}
+        </Item>
+        <Item
           title={text("rewards")}
           link={link("/dashboard/rewards", text("rewards"))}
         >
@@ -148,6 +160,24 @@ export default function HelpContent({
           link={link("/dashboard/meals", text("meals"))}
         >
           {text("mealsHelp")}
+        </Item>
+        <Item
+          title={text("prep")}
+          link={link("/dashboard/meals?view=bulk", text("prep"))}
+        >
+          {text("prepHelp")}
+        </Item>
+        <Item
+          title={text("recipes")}
+          link={link("/dashboard/meals/explore", text("recipes"))}
+        >
+          {text("recipesHelp")}
+        </Item>
+        <Item
+          title={text("inventory")}
+          link={link("/dashboard/inventory", text("inventory"))}
+        >
+          {text("inventoryHelp")}
         </Item>
         <Item
           title={text("lists")}

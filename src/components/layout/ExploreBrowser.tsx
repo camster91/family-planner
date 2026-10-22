@@ -105,7 +105,18 @@ export default function ExploreBrowser({
     <div
       className={inSheet ? "space-y-4" : "space-y-5 pb-20"}
       onClick={(event) => {
-        if ((event.target as HTMLElement).closest("a[href]")) onNavigate?.();
+        const target = event.target as HTMLElement;
+        // Guide links await draft owners and close only after navigation is
+        // accepted. A blocked exit must leave this discovery sheet open.
+        if (
+          !target.closest("[data-app-guide]") &&
+          target.closest("a[href]") &&
+          !event.metaKey &&
+          !event.ctrlKey &&
+          !event.shiftKey &&
+          !event.altKey
+        )
+          onNavigate?.();
       }}
     >
       {!inSheet && (
@@ -170,7 +181,12 @@ export default function ExploreBrowser({
           );
         })}
       </div>
-      <AppGuide role={role} />
+      <AppGuide
+        role={role}
+        disabled={false}
+        canNavigate={() => true}
+        onNavigated={onNavigate}
+      />
       {!filtered.length && (
         <div role="status" className="card-apple space-y-3 p-5">
           <p>{more("noMatches")}</p>

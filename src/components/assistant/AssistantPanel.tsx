@@ -933,7 +933,12 @@ export default function AssistantPanel({
         )}
         {tab === "chat" && (
           <div className="space-y-4">
-            <AppGuide role={role} />
+            <AppGuide
+              role={role}
+              disabled={busy}
+              canNavigate={() => !lock.current}
+              onNavigated={close}
+            />
             {canChat && features.meals && (
               <MealPlanningReviewLinks
                 disabled={busy}

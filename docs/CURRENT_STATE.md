@@ -12,6 +12,16 @@ merge/deploy still require applicable passing QA under the existing authorizatio
 Retain all earlier evidence at its recorded SHA; do not count unverified code or
 provider/native/customer acceptance as finished. The goal remains active.
 
+## Implementation-first guidance gap filled — 2026-10-22
+
+Original#562 review found missing chore/routine/prep discovery in the deterministic
+app guide. Five direct topics now share EN/ES canonical Help answers, role/feature
+links and owned draft navigation; assistant/Explore hosts close only after an
+accepted guide handoff. No model/household-context/write source was added.
+Source formatting only; further checks remain deferred by Cameron's latest
+instruction. Source/backlog reconciliation continues. This does not renew earlier
+QA receipts or claim release/issue acceptance. See WEB_IMPLEMENTATION_HANDOFF.md.
+
 ## Clean-runner release candidate preparation — 2026-10-22
 
 Clean45252ce1 recovery receipt passes all7 steps with its exact source SHA

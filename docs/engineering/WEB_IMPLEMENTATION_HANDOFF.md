@@ -69,3 +69,27 @@ hardware/store, provider eligibility/activation, legal/operator decisions,
 real-family/customer evidence, destructive legacy cutover and later research stay
 separately tracked in the existing ledger/issues; web source is not their proof.
 Do not close an epic or call the product accepted from this handoff.
+
+
+## Implementation-first follow-through: deterministic guidance (#562)
+
+The source-to-original-issue review found an actual gap: canonical chore guidance
+was not offered in the app guide, and routine stacks/multi-dish prep had no direct
+help topic. The guide and Help page now share EN/ES answers for chores, routines,
+prep sessions, recipe discovery/curation/reuse and food inventory. Existing
+canonical destinations are used, including Meals?view=bulk and Meals/explore;
+there is no duplicate knowledge service or household-record context.
+
+Guide links retain feature/role filtering and withhold dashboard links for an
+unknown role. The Help page consults the same topic metadata before offering a
+feature link. Guide navigation awaits the existing owned-draft exit router,
+respects the assistant busy/lock guard and closes its host only on accepted
+navigation. Explore's delegated close handler leaves guide handoffs to that
+callback; a refused draft exit or modified-click does not dismiss the sheet.
+
+Source is authored, not accepted. Following Cameron's latest sequencing request,
+no tests/typecheck/lint/build/browser/CI were run for this slice. Source formatting
+only was applied. Later consolidated QA must establish EN/ES, parent/teen/child/
+unknown role, disabled features, busy/refused/successful owned exits, modified
+clicks, focus and provider-free operation. Other source/backlog reconciliation
+continues before the integrated QA candidate is frozen.
