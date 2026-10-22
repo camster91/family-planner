@@ -171,4 +171,127 @@ suite("food planning scoped canonical reads", () => {
       await db.user.update({ where: { id: user }, data: { token_version: 0 } });
     }
   });
+  it("counts an unprepared whole dish once, then uses explicit prepared/eaten/cancelled states without consuming inventory again", async () => {
+    const session = await db.mealPrepSession.create({
+      data: {
+        family_id: family,
+        created_by: user,
+        prepared_on: new Date("2026-10-22T00:00:00Z"),
+        next_prep_on: new Date("2026-10-28T00:00:00Z"),
+      },
+    });
+    const batch = await db.mealBatch.create({
+      data: {
+        family_id: family,
+        prep_session_id: session.id,
+        position: 0,
+        name: "Synthetic pending dish",
+        total_servings: 6,
+        reserve_storage: "freezer",
+        recipe_id: recipeA,
+      },
+    });
+    const allocation = await db.familyMeal.create({
+      data: {
+        family_id: family,
+        created_by: user,
+        date: new Date("2026-10-24T00:00:00Z"),
+        meal_type: "dinner",
+        recipe_id: recipeA,
+        batch_id: batch.id,
+        servings: 2,
+      },
+    });
+    await db.familyMeal.create({
+      data: {
+        family_id: family,
+        created_by: user,
+        date: new Date("2026-10-25T00:00:00Z"),
+        meal_type: "dinner",
+        recipe_id: recipeA,
+        batch_id: batch.id,
+        servings: 2,
+      },
+    });
+    const pending = await previewFoodPlan(db, actor, query(), now);
+    const commitment = pending.plan.commitments.entries.filter(
+      (row) => row.id === `batch:${batch.id}`,
+    );
+    expect(commitment).toHaveLength(1);
+    expect(commitment[0].servings).toBe(6);
+    expect(pending.plan.slots[0].choice!.ingredients[0].recordedAvailable).toBe(
+      0,
+    );
+    await db.mealPrepSession.update({
+      where: { id: session.id },
+      data: { prepared_at: now },
+    });
+    const eaten = await db.mealBatchConsumption.create({
+      data: {
+        family_id: family,
+        batch_id: batch.id,
+        meal_id: allocation.id,
+        servings: 1,
+        created_by: user,
+      },
+    });
+    const ready = await previewFoodPlan(db, actor, query(), now);
+    expect(
+      ready.plan.commitments.entries.some(
+        (row) => row.id === `batch:${batch.id}`,
+      ),
+    ).toBe(false);
+    expect(
+      ready.plan.commitments.prepared.find((row) => row.batchId === batch.id),
+    ).toMatchObject({
+      total: 6,
+      eaten: 1,
+      planned: 3,
+      remaining: 5,
+      unplanned: 2,
+      nextPrepOn: "2026-10-28",
+      recipeHistoryRecorded: false,
+    });
+    await db.mealBatchConsumption.update({
+      where: { id: eaten.id },
+      data: { cancelled_at: now },
+    });
+    const undone = await previewFoodPlan(db, actor, query(), now);
+    expect(
+      undone.plan.commitments.prepared.find((row) => row.batchId === batch.id),
+    ).toMatchObject({ eaten: 0, planned: 4, remaining: 6, unplanned: 2 });
+    expect(
+      (await db.inventoryItem.findFirst({ where: { family_id: family } }))!
+        .amount,
+    ).toBe(150);
+    expect(undone.snapshotRevision).not.toBe(ready.snapshotRevision);
+  });
+
+  it("refuses a cross-household batch/session graph instead of projecting foreign dish labels", async () => {
+    const session = await db.mealPrepSession.create({
+      data: {
+        family_id: family,
+        created_by: user,
+        prepared_on: new Date("2026-10-22T00:00:00Z"),
+      },
+    });
+    const foreignBatch = await db.mealBatch.create({
+      data: {
+        family_id: otherFamily,
+        prep_session_id: session.id,
+        position: 0,
+        name: "Foreign private dish",
+        total_servings: 4,
+        recipe_id: foreignRecipe,
+      },
+    });
+    try {
+      await expect(
+        previewFoodPlan(db, actor, query(), now),
+      ).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    } finally {
+      await db.mealBatch.delete({ where: { id: foreignBatch.id } });
+      await db.mealPrepSession.delete({ where: { id: session.id } });
+    }
+  });
 });

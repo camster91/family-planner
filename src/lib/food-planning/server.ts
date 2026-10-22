@@ -1,6 +1,10 @@
+import {
+  readFoodCommitments,
+  FoodCommitmentSourceUnavailable,
+} from "./commitment-source";
 /** Scoped read-only foundation for grounded food plans. No provider or apply path. */
 import { createHmac } from "node:crypto";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { getJwtSecret } from "../auth";
 import { lockUser, lockHousehold } from "../household-lock";
@@ -37,6 +41,15 @@ export class FoodPlanningUnavailable extends Error {
     super(code);
   }
 }
+function assertObservationCurrent(observed: Date) {
+  const clock = Date.now();
+  if (
+    !foodPlanningEnabled() ||
+    clock >= +observed + 60000 ||
+    clock < +observed - 1000
+  )
+    throw new FoodPlanningUnavailable();
+}
 const text = z.string().trim().min(1).max(500);
 const amount = z.number().finite().min(0).max(100000);
 const unit = z.string().max(100).nullable();
@@ -62,6 +75,28 @@ const stock = z.object({
   date_kind: z.enum(["best_before", "use_by"]),
   status: z.literal("active"),
 });
+const foodRecipeSelect = {
+  id: true,
+  title: true,
+  servings: true,
+  prep_time: true,
+  cook_time: true,
+  revision: true,
+  created_at: true,
+  updated_at: true,
+  ingredients: {
+    take: 101,
+    orderBy: { id: "asc" },
+    select: {
+      id: true,
+      amount: true,
+      unit: true,
+      ingredient: {
+        select: { id: true, name: true, unit: true, family_id: true },
+      },
+    },
+  },
+} satisfies Prisma.RecipeSelect;
 export type FoodPlanActor = {
   userId: string;
   familyId: string;
@@ -122,33 +157,14 @@ export async function previewFoodPlan(
           family_id: actor.familyId,
           ...(input.recipeIds ? { id: { in: input.recipeIds } } : {}),
         },
-        select: {
-          id: true,
-          title: true,
-          servings: true,
-          prep_time: true,
-          cook_time: true,
-          revision: true,
-          created_at: true,
-          updated_at: true,
-          ingredients: {
-            take: 101,
-            orderBy: { id: "asc" },
-            select: {
-              id: true,
-              amount: true,
-              unit: true,
-              ingredient: {
-                select: { id: true, name: true, unit: true, family_id: true },
-              },
-            },
-          },
-        },
+        select: foodRecipeSelect,
         orderBy: { id: "asc" },
         take: 101,
       });
       if (recipes.length > 100)
         throw new FoodPlanningUnavailable("RECIPES_FILTER_REQUIRED");
+      if (recipes.reduce((sum, row) => sum + row.ingredients.length, 0) > 5000)
+        throw new FoodPlanningUnavailable("SOURCE_LIMIT");
       if (input.recipeIds && recipes.length !== input.recipeIds.length)
         throw new FoodPlanningUnavailable();
       if (
@@ -167,7 +183,7 @@ export async function previewFoodPlan(
           status: "active",
           OR: [
             { expires_on: null },
-            { expires_on: { gte: parseDateOnly(dates[0])! } },
+            { expires_on: { gte: parseDateOnly(today)! } },
           ],
         },
         select: {
@@ -200,7 +216,7 @@ export async function previewFoodPlan(
         where: {
           family_id: actor.familyId,
           date: {
-            gte: parseDateOnly(dates[0])!,
+            gte: parseDateOnly(today)!,
             lt: parseDateOnly(addDaysToKey(dates[dates.length - 1], 1))!,
           },
         },
@@ -208,6 +224,7 @@ export async function previewFoodPlan(
           id: true,
           date: true,
           meal_type: true,
+          recipe_name: true,
           recipe_id: true,
           batch_id: true,
           servings: true,
@@ -230,6 +247,76 @@ export async function previewFoodPlan(
       } catch {
         throw new FoodPlanningUnavailable();
       }
+      const horizon = { from: today, through: dates[dates.length - 1] };
+      let commitments: Awaited<ReturnType<typeof readFoodCommitments>>;
+      try {
+        commitments = await readFoodCommitments(
+          tx,
+          actor.familyId,
+          horizon,
+          meals,
+        );
+      } catch (error) {
+        throw new FoodPlanningUnavailable(
+          error instanceof FoodCommitmentSourceUnavailable
+            ? error.code
+            : "UNAVAILABLE",
+        );
+      }
+      const existingRecipeIds = new Set(recipes.map((row) => row.id));
+      const dependencyIds = commitments.pendingRecipeIds.filter(
+        (id) => !existingRecipeIds.has(id),
+      );
+      if (dependencyIds.length > 200)
+        throw new FoodPlanningUnavailable("SOURCE_LIMIT");
+      const dependencyRecipes = dependencyIds.length
+        ? await tx.recipe.findMany({
+            where: { family_id: actor.familyId, id: { in: dependencyIds } },
+            select: foodRecipeSelect,
+            orderBy: { id: "asc" },
+            take: 201,
+          })
+        : [];
+      if (
+        dependencyRecipes.length !== dependencyIds.length ||
+        dependencyRecipes.some(
+          (row) =>
+            row.ingredients.length > 100 ||
+            row.ingredients.some(
+              (line) => line.ingredient.family_id !== actor.familyId,
+            ),
+        )
+      )
+        throw new FoodPlanningUnavailable();
+      if (
+        [...recipes, ...dependencyRecipes].reduce(
+          (sum, row) => sum + row.ingredients.length,
+          0,
+        ) > 5000
+      )
+        throw new FoodPlanningUnavailable("SOURCE_LIMIT");
+      let commitmentRecipes: FoodRecipe[];
+      try {
+        commitmentRecipes = dependencyRecipes.map((row) => recipe.parse(row));
+      } catch {
+        throw new FoodPlanningUnavailable();
+      }
+      const verifiedRecipeIds = new Set(
+        [...recipes, ...dependencyRecipes].map((row) => row.id),
+      );
+      const preparedIds = commitments.preparedRecipeIds.filter(
+        (id) => !verifiedRecipeIds.has(id),
+      );
+      const preparedRecipeOwnership = preparedIds.length
+        ? await tx.recipe.findMany({
+            where: { family_id: actor.familyId, id: { in: preparedIds } },
+            select: { id: true },
+            orderBy: { id: "asc" },
+            take: 201,
+          })
+        : [];
+      if (preparedRecipeOwnership.length !== preparedIds.length)
+        throw new FoodPlanningUnavailable();
       const plan = buildFoodPlan(input.plan, {
         recipes: normalizedRecipes,
         stock: normalizedStock,
@@ -238,13 +325,14 @@ export async function previewFoodPlan(
           mealType: row.meal_type,
         })),
         coverage: { recipes: true, stock: true, meals: true },
+        commitments: {
+          horizon,
+          entries: commitments.entries,
+          recipes: commitmentRecipes,
+          prepared: commitments.prepared,
+        },
       });
-      if (
-        !foodPlanningEnabled() ||
-        Date.now() - +now >= 60000 ||
-        Date.now() < +now - 1000
-      )
-        throw new FoodPlanningUnavailable();
+      assertObservationCurrent(now);
       // Read identity only. This is neither the assistant action proof nor an
       // approval token; future apply must rebuild canonical evidence in its tx.
       const snapshotRevision = createHmac("sha256", getJwtSecret())
@@ -254,10 +342,20 @@ export async function previewFoodPlan(
             actor,
             input,
             features,
-            JSON.parse(JSON.stringify({ recipes, inventory, meals })),
+            JSON.parse(
+              JSON.stringify({
+                recipes,
+                inventory,
+                meals,
+                dependencyRecipes,
+                preparedRecipeOwnership,
+                commitments: commitments.sources,
+              }),
+            ),
           ]),
         )
         .digest("hex");
+      assertObservationCurrent(now);
       return {
         owner: { ...actor },
         generatedAt: now.toISOString(),

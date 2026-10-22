@@ -89,6 +89,7 @@ export type IngredientCheck = {
     | "name-match"
     | "not-recorded"
     | "planned-elsewhere"
+    | "existing-commitment-unknown"
   >;
 };
 export type FoodCandidate = {
@@ -114,6 +115,58 @@ export type FoodPlanningInputs = {
   stock: FoodStock[];
   occupied: Array<{ date: string; mealType: string }>;
   coverage: { recipes: boolean; stock: boolean; meals: boolean };
+  commitments?: {
+    horizon: { from: string; through: string };
+    entries: FoodCommitment[];
+    recipes: FoodRecipe[];
+    prepared: PreparedFoodPortions[];
+  };
+};
+/** Derived from canonical records by the scoped server reader, never the model. */
+export type FoodCommitment = {
+  id: string;
+  kind: "meal" | "prep-dish";
+  date: string;
+  originalDate: string;
+  label?: string | null;
+  recipeId: string | null;
+  servings: number | null;
+  /** An unprepared dish with recorded consumption is not assumed prepared. */
+  stateUncertain?: boolean;
+};
+export type PreparedFoodPortions = {
+  batchId: string;
+  sessionId: string;
+  name: string;
+  recipeId: string | null;
+  preparedOn: string;
+  preparedAt: string;
+  nextPrepOn: string | null;
+  storage: "fridge" | "freezer";
+  total: number;
+  eaten: number;
+  planned: number;
+  remaining: number;
+  unplanned: number;
+  recipeHistoryRecorded: boolean;
+};
+export type FoodCommitmentReview = {
+  id: string;
+  kind: FoodCommitment["kind"];
+  date: string;
+  originalDate: string;
+  label: string | null;
+  recipeId: string | null;
+  servings: number | null;
+  servingsBasis: "recorded" | "recipe-default" | "unknown";
+  ingredients: IngredientCheck[];
+  holds: Array<
+    | "recipe-unknown"
+    | "ingredients-unknown"
+    | "quantity-unknown"
+    | "prep-state-unknown"
+    | "overdue-prep"
+  >;
 };
 export type FoodPlan = {
   protocol: typeof FOOD_PLANNING_PROTOCOL;
@@ -129,6 +182,7 @@ export type FoodPlan = {
       | "time-exceeded"
       | "ingredients-unknown"
       | "source-incomplete"
+      | "commitments-unresolved"
     >;
   }>;
   coverage: FoodPlanningInputs["coverage"];
@@ -139,8 +193,17 @@ export type FoodPlan = {
     | "over-requested-limit"
     | "unknown"
     | "not-requested";
-  existingMealReservationsChecked: false;
-  inventoryBasis: "recorded-stock-for-new-proposals";
+  existingMealReservationsChecked: boolean;
+  inventoryBasis:
+    | "recorded-stock-for-new-proposals"
+    | "recorded-stock-after-recorded-commitments"
+    | "recorded-stock-with-unresolved-commitments";
+  commitments: {
+    complete: boolean;
+    horizon: { from: string; through: string } | null;
+    entries: FoodCommitmentReview[];
+    prepared: PreparedFoodPortions[];
+  };
   calendarChecked: false;
   stockReserved: false;
   writesPerformed: false;

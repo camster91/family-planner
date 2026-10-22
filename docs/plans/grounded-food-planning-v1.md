@@ -67,13 +67,62 @@ the original60-second observation lease, selected versus library recipe scope
 and an owner/query/source-bound keyed revision. That revision is read identity,
 not a signed action proof, receipt, human approval or write authorization.
 
+## Existing commitments and recorded prepared portions
+
+The source broker now reads ordinary canonical meals from the viewer's current
+calendar day through the last requested slot, even if the new plan begins later.
+They receive first claim on comparable recorded stock; a null serving count uses
+the recipe's base servings, matching the canonical recipe-to-groceries fallback.
+The source does not infer that a same-day ordinary meal has already been cooked.
+An unlinked/free-text meal remains a visible unresolved commitment, not zero food.
+
+Pending prep through that horizon, including overdue sessions, is counted once
+per **whole dish** using `total_servings`. Its individual meal allocations never
+reserve the recipe again. Overdue reservations use today's stock eligibility,
+retain the authored original date and carry a warning; they do not allocate food
+against a historical day or silently cancel the old plan. Unprepared sessions
+with recorded consumption remain uncertain rather than being inferred prepared.
+
+Explicitly prepared dishes use canonical `batchPortionCounts` over all their
+allocations and active, noncancelled consumption, including allocations outside
+the requested week. `eaten`, `planned`, `remaining` and `unplanned` stay distinct;
+passed allocation dates do not imply eaten food. Ingredient stock is not deducted
+again for those prepared dishes. Next-prep date, fridge/freezer storage and the
+recipe-snapshot timestamp marker are projected from canonical records. The marker
+records metadata only; frozen recipe prose is neither fetched nor validated here.
+Recorded prepared portions are not a food-safety or freshness guarantee and are
+not automatically offered, eaten, consumed or allocated by this reader.
+
+Source scope includes pending sessions through the horizon and prepared sessions
+with recorded remaining portions, plus every session referenced by an existing
+in-range meal. A capped newest-first history list cannot silently omit older live
+portions. Caps are50 sessions,200 dishes,1000 allocations and1000 active consumption
+rows; one extra row signals a cap. Up to200 additional recipe dependencies and a
+combined5000 ingredient lines are bounded separately. Pending dependency recipes
+are scoped/validated without becoming candidates outside a user's selected recipe
+catalog. Prepared recipe links require ownership metadata only; the current recipe
+is not used to recalculate already-prepared ingredients. Cross-family batch/session/
+meal/consumption edges, broken allocation links and invalid portion counts refuse
+rather than expose foreign labels or treat incomplete sources as complete. Added
+source fields participate in the owner/query/source keyed read revision.
+
+`existingMealReservationsChecked` reports whether that read/reconciliation took
+place. `commitments.complete` means recorded ingredient commitments resolved;
+it does **not** mean the stock is sufficient or the schedule is feasible. Known
+shortfalls remain visible. Unknown recipes, quantities, units or prep state hold
+new proposals with `commitments-unresolved` and prevent a covered/zero-shortfall
+claim for them. Ordinary meal labels and pending dish labels identify the records
+for later manual review. All reservations remain virtual; neither inventory nor
+meal/portion records are changed by the preview. Compact commitment review and
+explicit reuse/allocation of prepared portions remain part of the next UI/apply
+integration, followed by consolidated QA.
+
 ## Remaining source required before activation
 
-1. Reconcile commitments from existing planned meals and the canonical bulk-prep
-   lifecycle, including prepared dishes, remaining portions/eaten and next prep.
-   Current proposals explicitly report `existingMealReservationsChecked:false`
-   and `inventoryBasis:recorded-stock-for-new-proposals`; their quantities do not
-   claim that other meal commitments have been reserved.
+1. Finish the compact human review of unresolved existing commitments and
+   explicit prepared-portion reuse/allocation through canonical bulk APIs. The
+   scoped read/virtual reservation/recorded portion reconciliation above is now
+   authored; its cases and all actual acceptance remain unrun.
 2. Integrate authorized calendar source/range/recurrence/freshness coverage,
    explicit departure and preparation/travel/eating buffers, with the canonical
    schedule planner. `calendarChecked:false` is mandatory today. A requested

@@ -1,5 +1,26 @@
 # Current State
 
+## Food planning commitments and prepared portions source — 2026-10-22
+
+The read-only food broker now includes current-day-through-horizon ordinary
+meals, whole pending prep dishes and recorded prepared portions. Existing known
+commitments reserve comparable stock before new proposals; each pending dish is
+counted once across its meal allocations. Prepared portions reuse canonical
+eaten/planned/remaining/unplanned arithmetic with cancelled consumption excluded;
+passed dates never imply eaten food. Source dates/next prep/storage and snapshot
+markers remain explicit. Unknown existing recipes/quantities/prep state hold new
+coverage claims. Additional source/dependency/graph bounds and family-link
+refusals are authored, and all selected records enter the read revision.
+
+Pure/source/disposable-DB cases are authored and unrun. No actual flags, provider,
+meal/stock/portion records or live services were changed. Calendar/departure
+constraints, provider references/renewal, compact owned commitment/portion review,
+canonical apply/recovery and evaluations/inbox integration remain source work.
+Readiness stays off and all consolidated QA remains deferred. No tests/types/lint/
+build/browser/application API/DB/schema/client/native/CI, push/merge/deploy or issue
+closure occurred. See [`grounded-food-planning-v1.md`](./plans/grounded-food-planning-v1.md).
+Full goal remains active; earlier entries below retain their history.
+
 ## Canonical food planning read foundation — 2026-10-22
 
 A default-off read-only food preview now has source contracts for several meal

@@ -188,3 +188,104 @@ it("scales ingredients without inventing scaled-batch cooking time", () => {
   expect(result.slots[0].choice!.ingredients[0].required).toBe(200);
   expect(result.slots[0].holds).toContain("time-unknown");
 });
+
+it("reserves recorded ordinary meals and whole pending prep dishes before allocating new proposals", () => {
+  const source = inputs([{ ...item, amount: 500 }]);
+  source.commitments = {
+    horizon: { from: "2026-10-22", through: "2026-10-23" },
+    recipes: [],
+    prepared: [],
+    entries: [
+      {
+        id: "meal:existing",
+        kind: "meal",
+        date: "2026-10-22",
+        originalDate: "2026-10-22",
+        recipeId: "recipe-a",
+        servings: null,
+      },
+      {
+        id: "batch:pending",
+        kind: "prep-dish",
+        date: "2026-10-22",
+        originalDate: "2026-10-22",
+        recipeId: "recipe-b",
+        servings: 6,
+      },
+    ],
+  };
+  const result = buildFoodPlan(request(), source);
+  expect(result.existingMealReservationsChecked).toBe(true);
+  expect(result.commitments.complete).toBe(true);
+  expect(
+    result.commitments.entries.find((row) => row.kind === "meal"),
+  ).toMatchObject({ servings: 2, servingsBasis: "recipe-default" });
+  expect(result.slots[0].choice!.ingredients[0]).toMatchObject({
+    recordedAvailable: 100,
+    state: "covered",
+  });
+  expect(result.slots[1].choice!.ingredients[0]).toMatchObject({
+    recordedAvailable: 0,
+    shortfall: 100,
+  });
+  expect(source.stock[0].amount).toBe(500);
+});
+it("does not turn an opaque or quantity-unknown existing commitment into free stock", () => {
+  const source = inputs([{ ...item, amount: 1000 }]);
+  source.commitments = {
+    horizon: { from: "2026-10-22", through: "2026-10-23" },
+    recipes: [],
+    prepared: [],
+    entries: [
+      {
+        id: "meal:opaque",
+        kind: "meal",
+        date: "2026-10-22",
+        originalDate: "2026-10-22",
+        recipeId: null,
+        servings: null,
+      },
+    ],
+  };
+  const result = buildFoodPlan(request(), source);
+  expect(result.commitments.complete).toBe(false);
+  expect(result.inventoryBasis).toBe(
+    "recorded-stock-with-unresolved-commitments",
+  );
+  expect(result.slots[0].holds).toContain("commitments-unresolved");
+  expect(result.slots[0].choice!.ingredients[0]).toMatchObject({
+    state: "check",
+    shortfall: null,
+    reasons: expect.arrayContaining(["existing-commitment-unknown"]),
+  });
+});
+it("keeps explicitly prepared portion counts separate from raw ingredient reservations", () => {
+  const source = inputs([{ ...item, amount: 150 }]);
+  source.commitments = {
+    horizon: { from: "2026-10-22", through: "2026-10-23" },
+    recipes: [],
+    entries: [],
+    prepared: [
+      {
+        batchId: "prepared-batch",
+        sessionId: "prepared-session",
+        name: "Already prepared",
+        recipeId: "recipe-b",
+        preparedOn: "2026-10-21",
+        preparedAt: "2026-10-21T12:00:00Z",
+        nextPrepOn: "2026-10-28",
+        storage: "freezer",
+        total: 8,
+        eaten: 2,
+        planned: 3,
+        remaining: 6,
+        unplanned: 3,
+        recipeHistoryRecorded: true,
+      },
+    ],
+  };
+  const result = buildFoodPlan(request(), source);
+  expect(result.slots[0].choice!.ingredients[0].recordedAvailable).toBe(150);
+  expect(result.commitments.prepared).toEqual(source.commitments.prepared);
+  expect(result.commitments.entries).toEqual([]);
+});

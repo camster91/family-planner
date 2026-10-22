@@ -31,7 +31,9 @@ afterEach(() => {
 });
 function fixture() {
   const tx = {
-    $queryRaw: jest.fn().mockResolvedValue([]),
+    $queryRaw: jest.fn(async (query: TemplateStringsArray) =>
+      query.join("").includes("AS invalid") ? [{ invalid: false }] : [],
+    ),
     user: {
       findUnique: jest.fn().mockResolvedValue({
         family_id: actor.familyId,
@@ -179,4 +181,35 @@ it("does not promote a capped recipe library into complete coverage and rejects 
   await expect(
     previewFoodPlan(db as never, { ...actor, role: "child" }, query, now),
   ).rejects.toMatchObject({ code: "FORBIDDEN" });
+});
+
+it("loads commitments from today even when the requested new slot starts later", async () => {
+  const { tx, db } = fixture();
+  tx.familyMeal.findMany.mockResolvedValueOnce([
+    {
+      id: "existing-lunch",
+      date: new Date("2026-10-22T00:00:00Z"),
+      meal_type: "lunch",
+      recipe_id: "recipe-a",
+      batch_id: null,
+      servings: 2,
+    },
+  ]);
+  const later = foodPreviewRequest.parse({
+    plan: {
+      timeZone: "UTC",
+      slots: [
+        { key: "later", date: "2026-10-23", mealType: "dinner", servings: 2 },
+      ],
+    },
+  });
+  const result = await previewFoodPlan(db as never, actor, later, now);
+  expect(tx.familyMeal.findMany.mock.calls[0][0].where.date.gte).toEqual(
+    new Date("2026-10-22T00:00:00Z"),
+  );
+  expect(result.plan.existingMealReservationsChecked).toBe(true);
+  expect(result.plan.slots[0].choice!.ingredients[0]).toMatchObject({
+    required: 100,
+    recordedAvailable: 100,
+  });
 });

@@ -13,6 +13,7 @@ import {
   type FoodCandidate,
   type IngredientCheck,
   type FoodPlan,
+  type FoodCommitmentReview,
 } from "./contract";
 
 // Case is significant: authored T/t can mean different cooking units. No
@@ -169,6 +170,67 @@ export function buildFoodPlan(
         : 0,
     ]),
   );
+  const commitmentReviews: FoodCommitmentReview[] = [];
+  let commitmentsUnresolved = false;
+  if (inputs.commitments) {
+    const recipes = new Map(
+      [...inputs.recipes, ...inputs.commitments.recipes].map((recipe) => [
+        recipe.id,
+        recipe,
+      ]),
+    );
+    for (const entry of [...inputs.commitments.entries].sort(
+      (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id),
+    )) {
+      const recipe = entry.recipeId ? recipes.get(entry.recipeId) : undefined;
+      const servings = entry.servings ?? recipe?.servings ?? null;
+      const review: FoodCommitmentReview = {
+        id: entry.id,
+        kind: entry.kind,
+        date: entry.date,
+        originalDate: entry.originalDate,
+        label: entry.label ?? recipe?.title ?? null,
+        recipeId: entry.recipeId,
+        servings,
+        servingsBasis:
+          entry.servings !== null
+            ? "recorded"
+            : recipe
+              ? "recipe-default"
+              : "unknown",
+        ingredients: [],
+        holds: [],
+      };
+      if (entry.stateUncertain) review.holds.push("prep-state-unknown");
+      if (entry.kind === "prep-dish" && entry.originalDate < entry.date)
+        review.holds.push("overdue-prep");
+      if (!recipe) review.holds.push("recipe-unknown");
+      else if (!recipe.ingredients.length)
+        review.holds.push("ingredients-unknown");
+      else if (
+        servings === null ||
+        !Number.isInteger(servings) ||
+        servings < 1 ||
+        servings > 100
+      )
+        review.holds.push("quantity-unknown");
+      else {
+        const evaluated = candidate(
+          recipe,
+          { key: "existing", date: entry.date, mealType: "dinner", servings },
+          inputs.stock,
+          ledger,
+        );
+        review.ingredients = evaluated.value.ingredients;
+        ledger = evaluated.after;
+        if (evaluated.value.checkCount > 0)
+          review.holds.push("quantity-unknown");
+      }
+      if (review.holds.some((reason) => reason !== "overdue-prep"))
+        commitmentsUnresolved = true;
+      commitmentReviews.push(review);
+    }
+  }
   const used = new Set<string>();
   const slots: FoodPlan["slots"] = [];
   // Ordinary slots are chronological. A prep session retains its authored dish
@@ -205,7 +267,20 @@ export function buildFoodPlan(
           !used.has(recipe.id) ||
           slot.recipeId === recipe.id,
       )
-      .map((recipe) => candidate(recipe, slot, inputs.stock, ledger))
+      .map((recipe) => {
+        const evaluated = candidate(recipe, slot, inputs.stock, ledger);
+        if (commitmentsUnresolved) {
+          for (const ingredient of evaluated.value.ingredients) {
+            ingredient.state = "check";
+            ingredient.shortfall = null;
+            ingredient.reasons.push("existing-commitment-unknown");
+          }
+          evaluated.value.coveredCount = 0;
+          evaluated.value.shortfallCount = 0;
+          evaluated.value.checkCount = evaluated.value.ingredients.length;
+        }
+        return evaluated;
+      })
       .sort((a, b) => {
         const x = a.value,
           y = b.value;
@@ -245,6 +320,7 @@ export function buildFoodPlan(
     }
     const choice = selected.value;
     const holds: FoodPlan["slots"][number]["holds"] = [];
+    if (commitmentsUnresolved) holds.push("commitments-unresolved");
     if (!Object.values(inputs.coverage).every(Boolean))
       holds.push("source-incomplete");
     if (choice.time === "unknown") holds.push("time-unknown");
@@ -285,8 +361,18 @@ export function buildFoodPlan(
           : prepMinutes <= request.prepMaxMinutes
             ? "within-requested-limit"
             : "over-requested-limit",
-    existingMealReservationsChecked: false,
-    inventoryBasis: "recorded-stock-for-new-proposals",
+    existingMealReservationsChecked: inputs.commitments !== undefined,
+    inventoryBasis: inputs.commitments
+      ? commitmentsUnresolved
+        ? "recorded-stock-with-unresolved-commitments"
+        : "recorded-stock-after-recorded-commitments"
+      : "recorded-stock-for-new-proposals",
+    commitments: {
+      complete: inputs.commitments !== undefined && !commitmentsUnresolved,
+      horizon: inputs.commitments?.horizon ?? null,
+      entries: commitmentReviews,
+      prepared: inputs.commitments?.prepared ?? [],
+    },
     calendarChecked: false,
     stockReserved: false,
     writesPerformed: false,
