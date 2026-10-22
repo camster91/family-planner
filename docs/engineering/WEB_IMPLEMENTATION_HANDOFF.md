@@ -1,5 +1,17 @@
 # Web implementation handoff — 2026-10-22
 
+## Latest execution instruction — 2026-10-22
+
+Cameron asked to defer tests until implementation is finished. Resume the
+implementation-first pass: reconcile the remaining source and plans against the
+actual checkout and original issue criteria, complete missing approved code, then
+freeze one integrated candidate for consolidated QA. Do not start further test,
+build or browser runs, or publish a PR that automatically triggers CI, before
+that implementation pass is complete. This changes sequencing, not release gates:
+merge/deploy still require applicable passing QA under the existing authorization.
+Retain all earlier evidence at its recorded SHA; do not count unverified code or
+provider/native/customer acceptance as finished. The goal remains active.
+
 The approved implementation-first web scope is handed to consolidated QA. This
 is a source-coverage decision, not a passing check, issue closure, product rating,
 activation or release. Source baseline before this handoff: `6c1a3c8a` on

@@ -1,5 +1,17 @@
 # Open issue completion ledger
 
+## Latest execution instruction — 2026-10-22
+
+Cameron asked to defer tests until implementation is finished. Resume the
+implementation-first pass: reconcile the remaining source and plans against the
+actual checkout and original issue criteria, complete missing approved code, then
+freeze one integrated candidate for consolidated QA. Do not start further test,
+build or browser runs, or publish a PR that automatically triggers CI, before
+that implementation pass is complete. This changes sequencing, not release gates:
+merge/deploy still require applicable passing QA under the existing authorization.
+Retain all earlier evidence at its recorded SHA; do not count unverified code or
+provider/native/customer acceptance as finished. The goal remains active.
+
 2026-10-22 timing checkpoint: food previews now reuse canonical calendar comparison/source policy for explicit meal/prep windows and selected-departure buffers. Continuous gaps, shared prep duration and unknown/partial-source holds are authored; source/DST/freshness/foreign/version cases unrun. Provider/owned review/timing controls/canonical apply/recovery/eval/inbox and all QA remain; readiness stays off and no issue closed. Details: `docs/plans/grounded-food-planning-v1.md`.
 
 2026-10-22 commitment checkpoint: food previews now reconcile ordinary meals and whole pending dishes before new virtual stock allocations, project canonical prepared/eaten/planned/remaining/next-prep metadata, and hold unresolved commitments. Scoped source/portion/foreign-graph cases are authored and unrun; flags off. Calendar/provider/compact review/canonical apply/recovery/evaluation/inbox source and all QA remain. See `docs/plans/grounded-food-planning-v1.md`; no issue closed.
