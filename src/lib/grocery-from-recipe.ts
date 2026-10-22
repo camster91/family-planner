@@ -214,10 +214,12 @@ export async function addRecipeToGroceries(
   // together. If anything after the insert throws, the rows roll back with
   // it, so withIdempotency releasing the record never strands rows whose
   // source_request_id points at a deleted request (they could not be undone).
-  return db.$transaction((tx) => addInTx(tx, input, actor, requestId))
+  return db.$transaction((tx) => addRecipeToGroceriesInTx(tx, input, actor, requestId))
 }
 
-async function addInTx(
+/** Caller owns commit/rollback and receipt completion. This is the same effect
+ * as the public wrapper, including full recipe amounts and grocery Undo. */
+export async function addRecipeToGroceriesInTx(
   db: Prisma.TransactionClient,
   input: AddFromRecipeInput,
   actor: Actor,

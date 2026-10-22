@@ -175,6 +175,43 @@ Timing/source/cap/freshness/DST/zero-duration and disposable-DB foreign-departur
 material-away-and-back cases are authored and **unrun**. Full UI/provider/apply,
 recurrence interoperability (#124), consolidated QA and activation remain separate.
 
+## Atomic canonical write composition (internal source only)
+
+`food-planning/persist.ts` now composes ordinary meals or one canonical multi-dish
+prep session and optional explicitly selected groceries inside one serializable
+transaction. It is **not exposed by a route**. A required same-transaction source
+guard must bind the entire reviewed command, renew food/calendar evidence and
+enforce the original lease. The concrete signed review/source guard, review UI,
+API boundary and exact browser journal/inspection are still required. A supplied
+read revision or browser recipe ID alone must never activate this adapter.
+
+The normal outer idempotency boundary reserves an exact owner/action/body root
+receipt. Current original actor/role/generation/Meals authority is checked before
+replay, including during a rollout pause. New effects also require readiness and
+Inventory/Lists availability plus the guard. Completed replay returns minimal
+pointers without recreating deleted targets or extending Undo. All child receipts
+are created, completed and committed with the domain writes and root receipt.
+Canonical meal/prep/grocery failures throw, so even a late grocery refusal or lease
+expiry rolls back earlier meals, dishes, grocery rows and child receipts. Unknown
+transaction outcomes must use original-root receipt inspection, not a new key.
+
+The ordinary meal and recipe-grocery primitives now expose transaction variants;
+their existing wrappers still use the same effects. Prep keeps its existing
+verification, eight-dish/fifty-portion limits, next-prep and allocation validation.
+No session is marked prepared and no inventory/consumption is changed. Grocery
+selections specify a list and unique recipe ingredient IDs. Amounts remain full
+canonical scaled recipe quantities, **not computed shortfalls**; the eventual UI
+must disclose those exact amounts. Canonical source keys, duplicate reporting and
+per-add ten-minute Undo remain attached to ordinary child grocery receipts.
+
+Contract/disposable-DB composition cases are authored and **unrun**, including
+late failure rollback, final-boundary expiry, full scaled grocery amounts/Undo,
+paused-rollout replay after target deletion, actor-generation refusal and one
+multi-dish session. Fixture guards in those cases prove composition only, not
+signed-source verification, universal ABA detection or end-to-end acceptance.
+Required legacy-writer food version coverage remains source work before apply
+activation. No new endpoint, schema/provider/flag activation or release occurred.
+
 ## Remaining source required before activation
 
 1. Finish the compact human review of unresolved existing commitments and

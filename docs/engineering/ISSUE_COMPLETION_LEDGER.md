@@ -593,3 +593,18 @@ Source/API/helper/component and replay/privacy cases are authored, all unrun.
 No activation/QA/merge/deploy/closure claim. Routine provenance/history, broader
 role/profile/shared readers, other history coverage, refusal UX and grounded AI
 references/planning/evaluation/usage remain open; full goal remains active.
+
+
+### 2026-10-22 — food plan canonical write composition (#123/#144)
+
+Internal `food-planning/persist.ts` now composes canonical ordinary meal or
+multi-dish prep effects plus explicit recipe groceries in one serializable
+root/child receipt transaction. Existing full quantity, duplicate/Undo, prep
+verification/portion/next-prep and actor lifecycle rules remain. New transaction
+variants preserve existing ordinary meal/grocery wrappers. Late refusals and lease
+expiry throw for whole-command rollback; completed replay returns minimal pointers
+under current original authority even when rollout paused or a target deleted.
+Contract/disposable-DB cases authored/unrun. No endpoint or production activation.
+Concrete signed-source renewal/version coverage, owned compact review/API/exact
+recovery, provider projection/evaluation and inbox integration remain source work,
+then all consolidated QA and release gates. Full goal and issues stay open.

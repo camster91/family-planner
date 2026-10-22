@@ -33,64 +33,74 @@ export async function createMealWithReceipt(
   input: MealCreateInput,
   recordId: string,
 ) {
-  return db.$transaction(async (tx) => {
-    const refusal = await authorizeMealCreate(tx, actor);
-    if (refusal) return refusal;
-    if (
-      input.expected_family_id !== actor.familyId ||
-      input.expected_user_id !== actor.userId
-    )
-      return failure(403, "AUTH_CONTEXT_CHANGED");
-    await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
-    const receipt = await tx.idempotencyRecord.findFirst({
-      where: {
-        id: recordId,
-        scope: `user:${actor.userId}`,
-        family_id: actor.familyId,
-        user_id: actor.userId,
-        action: MEAL_CREATE_ACTION,
-        request_hash: hashIdempotentRequest(MEAL_CREATE_ACTION, input),
-      },
-      select: { response_status: true, response_body: true },
-    });
-    if (!receipt) return failure(409, "IDEMPOTENCY_IN_PROGRESS");
-    if (receipt.response_status !== null)
-      return { status: receipt.response_status, body: receipt.response_body };
-    // An abandoned browser must not recreate a meal after its receipt expires.
-    const age = Date.now() - new Date(input.issued_at).getTime();
-    if (age < -60000 || age > IDEMPOTENCY_TTL_MS - 3600000)
-      return failure(409, "MEAL_INTENT_EXPIRED");
-    if (
-      input.cook_id &&
-      !(await tx.user.findFirst({
-        where: { id: input.cook_id, family_id: actor.familyId },
-        select: { id: true },
-      }))
-    )
-      return failure(400, "COOK_UNAVAILABLE");
-    const link = await resolveMealLink(tx, actor.familyId, input);
-    if (!link.ok) return failure(400, "RECIPE_UNAVAILABLE");
-    const meal = await tx.familyMeal.create({
-      data: {
-        family_id: actor.familyId,
-        date: parseDateOnly(input.date)!,
-        meal_type: input.meal_type,
-        recipe_name: input.recipe_name ?? link.recipeTitle ?? "",
-        notes: input.notes ?? null,
-        cook_id: input.cook_id ?? null,
-        recipe_id: link.recipeId ?? null,
-        servings: link.servings ?? null,
-        created_by: actor.userId,
-      },
-      select: { id: true },
-    });
-    const body = { mealId: meal.id };
-    await tx.idempotencyRecord.update({
-      where: { id: recordId },
-      data: { response_status: 201, response_body: body },
-    });
-    return { status: 201, body, created: true };
+  return db.$transaction((tx) =>
+    createMealWithReceiptInTx(tx, actor, input, recordId),
+  );
+}
+/** Same canonical effect inside a caller-owned transaction. A caller composing
+ * effects must throw on non-success so earlier effects roll back together. */
+export async function createMealWithReceiptInTx(
+  tx: Prisma.TransactionClient,
+  actor: MealCreateActor,
+  input: MealCreateInput,
+  recordId: string,
+) {
+  const refusal = await authorizeMealCreate(tx, actor);
+  if (refusal) return refusal;
+  if (
+    input.expected_family_id !== actor.familyId ||
+    input.expected_user_id !== actor.userId
+  )
+    return failure(403, "AUTH_CONTEXT_CHANGED");
+  await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
+  const receipt = await tx.idempotencyRecord.findFirst({
+    where: {
+      id: recordId,
+      scope: `user:${actor.userId}`,
+      family_id: actor.familyId,
+      user_id: actor.userId,
+      action: MEAL_CREATE_ACTION,
+      request_hash: hashIdempotentRequest(MEAL_CREATE_ACTION, input),
+    },
+    select: { response_status: true, response_body: true },
   });
+  if (!receipt) return failure(409, "IDEMPOTENCY_IN_PROGRESS");
+  if (receipt.response_status !== null)
+    return { status: receipt.response_status, body: receipt.response_body };
+  // An abandoned browser must not recreate a meal after its receipt expires.
+  const age = Date.now() - new Date(input.issued_at).getTime();
+  if (age < -60000 || age > IDEMPOTENCY_TTL_MS - 3600000)
+    return failure(409, "MEAL_INTENT_EXPIRED");
+  if (
+    input.cook_id &&
+    !(await tx.user.findFirst({
+      where: { id: input.cook_id, family_id: actor.familyId },
+      select: { id: true },
+    }))
+  )
+    return failure(400, "COOK_UNAVAILABLE");
+  const link = await resolveMealLink(tx, actor.familyId, input);
+  if (!link.ok) return failure(400, "RECIPE_UNAVAILABLE");
+  const meal = await tx.familyMeal.create({
+    data: {
+      family_id: actor.familyId,
+      date: parseDateOnly(input.date)!,
+      meal_type: input.meal_type,
+      recipe_name: input.recipe_name ?? link.recipeTitle ?? "",
+      notes: input.notes ?? null,
+      cook_id: input.cook_id ?? null,
+      recipe_id: link.recipeId ?? null,
+      servings: link.servings ?? null,
+      created_by: actor.userId,
+    },
+    select: { id: true },
+  });
+  const body = { mealId: meal.id };
+  await tx.idempotencyRecord.update({
+    where: { id: recordId },
+    data: { response_status: 201, response_body: body },
+  });
+  return { status: 201, body, created: true };
 }
 /** Renew authority and check existence; replay never recreates a deleted meal. */
 export async function confirmCreatedMeal(

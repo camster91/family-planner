@@ -1,5 +1,22 @@
 # Current State
 
+## Food plan canonical write composition — 2026-10-22
+
+An internal transaction adapter now composes canonical ordinary meals or one
+multi-dish prep session plus explicit recipe grocery selections with atomic
+root/child receipts. It reuses existing meal/prep/grocery effects and preserves
+full scaled quantities, duplicate handling and Undo. Late refusals throw and roll
+back all earlier effects. Original actor/role/generation authority precedes replay;
+paused rollout and deleted targets cannot cause replay to recreate records.
+
+This is source only, with no route or concrete signed food-source guard yet.
+Owned review/API/recovery, complete apply-time source/version renewal, provider
+projection/evaluation and broader inbox follow-through remain. Contract and
+opt-in disposable-DB cases are authored and unrun; all QA remains deferred.
+No DB/schema/provider/flag change, push/merge/deploy or issue closure occurred.
+See [`grounded-food-planning-v1.md`](./plans/grounded-food-planning-v1.md).
+The full goal remains active; historical checkpoints below remain intact.
+
 ## Food planning calendar/departure source — 2026-10-22
 
 Explicit offset-aware meal windows and one shared multi-dish prep window now
