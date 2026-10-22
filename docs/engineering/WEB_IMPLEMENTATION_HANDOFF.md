@@ -183,3 +183,36 @@ manifests report exit1 at45252ce1. The source/dependencies/QA logs/manifests wer
 preserved, then the intended nullable-version guard and formatting were saved.
 Ignored cleanup receipt:discarded-failed-build-final-20261022.json. This is not a
 new build or runtime pass; further testing remains deferred as instructed.
+
+
+## Implementation-first list-overview read follow-through (#134/#136)
+
+Current source still selected every item checkbox in the server Lists overview,
+only to count checked rows. `readListOverview` now performs database aggregation
+instead: list summaries with total item counts, plus checked counts grouped by
+list across the authenticated family. It does not hydrate item rows or read item
+content, and does not construct an unbounded list-ID parameter array. An empty
+household skips the aggregate query.
+
+The verified-cookie actor is renewed against current User family/role/generation
+inside a repeatable-read transaction before either summary/count read. Totals,
+checked counts, household name and canCreate derive from the same snapshot. A
+changed/revoked/deleted actor returns no overview and the page redirects through
+ordinary dashboard access. Unknown aggregate results or inconsistent counts enter
+the existing localized retry view, with creation withheld; they are not displayed
+as an empty household or zero progress. The returned summary field names, all
+list types/filter behavior, images, creator labels and total/checked semantics
+remain; ties in updated_at now have ID order. Pending tick recovery retains its
+existing own-account host and independent canonical guards.
+
+This is source-only. No tests/typecheck/lint/build/browser/CI or DB query was run;
+formatting only. Later consolidated QA must compare aggregate totals to canonical
+items across mixed/empty/full lists and two families, concurrent checks/creates/
+deletes, role/family/generation changes between authentication and reads, parent/
+teen/child creation controls, denied authority versus transient failure, default/
+grocery/custom filters, gallery/long text/locale and pending tick recovery.
+No schema/index/provider/scheduler/write or new permission was introduced.
+
+The list-summary collection, legacy list API and list-detail item collection are
+still uncapped and stay explicit #134 work. Aggregation removes item hydration
+from this overview only; it is not a complete pagination/N+1/scale acceptance claim.

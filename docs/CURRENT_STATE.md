@@ -12,6 +12,15 @@ merge/deploy still require applicable passing QA under the existing authorizatio
 Retain all earlier evidence at its recorded SHA; do not count unverified code or
 provider/native/customer acceptance as finished. The goal remains active.
 
+## Implementation-first list summary counts — 2026-10-22
+
+Lists overview now uses same-snapshot database counts instead of hydrating all
+item checkbox rows. Its new reader renews verified cookie generation/family/role
+and derives progress/creation controls in a repeatable-read transaction; failed
+reads remain retry states. Formatting only, further QA deferred. This does not
+cap list-summary/legacy API/detail collections or prove performance; those stay
+explicit in#134. See WEB_IMPLEMENTATION_HANDOFF.md and OBSERVABILITY.md.
+
 ## Implementation-first inbox session boundary — 2026-10-22
 
 The review page now carries its verified cookie generation into current-parent
