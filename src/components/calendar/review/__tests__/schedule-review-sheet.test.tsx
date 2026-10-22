@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored journeys only; execution/rendered/native QA is deferred. */
 import * as React from "react";
 import {
@@ -243,12 +244,10 @@ it("lets a child review alternatives while keeping the consequential confirmatio
   jest
     .mocked(readScheduleContext)
     .mockResolvedValue({ ...context, role: "child", enabled: false });
-  jest
-    .mocked(readScheduleSnapshot)
-    .mockResolvedValue({
-      snapshot: childSnapshot,
-      evaluatedAt: now.toISOString(),
-    });
+  jest.mocked(readScheduleSnapshot).mockResolvedValue({
+    snapshot: childSnapshot,
+    evaluatedAt: now.toISOString(),
+  });
   jest
     .mocked(readSchedulePreview)
     .mockImplementation(async (query: ScheduleReviewQuery) => ({

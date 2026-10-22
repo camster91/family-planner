@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored source only. Consolidated QA, including these cases, is deferred. */
 import * as React from "react";
 import {

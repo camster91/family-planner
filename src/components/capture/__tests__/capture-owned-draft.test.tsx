@@ -1,5 +1,6 @@
 /** @jest-environment jsdom */
 /** Authored source cases; execution and rendered acceptance remain deferred. */
+import "@testing-library/jest-dom";
 import * as React from "react";
 import {
   render,

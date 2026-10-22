@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored/unrun. Source rendering assertions; real browser/device QA is later. */
 import { render, screen, fireEvent } from "@testing-library/react";
 import { FoodPlanSummary } from "../FoodPlanSummary";

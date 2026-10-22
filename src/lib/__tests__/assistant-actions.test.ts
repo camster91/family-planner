@@ -197,7 +197,7 @@ it("keeps the model's feature map and open catalog truthful for role and depende
 
   const teenCatalog = assistantPrompt("teen", allOn);
   expect(teenCatalog).toContain(
-    '"destination":"today|calendar|lists|meals|settings|notes|inventory|emergency|recipes"',
+    '"destination":"today|calendar|lists|meals|settings|notes|inventory|emergency|recipes|food-plan|bulk-prep|food-recovery|bulk-recovery"',
   );
   expect(teenCatalog).not.toContain('"analytics|');
   expect(teenCatalog).not.toContain('|analytics"');

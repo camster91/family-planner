@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored/unrun. Explicit callbacks, no write actions or provider prose. */
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { FoodAiProposal } from "../FoodAiProposal";

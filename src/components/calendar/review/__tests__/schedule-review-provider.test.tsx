@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored only: privacy/navigation cases, no browser/native execution. */
 import * as React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";

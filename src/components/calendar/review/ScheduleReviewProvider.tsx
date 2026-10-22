@@ -47,7 +47,7 @@ export default function ScheduleReviewProvider({
   });
   const scope = personal && parsed.success ? parsed.data : null;
   const isOpen = !!scope;
-  const url = `${pathname}${params.size ? `?${params}` : ""}`;
+  const url = `${pathname}${params.toString() ? `?${params}` : ""}`;
   React.useEffect(() => {
     navigating.current = false;
     if (closing.current && !isOpen) {
@@ -126,7 +126,7 @@ export default function ScheduleReviewProvider({
       ])
         next.delete(key);
       observeNavigation(
-        router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
+        router.replace(`${pathname}${next.toString() ? `?${next}` : ""}`, {
           scroll: false,
         }),
         previousPushed,

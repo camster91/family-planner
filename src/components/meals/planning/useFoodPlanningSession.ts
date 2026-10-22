@@ -192,7 +192,8 @@ export function useFoodPlanningSession(onSaved: () => void) {
     setRows(entries);
     const editable =
       entries.find(
-        (row): row is typeof row & LocalEntry => row.kind === "local-food-draft",
+        (row): row is typeof row & LocalEntry =>
+          row.kind === "local-food-draft",
       ) ?? null;
     local.current = editable;
     if (adoptDraft)
@@ -217,7 +218,11 @@ export function useFoodPlanningSession(onSaved: () => void) {
         }),
       );
       if (body !== entry.body) {
-        const changed = foodDraftEntry.parse({ ...entry, body });
+        const changed = foodDraftEntry.parse({
+          kind: entry.kind,
+          key: entry.key,
+          body,
+        });
         const stamp = epoch.current;
         await journal.replaceLocalDraft(changed, entry.body);
         if (alive.current && epoch.current === stamp) {
@@ -263,7 +268,8 @@ export function useFoodPlanningSession(onSaved: () => void) {
       setConfirmed({});
       local.current =
         entries.find(
-          (row): row is typeof row & LocalEntry => row.kind === "local-food-draft",
+          (row): row is typeof row & LocalEntry =>
+            row.kind === "local-food-draft",
         ) ?? null;
       showDraft(
         local.current

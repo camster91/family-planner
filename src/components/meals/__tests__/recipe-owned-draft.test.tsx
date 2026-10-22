@@ -1,5 +1,6 @@
 /** @jest-environment jsdom */
 /** Authored only. These UI cases have not been run. */
+import "@testing-library/jest-dom";
 import * as React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 jest.mock("next/navigation", () => ({

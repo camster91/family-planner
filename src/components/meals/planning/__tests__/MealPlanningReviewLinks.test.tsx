@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored/unrun. Discovery links never imply a save or completed weekly step. */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { FoodPlanningAccess } from "../FoodPlanningAccess";

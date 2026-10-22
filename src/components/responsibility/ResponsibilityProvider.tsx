@@ -52,7 +52,7 @@ export default function ResponsibilityProvider({
     !(role === "child" && parsed.data.kind === "handoff")
       ? parsed.data
       : null;
-  const url = `${pathname}${params.size ? `?${params}` : ""}`;
+  const url = `${pathname}${params.toString() ? `?${params}` : ""}`;
   React.useEffect(() => {
     navigating.current = false;
   }, [url]);
@@ -109,7 +109,7 @@ export default function ResponsibilityProvider({
       next.delete("responsibilityKind");
       next.delete("responsibilityId");
       observeNavigation(
-        router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
+        router.replace(`${pathname}${next.toString() ? `?${next}` : ""}`, {
           scroll: false,
         }),
         previousPushed,

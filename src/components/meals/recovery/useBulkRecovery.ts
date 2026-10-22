@@ -164,8 +164,9 @@ export function useBulkRecovery(
       return;
     setRows(entries);
     local.current =
-      entries.find((row): row is typeof row & Local => row.kind === "local-prep-draft") ??
-      null;
+      entries.find(
+        (row): row is typeof row & Local => row.kind === "local-prep-draft",
+      ) ?? null;
     setDraft(
       local.current
         ? prepDraftPayload.parse(JSON.parse(local.current.body)).draft
@@ -201,8 +202,9 @@ export function useBulkRecovery(
       setContext(next);
       setRows(entries);
       local.current =
-        entries.find((row): row is typeof row & Local => row.kind === "local-prep-draft") ??
-        null;
+        entries.find(
+          (row): row is typeof row & Local => row.kind === "local-prep-draft",
+        ) ?? null;
       setDraft(
         local.current
           ? prepDraftPayload.parse(JSON.parse(local.current.body)).draft
@@ -245,7 +247,8 @@ export function useBulkRecovery(
         throw new Error("Bulk draft unavailable");
       const identity = token.current;
       const changed = {
-        ...old,
+        kind: old.kind,
+        key: old.key,
         body: rawBody(reader.current(), currentContext),
       };
       if (changed.body !== old.body) {
@@ -545,10 +548,7 @@ export function useBulkRecovery(
     issue,
     privacyHold,
     held:
-      privacyHold ||
-      mode === "held" ||
-      issue === "storage" ||
-      issue === "held",
+      privacyHold || mode === "held" || issue === "storage" || issue === "held",
     load,
     attach,
     detach,

@@ -46,7 +46,7 @@ export default function PreparationProvider({
   const pushed = React.useRef<string | null>(null),
     navigating = React.useRef(false),
     closing = React.useRef(false);
-  const url = `${path}${params.size ? `?${params}` : ""}`;
+  const url = `${path}${params.toString() ? `?${params}` : ""}`;
   React.useEffect(() => {
     const refresh = () => router.refresh();
     window.addEventListener(PREPARATION_CHANGED_EVENT, refresh);
@@ -131,7 +131,7 @@ export default function PreparationProvider({
       next.delete("prepareEvent");
       next.delete("prepareZone");
       observeNavigation(
-        router.replace(`${path}${next.size ? `?${next}` : ""}`, {
+        router.replace(`${path}${next.toString() ? `?${next}` : ""}`, {
           scroll: false,
         }),
         previousPushed,

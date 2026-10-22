@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored/unrun. Personal lifecycle cases; not browser/device acceptance. */
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { requestOwnedJson } from "@/lib/owned-request-http";

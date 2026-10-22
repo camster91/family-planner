@@ -5,9 +5,11 @@ module.exports = {
   testMatch: ['<rootDir>/src/**/__tests__/**/*.test.ts', '<rootDir>/src/**/__tests__/**/*.test.tsx'],
   modulePathIgnorePatterns: ['<rootDir>/.next/'],
   moduleNameMapper: {
+    '\\.module\\.css$': '<rootDir>/src/__tests__/helpers/css-module.js',
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   setupFiles: ['<rootDir>/jest.setup.js'],
+  setupFilesAfterEnv: ['<rootDir>/jest.browser-setup.js'],
   collectCoverageFrom: [
     'src/lib/auth.ts',
     'src/lib/gamification.ts',

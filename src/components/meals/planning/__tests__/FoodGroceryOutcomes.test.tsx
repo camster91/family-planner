@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored/unrun. Mounted source cases; final browser acceptance is deferred. */
 import { render, screen, fireEvent } from "@testing-library/react";
 import { FoodGroceryOutcomesView } from "../FoodGroceryOutcomes";

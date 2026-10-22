@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored/unrun. Controller races; no app, storage or network execution. */
 jest.mock("@/lib/food-planning/browser", () => ({
   browserFoodRecovery: jest.fn(),
@@ -45,8 +46,12 @@ function fixture() {
     }),
   ];
   const journal = {
-    initialize: jest.fn(async () => rows),
-    snapshot: jest.fn(async () => rows),
+    initialize: jest.fn(async () =>
+      rows.map((row) => ({ ...row, reviewRequired: true })),
+    ),
+    snapshot: jest.fn(async () =>
+      rows.map((row) => ({ ...row, reviewRequired: true })),
+    ),
     hasUncertainStorage: jest.fn(() => false),
     replaceLocalDraft: jest.fn(async (entry: FoodJournalEntry) => {
       rows = [entry];

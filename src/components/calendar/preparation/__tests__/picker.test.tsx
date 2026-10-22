@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 jest.mock("@/lib/idempotency", () => ({
   hashIdempotentRequest: () => "f".repeat(64),
 }));

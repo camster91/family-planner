@@ -17,6 +17,10 @@ import { hashDeviceToken } from "@/lib/device-session";
 describe("notes — two households", () => {
   beforeEach(() => {
     db.reset();
+    // The canonical writer renews stored permission inside its transaction.
+    // Ownership tests need notes enabled; a mock route gate grants no access.
+    db.find("family", "family-A")!.features = { notes: true };
+    db.find("family", "family-B")!.features = { notes: true };
     mockFeatureGate.mockResolvedValue(null);
   });
 

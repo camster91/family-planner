@@ -998,11 +998,13 @@ export function LegacyCaptureBox({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text: phrase }),
           });
-          const body = await readBoundedJsonResponse(
-            response,
-            signal,
-            256 * 1024,
-          );
+          // An access refusal is authoritative even when its body is empty,
+          // malformed or never finishes. Do not let decoding retain private
+          // proposals/recovery after the session has lost access.
+          const body =
+            response.status === 401 || response.status === 403
+              ? null
+              : await readBoundedJsonResponse(response, signal, 256 * 1024);
           return { kind: "reply" as const, response, body };
         },
         { signal: controller.signal, timeoutMs: 45000 },
@@ -1012,7 +1014,14 @@ export function LegacyCaptureBox({
         throw new CaptureClientError("readInterrupted");
       const res = result.response;
       if (res.status === 401 || res.status === 403) {
-        revokeCaptureAccess();
+        const cleared = revokeCaptureAccess();
+        setError(
+          msg(
+            cleared
+              ? "recoveryAccessUnavailable"
+              : "recoveryStorageUnavailable",
+          ),
+        );
         throw new CaptureClientError("recoveryAccessUnavailable");
       }
       if (!res.ok) throw new CaptureClientError("couldNotRead");
@@ -1152,11 +1161,13 @@ export function LegacyCaptureBox({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ imageBase64: base64, mimeType }),
           });
-          const body = await readBoundedJsonResponse(
-            response,
-            signal,
-            256 * 1024,
-          );
+          // An access refusal is authoritative even when its body is empty,
+          // malformed or never finishes. Do not let decoding retain private
+          // proposals/recovery after the session has lost access.
+          const body =
+            response.status === 401 || response.status === 403
+              ? null
+              : await readBoundedJsonResponse(response, signal, 256 * 1024);
           return { kind: "reply" as const, response, body };
         },
         { signal: controller.signal, timeoutMs: 45000 },
@@ -1166,7 +1177,14 @@ export function LegacyCaptureBox({
         throw new CaptureClientError("readInterrupted");
       const res = result.response;
       if (res.status === 401 || res.status === 403) {
-        revokeCaptureAccess();
+        const cleared = revokeCaptureAccess();
+        setError(
+          msg(
+            cleared
+              ? "recoveryAccessUnavailable"
+              : "recoveryStorageUnavailable",
+          ),
+        );
         throw new CaptureClientError("recoveryAccessUnavailable");
       }
       if (!res.ok) throw new CaptureClientError("couldNotReadPhoto");

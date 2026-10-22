@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored journey cases. Execution/rendered/browser/native QA remains deferred. */
 import * as React from "react";
 import {
@@ -227,26 +228,24 @@ it("does not resurrect a confirmed request when recovery completes a partially f
     }),
   };
   const store = setup([entry]);
-  jest
-    .mocked(inspectWeeklyReset)
-    .mockResolvedValue({
-      contract: context.contract,
-      ownerScope: context.owner.scope,
-      entry,
-      state: "committed",
-      canRetry: false,
-      currentRevision: 1,
+  jest.mocked(inspectWeeklyReset).mockResolvedValue({
+    contract: context.contract,
+    ownerScope: context.owner.scope,
+    entry,
+    state: "committed",
+    canRetry: false,
+    currentRevision: 1,
+    receipt: {
       receipt: {
-        receipt: {
-          protocol: WEEKLY_RESET_PROTOCOL,
-          userId: props.userId,
-          familyId: props.familyId,
-          ...scope,
-          action: "start",
-          revision: 1,
-        },
+        protocol: WEEKLY_RESET_PROTOCOL,
+        userId: props.userId,
+        familyId: props.familyId,
+        ...scope,
+        action: "start",
+        revision: 1,
       },
-    });
+    },
+  });
   let uncertain = false;
   store.dismiss.mockImplementationOnce(async () => {
     uncertain = true;

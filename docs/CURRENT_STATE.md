@@ -1,5 +1,21 @@
 # Current State
 
+## Consolidated QA: first unit failures and recovery repairs — 2026-10-22
+
+The first full unit baseline at `e4aa6cdb` failed (95 failed/601 passed/82 skipped
+suites; 347 failed/6504 passed/546 skipped tests). No skips/assertions were added
+to hide failures. Main `2484ac37` was integrated locally at `cc078155`; the four
+integration-focused suites pass (31 tests). Full typecheck and lint pass after
+recovery repairs; lint still reports44 warnings.
+
+Repairs address capture access refusal before body decoding, strict schedule
+command/query projection, journal display metadata leaking into editable draft
+writes, serialized overlay query preservation, and bounded recipe curation reads/
+writes. Browser unit configuration/fixtures now exercise previously unexecuted
+component cases. Exact evidence and remaining gates are in
+`docs/testing/WEB_QA_20261022.md`. Final full units/build/DB/browser/recovery and
+hosted release checks remain. No production merge/deployment is claimed.
+
 ## Consolidated web QA: initial static repairs — 2026-10-22
 
 Prisma client generation passed with Node22.23.3/Client7.10.0. The initial full

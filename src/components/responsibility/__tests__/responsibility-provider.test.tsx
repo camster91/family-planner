@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored navigation/privacy cases; not executed. */
 import * as React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";

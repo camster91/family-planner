@@ -8,6 +8,7 @@ import {
   scheduleReviewSnapshot,
   planScheduleReview,
   requireScheduleIntentAge,
+  scheduleMoveCommand,
   type ScheduleReviewScope,
   type ScheduleMoveCommand,
   type ScheduleReviewQuery,
@@ -197,7 +198,24 @@ export function requireScheduleMove(
   now: Date,
 ) {
   requireScheduleIntentAge(command, now);
-  const plan = planScheduleReview(snapshot, command, now);
+  // Effect/age fields belong to the strict command, not the strict read query.
+  const intent = scheduleMoveCommand.parse(command);
+  const plan = planScheduleReview(
+    snapshot,
+    {
+      protocol: intent.protocol,
+      owner: intent.owner,
+      range: intent.range,
+      timeZone: intent.timeZone,
+      snapshotToken: intent.snapshotToken,
+      target: intent.target,
+      buffers: intent.buffers,
+      otherBuffers: intent.otherBuffers,
+      windows: intent.windows,
+      gridMinutes: intent.gridMinutes,
+    },
+    now,
+  );
   if (
     !plan.canApply ||
     !plan.alternatives.some(

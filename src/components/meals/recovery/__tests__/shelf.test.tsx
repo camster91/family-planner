@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored/unrun. Explicit actions and local-removal acknowledgement. */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { BulkRecoveryShelf } from "../BulkRecoveryShelf";

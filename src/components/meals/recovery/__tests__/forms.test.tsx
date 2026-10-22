@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored/unrun. Existing forms must delegate owned saves, not legacy POSTs. */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { I18nProvider } from "@/i18n";

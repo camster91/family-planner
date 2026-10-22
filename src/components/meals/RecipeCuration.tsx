@@ -7,6 +7,7 @@ import {
   recipeCurationResponse,
 } from "@/lib/recipe-curation-contract";
 import { useRecipeCurationText } from "@/i18n/recipe-curation";
+import { requestOwnedJson } from "@/lib/owned-request-http";
 type Current = {
   id: string;
   revision: number;
@@ -66,18 +67,22 @@ export function RecipeCuration({
     setMessage(null);
     try {
       const [catalog, state] = await Promise.all([
-        fetch("/api/recipes/collections", {
-          cache: "no-store",
-          signal: AbortSignal.timeout(10000),
-        }),
-        fetch(`/api/recipes/${encodeURIComponent(id)}/curation`, {
-          cache: "no-store",
-          signal: AbortSignal.timeout(10000),
-        }),
+        requestOwnedJson("/api/recipes/collections", {}, 128 * 1024),
+        requestOwnedJson(
+          `/api/recipes/${encodeURIComponent(id)}/curation`,
+          {},
+          32 * 1024,
+        ),
       ]);
-      if (!catalog.ok || !state.ok) throw new Error();
-      const c = collectionResponse.parse(await catalog.json());
-      const s = recipeCurationResponse.parse(await state.json());
+      if (
+        catalog.kind !== "reply" ||
+        state.kind !== "reply" ||
+        !catalog.response.ok ||
+        !state.response.ok
+      )
+        throw new Error();
+      const c = collectionResponse.parse(catalog.body);
+      const s = recipeCurationResponse.parse(state.body);
       if (s.id !== id) throw new Error();
       if (own !== generation.current) return;
       setCollections(c.collections);
@@ -123,17 +128,17 @@ export function RecipeCuration({
       collectionIds: [...chosen],
     };
     try {
-      const response = await fetch(
+      const response = await requestOwnedJson(
         `/api/recipes/${encodeURIComponent(id)}/curation`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(desired),
-          signal: AbortSignal.timeout(15000),
         },
+        32 * 1024,
       );
-      if (!response.ok) throw new Error();
-      const result = recipeCurationResponse.parse(await response.json());
+      if (response.kind !== "reply" || !response.response.ok) throw new Error();
+      const result = recipeCurationResponse.parse(response.body);
       if (
         result.id !== id ||
         result.favorite !== desired.favorite ||

@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 /** Authored/unrun parent/fridge/navigation privacy source cases. */
 import * as React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";

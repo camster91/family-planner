@@ -4,6 +4,7 @@
 // Quick capture tells its host page when something was saved (the calendar
 // refreshes), and a photo batch that partly fails keeps the failed events on
 // screen with "Added X of Y" instead of dropping them.
+import '@testing-library/jest-dom'
 import * as React from 'react'
 import { webcrypto } from 'node:crypto'
 import { TextDecoder, TextEncoder } from 'node:util'
