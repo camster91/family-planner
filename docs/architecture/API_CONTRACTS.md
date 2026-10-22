@@ -951,3 +951,23 @@ source checks do not grant canonical write authority. Repeated150-ID client
 batches remain in memory, clear on lifecycle/identity changes, and retire on
 owner/session replacement. Paused/schema-unavailable projections are empty.
 Source cases are authored/unrun; integrated QA and release remain outstanding.
+
+## Optional assistant references (source, 2026-10-22)
+
+Explicit person Include Today requests may advertise header
+`X-Assistant-References: herewoven.assistant-references.v1`. Only with the private
+`FAMILY_ASSISTANT_REFERENCES_READY=1` gate does the provider receive the separate
+opaque-reference block and use the reference-aware typed reply. Existing Today
+readiness/provider/role gates remain. No body field or client-selected record
+authority is added. Nonadvertising clients retain the exact v1 reply; rollback
+servers may ignore the header. New clients accept the v1 reply.
+
+After current source renewal, the server may append optional `evidence` (max8)
+with `{ref,kind,label,observedAt,href}`. All labels/routes resolve server-side from
+issued current references; providers cannot supply them. Unknown refs fail502,
+changed/expired sources fail409 without old reply/evidence. Citations are
+presentation, never mutation tokens; canonical actions retain their own target
+authorization/confirmation. Active Today lease is required for source links in
+the chat; citation objects are excluded from subsequent chat request messages.
+Source/schema/catalog/transport/UI cases are authored/unrun. Gate stays off;
+confirmed-plan grounding, eval/cost gates and consolidated release QA remain open.

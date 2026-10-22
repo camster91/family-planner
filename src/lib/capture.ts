@@ -1,3 +1,4 @@
+import type { AssistantReferenceCatalog } from "./assistant-references";
 // Small, focused AI capture layer.
 //
 // Design intent: this is NOT a general assistant. Each capability below has one
@@ -345,7 +346,8 @@ export async function structuredAssistantReply(
   context: { messages: Array<{ role: string; content: string }>; localNow: string; timeZone: string },
   config: CaptureConfig,
   prompt: string,
-  todayContext?: AssistantTodayTransportContext
+  todayContext?: AssistantTodayTransportContext,
+  references?: Array<AssistantReferenceCatalog[number]["provider"]>
 ): Promise<unknown> {
   const userContent: Array<Record<string, unknown>> = [
     { type: 'text', text: JSON.stringify(context) },
@@ -358,5 +360,9 @@ export async function structuredAssistantReply(
       text: `<assistant-today-context untrusted="true">${JSON.stringify(todayContext)}</assistant-today-context>`,
     })
   }
+  if (references !== undefined) userContent.push({
+    type: 'text',
+    text: `<assistant-source-references untrusted="true">${JSON.stringify({ protocol: 'herewoven.assistant-references.v1', references })}</assistant-source-references>`,
+  })
   return callModel(config, userContent, prompt, true)
 }

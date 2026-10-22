@@ -1,3 +1,4 @@
+import type { AssistantSourceRow } from "./assistant-references";
 /**
  * Narrow, server-only Today reads for the dormant Family AI broker.
  *
@@ -60,6 +61,7 @@ export interface LoadAssistantTodayRowsInput {
   features: AssistantTodayLoaderFeatures;
   serverNow: Date;
   viewerTimeZone: string;
+  onSources?: (sources: AssistantSourceRow[]) => void;
 }
 
 function boundedText(
@@ -193,6 +195,30 @@ export async function loadAssistantTodayRows(
   const day = localDayWindow(input.serverNow, input.viewerTimeZone);
   const { localDate, localStart, localEnd, dateStart, dateEnd } = day;
   const inventoryHorizon = addUTCDays(dateStart, DEFAULT_USE_SOON_DAYS);
+  const sources: AssistantSourceRow[] = [];
+  function source(
+    kind: AssistantSourceRow["kind"],
+    row: { id?: string; created_at?: Date },
+    index: number,
+    label: string,
+    extra?: { containerId?: string; dependencies?: unknown },
+  ) {
+    if (!input.onSources) return;
+    if (
+      !row.id ||
+      !(row.created_at instanceof Date) ||
+      !Number.isFinite(row.created_at.getTime())
+    )
+      throw new Error("Reference source unavailable");
+    sources.push({
+      kind,
+      id: row.id,
+      index,
+      label: boundedText(label),
+      ...(extra?.containerId ? { containerId: extra.containerId } : {}),
+      versionInput: { row, dependencies: extra?.dependencies ?? null },
+    });
+  }
 
   const namesPromise =
     input.role === "parent" && input.features.chores
@@ -214,6 +240,15 @@ export async function loadAssistantTodayRows(
           start_time: { lt: localEnd },
         },
         select: {
+          ...(input.onSources
+            ? {
+                id: true,
+                created_at: true,
+                updated_at: true,
+                schedule_generation: true,
+                schedule_epoch: true,
+              }
+            : {}),
           title: true,
           start_time: true,
           end_time: true,
@@ -235,9 +270,22 @@ export async function loadAssistantTodayRows(
           // Chores are date-only values stored at UTC midnight. Query the
           // exact viewer day so adjacent-day rows cannot consume the limit.
           due_date: { gte: dateStart, lt: dateEnd },
-          ...(input.role === "teen" ? { assigned_to: input.userId } : {}),
+          is_template: false,
+          member_subject_erased: false,
+          ...(input.role === "teen"
+            ? { assigned_to: input.userId, assigned_member_id: null }
+            : {}),
         },
         select: {
+          ...(input.onSources
+            ? {
+                id: true,
+                created_at: true,
+                preparation_epoch: true,
+                responsibility_generation: true,
+                responsibility_epoch: true,
+              }
+            : {}),
           title: true,
           due_date: true,
           status: true,
@@ -256,11 +304,19 @@ export async function loadAssistantTodayRows(
           date: { gte: dateStart, lt: dateEnd },
         },
         select: {
+          ...(input.onSources
+            ? { id: true, created_at: true, updated_at: true }
+            : {}),
           date: true,
           recipe_name: true,
           cook: { select: { id: true, name: true, family_id: true } },
           recipe: {
-            select: { title: true, prep_time: true, family_id: true },
+            select: {
+              title: true,
+              prep_time: true,
+              family_id: true,
+              ...(input.onSources ? { id: true, updated_at: true } : {}),
+            },
           },
         },
         orderBy: [{ date: "asc" }, { created_at: "asc" }, { id: "asc" }],
@@ -275,9 +331,17 @@ export async function loadAssistantTodayRows(
           list: { family_id: input.familyId, type: "grocery" },
         },
         select: {
+          ...(input.onSources
+            ? { id: true, created_at: true, updated_at: true }
+            : {}),
           content: true,
           quantity: true,
-          list: { select: { name: true } },
+          list: {
+            select: {
+              name: true,
+              ...(input.onSources ? { id: true, updated_at: true } : {}),
+            },
+          },
         },
         orderBy: [{ created_at: "asc" }, { id: "asc" }],
         take: MAX_GROCERIES,
@@ -290,12 +354,20 @@ export async function loadAssistantTodayRows(
           family_id: input.familyId,
           status: "active",
           expires_on: { not: null, lte: inventoryHorizon },
-          OR: [
-            { date_kind: { not: "use_by" } },
-            { expires_on: { gte: dateStart } },
+          AND: [
+            {
+              OR: [
+                { date_kind: { not: "use_by" } },
+                { expires_on: { gte: dateStart } },
+              ],
+            },
+            { OR: [{ amount: null }, { amount: { gt: 0 } }] },
           ],
         },
         select: {
+          ...(input.onSources
+            ? { id: true, created_at: true, updated_at: true }
+            : {}),
           name: true,
           location: true,
           expires_on: true,
@@ -325,17 +397,20 @@ export async function loadAssistantTodayRows(
   const events: AssistantTodayEvent[] = eventRows
     .filter((event) => eventIsOnLocalDay(event, localStart, localEnd))
     .slice(0, MAX_EVENTS)
-    .map((event) => ({
-      title: boundedText(event.title),
-      localStart: localDateTimeFor(event.start_time, input.viewerTimeZone),
-      localEnd: localDateTimeFor(event.end_time, input.viewerTimeZone),
-      isTask: event.is_task,
-      source: event.source_subscription
-        ? "Subscribed calendar"
-        : event.source_connection
-          ? "Connected calendar"
-          : null,
-    }));
+    .map((event, index) => {
+      source("event", event, index, event.title);
+      return {
+        title: boundedText(event.title),
+        localStart: localDateTimeFor(event.start_time, input.viewerTimeZone),
+        localEnd: localDateTimeFor(event.end_time, input.viewerTimeZone),
+        isTask: event.is_task,
+        source: event.source_subscription
+          ? "Subscribed calendar"
+          : event.source_connection
+            ? "Connected calendar"
+            : null,
+      };
+    });
 
   const chores: AssistantTodayChore[] = choreRows
     .filter(
@@ -343,25 +418,37 @@ export async function loadAssistantTodayRows(
     )
     .filter((chore) => toDateOnlyUTC(chore.due_date) === localDate)
     .slice(0, MAX_CHORES)
-    .map((chore) => ({
-      title: boundedText(chore.title),
-      dueDay: toDateOnlyUTC(chore.due_date),
-      status: statusFor(chore.status),
-      assignee:
-        input.role === "parent"
-          ? boundedText(
-              (chore.assigned_to
-                ? namesById.get(chore.assigned_to)
-                : undefined) ?? "A household member",
-            )
-          : "You",
-    }));
+    .map((chore, index) => {
+      source("chore", chore, index, chore.title, {
+        dependencies: input.role === "parent" ? names : [],
+      });
+      return {
+        title: boundedText(chore.title),
+        dueDay: toDateOnlyUTC(chore.due_date),
+        status: statusFor(chore.status),
+        assignee:
+          input.role === "parent"
+            ? boundedText(
+                (chore.assigned_to
+                  ? namesById.get(chore.assigned_to)
+                  : undefined) ?? "A household member",
+              )
+            : "You",
+      };
+    });
 
   const dinnerRow = dinnerRows.find(
     (dinner) => toDateOnlyUTC(dinner.date) === localDate,
   );
   const linkedRecipe =
     dinnerRow?.recipe?.family_id === input.familyId ? dinnerRow.recipe : null;
+  if (dinnerRow)
+    source(
+      "dinner",
+      dinnerRow,
+      0,
+      linkedRecipe?.title || dinnerRow.recipe_name || "Dinner",
+    );
   const dinner: AssistantTodayDinner | null = dinnerRow
     ? {
         title:
@@ -384,15 +471,19 @@ export async function loadAssistantTodayRows(
       }
     : null;
 
-  const groceries: AssistantTodayGrocery[] = groceryRows.map((item) => ({
-    item: boundedText(item.content),
-    quantity:
-      Number.isSafeInteger(item.quantity) && item.quantity > 0
-        ? item.quantity
-        : 1,
-    list: boundedText(item.list.name),
-  }));
+  const groceries: AssistantTodayGrocery[] = groceryRows.map((item, index) => {
+    source("grocery", item, index, item.content, { containerId: item.list.id });
+    return {
+      item: boundedText(item.content),
+      quantity:
+        Number.isSafeInteger(item.quantity) && item.quantity > 0
+          ? item.quantity
+          : 1,
+      list: boundedText(item.list.name),
+    };
+  });
 
+  let useSoonIndex = 0;
   const useSoon: AssistantTodayUseSoon[] = useSoonRows.flatMap((item) => {
     if (!item.expires_on) return [];
     const dateKind = asDateKind(item.date_kind);
@@ -403,6 +494,7 @@ export async function loadAssistantTodayRows(
       dateKind,
     );
     if (!isUseSoonStatus(expiry.status) || expiry.daysLeft === null) return [];
+    source("inventory", item, useSoonIndex++, item.name);
     return [
       {
         item: boundedText(item.name),
@@ -415,5 +507,6 @@ export async function loadAssistantTodayRows(
     ];
   });
 
+  input.onSources?.(sources);
   return { events, chores, dinner, groceries, useSoon };
 }

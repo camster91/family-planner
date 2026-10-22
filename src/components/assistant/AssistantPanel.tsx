@@ -3,10 +3,14 @@ import * as React from "react";
 import Link from "next/link";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { Mic, MicOff } from "lucide-react";
+import {
+  assistantResponseSchema,
+  ASSISTANT_REFERENCES_PROTOCOL,
+  type AssistantEvidence,
+} from "@/lib/assistant-reference-contract";
 import { Dialog } from "@/components/ui/dialog";
 import { useFeatures } from "@/components/providers/features-provider";
 import {
-  assistantReplySchema,
   assistantDestination,
   canUseAssistantAction,
   type AssistantAction,
@@ -33,7 +37,11 @@ import AppGuide from "./AppGuide";
 import { useVoiceDraft } from "./use-voice-draft";
 import { LocalVoiceDraft } from "./LocalVoiceDraft";
 
-type Message = { role: "user" | "assistant"; content: string };
+type Message = {
+  role: "user" | "assistant";
+  content: string;
+  evidence?: AssistantEvidence[];
+};
 type ChatRequest = {
   messages: Message[];
   inputText: string;
@@ -372,7 +380,9 @@ export default function AssistantPanel({
       if (includeToday && leaseStartedAt === null)
         throw new AssistantCopyError("todayContextUnavailable");
       const requestBody = {
-        messages: next,
+        // Server-resolved citations are presentation only, never replayed as
+        // provider instructions or caller-selected record authority.
+        messages: next.map(({ role, content }) => ({ role, content })),
         localNow,
         timeZone,
         ...(includeToday ? { includeToday: true } : {}),
@@ -381,7 +391,12 @@ export default function AssistantPanel({
       try {
         r = await fetch("/api/assistant", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(includeToday
+              ? { "X-Assistant-References": ASSISTANT_REFERENCES_PROTOCOL }
+              : {}),
+          },
           body: JSON.stringify(requestBody),
         });
       } catch {
@@ -418,7 +433,7 @@ export default function AssistantPanel({
           r.status >= 500 ? "chatUnavailable" : "chatFailed",
         );
       }
-      const parsedReply = assistantReplySchema.safeParse(body);
+      const parsedReply = assistantResponseSchema.safeParse(body);
       if (!parsedReply.success) throw new AssistantCopyError("replyUnreadable");
       const responseAt = includeToday ? monotonicNow() : null;
       const freshness = includeToday
@@ -439,7 +454,11 @@ export default function AssistantPanel({
       setMessages(
         [
           ...next,
-          { role: "assistant" as const, content: proposal.reply },
+          {
+            role: "assistant" as const,
+            content: proposal.reply,
+            ...(proposal.evidence ? { evidence: proposal.evidence } : {}),
+          },
         ].slice(-12),
       );
       if (freshness) {
@@ -852,15 +871,51 @@ export default function AssistantPanel({
               className="space-y-3 max-h-64 overflow-y-auto"
             >
               {messages.map((m, i) => (
-                <p
+                <div
                   key={i}
                   className={`rounded-2xl p-3 whitespace-pre-wrap break-words ${m.role === "user" ? "bg-accent-tint" : "bg-surface-fill"}`}
                 >
-                  <span className="font-semibold">
-                    {m.role === "user" ? msg("you") : msg("assistant")}:{" "}
-                  </span>
-                  {m.content}
-                </p>
+                  <p>
+                    <span className="font-semibold">
+                      {m.role === "user" ? msg("you") : msg("assistant")}:{" "}
+                    </span>
+                    {m.content}
+                  </p>
+                  {Boolean(m.evidence?.length) &&
+                    (i === messages.length - 1 &&
+                    todayFreshness &&
+                    !todayExpired ? (
+                      <div className="mt-2 border-t border-[var(--surface-separator)] pt-2 text-footnote">
+                        <p>{msg("sourceEvidence")}</p>
+                        <ul
+                          className="space-y-1"
+                          aria-label={msg("sourceEvidence")}
+                        >
+                          {m.evidence!.map((source) => (
+                            <li key={source.ref}>
+                              <Link
+                                href={source.href}
+                                className="inline-flex min-h-11 items-center underline [overflow-wrap:anywhere]"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  if (busy || todayExpired) return;
+                                  void (async () => {
+                                    if (await router.push(source.href)) close();
+                                  })();
+                                }}
+                              >
+                                {source.label}
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-footnote text-label-secondary">
+                        {msg("sourceEvidenceExpired")}
+                      </p>
+                    ))}
+                </div>
               ))}
             </div>
             {action && (

@@ -1,5 +1,16 @@
 # Family AI Today retrieval contract
 
+**2026-10-22 source addendum:** the v1 projection below remains the default
+privacy/compatibility contract. Optional exact source references now have an
+end-to-end source candidate behind explicit client header negotiation and the
+default-off `FAMILY_ASSISTANT_REFERENCES_READY` gate; see
+[`FAMILY_AI_TODAY_IMPLEMENTATION.md`](./FAMILY_AI_TODAY_IMPLEMENTATION.md).
+Canonical record IDs stay server-side; opaque scoped IDs, row indexes and
+observation/revision metadata are the separate provider tool-context references.
+They grant no write authority. Cases are authored/unrun; no activation, semantic
+quality score, snapshot-wide isolation, consolidated QA or release is claimed.
+
+
 **Status:** design-only contract. This document does not activate a provider,
 add a route, change a permission, add a native capability, or claim that the
 assistant can act on household records.

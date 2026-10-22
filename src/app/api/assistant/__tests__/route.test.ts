@@ -32,6 +32,11 @@ jest.mock("@/lib/assistant-today-context", () => ({
     }
   },
 }));
+jest.mock("@/lib/assistant-references", () => ({
+  ...jest.requireActual("@/lib/assistant-references"),
+  isAssistantReferencesEnabled: jest.fn(() => false),
+  loadReferencedAssistantToday: jest.fn(),
+}));
 jest.mock("@/lib/capture", () => ({
   resolveCaptureConfig: jest.fn(() => ({ model: "test" })),
   structuredAssistantReply: jest.fn(),
@@ -39,6 +44,11 @@ jest.mock("@/lib/capture", () => ({
     status = 502;
   },
 }));
+import {
+  isAssistantReferencesEnabled,
+  loadReferencedAssistantToday,
+  buildAssistantReferenceCatalog,
+} from "@/lib/assistant-references";
 import { POST } from "../route";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { resolveCaptureConfig, structuredAssistantReply } from "@/lib/capture";
@@ -55,7 +65,12 @@ const input = {
   timeZone: "America/Toronto",
 };
 const request = (body: unknown = input) =>
-  ({ text: async () => JSON.stringify(body) }) as NextRequest;
+  ({
+    text: async () => JSON.stringify(body),
+    headers: new Headers({
+      "X-Assistant-References": "herewoven.assistant-references.v1",
+    }),
+  }) as NextRequest;
 afterEach(() => jest.restoreAllMocks());
 beforeEach(() => {
   jest
@@ -63,6 +78,7 @@ beforeEach(() => {
     .mockReturnValue(Date.parse("2026-10-09T12:00:30.000Z"));
   jest.clearAllMocks();
   mockTodayEnabled = false;
+  jest.mocked(isAssistantReferencesEnabled).mockReturnValue(false);
   (loadAssistantTodayContext as jest.Mock).mockResolvedValue(null);
   (authenticateWithFamily as jest.Mock).mockResolvedValue([
     { user: { id: "a", role: "parent", family_id: "family-a" } },
@@ -273,4 +289,131 @@ it("does not return expired grounded context even if all source values are uncha
   const response = await POST(request({ ...input, includeToday: true }));
   expect(response.status).toBe(409);
   expect((await response.json()).reply).toBeUndefined();
+});
+
+/** Authored/unrun catalog-bound response cases. */
+function referenceFixture() {
+  mockTodayEnabled = true;
+  jest.mocked(isAssistantReferencesEnabled).mockReturnValue(true);
+  jest.mocked(authenticateWithFamily).mockResolvedValue([
+    {
+      user: { id: "person-a", role: "parent", family_id: "family-a" },
+      payload: { tv: 3 },
+    },
+    null,
+  ] as never);
+  const context = freshTodayFixture();
+  const catalog = buildAssistantReferenceCatalog(
+    [
+      {
+        kind: "chore",
+        id: "task-a",
+        index: 0,
+        label: "Pack bag",
+        versionInput: { epoch: 1 },
+      },
+    ],
+    { userId: "person-a", familyId: "family-a", role: "parent", generation: 3 },
+    context.generatedAt,
+    "fabricated-reference-test-key",
+  );
+  const snapshot = {
+    context: {
+      ...context,
+      today: {
+        ...context.today,
+        chores: [
+          {
+            title: "Pack bag",
+            dueDay: "2026-10-09",
+            status: "open",
+            assignee: "A household member",
+          },
+        ],
+      },
+    },
+    catalog,
+  };
+  jest
+    .mocked(loadReferencedAssistantToday)
+    .mockResolvedValue(snapshot as never);
+  jest.mocked(structuredAssistantReply).mockResolvedValue({
+    reply: "Pack bag is on Today",
+    action: null,
+    basis: "context",
+    references: [catalog[0].provider.ref],
+  });
+  return snapshot;
+}
+it("returns only server-built current evidence and keeps actual record identity out of provider input", async () => {
+  const snapshot = referenceFixture();
+  const response = await POST(request({ ...input, includeToday: true }));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    reply: "Pack bag is on Today",
+    action: null,
+    evidence: [snapshot.catalog[0].evidence],
+  });
+  expect(loadReferencedAssistantToday).toHaveBeenCalledTimes(2);
+  const references = jest.mocked(structuredAssistantReply).mock.calls[0][4];
+  expect(references).toEqual(snapshot.catalog.map((entry) => entry.provider));
+  expect(JSON.stringify(references)).not.toMatch(
+    /task-a|person-a|family-a|dashboard/,
+  );
+});
+it("rejects fabricated references instead of displaying the provider claim", async () => {
+  referenceFixture();
+  jest.mocked(structuredAssistantReply).mockResolvedValue({
+    reply: "Fabricated household claim",
+    action: null,
+    basis: "context",
+    references: [`asr1_${"0".repeat(64)}`],
+  });
+  const response = await POST(request({ ...input, includeToday: true }));
+  expect(response.status).toBe(502);
+  expect((await response.json()).reply).toBeUndefined();
+});
+it("withholds unchanged display values when canonical source revision changed", async () => {
+  const snapshot = referenceFixture();
+  jest
+    .mocked(loadReferencedAssistantToday)
+    .mockResolvedValueOnce(snapshot as never)
+    .mockResolvedValueOnce({
+      ...snapshot,
+      catalog: [
+        {
+          ...snapshot.catalog[0],
+          provider: {
+            ...snapshot.catalog[0].provider,
+            revision: "changed-source",
+          },
+        },
+      ],
+    } as never);
+  const response = await POST(request({ ...input, includeToday: true }));
+  expect(response.status).toBe(409);
+  const body = await response.json();
+  expect(body.reply).toBeUndefined();
+  expect(body.evidence).toBeUndefined();
+});
+
+it("keeps the legacy response contract for clients that do not advertise reference support", async () => {
+  referenceFixture();
+  jest.mocked(loadReferencedAssistantToday).mockClear();
+  jest
+    .mocked(loadAssistantTodayContext)
+    .mockResolvedValue(freshTodayFixture() as never);
+  jest
+    .mocked(structuredAssistantReply)
+    .mockResolvedValue({ reply: "Current summary", action: null });
+  const response = await POST({
+    text: async () => JSON.stringify({ ...input, includeToday: true }),
+    headers: new Headers(),
+  } as NextRequest);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    reply: "Current summary",
+    action: null,
+  });
+  expect(loadReferencedAssistantToday).not.toHaveBeenCalled();
 });

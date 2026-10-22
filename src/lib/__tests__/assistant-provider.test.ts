@@ -103,6 +103,15 @@ it("keeps Today records in a separate untrusted user block", async () => {
         unavailable: ["weather"],
       },
     },
+    [
+      {
+        ref: `asr1_${"a".repeat(64)}`,
+        kind: "event",
+        index: 0,
+        observedAt: "2026-10-09T12:00:00.000Z",
+        revision: "b".repeat(64),
+      },
+    ],
   );
   const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
   expect(body.messages[0].role).toBe("system");
@@ -114,4 +123,24 @@ it("keeps Today records in a separate untrusted user block", async () => {
     '<assistant-today-context untrusted="true">',
   );
   expect(body.messages[1].content[0].text).not.toContain(marker);
+  expect(body.messages[1].content[2].text).toContain(
+    '<assistant-source-references untrusted="true">',
+  );
+  expect(body.messages[0].content).not.toContain("asr1_");
+});
+
+it("never accepts a provider-supplied source URL through the provider-independent response contract", () => {
+  // The route, not this transport, resolves opaque refs into authorized links.
+  const {
+    referencedAssistantReply,
+  } = require("../assistant-reference-contract");
+  expect(
+    referencedAssistantReply.safeParse({
+      reply: "A claim",
+      action: null,
+      basis: "context",
+      references: [`asr1_${"a".repeat(64)}`],
+      href: "https://example.invalid/private",
+    }).success,
+  ).toBe(false);
 });

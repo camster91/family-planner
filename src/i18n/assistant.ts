@@ -67,6 +67,8 @@ export const assistantDestinationLabels: Record<
 
 export const assistantEnglish = {
   loading: "Opening assistant…",
+  sourceEvidence: "Sources for this answer",
+  sourceEvidenceExpired: "Refresh Today to check these sources again.",
   launcherReport: "Report / Suggest",
   launcherAssistant: "AI assistant",
   titleChat: "AI assistant",
@@ -236,6 +238,8 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   tabReports: "Mis informes",
   chatIntro:
     "Pide añadir un evento, tarea, lista, artículo de compras o nota; eliminar un evento, tarea o lista; o abrir otra sección. Los cambios requieren tu revisión. El texto del chat se envía al proveedor de IA configurado para tu hogar. No se adjuntan registros del hogar.",
+  sourceEvidence: "Fuentes de esta respuesta",
+  sourceEvidenceExpired: "Actualiza Hoy para volver a comprobar estas fuentes.",
   chatIntroWithToday:
     "Incluir Hoy está activado: esta solicitud envía un resumen breve y de solo lectura de los eventos, tareas, cena, compras y alimentos marcados para usar pronto al proveedor de IA configurado para tu hogar. El texto del chat también se envía allí. El resumen caduca pronto y nunca ejecuta una acción por sí solo.",
   includeToday: "Incluir Hoy",
@@ -338,8 +342,7 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   reportsLoadFailed: "No se pudieron cargar tus informes. Inténtalo de nuevo.",
   replyUnreadable:
     "No se pudo leer la respuesta de IA. Tu pregunta sigue aquí; reintenta o reformúlala.",
-  chatFailed:
-    "No se pudo enviar el mensaje. Tu pregunta sigue aquí.",
+  chatFailed: "No se pudo enviar el mensaje. Tu pregunta sigue aquí.",
   chatOffline:
     "No hay conexión. Tu pregunta sigue aquí; reintenta cuando vuelvas a estar conectado.",
   chatUnavailable:
