@@ -61,7 +61,7 @@ it("requires a deliberate account choice and returns a reviewed request without 
       }}
     />,
   );
-  const assignment = await screen.findByRole("combobox", { name: "Assign to" });
+  const assignment = await screen.findByRole("combobox", { name: "Assign To" });
   await screen.findByRole("option", { name: "Synthetic parent" });
   expect((assignment as HTMLSelectElement).value).toBe("");
   expect(
@@ -105,7 +105,7 @@ it("keeps unfinished date and number strings when restoring a saved task", () =>
   expect((screen.getByLabelText("Points") as HTMLInputElement).value).toBe(
     "1.",
   );
-  expect((screen.getByLabelText("Due date") as HTMLInputElement).value).toBe(
+  expect((screen.getByLabelText("Due Date") as HTMLInputElement).value).toBe(
     "2099-",
   );
   expect((screen.getByLabelText("Step") as HTMLInputElement).value).toBe("2.");

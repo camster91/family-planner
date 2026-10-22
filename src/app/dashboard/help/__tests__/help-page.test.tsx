@@ -44,6 +44,19 @@ beforeEach(() => {
   mockRole = 'parent'
 })
 
+async function section(name: string) {
+  const heading = screen.getByRole('heading', { level: 2, name })
+  const details = heading.closest('details')!
+  if (!details.open) await userEvent.click(heading.closest('summary')!)
+  return details
+}
+async function openSections() {
+  for (const heading of screen.getAllByRole('heading', { level: 2 })) {
+    const details = heading.closest('details')
+    if (details && !details.open) await userEvent.click(heading.closest('summary')!)
+  }
+}
+
 describe('Help page', () => {
   it('renders a heading and every help section', async () => {
     render(await HelpPage())
@@ -56,12 +69,13 @@ describe('Help page', () => {
       'Your data',
       'Contact support',
     ]) {
-      expect(screen.getByRole('region', { name })).toBeTruthy()
+      expect(screen.getByRole('heading', { level: 2, name }).closest('details')).toBeTruthy()
     }
   })
 
   it('links to the real pages for each task', async () => {
     render(await HelpPage())
+    await openSections()
     const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'))
     expect(hrefs).toEqual(
       expect.arrayContaining([
@@ -74,7 +88,7 @@ describe('Help page', () => {
         '/dashboard/meals',
         '/dashboard/lists',
         '/forgot-password',
-        '/dashboard/settings',
+        '/dashboard/settings#settings-privacy',
         '/privacy',
       ])
     )
@@ -83,7 +97,7 @@ describe('Help page', () => {
   it('shows "coming soon" text, not an address, while the support email is unset', async () => {
     expect(SUPPORT_EMAIL).toBe('')
     render(await HelpPage())
-    const contact = screen.getByRole('region', { name: 'Contact support' })
+    const contact = await section('Contact support')
     expect(within(contact).getByTestId('support-email').textContent).toBe(SUPPORT_EMAIL_PENDING_TEXT)
     expect(within(contact).queryByRole('link')).toBeNull()
     expect(contact.textContent).not.toMatch(/@/)
@@ -92,20 +106,24 @@ describe('Help page', () => {
   it('gives a teen the same answers, but links only pages a teen may open', async () => {
     mockRole = 'teen'
     render(await HelpPage())
-    expect(screen.getByRole('region', { name: 'Getting started' })).toBeTruthy()
+    expect(await section('Getting started')).toBeTruthy()
+    await openSections()
     const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'))
     expect(hrefs).toEqual(
-      expect.arrayContaining(['/join', '/dashboard/calendar', '/dashboard/meals', '/dashboard/lists', '/forgot-password', '/dashboard/settings', '/privacy'])
+      expect.arrayContaining(['/join', '/dashboard/calendar', '/dashboard/meals', '/dashboard/lists', '/forgot-password', '/dashboard/settings#settings-privacy', '/privacy'])
     )
     for (const parentOnly of ['/dashboard/family/create', '/dashboard/family/invite', '/dashboard/chores', '/dashboard/rewards']) {
       expect(hrefs).not.toContain(parentOnly)
     }
     // Still named, as text.
-    expect(screen.getByText('Family → Invite')).toBeTruthy()
+    const mention = screen.getAllByText('Add everyone').find(node => node.tagName === 'SPAN')
+    expect(mention).toBeTruthy()
+    expect(mention?.closest('a')).toBeNull()
   })
 
-  it('shows a mailto link once a support email is set', () => {
+  it('shows a mailto link once a support email is set', async () => {
     render(<HelpContent supportEmail="  help@example.test " />)
+    await section('Contact support')
     const link = screen.getByRole('link', { name: 'help@example.test' })
     expect(link.getAttribute('href')).toBe('mailto:help@example.test')
     expect(screen.queryByText(SUPPORT_EMAIL_PENDING_TEXT)).toBeNull()
@@ -120,7 +138,7 @@ describe('Help page', () => {
 
   it('says "points" in plain words, never "XP"', async () => {
     render(await HelpPage())
-    const chores = screen.getByRole('region', { name: 'Chores and rewards' })
+    const chores = await section('Chores and rewards')
     expect(chores.textContent).toContain('points')
     expect(document.body.textContent).not.toMatch(/\bXP\b/)
   })

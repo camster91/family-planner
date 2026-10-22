@@ -53,6 +53,31 @@ done
 [ "$MAX_AGE_DAYS" -ge 1 ] || fail "BACKUP_MAX_AGE_DAYS must be at least 1"
 case "$DRY_RUN" in 0 | 1) ;; *) fail "BACKUP_PRUNE_DRY_RUN must be 0 or 1" ;; esac
 
+# Production Linux uses GNU date; developer macOS uses BSD date. Detect the
+# actual supported interface before examining/deleting any files. Never treat
+# an unavailable parser as evidence that the directory contains no backups.
+if date -u -d '@0' +%s >/dev/null 2>&1; then
+  DATE_MODE=gnu
+elif date -u -r 0 +%s >/dev/null 2>&1; then
+  DATE_MODE=bsd
+else
+  fail "date must support GNU -d or BSD -r/-f"
+fi
+parse_backup_time() {
+  if [ "$DATE_MODE" = gnu ]; then
+    date -u -d "$1" +%s
+  else
+    date -j -u -f '%Y-%m-%d %H:%M:%S' "$1" +%s
+  fi
+}
+format_epoch() {
+  if [ "$DATE_MODE" = gnu ]; then
+    date -u -d "@$1" "$2"
+  else
+    date -u -r "$1" "$2"
+  fi
+}
+
 NAME_RE='^familyplanner-([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z\.sql\.gz$'
 
 # "epoch<TAB>name" for each candidate, newest first.
@@ -62,7 +87,11 @@ while IFS= read -r -d '' path; do
   [[ "$name" =~ $NAME_RE ]] || continue
   [ -f "$path" ] && [ ! -L "$path" ] || continue
   r=("${BASH_REMATCH[@]}")
-  epoch=$(date -u -d "${r[1]}-${r[2]}-${r[3]} ${r[4]}:${r[5]}:${r[6]}" +%s 2>/dev/null) || continue
+  epoch=$(parse_backup_time "${r[1]}-${r[2]}-${r[3]} ${r[4]}:${r[5]}:${r[6]}" 2>/dev/null) || continue
+  # A permissive date implementation must not normalize an invalid filename
+  # into a different day and then make that file eligible for deletion.
+  canonical=$(format_epoch "$epoch" '+%Y%m%dT%H%M%SZ') || fail "cannot format backup time"
+  [ "$name" = "familyplanner-$canonical.sql.gz" ] || continue
   entries+=("$epoch"$'\t'"$name")
 done < <(find "$DIR" -mindepth 1 -maxdepth 1 -type f -name 'familyplanner-*.sql.gz' -print0)
 
@@ -89,13 +118,13 @@ for line in "${sorted[@]}"; do
   elif [ "$epoch" -lt "$max_cutoff" ]; then
     reason="older than $MAX_AGE_DAYS days"
   elif [ "$epoch" -lt "$daily_cutoff" ]; then
-    week=$(date -u -d "@$epoch" +%G-W%V)
+    week=$(format_epoch "$epoch" +%G-W%V)
     if [ -n "${week_kept[$week]:-}" ]; then
       reason="not the newest backup of $week"
     fi
   fi
   if [ "$epoch" -lt "$daily_cutoff" ]; then
-    week_kept[$(date -u -d "@$epoch" +%G-W%V)]=1
+    week_kept[$(format_epoch "$epoch" +%G-W%V)]=1
   fi
 
   if [ -z "$reason" ]; then

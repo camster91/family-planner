@@ -14,6 +14,7 @@ async function flush() {
 }
 
 describe('device queue purge while a send is in flight', () => {
+  beforeEach(() => window.localStorage.clear())
   it.each(['tick', 'add'])('drops the %s operation and leaves the purged storage empty', async (kind) => {
     // jsdom has no IndexedDB, so the queue uses the localStorage fallback under the reserved key.
     const listeners = new Set<(e: 'purge' | 'elevation') => void>()
@@ -23,7 +24,10 @@ describe('device queue purge while a send is in flight', () => {
         listeners.add(l)
         return () => listeners.delete(l)
       },
-      request: jest.fn(async () => {
+      request: jest.fn(async (path: string) => {
+        // These legacy-key cases explicitly exercise the pre-adoption path.
+        // The real client negotiates it before reading any local queue.
+        if (path === '/api/device/queue-owner') return { contract: 'herewoven.queue-owner.v1', enabled: false }
         requests++
         expect(window.localStorage.getItem(DEVICE_QUEUE_KEY)).not.toBeNull()
         // What the device client does on the kill-switch 404: wipe storage, emit
@@ -35,6 +39,7 @@ describe('device queue purge while a send is in flight', () => {
     } as unknown as DeviceClient
 
     const queue = getDeviceQueue(client)
+    await queue.ready
     if (kind === 'add') await queue.enqueue('device.list-item.add', { listId: 'list-a', content: 'Queued grocery text', actingMemberId: 'm-1' })
     else await queue.enqueue('device.list-item.set-checked', { itemId: 'item-1', checked: true, actingMemberId: 'm-1' })
     await flush()
@@ -56,6 +61,7 @@ describe('device queue purge while a send is in flight', () => {
     }) as unknown as Response
     const client = createDeviceClient({
       fetch: async (path) => {
+        if (path === '/api/device/queue-owner') return jsonResponse({ contract: 'herewoven.queue-owner.v1', enabled: false })
         if (path === '/api/device/pair/claim')
           return jsonResponse({
             claimToken: 'pairing-claim-token',

@@ -1,5 +1,18 @@
 # Current State
 
+## Recovery scripts and compact UI QA repairs — 2026-10-22
+
+Latest full run at5edccfa6:14 failed /687 passed /82 skipped suites;
+36 failed /6932 passed /546 skipped tests. Subsequent recovery/UI repairs pass181
+checks across14 suites. Types/lint pass (44 warnings). Backup date parsing supports
+local BSD tooling and ignores invalid timestamps; Bash tests use an existing modern
+runtime. Crash/retry, locale queue continuity, device purge, compact Help/Today and
+server-rendered shell checks retain their intended safeguards. No tests removed
+or newly skipped. Copy-inventory audit/reconciliation remains, along with full
+rerun and DB/browser/recovery/final-build/hosted gates.
+Evidence:`docs/testing/WEB_QA_20261022.md`.
+
+
 ## Inventory capture recovery tests aligned — 2026-10-22
 
 Five inventory suites pass48 tests with valid receipts, exact lost-response retry

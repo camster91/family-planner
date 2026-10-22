@@ -8,7 +8,7 @@ jest.mock('@/lib/supabase/server', () => ({ getServerUser: async () => ({ id: 'p
 jest.mock('@/lib/prisma', () => ({ prisma: { user: { findUnique: async () => ({ role: 'parent', family_id: 'f' }) } } }))
 jest.mock('@/lib/calendar-import/sync', () => ({ refreshStaleSubscriptions: jest.fn() }))
 jest.mock('@/lib/recurringChores', () => ({ topUpHouseholdSeries: jest.fn() }))
-jest.mock('../board-snapshot', () => ({ loadTodayBoard: async () => ({}) }))
+jest.mock('../board-snapshot', () => ({ loadTodayBoard: async () => ({ links: { calendar: null, chores: null }, chores: [] }) }))
 jest.mock('../home-summary-data', () => ({ loadHomeSummary: async () => ({ chores: [
   { id: 'own', assigneeId: 'p', status: 'pending' },
   { id: 'own-done', assigneeId: 'p', status: 'verified' },

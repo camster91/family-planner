@@ -363,7 +363,7 @@ describe('shared-tablet writes (#274)', () => {
       const k = key()
       // The first run commits the row, then storing its response fails (the process "dies").
       const store = jest
-        .spyOn(fakePrisma.idempotencyRecord, 'update')
+        .spyOn(fakePrisma.idempotencyRecord, 'updateMany')
         .mockRejectedValueOnce(new Error('connection lost'))
       const first = await add.POST(postReq({ content: 'Eggs', actingMemberId: 'teen-a' }, { k }), params('list-a'))
       store.mockRestore()

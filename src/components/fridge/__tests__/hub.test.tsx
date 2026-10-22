@@ -6,6 +6,7 @@
 import * as React from 'react'
 import { act, render, screen, within } from '@testing-library/react'
 import { I18nProvider } from '@/i18n'
+import { ToastProvider } from '@/components/ui/toast'
 import TodayBoard, { boardGridClass } from '../TodayBoard'
 import { memberColors, memberDisplayNames, placeDayKey, shortWeekday, weatherView } from '../board-model'
 import { resolveMemberColors, MEMBER_COLOR_KEYS } from '@/lib/member-colors'
@@ -67,9 +68,9 @@ function data(overrides: Partial<TodayBoardData> = {}): TodayBoardData {
 async function renderBoard(props: Partial<React.ComponentProps<typeof TodayBoard>> = {}, locale: 'en' | 'es' = 'en') {
   jest.useFakeTimers({ now: NOW })
   const utils = render(
-    <I18nProvider locale={locale}>
+    <ToastProvider><I18nProvider locale={locale}>
       <TodayBoard data={data()} fridgeMode {...props} />
-    </I18nProvider>,
+    </I18nProvider></ToastProvider>,
   )
   await act(async () => {
     jest.advanceTimersByTime(0)

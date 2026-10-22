@@ -98,6 +98,7 @@ it("fails closed while availability is still loading", async () => {
   ).not.toBeInTheDocument();
   expect(document.body.style.overflow).toBe("");
 
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
   await act(async () =>
     resolveGate(
       response(200, {

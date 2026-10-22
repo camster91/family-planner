@@ -260,12 +260,10 @@ describe("person board (#274)", () => {
     });
     expect(screen.queryByTestId("region-chores")).toBeNull();
     expect(screen.queryByText("No chores due today.")).toBeNull();
-    expect(screen.getByTestId("board-grid").className).toContain(
-      "coming_coming_coming",
-    );
-    expect(screen.getByTestId("board-grid").className).not.toContain(
-      "chores_coming",
-    );
+    const layout = screen.getByTestId("board-grid");
+    expect(layout).toHaveAttribute("data-personal-layout");
+    expect(layout.querySelector('[data-today-section="coming"]')).toBeInTheDocument();
+    expect(layout.querySelector('[data-today-section="chores"]')).toBeNull();
   });
 
   it("keeps the complete fridge board even when personal-summary IDs are supplied", async () => {

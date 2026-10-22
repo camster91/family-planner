@@ -64,6 +64,22 @@ describe("backup retention", () => {
     expect(left.length).toBe(14 + weekly.length);
   });
 
+  it("ignores invalid dates instead of normalizing them into deletable backups", () => {
+    touch(backupName(0));
+    const invalid = [
+      "familyplanner-20260230T030000Z.sql.gz",
+      "familyplanner-20251301T030000Z.sql.gz",
+      "familyplanner-20250229T030000Z.sql.gz",
+      "familyplanner-20260101T250000Z.sql.gz",
+    ];
+    invalid.forEach((name) => touch(name));
+    const old = backupName(90 * DAY);
+    touch(old);
+    expect(run([dir]).status).toBe(0);
+    for (const name of invalid) expect(files()).toContain(name);
+    expect(files()).not.toContain(old);
+  });
+
   it("dry run deletes nothing", () => {
     const old = backupName(90 * DAY);
     touch(backupName(0));
