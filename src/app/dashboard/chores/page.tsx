@@ -273,7 +273,8 @@ export default async function ChoresPage() {
   return (
     <ChoresContent
       preparationContextEnabled={
-        user?.role === "parent" && eventPreparationReady()
+        Boolean(user && ["parent", "child", "teen"].includes(user.role)) &&
+        eventPreparationReady()
       }
       chores={serializedChores as any}
       familyMembers={familyMembers as any}

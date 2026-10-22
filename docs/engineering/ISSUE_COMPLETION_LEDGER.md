@@ -1,5 +1,7 @@
 # Open issue completion ledger
 
+2026-10-22 source checkpoint: child/teen personal chore, routine and later-history context now uses the explicit own-account projection, separate from parent links/origins. Current person/generation gates and150-ID batches are authored; cases unrun. Role/rendered/DB acceptance and remaining AI/inbox code precede consolidated release QA.
+
 2026-10-22 source checkpoint: shared/profile online preparation labels now use the canonical board window and current subject gates, without parent capabilities or cache persistence. Reader, disposable-DB, cache and EN/ES cases are authored/unrun; no activation/release. See `docs/plans/event-preparation-v1.md`. #123/#128 remain in progress.
 
 2026-10-22 source checkpoint: routine-copy immutable facts, personal parent chore/editor/history discovery and unrun lifecycle/isolation cases are authored. See `docs/plans/event-preparation-v1.md` and `docs/CURRENT_STATE.md`. #123/#128 remain in progress; no QA, activation or release evidence is claimed.

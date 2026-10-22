@@ -409,3 +409,37 @@ Own-account chore/history context beyond the existing child home/routine surface
 other domain history/refusal UX and grounded AI/planning/evaluation/usage remain
 implementation work before consolidated QA. Full goal remains active.
 
+
+## Own-account chore/history preparation context source — 2026-10-22
+
+The personal chore-context endpoint now admits current parent, child and teen
+accounts through the same authenticated person/family/session lock renewal.
+Projection branches remain explicit: parents may receive event backlinks and
+routine origins; child/teen requests never invoke those readers and return only
+`ownContext: { [taskId]: { eventTitle } }` for the account's current own canonical
+unerased, non-template task. The existing own-task query renews role/household,
+requires assigned_to exactly that account and assigned_member_id null, and checks
+both domain features. Client-supplied profile/family/owner authority is rejected.
+A selected email-free subject never becomes an authenticated account.
+
+Requests now accept at most150 unique explicit task IDs (superseding the initial
+unreleased parent endpoint cap300). The personal memory-only reader uses150-ID
+batches so the own-task reader's bound cannot silently omit later requested rows.
+It verifies owner and generation throughout; no partial multi-batch projection is
+installed. Existing blur/background/storage/identity cancellation and replacement
+retirement apply. No new cache/local store, provider, schema or mutation is added.
+
+Child/teen open chores, routine rows and loaded completed-history windows now
+show the existing EN/ES read-only getting-ready note. Paging triggers fresh context
+for the loaded exact IDs. Parent references stay under parent render guards;
+canonical completion/check/Undo/edit permissions remain unchanged. API branch,
+current membership/generation, window and own-context filter cases are authored
+and unrun. Earlier child-home and shared/profile fridge readers remain distinct.
+
+This checkpoint used source inspection/edits and selected formatting only. No
+checks, browser/application API/SQL/DB/client/native/CI, activation, push/merge/
+deploy or issue closure. Rendered role/history acceptance remains for consolidated
+QA. Remaining implementation includes other domain history/refusal interactions,
+review inbox draft follow-through and grounded AI references/planning/evaluation/
+privacy-safe usage/cost controls. Full goal and #123/#128 stay in progress.
+

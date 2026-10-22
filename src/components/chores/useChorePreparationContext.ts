@@ -14,13 +14,14 @@ const personal = () =>
     .getAll("mode")
     .includes("fridge");
 /** Separate personal projection, never part of a Chore/shared/offline DTO.
- * Initial and later history windows use the same parent/generation boundary.
+ * Initial and later history windows use the same person/generation boundary.
+ * Parent references and child/teen own-task titles remain separate projections.
  */
 export function useChorePreparationContext(
   identity: Identity | undefined,
   choreIds: string[],
   active = true,
-): Pick<ChorePreparationContext, "backlinks" | "origins"> {
+): Pick<ChorePreparationContext, "backlinks" | "origins" | "ownContext"> {
   const signature = JSON.stringify([...new Set(choreIds)].sort()),
     scope = JSON.stringify(identity ?? null);
   const initial = React.useRef(scope),
@@ -31,6 +32,7 @@ export function useChorePreparationContext(
     signature: string;
     backlinks: ChorePreparationContext["backlinks"];
     origins: ChorePreparationContext["origins"];
+    ownContext: ChorePreparationContext["ownContext"];
   } | null>(null);
   const epoch = React.useRef(0),
     request = React.useRef<AbortController | null>(null);
@@ -69,10 +71,11 @@ export function useChorePreparationContext(
       latest.current.scope === expected.scope &&
       latest.current.signature === expected.signature;
     const backlinks: ChorePreparationContext["backlinks"] = {},
-      origins: ChorePreparationContext["origins"] = {};
+      origins: ChorePreparationContext["origins"] = {},
+      ownContext: ChorePreparationContext["ownContext"] = {};
     try {
-      for (let offset = 0; offset < ids.length; offset += 300) {
-        const batch = ids.slice(offset, offset + 300),
+      for (let offset = 0; offset < ids.length; offset += 150) {
+        const batch = ids.slice(offset, offset + 150),
           allowed = new Set(batch);
         const result = await requestOwnedJson(
           "/api/chores/preparation-context",
@@ -110,6 +113,8 @@ export function useChorePreparationContext(
           if (allowed.has(id)) backlinks[id] = value;
         for (const [id, value] of Object.entries(data.origins))
           if (allowed.has(id)) origins[id] = value;
+        for (const [id, value] of Object.entries(data.ownContext))
+          if (allowed.has(id)) ownContext[id] = value;
       }
       if (current())
         setProjection({
@@ -117,6 +122,7 @@ export function useChorePreparationContext(
           signature: expected.signature,
           backlinks,
           origins,
+          ownContext,
         });
     } catch {
       /* Optional context never blocks canonical chore editing/completion. */
@@ -152,6 +158,10 @@ export function useChorePreparationContext(
     personal() &&
     projection?.scope === scope &&
     projection.signature === signature
-    ? { backlinks: projection.backlinks, origins: projection.origins }
-    : { backlinks: {}, origins: {} };
+    ? {
+        backlinks: projection.backlinks,
+        origins: projection.origins,
+        ownContext: projection.ownContext,
+      }
+    : { backlinks: {}, origins: {}, ownContext: {} };
 }

@@ -1,4 +1,5 @@
 "use client";
+import { OwnPreparationNote } from "@/components/calendar/preparation/OwnPreparationNote";
 import { RoutineOriginEntry } from "@/components/chores/RoutineOriginEntry";
 import { useChorePreparationContext } from "@/components/chores/useChorePreparationContext";
 import { PreparationEntry } from "@/components/calendar/preparation/PreparationEntry";
@@ -257,12 +258,13 @@ export default function ChoresContent({
   const preparationContext = useChorePreparationContext(
     familyId ? { userId: currentUserId, familyId } : undefined,
     localChores.map((chore) => chore.id),
-    preparationContextEnabled && userRole === "parent",
+    preparationContextEnabled && ["parent", "child", "teen"].includes(userRole),
   );
   const preparationBacklinks = preparationContextEnabled
     ? preparationContext.backlinks
     : initialPreparationBacklinks;
   const routineOrigins = preparationContext.origins;
+  const ownPreparationContext = preparationContext.ownContext;
   const [doneCollapsed, setDoneCollapsed] = React.useState(true);
   const { addToast } = useToast();
   const showUndo = useUndoToast();
@@ -1076,6 +1078,11 @@ export default function ChoresContent({
           className={cn("pr-3", i === todayChores.length - 1 && "border-b-0")}
         />
         <ResponsibilityButton target={{ kind: "chore", id: chore.id }} />
+        {userRole !== "parent" && ownPreparationContext[chore.id] && (
+          <OwnPreparationNote
+            title={ownPreparationContext[chore.id].eventTitle}
+          />
+        )}
         {userRole === "parent" && preparationBacklinks[chore.id] && (
           <PreparationEntry eventId={preparationBacklinks[chore.id]} backlink />
         )}
@@ -1297,6 +1304,7 @@ export default function ChoresContent({
             <RoutineStacks
               preparationBacklinks={preparationBacklinks}
               routineOrigins={routineOrigins}
+              ownPreparationContext={ownPreparationContext}
               chores={filtered}
               userRole={userRole}
               currentUserId={currentUserId}
@@ -1358,6 +1366,7 @@ export default function ChoresContent({
               <div className="p-3 pt-0">
                 <RoutineStacks
                   routineOrigins={routineOrigins}
+                  ownPreparationContext={ownPreparationContext}
                   preparationBacklinks={preparationBacklinks}
                   chores={routineRows}
                   userRole={userRole}
@@ -1423,6 +1432,14 @@ export default function ChoresContent({
                         i === doneChores.length - 1 && "border-b-0",
                       )}
                     />
+                    {userRole !== "parent" &&
+                      ownPreparationContext[chore.id] && (
+                        <div className="px-4 pb-2">
+                          <OwnPreparationNote
+                            title={ownPreparationContext[chore.id].eventTitle}
+                          />
+                        </div>
+                      )}
                     {userRole === "parent" && (
                       <div className="px-4 pb-2 space-y-1">
                         {preparationBacklinks[chore.id] && (

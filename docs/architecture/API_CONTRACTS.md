@@ -935,3 +935,19 @@ of the ordinary board version hash. Older clients may ignore it. The current
 offline cache allowlist deliberately strips it and cached UI omits its labels.
 No cache schema, API route, migration, polling or activation is added. Source
 cases are authored/unrun; integrated QA and release gates remain open.
+
+## Personal chore preparation context (source, 2026-10-22)
+
+`POST /api/chores/preparation-context` is a private/no-store read, not a mutation
+or queue action. Strict body `{ ids: string[] }` accepts1–150 unique canonical task
+IDs; no supplied household/profile/owner authority. Current parent/child/teen
+person auth, family and token generation renew under canonical membership locks.
+Response contains `owner { userId,familyId,generation }`, `state` available/paused,
+`backlinks`, `origins` and `ownContext`. Only parents invoke backlink/origin
+readers. Child/teen responses contain empty parent maps and own-account shared
+event titles only; no event/plan/routine IDs, cues, source tokens or private
+content. Missing ownContext defaults to empty for additive compatibility. Current
+source checks do not grant canonical write authority. Repeated150-ID client
+batches remain in memory, clear on lifecycle/identity changes, and retire on
+owner/session replacement. Paused/schema-unavailable projections are empty.
+Source cases are authored/unrun; integrated QA and release remain outstanding.

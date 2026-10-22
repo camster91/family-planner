@@ -1,5 +1,7 @@
 "use client";
 import type { PreparationRoutineOrigins } from "@/lib/event-preparation/origin-contract";
+import { OwnPreparationNote } from "@/components/calendar/preparation/OwnPreparationNote";
+import type { OwnPreparationContext } from "@/lib/event-preparation/discovery";
 import { RoutineOriginEntry } from "./RoutineOriginEntry";
 
 import { useState, type ReactNode } from "react";
@@ -116,8 +118,10 @@ export function RoutineStacks({
   showBuilder = true,
   preparationBacklinks = {},
   routineOrigins = {},
+  ownPreparationContext = {},
 }: {
   routineOrigins?: PreparationRoutineOrigins;
+  ownPreparationContext?: OwnPreparationContext;
   preparationBacklinks?: PreparationBacklinks;
   chores: Step[];
   userRole: string;
@@ -187,6 +191,11 @@ export function RoutineStacks({
                     : routineText("toDo")}
           </p>
         </div>
+        {userRole !== "parent" && ownPreparationContext[chore.id] && (
+          <OwnPreparationNote
+            title={ownPreparationContext[chore.id].eventTitle}
+          />
+        )}
         {userRole === "parent" && preparationBacklinks[chore.id] && (
           <PreparationEntry eventId={preparationBacklinks[chore.id]} backlink />
         )}

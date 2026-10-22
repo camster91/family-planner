@@ -1,4 +1,4 @@
-/** Minimal personal parent context. References are not edit authority and do
+/** Minimal personal context with separate parent and own-account projections. References are not edit authority and do
  * not copy source status, completion proof or future routine definitions. */
 import { z } from "zod";
 import { memberIdentityIdSchema as id } from "@/lib/member-subject-contract";
@@ -34,6 +34,9 @@ export const chorePreparationContext = z
     state: z.enum(["available", "paused"]),
     backlinks: z.record(id, id),
     origins: z.record(id, preparationRoutineOrigin),
+    ownContext: z
+      .record(id, z.object({ eventTitle: z.string().max(512) }).strict())
+      .default({}),
   })
   .strict();
 export type PreparationRoutineOrigins = z.infer<

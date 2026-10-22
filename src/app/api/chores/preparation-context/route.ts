@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
+import { authenticateWithFamily } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { lockUser, lockHousehold } from "@/lib/household-lock";
 import {
@@ -10,7 +10,10 @@ import {
 import { memberIdentityIdSchema } from "@/lib/member-subject-contract";
 import { eventPreparationReady } from "@/lib/event-preparation/owner";
 import { eventPreparationStorageAvailable } from "@/lib/event-preparation/storage";
-import { readPreparationBacklinks } from "@/lib/event-preparation/discovery";
+import {
+  readPreparationBacklinks,
+  readOwnPreparationContext,
+} from "@/lib/event-preparation/discovery";
 import { readPreparationRoutineOrigins } from "@/lib/event-preparation/origin";
 import { chorePreparationContext } from "@/lib/event-preparation/origin-contract";
 import { logRouteError } from "@/lib/api-error";
@@ -21,7 +24,7 @@ const input = z
     ids: z
       .array(memberIdentityIdSchema)
       .min(1)
-      .max(300)
+      .max(150)
       .refine((ids) => new Set(ids).size === ids.length),
   })
   .strict();
@@ -38,11 +41,8 @@ export async function POST(request: NextRequest) {
       error.headers.set("Cache-Control", "private, no-store");
       return error;
     }
-    const parent = requireParent(auth.user.role);
-    if (parent) {
-      parent.headers.set("Cache-Control", "private, no-store");
-      return parent;
-    }
+    if (!["parent", "child", "teen"].includes(auth.user.role))
+      return reply({ error: "Context unavailable" }, 403);
     let parsed: z.infer<typeof input>;
     try {
       parsed = input.parse(
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       if (!current || current.token_version !== (auth.payload.tv ?? 0))
         return { status: 401, body: { error: "Context unavailable" } };
       if (
-        current.role !== "parent" ||
+        !["parent", "child", "teen"].includes(current.role) ||
         current.family_id !== auth.user.family_id
       )
         return { status: 403, body: { error: "Context unavailable" } };
@@ -73,9 +73,12 @@ export async function POST(request: NextRequest) {
         familyId: auth.user.family_id,
         generation: current.token_version,
       };
-      const tables = await tx.$queryRaw<
-        Array<{ ready: boolean }>
-      >`SELECT to_regclass('public."RoutineStack"') IS NOT NULL AS ready`;
+      const tables =
+        current.role === "parent"
+          ? await tx.$queryRaw<
+              Array<{ ready: boolean }>
+            >`SELECT to_regclass('public."RoutineStack"') IS NOT NULL AS ready`
+          : [{ ready: true }];
       if (
         !eventPreparationReady() ||
         !tables[0]?.ready ||
@@ -97,8 +100,20 @@ export async function POST(request: NextRequest) {
         tokenVersion: current.token_version,
         choreIds: parsed.ids,
       };
-      const backlinks = await readPreparationBacklinks(tx, scope);
-      const origins = await readPreparationRoutineOrigins(tx, scope);
+      // Distinct projections: a child/teen never invokes a parent relationship
+      // reader. A selected email-free profile never becomes a person actor.
+      const backlinks =
+        current.role === "parent"
+          ? await readPreparationBacklinks(tx, scope)
+          : {};
+      const origins =
+        current.role === "parent"
+          ? await readPreparationRoutineOrigins(tx, scope)
+          : {};
+      const ownContext =
+        current.role === "parent"
+          ? {}
+          : await readOwnPreparationContext(tx, scope);
       return {
         status: 200,
         body: chorePreparationContext.parse({
@@ -106,6 +121,7 @@ export async function POST(request: NextRequest) {
           state: "available",
           backlinks,
           origins,
+          ownContext,
         }),
       };
     });
