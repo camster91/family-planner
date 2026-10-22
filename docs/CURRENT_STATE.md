@@ -1,5 +1,25 @@
 # Current State
 
+## Bulk owned-recovery source foundation — 2026-10-22
+
+Strict local-only create/action draft and frozen canonical bulk request contracts,
+person/role/generation-bound context/apply/receipt-inspection endpoints and an
+existing-owned-journal browser adapter are now source-authored. Apply reuses the
+canonical bulk effect with exact receipt/status/target/count validation in an
+atomic transaction. Canonical refusals throw for rollback; readiness and the
+original24-hour retry lease are checked before commit. Completed receipt replay/
+inspection precedes lease/readiness/target availability. Every explicit send is
+inspected; nonmatching replies remain unknown with original key/body retained.
+
+The independent readiness example is0, with existing owner/rollback gates required.
+No actual setting or schema changed. Unit/HTTP/client/storage-fault and allowed
+PostgreSQL rollback/replay cases are authored and unrun. Existing bulk forms still
+use their memory-held hook: wiring one panel-owned controller, raw-draft flush/
+restore/promotion, compact recovery/discovery and wider inbox integration remain
+source work. This foundation is not a completed durable bulk UI or release. No
+QA/API/DB/schema/provider/flag/push/merge/deploy or issue closure. Full goal remains
+active; see [`meal-prep-recovery-v1.md`](./plans/meal-prep-recovery-v1.md).
+
 ## Specific prepared-dish reuse handoff — 2026-10-22
 
 The personal food review can now hand off an exact prepared session/batch with

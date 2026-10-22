@@ -96,3 +96,20 @@ reservation or recipe grocery add follows reuse. Current prepared/personal role
 authority and canonical submit-time portion checks remain required. Existing bulk
 action draft/unknown recovery needs durable owner-scoped follow-through before
 this whole reuse workflow is release-ready; link wiring is not that acceptance.
+
+## Bulk draft and request recovery contract
+
+Reuse must adopt durable owner-scoped bulk action/editor recovery before release.
+Keep one strict local-only raw document and at most four frozen canonical requests
+in the existing owned journal, with atomic draft promotion before dispatch. Bound
+network intents to their original person, household, role, token generation and
+issued time; use fixed canonical create/action adapters and exact success shapes.
+Inspection reads matching receipts before lease/readiness/target freshness, remains
+read-only and cannot turn a missing/expired receipt into proof of no effect. Exact
+retry requires explicit human intent, current authority, enabled recovery and the
+original bounded retry lease. Never replay automatically, change a key/body, seed
+private draft context into layout or expose drafts to shared/profile views.
+Editable restore must reload the same canonical target first; target absence must
+not erase a frozen request. Stored work, confirmed receipts and volatile form state
+remain distinct. Storage repair and acknowledged forgetting use existing owned
+CAS/retirement/history-exit machinery; readiness remains off pending full QA.

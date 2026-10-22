@@ -724,3 +724,17 @@ DB cases authored/unrun. Durable owned bulk draft/unknown-action recovery remain
 required before the whole reuse workflow is source-complete. Wider entry points,
 provider/evaluation, full goal and all QA/release remain open. No runtime/DB/schema/
 provider/flag/push/merge/deploy or issue closure.
+
+### 2026-10-22 — canonical bulk owned-recovery foundation (#123/#144)
+
+Strict incomplete local drafts, original role/generation/issued-time frozen
+commands, exact action receipts, bounded person HTTP context/apply/inspection and
+existing owned CAS journal transport are authored. Canonical bulk effects and
+receipts commit atomically; refusals throw for rollback. Matching completed
+receipts precede original24-hour lease/readiness/target checks; missing/expired
+never mean failed. New readiness example0, existing owner/rollback gates required;
+no schema/settings changed. Source/HTTP/client/storage/disposable-PG cases are
+authored and unrun. One panel-owned bulk UI/controller, raw restore/flush/promote,
+recovery/discovery/inbox integration and broader goal source/QA/release remain.
+Existing forms still use memory-only requests at this checkpoint. No API/DB/QA/
+provider/flag/push/merge/deploy action or issue closure. See the bulk recovery plan.
