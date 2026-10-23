@@ -59,6 +59,17 @@ describe("ProjectDetailActions deletion", () => {
     const user = userEvent.setup();
     const previousWidth = window.innerWidth;
     const previousHeight = window.innerHeight;
+    // jsdom has no layout. Keep the menu unrendered until its native geometry
+    // is explicitly ready, as happens during the real browser's first frame.
+    let layoutReady = false;
+    const clientRects = jest
+      .spyOn(HTMLElement.prototype, "getClientRects")
+      .mockImplementation(
+        () =>
+          (layoutReady
+            ? [{ x: 8, y: 148, width: 190, height: 44 }]
+            : []) as unknown as DOMRectList,
+      );
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       value: 390,
@@ -90,9 +101,13 @@ describe("ProjectDetailActions deletion", () => {
       expect(left).toBeGreaterThanOrEqual(8);
       expect(left + 192).toBeLessThanOrEqual(window.innerWidth - 8);
       expect(menu.style.top).toBe("148px");
-      expect(
-        screen.getByRole("menuitem", { name: "Mark complete" }),
-      ).toHaveFocus();
+      expect(trigger).toHaveFocus();
+      layoutReady = true;
+      await waitFor(() =>
+        expect(
+          screen.getByRole("menuitem", { name: "Mark complete" }),
+        ).toHaveFocus(),
+      );
       await user.keyboard("{Escape}");
       // A wrapped header can put the trigger near the left edge as well.
       Object.defineProperty(trigger, "getBoundingClientRect", {
@@ -117,6 +132,7 @@ describe("ProjectDetailActions deletion", () => {
         screen.getByRole("menuitem", { name: "Mark complete" }),
       ).toHaveFocus();
     } finally {
+      clientRects.mockRestore();
       Object.defineProperty(window, "innerWidth", {
         configurable: true,
         value: previousWidth,

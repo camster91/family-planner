@@ -90,8 +90,8 @@ export function ProjectDetailActions({
 
   const menuReady = menuOpen && menuPosition !== null;
 
-  // Focus after the positioned menu is visible and the opening click finishes.
-  // Keep focus on an enabled item if the user has already moved within the menu.
+  // React can commit visible styles before the browser exposes the menu to
+  // layout. Focus only once it is actually rendered, without a fixed delay.
   useEffect(() => {
     if (!menuReady) return;
     const items = () =>
@@ -100,13 +100,24 @@ export function ProjectDetailActions({
           '[role="menuitem"]:not([disabled])',
         ) ?? [],
       );
+    let focusFrame: number | undefined;
+    let disposed = false;
     const focusFirstItem = () => {
+      if (disposed) return;
       const list = items();
       if (!list.length || list.includes(document.activeElement as HTMLElement))
         return;
-      list[0].focus({ preventScroll: true });
+      const first = list[0];
+      if (
+        first.getClientRects().length === 0 ||
+        window.getComputedStyle(first).visibility !== "visible"
+      ) {
+        focusFrame = window.requestAnimationFrame(focusFirstItem);
+        return;
+      }
+      first.focus({ preventScroll: true });
     };
-    const focusTask = window.setTimeout(focusFirstItem, 0);
+    focusFirstItem();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
@@ -127,7 +138,8 @@ export function ProjectDetailActions({
     };
     document.addEventListener("keydown", onKey);
     return () => {
-      window.clearTimeout(focusTask);
+      disposed = true;
+      if (focusFrame !== undefined) window.cancelAnimationFrame(focusFrame);
       document.removeEventListener("keydown", onKey);
     };
   }, [menuReady]);
