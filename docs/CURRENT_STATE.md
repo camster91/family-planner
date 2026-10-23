@@ -1,3 +1,18 @@
+## Consolidated repair QA resumed — 2026-10-23 UTC
+
+The latest implementation-first follow-through is complete and consolidated QA
+has resumed. At46de5302, typecheck and changed assistant/Capture/config lint pass;
+affected AssistantHost tests pass46 cases, including deferred EN/ES hydration.
+The isolated development Chrome owned Capture/inbox/unknown-result journey passes
+both phone locales with one canonical save each, exact receipt recovery, no page
+errors/unexpected writes and database cleanup. This is not optimized/hosted proof.
+
+The older77c115e1 Build/Test/checked-image, Android, password-recovery and six-size
+profile-routine checks pass. Settings/Inventory failed and have local source
+repairs; four viewport shards are still live. Preserve their results before the
+next integrated CI-triggering push. No merge/deployment/provider activation or
+full issue acceptance is claimed. See WEB_QA_20261022.md for exact evidence.
+
 ## Latest instruction: finish code before further tests — 2026-10-22
 
 New test/build/browser runs and CI-triggering pushes are deferred for this
