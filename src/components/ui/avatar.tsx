@@ -1,72 +1,103 @@
-import * as React from 'react'
-import Image from 'next/image'
-import { cn } from '@/lib/utils'
+import * as React from "react";
+import { cn } from "@/lib/utils";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+
+const LazyAvatarPhoto = React.lazy(() => import("./avatar-photo"));
 
 /**
  * Avatar — Apple's circular monogram avatar.
  * Apple-style: pure white text on a tinted bg, perfect circle, optional ring.
  */
 const AVATAR_COLORS = [
-  'bg-chore', 'bg-tint-calendar', 'bg-tint-lists', 'bg-tint-budget',
-  'bg-tint-messages', 'bg-tint-family', 'bg-tint-rewards', 'bg-tint-projects',
-] as const
+  "bg-chore",
+  "bg-tint-calendar",
+  "bg-tint-lists",
+  "bg-tint-budget",
+  "bg-tint-messages",
+  "bg-tint-family",
+  "bg-tint-rewards",
+  "bg-tint-projects",
+] as const;
 
 function pickColor(seed: string): string {
-  let h = 0
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
-  return AVATAR_COLORS[h % AVATAR_COLORS.length]
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
 function initials(name: string): string {
-  if (!name) return '?'
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '?'
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function AvatarMonogram({
+  name,
+  sizeClass,
+  className,
+}: {
+  name: string;
+  sizeClass: string;
+  className?: string;
+}) {
+  return (
+    <div
+      aria-label={name}
+      className={cn(
+        "rounded-full flex items-center justify-center font-semibold text-white shrink-0 select-none",
+        sizeClass,
+        pickColor(name),
+        className,
+      )}
+    >
+      {initials(name)}
+    </div>
+  );
 }
 
 export function Avatar({
   name,
   src,
-  size = 'md',
+  size = "md",
   className,
 }: {
-  name: string
-  src?: string | null
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
-  className?: string
+  name: string;
+  src?: string | null;
+  size?: "xs" | "sm" | "md" | "lg" | "xl";
+  className?: string;
 }) {
   const sizeClass = {
-    xs: 'w-6 h-6 text-[10px]',
-    sm: 'w-8 h-8 text-xs',
-    md: 'w-10 h-10 text-sm',
-    lg: 'w-14 h-14 text-lg',
-    xl: 'w-20 h-20 text-2xl',
-  }[size]
+    xs: "w-6 h-6 text-[10px]",
+    sm: "w-8 h-8 text-xs",
+    md: "w-10 h-10 text-sm",
+    lg: "w-14 h-14 text-lg",
+    xl: "w-20 h-20 text-2xl",
+  }[size];
 
   if (src) {
+    const fallback = (
+      <AvatarMonogram name={name} sizeClass={sizeClass} className={className} />
+    );
     return (
-      <Image
-        src={src}
-        alt={name}
-        width={80}
-        height={80}
-        className={cn('rounded-full object-cover shrink-0', sizeClass, className)}
-      />
-    )
+      <ErrorBoundary key={src} fallback={fallback}>
+        <React.Suspense fallback={fallback}>
+          <LazyAvatarPhoto
+            src={src}
+            name={name}
+            className={cn(
+              "rounded-full object-cover shrink-0",
+              sizeClass,
+              className,
+            )}
+          />
+        </React.Suspense>
+      </ErrorBoundary>
+    );
   }
 
   return (
-    <div
-      aria-label={name}
-      className={cn(
-        'rounded-full flex items-center justify-center font-semibold text-white shrink-0 select-none',
-        sizeClass,
-        pickColor(name),
-        className
-      )}
-    >
-      {initials(name)}
-    </div>
-  )
+    <AvatarMonogram name={name} sizeClass={sizeClass} className={className} />
+  );
 }

@@ -85,6 +85,30 @@ const nextConfig = {
   images: {
     remotePatterns: [],
   },
+  webpack(config, { dev, isServer }) {
+    if (dev || isServer || !config.optimization?.splitChunks) return config
+    const splitChunks = config.optimization.splitChunks
+    // These small providers/UI modules are already part of initial app entries.
+    // Share repeated copies without grouping optional feature chunks into a
+    // fixed bundle, and retain Next's framework/vendor groups and priorities.
+    const initialSharedSource = /[\\/]src[\\/](?:i18n[\\/]core|lib[\\/]utils|components[\\/](?:ui[\\/](?:toast|offline-banner|dialog)|providers[\\/](?:features-provider|display-preferences-provider)|calendar[\\/](?:preparation[\\/]PreparationProvider|review[\\/]ScheduleReviewProvider)|responsibility[\\/]ResponsibilityProvider|meals[\\/]planning[\\/]FoodPlanningAccess))\.(?:tsx?|jsx?)$/
+    config.optimization.splitChunks = {
+      ...splitChunks,
+      cacheGroups: {
+        ...splitChunks.cacheGroups,
+        herewovenInitialShared: {
+          test: initialSharedSource,
+          chunks: 'initial',
+          minChunks: 2,
+          minSize: 0,
+          name: false,
+          reuseExistingChunk: true,
+          priority: 10,
+        },
+      },
+    }
+    return config
+  },
   async headers() {
     return [
       {

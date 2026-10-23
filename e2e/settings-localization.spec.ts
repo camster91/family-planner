@@ -1251,13 +1251,15 @@ test.describe("parentA connected calendars", () => {
         await expect(picker).toHaveValue("synthetic-calendar");
         await picker.focus();
         await expect(picker).toBeFocused();
-        // Mobile Chromium exposes the select inline, while touch desktop
-        // Chromium opens its native picker with Space before key navigation.
+        // Arrow navigation works with both inline and popup native selects;
         // Enter commits a popup choice, and Escape closes any remaining popup.
-        const nativeKeysToPress =
-          info.project.use.isMobile || !info.project.use.hasTouch
-            ? ["ArrowUp", "ArrowUp", "ArrowUp", "Enter", "Escape"]
-            : ["Space", "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "Escape"];
+        const nativeKeysToPress = [
+          "ArrowUp",
+          "ArrowUp",
+          "ArrowUp",
+          "Enter",
+          "Escape",
+        ];
         const nativeKeys = [];
         for (const key of nativeKeysToPress) {
           await page.keyboard.press(key);
@@ -1365,15 +1367,15 @@ test.describe("parentA connected calendars", () => {
           error: "connectionError",
         } as const;
         for (const [outcome, message] of Object.entries(outcomes)) {
+          const subscriptionsBefore = s.count(
+            "GET",
+            "/api/calendar/subscriptions",
+          );
           await page.goto(
             "/dashboard/settings?calendar_sync=" + outcome + "&keep=synthetic",
           );
           await selectSettingsTab(page, locale, "account");
           await expect(page.locator("#profileName")).toBeVisible();
-          const subscriptionsBefore = s.count(
-            "GET",
-            "/api/calendar/subscriptions",
-          );
           await selectSettingsTab(page, locale, "family");
           await s.arrived(
             "GET",
@@ -1400,15 +1402,15 @@ test.describe("parentA connected calendars", () => {
           await language(page, locale);
         }
         for (const outcome of ["constructor", "toString", "future_status"]) {
+          const subscriptionsBefore = s.count(
+            "GET",
+            "/api/calendar/subscriptions",
+          );
           await page.goto(
             "/dashboard/settings?calendar_sync=" + outcome + "&keep=synthetic",
           );
           await selectSettingsTab(page, locale, "account");
           await expect(page.locator("#profileName")).toBeVisible();
-          const subscriptionsBefore = s.count(
-            "GET",
-            "/api/calendar/subscriptions",
-          );
           await selectSettingsTab(page, locale, "family");
           await s.arrived(
             "GET",
@@ -1612,8 +1614,9 @@ if (enabled)
         );
         expect(new URL(page.url()).searchParams.get("keep")).toBe("synthetic");
         expect(s.count("GET", "/api/calendar/connections")).toBe(1);
-        expect(s.count("GET", "/api/calendar/subscriptions")).toBe(0);
-        await expect(page.locator("#calendar-subscriptions")).toHaveCount(0);
+        await expect(page.locator("#calendar-subscriptions")).toBeAttached();
+        await s.arrived("GET", "/api/calendar/subscriptions");
+        expect(s.count("GET", "/api/calendar/subscriptions")).toBe(1);
         expect(s.count("GET", conPath + "/calendars")).toBe(1);
         const before = s.calls.length;
         await language(page, other(locale));
