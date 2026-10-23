@@ -90,12 +90,8 @@ export function ProjectDetailActions({
 
   const menuReady = menuOpen && menuPosition !== null;
 
-  // Menu keyboard support: focus after positioning makes the menu visible.
-  // A browser cannot focus the initially hidden menu during its first effect.
-  // The animation-frame retry also runs after the trigger's click default
-  // action, which can otherwise restore focus to the trigger after this effect.
-  // Escape closes and returns focus to the trigger, arrow keys move between
-  // items.
+  // Focus after the positioned menu is visible and the opening click finishes.
+  // Keep focus on an enabled item if the user has already moved within the menu.
   useEffect(() => {
     if (!menuReady) return;
     const items = () =>
@@ -106,13 +102,11 @@ export function ProjectDetailActions({
       );
     const focusFirstItem = () => {
       const list = items();
-      const first = list[0];
-      if (!first || list.includes(document.activeElement as HTMLElement))
+      if (!list.length || list.includes(document.activeElement as HTMLElement))
         return;
-      first.focus({ preventScroll: true });
+      list[0].focus({ preventScroll: true });
     };
-    focusFirstItem();
-    const focusFrame = window.requestAnimationFrame(focusFirstItem);
+    const focusTask = window.setTimeout(focusFirstItem, 0);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
@@ -133,7 +127,7 @@ export function ProjectDetailActions({
     };
     document.addEventListener("keydown", onKey);
     return () => {
-      window.cancelAnimationFrame(focusFrame);
+      window.clearTimeout(focusTask);
       document.removeEventListener("keydown", onKey);
     };
   }, [menuReady]);

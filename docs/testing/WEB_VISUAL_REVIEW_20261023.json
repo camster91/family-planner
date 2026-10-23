@@ -1,0 +1,86 @@
+{
+  "captureSource": "a21e09f00d48f2951b6d6585f43e36fe5a377050",
+  "captureWorkflowRun": 39978262679,
+  "mode": "Original workflow snapshot-generation artifacts only; not full journey acceptance.",
+  "reviewers": ["root", "web_candidate_review"],
+  "acceptedChanges": [
+    "Parent-only Review inbox navigation (#123; docs/plans/review-inbox-v1.md)",
+    "Tinted Explore shortcut (#561; docs/product/CROSS_DEVICE_ROADMAP.md)",
+    "Direct lazy Customize Today launcher (#560) shares existing compact quick-action nav (#462); standalone row removed."
+  ],
+  "unchangedPolicy": "Original clock masks, viewport sizes, thresholds, retries, worker count, visual assertions and unrelated snapshots retained.",
+  "files": [
+    {
+      "file": "e2e/__screenshots__/visual.spec.ts/dashboard-parent-light-phone-390x844-linux.png",
+      "artifactId": 12513635348,
+      "previousSha256": "1c9084ba6a667d39b17f98e3f765e13af4992bb6c269a0a2687dde34493bd460",
+      "reviewedSha256": "35575bc6339388f7b82b00dc80dec418de0a1057f45b8920b77abd194ae968e2"
+    },
+    {
+      "file": "e2e/__screenshots__/visual.spec.ts/dashboard-parent-dark-phone-390x844-linux.png",
+      "artifactId": 12513635348,
+      "previousSha256": "48a937831fc1e99b931bee2616d34b9872da754061f05c140896df8a6ec916ce",
+      "reviewedSha256": "6cd0b0947fd7fccbcde0f2579406602e408cdd3258da9559a7c4acd0ab1fd26e"
+    },
+    {
+      "file": "e2e/__screenshots__/visual.spec.ts/dashboard-parent-light-phone-430x932-linux.png",
+      "artifactId": 12512710956,
+      "previousSha256": "6884fca13cde8027217ef8647cdca1249e1b1e1b57175f3cd814ed076b8f194c",
+      "reviewedSha256": "2b9c5c7492336fb7ea0689b3d97ca1f49bbff3a057c1189b33f6f077a42b251d"
+    },
+    {
+      "file": "e2e/__screenshots__/visual.spec.ts/dashboard-parent-dark-phone-430x932-linux.png",
+      "artifactId": 12512710956,
+      "previousSha256": "b02ac7ddd363c9aa59f8b8dd7a2f6dbebb157f6ceb1e003c89d1b26f1bd74c51",
+      "reviewedSha256": "02feea090a6a1cc5ac678c6bf2a8ff95bdb03c684933dc31a1034a2ca2656dd1"
+    },
+    {
+      "file": "e2e/__screenshots__/visual.spec.ts/dashboard-parent-light-tablet-portrait-800x1280-linux.png",
+      "artifactId": 12511959512,
+      "previousSha256": "310066b39faf0b73e269f267d72377a63ee08e8d6f394963dc97be88c1939f48",
+      "reviewedSha256": "1f5b1f7c6453e9b5179e1760e219fcfd5b0559ad18cb8bc07e8e0e3814f47ab7"
+    },
+    {
+      "file": "e2e/__screenshots__/visual.spec.ts/dashboard-parent-dark-tablet-portrait-800x1280-linux.png",
+      "artifactId": 12511959512,
+      "previousSha256": "6d30f2e7f6e90557d3cfc26b42b9a41386571a58dc32e058bd58986e335369f3",
+      "reviewedSha256": "b6a2776820b24931ff3875afe1b2247cb38b37a52b681f5dff0e41d1f8a973a6"
+    },
+    {
+      "file": "e2e/__screenshots__/visual.spec.ts/dashboard-parent-light-fridge-landscape-1280x800-linux.png",
+      "artifactId": 12512767634,
+      "previousSha256": "a31257ecbe9021cace58f7a8414ac27bf0e918a2ceddece9bf3b5213348bb84e",
+      "reviewedSha256": "56e6f7d68c28b5dcf25c2160b8f9457bc062dad2d35d71afd14aad65426981a9"
+    },
+    {
+      "file": "e2e/__screenshots__/visual.spec.ts/dashboard-parent-dark-fridge-landscape-1280x800-linux.png",
+      "artifactId": 12512767634,
+      "previousSha256": "946f1b4fe6b11d6af38f108755541851bd70ea72c5aadb19e4436c65f7a71361",
+      "reviewedSha256": "6fc2e28adc6de0db59ae155385e1e374e0c8e4134b9ebfdd26f7f32f3ee2425c"
+    },
+    {
+      "file": "e2e/__screenshots__/visual.spec.ts/dashboard-parent-light-tablet-large-1920x1200-linux.png",
+      "artifactId": 12513831553,
+      "previousSha256": "02a6902ddd47ab6cc65eacb7099de283a30934e73e217f9cd6e53801c59039d2",
+      "reviewedSha256": "d511cca39040e4b77493913b354757f170bfb3e9ee15c2b2cfab43603b22b78d"
+    },
+    {
+      "file": "e2e/__screenshots__/visual.spec.ts/dashboard-parent-dark-tablet-large-1920x1200-linux.png",
+      "artifactId": 12513831553,
+      "previousSha256": "3ac597e8ee96aa47e5c170aefa1221e681a5a2672fb847955cecbc6f5d2ec3e0",
+      "reviewedSha256": "dd19dffba12d4fd433f25e9bd4197d6732a816eb6bfb2712907912c0a5d0caf5"
+    },
+    {
+      "file": "e2e/__screenshots__/visual.spec.ts/dashboard-parent-light-desktop-1366x768-linux.png",
+      "artifactId": 12513195901,
+      "previousSha256": "046e5d296f4a65f09daa713f55d962baa3453a46f77271ce0dd8b7f0a7e63e29",
+      "reviewedSha256": "373ea4fe3d78242e995821a33157b103622408c09c0e8b05f7a7e392c86a3fbd"
+    },
+    {
+      "file": "e2e/__screenshots__/visual.spec.ts/dashboard-parent-dark-desktop-1366x768-linux.png",
+      "artifactId": 12513195901,
+      "previousSha256": "d7f688bd5a349e5b416b91d6caff6724909093c03358956c7cbea913bdafd1cc",
+      "reviewedSha256": "1896acbc09e4798316fb0456d687a0a1b022b51e94c12bb38d302d47c66ca2f1"
+    }
+  ]
+}

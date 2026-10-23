@@ -368,9 +368,19 @@ jobs:
           retention-days: 7
 
   settings_localization:
-    name: Settings ordinary and expanded QA
+    name: Settings ${{ matrix.mode }} QA
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    # Each build mode retains every enabled/unavailable journey and its own
+    # disposable database. Sequential modes exceeded the unchanged job deadline.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: ordinary
+            expanded: "0"
+          - mode: expanded
+            expanded: "1"
     services:
       postgres:
         image: postgres:17-alpine
@@ -390,6 +400,8 @@ jobs:
       FIXTURES_ALLOW: "1"
       NEXT_TELEMETRY_DISABLED: "1"
       RELEASE_SHA: ${{ github.sha }}
+      I18N_PSEUDO_ENABLED: ${{ matrix.expanded }}
+      DESIGN_GALLERY_ENABLED: ${{ matrix.expanded }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -411,70 +423,35 @@ jobs:
       - name: Migrate database
         run: node scripts/migrate.js
       # Synthetic availability is installed only in the guarded server child, never compilation.
-      - name: Build ordinary Settings application
+      - name: Build ${{ matrix.mode }} Settings application
         run: npm run build
         env:
           SKIP_ENV_VALIDATION: "true"
           NODE_ENV: production
-          I18N_PSEUDO_ENABLED: "0"
-          DESIGN_GALLERY_ENABLED: "0"
-      - name: Ordinary guarded Settings journeys
+      - name: ${{ matrix.mode }} guarded Settings journeys
         run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts e2e/calendar-removal-dialogs.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
         env:
           E2E_SKIP_BUILD: "1"
           E2E_SETTINGS_QA: "enabled"
-          I18N_PSEUDO_ENABLED: "0"
-          DESIGN_GALLERY_ENABLED: "0"
-          E2E_REPORT_DIR: playwright-report/settings-ordinary-enabled
-          E2E_OUTPUT_DIR: test-results/settings-ordinary-enabled
-      - name: Ordinary unavailable Settings role gates
+          E2E_REPORT_DIR: playwright-report/settings-${{ matrix.mode }}-enabled
+          E2E_OUTPUT_DIR: test-results/settings-${{ matrix.mode }}-enabled
+      - name: ${{ matrix.mode }} unavailable Settings role gates
         run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts e2e/calendar-removal-dialogs.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
         env:
           E2E_SKIP_BUILD: "1"
           E2E_SETTINGS_QA: "unavailable"
-          I18N_PSEUDO_ENABLED: "0"
-          DESIGN_GALLERY_ENABLED: "0"
-          E2E_REPORT_DIR: playwright-report/settings-ordinary-unavailable
-          E2E_OUTPUT_DIR: test-results/settings-ordinary-unavailable
-      - name: Build expanded Settings application
-        run: npm run build
-        env:
-          SKIP_ENV_VALIDATION: "true"
-          NODE_ENV: production
-          I18N_PSEUDO_ENABLED: "1"
-          DESIGN_GALLERY_ENABLED: "1"
-      - name: Expanded guarded Settings journeys
-        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts e2e/calendar-removal-dialogs.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
-        env:
-          E2E_SKIP_BUILD: "1"
-          E2E_SETTINGS_QA: "enabled"
-          I18N_PSEUDO_ENABLED: "1"
-          DESIGN_GALLERY_ENABLED: "1"
-          E2E_REPORT_DIR: playwright-report/settings-expanded-enabled
-          E2E_OUTPUT_DIR: test-results/settings-expanded-enabled
-      - name: Expanded unavailable Settings role gates
-        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts e2e/calendar-removal-dialogs.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
-        env:
-          E2E_SKIP_BUILD: "1"
-          E2E_SETTINGS_QA: "unavailable"
-          I18N_PSEUDO_ENABLED: "1"
-          DESIGN_GALLERY_ENABLED: "1"
-          E2E_REPORT_DIR: playwright-report/settings-expanded-unavailable
-          E2E_OUTPUT_DIR: test-results/settings-expanded-unavailable
-      - name: Preserve ordinary and expanded Settings proof
+          E2E_REPORT_DIR: playwright-report/settings-${{ matrix.mode }}-unavailable
+          E2E_OUTPUT_DIR: test-results/settings-${{ matrix.mode }}-unavailable
+      - name: Preserve ${{ matrix.mode }} Settings proof
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: settings-qa-${{ github.sha }}
+          name: settings-${{ matrix.mode }}-qa-${{ github.sha }}
           path: |
-            playwright-report/settings-ordinary-enabled/
-            test-results/settings-ordinary-enabled/
-            playwright-report/settings-ordinary-unavailable/
-            test-results/settings-ordinary-unavailable/
-            playwright-report/settings-expanded-enabled/
-            test-results/settings-expanded-enabled/
-            playwright-report/settings-expanded-unavailable/
-            test-results/settings-expanded-unavailable/
+            playwright-report/settings-${{ matrix.mode }}-enabled/
+            test-results/settings-${{ matrix.mode }}-enabled/
+            playwright-report/settings-${{ matrix.mode }}-unavailable/
+            test-results/settings-${{ matrix.mode }}-unavailable/
           if-no-files-found: error
           retention-days: 7
 
