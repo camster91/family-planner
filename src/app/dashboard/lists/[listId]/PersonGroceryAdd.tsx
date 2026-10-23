@@ -225,7 +225,7 @@ export function PersonGroceryAdd({
   return (
     <section
       aria-label={t("groceries.personSection")}
-      data-queue-ready={queueReady ? "true" : "false"}
+      data-queue-settled={queueReady ? "true" : "false"}
       className="space-y-3"
     >
       {showCompatibilityNotice && <QueueStorageRecovery queue={queue} />}

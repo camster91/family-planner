@@ -439,7 +439,7 @@ test.describe("offline grocery ticks: Family A parent", () => {
     });
     await page.goto(`/dashboard/lists/${listId}`);
     const section = page.getByRole("region", { name: "Grocery adds" });
-    await expect(section).toHaveAttribute("data-queue-ready", "true");
+    await expect(section).toHaveAttribute("data-queue-settled", "true");
     await goOffline(page);
     await section.getByRole("textbox", { name: "Add an item" }).fill(content);
     await section.getByRole("button", { name: "Add", exact: true }).click();
@@ -539,10 +539,11 @@ test.describe("offline grocery ticks: Family A parent", () => {
     });
 
     await page.goto(`/dashboard/lists/${fixture.listId}`);
+    const main = page.getByRole("main");
     const section = page.getByRole("region", { name: "Grocery adds" });
-    await expect(section).toHaveAttribute("data-queue-ready", "true");
+    await expect(section).toHaveAttribute("data-queue-settled", "true");
     await expect(
-      section.getByText("New changes are paused to protect them.", {
+      main.getByText("New changes are paused to protect them.", {
         exact: false,
       }),
     ).toBeVisible();
@@ -553,13 +554,17 @@ test.describe("offline grocery ticks: Family A parent", () => {
     await input.press("Enter");
     await expect(input).toHaveValue("Keep this draft through owner recovery");
     expect(groceryAdds).toHaveLength(0);
+    await page.screenshot({
+      path: testInfo.outputPath("grocery-add-owner-paused.png"),
+      fullPage: true,
+    });
 
     ownerAvailable = true;
-    await section
+    await main
       .getByRole("button", { name: "Try loading saved changes", exact: true })
       .click();
     await expect(
-      section.getByRole("button", {
+      main.getByRole("button", {
         name: "Try loading saved changes",
         exact: true,
       }),
@@ -574,6 +579,10 @@ test.describe("offline grocery ticks: Family A parent", () => {
       "pending",
     );
     expect(groceryAdds).toHaveLength(0);
+    await page.screenshot({
+      path: testInfo.outputPath("grocery-add-recovered-offline.png"),
+      fullPage: true,
+    });
   });
 
   test("a failed personal add retries the same intent and a deleted list keeps recovery after reload", async ({
@@ -597,7 +606,7 @@ test.describe("offline grocery ticks: Family A parent", () => {
     });
     await page.goto(`/dashboard/lists/${listId}`);
     const section = page.getByRole("region", { name: "Grocery adds" });
-    await expect(section).toHaveAttribute("data-queue-ready", "true");
+    await expect(section).toHaveAttribute("data-queue-settled", "true");
     await section.getByRole("textbox").fill("Retry recovery milk");
     await section.getByRole("button", { name: "Add", exact: true }).click();
     const queued = page.getByTestId("queued-grocery-add");
@@ -728,7 +737,7 @@ test.describe("offline grocery ticks: Family A parent", () => {
       await expect(groceries).toContainText(`${before.shopping.total} to buy`);
       await page.goto(`/dashboard/lists/${listId}`);
       const adds = page.getByRole("region", { name: "Grocery adds" });
-      await expect(adds).toHaveAttribute("data-queue-ready", "true");
+      await expect(adds).toHaveAttribute("data-queue-settled", "true");
       await goOffline(page);
       await adds.getByRole("textbox").fill("Phone to shared board proof");
       await adds.getByRole("button", { name: "Add", exact: true }).click();
@@ -1130,7 +1139,7 @@ test.describe("offline grocery ticks: sign-out", () => {
     await page.goto(`/dashboard/lists/${fixture.listId}`);
     const item = row(page, itemId);
     const adds = page.getByRole("region", { name: "Grocery adds" });
-    await expect(adds).toHaveAttribute("data-queue-ready", "true");
+    await expect(adds).toHaveAttribute("data-queue-settled", "true");
     await goOffline(page);
     await item.getByRole("checkbox").click();
     await expect(item).toHaveAttribute("data-sync-state", "pending");

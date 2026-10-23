@@ -9,8 +9,8 @@ Live public phone/desktop journeys passed. This is web production verification,
 not native hardware/store, external delivery or real household acceptance.
 
 Current user scope is to close proved shipped issues, test core household flows
-and fix observed bugs; extra features remain later. Eight bounded issues are
-closed with evidence: #462/#461/#459/#458/#452/#447/#454/#536. Additional isolated
+and fix observed bugs; extra features remain later. Nine bounded issues are
+closed with evidence: #462/#461/#459/#458/#452/#447/#454/#536/#463. Additional isolated
 PostgreSQL cover-lifecycle/chore-save proof passes9cases, and real phone/desktop
 weekly create/edit/reload plus private list upload/overview/detail/foreign-file
 checks pass against the unchanged b284 application source.
@@ -24,6 +24,9 @@ four-duration snooze/reload/Show now/private-child checks pass7/7 setup/journey
 cases in the same isolated artifact. Older dated release-pending entries
 below remain historical, not current production state. Current release receipts
 and remaining original acceptance stay in #128 and the original issues.
+Notification snooze #463 additionally passes controlled expiry against its real
+PostgreSQL timestamp, persisted mark-read, and delete/Undo on phone and desktop;
+notification UI/API source is unchanged from the served merge.
 
 ## Household validation security repair — 2026-10-23
 
@@ -32,10 +35,21 @@ PR #598 also repairs the newly disclosed runtime Zod resource-exhaustion issue
 without a legacy-v3 bypass. Declared bounded arrays reject excess length before
 walking their elements. Message read requests additionally enforce a256KiB body
 and1000 explicit IDs; mark-all behavior and authorization order are preserved.
-Independent source review found no concrete blocker. Type checking and the full
-existing unit suite pass:702 suites/6991 tests, with the existing guarded skips
-unchanged. Optimized build, loading budgets and hosted exact-candidate gates
-remain required before this repair replaces current production3691e131.
+Independent source review found no concrete blocker. At `f8dcef98`, all three hosted
+gates pass, including 703 suites/7,002 unit tests, PostgreSQL checks, six browser
+viewports, unchanged loading limits, recovery rehearsal and the checked image on
+a fresh runner. Existing guarded skips remain unchanged. Fresh protected backup,
+81-table exact restore, repeat migrations and rollback-image verification also
+pass; production3691e131 has not been replaced.
+
+Final retry review reproduced a grocery-add readiness gap: going offline before
+secure queue-owner bootstrap completes leaves Add active while new changes are
+paused. The draft stays intact and no ownership check is bypassed. PR #598 is
+held for a bounded readiness/submit guard and affected verification. Two other
+retry diagnostics involve selectors matching canonical and recovery row copies,
+not duplicate database records. Source changes after `f8dcef98` need their own
+passing checks before the authorized merge and deployment. Extra features and
+provider/native-store activation remain deferred.
 
 ## Loading budget repaired; current main integrated — 2026-10-23
 

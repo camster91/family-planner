@@ -5,14 +5,20 @@ The web candidate is shipped through PR #595, protected merge
 Coolify deployment594 and version/health/runtime verification. Current requested
 work is issue closure and core household bug checks; extra features stay later.
 
-Closed after original-criteria review: #462, #461, #459, #458, #452, #447, #454
-and #536.
+Closed after original-criteria review: #462, #461, #459, #458, #452, #447, #454,
+#536 and #463. The current open count is 73; the dated 82-row inventories below
+remain historical checkpoints.
 Each original issue retains its specific source, hosted and production evidence.
 The private-cover closure also uses a real phone/desktop upload/save/read/privacy
 journey and isolated PostgreSQL lifecycle proof (2 suites/9 cases including chore
 receipt recovery). The b284 compiled app used for follow-through has identical
 application source to the served merge; workflow/docs changes are labelled
-separately. Failed harness attempts remain failed evidence.
+separately. Failed harness attempts remain failed evidence. The #463 closure
+adds real canonical snooze persistence plus controlled-clock expiry, mark-read
+and delete/Undo browser proof on phone and desktop. Its UI/API source is
+unchanged from the served merge. At `f8dcef98`, all hosted gates pass, but separate
+no-retry triage reproduced a grocery-add readiness gap before owner bootstrap;
+PR #598 remains held for the bounded repair and changed-source verification.
 
 The dated inventory and rows below are historical execution checkpoints. An open
 issue is not proof of missing source, and an implemented path is not proof of all
