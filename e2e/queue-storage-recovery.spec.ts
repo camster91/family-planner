@@ -141,9 +141,10 @@ for (const locale of ["en", "es"] as const) {
         exact: true,
       });
       await input.fill("Keep this unsent draft");
-      await page
-        .getByRole("button", { name: copy("add"), exact: true })
-        .click();
+      await expect(
+        page.getByRole("button", { name: copy("add"), exact: true }),
+      ).toBeDisabled();
+      await input.press("Enter");
       await expect(input).toHaveValue("Keep this unsent draft");
       expect(
         await page.evaluate(() =>
