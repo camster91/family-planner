@@ -509,6 +509,73 @@ test.describe("offline grocery ticks: Family A parent", () => {
     });
   });
 
+  test("a failed owner bootstrap keeps a grocery draft until explicit recovery", async ({
+    page,
+  }, testInfo) => {
+    fixture = await createList(page, testInfo, []);
+    const ownerRequests: number[] = [];
+    let ownerAvailable = false;
+    await page.route("**/api/queue/owner", async (route) => {
+      ownerRequests.push(Date.now());
+      if (!ownerAvailable) {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: "Queue ownership temporarily unavailable",
+          }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+    const groceryAdds: Request[] = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        request.url().endsWith("/api/lists/items/grocery-add")
+      )
+        groceryAdds.push(request);
+    });
+
+    await page.goto(`/dashboard/lists/${fixture.listId}`);
+    const section = page.getByRole("region", { name: "Grocery adds" });
+    await expect(section).toHaveAttribute("data-queue-ready", "true");
+    await expect(
+      section.getByText("New changes are paused to protect them.", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    const input = section.getByRole("textbox", { name: "Add an item" });
+    await input.fill("Keep this draft through owner recovery");
+    const add = section.getByRole("button", { name: "Add", exact: true });
+    await expect(add).toBeDisabled();
+    await input.press("Enter");
+    await expect(input).toHaveValue("Keep this draft through owner recovery");
+    expect(groceryAdds).toHaveLength(0);
+
+    ownerAvailable = true;
+    await section
+      .getByRole("button", { name: "Try loading saved changes", exact: true })
+      .click();
+    await expect(
+      section.getByRole("button", {
+        name: "Try loading saved changes",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await expect(add).toBeEnabled();
+    expect(ownerRequests.length).toBeGreaterThanOrEqual(2);
+
+    await goOffline(page);
+    await add.click();
+    await expect(page.getByTestId("queued-grocery-add")).toHaveAttribute(
+      "data-sync-state",
+      "pending",
+    );
+    expect(groceryAdds).toHaveLength(0);
+  });
+
   test("a failed personal add retries the same intent and a deleted list keeps recovery after reload", async ({
     page,
   }, testInfo) => {
