@@ -163,7 +163,6 @@ for (const role of ["parent", "teen", "child"] as const)
             });
             const opener = page.getByRole("button", {
               name: msg("userMenu"),
-              exact: true,
             });
             const bounds = await opener.boundingBox(),
               viewport = page.viewportSize()!;
@@ -269,7 +268,6 @@ for (const role of ["parent", "teen", "child"] as const)
         );
         const opener = page.getByRole("button", {
           name: msg("userMenu"),
-          exact: true,
         });
         await opener.click();
         await expect(page.getByText(msg(role), { exact: true })).toBeVisible();
@@ -367,7 +365,6 @@ for (const role of ["parent", "teen", "child"] as const)
           });
           const opener = page.getByRole("button", {
             name: msg("userMenu"),
-            exact: true,
           });
           await expect(opener).toBeVisible();
           const bounds = await opener.boundingBox(),

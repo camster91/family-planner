@@ -309,13 +309,15 @@ function FeatureGroup({
           className="flex min-h-11 shrink-0 items-center gap-2 rounded-full px-2 text-footnote text-label-tertiary focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]"
           aria-expanded={expanded}
           aria-controls={panelId}
-          aria-label={
-            expanded
-              ? copy('hideGroup', { group: title })
-              : copy('showGroup', { group: title })
-          }
           onClick={onToggleExpanded}
         >
+          {/* Named by its content so the visible count stays in the spoken name (WCAG 2.5.3). */}
+          <span className="sr-only">
+            {expanded
+              ? copy('hideGroup', { group: title })
+              : copy('showGroup', { group: title })}
+            ,{' '}
+          </span>
           <span>{copy('featuresCount', { count: totalCount })}</span>
           <ChevronDown
             className={`h-5 w-5 transition-transform ${expanded ? '' : '-rotate-90'}`}

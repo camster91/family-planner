@@ -52,7 +52,7 @@ it("reviews actual overlaps through the existing details and edit permission", a
   expect(panel).not.toHaveAttribute("open");
   expect(within(panel).getByText("1 overlap")).toBeInTheDocument();
   await userEvent.click(panel.querySelector("summary")!);
-  const review = within(panel).getByRole("button", { name: "Review Dentist" });
+  const review = within(panel).getByRole("button", { name: /^Review Dentist\b/ });
   await userEvent.click(review);
   expect(
     within(screen.getByRole("dialog")).getByRole("link", {
@@ -62,7 +62,7 @@ it("reviews actual overlaps through the existing details and edit permission", a
   await userEvent.click(screen.getByRole("button", { name: "Close details" }));
   expect(review).toHaveFocus();
   await userEvent.click(
-    within(panel).getByRole("button", { name: "Review School assembly" }),
+    within(panel).getByRole("button", { name: /^Review School assembly\b/ }),
   );
   expect(
     within(screen.getByRole("dialog")).queryByRole("link", {
@@ -79,7 +79,7 @@ it("keeps teen-style read-only details and recomputes for the selected source", 
   const panel = await screen.findByTestId("calendar-overlaps");
   await userEvent.click(panel.querySelector("summary")!);
   await userEvent.click(
-    within(panel).getByRole("button", { name: "Review Dentist" }),
+    within(panel).getByRole("button", { name: /^Review Dentist\b/ }),
   );
   expect(
     within(screen.getByRole("dialog")).queryByRole("link", {
@@ -105,6 +105,6 @@ it("localizes the advisory and its detail action in Spanish", async () => {
   expect(within(panel).getByText("1 coincidencia")).toBeInTheDocument();
   await userEvent.click(panel.querySelector("summary")!);
   expect(
-    within(panel).getByRole("button", { name: "Revisar Dentist" }),
+    within(panel).getByRole("button", { name: /^Revisar Dentist\b/ }),
   ).toBeInTheDocument();
 });

@@ -218,7 +218,6 @@ for (const role of ["parent", "teen", "child"] as const)
             await page
               .getByRole("button", {
                 name: translate(navigationMessages[locale].userMenu),
-                exact: true,
               })
               .click();
             await page

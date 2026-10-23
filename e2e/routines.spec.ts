@@ -171,7 +171,7 @@ test.describe("Family A child", () => {
     for (const [i, s] of STEPS.entries()) {
       await expect(steps(page).nth(i)).toHaveAttribute(
         "aria-label",
-        new RegExp(`^${s.title}, step ${i + 1} of 3`),
+        new RegExp(`^(Next: )?${s.title}, step ${i + 1} of 3`),
       );
       const icon = steps(page).nth(i).locator(`svg[data-icon="${s.icon}"]`);
       const box = await icon.boundingBox();
@@ -212,7 +212,7 @@ test.describe("Family A child", () => {
       await tap(page, i);
       await expect(steps(page).nth(i)).toHaveAttribute(
         "aria-label",
-        /done, waiting for a parent to check$/,
+        /done, waiting for a parent to check, step \d of 3$/,
       );
     }
     await expect(morning(page).getByTestId("routine-progress")).toHaveText(

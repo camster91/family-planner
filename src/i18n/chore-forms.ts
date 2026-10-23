@@ -119,7 +119,7 @@ export const choreFormsEnglish = {
   off: "Off",
   takeTurnsInstruction:
     "Tap people in the order they take turns. Tap again to take someone out.",
-  turnAria: "{name}, turn {count}",
+  turnAria: "Turn {count}: {name}",
   order: "Order: {order}",
   someone: "Someone",
   pickAtLeast: "Pick at least {count} people.",
@@ -246,7 +246,7 @@ export const choreFormsSpanish: Record<ChoreFormMessage, string> = {
   off: "Desactivado",
   takeTurnsInstruction:
     "Toca a las personas en el orden de sus turnos. Toca otra vez para quitar a alguien.",
-  turnAria: "{name}, turno {count}",
+  turnAria: "Turno {count}: {name}",
   order: "Orden: {order}",
   someone: "Alguien",
   pickAtLeast: "Elige al menos {count} personas.",

@@ -178,7 +178,11 @@ for (const locale of ["en", "es"] as const) {
     });
     try {
       await page.reload();
-      await page.getByRole("button", { name: note.title, exact: true }).click();
+      await page
+        .getByTestId("note-card")
+        .locator("h2 button")
+        .filter({ hasText: note.title })
+        .click();
       await page
         .getByRole("dialog")
         .getByRole("button", { name: copy.save, exact: true })
@@ -195,7 +199,11 @@ for (const locale of ["en", "es"] as const) {
       expect(writes).toEqual(["PATCH"]);
 
       await page.unroute(`**/api/notes/${note.id}`);
-      await page.getByRole("button", { name: note.title, exact: true }).click();
+      await page
+        .getByTestId("note-card")
+        .locator("h2 button")
+        .filter({ hasText: note.title })
+        .click();
       const dialog = page.getByRole("dialog");
       try {
         await context.setOffline(true);

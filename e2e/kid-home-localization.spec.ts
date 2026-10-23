@@ -351,26 +351,25 @@ for (const locale of ["en", "es"] as const) {
       await expect(first).toHaveAttribute(
         "aria-label",
         [
-          `Brush teeth — café ${suffix}`,
-          text("stepOf", { step: 1, total: 3 }),
+          `${text("next")}: Brush teeth — café ${suffix}`,
           `${text("haveAnotherGo")}: ${retryNote}`,
-          text("nextStep"),
+          text("stepOf", { step: 1, total: 3 }),
         ].join(", "),
       );
       await expect(routine.getByTestId("routine-step").nth(1)).toHaveAttribute(
         "aria-label",
         [
           `Get dressed — café ${suffix}`,
-          text("stepOf", { step: 2, total: 3 }),
           text("doneWaiting"),
+          text("stepOf", { step: 2, total: 3 }),
         ].join(", "),
       );
       await expect(routine.getByTestId("routine-step").nth(2)).toHaveAttribute(
         "aria-label",
         [
           `Shoes on — café ${suffix}`,
-          text("stepOf", { step: 3, total: 3 }),
           text("doneChecked"),
+          text("stepOf", { step: 3, total: 3 }),
         ].join(", "),
       );
 

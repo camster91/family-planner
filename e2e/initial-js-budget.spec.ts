@@ -82,7 +82,7 @@ for (const [route, budget] of Object.entries(CORE_JS_BUDGETS)) {
     expect(response?.status()).toBe(200);
     await expect(page.locator("main")).toBeVisible();
     // A React-controlled read-only interaction proves hydration has completed.
-    const menu = page.getByRole("button", { name: "User menu", exact: true });
+    const menu = page.getByRole("button", { name: "User menu" });
     await expect(menu).toHaveAttribute("aria-expanded", "false");
     await menu.click();
     await expect(menu).toHaveAttribute("aria-expanded", "true");

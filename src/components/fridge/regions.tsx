@@ -419,7 +419,7 @@ export function GroceriesRegion({
             {shopping.items.map((item) => {
               const content = (
                 <>
-                  <span className={cn(itemTextClass, 'min-w-0 flex-1 break-words md:line-clamp-2')}>{item.content}</span>
+                  <span className={cn(itemTextClass, 'min-w-0 flex-1 break-words md:line-clamp-2')}>{item.content}</span>{' '}
                   {item.quantity > 1 && (
                     <span className={cn(metaTextClass, 'shrink-0 font-semibold tabular-nums')}>
                       × {item.quantity}
@@ -433,13 +433,11 @@ export function GroceriesRegion({
                     <button
                       type="button"
                       onClick={() => onTick(item)}
-                      aria-label={text('tickOff', {
-                        item: item.content,
-                        quantity: item.quantity > 1 ? `, ${item.quantity}` : '',
-                      })}
                       className={rowButtonClass}
                     >
                       <Circle className="h-6 w-6 shrink-0 text-label-secondary 2xl:h-7 2xl:w-7" aria-hidden="true" />
+                      {/* Named by its content so the visible item stays in the spoken name (WCAG 2.5.3). */}
+                      <span className="sr-only">{text('tickOff')} </span>
                       {content}
                     </button>
                   ) : (
@@ -524,14 +522,19 @@ export function ChoreRow({
   showOwner?: boolean
 }) {
   const text = useTodayBoardText()
+  const tickable = Boolean(onTick && (canTick?.(c) ?? true))
   const label = (
     <span className="min-w-0 flex-1">
       {/* Picture routines (#272): the chore's picture, when it has one. */}
       {c.icon && (
         <BoardRoutineIcon icon={c.icon} />
       )}
-      {c.title}
-      {showOwner && <span className={cn(metaTextClass, 'block')}>{name}</span>}
+      {c.title}{' '}
+      {showOwner ? (
+        <span className={cn(metaTextClass, 'block')}>{name}</span>
+      ) : (
+        tickable && <span className="sr-only">{name}</span>
+      )}
       {c.status === 'in_progress' && (
         <span className={cn(metaTextClass, 'block')}>{text('inProgress')}</span>
       )}
@@ -544,17 +547,18 @@ export function ChoreRow({
   )
   return (
     <li data-testid="board-chore" className={cn(itemTextClass, 'break-words')}>
-      {onTick && (canTick?.(c) ?? true) ? (
+      {onTick && tickable ? (
         <button
           type="button"
           onClick={() => onTick(c)}
-          aria-label={text('markDone', { title: c.title, name })}
           className={cn(rowButtonClass, 'text-left')}
         >
           <Circle
             className="h-6 w-6 shrink-0 text-label-secondary 2xl:h-7 2xl:w-7"
             aria-hidden="true"
           />
+          {/* Named by its content so the visible title stays in the spoken name (WCAG 2.5.3). */}
+          <span className="sr-only">{text('markDone')} </span>
           {label}
         </button>
       ) : (

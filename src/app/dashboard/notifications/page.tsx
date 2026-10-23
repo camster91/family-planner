@@ -314,7 +314,7 @@ export default function NotificationsPage() {
                   </div>
                   {isSnoozed(notification) && <p className="w-full text-caption-1 text-label-secondary">Returns {new Date(notification.snoozed_until!).toLocaleString()}</p>}
                   {isSnoozed(notification) ? (
-                    <button type="button" disabled={snoozePending !== null} onClick={() => handleSnooze(notification, null)} className="btn-tinted min-h-[44px] disabled:opacity-50" aria-label={`Show "${notification.title}" now`}>Show now</button>
+                    <button type="button" disabled={snoozePending !== null} onClick={() => handleSnooze(notification, null)} className="btn-tinted min-h-[44px] disabled:opacity-50" aria-label={`Show now: "${notification.title}"`}>Show now</button>
                   ) : (
                     <label className="inline-flex items-center gap-1 text-subhead text-label-secondary">
                       <Clock className="h-4 w-4" aria-hidden="true" />
@@ -330,7 +330,7 @@ export default function NotificationsPage() {
                       disabled={snoozePending !== null}
                       onClick={() => handleMarkAsRead(notification.id)}
                       className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-full px-2 text-subhead font-medium text-[var(--accent-text)] hover:bg-surface-fill-secondary shrink-0"
-                      aria-label={`Mark "${notification.title}" as read`}
+                      aria-label={`Mark read: "${notification.title}"`}
                     >
                       <Check className="w-4 h-4" aria-hidden="true" />
                       <span className="hidden sm:inline">Mark read</span>

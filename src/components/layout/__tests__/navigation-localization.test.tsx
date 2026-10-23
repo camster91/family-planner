@@ -83,14 +83,14 @@ it("updates open parent menu and both tab bars without changing private identity
     </>,
     "en",
   );
-  const opener = screen.getByRole("button", { name: "User menu" });
+  const opener = screen.getByRole("button", { name: /User menu$/ });
   opener.focus();
   fireEvent.click(opener);
   const oldLinks = screen
     .getAllByRole("link")
     .map((a) => a.getAttribute("href"));
   act(() => changeLocale("es"));
-  expect(screen.getByRole("button", { name: "Menú de usuario" })).toBe(opener);
+  expect(screen.getByRole("button", { name: /Menú de usuario$/ })).toBe(opener);
   expect(opener).toHaveFocus();
   expect(opener).toHaveAttribute("aria-expanded", "true");
   expect(screen.getByText("Synthetic {name} — 李")).toBeVisible();
@@ -130,7 +130,7 @@ it("preserves child feature restrictions and an open notification shell through 
     </>,
     "en",
   );
-  fireEvent.click(screen.getByRole("button", { name: "User menu" }));
+  fireEvent.click(screen.getByRole("button", { name: /User menu$/ }));
   fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
   await screen.findByRole("dialog", { name: "Notifications" });
   const originalDialogFocus = document.activeElement;
@@ -196,7 +196,7 @@ it("keeps an in-flight sign-out single across a mounted locale switch", async ()
   );
   (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
   localized(<DashboardNav user={person("parent")} />, "en");
-  fireEvent.click(screen.getByRole("button", { name: "User menu" }));
+  fireEvent.click(screen.getByRole("button", { name: /User menu$/ }));
   fireEvent.click(screen.getByRole("button", { name: "Sign Out" }));
   act(() => changeLocale("es"));
   await waitFor(() => expect(mockClearQueues).toHaveBeenCalledTimes(1));
@@ -218,7 +218,7 @@ it("still logs out on the server when queue loading or clearing fails", async ()
   mockClearQueues.mockRejectedValueOnce(new Error("Queue unavailable"));
   (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
   localized(<DashboardNav user={person("parent")} />, "en");
-  fireEvent.click(screen.getByRole("button", { name: "User menu" }));
+  fireEvent.click(screen.getByRole("button", { name: /User menu$/ }));
   fireEvent.click(screen.getByRole("button", { name: "Sign Out" }));
   await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/login"));
   expect(global.fetch).toHaveBeenCalledWith("/api/auth/logout", {
@@ -248,7 +248,7 @@ it("keeps a teen restricted to its canonical feature-gated tabs in Spanish", () 
       ["Listas", "/dashboard/lists"],
       ["Emergencia", "/dashboard/emergency"],
     ]);
-  fireEvent.click(screen.getByRole("button", { name: "Menú de usuario" }));
+  fireEvent.click(screen.getByRole("button", { name: /Menú de usuario$/ }));
   expect(screen.getByText("Adolescente")).toBeVisible();
   expect(screen.getByRole("link", { name: "Ajustes" })).toBeVisible();
   expect(screen.queryByRole("link", { name: "Familia" })).toBeNull();

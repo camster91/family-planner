@@ -464,15 +464,14 @@ export function CalendarPlanner({
                         <button
                           key={event.id}
                           type="button"
-                          aria-label={msg("reviewEvent", {
-                            title: event.title,
-                          })}
                           onClick={(ev) => {
                             trigger.current = ev.currentTarget;
                             setSelected(event);
                           }}
                         >
-                          <strong>{event.title}</strong>
+                          {/* Named by its content so the visible title and source stay in the spoken name (WCAG 2.5.3). */}
+                          <span className="sr-only">{msg("reviewEvent")} </span>
+                          <strong>{event.title}</strong>{" "}
                           <small>{sourceLabel(event)}</small>
                         </button>
                       ))}

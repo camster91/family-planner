@@ -859,12 +859,14 @@ function DayCard({
               <button
                 type="button"
                 onClick={() => onAdd(day, slot.type)}
-                aria-label={`Add ${label.toLowerCase()}, ${day.longLabel}`}
                 className={styles.emptySlot}
               >
+                {/* Named by its content so the visible slot text stays in the spoken name (WCAG 2.5.3). */}
                 <span>
-                  <span className={styles.slotLabel}>{label}</span>
+                  <span className="sr-only">Add </span>
+                  <span className={styles.slotLabel}>{label}</span>{' '}
                   <span className={styles.meta}>Nothing planned</span>
+                  <span className="sr-only">, {day.longLabel}</span>
                 </span>
                 <Plus className="w-5 h-5 shrink-0" aria-hidden="true" />
               </button>

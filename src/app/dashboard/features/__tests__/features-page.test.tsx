@@ -48,7 +48,7 @@ describe('Features page switches', () => {
   it('still toggles a feature when tapped', async () => {
     const user = userEvent.setup()
     render(<FeaturesPage />)
-    await user.click(screen.getByRole('button', { name: 'Show Core' }))
+    await user.click(screen.getByRole('button', { name: /^Show Core,/ }))
     await user.click(
       screen.getByRole('switch', { name: 'Disable Points & streaks' }),
     )
@@ -58,7 +58,7 @@ describe('Features page switches', () => {
   it('describes Points & streaks without "XP"', async () => {
     const user = userEvent.setup()
     render(<FeaturesPage />)
-    await user.click(screen.getByRole('button', { name: 'Show Core' }))
+    await user.click(screen.getByRole('button', { name: /^Show Core,/ }))
     expect(
       screen.getByText(
         'Points for chores, levels, streaks and a family leaderboard.',
@@ -90,7 +90,7 @@ describe('Features page switches', () => {
     expect(
       screen.getByRole('button', { name: 'Open all groups' }),
     ).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Show Core' }))
+    await user.click(screen.getByRole('button', { name: /^Show Core,/ }))
     await waitFor(() =>
       expect(screen.getByText('Chores', { exact: true })).toBeTruthy(),
     )
@@ -100,7 +100,7 @@ describe('Features page switches', () => {
     const user = userEvent.setup()
     render(<FeaturesPage />)
     const planningDisclosure = screen.getByRole('button', {
-      name: 'Hide Planning',
+      name: /^Hide Planning,/,
     })
     expect(
       document.getElementById('feature-group-heading-planning')?.className,
@@ -114,7 +114,7 @@ describe('Features page switches', () => {
     await user.click(planningDisclosure)
     expect(screen.getByRole('switch', { name: 'Enable Budget' })).toBeTruthy()
     expect(screen.getAllByText('On', { exact: true }).length).toBeGreaterThan(0)
-    await user.click(screen.getByRole('button', { name: 'Show Core' }))
+    await user.click(screen.getByRole('button', { name: /^Show Core,/ }))
     expect(
       screen.getAllByText('Locked', { exact: true }).length,
     ).toBeGreaterThan(0)
@@ -146,7 +146,7 @@ describe('Features page switches', () => {
   it('wraps long feature copy instead of truncating it', async () => {
     const user = userEvent.setup()
     render(<FeaturesPage />)
-    await user.click(screen.getByRole('button', { name: 'Show Family life' }))
+    await user.click(screen.getByRole('button', { name: /^Show Family life,/ }))
 
     const title = screen.getByText('Birthdays & anniversaries', { exact: true })
     expect(title.className).toContain('break-words')
@@ -201,7 +201,7 @@ describe('Features page switches', () => {
     })
     setFeature.mockImplementation(() => request)
     render(<FeaturesPage />)
-    await user.click(screen.getByRole('button', { name: 'Show Core' }))
+    await user.click(screen.getByRole('button', { name: /^Show Core,/ }))
     const toggle = screen.getByRole('switch', {
       name: 'Disable Points & streaks',
     })

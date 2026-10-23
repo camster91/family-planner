@@ -829,7 +829,7 @@ test.describe("inventory (Family A parent)", () => {
           r.url().includes(`/api/inventory/${IDS.yogurt}/consume`) &&
           r.request().method() === "POST",
       ),
-      soon.getByRole("button", { name: `Used ${YOGURT}` }).click(),
+      soon.getByRole("button", { name: `Used it: ${YOGURT}` }).click(),
     ]);
     expect(consumed.status()).toBe(200);
     expect(consumed.request().headers()["idempotency-key"]).toMatch(
@@ -924,7 +924,7 @@ test.describe("inventory (Family A parent)", () => {
     await expect(itemRow(page, IDS.milk)).toBeVisible();
     await page
       .getByTestId("use-soon")
-      .getByRole("button", { name: "Used Milk" })
+      .getByRole("button", { name: "Used it: Milk" })
       .click();
     await expect(page.getByTestId("inventory-notice")).toContainText(
       "You're offline. Connect to the internet to change the inventory.",

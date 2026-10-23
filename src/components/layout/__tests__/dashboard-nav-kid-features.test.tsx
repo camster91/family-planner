@@ -36,7 +36,7 @@ const kidFeatureRoutes = [
 
 async function openMenu(role: NavUser['role']) {
   render(<DashboardNav user={user(role)} />)
-  await userEvent.setup().click(screen.getByRole('button', { name: 'User menu' }))
+  await userEvent.setup().click(screen.getByRole('button', { name: /User menu$/ }))
 }
 
 describe('DashboardNav user menu: kid feature discovery', () => {
@@ -94,7 +94,7 @@ describe('DashboardNav user menu: kid feature discovery', () => {
         <DashboardNav user={user('child')} />
       </I18nProvider>,
     )
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Menú de usuario' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: /Menú de usuario$/ }))
     for (const label of ['Lista de deseos', 'Mesada y deudas', 'Entrega al cuidador', 'Días de enfermedad y medicinas', 'Notas fijadas', 'Cumpleaños y aniversarios', 'Recogidas y entregas']) {
       expect(screen.getByRole('link', { name: label })).toBeTruthy()
     }

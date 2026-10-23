@@ -33,6 +33,9 @@ const PREFIX = "E2E meals";
 /** The default anchor's calendar day (2026-01-05T12:00Z) in the E2E zone, America/Toronto. */
 const TODAY_KEY = "2026-01-05";
 const TODAY_LONG = "Monday, January 5";
+// An empty slot is named by its visible text plus the day (WCAG 2.5.3).
+const addSlotName = (meal: string) =>
+  new RegExp(`^Add ${meal} Nothing planned ?, ${TODAY_LONG}$`, "i");
 const LONG_NAME = `${PREFIX} ${"slow-roasted tomato and white bean casserole with herby breadcrumbs ".repeat(2).trim()}`;
 
 const IDS = {
@@ -284,7 +287,7 @@ test.describe("meals (parent)", () => {
     const first = cards.first();
     await expect(first.locator('[data-meal-type="dinner"]')).toHaveCount(1);
     await expect(
-      first.getByRole("button", { name: /^Add breakfast,/ }),
+      first.getByRole("button", { name: /^Add breakfast Nothing planned ?,/i }),
     ).toHaveCount(0);
     const disclosure = first.getByRole("button", { name: /Other meals/ });
     await expect(disclosure).toHaveAttribute("aria-expanded", "false");
@@ -292,7 +295,7 @@ test.describe("meals (parent)", () => {
     await page.keyboard.press("Enter");
     await expect(disclosure).toHaveAttribute("aria-expanded", "true");
     await expect(
-      first.getByRole("button", { name: /^Add breakfast,/ }),
+      first.getByRole("button", { name: /^Add breakfast Nothing planned ?,/i }),
     ).toBeVisible();
     await expect(
       cards.nth(1).getByRole("button", { name: /Other meals/ }),
@@ -307,7 +310,7 @@ test.describe("meals (parent)", () => {
       .click();
     await expect(slotRows(page, "breakfast")).toHaveCount(0);
     await todayCard(page)
-      .getByRole("button", { name: `Add breakfast, ${TODAY_LONG}` })
+      .getByRole("button", { name: addSlotName("breakfast") })
       .click();
     await expect(dialog(page)).toBeVisible();
     await expect(dialog(page).getByLabel("Recipe (optional)")).toHaveValue("");
@@ -351,7 +354,7 @@ test.describe("meals (parent)", () => {
     expect(dialogs.count).toBe(0);
     await expect(
       todayCard(page).getByRole("button", {
-        name: `Add breakfast, ${TODAY_LONG}`,
+        name: addSlotName("breakfast"),
       }),
     ).toBeVisible();
   });
@@ -364,7 +367,7 @@ test.describe("meals (parent)", () => {
       .getByRole("button", { name: /Other meals/ })
       .click();
     await todayCard(page)
-      .getByRole("button", { name: `Add lunch, ${TODAY_LONG}` })
+      .getByRole("button", { name: addSlotName("lunch") })
       .click();
     const picker = dialog(page).getByLabel("Recipe (optional)");
     await expect(
@@ -418,7 +421,7 @@ test.describe("meals (parent)", () => {
       .getByRole("button", { name: /Other meals/ })
       .click();
     await todayCard(page)
-      .getByRole("button", { name: `Add snack, ${TODAY_LONG}` })
+      .getByRole("button", { name: addSlotName("snack") })
       .click();
     await dialog(page).getByRole("button", { name: "New recipe" }).click();
     const panel = dialog(page).getByTestId("recipe-quick-create");
@@ -452,7 +455,7 @@ test.describe("meals (parent)", () => {
     // starts empty: add one dinner, then a second one in the same slot.
     await expect(slotRows(page, "dinner")).toHaveCount(0);
     await todayCard(page)
-      .getByRole("button", { name: `Add dinner, ${TODAY_LONG}` })
+      .getByRole("button", { name: addSlotName("dinner") })
       .click();
     await dialog(page).getByLabel("Recipe name").fill(`${PREFIX} tacos`);
     await dialog(page).getByRole("button", { name: "Save" }).click();

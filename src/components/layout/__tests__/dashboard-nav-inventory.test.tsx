@@ -26,7 +26,7 @@ const user = (role: NavUser['role']): NavUser => ({ id: 'u1', name: 'Sam Example
 
 async function openMenu(role: NavUser['role']) {
   render(<DashboardNav user={user(role)} />)
-  await userEvent.setup().click(screen.getByRole('button', { name: 'User menu' }))
+  await userEvent.setup().click(screen.getByRole('button', { name: /User menu$/ }))
 }
 
 describe('DashboardNav user menu: food inventory', () => {

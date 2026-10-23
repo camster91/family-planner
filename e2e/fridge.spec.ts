@@ -538,7 +538,7 @@ test.describe("Today board: Family A parent", () => {
     ).toHaveAttribute("href", "/dashboard/lists/groceries");
     // #274: a grocery row ticks the item off in place; the heading opens groceries.
     await expect(
-      items.nth(0).getByRole("button", { name: "Tick off Milk, 2" }),
+      items.nth(0).getByRole("button", { name: "Tick off Milk × 2" }),
     ).toBeVisible();
     await expect(
       groceries.getByRole("link", { name: /Groceries\s*, open grocery lists/ }),

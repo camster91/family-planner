@@ -116,7 +116,7 @@ it("keeps role/action restrictions and paused profile state on the shared chore 
   await userEvent
     .setup()
     .click(
-      screen.getByRole("button", { name: "Mark Chore allowed done, Avery" }),
+      screen.getByRole("button", { name: "Mark done: Chore allowed Avery" }),
     );
   expect(onTick).toHaveBeenCalledTimes(1);
   expect(onTick).toHaveBeenCalledWith(allowed);

@@ -166,7 +166,7 @@ it("keeps profile-only steps disabled and avoids parent controls for a teen's ot
   ).toHaveAttribute("aria-disabled", "true");
   await user.click(screen.getByRole("checkbox", { name: "Email-free step" }));
   expect(
-    screen.queryByRole("button", { name: "Complete Other member step" }),
+    screen.queryByRole("button", { name: "Done: Other member step" }),
   ).toBeNull();
   expect(
     screen.queryByRole("link", { name: "Edit Other member step" }),

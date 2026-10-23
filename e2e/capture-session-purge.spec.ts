@@ -363,7 +363,6 @@ for (const locale of ["en", "es"] as const) {
               await page
                 .getByRole("button", {
                   name: navigationMessages[locale].userMenu,
-                  exact: true,
                 })
                 .click();
               await page

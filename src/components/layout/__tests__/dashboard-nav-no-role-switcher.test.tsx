@@ -29,7 +29,7 @@ const user = (role: NavUser['role']): NavUser => ({ id: 'u1', name: 'Sam Example
 describe('DashboardNav user menu: no role switcher', () => {
   it.each(['parent', 'teen', 'child'] as const)('a %s sees no "Switch View" control', async (role) => {
     render(<DashboardNav user={user(role)} />)
-    await userEvent.click(screen.getByRole('button', { name: 'User menu' }))
+    await userEvent.click(screen.getByRole('button', { name: /User menu$/ }))
     expect(screen.queryByText('Switch View')).toBeNull()
     for (const name of ['Parent', 'Teen', 'Child']) {
       expect(screen.queryByRole('button', { name })).toBeNull()

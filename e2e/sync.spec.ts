@@ -789,7 +789,7 @@ test.describe("offline grocery ticks: Family A parent", () => {
       "conflict",
     );
     const updates = trackUpdates(page);
-    await page.getByRole("button", { name: "User menu", exact: true }).click();
+    await page.getByRole("button", { name: "User menu" }).click();
     await page.getByRole("link", { name: "Help", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "Help", exact: true }),
