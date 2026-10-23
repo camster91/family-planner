@@ -162,3 +162,21 @@ now observes the real successful PATCH before asserting persisted state on
 reload. All ordering assertions, role/privacy checks and six viewport
 projects remain unchanged. No timeout, retry, screenshot baseline or CI gate
 is weakened; fresh exact-source hosted execution is required.
+
+### Adopted Capture journals and the review inbox
+
+`playwright.review-documents.config.ts` selects the provider-free
+`e2e/adopted/capture-owned.journey.ts` scenario separately from ordinary legacy
+specs. The `review_documents` hosted job owns a fresh guarded PostgreSQL database
+and server, runs EN/ES at all six sizes, and is required by the E2E aggregate.
+It sets only its isolated server's queue-owner enabled/rollback and review-document
+ready/rollback gates. The separate config requires those four explicit opt-ins,
+refuses server reuse, applies the fixture guard, and blanks extraction keys.
+Do not enable production flags to run this scenario.
+
+The journey restores actual reviewed fields across inbox navigation and reload,
+checks minimal saved-work summaries, loses a real committed grocery response,
+and checks the same save without another POST. Canonical database ownership,
+quantity, duplicate exclusion and journal retirement are asserted. Runtime,
+request hashes and screenshots are retained with the report. Source authoring
+alone is not passing evidence; see WEB_QA_20261022.md for observed outcomes.

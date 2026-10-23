@@ -585,7 +585,9 @@ test.describe("inventory localization synthetic server", () => {
           .getByRole("button", { name: msg(locale, "tryAgain"), exact: true })
           .click();
         await expect(page.getByTestId("items-capped")).toHaveText(
-          msg(locale, "capped", { count: "10,000" }),
+          msg(locale, "capped", {
+            count: new Intl.NumberFormat(locale).format(10_000),
+          }),
         );
         expect(pages).toHaveLength(20);
         await expect(page.getByTestId("inventory-item")).toHaveCount(20);
@@ -598,11 +600,17 @@ test.describe("inventory localization synthetic server", () => {
         await page.unroute("**/api/inventory/cook?*");
         await page.route("**/api/inventory/cook?*", (route) =>
           route.fulfill({
+            headers: {
+              "Cache-Control": "private, no-store",
+              [INVENTORY_READ_SCOPE_HEADER]: readScope!,
+            },
             json: {
               suggestions: [],
               recipesConsidered: 0,
               truncated: false,
               inputsTruncated: true,
+              matching: "presence_only",
+              comparisonIncomplete: false,
             },
           }),
         );

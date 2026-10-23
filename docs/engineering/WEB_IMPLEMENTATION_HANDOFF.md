@@ -459,3 +459,17 @@ inventory, shared ingredient omission, feature-off/read failure and query fanout
 Compare source strategies/actual SQL/latency on realistic fabricated households;
 six fixed queries can cost more than one small unbounded read. No N+1, capacity,
 production, provider or native acceptance is inferred from this code.
+
+## Stock recovery history ownership repair — 2026-10-22
+
+Existing77c115e1 Inventory E2E exposed the editor remaining after final removal
+recovery even though the recovery sheet disappeared. Source inspection found two
+Back/history owners for one stock request: ItemModal's locked mutation and the
+parent's stockChange each created a sentinel. The parent's completion awaited
+history release before closing the editor. ItemModal now owns a sentinel only
+for manual intake; edit/consume/remove retain the parent stock-change sentinel
+through pending/unknown recovery. Local mutation dismissal guards and the exact
+frozen request/key are unchanged. The original failing browser assertions remain
+and must pass in consolidated QA; no new tests/build/browser were run for this
+repair. Controlled cook fixtures additionally supply the actual read-scope and
+strict comparison fields; Spanish capped counts use the locale's number format.

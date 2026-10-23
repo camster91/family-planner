@@ -1272,10 +1272,12 @@ function ItemModal({
     return () => { active = false; clearTimeout(timer); controller.abort() }
   }, [mode, initialContext])
 
-  // Keep browser Back on this route while the item mutation is in flight.
-  // The local close path below also guards Escape/backdrop/close-button
-  // dismissal so an in-flight draft cannot be discarded.
-  const navigation = usePendingFormNavigationController(locked)
+  // Manual intake owns this sheet's recovery. Edit/consume/remove are owned
+  // by the parent's stock-change recovery, including its Back sentinel. Two
+  // sentinels for the same stock request can strand the parent's release after
+  // an unknown result, leaving the editor open after the request is confirmed.
+  // Local dismissal stays locked for every in-flight mutation in either mode.
+  const navigation = usePendingFormNavigationController(mode === 'add' && locked)
 
   const guardedClose = React.useCallback(() => {
     if (mutationRef.current || createAttempt.current) return
