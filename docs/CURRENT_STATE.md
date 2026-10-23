@@ -1,5 +1,22 @@
 # Current State
 
+## Renewed test deferral and inventory repairs — 2026-10-22
+
+Cameron asked again to finish code and known repairs before more test runs.
+No new test/build/browser run or CI-triggering push accompanies this follow-through.
+Existing hosted runs keep their original source identity and can finish.
+
+Source inspection of the failed inventory job120158591798 at2125c339 found
+legacy browser interception/receipt expectations and a missing bound-read scope
+header in controlled paging. Scenarios now target owner-scoped intake/change,
+validate owner envelopes, distinguish definitive refusals from unknown outcomes,
+and retain exact retry/body/key, canonical database and duplicate-exclusion proof.
+Two application repairs keep the item editor below the stock recovery sheet and
+require explicit selection after a scan key collision. Existing unit/browser
+coverage is updated but unrun. These changes are not a passing QA result; no
+merge, deployment or issue closure is claimed. Remaining hosted outcomes and the
+full repaired candidate still require consolidated acceptance before release.
+
 ## Consolidated QA active after completed source pass — 2026-10-22
 
 The implementation-first pass is complete, including the canonical-page list

@@ -10,6 +10,9 @@ import {
   IDEMPOTENCY_REPLAYED_HEADER,
 } from "../src/lib/idempotency-key";
 import { messages } from "../src/i18n";
+import { inventoryChangeInput } from "../src/lib/inventory-change-contract";
+import { inventoryIntakeInput } from "../src/lib/inventory-intake-contract";
+import { INVENTORY_READ_SCOPE_HEADER } from "../src/lib/inventory-read-scope";
 import {
   navigationMessages,
   type NavigationMessage,
@@ -238,7 +241,7 @@ async function openPendingSurfaceFromExplore(page: Page, surface: string) {
   await menu.click();
   await expect(page.getByTestId("user-menu-explore")).toBeVisible();
   await menu.click();
-  const link = page.locator(`a[href="/dashboard/${surface}"]`);
+  const link = page.locator(`li a[href="/dashboard/${surface}"]`);
   await expect(link).toBeVisible();
   await link.click();
   await expect(page).toHaveURL(new RegExp(`/dashboard/${surface}$`));
@@ -528,6 +531,7 @@ test.describe("inventory localization synthetic server", () => {
         // Twenty controlled nextOffset responses exercise the existing cap, not a 10,000-row database or load benchmark.
         const pages: string[] = [];
         let template: Record<string, unknown> | undefined;
+        let readScope: string | undefined;
         await page.route(/\/api\/inventory\?/, async (route) => {
           const url = new URL(route.request().url());
           expect(route.request().method()).toBe("GET");
@@ -538,6 +542,14 @@ test.describe("inventory localization synthetic server", () => {
           if (pages.length === 0) {
             const response = await route.fetch();
             expect(response.status()).toBe(200);
+            readScope =
+              response.headers()[INVENTORY_READ_SCOPE_HEADER.toLowerCase()];
+            expect(readScope).toBeTruthy();
+            expect(readScope).toBe(
+              route.request().headers()[
+                INVENTORY_READ_SCOPE_HEADER.toLowerCase()
+              ],
+            );
             const data = await response.json();
             template = data.items.find(
               (item: { id: string }) => item.id === ITEM,
@@ -547,6 +559,7 @@ test.describe("inventory localization synthetic server", () => {
           }
           pages.push(url.href);
           await route.fulfill({
+            headers: { [INVENTORY_READ_SCOPE_HEADER]: readScope! },
             json: {
               items: [
                 {
@@ -861,7 +874,7 @@ test.describe("inventory localization synthetic server", () => {
         completedSurfaces.push("emergency");
         await page.unroute("**/api/emergency-contacts");
 
-        await page.route(/\/api\/inventory\?/, async (route) => {
+        await page.route("**/api/inventory/intake", async (route) => {
           if (route.request().method() !== "POST") {
             await route.continue();
             return;
@@ -872,18 +885,7 @@ test.describe("inventory localization synthetic server", () => {
           await route.fulfill({
             status: 201,
             json: {
-              item: {
-                id: "synthetic_pending_inventory",
-                name: "Synthetic pending inventory",
-                location: "fridge",
-                amount: null,
-                unit: null,
-                expires_on: null,
-                date_kind: "best_before",
-                category: null,
-                purchased_on: null,
-                opened_on: null,
-              },
+              itemId: "synthetic_pending_inventory",
             },
           });
         });
@@ -979,7 +981,7 @@ test.describe("inventory localization synthetic server", () => {
           .catch(() => undefined);
         await page.unroute("**/api/notes").catch(() => undefined);
         await page.unroute("**/api/emergency-contacts").catch(() => undefined);
-        await page.unroute(/\/api\/inventory\?/).catch(() => undefined);
+        await page.unroute("**/api/inventory/intake").catch(() => undefined);
         await info.attach("pending-navigation-cleanup", {
           body: JSON.stringify({
             heldResponses: heldBeforeCleanup,
@@ -1034,7 +1036,7 @@ test.describe("inventory localization synthetic server", () => {
           body: unknown;
           key: string;
         }> = [];
-        await page.route(/\/api\/inventory\?/, async (route) => {
+        await page.route("**/api/inventory/intake", async (route) => {
           if (route.request().method() === "POST")
             creates.push({
               method: route.request().method(),
@@ -1053,7 +1055,10 @@ test.describe("inventory localization synthetic server", () => {
         );
         expect(creates).toHaveLength(1);
         expect(creates[0].key).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
-        expect(creates[0].body).toEqual({
+        const createdInput = inventoryIntakeInput.parse(creates[0].body);
+        expect(createdInput.expected_user_id).toBe(A.parent);
+        expect(createdInput.expected_family_id).toBe(A.family);
+        expect(createdInput.item).toEqual({
           name,
           location: "fridge",
           amount: 4,
@@ -1184,9 +1189,9 @@ test.describe("inventory localization synthetic server", () => {
         const pendingRemoval = new Promise<void>((resolve) => {
           releaseRemoval = resolve;
         });
-        const removeUrl = `**/api/inventory/${added[0].id}`;
+        const removeUrl = "**/api/inventory/change";
         await page.route(removeUrl, async (route) => {
-          if (route.request().method() !== "DELETE") return route.continue();
+          if (route.request().method() !== "POST") return route.continue();
           removals.push({
             url: route.request().url(),
             body: route.request().postData(),
@@ -1202,41 +1207,65 @@ test.describe("inventory localization synthetic server", () => {
           });
         });
         await removeButton.click();
-        for (let attempt = 0; attempt < 2; attempt++) {
-          await confirmation
-            .getByRole("button", { name: msg(locale, "remove"), exact: true })
-            .click();
-          if (attempt === 0) {
-            try {
-              await expect(
-                confirmation.getByRole("button", {
-                  name: msg(locale, "saving"),
-                  exact: true,
-                }),
-              ).toBeDisabled();
-              await capture(page, info, `${locale}-removal-pending`);
-            } finally {
-              releaseRemoval();
-            }
-          }
-          await expect(modal.getByRole("alert")).toHaveText(
-            attempt === 0
-              ? msg(locale, "removeFailed")
-              : "raw removal refusal {name} 李",
-          );
-          await expect(
-            modal.getByLabel(msg(locale, "name"), { exact: true }),
-          ).toHaveValue(name);
-          await capture(page, info, `${locale}-removal-refused-${attempt}`);
-        }
-        expect(removals).toHaveLength(2);
-        expect(removals[0]).toEqual(removals[1]);
-        expect(removals[0].key).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
-        expect(removals[0].body).toBeNull();
-        await page.unroute(removeUrl);
         await confirmation
           .getByRole("button", { name: msg(locale, "remove"), exact: true })
           .click();
+        const recovery = page.getByTestId("inventory-change-recovery");
+        try {
+          await expect(
+            recovery.getByRole("button", {
+              name: msg(locale, "saving"),
+              exact: true,
+            }),
+          ).toBeDisabled();
+          await expect(modal).toHaveCount(0);
+          await expect(confirmation).toHaveCount(0);
+          await capture(page, info, `${locale}-removal-pending`);
+        } finally {
+          releaseRemoval();
+        }
+        await expect(recovery.getByRole("status")).toHaveText(
+          msg(locale, "stockChangeUnknown"),
+        );
+        await expect(recovery).toContainText(name);
+        await capture(page, info, `${locale}-removal-unknown`);
+        await recovery
+          .getByRole("button", {
+            name: msg(locale, "intakeRetry"),
+            exact: true,
+          })
+          .click();
+        await expect.poll(() => removals.length).toBe(2);
+        // A refusal after a lost/unknown response cannot establish that the
+        // earlier operation did not commit. Keep the original request frozen.
+        await expect(recovery.getByRole("status")).toHaveText(
+          msg(locale, "stockChangeUnknown"),
+        );
+        await expect(recovery).not.toContainText(
+          "raw removal refusal {name} 李",
+        );
+        await capture(page, info, `${locale}-removal-refused-after-unknown`);
+        expect(removals).toHaveLength(2);
+        expect(removals[0]).toEqual(removals[1]);
+        expect(removals[0].key).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
+        const removal = inventoryChangeInput.parse(
+          JSON.parse(removals[0].body!),
+        );
+        expect(removal.expected_user_id).toBe(A.parent);
+        expect(removal.expected_family_id).toBe(A.family);
+        expect(removal.operation).toEqual({
+          kind: "remove",
+          item_id: added[0].id,
+          expected_version: expect.any(String),
+        });
+        await page.unroute(removeUrl);
+        await recovery
+          .getByRole("button", {
+            name: msg(locale, "intakeRetry"),
+            exact: true,
+          })
+          .click();
+        await expect(recovery).toHaveCount(0);
         await expect(modal).toHaveCount(0);
         await expect(page.getByTestId("inventory-notice")).toHaveText(
           msg(locale, "removedName", { name }),
@@ -1253,7 +1282,7 @@ test.describe("inventory localization synthetic server", () => {
         ).toEqual([]);
         await capture(page, info, `${locale}-removed`);
       });
-      test(`${locale}: late refused saves keep the same draft request and retry key`, async ({
+      test(`${locale}: late refused saves preserve editable draft and bind each fresh retry to its owner`, async ({
         page,
         context,
         baseURL,
@@ -1276,7 +1305,7 @@ test.describe("inventory localization synthetic server", () => {
         });
         let attempt = 0;
         const writes: Array<{ body: unknown; key: string; url: string }> = [];
-        await page.route(/\/api\/inventory\?/, async (route) => {
+        await page.route("**/api/inventory/intake", async (route) => {
           if (route.request().method() !== "POST") return route.continue();
           writes.push({
             body: route.request().postDataJSON(),
@@ -1307,7 +1336,7 @@ test.describe("inventory localization synthetic server", () => {
           release();
         }
         await expect(modal.getByRole("alert")).toHaveText(
-          msg(locale, "saveFailed"),
+          msg(locale, "manualIntakeRefused"),
         );
         await expect(
           modal.getByLabel(msg(locale, "name"), { exact: true }),
@@ -1319,11 +1348,20 @@ test.describe("inventory localization synthetic server", () => {
           .getByRole("button", { name: msg(locale, "save"), exact: true })
           .press("Enter");
         await expect(modal.getByRole("alert")).toHaveText(
-          "Raw refusal {name} 李",
+          msg(locale, "manualIntakeRefused"),
         );
         expect(writes).toHaveLength(2);
-        expect(writes[0]).toEqual(writes[1]);
-        await capture(page, info, `${locale}-save-raw-retry`);
+        expect(writes[0].url).toBe(writes[1].url);
+        expect(writes[0].key).not.toBe(writes[1].key);
+        const original = inventoryIntakeInput.parse(writes[0].body);
+        const retried = inventoryIntakeInput.parse(writes[1].body);
+        expect(original.expected_user_id).toBe(A.parent);
+        expect(original.expected_family_id).toBe(A.family);
+        expect(retried.item).toEqual(original.item);
+        expect(retried.expected_user_id).toBe(original.expected_user_id);
+        expect(retried.expected_family_id).toBe(original.expected_family_id);
+        await expect(modal).not.toContainText("Raw refusal {name} 李");
+        await capture(page, info, `${locale}-save-sanitized-refusal`);
         expect(
           await withDb(
             async (db) =>
@@ -1528,7 +1566,7 @@ test.describe("inventory localization synthetic server", () => {
           status: number;
           replayed: string | null;
         }> = [];
-        await page.route(/\/api\/inventory\?/, async (route) => {
+        await page.route("**/api/inventory/intake", async (route) => {
           if (route.request().method() !== "POST") return route.continue();
           const result = await route.fetch();
           writes.push({
@@ -1567,12 +1605,16 @@ test.describe("inventory localization synthetic server", () => {
         expect(writes[1].key).toBe(writes[2].key);
         expect(writes[2].replayed).toBe("true");
         expect(writes.every((write) => write.status === 201)).toBe(true);
-        expect(writes[0].body).toEqual({
+        const scannedInput = inventoryIntakeInput.parse(writes[0].body);
+        expect(scannedInput.expected_user_id).toBe(A.parent);
+        expect(scannedInput.expected_family_id).toBe(A.family);
+        expect(scannedInput.item).toEqual({
           name: PREFIX + " scan edited {name} 李",
           location: "fridge",
           amount: 2,
           unit: PRIVATE_UNIT,
           expires_on: null,
+          date_kind: "best_before",
         });
         const created = await withDb(
           async (db) =>
@@ -1618,7 +1660,7 @@ test.describe("inventory localization synthetic server", () => {
         await expect(rows).toHaveCount(3);
         const keys: string[] = [];
         let index = 0;
-        await page.route(/\/api\/inventory\?/, async (route) => {
+        await page.route("**/api/inventory/intake", async (route) => {
           if (route.request().method() !== "POST") return route.continue();
           keys.push(
             route.request().headers()[IDEMPOTENCY_HEADER.toLowerCase()],

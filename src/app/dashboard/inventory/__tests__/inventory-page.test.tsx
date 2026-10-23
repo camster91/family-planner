@@ -674,10 +674,11 @@ describe("/dashboard/inventory", () => {
       calls.filter((c) => isStockCall(c, "remove", "i-peas")),
     ).toHaveLength(1);
     await user.keyboard("{Escape}");
-    expect(confirmation).toBeInTheDocument();
-    expect(
-      within(confirmation).getByRole("button", { name: "Keep item" }),
-    ).toBeDisabled();
+    // The recovery sheet owns the foreground throughout the request; the
+    // editor and its nested confirmation keep their state without covering it.
+    expect(screen.queryByTestId("inventory-modal")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByTestId("inventory-change-recovery")).toBeInTheDocument();
     releaseRemoval({
       ok: false,
       status: 503,
@@ -685,7 +686,8 @@ describe("/dashboard/inventory", () => {
     } as Response);
     const recovery = await screen.findByTestId("inventory-change-recovery");
     await within(recovery).findByRole("button", { name: "Check same save" });
-    expect(within(edit).getByLabelText("Name")).toHaveValue("Peas");
+    expect(screen.getAllByRole("dialog")).toEqual([recovery]);
+    expect(within(recovery).getByText("Peas")).toBeInTheDocument();
     pendingMutation = null;
     await user.click(
       within(recovery).getByRole("button", { name: "Check same save" }),
