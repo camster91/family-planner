@@ -128,6 +128,34 @@ it("queues a submitted offline add with visible state, then refreshes canonical 
   expect(screen.getByRole("status").textContent).toContain("confirmed");
   expect(screen.queryByText("Old replay text")).toBeNull();
 });
+it("keeps a draft editable but blocks add until ownership-aware queue bootstrap finishes", async () => {
+  let release!: (value: string | null) => void;
+  store.read = () =>
+    new Promise<string | null>((resolve) => {
+      release = resolve;
+    });
+  mockQueue.dispose();
+  mockQueue = buildQueue();
+
+  render(<PersonGroceryAdd {...props} />);
+  const input = screen.getByRole("textbox", { name: "Add an item" });
+  await userEvent.type(input, "Keep this while loading");
+  const add = screen.getByRole("button", { name: /^Add$/ });
+  expect(add).toBeDisabled();
+  expect(input).toHaveValue("Keep this while loading");
+  expect(mockQueue.list()).toEqual([]);
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "The grocery queue is loading",
+  );
+
+  await act(async () => {
+    release(null);
+  });
+  await waitFor(() => expect(add).not.toBeDisabled());
+  await userEvent.click(add);
+  await screen.findByTestId("queued-grocery-add");
+  expect(input).toHaveValue("");
+});
 it("retains an unsubmitted draft when storage cannot be read, then exposes normal enqueue after explicit recovery", async () => {
   storageReadError = true;
   mockQueue.dispose();
@@ -135,10 +163,11 @@ it("retains an unsubmitted draft when storage cannot be read, then exposes norma
   render(<PersonGroceryAdd {...props} />);
   await screen.findByRole("button", { name: "Try loading saved changes" });
 
-  await typeAndSubmit("Keep this draft");
-  expect(screen.getByRole("textbox", { name: "Add an item" })).toHaveValue(
-    "Keep this draft",
-  );
+  const input = screen.getByRole("textbox", { name: "Add an item" });
+  await userEvent.type(input, "Keep this draft");
+  expect(screen.getByRole("button", { name: /^Add$/ })).toBeDisabled();
+  await userEvent.keyboard("{Enter}");
+  expect(input).toHaveValue("Keep this draft");
   expect(screen.getByText(/couldn’t load saved changes/i)).toBeInTheDocument();
   expect(send).not.toHaveBeenCalled();
   expect(raw).toBeNull();

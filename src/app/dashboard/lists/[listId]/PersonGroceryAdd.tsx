@@ -40,6 +40,10 @@ export function PersonGroceryAdd({
   const [online, setOnline] = React.useState(true);
   const [signedOut, setSignedOut] = React.useState(false);
   const [storageReadError, setStorageReadError] = React.useState(false);
+  // The queue performs an ownership-aware storage read before it can safely
+  // accept a mutation. Keep the draft editable while that handshake is in
+  // flight, but do not let an early click race the owner proof.
+  const [queueReady, setQueueReady] = React.useState(false);
   const mounted = React.useRef(false);
   const generation = React.useRef(0);
 
@@ -54,6 +58,7 @@ export function PersonGroceryAdd({
     setNotice(null);
     setSignedOut(false);
     setStorageReadError(false);
+    setQueueReady(false);
     const queue = getPersonQueue(userId);
     queueRef.current = queue;
     setQueue(queue);
@@ -97,7 +102,23 @@ export function PersonGroceryAdd({
       }
       if (event.type === "dropped") setNotice("dropped");
     });
-    void queue.ready.then(update);
+    void queue.ready
+      .then(() => {
+        if (active) {
+          update();
+          setQueueReady(true);
+        }
+      })
+      .catch(() => {
+        // createOfflineQueue normally resolves `ready` after exposing its
+        // recovery state. Keep this boundary fail-closed if a future queue
+        // implementation rejects instead: the input stays available for a
+        // draft, while submit remains blocked until recovery is explicit.
+        if (active) {
+          setStorageReadError(true);
+          setQueueReady(true);
+        }
+      });
     const connection = () => setOnline(navigator.onLine !== false);
     connection();
     window.addEventListener("online", connection);
@@ -109,6 +130,7 @@ export function PersonGroceryAdd({
       unsubscribe();
       queueRef.current = null;
       setQueue(null);
+      setQueueReady(false);
       setStorageReadError(false);
       window.removeEventListener("online", connection);
       window.removeEventListener("offline", connection);
@@ -123,8 +145,15 @@ export function PersonGroceryAdd({
       return;
     }
     const queue = queueRef.current;
-    if (!queue) {
+    if (!queue || !queueReady) {
       setError("loading");
+      return;
+    }
+    // A settled queue may still be paused for unreadable or incompatible
+    // storage. Keep the typed draft, but do not attempt a mutation until the
+    // explicit recovery path clears that state.
+    if (queue.hasStorageReadError() || queue.requiresCompatibleClient()) {
+      setError(null);
       return;
     }
     submitting.current = true;
@@ -178,6 +207,13 @@ export function PersonGroceryAdd({
       setNotice("removed");
   };
 
+  const queueCanSubmit =
+    queueReady &&
+    queue !== null &&
+    !storageReadError &&
+    !queue.hasStorageReadError() &&
+    !queue.requiresCompatibleClient();
+
   if (
     !allowNew &&
     ops.length === 0 &&
@@ -187,8 +223,17 @@ export function PersonGroceryAdd({
   )
     return null;
   return (
-    <section aria-label={t("groceries.personSection")} className="space-y-3">
+    <section
+      aria-label={t("groceries.personSection")}
+      data-queue-ready={queueReady ? "true" : "false"}
+      className="space-y-3"
+    >
       {showCompatibilityNotice && <QueueStorageRecovery queue={queue} />}
+      {allowNew && !signedOut && !queueReady && (
+        <p role="status" className="text-footnote text-label-secondary">
+          {t("groceries.loading")}
+        </p>
+      )}
       {allowNew && !signedOut && (
         <div className="card-apple px-4 py-3">
           <div className="flex items-center gap-3">
@@ -217,7 +262,7 @@ export function PersonGroceryAdd({
               <button
                 type="button"
                 onClick={() => void submit()}
-                disabled={busy}
+                disabled={busy || !queueCanSubmit}
                 className="min-h-[44px] min-w-[44px] px-2 -mr-2 text-[var(--accent)] text-subhead font-medium disabled:opacity-50"
               >
                 {t("groceries.add")}
