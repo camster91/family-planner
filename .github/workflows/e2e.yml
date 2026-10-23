@@ -35,14 +35,18 @@ jobs:
       max-parallel: 4
       matrix:
         include:
-          - group: phone-pair
-            projects: --project=phone-390x844 --project=phone-430x932
+          - group: phone-390
+            projects: --project=phone-390x844
+          - group: phone-430
+            projects: --project=phone-430x932
           - group: portrait-tablet
             projects: --project=tablet-portrait-800x1280
           - group: fridge-landscape
             projects: --project=fridge-landscape-1280x800
-          - group: large-tablet-and-desktop
-            projects: --project=tablet-large-1920x1200 --project=desktop-1366x768
+          - group: large-tablet
+            projects: --project=tablet-large-1920x1200
+          - group: desktop
+            projects: --project=desktop-1366x768
     services:
       postgres:
         image: postgres:17-alpine
@@ -162,7 +166,7 @@ jobs:
 
       - name: Upload initial JavaScript budget measurements
         # Only these shards run the retained phone/desktop byte measurements.
-        if: ${{ !cancelled() && inputs.update_snapshots != true && (matrix.group == 'phone-pair' || matrix.group == 'large-tablet-and-desktop') }}
+        if: ${{ !cancelled() && inputs.update_snapshots != true && (matrix.group == 'phone-390' || matrix.group == 'desktop') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: initial-js-budget-${{ matrix.group }}-${{ github.sha }}
@@ -172,7 +176,7 @@ jobs:
 
       # These captures contain only synthetic product-quality fixture data.
       - name: Upload compact fridge metadata captures
-        if: ${{ !cancelled() && inputs.update_snapshots != true && (matrix.group == 'fridge-landscape' || matrix.group == 'large-tablet-and-desktop') }}
+        if: ${{ !cancelled() && inputs.update_snapshots != true && (matrix.group == 'fridge-landscape' || matrix.group == 'large-tablet' || matrix.group == 'desktop') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: product-quality-fridge-captures-${{ matrix.group }}-${{ github.sha }}

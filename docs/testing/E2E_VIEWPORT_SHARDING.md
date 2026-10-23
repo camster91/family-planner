@@ -1,3 +1,22 @@
+## Six isolated viewport jobs — 2026-10-23
+
+Original77c115e1 run39881410646 cancelled the phone-pair and large-tablet/desktop
+jobs at the unchanged40-minute limit. Portrait and fridge finished their
+journeys in about26–28 minutes, then reported genuine visual failures. Earlier
+failed/cancelled coverage remains unaccepted; source repairs address the actual
+observed failures separately.
+
+Split only the paired groups: phone390, phone430, portrait800, fridge1280,
+large-tablet1920 and desktop1366 now each own one job. Matrix concurrency remains
+four, each job retains its40-minute limit and one worker, and all six original
+projects occur exactly once. Ordinary journey/visual commands, tolerances,
+retries, fixtures, gates and strict aggregation remain unchanged. The two
+existing JavaScript measurement projects still upload their own artifacts;
+compact fridge artifacts remain attached to every previously covered size.
+Setup repeats only because every job owns a disposable service database.
+This is an execution-capacity repair, not a passing QA claim. Original hosted
+checks still need a complete terminal pass on the integrated candidate.
+
 ## Current capacity correction — PR #537
 
 The original candidate `555e4ae6` run `38296504536` kept all tests but its three-viewport fridge/large-tablet/desktop job `114969314093` exceeded the unchanged 40-minute limit before visual checks. The earlier Linux capture job `114957490425` ended at the same limit. Their incomplete logs are historical evidence, never a complete journey or screenshot pass. A separate intermittent Locations focus failure is repaired in application code; splitting jobs does not substitute for that fix.
