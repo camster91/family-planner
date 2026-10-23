@@ -1,5 +1,16 @@
 # Current State
 
+## Preserve typed inventory refusal semantics — 2026-10-22
+
+The wider14-suite inventory check found4 EN/ES/pseudolocale failures in the
+new collision change. Canonical idempotency rejects a different request hash
+before applying this input; current intake correctly reports a definite refusal,
+keeps it editable and creates a new key only for a fresh explicit send. The
+2349bae6 collision change is reverted; legacy browser assertions now match the
+typed refusal without guessing earlier commitment or showing raw server text.
+Unknown-result frozen-key recovery and the foreground editor repair remain.
+The failed area run remains failed evidence until the repaired suite passes.
+
 ## Repaired source handed back to consolidated QA — 2026-10-22
 
 Local commit2349bae6 completes the known inventory code repairs after renewed

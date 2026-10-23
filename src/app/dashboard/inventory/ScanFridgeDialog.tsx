@@ -523,21 +523,13 @@ export function ScanFridgeDialog({
         );
       } else {
         attempts.current.delete(row.key);
-        // A collision cannot prove which earlier item was recorded. Require
-        // an explicit selection before a fresh key can create this row again.
-        const collision =
-          outcome.kind === "refused" &&
-          outcome.code === "IDEMPOTENCY_KEY_REUSED";
         setRows((previous) =>
           previous.map((value) =>
             value.key === row.key
               ? {
                   ...value,
-                  ...(collision ? { include: false, uncertain: false } : {}),
                   idempotencyKey: newIdempotencyKey(),
-                  error: feedback(
-                    collision ? "probablyAdded" : "intakeRefused",
-                  ),
+                  error: feedback("intakeRefused"),
                 }
               : value,
           ),

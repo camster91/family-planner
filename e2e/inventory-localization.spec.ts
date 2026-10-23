@@ -1639,7 +1639,7 @@ test.describe("inventory localization synthetic server", () => {
         ).toBe(false);
         await capture(page, info, `${locale}-scan-retry-complete`);
       });
-      test(`${locale}: scan collision unticks a doubtful retry and close reports already committed rows`, async ({
+      test(`${locale}: scan collision refuses the unmatched intent and close reports confirmed rows only`, async ({
         page,
         context,
         baseURL,
@@ -1678,9 +1678,9 @@ test.describe("inventory localization synthetic server", () => {
         });
         await dialog.getByTestId("scan-add").click();
         await expect(rows).toHaveCount(2);
-        await expect(rows.first().getByRole("checkbox")).not.toBeChecked();
+        await expect(rows.first().getByRole("checkbox")).toBeChecked();
         await expect(rows.first().getByTestId("scan-row-error")).toHaveText(
-          msg(locale, "probablyAdded"),
+          msg(locale, "intakeRefused"),
         );
         await capture(page, info, `${locale}-scan-collision`, [
           rows
@@ -1688,9 +1688,12 @@ test.describe("inventory localization synthetic server", () => {
             .locator("label")
             .filter({ has: page.getByRole("checkbox") }),
         ]);
-        await rows.first().getByRole("checkbox").check();
+        // The typed server refused this unmatched input; do not claim it
+        // was already added. A fresh explicit send uses a new intent key.
+        await expect(dialog).not.toContainText("Raw synthetic collision");
+        await expect(dialog).not.toContainText(msg(locale, "probablyAdded"));
         await dialog.getByTestId("scan-add").click();
-        await expect(rows.first().getByRole("checkbox")).not.toBeChecked();
+        await expect(rows.first().getByRole("checkbox")).toBeChecked();
         expect(keys).toHaveLength(3);
         expect(keys[1]).not.toBe(keys[2]);
         await dialog
