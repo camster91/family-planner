@@ -100,13 +100,25 @@ const nextConfig = {
       const resource = module.nameForCondition?.()
       return Boolean(resource && !/\.(?:css|scss|sass|less|styl)(?:$|\?)/i.test(resource) && initialSharedSource.test(resource))
     }
+    // Shared initial chunks can be unnamed. Their initial entrypoint groups,
+    // rather than a nullable chunk name, establish who already needs a module.
+    const initialOwners = (module, chunkGraph) => {
+      const chunks = Array.from(chunkGraph.getModuleChunksIterable(module)).filter(chunk => chunk.canBeInitial())
+      const owners = chunks.flatMap(chunk => Array.from(chunk.groupsIterable).filter(group => group.isInitial()).map(group => group.name))
+      if (!chunks.length || chunks.some(chunk => !Array.from(chunk.groupsIterable).some(group => group.isInitial())) || owners.some(owner => typeof owner !== 'string' || !owner)) return null
+      return owners
+    }
     const inLayout = (module, chunkGraph, layout) => {
       if (!eligible(module)) return false
-      const chunks = Array.from(chunkGraph.getModuleChunksIterable(module))
-      if (!chunks.some(chunk => chunk.name === layout && chunk.canBeInitial())) return false
-      // Root is present on every route. Dashboard modules must not make a
-      // different initial route download dashboard controls.
-      return layout === 'app/layout' || chunks.every(chunk => !chunk.canBeInitial() || chunk.name?.startsWith('app/dashboard/'))
+      const owners = initialOwners(module, chunkGraph)
+      if (!owners?.includes(layout)) return false
+      return layout === 'app/layout' || owners.every(owner => owner.startsWith('app/dashboard/'))
+    }
+    const inBoardShell = (module, chunkGraph) => {
+      if (!eligible(module)) return false
+      const owners = initialOwners(module, chunkGraph)
+      // Both surfaces must already require every module in this shared chunk.
+      return Boolean(owners?.includes('app/dashboard/layout') && owners.includes('app/device/today/page') && owners.every(owner => owner.startsWith('app/dashboard/') || owner === 'app/device/today/page'))
     }
     const sharedLayoutGroup = (layout, name, priority) => ({
       test: (module, { chunkGraph }) => inLayout(module, chunkGraph, layout),
@@ -125,6 +137,7 @@ const nextConfig = {
       cacheGroups: {
         ...splitChunks.cacheGroups,
         herewovenRootLayout: sharedLayoutGroup('app/layout', 'root-layout-shared', 20),
+        herewovenBoardShell: { ...sharedLayoutGroup('app/dashboard/layout', 'board-shell-shared', 15), test: (module, { chunkGraph }) => inBoardShell(module, chunkGraph) },
         herewovenDashboardLayout: sharedLayoutGroup('app/dashboard/layout', 'dashboard-layout-shared', 10),
       },
     }
