@@ -138,7 +138,7 @@ describe('DashboardNav user menu: Help', () => {
 
   it('links a parent to /dashboard/help', async () => {
     render(<DashboardNav user={user('parent')} />)
-    await userEvent.setup().click(screen.getByRole('button', { name: 'User menu' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: /User menu$/ }))
     const link = screen.getByRole('link', { name: 'Help' })
     expect(link.getAttribute('href')).toBe('/dashboard/help')
     expect(link.className).toContain('min-h-[44px]')
@@ -146,13 +146,13 @@ describe('DashboardNav user menu: Help', () => {
 
   it('links a teen to /dashboard/help too (O-37)', async () => {
     render(<DashboardNav user={user('teen')} />)
-    await userEvent.setup().click(screen.getByRole('button', { name: 'User menu' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: /User menu$/ }))
     expect(screen.getByRole('link', { name: 'Help' }).getAttribute('href')).toBe('/dashboard/help')
   })
 
   it('does not show Help to a child (not on the kid allowlist)', async () => {
     render(<DashboardNav user={user('child')} />)
-    await userEvent.setup().click(screen.getByRole('button', { name: 'User menu' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: /User menu$/ }))
     expect(screen.queryByRole('link', { name: 'Help' })).toBeNull()
   })
 })

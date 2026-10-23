@@ -243,17 +243,22 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                 ref={avatarButtonRef}
                 onClick={() => setAvatarOpen((v) => !v)}
                 className="flex min-h-[44px] items-center gap-1.5 p-1 pr-2.5 rounded-full hover:bg-[var(--surface-fill)] transition-colors"
-                aria-label={msg("userMenu")}
                 aria-expanded={avatarOpen}
               >
-                <Avatar
-                  name={user?.name ?? msg("user")}
-                  src={user?.avatar_url}
-                  size="sm"
-                />
+                {/* Named by its content, not aria-label: the visible first
+                    name stays part of the spoken name (WCAG 2.5.3), and the
+                    avatar's initials are decorative. */}
+                <span aria-hidden="true" className="contents">
+                  <Avatar
+                    name={user?.name ?? msg("user")}
+                    src={user?.avatar_url}
+                    size="sm"
+                  />
+                </span>
                 <span className="hidden sm:block text-[14px] font-medium text-label-primary">
                   {user?.name?.split(" ")[0]}
                 </span>
+                <span className="sr-only">{msg("userMenu")}</span>
                 <ChevronDown
                   className={cn(
                     "w-3.5 h-3.5 text-label-tertiary transition-transform duration-200",
