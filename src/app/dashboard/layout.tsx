@@ -36,7 +36,7 @@ export default async function DashboardLayout({
   forms,
 }: {
   children: ReactNode;
-  forms?: ReactNode;
+  forms: ReactNode;
 }) {
   const sessionUser = (await getServerUser()) as {
     id: string;

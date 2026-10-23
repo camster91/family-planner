@@ -21,7 +21,7 @@ jest.mock('../CommandPaletteHost', () => ({ __esModule: true, default: () => nul
 jest.mock('@/components/ui/offline-banner', () => ({ OfflineBanner: () => null }))
 
 it('uses a canonical grouped surface and names the actual dashboard for Herewoven', async () => {
-  const markup = renderToStaticMarkup(await DashboardLayout({ children: <p>Household plans</p> }))
+  const markup = renderToStaticMarkup(await DashboardLayout({ children: <p>Household plans</p>, forms: null }))
   const dom = new JSDOM(markup)
   try {
     const doc = dom.window.document
