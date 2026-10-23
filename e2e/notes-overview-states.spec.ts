@@ -179,7 +179,8 @@ for (const locale of ["en", "es"] as const) {
     try {
       await page.reload();
       await page
-        .locator('[data-testid="note-card"][role="button"]')
+        .getByTestId("note-card")
+        .locator("h2 button")
         .filter({ hasText: note.title })
         .click();
       await page
@@ -199,7 +200,8 @@ for (const locale of ["en", "es"] as const) {
 
       await page.unroute(`**/api/notes/${note.id}`);
       await page
-        .locator('[data-testid="note-card"][role="button"]')
+        .getByTestId("note-card")
+        .locator("h2 button")
         .filter({ hasText: note.title })
         .click();
       const dialog = page.getByRole("dialog");

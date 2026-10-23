@@ -345,25 +345,10 @@ function NotesPageInner() {
                 key={note.id}
                 data-testid="note-card"
                 data-note-id={note.id}
-                {...(canEdit
-                  ? {
-                      role: 'button' as const,
-                      tabIndex: 0,
-                      // Named by its content (title and preview) so the
-                      // visible text stays in the spoken name (WCAG 2.5.3).
-                      onClick: () => openEditModal(note),
-                      onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          openEditModal(note)
-                        }
-                      },
-                    }
-                  : {})}
                 className={cn(
                   'card-apple border-[1.5px] overflow-hidden',
-                  'flex min-w-0 flex-col min-h-[160px]',
-                  canEdit && 'cursor-pointer',
+                  'relative flex min-w-0 flex-col min-h-[160px]',
+                  canEdit && 'cursor-pointer has-[button:focus-visible]:shadow-[var(--shadow-focus)]',
                   colors.bg,
                   colors.border
                 )}
@@ -376,7 +361,20 @@ function NotesPageInner() {
                   <div className="flex items-start gap-2 mb-2">
                     <NoteIcon className="w-4 h-4 text-label-tertiary mt-0.5 shrink-0" />
                     <h2 className="min-w-0 text-headline text-label-primary line-clamp-2 [overflow-wrap:anywhere]">
-                      {note.title}
+                      {canEdit ? (
+                        // The title is the edit button, named by the title
+                        // alone (not the preview). Its overlay makes the
+                        // whole card clickable.
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(note)}
+                          className="inline text-left [overflow-wrap:anywhere] focus-visible:outline-none after:absolute after:inset-0 after:content-['']"
+                        >
+                          {note.title}
+                        </button>
+                      ) : (
+                        note.title
+                      )}
                     </h2>
                   </div>
                   <p className="text-subhead text-label-secondary line-clamp-3 whitespace-pre-wrap [overflow-wrap:anywhere]">

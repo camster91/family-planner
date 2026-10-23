@@ -333,13 +333,14 @@ function titleFor(role: Role) {
   return NOTE_TITLES[role];
 }
 
-/** An editable note card, named by its visible title and preview (WCAG 2.5.3). */
+/** An editable note card's edit button: its title, named by the title alone. */
 function editableNoteCard(page: Page, title: string) {
   const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const exact = new RegExp(`^${escaped}$`);
   return page
-    .locator('[data-testid="note-card"][role="button"]')
-    .filter({ has: page.locator("h2").filter({ hasText: exact }) });
+    .getByTestId("note-card")
+    .locator("h2 button")
+    .filter({ hasText: exact });
 }
 
 test.describe.configure({ mode: "serial" });
