@@ -2,7 +2,7 @@
  * No prompts, photos, provider responses, inferred actors or domain records.
  */
 import { z } from "zod";
-import { queueOwnerSchema } from "@/lib/queue-owner-contract";
+import { queueOwnerClassicSchema as queueOwnerSchema } from "@/lib/queue-owner-classic";
 import { createRecipeSchema } from "@/lib/recipe-input-contract";
 import { createEventSchema } from "@/lib/validations";
 import { captureGrocerySchema } from "@/lib/capture-grocery-contract";

@@ -1,5 +1,5 @@
 import { preparationReadScope } from "@/lib/event-preparation/read-contract";
-import { scheduleReviewScope } from "@/lib/calendar-planning/conflict-review";
+import { scheduleReviewScopeClassic as scheduleReviewScope } from "@/lib/calendar-planning/review-scope-classic";
 import { responsibilityTarget } from "@/lib/responsibility";
 import { z } from "zod";
 import { parseDateOnly } from "@/lib/dates";

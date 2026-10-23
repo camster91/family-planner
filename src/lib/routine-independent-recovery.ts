@@ -1,6 +1,6 @@
 /** Original independent-step requests are held separately from stack requests. */
 import { z } from "zod";
-import { queueOwnerSchema } from "@/lib/queue-owner-contract";
+import { queueOwnerClassicSchema as queueOwnerSchema } from "@/lib/queue-owner-classic";
 import {
   routineIndependentCommand,
   routineIndependentReceipt,

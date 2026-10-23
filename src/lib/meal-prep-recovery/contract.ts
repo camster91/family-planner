@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { createMealPrepSchema, mealPrepActionSchema } from "../meal-batches";
 import { memberIdentityIdSchema as id } from "../member-subject-contract";
-import { queueOwnerSchema } from "../queue-owner-contract";
+import { queueOwnerClassicSchema as queueOwnerSchema } from "../queue-owner-classic";
 export const PREP_RECOVERY = "herewoven.meal-prep-recovery.v1";
 export const PREP_OWNER_HEADER = "X-Herewoven-Prep-Owner";
 export const PREP_INTENT_MS = 24 * 60 * 60 * 1000;

@@ -1,7 +1,7 @@
 import { foodDraftEntry, foodDraftPayload } from "./editor";
 /** Browser-safe exact-request recovery. No background dispatch or new-key retry. */
 import { z } from "zod";
-import { queueOwnerSchema } from "../queue-owner-contract";
+import { queueOwnerClassicSchema as queueOwnerSchema } from "../queue-owner-classic";
 import {
   reviewedFoodWrite,
   foodApplyReceipt,

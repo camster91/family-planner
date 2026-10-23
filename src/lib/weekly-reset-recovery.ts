@@ -1,6 +1,6 @@
 /** Private exact intents; no automatic replay, domain data or editable drafts. */
 import { z } from "zod";
-import { queueOwnerSchema } from "@/lib/queue-owner-contract";
+import { queueOwnerClassicSchema as queueOwnerSchema } from "@/lib/queue-owner-classic";
 import { weeklyResetCommand, weeklyResetReceipt } from "@/lib/weekly-reset";
 export const WEEKLY_RESET_RECOVERY = "herewoven.weekly-reset-recovery.v1";
 export const WEEKLY_RESET_OWNER_HEADER = "X-Herewoven-Weekly-Reset-Owner";

@@ -1,6 +1,6 @@
 /** Strict owner-bound exact intent envelope; no background send/retry. */
 import { z } from "zod";
-import { queueOwnerSchema } from "@/lib/queue-owner-contract";
+import { queueOwnerClassicSchema as queueOwnerSchema } from "@/lib/queue-owner-classic";
 import { memberIdentityIdSchema as id } from "@/lib/member-subject-contract";
 import { preparationCommand } from "./contract";
 import { preparationReceipt, preparationReceiptMatches } from "./http";

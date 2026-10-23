@@ -13,10 +13,10 @@ import {
 } from "@/lib/idempotency";
 import {
   ScheduleReviewError,
-  scheduleReviewScope,
   scheduleReviewQuery,
   scheduleMoveCommand,
 } from "./conflict-review";
+import { scheduleReviewScopeClassic as scheduleReviewScope } from "./review-scope-classic";
 import {
   authorizeScheduleReceipt,
   readScheduleSnapshot,

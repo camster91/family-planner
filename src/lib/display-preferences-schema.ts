@@ -26,8 +26,8 @@ const featureKeys = FEATURE_FLAG_META.map((feature) => feature.key) as [
 export const personalDisplayRecordSchema = z
   .object({
     version: z.literal(1),
-    today: todayLayoutSchema.optional(),
-    favorites: favoritesSchema.optional(),
+    today: z.optional(todayLayoutSchema),
+    favorites: z.optional(favoritesSchema),
     quiet: z.boolean().optional(),
   })
   .strict();
@@ -35,8 +35,8 @@ export type PersonalDisplayRecord = z.infer<typeof personalDisplayRecordSchema>;
 export const displayPatchSchema = z
   .object({
     expectedRevision: z.number().int().min(0).max(2_000_000_000),
-    today: todayLayoutSchema.optional(),
-    favorites: favoritesSchema.optional(),
+    today: z.optional(todayLayoutSchema),
+    favorites: z.optional(favoritesSchema),
     quiet: z.boolean().optional(),
     inheritToday: z.literal(true).optional(),
   })

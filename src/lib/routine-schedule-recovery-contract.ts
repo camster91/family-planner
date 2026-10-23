@@ -1,6 +1,6 @@
 /** Private parent-only exact requests. No offline mutation queue. */
 import { z } from "zod";
-import { queueOwnerSchema } from "@/lib/queue-owner-contract";
+import { queueOwnerClassicSchema as queueOwnerSchema } from "@/lib/queue-owner-classic";
 import {
   routineScheduleCommand,
   routineScheduleReceipt,

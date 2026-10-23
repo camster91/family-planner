@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { QueuedOperation } from "@/lib/offline-queue";
 import { canonicalBodySignature } from "@/lib/request-signature";
-import { queueOwnerSchema } from "@/lib/queue-owner-contract";
+import { queueOwnerClassicSchema as queueOwnerSchema } from "@/lib/queue-owner-classic";
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/);
 const operationId = z.string().regex(/^[A-Za-z0-9_-]{16,128}$/);
 export const queueReviewEntry = z.discriminatedUnion("action", [

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { queueOwnerSchema } from "@/lib/queue-owner-contract";
+import { queueOwnerClassicSchema as queueOwnerSchema } from "@/lib/queue-owner-classic";
 import { scheduleMoveCommand } from "./conflict-review";
 import { scheduleReceipt, scheduleReceiptMatches } from "./schedule-http";
 export const SCHEDULE_RECOVERY = "herewoven.schedule-recovery.v1";

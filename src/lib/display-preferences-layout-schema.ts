@@ -1,4 +1,4 @@
-import { array, boolean, enum as zEnum, object } from "zod/v4";
+import { z } from "zod/mini";
 import { TODAY_SECTIONS, type TodayLayout } from "@/lib/personal-layout";
 import { FEATURE_FLAG_META, type FeatureKey } from "@/lib/feature-flags";
 
@@ -6,26 +6,29 @@ const featureKeys = FEATURE_FLAG_META.map((feature) => feature.key) as [
   FeatureKey,
   ...FeatureKey[],
 ];
-const section = zEnum(TODAY_SECTIONS);
+const section = z.enum(TODAY_SECTIONS);
 
 /** The canonical personal Today layout contract shared by API and clients. */
-export const todayLayoutSchema = object({
-  order: array(section)
-    .length(TODAY_SECTIONS.length)
-    .refine((items) => new Set(items).size === items.length),
-  hidden: array(section)
-    .max(TODAY_SECTIONS.length - 1)
-    .refine(
+export const todayLayoutSchema = z.strictObject({
+  order: z.array(section).check(
+    z.length(TODAY_SECTIONS.length),
+    z.refine((items) => new Set(items).size === items.length),
+  ),
+  hidden: z.array(section).check(
+    z.maxLength(TODAY_SECTIONS.length - 1),
+    z.refine(
       (items) =>
         !items.includes("next") && new Set(items).size === items.length,
     ),
-  density: zEnum(["comfortable", "compact"]),
-  includeChores: boolean(),
-  calendarView: zEnum(["day", "week", "agenda", "month"]),
-}).strict();
+  ),
+  density: z.enum(["comfortable", "compact"]),
+  includeChores: z.boolean(),
+  calendarView: z.enum(["day", "week", "agenda", "month"]),
+});
 
-export const favoritesSchema = array(zEnum(featureKeys))
-  .max(8)
-  .refine((items) => new Set(items).size === items.length);
+export const favoritesSchema = z.array(z.enum(featureKeys)).check(
+  z.maxLength(8),
+  z.refine((items) => new Set(items).size === items.length),
+);
 
 export type { TodayLayout };

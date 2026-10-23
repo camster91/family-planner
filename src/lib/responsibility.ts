@@ -1,8 +1,6 @@
-import {
-  responsibilityTarget,
-  type ResponsibilityTarget,
-} from "@/lib/responsibility-target";
-export { responsibilityTarget } from "@/lib/responsibility-target";
+import { type ResponsibilityTarget } from "@/lib/responsibility-target";
+import { responsibilityTargetClassic as responsibilityTarget } from "@/lib/responsibility-target-classic";
+export { responsibilityTargetClassic as responsibilityTarget } from "@/lib/responsibility-target-classic";
 export type { ResponsibilityTarget } from "@/lib/responsibility-target";
 /** Provider-free consent metadata. Canonical target ownership is supplied by
  * a fresh authorized server read, never by a selected profile or client claim. */

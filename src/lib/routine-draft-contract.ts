@@ -1,7 +1,7 @@
 /** Editable local form state; deliberately separate from validated send intent. */
 import { z } from "zod";
 import { ROUTINE_NAME_MAX } from "@/lib/routine-icons";
-import { queueOwnerSchema } from "@/lib/queue-owner-contract";
+import { queueOwnerClassicSchema as queueOwnerSchema } from "@/lib/queue-owner-classic";
 import { routineScheduleSubject } from "@/lib/routine-schedule";
 import type { RoutineEditorDraft } from "@/lib/routine-schedule-editor";
 export const ROUTINE_DRAFT_CONTRACT = "herewoven.routine-draft.v1";

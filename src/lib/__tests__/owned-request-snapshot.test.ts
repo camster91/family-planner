@@ -1,10 +1,8 @@
 /** Authored/unrun read-only discovery cases. No browser/DB isolation proof. */
 import { z } from "zod";
 import { readOwnedRequestSnapshot } from "../owned-request-snapshot";
-import {
-  queueOwnerSchema,
-  RETIRED_QUEUE_ENVELOPE,
-} from "../queue-owner-contract";
+import { RETIRED_QUEUE_ENVELOPE } from "../queue-owner-contract";
+import { queueOwnerClassicSchema } from "../queue-owner-classic";
 const owner = {
   kind: "person" as const,
   ownerId: "person-a",
@@ -23,7 +21,7 @@ const schema = z
     enabled: z.boolean(),
     userId: z.string(),
     familyId: z.string(),
-    owner: queueOwnerSchema.nullable(),
+    owner: queueOwnerClassicSchema.nullable(),
   })
   .strict();
 const entry = z

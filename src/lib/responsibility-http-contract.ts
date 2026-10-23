@@ -6,9 +6,17 @@ import {
   responsibilitySubject,
   type ResponsibilityCommand,
 } from "@/lib/responsibility";
+import { responsibilityTarget as miniResponsibilityTarget } from "@/lib/responsibility-target";
 const id = z.string().min(1).max(128);
 export const RESPONSIBILITY_ACTION = "responsibility.intent.v1";
-export const responsibilityQuery = responsibilityTarget;
+/**
+ * The query adds transport-only filtering to the target shape. Keep this
+ * server-facing adapter classic so route handlers can extend it without
+ * pulling Zod Classic into the browser-safe target leaf.
+ */
+export const responsibilityQuery = z.strictObject(
+  miniResponsibilityTarget.shape,
+);
 const named = z
   .object({ subject: responsibilitySubject, name: z.string().max(400) })
   .strict();
