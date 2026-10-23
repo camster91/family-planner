@@ -97,7 +97,7 @@ for (const locale of ["en", "es"] as const) {
         .getByRole("main")
         .locator(`[data-item-id="${itemId}"]`)
         .getByRole("button", {
-          name: text("editLabel", { item: "Leche 🥛" }),
+          name: `${locale === "es" ? "Editar" : "Edit"} Leche 🥛`,
           exact: true,
         })
         .click();

@@ -14,7 +14,6 @@ jest.mock("../CaptureBox", () => {
   return { ...actual, CaptureBox: actual.LegacyCaptureBox };
 });
 
-
 if (!globalThis.crypto?.subtle)
   Object.defineProperty(globalThis, "crypto", {
     configurable: true,
@@ -242,9 +241,20 @@ it("does not focus the capture input when a closed sheet finishes retrying", asy
   expect(launcher).toHaveFocus();
 });
 
-it("hides the launcher for an explicit authenticated refusal", async () => {
-  await expectUnavailable(() => Promise.resolve(response(401, {})));
-});
+it.each([401, 403])(
+  "hides the launcher for an empty authenticated refusal (%i)",
+  async (status) => {
+    await expectUnavailable(() =>
+      Promise.resolve({
+        ok: false,
+        status,
+        json: async () => {
+          throw new Error("empty auth refusal");
+        },
+      } as Response),
+    );
+  },
+);
 
 it.each([401, 403])(
   "keeps an open sheet visible for a final auth refusal (%i)",

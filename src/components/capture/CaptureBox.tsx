@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { requestOwnedJson, runOwnedForeground } from "@/lib/owned-request-http";
+import { runOwnedForeground } from "@/lib/owned-request-http";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { CaptureDraftBoundary } from "./CaptureDraftBoundary";
 import {
@@ -679,10 +679,23 @@ export function LegacyCaptureBox({
     recoveryMutationReady.current = false;
     setCheckingAvailability(true);
     try {
-      const result = await requestOwnedJson(
-        "/api/capture",
+      const result = await runOwnedForeground(
+        async (signal) => {
+          const response = await fetch("/api/capture", {
+            cache: "no-store",
+            credentials: "same-origin",
+            signal,
+          });
+          // An authenticated refusal is a privacy boundary even when a proxy or
+          // expired session supplies no readable JSON error body.
+          if (response.status === 401 || response.status === 403) {
+            void response.body?.cancel().catch(() => undefined);
+            return { kind: "reply" as const, response, body: null };
+          }
+          const body = await readBoundedJsonResponse(response, signal, 8192);
+          return { kind: "reply" as const, response, body };
+        },
         { signal: controller.signal },
-        8192,
       );
       if (!current()) return;
       if (result.kind !== "reply")

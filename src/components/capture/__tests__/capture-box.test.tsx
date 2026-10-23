@@ -1117,11 +1117,11 @@ it('clears recovery and exposes no retry when capture is forbidden', async () =>
   expect(posts).toBe(0)
 })
 
-it.each([401, 403])('clears recovery on an authenticated refusal (%i)', async (status) => {
+it.each<[number, boolean]>([[401, false], [403, false], [401, true], [403, true]])('clears recovery on an authenticated refusal (%i), empty body=%s', async (status, empty) => {
   const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
   window.localStorage.setItem(storageKey, JSON.stringify([]))
   window.localStorage.setItem('family-planner:capture-recovery:v1:active', storageKey)
-  global.fetch = jest.fn(async () => json(status, { error: 'unauthorized' })) as unknown as typeof fetch
+  global.fetch = jest.fn(async () => empty ? ({ ok: false, status, json: async () => { throw new Error('empty auth refusal') } } as Response) : json(status, { error: 'unauthorized' })) as unknown as typeof fetch
 
   render(<CaptureBox />)
   await waitFor(() => expect(window.localStorage.getItem(storageKey)).toBeNull())
