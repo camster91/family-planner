@@ -94,7 +94,7 @@ const nextConfig = {
     // These small providers/UI modules are already part of initial app entries.
     // Share repeated copies without grouping optional feature chunks into a
     // fixed bundle, and retain Next's framework/vendor groups and priorities.
-    const initialSharedSource = /[\\/]src[\\/](?:i18n[\\/]core|lib[\\/]utils|components[\\/](?:ui[\\/](?:toast|offline-banner|dialog)|providers[\\/](?:features-provider|display-preferences-provider)|calendar[\\/](?:preparation[\\/]PreparationProvider|review[\\/]ScheduleReviewProvider)|responsibility[\\/]ResponsibilityProvider|meals[\\/]planning[\\/]FoodPlanningAccess))\.(?:tsx?|jsx?)$/
+    const initialSharedSource = /(?:[\\/]src[\\/]|[\\/]node_modules[\\/]lucide-react[\\/]dist[\\/]esm[\\/])/;
     config.optimization.splitChunks = {
       ...splitChunks,
       cacheGroups: {
