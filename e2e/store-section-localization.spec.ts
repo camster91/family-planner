@@ -127,6 +127,13 @@ for (const locale of ["en", "es"] as const) {
       : raw;
     return item === undefined ? value : value.replace("{item}", item);
   };
+  const moveErrorTemplate =
+    locale === "es"
+      ? "No se pudo mover el artículo. Inténtalo de nuevo."
+      : "Couldn’t move this item. Try again.";
+  const moveError = isPseudolocaleEnabled(process.env)
+    ? pseudolocalizeTemplate(moveErrorTemplate)
+    : moveErrorTemplate;
   for (const role of ["parentA", "childA"] as const) {
     test.describe(`${locale} ${role} store-section localization`, () => {
       test.use({ storageState: authFile(role) });
@@ -213,10 +220,7 @@ for (const locale of ["en", "es"] as const) {
         } finally {
           release();
         }
-        // The caller's existing generic mutation error remains separate copy debt.
-        await expect(dialog.getByRole("alert")).toHaveText(
-          "Couldn’t move this item. Try again.",
-        );
+        await expect(dialog.getByRole("alert")).toHaveText(moveError);
         await page.unroute("**/api/lists/items/section");
         await capture(page, dialog, info, `${locale}-${role}-error`);
 

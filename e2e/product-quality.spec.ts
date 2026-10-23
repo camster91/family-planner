@@ -22,6 +22,7 @@ import pg from "pg";
 import { bulkCookingMessages } from "../src/i18n/bulk-cooking";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { assistantEnglish, assistantSpanish } from "../src/i18n/assistant";
+import { calendarPlannerMessages } from "../src/i18n/calendar-planner";
 import { moreMessages } from "../src/i18n/more";
 import { getFeatureDisplayCopy } from "../src/i18n/feature-display";
 import { FEATURES } from "../src/lib/features";
@@ -684,6 +685,20 @@ for (const locale of ["en", "es"] as const) {
       await page.goto("/dashboard/calendar");
       const calendar = page.locator("main").first();
       await expect(calendar).toBeVisible();
+      if ((page.viewportSize()?.width ?? 0) < 900) {
+        const sourceToggle = calendar.getByRole("button", {
+          name: calendarPlannerMessages[locale].showCalendars,
+          exact: true,
+        });
+        await expect(sourceToggle).toBeVisible();
+        await sourceToggle.click();
+        await expect(
+          calendar.getByRole("button", {
+            name: calendarPlannerMessages[locale].hideCalendars,
+            exact: true,
+          }),
+        ).toHaveAttribute("aria-expanded", "true");
+      }
       const connection = calendar
         .locator("details")
         .filter({ hasText: /conexión|connection/i });

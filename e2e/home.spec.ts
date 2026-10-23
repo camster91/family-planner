@@ -363,7 +363,7 @@ test.describe("Personal-only household work", () => {
       ).toHaveCount(1);
       await expect(page.getByTestId("region-chores")).toHaveCount(0);
       const grid = page.getByTestId("board-grid");
-      await expect(grid).toHaveAttribute("data-personal-layout", "");
+      await expect(grid).toHaveAttribute("data-personal-layout", "true");
       // The personal board uses ordinary responsive columns, so removing the
       // household chore tile must leave only the sections that are rendered;
       // there is no fixed named-area placeholder to inspect here.

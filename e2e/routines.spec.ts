@@ -15,7 +15,7 @@
  * 800x1280 and 1366x768.
  */
 import AxeBuilder from "@axe-core/playwright";
-import type { Page, TestInfo } from "@playwright/test";
+import type { Locator, Page, TestInfo } from "@playwright/test";
 import pg from "pg";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
@@ -150,6 +150,15 @@ async function expectNoSeriousAxe(
 const morning = (page: Page) => page.getByRole("region", { name: "Morning" });
 const steps = (page: Page) => morning(page).getByTestId("routine-step");
 
+// Titles are household data and are allowed to repeat. Scope parent review
+// assertions to the routine metadata and its action button so a same-named
+// unrelated chore cannot make the locator ambiguous.
+const verificationRow = (queue: Locator, index: number) =>
+  queue
+    .locator("p")
+    .filter({ hasText: new RegExp(`Morning · step ${index + 1}(?: ·|$)`) })
+    .locator("xpath=../..");
+
 async function tap(page: Page, index: number, path = "/api/chores/complete") {
   const response = page.waitForResponse(
     (r) => r.url().endsWith(path) && r.request().method() === "POST",
@@ -252,12 +261,16 @@ test.describe("Family A parent", () => {
     const queue = page
       .locator("section")
       .filter({ has: page.getByText("To check", { exact: true }) });
-    for (const s of STEPS) await expect(queue.getByText(s.title)).toBeVisible();
+    for (const [i, s] of STEPS.entries()) {
+      await expect(
+        verificationRow(queue, i).getByText(s.title, { exact: true }),
+      ).toBeVisible();
+    }
 
     const checked = page.waitForResponse((r) =>
       r.url().endsWith("/api/chores/verify"),
     );
-    await queue
+    await verificationRow(queue, 0)
       .getByRole("button", { name: `Send back “${STEPS[0].title}”` })
       .click();
     const verificationDialog = page.getByRole("dialog", {
