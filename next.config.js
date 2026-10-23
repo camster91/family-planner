@@ -86,6 +86,9 @@ const nextConfig = {
     remotePatterns: [],
   },
   webpack(config, { dev, isServer }) {
+    // Production runs are cold, reproducible builds. Do not retain Webpack's
+    // large filesystem cache alongside the standalone release artifact.
+    if (!dev) config.cache = false
     if (dev || isServer || !config.optimization?.splitChunks) return config
     const splitChunks = config.optimization.splitChunks
     // These small providers/UI modules are already part of initial app entries.
