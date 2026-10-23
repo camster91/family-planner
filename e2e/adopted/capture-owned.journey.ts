@@ -154,7 +154,11 @@ for (const locale of ["en", "es"] as const) {
       await expect(
         page.getByRole("heading", { name: text.summary, exact: true }),
       ).toBeVisible();
-      await expect(page.locator("#main-content")).not.toContainText(title);
+      // The original editor stays mounted but hidden beneath sibling panes.
+      // Only the visible read-only summary is projected by Saved Requests.
+      await expect(
+        page.getByRole("region", { name: text.savedTab, exact: true }),
+      ).not.toContainText(title);
       expect(submissions).toHaveLength(0);
       await nav.getByRole("link", { name: text.capture, exact: true }).click();
       await expect(page.getByLabel(text.title, { exact: true })).toHaveValue(
@@ -218,6 +222,13 @@ for (const locale of ["en", "es"] as const) {
       await page
         .getByRole("button", { name: text.finish, exact: true })
         .click();
+      // Retirement is asynchronous; wait before destroying the original editor.
+      await expect(
+        page.getByRole("button", { name: text.manual, exact: true }),
+      ).toBeEnabled();
+      await expect(
+        page.getByRole("button", { name: text.check, exact: true }),
+      ).toHaveCount(0);
       await page.goto("/dashboard/review?source=saved");
       await page
         .getByLabel(text.savedType, { exact: true })
