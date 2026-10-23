@@ -10,11 +10,9 @@ import {
   type CaptureEditableDocument,
   type CaptureReviewProvenance,
 } from "@/lib/capture-document";
-import {
-  captureTextReview,
-  capturePhotoReview,
-  type CaptureTextReview,
-  type CaptureEventReview,
+import type {
+  CaptureTextReview,
+  CaptureEventReview,
 } from "@/lib/capture-review-contract";
 import {
   Sparkles,
@@ -1051,6 +1049,12 @@ export function LegacyCaptureBox({
       }
       if (!res.ok) throw new CaptureClientError("couldNotRead");
       const data = result.body as { draft?: unknown } | null;
+      // Keep provider-response validation out of the eagerly mounted calendar
+      // graph. The response must still pass the same strict schema before it
+      // can enter the review document or recovery state.
+      const { captureTextReview } =
+        await import("@/lib/capture-review-contract");
+      if (!current()) return;
       const parsed = captureTextReview.safeParse(data?.draft);
       if (!parsed.success) throw new CaptureClientError("couldNotRead");
       if (readController.current === controller) {
@@ -1214,6 +1218,11 @@ export function LegacyCaptureBox({
       }
       if (!res.ok) throw new CaptureClientError("couldNotReadPhoto");
       const data = result.body as { image?: unknown } | null;
+      // Photo extraction uses the same strict validation, loaded only when a
+      // photo extraction request actually returns a provider response.
+      const { capturePhotoReview } =
+        await import("@/lib/capture-review-contract");
+      if (!current()) return;
       const parsed = capturePhotoReview.safeParse(data?.image);
       if (!parsed.success) throw new CaptureClientError("couldNotReadPhoto");
       if (readController.current === controller) {
