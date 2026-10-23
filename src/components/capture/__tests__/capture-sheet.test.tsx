@@ -244,15 +244,12 @@ it("does not focus the capture input when a closed sheet finishes retrying", asy
 it.each([401, 403])(
   "hides the launcher for an empty authenticated refusal (%i)",
   async (status) => {
-    await expectUnavailable(() =>
-      Promise.resolve({
-        ok: false,
-        status,
-        json: async () => {
-          throw new Error("empty auth refusal");
-        },
-      } as Response),
-    );
+    const refusal = response(status, {});
+    refusal.json = jest.fn(async () => {
+      throw new Error("empty auth refusal");
+    });
+    await expectUnavailable(() => Promise.resolve(refusal));
+    expect(refusal.json).not.toHaveBeenCalled();
   },
 );
 

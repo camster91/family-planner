@@ -1121,7 +1121,9 @@ it.each<[number, boolean]>([[401, false], [403, false], [401, true], [403, true]
   const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
   window.localStorage.setItem(storageKey, JSON.stringify([]))
   window.localStorage.setItem('family-planner:capture-recovery:v1:active', storageKey)
-  global.fetch = jest.fn(async () => empty ? ({ ok: false, status, json: async () => { throw new Error('empty auth refusal') } } as Response) : json(status, { error: 'unauthorized' })) as unknown as typeof fetch
+  const refusal = json(status, { error: 'unauthorized' })
+  if (empty) refusal.json = async () => { throw new Error('empty auth refusal') }
+  global.fetch = jest.fn(async () => refusal) as unknown as typeof fetch
 
   render(<CaptureBox />)
   await waitFor(() => expect(window.localStorage.getItem(storageKey)).toBeNull())
