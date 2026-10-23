@@ -3,6 +3,10 @@
 import * as React from "react";
 import { runOwnedForeground } from "@/lib/owned-request-http";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
+import {
+  readCaptureAvailability,
+  type CaptureAvailabilityData,
+} from "./capture-availability";
 import { CaptureDraftBoundary } from "./CaptureDraftBoundary";
 import {
   captureReviewDocument,
@@ -237,6 +241,9 @@ export type CaptureBoxProps = {
   onDraftStateChange?: (pending: boolean) => void;
   /** Reports the server-side setup/role gate to a launcher host. */
   onAvailabilityChange?: (availability: CaptureAvailability) => void;
+  /** A launcher may perform the bounded gate read before loading this editor. */
+  initialAvailability?:
+    { state: "available"; data: CaptureAvailabilityData } | { state: "retry" };
 };
 export type CaptureExtraction = {
   /** The owned host cancels only a foreground source read, never a mutation. */
@@ -278,6 +285,7 @@ export function LegacyCaptureBox({
   extraction,
   recoveryOnly = false,
   privacyHidden = false,
+  initialAvailability,
 }: CaptureBoxProps & {
   extraction?: CaptureExtraction;
   recoveryOnly?: boolean;
@@ -309,12 +317,13 @@ export function LegacyCaptureBox({
   const [unavailable, setUnavailable] = React.useState(false);
   const [availability, setAvailability] = React.useState<
     "loading" | CaptureAvailability
-  >("loading");
+  >(initialAvailability?.state ?? "loading");
   const [checkingAvailability, setCheckingAvailability] = React.useState(false);
   const availabilityController = React.useRef<AbortController | null>(null);
   const availabilityRef = React.useRef<"loading" | CaptureAvailability>(
     "loading",
   );
+  const initialAvailabilityRef = React.useRef(initialAvailability);
   const focusAfterAvailabilityRef = React.useRef(false);
   const sheetFocusPending = React.useRef(false);
   const previousSheetOpen = React.useRef(false);
@@ -322,7 +331,13 @@ export function LegacyCaptureBox({
   const [childBlocked, setChildBlocked] = React.useState(false);
   const [captureRole, setCaptureRole] = React.useState<
     "parent" | "teen" | null
-  >(null);
+  >(
+    initialAvailability?.state === "available" &&
+      (initialAvailability.data.role === "parent" ||
+        initialAvailability.data.role === "teen")
+      ? initialAvailability.data.role
+      : null,
+  );
   const [photoBusy, setPhotoBusy] = React.useState(false);
   const [photoEvents, setPhotoEvents] = React.useState<PhotoEvent[] | null>(
     null,
@@ -667,161 +682,133 @@ export function LegacyCaptureBox({
   // an explicit disabled/configured-off response is final for this mount. A
   // network/5xx/malformed response is transient so the launcher can recover
   // without a full page reload.
-  const checkAvailability = React.useCallback(async () => {
-    const recoveringFromTransientFailure = availabilityRef.current === "retry";
-    availabilityController.current?.abort();
-    const controller = new AbortController();
-    availabilityController.current = controller;
-    const current = () =>
-      extractionMounted.current &&
-      !controller.signal.aborted &&
-      availabilityController.current === controller;
-    recoveryMutationReady.current = false;
-    setCheckingAvailability(true);
-    try {
-      const result = await runOwnedForeground(
-        async (signal) => {
-          const response = await fetch("/api/capture", {
-            cache: "no-store",
-            credentials: "same-origin",
-            signal,
-          });
-          // An authenticated refusal is a privacy boundary even when a proxy or
-          // expired session supplies no readable JSON error body.
-          if (response.status === 401 || response.status === 403) {
-            void response.body?.cancel().catch(() => undefined);
-            return { kind: "reply" as const, response, body: null };
-          }
-          const body = await readBoundedJsonResponse(response, signal, 8192);
-          return { kind: "reply" as const, response, body };
-        },
-        { signal: controller.signal },
-      );
-      if (!current()) return;
-      if (result.kind !== "reply")
-        throw new Error("Capture availability unavailable");
-      const response = result.response;
-      if (response.status === 401 || response.status === 403) {
-        revokeCaptureAccess();
-        return;
-      }
-      if (!response.ok) throw new Error("Capture availability check failed");
-      const value: unknown = result.body;
-      if (!value || typeof value !== "object")
-        throw new Error("Unreadable capture availability");
-      const data = value as {
-        allowed?: unknown;
-        configured?: unknown;
-        userId?: unknown;
-        familyId?: unknown;
-        role?: unknown;
-      };
-      if (
-        typeof data.allowed !== "boolean" ||
-        typeof data.configured !== "boolean"
-      ) {
-        throw new Error("Incomplete capture availability");
-      }
-      if (!data.allowed) {
-        revokeCaptureAccess(
-          typeof data.userId === "string" ? data.userId : undefined,
-          typeof data.familyId === "string" ? data.familyId : undefined,
-          true,
+  const checkAvailability = React.useCallback(
+    async (seed?: CaptureAvailabilityData) => {
+      const recoveringFromTransientFailure =
+        availabilityRef.current === "retry";
+      availabilityController.current?.abort();
+      const controller = new AbortController();
+      availabilityController.current = controller;
+      const current = () =>
+        extractionMounted.current &&
+        !controller.signal.aborted &&
+        availabilityController.current === controller;
+      recoveryMutationReady.current = false;
+      setCheckingAvailability(true);
+      try {
+        const result = seed
+          ? { state: "available" as const, data: seed }
+          : await readCaptureAvailability(controller.signal);
+        if (!current()) return;
+        if (result.state === "unavailable" && result.childBlocked) {
+          revokeCaptureAccess(result.data?.userId, result.data?.familyId, true);
+          return;
+        }
+        const data = result.data;
+        if (!data) {
+          revokeCaptureAccess();
+          return;
+        }
+        setCaptureRole(
+          data.role === "parent" || data.role === "teen" ? data.role : null,
         );
-        return;
-      }
-      setCaptureRole(
-        data.role === "parent" || data.role === "teen" ? data.role : null,
-      );
-      if (!data.configured && !recoveryOnly) {
-        setRecoveryStorageBlocked(false);
-        setUnavailable(true);
-        setAvailability("unavailable");
-        onAvailabilityChange?.("unavailable");
-        return;
-      }
-      setChildBlocked(false);
-      setUnavailable(false);
-      if (recoveringFromTransientFailure)
-        focusAfterAvailabilityRef.current = true;
-      setAvailability("available");
-      onAvailabilityChange?.("available");
-      if (
-        typeof data.userId !== "string" ||
-        typeof data.familyId !== "string" ||
-        !data.userId ||
-        !data.familyId
-      ) {
-        recoveryGuardFailure.current = "recoveryStorageUnavailable";
-        setRecoveryStorageBlocked(true);
-        return;
-      }
-      if (extraction) return;
-      const identity = { userId: data.userId, familyId: data.familyId };
-      const previousIdentity = recoveryIdentity.current;
-      const sameIdentity =
-        previousIdentity?.userId === identity.userId &&
-        previousIdentity.familyId === identity.familyId;
-      const pending = sameIdentity ? [...recoveryRows.current.values()] : [];
-      const storage = browserRecoveryStorage();
-      if (
-        !storage ||
-        !activateCaptureRecoveryStorage(
+        if (!data.configured && !recoveryOnly) {
+          setRecoveryStorageBlocked(false);
+          setUnavailable(true);
+          setAvailability("unavailable");
+          onAvailabilityChange?.("unavailable");
+          return;
+        }
+        setChildBlocked(false);
+        setUnavailable(false);
+        if (recoveringFromTransientFailure)
+          focusAfterAvailabilityRef.current = true;
+        setAvailability("available");
+        onAvailabilityChange?.("available");
+        if (
+          typeof data.userId !== "string" ||
+          typeof data.familyId !== "string" ||
+          !data.userId ||
+          !data.familyId
+        ) {
+          recoveryGuardFailure.current = "recoveryStorageUnavailable";
+          setRecoveryStorageBlocked(true);
+          return;
+        }
+        if (extraction) return;
+        const identity = { userId: data.userId, familyId: data.familyId };
+        const previousIdentity = recoveryIdentity.current;
+        const sameIdentity =
+          previousIdentity?.userId === identity.userId &&
+          previousIdentity.familyId === identity.familyId;
+        const pending = sameIdentity ? [...recoveryRows.current.values()] : [];
+        const storage = browserRecoveryStorage();
+        if (
+          !storage ||
+          !activateCaptureRecoveryStorage(
+            storage,
+            identity.userId,
+            identity.familyId,
+          )
+        ) {
+          recoveryGuardFailure.current = "recoveryStorageUnavailable";
+          setRecoveryStorageBlocked(true);
+          return;
+        }
+        recoveryIdentity.current = identity;
+        const loaded = loadCaptureRecoveryState(
           storage,
           identity.userId,
           identity.familyId,
-        )
-      ) {
-        recoveryGuardFailure.current = "recoveryStorageUnavailable";
-        setRecoveryStorageBlocked(true);
-        return;
+        );
+        if (!loaded.storageAvailable) {
+          recoveryGuardFailure.current = "recoveryStorageUnavailable";
+          setRecoveryStorageBlocked(true);
+          setRecoveryOperations(pending);
+          recoveryRows.current = new Map(pending.map((row) => [row.key, row]));
+          return;
+        }
+        setRecoveryStorageBlocked(false);
+        setRecoveryMessage(null);
+        const persisted = loaded.rows;
+        const ready = syncRecoveryRows([
+          ...persisted,
+          ...pending.filter(
+            (row) => !persisted.some((saved) => saved.key === row.key),
+          ),
+        ]);
+        if (ready && recoveryErrorKind.current !== null) {
+          recoveryErrorKind.current = null;
+          setError(null);
+        }
+      } catch {
+        if (!current()) return;
+        setAvailability("retry");
+        onAvailabilityChange?.("retry");
+      } finally {
+        if (current()) {
+          availabilityController.current = null;
+          setCheckingAvailability(false);
+        }
       }
-      recoveryIdentity.current = identity;
-      const loaded = loadCaptureRecoveryState(
-        storage,
-        identity.userId,
-        identity.familyId,
-      );
-      if (!loaded.storageAvailable) {
-        recoveryGuardFailure.current = "recoveryStorageUnavailable";
-        setRecoveryStorageBlocked(true);
-        setRecoveryOperations(pending);
-        recoveryRows.current = new Map(pending.map((row) => [row.key, row]));
-        return;
-      }
-      setRecoveryStorageBlocked(false);
-      setRecoveryMessage(null);
-      const persisted = loaded.rows;
-      const ready = syncRecoveryRows([
-        ...persisted,
-        ...pending.filter(
-          (row) => !persisted.some((saved) => saved.key === row.key),
-        ),
-      ]);
-      if (ready && recoveryErrorKind.current !== null) {
-        recoveryErrorKind.current = null;
-        setError(null);
-      }
-    } catch {
-      if (!current()) return;
-      setAvailability("retry");
-      onAvailabilityChange?.("retry");
-    } finally {
-      if (current()) {
-        availabilityController.current = null;
-        setCheckingAvailability(false);
-      }
-    }
-  }, [
-    onAvailabilityChange,
-    revokeCaptureAccess,
-    syncRecoveryRows,
-    extraction,
-    recoveryOnly,
-  ]);
+    },
+    [
+      onAvailabilityChange,
+      revokeCaptureAccess,
+      syncRecoveryRows,
+      extraction,
+      recoveryOnly,
+    ],
+  );
 
   React.useEffect(() => {
-    void checkAvailability();
+    const initial = initialAvailabilityRef.current;
+    initialAvailabilityRef.current = undefined;
+    if (initial?.state === "retry") {
+      // Keep the explicit retry result visible until the person asks again.
+    } else {
+      void checkAvailability(initial?.data);
+    }
     const refresh = () => {
       if (document.visibilityState !== "hidden") void checkAvailability();
     };
