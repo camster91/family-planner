@@ -245,7 +245,6 @@ for (const locale of ["en", "es"] as const) {
             contentType: "application/json",
             body: JSON.stringify({
               results: [{ title: "Synthetic Provider Soup", url: sourceUrl }],
-              synthetic: "provider search response; no external request",
             }),
           });
           return;

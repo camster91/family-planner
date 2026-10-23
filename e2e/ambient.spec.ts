@@ -253,7 +253,10 @@ test("a key press returns to the board and does nothing else", async ({
 test("a parent sets a shorter idle time, night hours and a household photo; the fridge dims and shows it", async ({
   page,
 }, testInfo) => {
-  await page.goto("/dashboard/family/settings");
+  // The board controls live in the compact disclosure on Household settings.
+  // Addressing the disclosure directly keeps this journey aligned with the
+  // current short page and avoids relying on hidden controls inside it.
+  await page.goto("/dashboard/family/settings#household-board");
   const calm = page.getByTestId("calm-display-settings");
   await expect(calm).toBeVisible();
   await calm.getByLabel("Fade to the calm screen").selectOption("1");

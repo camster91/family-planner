@@ -8,8 +8,8 @@
  *   and Undo (toast and history), checked in the database; offline states in
  *   words with writes refused; "What can I
  *   cook" ranks the fixture recipes (Tomato soup fully in stock, Veggie
- *   lasagna missing Lasagna sheets) and "Add 1 missing to groceries" adds only
- *   the missing ingredient through `from-recipe`; add, edit and remove an item
+ *   lasagna missing Lasagna sheets) and the grocery review adds only the
+ *   missing ingredient through `from-recipe`; add, edit and remove an item
  *   in the dialog; long text; targets >= 44px; no horizontal overflow; axe
  *   (serious/critical) on the page and the dialog.
  * - Child (Family A): reads the page with no write controls; the API refuses
@@ -28,6 +28,7 @@
  */
 import AxeBuilder from "@axe-core/playwright";
 import { inventoryMessages } from "../src/i18n/inventory";
+import { inventoryIntakeInput } from "../src/lib/inventory-intake-contract";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import type { Locator, Page, TestInfo } from "@playwright/test";
@@ -571,11 +572,15 @@ test.describe("inventory (Family A parent)", () => {
     // stir-fry has nothing in stock and is left out.
     await expect(suggestions).toHaveCount(2);
     await expect(suggestions.nth(0)).toContainText("Tomato soup");
-    await expect(suggestions.nth(0)).toContainText("You have all 1 ingredient");
+    await expect(suggestions.nth(0)).toContainText(
+      "Found 1 of 1 ingredient in inventory",
+    );
     const lasagna = page.locator(
       `[data-testid="cook-suggestion"][data-recipe-id="${L.recipeLasagna}"]`,
     );
-    await expect(lasagna).toContainText("You have 1 of 2 ingredients");
+    await expect(lasagna).toContainText(
+      "Found 1 of 2 ingredients in inventory",
+    );
     await expect(lasagna.getByTestId("cook-missing")).toContainText(
       "Lasagna sheets",
     );
@@ -620,7 +625,9 @@ test.describe("inventory (Family A parent)", () => {
             r.request().method() === "GET",
         ),
         lasagna
-          .getByRole("button", { name: "Add 1 missing to groceries" })
+          .getByRole("button", {
+            name: "Review 1 unmatched for groceries",
+          })
           .click(),
       ]);
       expect(loaded.status()).toBe(200);
@@ -704,17 +711,24 @@ test.describe("inventory (Family A parent)", () => {
     await dialog(page).getByLabel(/Unit/).fill("tubs");
     await dialog(page).getByLabel("Best before date").fill("2026-01-07");
     await dialog(page)
+      .locator("details")
+      .locator("summary", { hasText: inventoryMessages.en.moreDetails })
+      .click();
+    await dialog(page)
       .getByLabel(/Category/)
       .selectOption("dairy_eggs");
     await dialog(page)
       .getByLabel(/Opened/)
       .fill("2026-01-04");
     const posted = page.waitForRequest(
-      (r) => r.url().includes("/api/inventory?today=") && r.method() === "POST",
+      (r) => r.url().includes("/api/inventory/intake") && r.method() === "POST",
     );
     await dialog(page).getByRole("button", { name: "Save" }).click();
     const request = await posted;
-    expect(request.postDataJSON()).toEqual({
+    const intake = inventoryIntakeInput.parse(request.postDataJSON());
+    expect(intake.expected_user_id).toBe(A.parent);
+    expect(intake.expected_family_id).toBe(A.family);
+    expect(intake.item).toEqual({
       name: `${PREFIX} yogurt`,
       location: "freezer",
       amount: 2,
@@ -762,8 +776,13 @@ test.describe("inventory (Family A parent)", () => {
     ).toHaveCount(0);
 
     await moved.click();
-    page.once("dialog", (d) => void d.accept());
     await dialog(page).getByRole("button", { name: "Remove" }).click();
+    const confirmation = page.getByRole("alertdialog", {
+      name: "Remove",
+      exact: true,
+    });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole("button", { name: "Remove" }).click();
     await expect(dialog(page)).toBeHidden();
     await expect(
       page
@@ -826,7 +845,7 @@ test.describe("inventory (Family A parent)", () => {
     const [consumed] = await Promise.all([
       page.waitForResponse(
         (r) =>
-          r.url().includes(`/api/inventory/${IDS.yogurt}/consume`) &&
+          r.url().includes("/api/inventory/change") &&
           r.request().method() === "POST",
       ),
       soon.getByRole("button", { name: `Used ${YOGURT}` }).click(),

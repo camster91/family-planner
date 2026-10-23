@@ -122,7 +122,7 @@ for (const locale of ["en", "es"] as const) {
         ).toBeVisible();
       await expect(board.getByTestId("region-link-today")).toHaveAttribute(
         "href",
-        "/dashboard/calendar",
+        "/dashboard/calendar?view=agenda",
       );
       await expect(board.getByTestId("region-link-today")).toHaveText(
         locale === "es" ? "Calendario" : "Calendar",

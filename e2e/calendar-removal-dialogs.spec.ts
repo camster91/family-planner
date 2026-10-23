@@ -6,6 +6,7 @@ import {
   install,
   guard,
   open,
+  selectSettingsTab,
   capture,
   msg,
   identity,
@@ -80,6 +81,7 @@ for (const locale of ["en", "es"] as const)
         },
       ]) {
         if (item.action === "disconnect") {
+          await selectSettingsTab(page, locale, "account");
           const themes = page
             .locator("#settings-account")
             .locator("..")

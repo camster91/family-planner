@@ -361,6 +361,12 @@ for (const locale of ["en", "es"] as const) {
               await page.goto("/dashboard/settings");
               await page
                 .getByRole("button", {
+                  name: settingsMessages[locale].privacyData,
+                  exact: true,
+                })
+                .click();
+              await page
+                .getByRole("button", {
                   name: settingsMessages[locale].deleteAccount,
                   exact: true,
                 })

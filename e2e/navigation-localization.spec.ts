@@ -430,7 +430,9 @@ test.describe("Explore feature shortcut", () => {
     expect(await featureLists.count()).toBeGreaterThan(0);
     for (const list of await featureLists.all()) {
       await expect(list).toBeVisible();
-      await expect(list).toHaveAttribute("aria-label", / · Features$/);
+      const group = list.locator("xpath=ancestor::section");
+      await expect(group).toHaveAttribute("aria-labelledby", /more-group-/);
+      await expect(group.getByRole("heading")).toBeVisible();
     }
   });
 });

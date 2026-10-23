@@ -268,6 +268,8 @@ test.describe("Family A parent", () => {
       "/dashboard/lists",
     ]) {
       await page.goto(path);
+      if (path === "/dashboard")
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
       await expect(page.locator("#main-content")).toBeVisible();
       const text = await page.locator("body").innerText();
       for (const title of FAMILY_B_ONLY) {

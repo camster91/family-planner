@@ -118,6 +118,8 @@ test.describe("recent changes (Family A parent)", () => {
   }, testInfo) => {
     onlyOnSomeProjects(testInfo);
     await page.goto("/dashboard/settings");
+    // Recent changes is a household-level link in the compact Family tab.
+    await page.getByRole("button", { name: "Family", exact: true }).click();
     const link = page.getByRole("link", { name: /Recent changes/ });
     await expect(link).toBeVisible();
     expect((await link.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);

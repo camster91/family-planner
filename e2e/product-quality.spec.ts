@@ -812,9 +812,12 @@ for (const locale of ["en", "es"] as const) {
         await setProductQualityWeather(false);
       }
       await page.goto("/dashboard/today?mode=fridge");
-      const board = page.getByTestId("today-board");
+      const board = page
+        .getByRole("main", { name: /dashboard$/i })
+        .getByTestId("today-board");
+      await expect(board).toHaveCount(1);
       await expect(board).toHaveAttribute("data-mode", "fridge");
-      const groceries = page.getByTestId("region-groceries");
+      const groceries = board.getByTestId("region-groceries");
       await expect(groceries).toBeVisible();
       await expect(groceries.getByTestId("grocery-item")).toHaveCount(5);
       await expect(
@@ -832,7 +835,7 @@ for (const locale of ["en", "es"] as const) {
           name: /grocery lists|listas de compras/i,
         }),
       ).toHaveAttribute("href", "/dashboard/lists/groceries");
-      const useSoon = page.getByTestId("board-slot-use-soon");
+      const useSoon = board.getByTestId("board-slot-use-soon");
       await expect(useSoon).toBeVisible();
       await expect(useSoon.getByTestId("use-soon-item")).toHaveCount(5);
       await expect(useSoon).toContainText("QA spinach");
@@ -890,7 +893,7 @@ for (const locale of ["en", "es"] as const) {
         });
         try {
           await page.reload({ waitUntil: "domcontentloaded" });
-          const failedUseSoon = page.getByTestId("board-slot-use-soon");
+          const failedUseSoon = board.getByTestId("board-slot-use-soon");
           await expect(failedUseSoon).toBeVisible();
           await expect(failedUseSoon.getByRole("alert")).toHaveText(
             locale === "es"
@@ -909,7 +912,7 @@ for (const locale of ["en", "es"] as const) {
           await page.unroute(chunkPattern);
           await retry.press("Enter");
 
-          const restoredUseSoon = page.getByTestId("board-slot-use-soon");
+          const restoredUseSoon = board.getByTestId("board-slot-use-soon");
           await expect(
             restoredUseSoon.getByTestId("use-soon-item"),
           ).toHaveCount(5);
@@ -938,11 +941,11 @@ for (const locale of ["en", "es"] as const) {
 
         await setProductQualityWeather(true);
         await page.goto("/dashboard/today?mode=fridge");
-        const weatherTile = page.getByTestId("board-weather");
+        const weatherTile = board.getByTestId("board-weather");
         await expect(weatherTile).toBeVisible();
         if (locale === "es") {
           await expect(
-            page.getByRole("region", {
+            board.getByRole("region", {
               name: `Tiempo en ${WEATHER_PLACE.label}`,
             }),
           ).toBeVisible();
@@ -953,7 +956,7 @@ for (const locale of ["en", "es"] as const) {
           await expect(weatherTile).not.toContainText("Light snow");
           await expect(weatherTile).not.toContainText("chance of rain or snow");
         }
-        const weatherUseSoon = page.getByTestId("board-slot-use-soon");
+        const weatherUseSoon = board.getByTestId("board-slot-use-soon");
         await expect(weatherUseSoon).toBeVisible();
         await expect(weatherUseSoon).toContainText(
           locale === "es" ? "Refrigerador" : "Fridge",
@@ -963,7 +966,7 @@ for (const locale of ["en", "es"] as const) {
           info.outputPath(`product-quality-fridge-${locale}-weather.png`),
           await page.screenshot(),
         );
-        const chores = page.getByTestId("region-chores");
+        const chores = board.getByTestId("region-chores");
         const lowerChore = chores
           .getByTestId("board-chore")
           .filter({ hasText: "Vacuum living room" });
@@ -1087,7 +1090,7 @@ for (const locale of ["en", "es"] as const) {
       await expectNoSeriousAxe(
         page,
         info,
-        '[data-testid="today-board"]',
+        'main[aria-label$="dashboard"] [data-testid="today-board"]',
         `${locale}-fridge`,
       );
       await info.attach(`fridge-${locale}-${info.project.name}.png`, {

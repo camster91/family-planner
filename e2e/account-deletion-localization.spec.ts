@@ -230,13 +230,26 @@ for (const role of ["parent", "teen", "child"] as const)
                 exact: true,
               })
               .click();
-          } else
+          } else {
+            await page
+              .getByRole("button", {
+                name: translate(settingsMessages[locale].privacyData),
+                exact: true,
+              })
+              .click();
+            await expect(
+              page.getByRole("heading", {
+                name: translate(settingsMessages[locale].privacyData),
+                exact: true,
+              }),
+            ).toBeVisible();
             await page
               .getByRole("button", {
                 name: translate(settingsMessages[locale].deleteAccount),
                 exact: true,
               })
               .click();
+          }
           const dialog = page.getByTestId("delete-account-dialog");
           await loadingSeen;
           await expect(dialog.getByRole("status")).toHaveText(msg("loading"));

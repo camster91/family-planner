@@ -1,6 +1,7 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { I18nProvider, useTranslation, messages } from "@/i18n";
 import LoginPage from "../page";
 import RegisterPage from "../../register/page";
@@ -78,6 +79,22 @@ beforeEach(() => {
   mockClear.mockReset();
   mockClearCapture.mockReset();
   global.fetch = jest.fn();
+});
+it("renders a POST backstop and gates native submit until hydration owns the form", () => {
+  const serverMarkup = renderToString(
+    <I18nProvider locale="en">
+      <LoginPage />
+    </I18nProvider>,
+  );
+  const serverForm = serverMarkup.match(/<form[^>]*>/)?.[0] ?? "";
+  const serverSubmit =
+    serverMarkup.match(/<button[^>]*type="submit"[^>]*>/)?.[0] ?? "";
+  expect(serverForm).toContain('method="post"');
+  expect(serverSubmit).toContain("disabled");
+
+  const { container } = mount();
+  expect(container.querySelector("form")).toHaveAttribute("method", "post");
+  expect(container.querySelector('button[type="submit"]')).toBeEnabled();
 });
 it("keeps autofill, focus, revealed password and token link when switching, and clears queues only once", () => {
   window.history.replaceState(

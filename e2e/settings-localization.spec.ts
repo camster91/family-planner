@@ -14,6 +14,7 @@ import {
   install,
   identity,
   language,
+  selectSettingsTab,
   open,
   capture,
   PROFILE,
@@ -795,6 +796,7 @@ test.describe("parentA household controls", () => {
       settings: s,
     }, info) => {
       await begin(page, context, baseURL!, locale, s, info);
+      await selectSettingsTab(page, locale, "family");
       const section = page.getByTestId("beta-metrics-switch");
       const toggle = section.getByRole("switch");
       await expect(toggle).toHaveAttribute("aria-checked", "false");
@@ -866,6 +868,7 @@ test.describe("parentA household controls", () => {
         settings: s,
       }, info) => {
         await begin(page, context, baseURL!, locale, s, info);
+        await selectSettingsTab(page, locale, "family");
         const pin = page.getByTestId("tablet-pin");
         await expect(
           pin.getByText(msg(locale, "pinUnsetDescription"), { exact: true }),

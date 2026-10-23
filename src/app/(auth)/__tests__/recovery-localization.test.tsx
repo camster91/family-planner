@@ -1,6 +1,7 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import ForgotPasswordPage from "../forgot-password/page";
 import ResetPasswordPage from "../reset-password/page";
 import { I18nProvider, useTranslation } from "@/i18n";
@@ -40,6 +41,35 @@ beforeEach(() => {
   mockToken = "synthetic-token-only";
   mockPush.mockReset();
   global.fetch = jest.fn();
+});
+
+it("renders POST recovery backstops and gates submit until hydration", () => {
+  const forgotMarkup = renderToString(<ForgotPasswordPage />);
+  const resetMarkup = renderToString(<ResetPasswordPage />);
+  for (const markup of [forgotMarkup, resetMarkup]) {
+    expect(markup).toContain('<form method="post"');
+    expect(markup).toMatch(/<button[^>]*type="submit"[^>]*disabled/);
+  }
+
+  const forgot = mount(<ForgotPasswordPage />);
+  expect(forgot.container.querySelector("form")).toHaveAttribute(
+    "method",
+    "post",
+  );
+  expect(
+    forgot.container.querySelector('button[type="submit"]'),
+  ).toBeEnabled();
+  forgot.unmount();
+
+  const reset = mount(<ResetPasswordPage />);
+  expect(reset.container.querySelector("form")).toHaveAttribute(
+    "method",
+    "post",
+  );
+  expect(
+    reset.container.querySelector('button[type="submit"]'),
+  ).toBeEnabled();
+  reset.unmount();
 });
 
 it("renders neutral success in the mounted language with the private email exact", async () => {

@@ -413,20 +413,24 @@ async function expectNoCanaries(page: Page) {
       canary,
     );
   }
-  const text = (await board(page).innerText()).toLowerCase();
-  for (const word of [
-    "budget",
-    "spent",
-    "allowance",
-    "medication",
-    "message",
-    " xp",
-    "streak",
-    "leaderboard",
-    "points",
-    "level ",
-  ]) {
-    expect(text, `board text mentions "${word}"`).not.toContain(word);
+  const boards = page.getByTestId("today-board");
+  expect(await boards.count()).toBeGreaterThan(0);
+  for (const current of await boards.all()) {
+    const text = (await current.innerText()).toLowerCase();
+    for (const word of [
+      "budget",
+      "spent",
+      "allowance",
+      "medication",
+      "message",
+      " xp",
+      "streak",
+      "leaderboard",
+      "points",
+      "level ",
+    ]) {
+      expect(text, `board text mentions "${word}"`).not.toContain(word);
+    }
   }
 }
 
@@ -600,7 +604,7 @@ test.describe("Today board: Family A parent", () => {
     await expect(chores).toContainText("Vacuum living room");
     await expect(next.getByTestId("region-link-today")).toHaveAttribute(
       "href",
-      "/dashboard/calendar",
+      "/dashboard/calendar?view=agenda",
     );
     await expect(chores.getByTestId("region-link-chores")).toHaveAttribute(
       "href",

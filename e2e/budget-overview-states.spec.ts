@@ -419,6 +419,9 @@ for (const locale of ["en", "es"] as const) {
         ).toBeVisible();
         await expect(
           page.getByText(copy.noTransactions, { exact: true }),
+        ).toHaveCount(1);
+        await expect(
+          page.getByText(copy.noTransactions, { exact: true }),
         ).toBeVisible();
         await expect(page.getByTestId("budget-category-empty")).toContainText(
           copy.noCategorySpending,
@@ -686,6 +689,9 @@ for (const locale of ["en", "es"] as const) {
           .getByRole("button", { name: copy.retryRefresh, exact: true })
           .click();
         await expect(refreshNotice).toHaveCount(0);
+        await expect(
+          page.getByText(copy.noTransactions, { exact: true }),
+        ).toHaveCount(1);
         await expect(
           page.getByText(copy.noTransactions, { exact: true }),
         ).toBeVisible();

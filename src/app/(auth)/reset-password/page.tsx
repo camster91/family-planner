@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, KeyRound } from "lucide-react";
@@ -19,11 +19,17 @@ function ResetPasswordForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<RecoveryFeedback | null>(null);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
+
+  useEffect(() => {
+    // Keep the native fallback from submitting a password before hydration.
+    setHydrated(true);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -136,7 +142,7 @@ function ResetPasswordForm() {
         </div>
 
         <div className="card">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form method="post" onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div
                 role="alert"
@@ -221,7 +227,7 @@ function ResetPasswordForm() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={!hydrated || loading}
               className="btn-primary w-full py-3"
             >
               {loading ? t("auth.resetting") : t("auth.resetPasswordBtn")}

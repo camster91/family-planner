@@ -1,4 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
+import type { Page } from "@playwright/test";
 import {
   test,
   expect,
@@ -18,6 +19,23 @@ test.beforeEach(async ({ context }) => {
       : route.abort();
   });
 });
+
+async function openSourceFilter(page: Page) {
+  const source = page.getByRole("combobox", {
+    name: "Calendar source",
+    exact: true,
+  });
+  if (!(await source.isVisible())) {
+    await page
+      .getByRole("button", {
+        name: "Show calendars and connections",
+        exact: true,
+      })
+      .click();
+  }
+  await expect(source).toBeVisible();
+  return source;
+}
 
 for (const role of ["parent", "teen"] as const) {
   test(`${role} reviews overlapping times without changing events`, async ({
@@ -67,9 +85,7 @@ for (const role of ["parent", "teen"] as const) {
       path: test.info().outputPath("calendar-overlap-review.png"),
       fullPage: true,
     });
-    await page
-      .getByRole("combobox", { name: "Calendar source", exact: true })
-      .selectOption("connected");
+    await (await openSourceFilter(page)).selectOption("connected");
     await expect(panel).toHaveCount(0);
     expect(writes).toEqual([]);
   });
@@ -120,9 +136,7 @@ test("parent planning: real range, fixed clock geometry, source empty, detail an
   await expect(detail.locator("time")).toHaveCount(2);
   await page.keyboard.press("Escape");
   await expect(longEvent).toBeFocused();
-  await page
-    .getByRole("combobox", { name: "Calendar source", exact: true })
-    .selectOption("connected");
+  await (await openSourceFilter(page)).selectOption("connected");
   await expect(
     page.getByRole("heading", { name: "No events from this calendar" }),
   ).toBeVisible();

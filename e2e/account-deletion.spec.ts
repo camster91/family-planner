@@ -195,6 +195,9 @@ test.describe("account and household deletion", () => {
     await loginViaUi(page, x.email(x.solo.parent));
     await page.waitForURL(/\/dashboard/);
     await page.goto("/dashboard/settings");
+    await page
+      .getByRole("button", { name: "Privacy & data", exact: true })
+      .click();
     await expect(
       page.getByRole("heading", { name: "Privacy & data" }),
     ).toBeVisible();
@@ -281,6 +284,9 @@ test.describe("account and household deletion", () => {
     await loginViaUi(page, x.email(x.duo.parent));
     await page.waitForURL(/\/dashboard/);
     await page.goto("/dashboard/settings");
+    await page
+      .getByRole("button", { name: "Privacy & data", exact: true })
+      .click();
     await page.getByRole("button", { name: "Delete Account" }).click();
 
     const dialog = page.getByRole("dialog", { name: "Delete account" });
@@ -328,6 +334,9 @@ test.describe("account and household deletion", () => {
     ).toHaveCount(0);
     await page.getByRole("link", { name: "Settings" }).click();
     await page.waitForURL(/\/dashboard\/settings$/);
+    await page
+      .getByRole("button", { name: "Privacy & data", exact: true })
+      .click();
     await page.getByRole("button", { name: "Delete Account" }).click();
 
     const dialog = page.getByRole("dialog", { name: "Delete account" });

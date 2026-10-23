@@ -363,18 +363,31 @@ test.describe("Personal-only household work", () => {
       ).toHaveCount(1);
       await expect(page.getByTestId("region-chores")).toHaveCount(0);
       const grid = page.getByTestId("board-grid");
-      expect(
-        await grid.evaluate(
-          (element) => getComputedStyle(element).gridTemplateAreas,
-        ),
-      ).not.toContain("chores");
+      await expect(grid).toHaveAttribute("data-personal-layout", "");
+      // The personal board uses ordinary responsive columns, so removing the
+      // household chore tile must leave only the sections that are rendered;
+      // there is no fixed named-area placeholder to inspect here.
+      const sections = grid.locator("[data-today-section]");
+      expect(await sections.count()).toBeGreaterThanOrEqual(2);
+      await expect(grid.locator('[data-today-section="next"]')).toHaveCount(1);
+      await expect(grid.locator('[data-today-section="coming"]')).toHaveCount(
+        1,
+      );
       if ((page.viewportSize()?.width ?? 0) >= 1024) {
         const gridBox = await grid.boundingBox();
+        const nextBox = await grid
+          .locator('[data-today-section="next"]')
+          .boundingBox();
         const comingBox = await page.getByTestId("region-coming").boundingBox();
         expect(gridBox).not.toBeNull();
+        expect(nextBox).not.toBeNull();
         expect(comingBox).not.toBeNull();
-        expect(Math.abs(gridBox!.width - comingBox!.width)).toBeLessThan(2);
-        expect(Math.abs(gridBox!.x - comingBox!.x)).toBeLessThan(2);
+        expect(gridBox!.width).toBeGreaterThan(comingBox!.width);
+        // Both remaining sections occupy real responsive grid cells; the
+        // removed household tile does not leave a stretched or zero-width
+        // replacement.
+        expect(Math.abs(nextBox!.width - comingBox!.width)).toBeLessThan(2);
+        expect(nextBox!.width).toBeGreaterThan(0);
       }
       expect(
         await page.evaluate(

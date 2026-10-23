@@ -14,6 +14,7 @@ import {
   install,
   identity,
   language,
+  selectSettingsTab,
   capture,
   msg,
   enabled,
@@ -301,6 +302,7 @@ for (const role of ["parentA", "parentB", "teen", "child"] as const)
             const before = s.calls.length;
             await language(page, locale === "en" ? "es" : "en");
             expect(s.calls).toHaveLength(before);
+            const currentLocale = locale === "en" ? "es" : "en";
             if (role === "teen") {
               await expect(page.locator("#settings-family")).toHaveCount(0);
               await expect(page.getByTestId("beta-metrics-switch")).toHaveCount(
@@ -315,21 +317,26 @@ for (const role of ["parentA", "parentB", "teen", "child"] as const)
                 "/api/calendar/connections",
               ])
                 expect(s.count("GET", path)).toBe(0);
+              await capture(page, info, role + "-settings-visibility");
+              await selectSettingsTab(page, currentLocale, "privacy");
               await expect(
                 page.getByRole("button", {
-                  name: msg(locale === "en" ? "es" : "en", "dataExport"),
+                  name: msg(currentLocale, "dataExport"),
                   exact: false,
                 }),
               ).toBeVisible();
               await expect(
                 page.getByRole("button", {
-                  name: msg(locale === "en" ? "es" : "en", "deleteAccount"),
+                  name: msg(currentLocale, "deleteAccount"),
                   exact: true,
                 }),
               ).toBeVisible();
-            } else await expect(page.locator("#settings-family")).toBeVisible();
-            await capture(page, info, role + "-settings-visibility");
-            const currentLocale = locale === "en" ? "es" : "en";
+            } else {
+              await selectSettingsTab(page, currentLocale, "family");
+              await expect(page.locator("#settings-family")).toBeVisible();
+              await capture(page, info, role + "-settings-visibility");
+              await selectSettingsTab(page, currentLocale, "privacy");
+            }
             const exportButton = page.getByRole("button", {
               name: msg(currentLocale, "dataExport"),
               exact: false,
