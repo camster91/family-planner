@@ -159,6 +159,22 @@ describe("shared layout chunks preserve initial entrypoint ownership", () => {
   });
   test("root code still requires initial root ownership", () => {
     expect(
+      admitted(
+        "herewovenRootLayout",
+        ["app/layout", "app/(auth)/login/page"],
+        true,
+        "/repo/node_modules/next/dist/api/navigation.js",
+      ),
+    ).toBe(true);
+    expect(
+      admitted(
+        "herewovenRootLayout",
+        ["app/dashboard/layout"],
+        true,
+        "/repo/node_modules/next/dist/api/navigation.js",
+      ),
+    ).toBe(false);
+    expect(
       admitted("herewovenRootLayout", ["app/layout", "app/(auth)/login/page"]),
     ).toBe(true);
     expect(admitted("herewovenRootLayout", ["app/dashboard/layout"])).toBe(
