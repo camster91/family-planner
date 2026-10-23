@@ -174,9 +174,10 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # These captures contain only synthetic product-quality fixture data.
+      # The compact metadata cases emit PNGs only at 1280x800 and 1366x768.
+      # Keep missing captures an error for those two producer shards.
       - name: Upload compact fridge metadata captures
-        if: ${{ !cancelled() && inputs.update_snapshots != true && (matrix.group == 'fridge-landscape' || matrix.group == 'large-tablet' || matrix.group == 'desktop') }}
+        if: ${{ !cancelled() && inputs.update_snapshots != true && (matrix.group == 'fridge-landscape' || matrix.group == 'desktop') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: product-quality-fridge-captures-${{ matrix.group }}-${{ github.sha }}
