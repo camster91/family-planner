@@ -1,3 +1,13 @@
+## Latest instruction: finish code before further tests — 2026-10-22
+
+New test/build/browser runs and CI-triggering pushes are deferred for this
+implementation follow-through. Existing hosted77c115e1 runs may finish and retain
+their own identity. Adopted Capture/inbox recovery browser coverage and its
+isolated provider-free six-viewport hosted job are now authored but unrun; see
+WEB_IMPLEMENTATION_HANDOFF.md. Ordinary legacy gates/defaults and production
+settings stay unchanged. No merge, deployment or acceptance is claimed. The full
+web goal remains active through consolidated QA and verified release.
+
 # Current State
 
 ## Repaired candidate ready for hosted QA — 2026-10-22

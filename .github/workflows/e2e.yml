@@ -553,6 +553,88 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  review_documents:
+    name: Adopted Capture recovery QA (six viewports)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    # This is a separate opt-in build and disposable database. It exercises
+    # the real owned Capture journal only; ordinary journeys and visual baselines
+    # remain owned by the jobs above.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: fp_e2e_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fp_e2e_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Loopback + disposable name: accepted by the fixture guard.
+      DATABASE_URL: postgresql://postgres@localhost:5432/fp_e2e_ci
+      FIXTURES_ALLOW: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+      RELEASE_SHA: ${{ github.sha }}
+      # These flags are intentionally scoped to this hosted disposable job.
+      QUEUE_OWNER_RECOVERY_ENABLED: "1"
+      QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1"
+      FAMILY_REVIEW_DOCUMENTS_READY: "1"
+      FAMILY_REVIEW_DOCUMENTS_ROLLBACK_READY: "1"
+      CAPTURE_AI_KEY: ""
+      ANTHROPIC_API_KEY: ""
+      GEMINI_API_KEY: ""
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Migrate database
+        run: node scripts/migrate.js
+      - name: Build adopted review application
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          NODE_ENV: production
+      - name: Run provider-free owned Capture and inbox journeys
+        run: >-
+          npx playwright test --config=playwright.review-documents.config.ts
+          --project=phone-390x844
+          --project=phone-430x932
+          --project=tablet-portrait-800x1280
+          --project=fridge-landscape-1280x800
+          --project=tablet-large-1920x1200
+          --project=desktop-1366x768
+        env:
+          E2E_SKIP_BUILD: "1"
+          E2E_REPORT_DIR: playwright-report/review-documents
+          E2E_OUTPUT_DIR: test-results/review-documents
+      - name: Preserve adopted review proof
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: review-documents-qa-${{ github.sha }}
+          path: |
+            playwright-report/review-documents/
+            test-results/review-documents/
+          if-no-files-found: error
+          retention-days: 7
+
   verify:
     name: E2E (Playwright)
     needs:
@@ -562,6 +644,7 @@ jobs:
         inventory_localization,
         settings_localization,
         profile_routine,
+        review_documents,
       ]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
@@ -574,4 +657,5 @@ jobs:
           INVENTORY_RESULT: ${{ needs.inventory_localization.result }}
           SETTINGS_RESULT: ${{ needs.settings_localization.result }}
           PROFILE_ROUTINE_RESULT: ${{ needs.profile_routine.result }}
-        run: test "$SHARD_RESULT" = success && test "$RECOVERY_RESULT" = success && test "$INVENTORY_RESULT" = success && test "$SETTINGS_RESULT" = success && test "$PROFILE_ROUTINE_RESULT" = success
+          REVIEW_DOCUMENTS_RESULT: ${{ needs.review_documents.result }}
+        run: test "$SHARD_RESULT" = success && test "$RECOVERY_RESULT" = success && test "$INVENTORY_RESULT" = success && test "$SETTINGS_RESULT" = success && test "$PROFILE_ROUTINE_RESULT" = success && test "$REVIEW_DOCUMENTS_RESULT" = success

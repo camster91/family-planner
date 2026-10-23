@@ -1,3 +1,33 @@
+## Renewed test deferral and adopted Capture coverage source — 2026-10-22
+
+Cameron again asked to finish all code before further test runs. No new test,
+build, browser session, CI dispatch or CI-triggering push accompanies this
+follow-through. Existing hosted runs remain bound to77c115e1 and may finish.
+
+The source audit still covers the approved application paths. The remaining
+identified evidence gap now has authored browser coverage: an isolated adopted
+Capture/inbox journey, EN/ES at all six representative sizes. The separate
+playwright.review-documents.config.ts selects .journey.ts source outside ordinary
+legacy collection, requires the four explicit local adoption gates and a guarded
+disposable database, refuses a reused server and blanks extraction credentials.
+The new hosted job owns its database/server; ordinary jobs retain their defaults.
+The existing aggregate additionally requires this isolated job to pass.
+
+The scenario uses the real inbox/editor/journal, manual grocery rows, sibling
+pane navigation, reload restoration, minimal saved-work summaries and the real
+canonical submission adapter. It drops only the committed HTTP reply, then
+requires same-save recovery to inspect the original receipt without another POST.
+It checks exactly one canonical row with the expected household/quantity and
+retired draft discovery. Unexpected writes and page errors fail the scenario;
+only uniquely named fabricated fixture rows are cleaned. Runtime identity and
+request hashes accompany successful proof. These are authored assertions, not
+observed results. Production flags/providers/data are unchanged.
+
+No new application feature gap was identified in this bounded source pass.
+This coverage source must join the integrated candidate for consolidated QA;
+current hosted results cannot validate these new additions. All original
+release checks, failure repairs, protected merge and Coolify verification remain.
+
 # Web implementation handoff — 2026-10-22
 
 ## Resumed source follow-through — 2026-10-22
