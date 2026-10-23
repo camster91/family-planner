@@ -5,7 +5,7 @@ import {
   memberProtocolSchema,
 } from "@/lib/member-subject-contract";
 import { responsibilitySubject } from "@/lib/responsibility";
-import { parseCalendarInstant } from "@/lib/calendar-planning/range";
+import { parseCalendarInstant } from "@/lib/calendar-planning/instant";
 import { isValidTimeZone } from "@/lib/calendar-import/timezone";
 import { parseDateOnly } from "@/lib/dates";
 import {

@@ -16,8 +16,8 @@ jest.mock("next/navigation", () => ({
   useSearchParams: () => mockParams,
   useRouter: () => mockRouter,
 }));
-jest.mock("@/i18n/event-preparation", () => ({
-  usePreparationText: () => ({
+jest.mock("@/i18n/event-preparation-shell", () => ({
+  usePreparationShellText: () => ({
     open: "Prepare",
     error: "Failed",
     close: "Close",

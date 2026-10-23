@@ -271,7 +271,7 @@ it("parent PIN native drafts, focus and local validation survive mounted languag
     </I18nProvider>,
   );
   await familyTab();
-  await userEvent.click(screen.getByRole("button", { name: "Set PIN" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Set PIN" }));
   const dialog = screen.getByRole("dialog");
   const pin = within(dialog).getByLabelText("New 6-digit PIN");
   await waitFor(() => expect(pin).toHaveFocus());
@@ -583,7 +583,9 @@ it("AI pending key/model drafts and late saved notice survive language changes w
     );
     const key = screen.getByLabelText("API key");
     expect(key).toHaveValue("");
-    expect(key).toHaveAttribute("placeholder", "Saved: masked {hint} 李");
+    await waitFor(() =>
+      expect(key).toHaveAttribute("placeholder", "Saved: masked {hint} 李"),
+    );
     fireEvent.change(key, { target: { value: "synthetic-fixture-input" } });
     const model = screen.getByLabelText("Model (optional)");
     fireEvent.change(model, { target: { value: "private-model-{name}-李" } });
@@ -659,7 +661,7 @@ it("feed clipboard uses the literal private link and its original 2s copied noti
         .getByRole("heading", { name: "Calendar feed" })
         .closest("summary")!,
     );
-    const link = screen.getByLabelText("Your private link");
+    const link = await screen.findByLabelText("Your private link");
     const url =
       "http://localhost/api/calendar/feed?token=synthetic-fixture-feed-token";
     expect(link).toHaveValue(url);

@@ -1,7 +1,7 @@
 /** Provider-free planning contract. No snapshot or proposal is write authority. */
 import { z } from "zod";
 import { parseDateOnly } from "../dates";
-import { parseCalendarInstant } from "../calendar-planning/range";
+import { parseCalendarInstant } from "../calendar-planning/instant";
 import { dayKeyFor } from "../local-day-key";
 import { isValidTimeZone } from "../quiet-hours";
 import { memberIdentityIdSchema as id } from "../member-subject-contract";

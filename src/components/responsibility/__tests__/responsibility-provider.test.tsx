@@ -14,8 +14,8 @@ jest.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(mockQuery),
   useRouter: () => ({ push: mockPush, replace: mockReplace, back: mockBack }),
 }));
-jest.mock("@/i18n/responsibility", () => ({
-  useResponsibilityText: () => ({ open: "Responsibility", loading: "Loading" }),
+jest.mock("@/i18n/responsibility-shell", () => ({
+  useResponsibilityShellText: () => ({ open: "Responsibility", loading: "Loading" }),
 }));
 jest.mock("../ResponsibilitySheet", () => ({
   __esModule: true,

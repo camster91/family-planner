@@ -8,7 +8,7 @@ import {
   scheduleReviewScope,
   type ScheduleReviewScope,
 } from "@/lib/calendar-planning/conflict-review";
-import { useScheduleReviewText } from "@/i18n/schedule-review";
+import { useScheduleReviewShellText } from "@/i18n/schedule-review-shell";
 const Sheet = React.lazy(() => import("./ScheduleReviewSheet"));
 const Context = React.createContext<{
   active: boolean;
@@ -29,7 +29,7 @@ export default function ScheduleReviewProvider({
   const pathname = usePathname(),
     params = useSearchParams(),
     router = useRouter(),
-    copy = useScheduleReviewText();
+    copy = useScheduleReviewShellText();
   const pushed = React.useRef<string | null>(null),
     navigating = React.useRef(false),
     closing = React.useRef(false);
@@ -178,7 +178,7 @@ export function ScheduleReviewButton({
   className?: string;
 }) {
   const context = React.useContext(Context),
-    copy = useScheduleReviewText();
+    copy = useScheduleReviewShellText();
   if (!context?.allowed || !scheduleReviewScope.safeParse(scope).success)
     return null;
   return (

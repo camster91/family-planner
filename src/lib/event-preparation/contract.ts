@@ -13,7 +13,7 @@ import { isRoutineIconKey } from "@/lib/routine-icons";
 import { parseDateOnly } from "@/lib/dates";
 import { dayKeyFor } from "@/lib/local-day-key";
 import { isValidTimeZone } from "@/lib/calendar-import/timezone";
-import { parseCalendarInstant } from "@/lib/calendar-planning/range";
+import { parseCalendarInstant } from "@/lib/calendar-planning/instant";
 export const EVENT_PREPARATION_PROTOCOL =
   "herewoven.event-preparation.v1" as const;
 export const EVENT_PREPARATION_MAX_STEPS = 99;

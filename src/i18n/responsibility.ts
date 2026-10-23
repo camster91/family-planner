@@ -1,16 +1,16 @@
+import { responsibilityShellMessages } from "./responsibility-shell";
 import { useTranslation } from "@/i18n";
 const en = {
+  ...responsibilityShellMessages.en,
   ownerChanged:
     "Your account or household changed. Close and reopen this sheet before continuing.",
   snapshot: "Last checked preview · open to refresh or change",
   previewUnavailable:
     "Answers could not be loaded. Open to retry; this is not an empty plan.",
-  open: "Responsibility",
   title: "Who’s handling this?",
   close: "Close responsibility",
   intro:
     "Confirm the plan together. Naming someone does not mean they have agreed.",
-  loading: "Loading the current plan…",
   error:
     "Could not confirm the latest plan. Saved requests are kept. Reload before making another change.",
   reload: "Reload current plan",
@@ -84,17 +84,16 @@ const en = {
   kinds: { chore: "Chore", pickup: "Pickup", handoff: "Handoff" },
 };
 const es: typeof en = {
+  ...responsibilityShellMessages.es,
   ownerChanged:
     "Tu cuenta u hogar cambió. Cierra y vuelve a abrir este panel antes de continuar.",
   snapshot: "Última vista consultada · abre para actualizar o cambiar",
   previewUnavailable:
     "No se pudieron cargar las respuestas. Abre para reintentar; no indica un plan vacío.",
-  open: "Responsabilidad",
   title: "¿Quién se encarga?",
   close: "Cerrar responsabilidad",
   intro:
     "Confirmen el plan juntos. Nombrar a alguien no significa que haya aceptado.",
-  loading: "Cargando el plan actual…",
   error:
     "No se pudo confirmar el plan actual. Las solicitudes guardadas se conservan. Vuelve a cargar antes de cambiar algo.",
   reload: "Cargar el plan actual",

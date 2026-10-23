@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { memberIdentityIdSchema } from "@/lib/member-subject-contract";
 import { isValidTimeZone } from "@/lib/calendar-import/timezone";
-import { usePreparationText } from "@/i18n/event-preparation";
+import { usePreparationShellText } from "@/i18n/event-preparation-shell";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 const Sheet = React.lazy(() => import("./PreparationSheet"));
 const locationSchema = z
@@ -33,7 +33,7 @@ export default function PreparationProvider({
   const path = usePathname(),
     params = useSearchParams(),
     router = useRouter(),
-    copy = usePreparationText();
+    copy = usePreparationShellText();
   const personal =
     role === "parent" &&
     params.get("mode") !== "fridge" &&
@@ -181,7 +181,7 @@ export function PreparationButton({
   backlink?: boolean;
 }) {
   const context = React.useContext(Context),
-    copy = usePreparationText();
+    copy = usePreparationShellText();
   if (!context?.allowed || !locationSchema.safeParse(location).success)
     return null;
   return (

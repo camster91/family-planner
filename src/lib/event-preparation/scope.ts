@@ -1,6 +1,6 @@
 /** Server-only reviewed-scope fingerprint. This is a stale-write guard, never
  * authentication, a signed capability or a substitute for canonical row locks. */
-import { parseCalendarInstant } from "@/lib/calendar-planning/range";
+import { parseCalendarInstant } from "@/lib/calendar-planning/instant";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { memberIdentityIdSchema as id } from "@/lib/member-subject-contract";

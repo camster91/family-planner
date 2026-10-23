@@ -1,15 +1,10 @@
+import { preparationShellMessages } from "./event-preparation-shell";
 import { useTranslation } from "@/i18n";
 const en = {
-  open: "Prepare for this event",
-  backlink: "View event preparation",
-  forEvent: "Getting ready for:",
+  ...preparationShellMessages.en,
   title: "Get ready",
   intro:
     "Link tasks or reuse a routine. Tasks keep their own completion and parent checks.",
-  close: "Close preparation",
-  loading: "Loading current preparation…",
-  error:
-    "Could not confirm the latest changes. Your draft and saved requests are kept.",
   reload: "Refresh",
   changed:
     "The event or preparation changed. Review current timing, task versions and links.",
@@ -124,16 +119,10 @@ const en = {
   zone: "Time zone",
 };
 const es: typeof en = {
-  open: "Preparar este evento",
-  backlink: "Ver preparativos del evento",
-  forEvent: "Preparativos para:",
+  ...preparationShellMessages.es,
   title: "Preparativos",
   intro:
     "Vincula tareas o reutiliza una rutina. Las tareas conservan sus propias finalizaciones y revisiones.",
-  close: "Cerrar preparativos",
-  loading: "Cargando preparativos actuales…",
-  error:
-    "No se pudieron confirmar los cambios. Se conservan el borrador y las solicitudes guardadas.",
   reload: "Actualizar",
   changed:
     "El evento o los preparativos cambiaron. Revisa el horario, las tareas y los vínculos actuales.",

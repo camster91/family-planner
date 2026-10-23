@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { memberIdentityIdSchema as id } from "@/lib/member-subject-contract";
-import { parseCalendarInstant, CALENDAR_RANGE_MAX_MS } from "./range";
+import { parseCalendarInstant, CALENDAR_RANGE_MAX_MS } from "./instant";
 import {
   SCHEDULE_REVIEW_PROTOCOL,
   ScheduleReviewError,

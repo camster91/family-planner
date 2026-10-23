@@ -1,13 +1,10 @@
+import { scheduleReviewShellMessages } from "./schedule-review-shell";
 import { useTranslation } from "@/i18n";
 const en = {
-  open: "Review timing",
+  ...scheduleReviewShellMessages.en,
   title: "Make room in your schedule",
   intro:
     "Compare known calendar times. An overlap does not tell us who needs to attend.",
-  close: "Close timing review",
-  loading: "Loading the current schedule…",
-  error:
-    "Could not confirm the latest schedule. Your settings and saved requests are kept.",
   reload: "Reload current event",
   changed:
     "The event changed. Review its current details before searching again.",
@@ -127,14 +124,10 @@ const en = {
   },
 };
 const es: typeof en = {
-  open: "Revisar horario",
+  ...scheduleReviewShellMessages.es,
   title: "Haz espacio en tu agenda",
   intro:
     "Compara los horarios conocidos. Una coincidencia no indica quién debe asistir.",
-  close: "Cerrar revisión de horario",
-  loading: "Cargando la agenda actual…",
-  error:
-    "No se pudo confirmar la agenda actual. Tus ajustes y solicitudes guardadas se conservan.",
   reload: "Cargar el evento actual",
   changed:
     "El evento cambió. Revisa los detalles actuales antes de buscar de nuevo.",

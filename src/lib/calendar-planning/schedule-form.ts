@@ -1,7 +1,7 @@
 /** Explicit wall-time choices for the personal review form. Unlike ICS import,
  * nonexistent times are refused and repeated times require an offset choice. */
 import { isValidTimeZone } from "@/lib/calendar-import/timezone";
-import { parseCalendarInstant, CALENDAR_RANGE_MAX_MS } from "./range";
+import { parseCalendarInstant, CALENDAR_RANGE_MAX_MS } from "./instant";
 import {
   scheduleBuffers,
   scheduleReviewScope,

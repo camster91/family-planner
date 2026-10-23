@@ -2,7 +2,7 @@
  * server from canonical records. Tokens/canMove supplied by a browser confer
  * no permission. No calendar mutation or availability claim occurs here. */
 import { z } from "zod";
-import { parseCalendarInstant, CALENDAR_RANGE_MAX_MS } from "./range";
+import { parseCalendarInstant, CALENDAR_RANGE_MAX_MS } from "./instant";
 import { isValidTimeZone } from "@/lib/calendar-import/timezone";
 import { memberIdentityIdSchema as id } from "@/lib/member-subject-contract";
 export const SCHEDULE_REVIEW_PROTOCOL = "herewoven.schedule-review.v1" as const;

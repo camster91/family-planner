@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { createEventSchema } from "@/lib/validations";
 import { captureGrocerySchema } from "@/lib/capture-grocery-contract";
-import { parseCalendarInstant } from "@/lib/calendar-planning/range";
+import { parseCalendarInstant } from "@/lib/calendar-planning/instant";
 import { parseReviewedChore } from "@/lib/capture-chore-review";
 import {
   captureEditableDocument,

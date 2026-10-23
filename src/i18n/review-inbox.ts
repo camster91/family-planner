@@ -1,5 +1,7 @@
+import { reviewInboxShellMessages } from "./review-inbox-shell";
 import { useTranslation } from "@/i18n";
 const en = {
+  ...reviewInboxShellMessages.en,
   food: "Meal planning drafts & saves",
   bulk: "Bulk cooking drafts & saves",
   savedFood: "Saved meal planning work",
@@ -38,7 +40,6 @@ const en = {
   savedResponsibility: "Saved responsibility request",
   savedUnknown: "Result not checked here. This may already have been saved.",
   openSaved: "Open recovery screen",
-  title: "Review inbox",
   intro:
     "Check current work and timing changes. Each item opens its normal review; nothing is approved here automatically.",
   changes: "What changed",
@@ -56,6 +57,7 @@ const en = {
     "This inbox currently includes chore checks and changed event preparation. Quick add uses its existing review and recovery controls here; recipe imports open in Meals.",
 };
 const es: typeof en = {
+  ...reviewInboxShellMessages.es,
   food: "Borradores y guardados de planificación de comidas",
   bulk: "Borradores y guardados de cocina por lotes",
   savedFood: "Planificación de comidas guardada",
@@ -94,7 +96,6 @@ const es: typeof en = {
   savedResponsibility: "Solicitud de responsabilidad guardada",
   savedUnknown: "Resultado sin consultar aquí. Puede que ya esté guardado.",
   openSaved: "Abrir recuperación",
-  title: "Bandeja de revisión",
   intro:
     "Revisa tareas y cambios de horario. Cada elemento abre su revisión habitual; aquí no se aprueba nada automáticamente.",
   changes: "Qué cambió",

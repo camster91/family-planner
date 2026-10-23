@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { memberIdentityIdSchema as id } from "../member-subject-contract";
 import { foodViewOwner } from "./view-contract";
-import { parseCalendarInstant } from "../calendar-planning/range";
+import { parseCalendarInstant } from "../calendar-planning/instant";
 export const FOOD_OPTIONS = "herewoven.food-options.v1";
 export const FOOD_OPTIONS_PAGE = 8;
 export const foodOptionsQuery = z

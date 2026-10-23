@@ -12,8 +12,8 @@ jest.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(mockQuery),
   useRouter: () => ({ push: mockPush, replace: mockReplace, back: mockBack }),
 }));
-jest.mock("@/i18n/schedule-review", () => ({
-  useScheduleReviewText: () => ({
+jest.mock("@/i18n/schedule-review-shell", () => ({
+  useScheduleReviewShellText: () => ({
     open: "Review timing",
     loading: "Loading",
     close: "Close timing review",

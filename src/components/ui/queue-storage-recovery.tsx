@@ -3,7 +3,14 @@
 import * as React from "react";
 import type { OfflineQueue } from "@/lib/offline-queue";
 import { useTranslation } from "@/i18n";
-import { LegacyQueueRecovery } from "@/components/ui/legacy-queue-recovery";
+// Ordinary, healthy queues have no older work to review. Load that review
+// surface only when the canonical queue reports it; never infer an empty queue
+// from unavailable storage or delay the storage-error/retry controls.
+const LegacyQueueRecovery = React.lazy(() =>
+  import("@/components/ui/legacy-queue-recovery").then((module) => ({
+    default: module.LegacyQueueRecovery,
+  })),
+);
 
 /** A deliberate read retry, never a replacement or discard of unread work. */
 export function QueueStorageRecovery({
@@ -90,7 +97,11 @@ export function QueueStorageRecovery({
           {t(busy ? "groceries.storageRetrying" : "groceries.storageRetry")}
         </button>
       )}
-      {legacyAvailable && <LegacyQueueRecovery queue={queue} />}
+      {legacyAvailable && (
+        <React.Suspense fallback={<p role="status">{t("common.loading")}</p>}>
+          <LegacyQueueRecovery queue={queue} />
+        </React.Suspense>
+      )}
     </section>
   );
 }

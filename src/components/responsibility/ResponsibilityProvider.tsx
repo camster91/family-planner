@@ -8,7 +8,7 @@ import {
   responsibilityTarget,
   type ResponsibilityTarget,
 } from "@/lib/responsibility";
-import { useResponsibilityText } from "@/i18n/responsibility";
+import { useResponsibilityShellText } from "@/i18n/responsibility-shell";
 const Preview = React.lazy(() => import("./ResponsibilityPreview"));
 const Sheet = React.lazy(() => import("./ResponsibilitySheet"));
 type Controls = {
@@ -31,7 +31,7 @@ export default function ResponsibilityProvider({
   const pathname = usePathname(),
     params = useSearchParams(),
     router = useRouter(),
-    copy = useResponsibilityText();
+    copy = useResponsibilityShellText();
   const pushed = React.useRef<string | null>(null),
     navigating = React.useRef(false);
   const scheduleActive = useScheduleReviewActive();
@@ -140,7 +140,7 @@ export function ResponsibilityButton({
   className?: string;
 }) {
   const context = React.useContext(Context),
-    copy = useResponsibilityText();
+    copy = useResponsibilityShellText();
   if (!context?.allowed(target)) return null;
   return (
     <button
@@ -163,7 +163,7 @@ export function ResponsibilityReviewEntry({
   target: ResponsibilityTarget;
 }) {
   const context = React.useContext(Context),
-    copy = useResponsibilityText();
+    copy = useResponsibilityShellText();
   if (!context?.allowed(target)) return null;
   return (
     <div className="mt-2">

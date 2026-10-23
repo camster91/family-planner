@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/ui/brand-illustration";
-import { useReviewInboxText } from "@/i18n/review-inbox";
+import { useReviewInboxShellText } from "@/i18n/review-inbox-shell";
 import { PRODUCT_BRAND } from "@/lib/brand";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -55,7 +55,7 @@ interface DashboardNavProps {
 }
 
 export default function DashboardNav({ user }: DashboardNavProps) {
-  const reviewCopy = useReviewInboxText();
+  const reviewCopy = useReviewInboxShellText();
   const { t } = useTranslation();
   const featureNavTitle = useFeatureNavTitle();
   const msg = (

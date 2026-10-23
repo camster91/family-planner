@@ -127,7 +127,8 @@ describe('SettingsClient for a teen', () => {
       expect(screen.getByRole('heading', { name }).closest('details')?.open).toBe(false)
     }
     expect(screen.getByText('Tablet PIN')).toBeTruthy()
-    expect(screen.getByText('Share beta usage counts').closest('[data-settings-group]')).toHaveAttribute('hidden')
+    // Privacy-only controls stay deferred until that group is opened.
+    expect(screen.queryByText('Share beta usage counts')).toBeNull()
     expect(screen.getByRole('heading', { name: 'Subscribed calendars' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Calendar feed' })).toBeTruthy()
     expect(screen.getByRole('link', { name: /Features/, hidden: true }).getAttribute('href')).toBe('/dashboard/features')
