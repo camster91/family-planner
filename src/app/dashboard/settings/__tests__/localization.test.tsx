@@ -406,7 +406,7 @@ it("connected calendar picker and late sync count preserve exact private provide
   await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
   await userEvent.click(
     screen.getByRole("button", {
-      name: "Sincronizar Google {provider} 李 ahora",
+      name: "Sincronizar ahora: Google {provider} 李",
     }),
   );
   const inFlight = calls.length;
@@ -415,7 +415,7 @@ it("connected calendar picker and late sync count preserve exact private provide
     "en",
   );
   expect(
-    screen.getByRole("button", { name: "Sync Google {provider} 李 now" }),
+    screen.getByRole("button", { name: "Sync now: Google {provider} 李" }),
   ).toBeDisabled();
   expect(calls).toHaveLength(inFlight);
   await act(async () =>

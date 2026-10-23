@@ -655,7 +655,7 @@ function ActionButton({
   disabled?: boolean
   icon: LucideIcon
   children: React.ReactNode
-  /** Accessible name when the visible text needs the item's name. */
+  /** Accessible name when the visible text needs the item's name; it must contain the visible text (WCAG 2.5.3). */
   label: string
 }) {
   return (
@@ -771,7 +771,7 @@ function UseSoonSection({
                     <ActionButton
                       icon={Utensils}
                       disabled={busy === item.id}
-                      label={copy('usedName', { name: item.name })}
+                      label={copy('usedItName', { name: item.name })}
                       onClick={() => onAdjust({ id: item.id, name: item.name }, 'consume')}
                     >
                       {copy('usedIt')}
@@ -1034,9 +1034,10 @@ function LocationSection({
                     <button
                       type="button"
                       onClick={() => onEdit(item)}
-                      aria-label={copy('editName', { name: item.name })}
                       className="w-full flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 min-h-[52px] text-left active:bg-[var(--surface-fill-secondary)]"
                     >
+                      {/* Named by its content so the visible row stays in the spoken name (WCAG 2.5.3). */}
+                      <span className="sr-only">{copy('editAction')} </span>
                       {body}
                       <ChevronRight className="w-4 h-4 shrink-0 text-label-tertiary" aria-hidden="true" />
                     </button>

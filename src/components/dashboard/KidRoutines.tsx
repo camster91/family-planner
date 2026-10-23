@@ -112,19 +112,22 @@ export default function KidRoutines({
                 const state: StepState = step.id === nextId ? "next" : base;
                 const done = state === "waiting" || state === "checked";
                 const rejection = !done ? step.verified_notes?.trim() : null;
+                // The spoken name keeps the card's visible words in their
+                // visible order ("Next", title, retry note, done state) and
+                // adds the position last (WCAG 2.5.3 Label in Name).
                 const spoken = [
-                  step.title,
-                  kidHomeText("stepOf", { step: i + 1, total }),
+                  state === "next"
+                    ? `${kidHomeText("next")}: ${step.title}`
+                    : step.title,
                   rejection
                     ? `${kidHomeText("haveAnotherGo")}: ${rejection}`
                     : null,
-                  state === "next"
-                    ? kidHomeText("nextStep")
-                    : state === "waiting"
-                      ? kidHomeText("doneWaiting")
-                      : state === "checked"
-                        ? kidHomeText("doneChecked")
-                        : null,
+                  state === "waiting"
+                    ? kidHomeText("doneWaiting")
+                    : state === "checked"
+                      ? kidHomeText("doneChecked")
+                      : null,
+                  kidHomeText("stepOf", { step: i + 1, total }),
                 ]
                   .filter(Boolean)
                   .join(", ");
@@ -165,6 +168,9 @@ export default function KidRoutines({
                           {kidHomeText("next")}
                         </span>
                       )}
+                      {/* Spaces between the text parts keep the visible words
+                          separate for Label in Name checks; whitespace between
+                          flex items does not render. */}{" "}
                       <span className="relative" aria-hidden>
                         <RoutineIcon
                           icon={step.icon}
@@ -190,7 +196,7 @@ export default function KidRoutines({
                         aria-hidden
                       >
                         {step.title}
-                      </span>
+                      </span>{" "}
                       {rejection && (
                         <span
                           className="text-footnote text-label-secondary [overflow-wrap:anywhere]"
@@ -198,18 +204,16 @@ export default function KidRoutines({
                         >
                           <span className="block font-semibold">
                             {kidHomeText("haveAnotherGo")}
-                          </span>
+                          </span>{" "}
                           <span className="block">{rejection}</span>
                         </span>
-                      )}
+                      )}{" "}
                       {done && (
                         <span
                           className="text-footnote font-semibold text-label-primary"
                           aria-hidden
                         >
-                          <span className="block">
-                            {kidHomeText("done")}
-                          </span>
+                          <span className="block">{kidHomeText("done")}</span>{" "}
                           <span className="block mt-1 text-[12px] font-medium text-label-secondary">
                             {state === "waiting"
                               ? kidHomeText("waitingForParent")

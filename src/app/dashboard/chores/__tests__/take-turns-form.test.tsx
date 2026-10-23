@@ -72,13 +72,13 @@ describe('TakeTurnsPicker', () => {
 
     await user.click(screen.getByRole('button', { name: 'Jo' }))
     await user.click(screen.getByRole('button', { name: 'Sam' }))
-    expect(screen.getByRole('button', { name: 'Jo, turn 1' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Sam, turn 2' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Turn 1: Jo' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Turn 2: Sam' })).toBeTruthy()
     expect(screen.getByText('Order: Jo → Sam → Jo')).toBeTruthy()
     expect(screen.queryByText('Pick at least 2 people.')).toBeNull()
 
-    await user.click(screen.getByRole('button', { name: 'Jo, turn 1' }))
-    expect(screen.getByRole('button', { name: 'Sam, turn 1' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Turn 1: Jo' }))
+    expect(screen.getByRole('button', { name: 'Turn 1: Sam' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Jo' }).getAttribute('aria-pressed')).toBe('false')
   })
 
@@ -263,8 +263,8 @@ describe('Edit chore form', () => {
     render(<EditChorePage />)
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Take turns' })).toBeTruthy())
     expect(screen.getByRole('switch', { name: 'Take turns' }).getAttribute('aria-checked')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Sam, turn 1' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Jo, turn 3' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Turn 1: Sam' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Turn 3: Jo' })).toBeTruthy()
     // This occurrence's own person can still be changed by hand.
     expect(screen.getByLabelText('This time')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
@@ -289,8 +289,8 @@ describe('Edit chore form', () => {
   it('a changed order is sent; turning it off sends null', async () => {
     const user = userEvent.setup()
     render(<EditChorePage />)
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Alex, turn 2' })).toBeTruthy())
-    await user.click(screen.getByRole('button', { name: 'Alex, turn 2' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Turn 2: Alex' })).toBeTruthy())
+    await user.click(screen.getByRole('button', { name: 'Turn 2: Alex' }))
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
     await waitFor(() => expect(sent('/api/chores')).toBeDefined())
     expect(sent('/api/chores').rotation).toEqual(['sam', 'jo'])

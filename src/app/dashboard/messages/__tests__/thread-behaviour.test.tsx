@@ -253,7 +253,7 @@ describe('localized presentation', () => {
     render(<MessagesPage />)
     await screen.findByText('Message 3')
 
-    const pickupLink = screen.getByRole('link', { name: 'Pickup: School pickup' })
+    const pickupLink = screen.getByRole('link', { name: /^Pickup: School pickup\b/ })
     expect(pickupLink).toHaveAttribute('href', '/dashboard/pickups')
     expect(pickupLink).toHaveTextContent('School pickup')
     expect(pickupLink).not.toHaveTextContent('location')

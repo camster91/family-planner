@@ -91,7 +91,7 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
       exact: true,
     });
     await expect(
-      other.getByRole("button", { name: `Complete ${title}` }),
+      other.getByRole("button", { name: `Done: ${title}` }),
     ).toHaveCount(1);
     await page
       .getByRole("combobox", { name: "Routine range", exact: true })
@@ -103,11 +103,11 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
     // row simply because the page is opened.
     await expect(summary).toContainText("4 dates");
     await expect(
-      other.getByRole("button", { name: `Complete ${title}` }).first(),
+      other.getByRole("button", { name: `Done: ${title}` }).first(),
     ).not.toBeVisible();
     await summary.click();
     const buttons = other.getByRole("button", {
-      name: `Complete ${title}`,
+      name: `Done: ${title}`,
     });
     await expect(buttons).toHaveCount(4);
     await expect(buttons.first()).toBeVisible();

@@ -79,7 +79,7 @@ describe('RewardsBoard', () => {
     renderBoard({ rewards: [MOVIE, { ...MOVIE, id: 'r_game', name: 'Game time', cost: 30 }] })
     expect(screen.getAllByTestId('claimable-reward')).toHaveLength(2)
     expect(screen.queryAllByTestId('family-reward')).toHaveLength(0)
-    expect(screen.getByRole('button', { name: 'Claim Game time' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Claim Reward: Game time' })).toBeTruthy()
   })
 
   it('parses the canonical inactive flag and keeps retired rewards out of the claim shelf', () => {
@@ -107,7 +107,7 @@ describe('RewardsBoard', () => {
       return { ok: true, status: 200, json: async () => CLAIMED_MOVIE } as Response
     }) as unknown as typeof fetch
     renderBoard({ rewards: [MOVIE] })
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     await user.click(await screen.findByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(refresh).toHaveBeenCalled())
@@ -150,7 +150,7 @@ describe('RewardsBoard', () => {
     const user = userEvent.setup()
     const calls = mockFetch(() => ({ status: 200, body: CLAIMED_MOVIE }))
     renderBoard()
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     const dialog = screen.getByRole('dialog', { name: 'Claim Movie night?' })
     expect(dialog.textContent).toContain('This uses 50 points')
     expect(calls).toHaveLength(0)
@@ -171,7 +171,7 @@ describe('RewardsBoard', () => {
       body: { reward: { ...MOVIE, id: 'other', status: 'claimed', claimedById: 'someone-else' }, xp: 30 },
     }))
     renderBoard({ rewards: [MOVIE] })
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     expect((await screen.findByRole('alert')).textContent).toContain('The connection dropped before we could confirm.')
     expect(screen.getByRole('dialog')).toBeTruthy()
@@ -189,7 +189,7 @@ describe('RewardsBoard', () => {
       body: { reward: { ...MOVIE, status: 'claimed', ...claimant }, xp: 30 },
     }))
     renderBoard({ rewards: [MOVIE] })
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     expect((await screen.findByRole('alert')).textContent).toContain('The connection dropped before we could confirm.')
     expect(refresh).not.toHaveBeenCalled()
@@ -199,7 +199,7 @@ describe('RewardsBoard', () => {
     const user = userEvent.setup()
     mockFetch(() => ({ status: 409, body: { error: 'Reward is no longer available' } }))
     renderBoard()
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Reward is no longer available')
     expect(screen.getByRole('dialog')).toBeTruthy()
@@ -215,7 +215,7 @@ describe('RewardsBoard', () => {
       return { ok: true, status: 200, json: async () => CLAIMED_MOVIE } as Response
     }) as unknown as typeof fetch
     renderBoard({ rewards: [MOVIE] })
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     await user.click(await screen.findByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(refresh).toHaveBeenCalled())
@@ -227,7 +227,7 @@ describe('RewardsBoard', () => {
     const user = userEvent.setup()
     mockFetch(() => 'throw')
     renderBoard()
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Check your connection and try again.')
   })
@@ -250,7 +250,7 @@ describe('RewardsBoard', () => {
     const user = userEvent.setup()
     mockFetch(() => 'throw')
     renderBoard({ isParent: true, currentUserId: 'parent_1' }, 'es')
-    await user.click(screen.getByRole('button', { name: 'Marcar Ice cream como entregada' }))
+    await user.click(screen.getByRole('button', { name: 'Marcar como entregada: Ice cream' }))
     const row = screen.getAllByTestId('family-reward').find((item) => item.textContent?.includes('Ice cream'))!
     expect(await within(row).findByText('Revisa tu conexión e inténtalo de nuevo.')).toBeTruthy()
     expect(within(row).queryByText('Check your connection and try again.')).toBeNull()
@@ -271,7 +271,7 @@ describe('RewardsBoard', () => {
     renderBoard({ isParent: true, currentUserId: 'parent_1' })
     const row = screen.getAllByTestId('family-reward').find((r) => r.textContent?.includes('Ice cream'))!
     expect(row.textContent).toContain('Claimed by Sam')
-    await user.click(within(row).getByRole('button', { name: 'Mark Ice cream as given' }))
+    await user.click(within(row).getByRole('button', { name: 'Mark as given: Ice cream' }))
     await waitFor(() => expect(refresh).toHaveBeenCalled())
     expect(calls).toHaveLength(1)
     expect(calls[0]).toEqual(expect.objectContaining({ url: '/api/rewards/approve', method: 'POST', body: { rewardId: 'r_ice' } }))
@@ -284,7 +284,7 @@ describe('RewardsBoard', () => {
     mockFetch(() => ({ status: 200, body: { reward: { ...ICE_CREAM, id: 'other', status: 'approved' } } }))
     renderBoard({ isParent: true, currentUserId: 'parent_1' })
     const row = screen.getAllByTestId('family-reward').find((item) => item.textContent?.includes('Ice cream'))!
-    await user.click(within(row).getByRole('button', { name: 'Mark Ice cream as given' }))
+    await user.click(within(row).getByRole('button', { name: 'Mark as given: Ice cream' }))
     expect(await within(row).findByText('The connection dropped before we could confirm.')).toBeTruthy()
     expect(refresh).not.toHaveBeenCalled()
   })
@@ -298,8 +298,8 @@ describe('RewardsBoard', () => {
       rewards: [ICE_CREAM, { ...ICE_CREAM, id: 'r_game', name: 'Game time' }],
     })
     const rows = screen.getAllByTestId('family-reward')
-    await user.click(within(rows[0]).getByRole('button', { name: 'Mark Ice cream as given' }))
-    await user.click(within(rows[1]).getByRole('button', { name: 'Mark Game time as given' }))
+    await user.click(within(rows[0]).getByRole('button', { name: 'Mark as given: Ice cream' }))
+    await user.click(within(rows[1]).getByRole('button', { name: 'Mark as given: Game time' }))
     expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(2)
     expect(within(rows[0]).getByText('try later')).toBeTruthy()
     expect(within(rows[1]).getByText('try later')).toBeTruthy()
@@ -326,7 +326,7 @@ describe('RewardsBoard', () => {
     }) as unknown as typeof fetch
     renderBoard({ isParent: true, currentUserId: 'parent_1' })
     let row = screen.getAllByTestId('family-reward').find((item) => item.textContent?.includes('Ice cream'))!
-    await user.click(within(row).getByRole('button', { name: 'Mark Ice cream as given' }))
+    await user.click(within(row).getByRole('button', { name: 'Mark as given: Ice cream' }))
     expect(within(row).getByText('try later')).toBeTruthy()
 
     await user.click(within(row).getByRole('button', { name: 'Check status' }))
@@ -349,7 +349,7 @@ describe('RewardsBoard', () => {
     const user = userEvent.setup()
     mockFetch(() => ({ status: 400, body: { error: 'Reward must be claimed before approval' } }))
     renderBoard({ isParent: true, currentUserId: 'parent_1' })
-    await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }))
+    await user.click(screen.getByRole('button', { name: 'Mark as given: Ice cream' }))
     expect(await screen.findByText('Reward must be claimed before approval')).toBeTruthy()
     expect(screen.getByText("Couldn't mark Ice cream as given")).toBeTruthy()
     expect(refresh).not.toHaveBeenCalled()

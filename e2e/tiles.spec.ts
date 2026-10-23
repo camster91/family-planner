@@ -159,9 +159,7 @@ test.describe("person board", () => {
         r.url().endsWith("/api/chores/complete") &&
         r.request().method() === "POST",
     );
-    await chores
-      .getByRole("button", { name: `Mark ${CHORE} done, Casey` })
-      .click();
+    await chores.getByRole("button", { name: `Mark done: ${CHORE}` }).click();
     expect((await completed).status()).toBe(200);
     await expect(chores).not.toContainText(CHORE);
     await expect.poll(async () => (await choreRow())?.status).toBe("completed");
@@ -360,9 +358,7 @@ test.describe("paired tablet", () => {
       const completed = tablet.waitForResponse((r) =>
         r.url().endsWith(`/api/device/chores/${IDS.chore}/complete`),
       );
-      await chores
-        .getByRole("button", { name: `Mark ${CHORE} done, Casey` })
-        .click();
+      await chores.getByRole("button", { name: `Mark done: ${CHORE}` }).click();
       expect((await completed).status()).toBe(200);
       await expect(who).toBeHidden();
       await expect

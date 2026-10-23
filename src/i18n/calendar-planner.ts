@@ -79,7 +79,7 @@ export const calendarPlannerEnglish = {
   overlapsCount: "{count} overlaps",
   overlapsHelp: "Events with overlapping times in this calendar range.",
   overlapsMore: "{count} more. Choose Day to review a smaller range.",
-  reviewEvent: "Review {title}",
+  reviewEvent: "Review",
 } as const;
 export type CalendarPlannerMessage = keyof typeof calendarPlannerEnglish;
 export const calendarPlannerSpanish: Record<CalendarPlannerMessage, string> = {
@@ -89,7 +89,7 @@ export const calendarPlannerSpanish: Record<CalendarPlannerMessage, string> = {
   overlapsHelp:
     "Eventos cuyos horarios coinciden en este intervalo del calendario.",
   overlapsMore: "{count} más. Elige Día para revisar un intervalo más pequeño.",
-  reviewEvent: "Revisar {title}",
+  reviewEvent: "Revisar",
   allSources: "Todos los orígenes",
   inApp: "En la app",
   connected: "Calendario conectado",

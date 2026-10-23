@@ -622,7 +622,7 @@ describe("KidHome picture routines", () => {
 
     const morning = routineByName("Morning");
     expect(steps(morning).map((s) => s.getAttribute("aria-label"))).toEqual([
-      "Brush teeth, step 1 of 3, next step",
+      "Next: Brush teeth, step 1 of 3",
       "Get dressed, step 2 of 3",
       "Shoes on, step 3 of 3",
     ]);
@@ -656,7 +656,7 @@ describe("KidHome picture routines", () => {
       expect(steps(morning)[0].getAttribute("data-state")).toBe("waiting"),
     );
     expect(steps(morning)[0].getAttribute("aria-label")).toBe(
-      "Brush teeth, step 1 of 3, done, waiting for a parent to check",
+      "Brush teeth, done, waiting for a parent to check, step 1 of 3",
     );
     expect(within(steps(morning)[0]).getByText("Done")).toBeTruthy();
     expect((steps(morning)[0] as HTMLButtonElement).disabled).toBe(true);
@@ -749,8 +749,8 @@ describe("KidHome picture routines", () => {
     ]);
     const morning = routineByName("Morning");
     expect(steps(morning).map((s) => s.getAttribute("aria-label"))).toEqual([
-      "Brush teeth, step 1 of 2, done, checked by a parent",
-      "Get dressed, step 2 of 2, done, waiting for a parent to check",
+      "Brush teeth, done, checked by a parent, step 1 of 2",
+      "Get dressed, done, waiting for a parent to check, step 2 of 2",
     ]);
     expect(within(morning).getByTestId("routine-progress").textContent).toBe(
       "All done",
@@ -785,7 +785,7 @@ describe("KidHome picture routines", () => {
     expect(
       steps(morning).map((step) => step.getAttribute("aria-label")),
     ).toEqual([
-      "Brush teeth, paso 1 de 3, siguiente paso",
+      "Siguiente: Brush teeth, paso 1 de 3",
       "Get dressed, paso 2 de 3",
       "Shoes on, paso 3 de 3",
     ]);

@@ -1079,8 +1079,8 @@ test.describe("inventory localization synthetic server", () => {
         await capture(page, info, `${locale}-added`);
         await owned
           .getByRole("button", {
-            name: msg(locale, "editName", { name }),
-            exact: true,
+            // The row is named by its visible text after the edit verb.
+            name: labelPrefix(`${msg(locale, "editAction")} ${name}`),
           })
           .click();
         await modal.getByLabel(labelPrefix(msg(locale, "howMuch"))).fill("1.5");
@@ -1130,8 +1130,8 @@ test.describe("inventory localization synthetic server", () => {
         await capture(page, info, `${locale}-undo-restored`);
         await owned
           .getByRole("button", {
-            name: msg(locale, "editName", { name }),
-            exact: true,
+            // The row is named by its visible text after the edit verb.
+            name: labelPrefix(`${msg(locale, "editAction")} ${name}`),
           })
           .click();
         const pantry = modal.getByRole("radio", {
@@ -1151,8 +1151,8 @@ test.describe("inventory localization synthetic server", () => {
         await capture(page, info, `${locale}-edited`);
         await owned
           .getByRole("button", {
-            name: msg(locale, "editName", { name }),
-            exact: true,
+            // The row is named by its visible text after the edit verb.
+            name: labelPrefix(`${msg(locale, "editAction")} ${name}`),
           })
           .click();
         page.once("dialog", async (dialog) => {

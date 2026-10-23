@@ -349,7 +349,8 @@ function NotesPageInner() {
                   ? {
                       role: 'button' as const,
                       tabIndex: 0,
-                      'aria-label': note.title,
+                      // Named by its content (title and preview) so the
+                      // visible text stays in the spoken name (WCAG 2.5.3).
                       onClick: () => openEditModal(note),
                       onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
                         if (e.key === 'Enter' || e.key === ' ') {

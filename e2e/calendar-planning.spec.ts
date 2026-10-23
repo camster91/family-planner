@@ -37,8 +37,7 @@ for (const role of ["parent", "teen"] as const) {
     await expect(panel).toHaveJSProperty("open", false);
     await panel.locator("summary").press("Enter");
     const review = panel.getByRole("button", {
-      name: "Review Soccer practice",
-      exact: true,
+      name: /^Review Soccer practice\b/,
     });
     await expect(review).toBeVisible();
     await expect(panel.getByRole("button")).toHaveCount(2);

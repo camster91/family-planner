@@ -620,11 +620,12 @@ function MessagesContent() {
                       <Link
                         href="/dashboard/pickups"
                         className="ml-6 mt-2 inline-flex min-h-[44px] max-w-full items-center gap-2 rounded-xl bg-surface-fill px-3 py-2 text-left text-footnote text-label-primary hover:bg-[var(--surface-elevated)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
-                        aria-label={`${messageText('pickupContext')}: ${message.pickup.title}`}
                       >
                         <Link2 className="h-4 w-4 shrink-0 text-[var(--accent-text)]" aria-hidden="true" />
+                        {/* Named by its content so the visible pickup and time stay in the spoken name (WCAG 2.5.3). */}
                         <span className="min-w-0">
-                          <span className="block truncate font-semibold">{message.pickup.title}</span>
+                          <span className="sr-only">{messageText('pickupContext')}: </span>
+                          <span className="block truncate font-semibold">{message.pickup.title}</span>{' '}
                           <time dateTime={message.pickup.pickup_time} className="block truncate text-label-secondary">
                             {formatPickupDate(message.pickup.pickup_time, locale)}
                           </time>

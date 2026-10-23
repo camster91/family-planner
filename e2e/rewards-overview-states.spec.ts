@@ -250,7 +250,7 @@ async function assertClaimedRewardRowReadable(
   const row = title.locator("xpath=ancestor::li[@data-testid='family-reward']");
   await expect(row).toHaveCount(1);
   const approve = row.getByRole("button", {
-    name: locale === "es" ? /Marcar .+ como entregada/ : /Mark .+ as given/,
+    name: locale === "es" ? /^Marcar como entregada: .+/ : /^Mark as given: .+/,
   });
   await expect(approve).toHaveCount(1);
   await expect(title).toBeVisible();

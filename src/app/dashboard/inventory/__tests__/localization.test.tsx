@@ -247,7 +247,7 @@ it("updates owned success notice and undo title/action without reloading, replay
   jest.useFakeTimers();
   const { calls } = mount();
   await settle();
-  fireEvent.click(screen.getByRole("button", { name: "Used " + name }));
+  fireEvent.click(screen.getByRole("button", { name: "Used it: " + name }));
   await settle();
   const toast = screen.getByTestId("undo-toast");
   expect(toast).toHaveTextContent("Used " + name);
@@ -275,7 +275,7 @@ it("keeps native focus, paused undo and its canonical callback through a locale 
   jest.useFakeTimers();
   const { calls } = mount();
   await settle();
-  fireEvent.click(screen.getByRole("button", { name: "Used " + name }));
+  fireEvent.click(screen.getByRole("button", { name: "Used it: " + name }));
   await settle();
   const toast = screen.getByTestId("undo-toast");
   const undo = within(toast).getByRole("button", { name: "Undo" });
