@@ -145,6 +145,7 @@ for (const locale of ["en", "es"] as const) {
         exact: true,
       });
       await nav.getByRole("link", { name: text.savedTab, exact: true }).click();
+      await expect(page).toHaveURL(/\/dashboard\/review\?source=saved$/);
       await page
         .getByRole("combobox", { name: text.savedType, exact: true })
         .selectOption("capture");
@@ -161,6 +162,8 @@ for (const locale of ["en", "es"] as const) {
       ).not.toContainText(title);
       expect(submissions).toHaveLength(0);
       await nav.getByRole("link", { name: text.capture, exact: true }).click();
+      await expect(page).toHaveURL(/\/dashboard\/review\?source=capture$/);
+      await expect(page.getByLabel(text.title, { exact: true })).toBeVisible();
       await expect(page.getByLabel(text.title, { exact: true })).toHaveValue(
         title,
       );
