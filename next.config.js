@@ -99,7 +99,7 @@ const nextConfig = {
     // Next's dynamic component helpers are already eager in the dashboard
     // layout but can be copied into hydration chunks. Admit only these known
     // helpers, still subject to the same proved initial-owner boundary below.
-    const initialDynamicHelper = /[\\/]node_modules[\\/]next[\\/]dist[\\/](?:shared[\\/]lib[\\/](?:lazy-dynamic[\\/]|app-dynamic\.js$)|api[\\/]app-dynamic\.js$|server[\\/]app-render[\\/](?:work-async-storage\.external|work-async-storage-instance|async-local-storage)\.js$)/
+    const initialDynamicHelper = /[\\/]node_modules[\\/]next[\\/]dist[\\/](?:shared[\\/]lib[\\/](?:lazy-dynamic[\\/](?:dynamic-bailout-to-csr|preload-chunks|react-browser-bailout|loadable)\.js$|app-dynamic\.js$)|api[\\/]app-dynamic\.js$|server[\\/]app-render[\\/](?:work-async-storage\.external|work-async-storage-instance|async-local-storage)\.js$)/
     const eligible = (module) => {
       const resource = module.nameForCondition?.()
       return Boolean(resource && !/\.(?:css|scss|sass|less|styl)(?:$|\?)/i.test(resource) && (initialSharedSource.test(resource) || initialDynamicHelper.test(resource)))

@@ -137,6 +137,14 @@ describe("shared layout chunks preserve initial entrypoint ownership", () => {
         "herewovenDashboardLayout",
         owners,
         true,
+        "/repo/node_modules/next/dist/shared/lib/lazy-dynamic/future.js",
+      ),
+    ).toBe(false);
+    expect(
+      admitted(
+        "herewovenDashboardLayout",
+        owners,
+        true,
         "/repo/node_modules/next/dist/client/unrelated.js",
       ),
     ).toBe(false);
