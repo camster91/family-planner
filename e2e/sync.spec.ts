@@ -1107,8 +1107,12 @@ test.describe("offline grocery ticks: Family A parent", () => {
     await conflict
       .getByRole("button", { name: "Discard change to Sync jam" })
       .click();
-    await expect(conflict).not.toHaveAttribute("data-sync-state", /.+/);
-    await expect(conflict.getByRole("checkbox")).toHaveAttribute(
+    // Keep the canonical row locator across the state transition. The
+    // conflict-specific locator stops matching as soon as discard clears the
+    // queue state, which makes absence assertions fail before they can observe
+    // the settled row.
+    await expect(item).not.toHaveAttribute("data-sync-state", /.+/);
+    await expect(item.getByRole("checkbox")).toHaveAttribute(
       "aria-checked",
       "false",
     );
