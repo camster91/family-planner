@@ -96,9 +96,13 @@ const nextConfig = {
     // features and modules used by another initial route stay with Next's
     // ordinary splitting. Styles keep their existing chunking and order.
     const initialSharedSource = /(?:[\\/]src[\\/]|[\\/]node_modules[\\/]lucide-react[\\/]dist[\\/]esm[\\/])/
+    // Next's dynamic component helpers are already eager in the dashboard
+    // layout but can be copied into hydration chunks. Admit only these known
+    // helpers, still subject to the same proved initial-owner boundary below.
+    const initialDynamicHelper = /[\\/]node_modules[\\/]next[\\/]dist[\\/](?:shared[\\/]lib[\\/](?:lazy-dynamic[\\/]|app-dynamic\.js$)|api[\\/]app-dynamic\.js$|server[\\/]app-render[\\/](?:work-async-storage\.external|work-async-storage-instance|async-local-storage)\.js$)/
     const eligible = (module) => {
       const resource = module.nameForCondition?.()
-      return Boolean(resource && !/\.(?:css|scss|sass|less|styl)(?:$|\?)/i.test(resource) && initialSharedSource.test(resource))
+      return Boolean(resource && !/\.(?:css|scss|sass|less|styl)(?:$|\?)/i.test(resource) && (initialSharedSource.test(resource) || initialDynamicHelper.test(resource)))
     }
     // Shared initial chunks can be unnamed. Their initial entrypoint groups,
     // rather than a nullable chunk name, establish who already needs a module.

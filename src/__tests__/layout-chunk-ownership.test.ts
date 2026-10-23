@@ -103,6 +103,52 @@ describe("shared layout chunks preserve initial entrypoint ownership", () => {
       ),
     ).toBe(false);
   });
+  test("deduplicates only known dynamic helpers with proved dashboard ownership", () => {
+    const owners = ["app/dashboard/layout", "app/dashboard/today/page"];
+    expect(
+      admitted(
+        "herewovenDashboardLayout",
+        owners,
+        true,
+        "/repo/node_modules/next/dist/shared/lib/lazy-dynamic/loadable.js",
+      ),
+    ).toBe(true);
+    expect(
+      admitted(
+        "herewovenDashboardLayout",
+        [...owners, "app/(auth)/login/page"],
+        true,
+        "/repo/node_modules/next/dist/shared/lib/lazy-dynamic/loadable.js",
+      ),
+    ).toBe(false);
+    expect(
+      admitted(
+        "herewovenDashboardLayout",
+        owners,
+        false,
+        "/repo/node_modules/next/dist/shared/lib/lazy-dynamic/loadable.js",
+      ),
+    ).toBe(false);
+  });
+  test("leaves unrelated framework and validation modules in their own pipeline", () => {
+    const owners = ["app/dashboard/layout", "app/dashboard/today/page"];
+    expect(
+      admitted(
+        "herewovenDashboardLayout",
+        owners,
+        true,
+        "/repo/node_modules/next/dist/client/unrelated.js",
+      ),
+    ).toBe(false);
+    expect(
+      admitted(
+        "herewovenDashboardLayout",
+        owners,
+        true,
+        "/repo/node_modules/zod/v4/classic/schemas.js",
+      ),
+    ).toBe(false);
+  });
   test("root code still requires initial root ownership", () => {
     expect(
       admitted("herewovenRootLayout", ["app/layout", "app/(auth)/login/page"]),
