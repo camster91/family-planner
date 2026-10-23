@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import {
   calendarPageMessages,
   type CalendarPageMessage,
@@ -47,7 +47,7 @@ export default function CalendarPageClient({
   calendarSyncAvailable = false,
   monthFromUrl = true,
 }: CalendarPageClientProps) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (
     key: CalendarPageMessage,
     params?: Record<string, string | number>,
@@ -97,7 +97,10 @@ export default function CalendarPageClient({
       {importOpen && (
         <React.Suspense
           fallback={
-            <p role="status" className="px-4 text-footnote text-label-secondary">
+            <p
+              role="status"
+              className="px-4 text-footnote text-label-secondary"
+            >
               {t("common.loading")}
             </p>
           }
@@ -128,7 +131,7 @@ export function SourceBadge({
   name: string;
   color: string | null;
 }) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (
     key: CalendarPageMessage,
     params?: Record<string, string | number>,
@@ -166,7 +169,7 @@ export function ImportUndoToast({
   onDismiss: () => void;
   onUndone: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (
     key: CalendarPageMessage,
     params?: Record<string, string | number>,

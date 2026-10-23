@@ -3,7 +3,7 @@ import { PreparationButton } from "@/components/calendar/preparation/Preparation
 import { ScheduleReviewButton } from "@/components/calendar/review/ScheduleReviewProvider";
 import * as React from "react";
 import Link from "next/link";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import {
   calendarPlannerMessages,
   type CalendarPlannerMessage,
@@ -56,7 +56,7 @@ export function CalendarPlanner({
   chooseLocalToday?: boolean;
   headerAction?: React.ReactNode;
 }) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (
     key: CalendarPlannerMessage,
     params?: Record<string, string | number>,

@@ -27,7 +27,7 @@ import {
 import { CAPTURE_CHILD_MESSAGE } from "@/lib/role-capabilities";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { localDateTimeToISO } from "@/lib/dates";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import { captureMessages, type CaptureMessage } from "@/i18n/capture";
 import { Dialog } from "@/components/ui/dialog";
 import {
@@ -72,87 +72,6 @@ function recoveryBoundaryErrorKind(
   if (error.key === "recoveryAccessUnavailable") return "access";
   if (error.key === "recoveryStorageUnavailable") return "storage";
   return null;
-}
-
-// Shrink a photo before sending it to the model. A phone photo is several MB;
-// the model only needs enough detail to read dates. This keeps upload and cost
-// low, and always returns a JPEG data payload.
-async function downscaleImage(
-  file: File,
-  maxEdge = 1600,
-  signal?: AbortSignal,
-): Promise<{ base64: string; mimeType: string }> {
-  if (signal?.aborted) throw new CaptureClientError("readInterrupted");
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    const cleanup = () => {
-      signal?.removeEventListener("abort", stop);
-      reader.onload = null;
-      reader.onerror = null;
-      reader.onabort = null;
-    };
-    const stop = () => {
-      cleanup();
-      reader.abort();
-      reject(new CaptureClientError("readInterrupted"));
-    };
-    reader.onload = () => {
-      const value = String(reader.result);
-      cleanup();
-      resolve(value);
-    };
-    reader.onerror = () => {
-      cleanup();
-      reject(new CaptureClientError("fileReadFailed"));
-    };
-    reader.onabort = () => {
-      cleanup();
-      reject(new CaptureClientError("readInterrupted"));
-    };
-    signal?.addEventListener("abort", stop, { once: true });
-    reader.readAsDataURL(file);
-  });
-  if (signal?.aborted) throw new CaptureClientError("readInterrupted");
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const el = new Image();
-    const cleanup = () => {
-      signal?.removeEventListener("abort", stop);
-      el.onload = null;
-      el.onerror = null;
-    };
-    const stop = () => {
-      cleanup();
-      el.removeAttribute("src");
-      reject(new CaptureClientError("readInterrupted"));
-    };
-    el.onload = () => {
-      cleanup();
-      resolve(el);
-    };
-    el.onerror = () => {
-      cleanup();
-      el.removeAttribute("src");
-      reject(new CaptureClientError("imageReadFailed"));
-    };
-    signal?.addEventListener("abort", stop, { once: true });
-    el.src = dataUrl;
-  });
-  const canvas = document.createElement("canvas");
-  try {
-    if (signal?.aborted) throw new CaptureClientError("readInterrupted");
-    const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
-    canvas.width = Math.max(1, Math.round(img.width * scale));
-    canvas.height = Math.max(1, Math.round(img.height * scale));
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new CaptureClientError("imageProcessFailed");
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    const out = canvas.toDataURL("image/jpeg", 0.82);
-    return { base64: out.split(",")[1] || "", mimeType: "image/jpeg" };
-  } finally {
-    img.removeAttribute("src");
-    canvas.width = 0;
-    canvas.height = 0;
-  }
 }
 
 const KIND_MESSAGE: Record<DraftKind, CaptureMessage> = {
@@ -281,7 +200,7 @@ export function LegacyCaptureBox({
   recoveryOnly?: boolean;
   privacyHidden?: boolean;
 } = {}) {
-  const { locale, t } = useTranslation();
+  const { locale, t } = useCoreTranslation();
   const msg = (key: CaptureMessage, params?: Record<string, string | number>) =>
     t(key, params, captureMessages);
   const localizeError = (error: unknown, fallback: CaptureMessage) =>
@@ -1180,7 +1099,17 @@ export function LegacyCaptureBox({
         async (signal) => {
           // This deadline also covers FileReader/image decode. An ignored abort
           // may finish decoding later, but must never start a provider request.
-          const { base64, mimeType } = await downscaleImage(file, 1600, signal);
+          const { downscaleImage } = await import("./capture-photo-helper");
+          if (!current() || signal.aborted)
+            throw new CaptureClientError("readInterrupted");
+          const { base64, mimeType } = await downscaleImage(
+            file,
+            1600,
+            signal,
+            (key) => new CaptureClientError(key),
+          );
+          if (!current() || signal.aborted)
+            throw new CaptureClientError("readInterrupted");
           if (signal.aborted) throw new Error("Capture read stopped");
           const response = await fetch("/api/capture", {
             method: "POST",
