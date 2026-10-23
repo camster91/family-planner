@@ -1,5 +1,17 @@
 # Current State
 
+## Repaired source handed back to consolidated QA — 2026-10-22
+
+Local commit2349bae6 completes the known inventory code repairs after renewed
+test deferral. Source inspection traced the updated intake/change/read envelopes,
+foreground recovery, collision exclusion and fixture cleanup against their
+canonical implementations. The prior requirement-by-requirement source audit
+continues to cover the approved web scope; no new speculative scope is added.
+Consolidated verification can resume on this integrated candidate. Existing
+hosted39874900393 jobs remain on2125c339; their pending/failing results cannot
+validate these repairs. No release readiness, production change or issue closure
+is claimed. Native/provider/operator/customer acceptance stays separate.
+
 ## Renewed test deferral and inventory repairs — 2026-10-22
 
 Cameron asked again to finish code and known repairs before more test runs.
