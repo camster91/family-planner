@@ -268,6 +268,8 @@ test.describe("Family A parent", () => {
       "/dashboard/lists",
     ]) {
       await page.goto(path);
+      if (path === "/dashboard")
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
       await expect(page.locator("#main-content")).toBeVisible();
       const text = await page.locator("body").innerText();
       for (const title of FAMILY_B_ONLY) {
@@ -293,6 +295,10 @@ test.describe("Family A parent", () => {
 
   test("collection APIs return no Family B rows", async ({ page }) => {
     await page.goto("/dashboard");
+    // The parent home redirects through the server-rendered dashboard route.
+    // Wait for that navigation before evaluating fetch in its browser context.
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
+    await expect(page.locator("#main-content")).toBeVisible();
     for (const path of [
       "/api/chores",
       "/api/events",
@@ -509,6 +515,7 @@ test.describe("Family A child — handoff and allowance (D2, D5)", () => {
     });
     const parent = await parentCtx.newPage();
     await parent.goto("/dashboard");
+    await expect(parent).toHaveURL(/\/dashboard\/today$/);
     const original = JSON.parse(
       (await browserFetch(parent, "/api/family/features")).body,
     ).features;

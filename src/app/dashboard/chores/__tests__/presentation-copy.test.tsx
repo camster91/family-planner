@@ -82,7 +82,7 @@ it("keeps localized dates and routine metadata beside verbatim household names",
   });
   await u.click(disclosure);
   expect(
-    screen.getByRole("checkbox", { name: "Pack lunch 原" }),
+    await screen.findByRole("checkbox", { name: "Pack lunch 原" }),
   ).toBeInTheDocument();
   expect(
     screen.getByText(

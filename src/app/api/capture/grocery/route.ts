@@ -1,4 +1,5 @@
-import { z } from 'zod'
+import { guardReviewDocumentSubmission } from '@/lib/review-document-submit-server'
+import { captureGrocerySchema } from '@/lib/capture-grocery-contract'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
@@ -13,13 +14,8 @@ import { RequestBodyTooLargeError, readBoundedJson } from '@/lib/bounded-body'
 
 export const dynamic = 'force-dynamic'
 
-// One short item plus its quantity; anything near this size is not a capture.
+// One short item plus quantity, bounded before canonical parsing.
 const MAX_CAPTURE_GROCERY_BYTES = 16 * 1024
-
-const captureGrocerySchema = z.object({
-  content: z.string().trim().min(1).max(500),
-  quantity: z.number().int().min(1).max(9999).default(1),
-})
 
 /**
  * Resolve the household grocery list and add the captured item in one keyed
@@ -30,6 +26,9 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+    const reviewRefusal = guardReviewDocumentSubmission(request, auth, 'capture.grocery.add')
+    if (reviewRefusal) return reviewRefusal
+
     const gate = await featureGate(auth.user.family_id, 'lists')
     if (gate) return gate
     if (!canCreateList(auth.user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

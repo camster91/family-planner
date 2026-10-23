@@ -8,9 +8,12 @@ const mockPrisma = {
   user: { findUnique: jest.fn() },
   list: { findFirst: jest.fn() },
   listItem: { findMany: jest.fn() },
+  $transaction: jest.fn(
+    async (run: (tx: unknown) => unknown): Promise<unknown> => run(mockPrisma),
+  ),
 };
 jest.mock("@/lib/supabase/server", () => ({
-  getServerUser: () => mockSession(),
+  getServerActor: () => mockSession(),
 }));
 jest.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 jest.mock("next/navigation", () => ({
@@ -26,10 +29,17 @@ import ListDetailPage from "../page";
 beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
-  mockSession.mockResolvedValue({ id: "parent-a", role: "parent" });
+  mockSession.mockResolvedValue({
+    id: "parent-a",
+    role: "parent",
+    family_id: "family-a",
+    tokenVersion: 0,
+  });
   mockPrisma.user.findUnique.mockResolvedValue({
     id: "parent-a",
     family_id: "family-a",
+    role: "parent",
+    token_version: 0,
   });
   mockPrisma.list.findFirst.mockResolvedValue({
     id: "list-a",
@@ -51,9 +61,10 @@ async function show(type?: string | string[], locale: "en" | "es" = "en") {
 
 it("returns to the filtered overview while keeping the read household scoped", async () => {
   await show("todo");
-  expect(
-    screen.getByRole("link", { name: "Lists" }),
-  ).toHaveAttribute("href", "/dashboard/lists?type=todo");
+  expect(screen.getByRole("link", { name: "Lists" })).toHaveAttribute(
+    "href",
+    "/dashboard/lists?type=todo",
+  );
   expect(mockPrisma.list.findFirst.mock.calls[0][0].where).toEqual({
     id: "list-a",
     family_id: "family-a",
@@ -67,9 +78,10 @@ it.each([undefined, "unknown", "https://example.test/leave"])(
   "falls back to the canonical overview for %s",
   async (type) => {
     await show(type);
-    expect(
-      screen.getByRole("link", { name: "Lists" }),
-    ).toHaveAttribute("href", "/dashboard/lists");
+    expect(screen.getByRole("link", { name: "Lists" })).toHaveAttribute(
+      "href",
+      "/dashboard/lists",
+    );
   },
 );
 
@@ -77,20 +89,33 @@ it("keeps context for missing lists without adding delete authority", async () =
   mockPrisma.list.findFirst.mockResolvedValue(null);
   await show(["grocery", "todo"]);
   expect(screen.getByRole("heading", { name: "List not found" })).toBeVisible();
-  expect(
-    screen.getByRole("link", { name: "Lists" }),
-  ).toHaveAttribute("href", "/dashboard/lists?type=grocery");
+  expect(screen.getByRole("link", { name: "Lists" })).toHaveAttribute(
+    "href",
+    "/dashboard/lists?type=grocery",
+  );
   expect(
     screen.queryByRole("button", { name: /Delete list/ }),
   ).not.toBeInTheDocument();
 });
 
 it("localizes the back link and retains child delete restrictions", async () => {
-  mockSession.mockResolvedValue({ id: "child-a", role: "child" });
+  mockSession.mockResolvedValue({
+    id: "child-a",
+    role: "child",
+    family_id: "family-a",
+    tokenVersion: 0,
+  });
+  mockPrisma.user.findUnique.mockResolvedValue({
+    id: "child-a",
+    family_id: "family-a",
+    role: "child",
+    token_version: 0,
+  });
   await show("todo", "es");
-  expect(
-    screen.getByRole("link", { name: "Listas" }),
-  ).toHaveAttribute("href", "/dashboard/lists?type=todo");
+  expect(screen.getByRole("link", { name: "Listas" })).toHaveAttribute(
+    "href",
+    "/dashboard/lists?type=todo",
+  );
   expect(
     screen.queryByRole("button", { name: /Eliminar lista/ }),
   ).not.toBeInTheDocument();

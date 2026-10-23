@@ -1,3 +1,4 @@
+import { rewriteRoutineSubjectsInTx } from "@/lib/routine-subject-lifecycle";
 /** #480 internal command core. No route/client activation until domain/capability migration. */
 import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
@@ -231,6 +232,10 @@ export async function manageHouseholdProfile(
                 revision: { increment: 1 },
               },
         select: display,
+      });
+      await rewriteRoutineSubjectsInTx(tx, actor.familyId, {
+        kind: "invalidate",
+        memberIds: [member.id],
       });
     }
     // Effect and replay record commit together. No mailbox, account, session,

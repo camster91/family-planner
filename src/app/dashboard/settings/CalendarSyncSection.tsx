@@ -101,7 +101,11 @@ function statusText(
   }).text;
 }
 
-export default function CalendarSyncSection() {
+export default function CalendarSyncSection({
+  onProviderReturn,
+}: {
+  onProviderReturn?: () => void;
+} = {}) {
   const copy = useSettingsCopy();
   const syncCopy = useCalendarSyncCopy();
   const [available, setAvailable] = useState(false);
@@ -163,6 +167,7 @@ export default function CalendarSyncSection() {
           ? OUTCOMES[outcome]
           : undefined;
       if (known) {
+        onProviderReturn?.();
         if (known.ok) setNotice(settingsFeedback(known.key));
         else setError(settingsFeedback(known.key));
         const url = new URL(window.location.href);
@@ -172,7 +177,7 @@ export default function CalendarSyncSection() {
     } catch {
       // ignore
     }
-  }, [load]);
+  }, [load, onProviderReturn]);
 
   const replace = (c: Connection | null | undefined) => {
     if (!c) return;

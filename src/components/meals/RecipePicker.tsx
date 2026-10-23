@@ -14,7 +14,15 @@
 import * as React from "react";
 import { Plus } from "lucide-react";
 import type { MealRecipeSummary } from "@/lib/meal-slots";
-import { RecipeEditor as RecipeQuickCreate } from "./RecipeEditor";
+import { useTranslation } from "@/i18n";
+
+// Creating a recipe is an explicit secondary action. Keep the full recipe
+// editor out of the picker chunk until that action is chosen.
+const RecipeQuickCreate = React.lazy(() =>
+  import("./RecipeEditor").then((module) => ({
+    default: module.RecipeEditor,
+  })),
+);
 
 export type RecipeOption = MealRecipeSummary;
 
@@ -47,6 +55,7 @@ export function RecipePicker({
   /** Read synchronous ownership even from a pre-mutation event handler. */
   isMutationPending?: () => boolean;
 }) {
+  const { t } = useTranslation();
   const selectId = React.useId();
   const statusId = React.useId();
   const [recipes, setRecipes] = React.useState<RecipeOption[]>(() =>
@@ -181,16 +190,22 @@ export function RecipePicker({
         </div>
       )}
       {creating && (
-        <RecipeQuickCreate
-          onCreated={handleCreated}
-          onCancel={() => setCreating(false)}
-          onSavingChange={onCreatingChange}
-          disabled={disabled}
-          isMutationPending={isMutationPending}
-        />
+        <React.Suspense
+          fallback={
+            <p role="status" className="text-footnote text-label-secondary">
+              {t("common.loading")}
+            </p>
+          }
+        >
+          <RecipeQuickCreate
+            onCreated={handleCreated}
+            onCancel={() => setCreating(false)}
+            onSavingChange={onCreatingChange}
+            disabled={disabled}
+            isMutationPending={isMutationPending}
+          />
+        </React.Suspense>
       )}
     </div>
   );
 }
-
-export { RecipeEditor as RecipeQuickCreate } from "./RecipeEditor";

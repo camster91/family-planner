@@ -18,24 +18,8 @@
 import type { Prisma } from '@prisma/client'
 import { FEATURES, type FamilyFeatures, type FeatureKey } from '@/lib/features'
 
-export const AUDIT_ACTIONS = [
-  'feature.turned_on',
-  'feature.turned_off',
-  'member.joined',
-  'member.left',
-  // O-34: a parent removed a member; a parent got a new family code.
-  'member.removed',
-  'invite_code.rotated',
-  'board_settings.changed',
-  'device.paired',
-  'device.renamed',
-  'device.removed',
-  'invite.created',
-  'invite.revoked',
-  'beta_metrics.turned_on',
-  'beta_metrics.turned_off',
-] as const
-export type AuditAction = (typeof AUDIT_ACTIONS)[number]
+import { AUDIT_ACTIONS, type AuditAction } from "@/lib/household-audit-contract";
+export { AUDIT_ACTIONS, type AuditAction } from "@/lib/household-audit-contract";
 
 export type AuditActorKind = 'person' | 'device'
 export type AuditTargetType = 'family' | 'feature' | 'member' | 'device' | 'invite'
@@ -154,6 +138,7 @@ const REMOVE_REASON: Record<string, string> = {
 }
 
 export const auditSummary = {
+  memberRedacted: () => 'Member details removed after account deletion',
   memberJoined: (name: string | null | undefined, role: string) =>
     `${auditName(name, 'A former member')} joined as ${roleWord(role)}`,
   /** Role word only: the account and its name are being deleted (#292). */

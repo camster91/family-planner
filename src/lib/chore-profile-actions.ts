@@ -9,6 +9,7 @@ import type { ChoreWithSubject } from "@/lib/chore-profile";
 import { readChoreSubject } from "@/lib/chore-profile";
 import { expandSeriesInTx } from "@/lib/recurringChores";
 import { isProfileChoreRecurrenceSupported } from "@/lib/profile-chore-gates";
+import { routineOccurrencePolicyInTx } from "@/lib/routine-occurrence-policy";
 
 type ActionDb = Pick<PrismaClient, "$transaction">;
 
@@ -60,6 +61,7 @@ export type ProfileCompletionResult =
   | "already_completed"
   | "not_found"
   | "profile_unavailable"
+  | "routine_unavailable"
   | "not_due";
 
 /** Profile completion deliberately bypasses the User-only activity/XP path. */
@@ -105,8 +107,18 @@ export async function completeProfileChoreInTx(
     });
     if (!activeUnlinkedProfile(target, input.familyId, input.memberId))
       return "profile_unavailable";
-    let profileSeries = false;
-    if (chore.recurrence_id !== null) {
+    const routinePolicy = await routineOccurrencePolicyInTx(
+      tx,
+      input.familyId,
+      input.choreId,
+    );
+    if (routinePolicy === "inactive" || routinePolicy === "unsupported")
+      return "routine_unavailable";
+    // Scheduled copies own immutable per-occurrence subjects. A future definition
+    // may assign someone different from the historical root, including a profile.
+    let profileSeries =
+      routinePolicy === "scheduled" || routinePolicy === "scheduled-once";
+    if (!profileSeries && chore.recurrence_id !== null) {
       const template = await tx.chore.findFirst({
         where: { id: chore.recurrence_id, family_id: input.familyId },
         select: {
@@ -140,7 +152,11 @@ export async function completeProfileChoreInTx(
       return "profile_unavailable";
     // A rollback of the private recurrence opt-in retains pending work rather
     // than completing an old occurrence and attempting a new expansion.
-    if (profileSeries && !isProfileChoreRecurrenceSupported())
+    if (
+      profileSeries &&
+      routinePolicy !== "scheduled-once" &&
+      !isProfileChoreRecurrenceSupported()
+    )
       return "profile_unavailable";
     if (!isDueTodaySomewhere(chore.due_date, input.now)) return "not_due";
     const updated = await tx.chore.updateMany({
@@ -229,13 +245,23 @@ export async function reopenProfileChoreInTx(
     });
     if (!activeUnlinkedProfile(target, input.familyId, input.memberId))
       return "profile_unavailable";
+    const routinePolicy = await routineOccurrencePolicyInTx(
+      tx,
+      input.familyId,
+      input.choreId,
+    );
+    if (routinePolicy === "unsupported") return "profile_unavailable";
     // The profile recurrence gate covers undo as well as completion. This
     // avoids changing an old repeated occurrence while expansion is disabled.
     if (
-      (chore.recurrence_id != null ||
-        (chore.frequency != null && chore.frequency !== "once"))
+      chore.recurrence_id != null ||
+      (chore.frequency != null && chore.frequency !== "once")
     ) {
-      if (!isProfileChoreRecurrenceSupported()) return "profile_unavailable";
+      if (
+        routinePolicy !== "scheduled-once" &&
+        !isProfileChoreRecurrenceSupported()
+      )
+        return "profile_unavailable";
     }
     if (chore.status === "verified") return "verified";
     const since = new Date(input.now.getTime() - input.windowMs);
@@ -323,6 +349,7 @@ export function isProfileChoreSubject(
   return (
     chore.assigned_to === null &&
     chore.assigned_member_id != null &&
+    chore.assigneeMember?.archived_at === null &&
     readChoreSubject(chore, familyId)?.kind === "profile"
   );
 }
@@ -351,8 +378,19 @@ export async function profileSubjectForVerify(
       },
     },
   });
-  if (!row) return null;
-  if (row.recurrence_id !== null && !isProfileChoreRecurrenceSupported())
+  if (!row || row.assigneeMember?.archived_at !== null) return null;
+  const routinePolicy = await routineOccurrencePolicyInTx(
+    tx,
+    familyId,
+    choreId,
+  );
+  if (routinePolicy === "unsupported" || routinePolicy === "inactive")
+    return null;
+  if (
+    row.recurrence_id !== null &&
+    routinePolicy !== "scheduled-once" &&
+    !isProfileChoreRecurrenceSupported()
+  )
     return null;
   const subject = readChoreSubject(row, familyId);
   return subject?.kind === "profile" ? subject : null;

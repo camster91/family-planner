@@ -76,6 +76,23 @@ async function capture(
     fullPage: (await dialog.count()) === 0,
   });
 }
+
+async function openSourceFilter(
+  page: Page,
+  labels: { source: string; showCalendars: string },
+) {
+  const source = page.getByRole("combobox", {
+    name: labels.source,
+    exact: true,
+  });
+  if (!(await source.isVisible())) {
+    await page
+      .getByRole("button", { name: labels.showCalendars, exact: true })
+      .click();
+  }
+  await expect(source).toBeVisible();
+  return source;
+}
 test.use({ storageState: authFile("parentA"), timezoneId: "America/Toronto" });
 test.beforeEach(async ({ page, context, baseURL }, info) => {
   test.skip(
@@ -94,6 +111,7 @@ test.beforeEach(async ({ page, context, baseURL }, info) => {
       : route.abort();
   });
   await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/dashboard\/today$/);
   const auth = await browserFetch(page, "/api/auth/me");
   expect(auth.status).toBe(200);
   expect(JSON.parse(auth.body).user.role).toBe("parent");
@@ -159,9 +177,12 @@ for (const locale of ["en", "es"] as const) {
     ]);
     await page.keyboard.press("Escape");
     await expect(dentist).toBeFocused();
-    await page
-      .getByRole("combobox", { name: p("source"), exact: true })
-      .selectOption("connected");
+    await (
+      await openSourceFilter(page, {
+        source: p("source"),
+        showCalendars: p("showCalendars"),
+      })
+    ).selectOption("connected");
     await expect(
       page.getByRole("heading", { name: p("emptySource") }),
     ).toBeVisible();

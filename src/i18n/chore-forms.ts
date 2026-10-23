@@ -4,6 +4,9 @@ import type { RoutineIconKey } from "@/lib/routine-icons";
 export const choreFormsEnglish = {
   back: "Chores",
   backToChores: "Back to Chores",
+  sheetCloseLabel: "Close and return",
+  sheetDraftDescription: "Close to return. Unsaved changes will be cleared.",
+  sheetPendingDescription: "Please wait for saving or uploading to finish.",
   newTitle: "New Chore",
   newDescription: "Assign a task to a family member.",
   editTitle: "Edit Chore",
@@ -21,6 +24,11 @@ export const choreFormsEnglish = {
   repeatWeekdays: "on the selected weekdays",
   repeatDaily: "every day",
   repeatMonthly: "every month",
+  weeklyStartLater: "Start later (optional)",
+  weeklyStart: "Starts on or after",
+  weeklyStartHelp:
+    "Leave empty to use today. The first chore falls on a selected weekday on or after this date.",
+  weeklyStartInvalid: "Choose today or a later valid start date.",
   dueDate: "Due Date",
   details: "Details",
   detailsPoints: "Details & points",
@@ -130,6 +138,10 @@ export type ChoreFormMessage = keyof typeof choreFormsEnglish;
 export const choreFormsSpanish: Record<ChoreFormMessage, string> = {
   back: "Tareas",
   backToChores: "Volver a tareas",
+  sheetCloseLabel: "Cerrar y volver",
+  sheetDraftDescription:
+    "Cierra para volver. Se borrarán los cambios sin guardar.",
+  sheetPendingDescription: "Espera a que termine de guardar o subir la foto.",
   newTitle: "Nueva tarea",
   newDescription: "Asigna una tarea a un familiar.",
   editTitle: "Editar tarea",
@@ -147,6 +159,11 @@ export const choreFormsSpanish: Record<ChoreFormMessage, string> = {
   repeatWeekdays: "en los días seleccionados",
   repeatDaily: "cada día",
   repeatMonthly: "cada mes",
+  weeklyStartLater: "Empezar más tarde (opcional)",
+  weeklyStart: "Empezar este día o después",
+  weeklyStartHelp:
+    "Déjalo vacío para usar hoy. La primera tarea será un día seleccionado en esta fecha o después.",
+  weeklyStartInvalid: "Elige hoy u otra fecha válida posterior.",
   dueDate: "Fecha de vencimiento",
   details: "Detalles",
   detailsPoints: "Detalles y puntos",

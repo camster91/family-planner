@@ -19,8 +19,8 @@ export function LargeHeader({
   className?: string
 }) {
   return (
-    <header className={cn('flex items-end justify-between gap-4 px-1 pt-2 pb-4', className)}>
-      <div className="min-w-0">
+    <header className={cn('flex flex-wrap items-center justify-between gap-4 px-1 pt-2 pb-4', className)}>
+      <div className="min-w-0 flex-1 basis-[16rem]">
         {greeting && (
           <p className="text-subhead text-label-secondary mb-0.5">{greeting}</p>
         )}

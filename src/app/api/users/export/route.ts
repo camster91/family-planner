@@ -1,3 +1,7 @@
+import { exportAiUsage } from '@/lib/ai-usage-server'
+import { exportEventPreparation } from '@/lib/event-preparation/storage'
+import { exportWeeklyReset } from '@/lib/weekly-reset-storage'
+import { exportResponsibilityState } from '@/lib/responsibility-storage'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
@@ -81,11 +85,11 @@ export async function GET(request: NextRequest) {
       user, family, chores, lists, messages, events, rewards, notifications, activities,
       transactions, projects, recipes, mealPlans, shoppingLists, habits, habitLogs,
       earnedBadges, rewardRedemptions, familyGoals, importJobs, financeArchive,
-      meals, mealPrepSessions, mealBackfillJobs, inventory, inventoryAdjustments, grocerySectionPreferences, groceryShoppingSessions,
+      meals, mealPrepSessions, mealBackfillJobs, inventory, foodProducts, inventoryAdjustments, grocerySectionPreferences, groceryShoppingSessions,
       auditLog, betaMetrics,
       allowances, wishlistItems, sickDays, medications, emergencyContacts, anniversaries, pickups, pinnedNotes,
       familyLocations, handoffs, uploads, choreAssignments, calendarSubscriptions, calendarConnections,
-      pushSubscriptions, budgetCategories,
+      pushSubscriptions, budgetCategories, routineStacks,
     ] = await Promise.all([
       prisma!.user.findUnique({
         where: { id: userId },
@@ -94,6 +98,8 @@ export async function GET(request: NextRequest) {
           xp: true, level: true, streak: true, best_streak: true,
           avatar_url: true, last_chore_date: true,
           created_at: true, email_verified: true,
+          // The caller's own display choices; never another member's cache/preferences.
+          display_preferences: true, display_preferences_revision: true,
           // Notification preferences (#286); exported as `notificationPreferences`.
           ...NOTIFICATION_PREFERENCE_SELECT,
           // Quiet hours (#141, O-32); exported as `quietHours`.
@@ -176,7 +182,7 @@ export async function GET(request: NextRequest) {
       }),
       prisma!.recipe.findMany({
         where: { family: { members: { some: { id: userId } } } },
-        include: { ingredients: { include: { ingredient: true } } },
+        include: { ingredients: { include: { ingredient: true } }, collection_entries: { select: { collection_id: true } } },
       }),
       prisma!.mealPlan.findMany({
         where: { family: { members: { some: { id: userId } } } },
@@ -232,6 +238,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true, position: true, name: true, total_servings: true,
               reserve_storage: true, recipe_id: true, cook_id: true,
+              recipe_snapshot: true, recipe_snapshot_at: true,
               consumption: {
                 where: { family_id: familyId! },
                 select: {
@@ -264,11 +271,17 @@ export async function GET(request: NextRequest) {
         where: { family: { members: { some: { id: userId } } } },
         select: {
           id: true, name: true, ingredient_id: true, amount: true, unit: true,
+          barcode: true, product_brand: true, package_size: true, product_source: true,
           location: true, expires_on: true, date_kind: true, category: true, purchased_on: true,
           opened_on: true, status: true, finished_at: true, added_by: true, created_at: true, updated_at: true,
         },
         orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       }),
+      own && mayReadSubscriptions ? prisma!.foodProduct.findMany({
+        where: { family_id: familyId! },
+        select: { id: true, barcode: true, name: true, brand: true, package_size: true, origin: true, source_url: true, revision: true, updated_at: true },
+        orderBy: { id: 'asc' },
+      }) : none,
       // Inventory history (#158/#121): "Used it" / "Throw away" rows, same
       // audience as the items. No family_id and no idempotency request id.
       prisma!.inventoryAdjustment.findMany({
@@ -491,17 +504,45 @@ export async function GET(request: NextRequest) {
             orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
           })
         : none,
+      // Cross-member schedule definitions are parent controls, not child/account data.
+      // Explicit parent membership protects a late household change as well.
+      own && isParent
+        ? prisma!.routineStack.findMany({
+            where: { family_id: familyId, family: { members: { some: { id: userId, role: 'parent' } } } },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
     ])
 
+    const recipeCollections = familyId ? await prisma!.recipeCollection.findMany({
+      where: { family_id: familyId, family: { members: { some: { id: userId } } } },
+      select: { id: true, name: true, revision: true, created_at: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    }) : []
+
+    const weeklyReset = await exportWeeklyReset(prisma!, userId)
+    const responsibilityState = await exportResponsibilityState(prisma!, userId, familyId, me?.role)
+    const eventPreparation = await exportEventPreparation(prisma!, {
+      userId, familyId, role: me?.role,
+      eventIds: events.map(row => row.id), choreIds: chores.map(row => row.id),
+    })
+    const aiUsage = await exportAiUsage(prisma!, userId, familyId, me?.role)
     const exportData = {
+      ...(aiUsage === undefined ? {} : { aiUsage }),
       exportedAt: new Date().toISOString(),
+      ...(eventPreparation === undefined ? {} : { eventPreparation }),
+      ...(weeklyReset === undefined ? {} : { weeklyReset }),
+      ...(responsibilityState === undefined ? {} : { responsibilityState }),
       user,
       // Same shape as GET /api/users/preferences (#286).
       notificationPreferences: user ? preferencesFromRow(user) : null,
       quietHours: user ? quietHoursFromRow(user) : null,
       morningSummary: user ? morningSummaryFromRow(user) : null,
       family,
-      chores,
+      chores: chores.map(row => {
+        const { routine_series_config: futureDefinition, ...occurrence } = row as typeof row & { routine_series_config?: unknown }
+        return isParent ? { ...occurrence, ...(futureDefinition !== undefined ? { routine_series_config: futureDefinition } : {}) } : occurrence
+      }),
       lists,
       messages,
       events,
@@ -513,7 +554,9 @@ export async function GET(request: NextRequest) {
       meals,
       mealPrepSessions,
       recipes,
+      recipeCollections,
       inventory,
+      foodProducts,
       inventoryAdjustments,
       grocerySectionPreferences,
       groceryShoppingSessions,
@@ -545,6 +588,7 @@ export async function GET(request: NextRequest) {
       calendarConnections,
       pushSubscriptions,
       budgetCategories,
+      routineStacks,
     }
 
     return new NextResponse(JSON.stringify(exportData, null, 2), {

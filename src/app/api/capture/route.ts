@@ -1,3 +1,4 @@
+import { createAiUsageJob, type AiUsageJob } from '@/lib/ai-usage-server'
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import {
@@ -29,6 +30,18 @@ const MAX_CAPTURE_BODY_BYTES = MAX_IMAGE_BASE64_LENGTH + 64 * 1024
 // Returns PROPOSALS. Nothing is saved here — the user confirms first, which is
 // what makes a cheap model safe to use.
 export async function POST(request: NextRequest) {
+  const meter: { current: AiUsageJob } = { current: undefined }
+  try {
+    let response = await handlePOST(request, value => { meter.current = value })
+    if (response.status >= 200 && response.status < 300 && (process.env.FAMILY_AI_PROVIDER_DISABLED === "1" || (meter.current && !(await meter.current.replyAllowed())))) {
+      response = NextResponse.json({ error: "AI settings changed or calls were paused. Refresh before trying again.", code: "CAPTURE_SOURCE_CHANGED" }, { status: 409, headers: { "Cache-Control": "private, no-store" } })
+    }
+    response.headers.set("Cache-Control", "private, no-store")
+    await meter.current?.finish(response.status)
+    return response
+  } catch (error) { await meter.current?.finish(500); throw error }
+}
+async function handlePOST(request: NextRequest, setMeter: (value: AiUsageJob) => void) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
@@ -77,6 +90,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
 
+    const initialAuth = auth
+    async function proposalReply(body: unknown) {
+      const [current, refusal] = await authenticateWithFamily(request)
+      if (refusal) { refusal.headers.set('Cache-Control', 'private, no-store'); return refusal }
+      if (current.user.id !== initialAuth.user.id || current.user.family_id !== initialAuth.user.family_id || current.user.role !== initialAuth.user.role || (current.payload?.tv ?? 0) !== (initialAuth.payload?.tv ?? 0) || !canUseCapture(current.user.role)) {
+        return NextResponse.json({ error: 'Your account or household changed. Please try again.', code: 'CAPTURE_SOURCE_CHANGED' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+      }
+      const latest = await prisma!.family.findUnique({ where: { id: current.user.family_id }, select: { capture_ai_key_enc: true, capture_ai_base_url: true, capture_ai_model: true } })
+      const latestConfig = resolveCaptureConfig(latest)
+      // Credentials stay in memory: never log the differing values.
+      if (!latest || !latestConfig || JSON.stringify(latestConfig) !== JSON.stringify(config)) return NextResponse.json({ error: 'Capture settings changed. Please try again.', code: 'CAPTURE_SOURCE_CHANGED' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+      return NextResponse.json(body, { headers: { 'Cache-Control': 'private, no-store' } })
+    }
+
     // Image path: extract several events from a photo/screenshot.
     if (typeof body?.imageBase64 === 'string' && body.imageBase64) {
       if (body.imageBase64.length > MAX_IMAGE_BASE64_LENGTH) {
@@ -86,8 +113,10 @@ export async function POST(request: NextRequest) {
         typeof body.mimeType === 'string' && ALLOWED_IMAGE_TYPES.includes(body.mimeType)
           ? body.mimeType
           : 'image/jpeg'
-      const result = await draftFromImage(body.imageBase64, mimeType, config)
-      return NextResponse.json({ image: result })
+      const meter = createAiUsageJob(prisma!, { userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload?.tv ?? 0 }, config, 'capture_photo')
+      setMeter(meter)
+      const result = meter ? await draftFromImage(body.imageBase64, mimeType, config, meter.observer) : await draftFromImage(body.imageBase64, mimeType, config)
+      return await proposalReply({ image: result })
     }
 
     // Text path: one phrase, one draft.
@@ -96,8 +125,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Nothing to capture' }, { status: 400 })
     }
 
-    const draft = await draftFromText(text, config)
-    return NextResponse.json({ draft })
+    const meter = createAiUsageJob(prisma!, { userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload?.tv ?? 0 }, config, 'capture_text')
+    setMeter(meter)
+    const draft = meter ? await draftFromText(text, config, meter.observer) : await draftFromText(text, config)
+    return await proposalReply({ draft })
   } catch (error) {
     // Only messages written for users are returned; anything else (network
     // errors, DNS failures) stays in the server log.
@@ -112,7 +143,7 @@ export async function POST(request: NextRequest) {
 // GET /api/capture — is capture available for this family?
 export async function GET(request: NextRequest) {
   const [auth, error] = await authenticateWithFamily(request)
-  if (error) return error
+  if (error) { error.headers.set('Cache-Control', 'private, no-store'); return error }
 
   const family = await prisma!.family.findUnique({
     where: { id: auth.user.family_id },
@@ -130,10 +161,11 @@ export async function GET(request: NextRequest) {
     configured: Boolean(config),
     model: config?.model ?? null,
     allowed,
+    role: auth.user.role,
     // The browser uses this authenticated namespace to retain only confirmed
     // recovery envelopes. It never receives provider configuration or keys.
     userId: auth.user.id,
     familyId: auth.user.family_id,
     ...(allowed ? {} : { message: CAPTURE_CHILD_MESSAGE }),
-  })
+  }, { headers: { 'Cache-Control': 'private, no-store' } })
 }

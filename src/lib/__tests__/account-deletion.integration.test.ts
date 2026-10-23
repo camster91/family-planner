@@ -79,6 +79,13 @@ describeWithDatabase('account deletion against Postgres', () => {
     await db.householdMember.create({ data: { id: id('member'), family_id: f, name: 'Fixture child', role: 'child' } })
     await db.householdMemberLegacyMapping.create({ data: { member_id: id('member'), user_id: child, family_id: f } })
     await db.householdMemberAccountLink.create({ data: { member_id: id('member'), user_id: child, family_id: f, verified_at: t } })
+    await db.householdProfileLinkChallenge.create({ data: {
+      id: id('profile-challenge'), family_id: f, member_id: id('member'), issued_by: parent,
+      issued_token_version: 0, profile_revision: 0, token_hash: tokens.hashToken(id('profile-token')),
+      request_hash: 'a'.repeat(64), expires_at: later,
+    } })
+    await db.aiUsagePolicy.create({ data: { family_id: f } })
+    await db.aiUsageRequest.create({ data: { id: id('ai-request'), family_id: f, user_id: parent, job: 'assistant', created_at: t } })
     // Uploads (and the file on disk)
     const filename = h === 'a' ? 'a1a1a1a1a1a1a1a1.jpg' : 'b2b2b2b2b2b2b2b2.jpg'
     fs.writeFileSync(path.join(uploadDir, 'chores', filename), 'x')
@@ -107,6 +114,9 @@ describeWithDatabase('account deletion against Postgres', () => {
     })
     await db.chore.create({ data: { id: id('chore-parent'), family_id: f, title: 'Bins', assigned_to: teen, due_date: t, created_by: parent } })
     await db.choreAssignment.create({ data: { id: id('assign'), family_id: f, chore_id: id('chore'), assigned_to: child, due_date: t } })
+    await db.responsibilityState.create({ data: { id: id('responsibility'), family_id: f, chore_id: id('chore'), source_token: 'a'.repeat(64) } })
+    await db.eventPreparation.create({ data: { id: id('preparation'), family_id: f, event_id: id('event'), reviewed_event_source: 'b'.repeat(64) } })
+    await db.eventPreparationStep.create({ data: { id: id('prep-step'), family_id: f, preparation_id: id('preparation'), chore_id: id('chore'), position: 1 } })
     // Import provenance
     await db.importJob.create({ data: { id: id('job'), family_id: f, source_app: 'chorechamps', started_by: parent } })
     await db.importedRecord.create({
@@ -165,7 +175,10 @@ describeWithDatabase('account deletion against Postgres', () => {
     await db.handoff.create({ data: { id: id('handoff'), family_id: f, sitter_name: 'Sam', share_token: id('share-token'), share_expires_at: later, created_by: parent } })
     await db.sickDay.create({ data: { id: id('sick'), family_id: f, person_id: child, severity: 'mild', created_by: parent } })
     await db.medication.create({ data: { id: id('med'), family_id: f, sick_day_id: id('sick'), person_id: child, name: 'Syrup', dosage: '5ml', schedule: 'x', created_by: parent } })
-    // Inventory
+    // Inventory and private product recognition
+    await db.recipeCollection.create({ data: { id: id('recipe-collection'), family_id: f, name: 'Favorites', name_key: 'favorites' } })
+    await db.recipeCollectionEntry.create({ data: { recipe_id: id('recipe'), collection_id: id('recipe-collection'), family_id: f } })
+    await db.foodProduct.create({ data: { id: id("food-product"), family_id: f, barcode: "00036000291452", name: "Fixture product" } })
     await db.inventoryItem.create({ data: { id: id('inv'), family_id: f, name: 'Tomatoes', ingredient_id: id('ingredient'), added_by: parent } })
     await db.inventoryAdjustment.create({
       data: { id: id('adj'), family_id: f, item_id: id('inv'), kind: 'consume', status_before: 'active', status_after: 'consumed', item_version: t, actor_id: parent },
@@ -272,6 +285,32 @@ describeWithDatabase('account deletion against Postgres', () => {
     const a = await rowsOf('a')
     const missing = tables.map((t) => t.table_name).filter((t) => t !== 'User' && !a[t])
     expect(missing).toEqual([])
+  })
+
+  it.each([false, true])('erases exact personal import targets after account deletion (previously removed: %s)', async (removed) => {
+    const child = uid('a', 'child')
+    if (removed) {
+      const { removeHouseholdMember } = await import('@/lib/member-removal')
+      await removeHouseholdMember({ actorId: uid('a', 'parent'), familyId: fam('a'), targetId: child }, { revokeCalendarGrant: async () => undefined })
+    }
+    const target = `${P}-a-habit-log`
+    await prisma.habit.create({ data: { id: target, family_id: fam('a'), title: 'Shared habit with colliding model id', created_by: uid('a', 'parent') } })
+    const data = (id: string, h: string, target_model: string, target_id: string) => ({
+      id: `${P}-${id}`, family_id: fam(h), import_job_id: `${P}-${h}-job`,
+      source_app: 'chore-champs', source_model: target_model, source_id: `${P}-${id}`, target_model, target_id,
+    })
+    await prisma.importedRecord.createMany({ data: [
+      data('erase-personal', 'a', 'HabitLog', target),
+      data('keep-shared-model', 'a', 'Habit', target),
+      data('keep-other-household', 'b', 'HabitLog', target),
+    ] })
+    const beforeB = await rowsOf('b')
+    await lib.deleteMemberAccount(child, { uploadDir, revokeCalendarGrant: async () => undefined })
+    expect(await prisma.habitLog.findUnique({ where: { id: target } })).toBeNull()
+    expect(await prisma.importedRecord.findUnique({ where: { id: `${P}-erase-personal` } })).toBeNull()
+    expect(await prisma.importedRecord.findUnique({ where: { id: `${P}-keep-shared-model` } })).not.toBeNull()
+    expect(await prisma.habit.findUnique({ where: { id: target } })).not.toBeNull()
+    expect(await rowsOf('b')).toEqual(beforeB)
   })
 
   it('account erasure deletes the copied profile and links without changing another household', async () => {

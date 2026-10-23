@@ -15,9 +15,18 @@ export const calendarPlannerEnglish = {
   view: "Calendar view",
   day: "Day",
   week: "Week",
+  month: "Month",
+  loadingMonth: "Loading month…",
+  monthMore: "{count} more · open day",
+  monthScroll:
+    "Swipe sideways to see the full month. Open a day for its complete schedule.",
   agenda: "Agenda",
   add: "Add event",
   calendars: "Calendars",
+  showCalendars: "Show calendars and connections",
+  hideCalendars: "Hide calendars and connections",
+  scrollWeek:
+    "Swipe sideways for more days. Choose Agenda for a single-column view.",
   addConnection: "Add connection",
   connectProvider: "Connect Google or Outlook",
   providerUnavailableHelp:
@@ -105,9 +114,18 @@ export const calendarPlannerSpanish: Record<CalendarPlannerMessage, string> = {
   view: "Vista del calendario",
   day: "Día",
   week: "Semana",
+  month: "Mes",
+  loadingMonth: "Cargando mes…",
+  monthMore: "{count} más · abrir día",
+  monthScroll:
+    "Desliza hacia los lados para ver el mes completo. Abre un día para ver su agenda completa.",
   agenda: "Agenda",
   add: "Añadir evento",
   calendars: "Calendarios",
+  showCalendars: "Mostrar calendarios y conexiones",
+  hideCalendars: "Ocultar calendarios y conexiones",
+  scrollWeek:
+    "Desliza hacia los lados para ver más días. Elige Agenda para una sola columna.",
   addConnection: "Añadir conexión",
   connectProvider: "Conectar Google u Outlook",
   providerUnavailableHelp:

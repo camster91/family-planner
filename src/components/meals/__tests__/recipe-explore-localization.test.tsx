@@ -1,4 +1,7 @@
 /** @jest-environment jsdom */
+jest.mock("@/lib/review-document-browser", () =>
+  require("@/__tests__/helpers/legacy-recipe-review").legacyRecipeReviewMock(),
+);
 import * as React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -7,6 +10,7 @@ import { I18nProvider } from "@/i18n";
 import Explore from "@/app/dashboard/meals/explore/page";
 
 jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 jest.mock("@/components/ui/feature-gate", () => ({
@@ -29,6 +33,8 @@ function setupFetch(
   global.fetch = jest.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const href = String(url);
     if (href === "/api/auth/me") return response({ user: { role: "parent" } });
+    if (href === "/api/recipes/collections")
+      return response({ collections: [] });
     if (href.startsWith("/api/recipes?"))
       return (
         overrides.library?.() ?? response({ recipes: [], nextOffset: null })

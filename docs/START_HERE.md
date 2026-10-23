@@ -32,7 +32,18 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Shared device, inventory, dashboard, Android, observability, sync and graphics: #157–#163
 - Broader programme: #119–#146
 
+- Event preparation execution contract (#123): `docs/plans/event-preparation-v1.md` (source in progress; not activated or verified).
+- Unified review inbox (#123): `docs/plans/review-inbox-v1.md` (parent reads, owned draft adapters/recovery hosts and authorized change timeline source authored; consolidated QA remains).
+
 ## Engineering references
+
+- Current implementation-to-QA handoff: `docs/engineering/WEB_IMPLEMENTATION_HANDOFF.md` (source coverage only; runtime acceptance and release remain).
+
+- AI evaluation source/observation contract (#144): `docs/testing/AI_EVALUATION.md` (versioned builders/fixtures authored; no evaluation or provider run claimed).
+
+- Canonical bulk draft/action recovery (#123/#144): `docs/plans/meal-prep-recovery-v1.md` (contracts/endpoints/browser journal, panel-owned controller and bulk form/discovery/recovery source authored; parent inbox/personal weekly discovery source also authored; broader chat/provider coordination and all acceptance remain).
+
+- Grounded food planning (#123/#122/#144): `docs/plans/grounded-food-planning-v1.md` (canonical reads/planner, internal atomic write composition and signed read-review/source renewal authored; positive-row version source also authored; strict save/inspection and exact owned browser journal also authored; compact UI/inbox/grocery outcomes and optional metered AI ranking/draft adoption also authored; fixed chat handoff and opt-in choice counts also authored; wider semantic evaluation, migration acceptance and QA remain).
 
 - Execution order: `docs/engineering/EXECUTION_ORDER.md`
 - Agent backlog: `docs/engineering/AGENT_BACKLOG.md`
@@ -44,8 +55,14 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Testing: `docs/testing/**`
 - Design: `design/**`, `BRAND.md` and the Warm Paper visual system `docs/product/BRAND.md`
 - Navigation and information architecture (one home, tabs, More, undo): `docs/product/NAVIGATION.md`
+- Calendar interoperability source/acceptance (#124): `docs/product/CALENDAR_INTEROPERABILITY.md`
+- Product measurement and learning (#140): `docs/product/PRODUCT_MEASUREMENT.md`
 - Chores (parent check, picture routines for young kids, taking turns): `docs/product/CHORES.md`
+- Provider-free weekly reset (#123, source foundation; not activated): `docs/plans/weekly-reset-v1.md`
+- Schedule conflict review (#123, concrete-event planner/source/API/receipt/recovery/UI/weekly integration source; unverified): `docs/plans/schedule-conflict-review-v1.md`
+- Responsibility acceptance and backup (#123, consent/storage/API/recovery/canonical UI/weekly-review source; unverified): `docs/plans/responsibility-and-backup-v1.md`
 - Release/incident operations: `docs/runbooks/**` (including `BACKUPS.md`, `TRANSACTIONAL_EMAIL.md` and `SUPPORT.md`)
+- Preserved finance to native screens (#566): `docs/plans/finance-archive-product.md` (planning scope; no archive promotion)
 - Existing Coolify source-build deployment (2026-10-07 reconciliation; settings changes remain owner-gated): `docs/runbooks/COOLIFY_DEPLOY.md`
 - Design-partner beta operations (#107, #108): `docs/product/BETA_OPERATIONS.md`
 

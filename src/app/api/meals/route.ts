@@ -1,75 +1,119 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily } from '@/lib/api-auth'
-import { featureGate } from '@/lib/feature-gate-server'
-import { addUTCDays, parseDateOnly, startOfTodayUTC } from '@/lib/dates'
-import { MEAL_INCLUDE, resolveMealLink } from '@/lib/meal-recipe-link'
-import { recordBetaMetric } from '@/lib/beta-metrics'
-import { logRouteError } from '@/lib/api-error'
-import { getRequestId } from '@/lib/request-id'
-import { createMealSchema } from '@/lib/validations'
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { authenticateWithFamily } from "@/lib/api-auth";
+import { featureGate } from "@/lib/feature-gate-server";
+import { addUTCDays, parseDateOnly, startOfTodayUTC } from "@/lib/dates";
+import { MEAL_INCLUDE, resolveMealLink } from "@/lib/meal-recipe-link";
+import { recordBetaMetric } from "@/lib/beta-metrics";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
+import { createMealSchema } from "@/lib/validations";
+import {
+  parseMealPaging,
+  encodeMealCursor,
+  afterMealCursor,
+} from "@/lib/meal-paging";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
-const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const
-type MealType = typeof MEAL_TYPES[number]
+const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
+type MealType = (typeof MEAL_TYPES)[number];
 
 // GET - List meals for the current family.
 // Optional `start`/`end` (YYYY-MM-DD, end exclusive) select a date-only range;
 // otherwise returns the next 7 days starting from today (UTC).
 // Each meal carries `recipe` ({ id, title, prep_time, cook_time, servings })
 // when linked (ADR-0007), else null. Several meals may share a (date,
-// meal_type) slot (O-1); none is hidden or merged here.
+// meal_type) slot (O-1). Opt-in limit/cursor paging returns an explicit
+// continuation; old unpaged callers keep the complete plain meals response.
 export async function GET(request: NextRequest) {
   try {
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'meals')
-    if (gate) return gate
+    const gate = await featureGate(auth.user.family_id, "meals");
+    if (gate) return gate;
 
-    const { searchParams } = new URL(request.url)
-    const startParam = searchParams.get('start')
-    const endParam = searchParams.get('end')
+    const { searchParams } = new URL(request.url);
+    const startParam = searchParams.get("start");
+    const endParam = searchParams.get("end");
 
-    let rangeStart = startOfTodayUTC()
-    let rangeEnd = addUTCDays(rangeStart, 7)
+    let rangeStart = startOfTodayUTC();
+    let rangeEnd = addUTCDays(rangeStart, 7);
 
     if (startParam !== null) {
-      const parsed = parseDateOnly(startParam)
+      const parsed = parseDateOnly(startParam);
       if (!parsed) {
-        return NextResponse.json({ error: 'start must be YYYY-MM-DD' }, { status: 400 })
+        return NextResponse.json(
+          { error: "start must be YYYY-MM-DD" },
+          { status: 400 },
+        );
       }
-      rangeStart = parsed
-      rangeEnd = addUTCDays(parsed, 7)
+      rangeStart = parsed;
+      rangeEnd = addUTCDays(parsed, 7);
     }
     if (endParam !== null) {
-      const parsed = parseDateOnly(endParam)
+      const parsed = parseDateOnly(endParam);
       if (!parsed) {
-        return NextResponse.json({ error: 'end must be YYYY-MM-DD' }, { status: 400 })
+        return NextResponse.json(
+          { error: "end must be YYYY-MM-DD" },
+          { status: 400 },
+        );
       }
-      rangeEnd = parsed
+      rangeEnd = parsed;
     }
-    if (rangeEnd <= rangeStart || rangeEnd.getTime() - rangeStart.getTime() > 62 * 24 * 60 * 60 * 1000) {
-      return NextResponse.json({ error: 'Invalid date range' }, { status: 400 })
+    if (
+      rangeEnd <= rangeStart ||
+      rangeEnd.getTime() - rangeStart.getTime() > 62 * 24 * 60 * 60 * 1000
+    ) {
+      return NextResponse.json(
+        { error: "Invalid date range" },
+        { status: 400 },
+      );
     }
 
-    const meals = await prisma!.familyMeal.findMany({
+    const scope = {
+      familyId: auth.user.family_id,
+      start: rangeStart,
+      end: rangeEnd,
+    };
+    const paging = parseMealPaging(searchParams, scope);
+    if (!paging.ok)
+      return NextResponse.json({ error: paging.error }, { status: 400 });
+    const rows = await prisma!.familyMeal.findMany({
       where: {
         family_id: auth.user.family_id,
+        ...(paging.paged && paging.cursor
+          ? afterMealCursor(paging.cursor)
+          : {}),
         date: {
           gte: rangeStart,
           lt: rangeEnd,
         },
       },
       include: MEAL_INCLUDE,
-      orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-    })
-
-    return NextResponse.json({ meals })
+      orderBy: [{ date: "asc" }, { created_at: "asc" }, { id: "asc" }],
+      ...(paging.paged ? { take: paging.limit + 1 } : {}),
+    });
+    const hasMore = paging.paged && rows.length > paging.limit;
+    const meals = paging.paged ? rows.slice(0, paging.limit) : rows;
+    return NextResponse.json(
+      paging.paged
+        ? {
+            meals,
+            nextCursor: hasMore
+              ? encodeMealCursor(scope, meals[meals.length - 1])
+              : null,
+          }
+        : { meals },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (err) {
-    logRouteError('GET /api/meals', err, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logRouteError("GET /api/meals", err, getRequestId(request));
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 

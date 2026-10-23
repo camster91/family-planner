@@ -5,7 +5,7 @@ import { PostHogProvider } from '@/components/providers/posthog-provider'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 import { THEME_INIT_SCRIPT } from '@/lib/theme'
 import { ToastProvider } from '@/components/ui/toast'
-import { I18nProvider } from '@/i18n'
+import { CoreI18nProvider } from '@/i18n/core'
 import { isPseudolocaleEnabled } from '@/i18n/pseudo'
 import { CsrfFetchPatch } from '@/components/providers/csrf-fetch-patch'
 import { ServiceWorkerRegistration } from '@/components/providers/service-worker-registration'
@@ -135,13 +135,13 @@ export default function RootLayout({
         <SiteOfflineBanner />
         <ThemeProvider>
           <PostHogProvider>
-            <I18nProvider locale="en" persistLocale pseudolocalize={isPseudolocaleEnabled()}>
+            <CoreI18nProvider locale="en" persistLocale pseudolocalize={isPseudolocaleEnabled()}>
               <ToastProvider>
                 <div className="min-h-screen bg-[var(--surface-grouped)] text-label-primary antialiased">
                   {children}
                 </div>
               </ToastProvider>
-            </I18nProvider>
+            </CoreI18nProvider>
           </PostHogProvider>
         </ThemeProvider>
       </body>

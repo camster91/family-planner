@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { getPersonQueue } from '@/lib/offline-queue-browser'
+import { getPersonQueue } from '@/lib/person-queue-browser'
 import { QueueError, isCheckedOperation, type OfflineQueue, type CheckedQueuedOperation } from '@/lib/offline-queue'
 
 export type SyncNotice = 'queue-full' | 'signed-out' | 'dropped' | 'compatible-client' | null

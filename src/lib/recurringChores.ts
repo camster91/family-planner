@@ -1,3 +1,7 @@
+import { isProfileChoreRecurrenceSupported } from '@/lib/profile-chore-gates'
+import { topUpScheduledOnceSteps } from '@/lib/routine-once-top-up'
+import { nextDueDate, startOfDay } from '@/lib/chore-recurrence-dates'
+export { nextDueDate, startOfDay } from '@/lib/chore-recurrence-dates'
 import { normalizedWeekdays, nextSelectedWeekday } from '@/lib/chore-weekdays'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
@@ -6,8 +10,8 @@ import type { ChoreFrequency } from '@/types'
 import { planRotationTurns } from '@/lib/chore-rotation'
 import { eligibleChoreAssigneeInTx } from '@/lib/chore-member-subject'
 import { lockHousehold } from '@/lib/household-lock'
-import { isProfileAgeAllowed, profileRoleSchema } from '@/lib/member-subject-contract'
-import { isProfileChoreRecurrenceSupported } from '@/lib/profile-chore-gates'
+import { eligibleProfileChoreAssigneeInTx } from '@/lib/chore-profile-assignee'
+import { expandRoutineScheduleInTx } from '@/lib/routine-schedule-expansion'
 
 const FREQUENCY_CONFIG: Record<Exclude<ChoreFrequency, 'once'>, { occurrences: number; unit: 'day' | 'week' | 'month'; amount: number }> = {
   daily: { occurrences: 7, unit: 'day', amount: 1 },
@@ -15,53 +19,10 @@ const FREQUENCY_CONFIG: Record<Exclude<ChoreFrequency, 'once'>, { occurrences: n
   monthly: { occurrences: 3, unit: 'day', amount: 30 },
 }
 
-/**
- * Next due date for one interval after `from`.
- *
- * Exported so the completion path in `/api/chores/complete` uses the SAME rule.
- * Previously the expander advanced monthly by `setDate(+30)` while completion
- * advanced by `setMonth(+1)`; across a month boundary those disagree (#184).
- */
-export function nextDueDate(from: Date, frequency: string, weeklyDays: readonly number[] = [], monthlyAnchorDay = from.getUTCDate()): Date | null {
-  // UTC throughout: due dates are stored as UTC midnight (the date pickers
-  // send `YYYY-MM-DD`), so the result must not depend on the server's time
-  // zone. Local `setHours`/`setDate` moved a UTC-midnight date to the
-  // previous local day, and the next date landed on local midnight.
-  const d = startOfDay(from)
-
-  switch (frequency) {
-    case 'daily':
-      d.setUTCDate(d.getUTCDate() + 1)
-      return d
-    case 'weekly':
-      if (normalizedWeekdays(weeklyDays).length) return nextSelectedWeekday(d, weeklyDays)
-      d.setUTCDate(d.getUTCDate() + 7)
-      return d
-    case 'monthly': {
-      // Keep the template's day, clamping only this occurrence in short months.
-      // Move from day 1 so JavaScript cannot overflow Jan 31 into March.
-      d.setUTCDate(1)
-      d.setUTCMonth(d.getUTCMonth() + 1)
-      const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
-      d.setUTCDate(Math.min(monthlyAnchorDay, lastDay))
-      return d
-    }
-    default:
-      return null
-  }
-}
-
 const WINDOW_SIZE: Record<Exclude<ChoreFrequency, 'once'>, number> = {
   daily: 7,
   weekly: 4,
   monthly: 3,
-}
-
-/** Midnight UTC of the same UTC calendar day. Due dates are stored at UTC midnight. */
-export function startOfDay(d: Date): Date {
-  const out = new Date(d)
-  out.setUTCHours(0, 0, 0, 0)
-  return out
 }
 
 /**
@@ -122,7 +83,15 @@ export async function expandSeriesInTx(
   })
 
   // Household-scoped: a template of another household is never expanded.
-  if (!original || original.family_id !== familyId || original.frequency === 'once') return 0
+  if (!original || original.family_id !== familyId) return 0
+  // Definitions are authoritative even when the historical root is a one-off.
+  // Unsupported metadata never falls back to legacy snapshot fields.
+  const definition = await tx.$queryRaw<{ routine_series_config: unknown }[]>`
+    SELECT "routine_series_config" FROM "Chore" WHERE "id" = ${templateId} AND "family_id" = ${familyId}`
+  if (definition.some(row => row.routine_series_config != null)) {
+    return expandRoutineScheduleInTx(tx, original, definition[0].routine_series_config, startOfDay(now).toISOString().slice(0, 10))
+  }
+  if (original.frequency === 'once') return 0
   const assignedTo = original.assigned_to
 
   // A profile series is a gated, canonical member-owned template. Never pass
@@ -130,23 +99,8 @@ export async function expandSeriesInTx(
   // expansion rather than inventing a User or account assignment.
   const profileMemberId = original.assigned_member_id
   if (assignedTo === null) {
-    if (!isProfileChoreRecurrenceSupported()) return 0
     if (!profileMemberId || original.member_subject_erased || original.recurrence_id !== original.id || !original.is_template || original.rotation_member_ids.length > 0) return 0
-    const member = await tx.householdMember.findFirst({
-      where: { id: profileMemberId, family_id: familyId },
-      select: {
-        id: true,
-        family_id: true,
-        role: true,
-        age: true,
-        archived_at: true,
-        erasure_user_id: true,
-        legacy_mapping: { select: { user_id: true } },
-        account_link: { select: { user_id: true } },
-      },
-    })
-    const role = member ? profileRoleSchema.safeParse(member.role) : null
-    if (!member || member.id !== profileMemberId || member.family_id !== familyId || member.archived_at !== null || member.erasure_user_id !== null || member.legacy_mapping !== null || member.account_link !== null || !role?.success || !isProfileAgeAllowed(role.data, member.age)) return 0
+    if (!await eligibleProfileChoreAssigneeInTx(tx, familyId, profileMemberId)) return 0
   }
 
   const windowSize = WINDOW_SIZE[original.frequency as Exclude<ChoreFrequency, 'once'>] * (original.frequency === 'weekly' ? Math.max(1, normalizedWeekdays(original.weekly_days).length) : 1)
@@ -341,6 +295,9 @@ export const MAX_SERIES_PER_TOP_UP = 100
  * renders what is already there.
  */
 export async function topUpHouseholdSeries(familyId: string, now: Date = new Date()): Promise<number> {
+  // Explicit once-only routine recovery has its own bounded pass. It neither
+  // changes legacy once semantics nor consumes the repeating-template budget.
+  const onceInserted = await topUpScheduledOnceSteps(prisma!, familyId, now, expandSeriesInTx)
   try {
     const templates = await prisma!.chore.findMany({
       where: { family_id: familyId, is_template: true, frequency: { not: 'once' } },
@@ -352,10 +309,10 @@ export async function topUpHouseholdSeries(familyId: string, now: Date = new Dat
     for (const template of templates) {
       inserted += await expandRecurringChores(template, familyId, now)
     }
-    return inserted
+    return onceInserted + inserted
   } catch (error) {
     log.warn('chores.series_top_up_failed', describeError(error))
-    return 0
+    return onceInserted
   }
 }
 

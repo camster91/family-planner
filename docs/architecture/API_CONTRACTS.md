@@ -159,7 +159,7 @@ old-shape fixtures). Roles and isolation: `docs/ROLE_AND_ISOLATION_MATRIX.md` "M
 | `GET /api/recipes/[id]` (new) | `{ recipe }` (detail shape above plus `instructions`). All roles. | 404 missing or another household's (identical) |
 | `PATCH /api/recipes/[id]` (new) | Same fields as POST, all optional; `ingredients`, when present, replaces the whole set. Parent and teen. | as POST; 404 |
 | `DELETE /api/recipes/[id]` (new) | Parent only. Linked meals and list items keep their rows (`recipe_id` becomes null; the meal keeps `recipe_name`). | 404; 409 `{ error: { code: 'RECIPE_IN_ARCHIVED_PLAN', message, retryable: false } }` while a frozen legacy `MealPlanEntry` references it |
-| `GET /api/meals` | Each meal adds `recipe_id`, `servings`, `updated_at` and `recipe: { id, title, prep_time, cook_time, servings } \| null`. Ordered by date, then creation. Several meals may share a (date, meal_type) slot (O-1). | unchanged |
+| `GET /api/meals` | Each meal adds `recipe_id`, `servings`, `updated_at` and `recipe: { id, title, prep_time, cook_time, servings } \| null`. Ordered by date, creation and ID. Several meals may share a (date, meal_type) slot (O-1). Without `limit`, legacy `{ meals }` remains complete. Opt-in `limit=1..200` reads at most limit+1 rows and returns `{ meals, nextCursor }`; pass the opaque cursor with the same household/date range. Web week starts with 100 and explicitly loads more. Responses are private/no-store. | 400 invalid/duplicate paging parameter, cursor without limit or cursor for another range/household; existing auth/feature/date errors unchanged |
 | `POST /api/meals`, `PATCH /api/meals/[id]` | Optional `recipe_id` (same household; `null` unlinks on PATCH) and `servings` (1–100 or `null`). Linking without `recipe_name` sets the snapshot to the recipe title; unlinking keeps the snapshot. | 400 `Recipe not found` (foreign and missing alike), 400 bad `servings` |
 | `POST /api/lists/items/create` | Optional `amount` (0–100000), `unit` (1–32 chars), `ingredient_id` (same household). Responses include every `ListItem` column, including `amount`, `unit`, `ingredient_id`, `recipe_id`, `meal_id`, `source` (default `manual`). `source` is not client-writable. | 400 `Ingredient not found` (foreign and missing alike) |
 | `PATCH /api/lists/items/update` | Optional `amount`, `unit`, `ingredient_id`; `null` clears. The #162 idempotent, row-locked write is unchanged. | 400 `Ingredient not found`; 409 `{ error: { code: 'DUPLICATE_OPEN_ITEM', message, retryable: false } }` when unticking a recipe-added row whose (list, ingredient, source) already has an open row (partial unique index `ListItem_open_recipe_source_key`). Not stored for replay; the #247 queue shows it as a conflict. |
@@ -174,6 +174,90 @@ Old Android WebViews and queued #247 operations keep working: no route, request 
 every new field is optional. Rollback of the app code is safe; the new columns stay unused.
 
 ## Food inventory (#263, #158/#121)
+
+**Cooking stock review source (2026-10-20):** GET
+`/api/inventory/cooking-review?kind=recipe|batch&id=&servings=` is read-only,
+private/no-store, 60/user/minute. Current personal parent/teen inventory + meals
+authority and household-owned source joins apply; prepared batches require
+captured recipe history. Optional original read scope is validated/echoed;
+modern readers require it before parsing. Up to 100 ingredient lines, no stock
+allocation. Recipe/prep links open explicit lot selection into existing versioned
+amount-used/consume/recovery/Undo. Each lot is separate. Source and authored tests
+are unverified; `COOKING_STOCK_REVIEW.md` defines limits and acceptance.
+
+
+**Replacement restock source (2026-10-20, gated UI/add-journal integrated):**
+GET `/api/inventory/restock?itemId=&listId=&content=` returns current source
+name/version, eligible lists (cap 100), exact open replacement pointer and up to
+ten possible duplicate summaries with incomplete-comparison disclosure (2000-row
+scan cap). Optional original read-scope header is validated/echoed.
+POST accepts strict `herewoven.inventory-restock.v1` with expected actor/family,
+issued-at, reviewed source version, list/content/amount/unit and explicit
+allow_similar; key required, 8 KiB body, GET/POST 90/user/minute. Canonical
+ListItem/receipt are atomic; no stock mutation. Current parent/teen inventory and
+lists authority applies before effect/replay. Removed list rows are not recreated
+by confirmation. POST `/api/inventory/restock/undo` is original actor/household/
+requestId-bound, 4 KiB/60 per minute, with the existing ten-minute own-open-rows
+Undo rule; checked rows stay. Every outcome private/no-store. Details and
+pending acceptance: `INVENTORY_RESTOCK.md`.
+
+Modern review uses POST `/api/inventory/restock/review` with strict
+`{itemId,listId?,content?}` in a 4 KiB body, sharing the 90/user/minute budget and
+read-scope echo. This avoids private draft text in URL queries. The legacy GET
+remains compatible. Restock adds now join the private owned inventory journal
+and canonical recovered review with original target-list binding and compact
+receipt. Explicit UI/result/Undo controls are authored, not exercised. Unknown
+Undo remains open-sheet retry/manual acknowledgement, not a durable queue.
+
+**Inventory recovery foundation (2026-10-20, off/gated UI integrated):** personal
+
+`POST /api/inventory/recovery/review` accepts strict
+`{contract:'herewoven.inventory-recovery-review.v1',entry:{kind,key,body}}` and
+requires the original inventory owner proof. Limit 32 KiB; 60/user/minute;
+parent/teen current inventory authority; private/no-store. It reads matching
+receipts and current owned targets without mutation. Reply echoes owner/entry
+and returns ready/pending/committed/removed/expired/conflict/unavailable,
+canRetry, current canonical summary and validated completed receipt if present.
+Ready is only a snapshot; writes retain all version/authority checks. Unknown
+and foreign targets reveal no names. Browser readers bound time/bytes and exact
+response ownership. Gated UI source is integrated; acceptance remains open.
+
+Personal negotiation:
+`GET /api/inventory/recovery` renews parent/teen inventory authority and returns
+`{contract:'herewoven.inventory-recovery.v1',enabled,owner,userId,familyId}`.
+Owner is a separate inventory continuity fingerprint of the actual session and
+canonical current role/household, or null for a legacy session without nonce.
+Every outcome is private/no-store; rate cap 240/user/minute. Negotiating enabled
+support requires both inventory recovery gates and both existing queue-owner
+gates. It neither grants stock authority nor changes the public manifest.
+Intake/change accept optional `X-Herewoven-Inventory-Owner`; a supplied mismatch
+is 409 `INVENTORY_RECOVERY_OWNER_CHANGED` before body processing/replay, even with
+new recovery writing paused. No-header old clients retain existing behavior.
+Post helpers may pass that original scope with unchanged body/key. See
+`INVENTORY_RECOVERY.md` for gated browser/review source and required
+rollback acceptance. Durable behavior is authored, not yet verified.
+
+**Additive personal read binding (#125, source candidate 2026-10-19):** the list,
+`use-soon`, `cook` and `adjustments` GET routes accept optional
+`X-Herewoven-Inventory-Scope: v1.<URI-encoded JSON>` containing strict
+`{userId,familyId}`. Missing header preserves older callers. Invalid binding is
+400 `INVALID_READ_CONTEXT`; a binding different from the authenticated actor is
+403 `AUTH_CONTEXT_CHANGED`. It supplies no authority. Successful replies echo
+the canonical binding; all outcomes are private/no-store. New bound clients
+reject missing/mismatched echoes before parsing private JSON, so deploy backend
+support first. This does not continuously reauthorize an in-flight database query
+or make parallel reads a consistent transaction snapshot.
+
+The personal reader gives the whole batch 15 seconds, limits each streamed body
+to 2 MiB, validates DTOs, follows at most 20 pages of 500, and rejects repeated
+IDs or unexpected/nonadvancing cursors. Older JSON-only fetch bridges receive a
+post-parse size check, not pre-allocation streaming protection. Latest generation
+alone publishes. Required read failure retains same-owner data with stale copy;
+history failure retains prior history without Undo and discloses the failure.
+Authorization/scope loss hides cached data and suspends edit/capture UI until
+the original scope is confirmed or the page is explicitly reopened. Source tests
+are authored; acceptance is deferred with the integrated candidate.
+
 New routes only; nothing existing changes shape except additive keys: `inventory` and (#158) `inventoryAdjustments`
 in `GET /api/users/export`, new optional item fields, `dateKind` on use-soon entries and the board DTO.
 Rules and data model: [`MEALS_AND_GROCERIES.md`](MEALS_AND_GROCERIES.md) §10. Roles and isolation:
@@ -742,6 +826,174 @@ request. A partial photo batch reports confirmed successes separately from
 remaining rows that were blocked, so storage/access failures never claim that
 nothing was sent after an earlier success.
 
+## Personal display preferences (#560 / #561)
+
+The additive account/default APIs and revision-conflict contract are defined in
+[DISPLAY_PREFERENCES.md](DISPLAY_PREFERENCES.md). Personal preferences are not
+household feature flags or paired-fridge settings. Existing notification
+`/api/users/preferences` bodies and behavior remain unchanged. New direct APIs
+refuse paired devices and derive actor/household scope from the current session.
+Implementation is local; consolidated migration/API/rendered QA is deferred.
+
+## Durable routine schedule foundation — 2026-10-20 (#450)
+
+`../plans/routine-schedule-v1.md` / `routine-schedule.ts` define a strict future
+command/storage vocabulary, canonical root identities, shared date-only schedule,
+explicit removal and future-after-today controls. This is source preparation,
+not an HTTP/offline/public capability. Nullable RoutineStack.schedule_config and
+Chore root definition/cue/duration fields are authored, ungenerated/unapplied.
+Before runtime writing, dedicated parent state/replay authorization, ordinary
+read metadata stripping, atomic receipt/config/copy changes, canonical expander
+and legacy-write guards, exact owned recovery and rollback-ready support must
+be implemented and later accepted. Current-occurrence endpoints stay unchanged.
+Parent export includes definitions; non-parent export strips root control JSON.
+
+Routine continuation (2026-10-20): canonical parent coordinator/read functions
+are authored but unrouted. Original viewer zone/day, fifteen-minute first-effect
+age, current parent/session/household/profile/feature authority, stack version
+and original keyed compact receipt bind future operations. Definition support /
+fresh-write flags remain off. Ordinary chore JSON/page projections strip private
+metadata and legacy root writes hold under lock. Recurrence holds rather than
+ignores non-null metadata. Adapter/anchor actions/recovery/routes/UI and QA remain
+open; no public or offline capability is added. See routine-schedule-v1 plan.
+
+
+### Captured chore create recovery (2026-10-22, source; unverified)
+
+`POST /api/chores/create` additionally accepts an optional `Idempotency-Key` for
+account assignment (`chore.create`). Existing unkeyed requests remain distinct
+creates; ordinary keyed/unkeyed clients receive a fresh authorized `{ chore }`
+projection. The canonical chore/series and minimal `{ choreId }` receipt commit
+in one transaction under actor/assignee/household then receipt locks. Takeovers
+re-read completion, so a committed effect is never repeated. Bound owned-review
+requests receive only the pointer and preserve their original wire body/key.
+Profile requests retain their existing required-key `chore.profile.create`
+protocol-2/gated path; bound requests opt into compact pointers. No schema change.
+
+`GET /api/chores/create/receipt` requires a current parent person session plus
+`Idempotency-Key`, `X-Chore-Create-Action` (`chore.create` or
+`chore.profile.create`) and a 64-character lower-case hex `X-Chore-Request-Hash`
+computed from canonical parsed input. The endpoint renews token generation,
+parent role and household under membership locks before reading the same user
+scope/family/action/hash. It is private/no-store and read-only. Responses contain
+only `{ state: absent|pending|expired }` or
+`{ state: committed, current: present|removed|unknown }`; erased subjects count as
+removed, unrecognized/non-success receipts as unknown. Conflicting action/hash
+returns409, invalid headers400, unauthorized/revoked401, wrong role/household403;
+profile capability withdrawal holds profile receipt access409. No title, assignee,
+points, routine, body or original receipt is returned. No background retry/pruning.
+Runtime/API/isolation acceptance remains pending consolidated QA.
+
+
+### Parent change timeline (2026-10-22 source; acceptance pending)
+
+`GET /api/review/timeline?source=all|coordination|settings&cursor=<opaque>` is
+person-parent only. Paired sessions are refused by canonical authentication;
+child/teen receive403. The reader locks the current user/household and renews
+family, parent role and session generation before any history query. Unknown or
+duplicate parameters, invalid/oversized/filter-mismatched cursors return400;
+retired session401, changed role/family403, unavailable read500. Every response
+is private/no-store. Family/actor authority is never accepted from query values.
+
+200 returns `{ owner: { userId, familyId, generation }, source, entries,
+nextCursor }`. Entries contain a bounded local stream/row ID, fixed `action`,
+ISO `at`, current actor name/kind or explicit unknown/tablet attribution, fixed
+`origin`, optional registry-validated `featureKey`, current canonical `title`
+and `target`, and `current: available|unavailable|unknown`. The target is a typed
+Event/Chore/Recipe/Pickup/Handoff/settings reference, never a saved/provider URL.
+Clients construct canonical links; each destination renews permission and owns
+its supported reversal controls. This endpoint never offers a generic Undo.
+Missing/erased/foreign record references expose no historical name, private note,
+raw metadata, cached snapshot or link. Historical Activity titles/descriptions and
+AuditLog summaries are excluded. Handoff private content is not selected.
+
+Activity and AuditLog each read at most21 candidates within a one-year horizon;
+the merged20-candidate page uses stable per-stream ordering and timestamp/ID
+continuation. Filtering can leave an empty page with a continuation cursor. This
+is not proof that no changes exist. There is no prune, cache, replay, provider or
+new persistence model. Current-source projection and client owner/epoch checks
+remain separate from the API's authenticated authority.
+
+New private coordination facts commit inside existing chore/recipe/preparation/
+schedule/responsibility effects and their receipts; completed replay creates no
+second fact. Their types stay excluded from older member Activity and Analytics
+feeds, and new completion actor/target markers are masked in the older Activity
+DTO. Existing own-Activity export and erasure still apply. Source/helper/API/
+privacy/pagination/component and replay cases are authored, all unrun. Consolidated
+Postgres/isolation/role/device/browser/localization/release gates remain pending.
+
+## Optional shared preparation labels (source, 2026-10-22)
+
+The canonical Today board DTO may include `sharedPreparationContext`, keyed only
+by task IDs already resolved into its `chores` window, with values `{ eventTitle }`
+(max512 characters). The existing preparation readiness/schema/domain gates
+apply. Protocol1 permits current account subjects; email-free profiles require
+protocol2 and the existing profile readiness gate. No parent relationship maps,
+plan/event/routine IDs, cues, notes, tokens, private proof or new write capability
+are exposed. This field joins only same-household canonical records and is part
+of the ordinary board version hash. Older clients may ignore it. The current
+offline cache allowlist deliberately strips it and cached UI omits its labels.
+No cache schema, API route, migration, polling or activation is added. Source
+cases are authored/unrun; integrated QA and release gates remain open.
+
+## Personal chore preparation context (source, 2026-10-22)
+
+`POST /api/chores/preparation-context` is a private/no-store read, not a mutation
+or queue action. Strict body `{ ids: string[] }` accepts1–150 unique canonical task
+IDs; no supplied household/profile/owner authority. Current parent/child/teen
+person auth, family and token generation renew under canonical membership locks.
+Response contains `owner { userId,familyId,generation }`, `state` available/paused,
+`backlinks`, `origins` and `ownContext`. Only parents invoke backlink/origin
+readers. Child/teen responses contain empty parent maps and own-account shared
+event titles only; no event/plan/routine IDs, cues, source tokens or private
+content. Missing ownContext defaults to empty for additive compatibility. Current
+source checks do not grant canonical write authority. Repeated150-ID client
+batches remain in memory, clear on lifecycle/identity changes, and retire on
+owner/session replacement. Paused/schema-unavailable projections are empty.
+Source cases are authored/unrun; integrated QA and release remain outstanding.
+
+## Optional assistant references (source, 2026-10-22)
+
+Explicit person Include Today requests may advertise header
+`X-Assistant-References: herewoven.assistant-references.v1`. Only with the private
+`FAMILY_ASSISTANT_REFERENCES_READY=1` gate does the provider receive the separate
+opaque-reference block and use the reference-aware typed reply. Existing Today
+readiness/provider/role gates remain. No body field or client-selected record
+authority is added. Nonadvertising clients retain the exact v1 reply; rollback
+servers may ignore the header. New clients accept the v1 reply.
+
+After current source renewal, the server may append optional `evidence` (max8)
+with `{ref,kind,label,observedAt,href}`. All labels/routes resolve server-side from
+issued current references; providers cannot supply them. Unknown refs fail502,
+changed/expired sources fail409 without old reply/evidence. Citations are
+presentation, never mutation tokens; canonical actions retain their own target
+authorization/confirmation. Active Today lease is required for source links in
+the chat; citation objects are excluded from subsequent chat request messages.
+Source/schema/catalog/transport/UI cases are authored/unrun. Gate stays off;
+confirmed-plan grounding, eval/cost gates and consolidated release QA remain open.
+
+## Parent AI usage controls (source, 2026-10-22)
+
+`GET /api/family/ai-usage`: current authenticated parent-person only, private/
+no-store, membership/session renewal, explicit paired-device refusal. Adoption is
+required; missing storage is503. Returns strict owner, readiness/pause, policy and
+revision, reviewed provider fingerprint/live sanitized label, current month/day
+and at most31 UTC daily aggregates. No per-user calls, prompts, replies, source
+records, credentials or full URLs are exposed. Unknown tokens/costs are explicit.
+
+`POST`:8KiB strict `{owner,expectedRevision,configVersion,policy}` with bounded
+enabled/daily limits, nullable integer micro-USD month estimate limit and both
+input/output rates per million tokens. Current identity/provider and revision
+conflicts require refresh. No provider/key/model/subscription change or provider
+call occurs. Source cases are unrun. See `AI_USAGE_CONTROLS.md`.
+
+Assistant/capture request/reply bodies stay compatible; their server-owned
+controllers meter the shared provider transport only after opt-in. Both usage
+gates are required; rollback adoption persists while calls pause. Partial opt-in
+never falls back to legacy unmetered calls. Quota/readiness/source holds use429/
+503/409 safe errors. Normal deterministic app work remains independent. The new
+independent provider kill switch does not erase settings. No activation occurred.
+
 ## Request-body bounds and response tightening (security review, PR #591)
 
 | Route | Contract | Errors |
@@ -758,3 +1010,78 @@ nothing was sent after an earlier success.
 ## Login wrong-password lockout (security review follow-up)
 
 `POST /api/auth/login` counts wrong passwords in two windows of 15 minutes (`src/lib/login-lockout.ts`): 10 per account and client address (`login-fail-ip:<ip>:<email>`), and 50 per account across all addresses (`login-fail:<email>`). Either one at its limit answers 429 with `Retry-After` before the password is checked. Previously a single 10-failure account counter let anyone who knew an email lock its owner out from everywhere; now one address only locks itself out. A successful sign-in clears both counters for that address and account. Tablet password elevation still shares the account counter at the same limit of 50, on top of its own per-tablet limits.
+
+
+## Additive list-summary pagination (#134, source authored 2026-10-22)
+
+`GET /api/lists?limit=1..200&cursor=...&type=...` opts into bounded list
+summaries: `{lists, nextCursor}`. Summary fields and canonical item counts/creator
+projection remain unchanged. It reads at most limit+1 summaries; `nextCursor` is
+null only when no extra row was observed. Follow the cursor deliberately to read
+more. Do not treat a partial page as all household lists.
+
+Paged order is immutable creation time descending then ID ascending. Checking
+items or renaming a list therefore does not move it across a page boundary.
+Without `limit`, the legacy complete `{lists}` response and updated-first order
+remain; no existing installed caller is silently capped. Both successful response
+forms are private/no-store. Existing auth/household/feature checks still apply.
+
+The versioned canonical base64url cursor binds the current family and normalized
+type filter (absent/empty means all) plus the last creation time/ID. It is a read
+position, not an authorization proof or snapshot. Each request applies current
+auth and family filters independently; deleting the anchor does not prevent
+continuation. New lists created ahead of the cursor require refreshing from the
+first page. Filter/household changes must start a fresh first page.
+
+Malformed, noncanonical, overlong, wrong-version/family/filter cursors, cursor
+without limit, duplicate paging/type parameters and limits outside1..200 return
+400. Legacy arbitrary type filtering remains compatible; opted-in type scope is
+bounded to128 characters. This source is not yet connected to the server-rendered
+Lists overview or list-item detail. Legacy reads remain unbounded. No schema,
+index, mutation, capability or infrastructure change. All QA remains deferred.
+
+
+### Connected web overview (2026-10-22 source follow-through)
+
+`/dashboard/lists?type=&cursor=` now uses the same position contract internally
+with100-row pages and explicit Next/first navigation. Its server reader retains
+current actor generation/role/family checks and derives counts within one
+repeatable-read snapshot. Type counts group only the six fixed known types;
+item progress groups only the at-most100 displayed IDs. Type filters are applied
+to the household query before paging. Continued empty pages never mean an empty
+household. The existing canonical API remains optional for installed callers;
+this server view does not fetch the unbounded no-limit API.
+
+Detail links carry `overviewCursor` separately from any item pagination. The
+server validates its family/type before Back/deletion return links use it; it is
+only a read position, never an arbitrary return URL. Invalid context falls back
+to the first page for the filter. Creation returns to the first page. List-detail
+item reads remain unbounded at this checkpoint. Source only; QA deferred.
+
+
+### Item pages and matching version positions (#134/#135, 2026-10-22 source)
+
+The deprecated `GET /api/lists/items?listId=&limit=1..200&cursor=` now optionally
+returns `{items,nextCursor,sectionSort?}`. Legacy no-limit callers retain complete
+items and checked/position/creation ordering, no nextCursor key, the existing
+household/feature checks and deprecation headers. Paged order is position, creation
+time and ID ascending; checking a row does not move it. Cursors bind family/list
+and the exact last position/time/ID. Malformed/noncanonical/overlong/wrong-version/
+list/family/duplicate paging params, duplicate paged listId or cursor without a
+valid limit produce400. Successful responses are private/no-store. A cursor is a
+read position only; concurrent position changes require a fresh traversal.
+
+The web detail uses the same contract internally with100 rows+lookahead and an
+explicit `itemCursor` route parameter, separate from `overviewCursor` return
+context. New server snapshot renews actor generation/role/family and resolves
+only page section metadata. Partial page progress/grouping and continued-empty
+copy are explicit. A missing partial row is unknown, never proof of deletion;
+existing owner-scoped pending tick recovery remains independently reachable.
+
+`GET /api/lists/[id]/version?limit=&cursor=` optionally hashes that same bounded
+page+lookahead. Legacy unpaged hash contracts remain. Initial web hashes and page
+polls use the exact same rows; changing page invalidates outstanding poll replies.
+No new cached private DTO, automatic replay, schema/index or mutation authority.
+Legacy no-limit reads/version hashes stay unbounded, not silently truncated.
+Source authored only; compatibility/permission/sync/DB/rendered acceptance awaits
+consolidated QA, as detailed in WEB_IMPLEMENTATION_HANDOFF.md.

@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useTranslation } from '@/i18n'
+import { useCoreI18n } from '@/i18n/core'
 import { getWeatherCopy, localizeWeatherSummary } from '@/i18n/weather'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import type { WeatherIconKind } from '@/lib/weather/codes'
@@ -57,7 +57,7 @@ function precipitationText(chance: number | null, copy: ReturnType<typeof getWea
  */
 export function WeatherTile({ view }: { view: WeatherView }) {
   const { weather, today, next } = view
-  const { locale } = useTranslation()
+  const { locale } = useCoreI18n()
   const displayLocale = useDisplayLocale()
   const copy = getWeatherCopy(locale)
   const CurrentIcon = iconFor(weather.current.icon, weather.current.isDay)

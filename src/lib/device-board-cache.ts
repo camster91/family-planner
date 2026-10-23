@@ -26,6 +26,8 @@ const weatherIcon = z.enum([
 ]);
 
 // Zod objects strip unknown fields by default, including nested private fields.
+// sharedPreparationContext is intentionally absent: relationships are online
+// context, never a cached claim that an event/checklist still exists.
 const boardSchema: z.ZodType<TodayBoardData, z.ZodTypeDef, unknown> = z.object({
   generatedAt: z.string().datetime(),
   members: z
@@ -69,6 +71,7 @@ const boardSchema: z.ZodType<TodayBoardData, z.ZodTypeDef, unknown> = z.object({
         cookName: text.nullable(),
         recipeTitle: text.nullable().optional(),
         prepMinutes: z.number().finite().nonnegative().nullable().optional(),
+        hasMoreDinners: z.boolean().optional(),
       }),
     )
     .max(60)

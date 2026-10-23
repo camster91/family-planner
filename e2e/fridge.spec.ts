@@ -329,7 +329,10 @@ test.afterAll(async () => {
 /** 16:10 landscape fridge hubs (#262): 1280x800 and the 13" 1920x1200. */
 const LANDSCAPE_HUBS = ["fridge-landscape-1280x800", "tablet-large-1920x1200"];
 
-const board = (page: Page) => page.getByTestId("today-board");
+// A streamed server segment may remain hidden after the visible board mounts.
+// Scope board interactions to the canonical board presented to the user.
+const board = (page: Page) =>
+  page.locator('[data-testid="today-board"]:visible');
 const region = (
   page: Page,
   name: "today" | "dinner" | "chores" | "groceries" | "coming",
@@ -413,20 +416,24 @@ async function expectNoCanaries(page: Page) {
       canary,
     );
   }
-  const text = (await board(page).innerText()).toLowerCase();
-  for (const word of [
-    "budget",
-    "spent",
-    "allowance",
-    "medication",
-    "message",
-    " xp",
-    "streak",
-    "leaderboard",
-    "points",
-    "level ",
-  ]) {
-    expect(text, `board text mentions "${word}"`).not.toContain(word);
+  const boards = page.getByTestId("today-board");
+  expect(await boards.count()).toBeGreaterThan(0);
+  for (const current of await boards.all()) {
+    const text = (await current.innerText()).toLowerCase();
+    for (const word of [
+      "budget",
+      "spent",
+      "allowance",
+      "medication",
+      "message",
+      " xp",
+      "streak",
+      "leaderboard",
+      "points",
+      "level ",
+    ]) {
+      expect(text, `board text mentions "${word}"`).not.toContain(word);
+    }
   }
 }
 
@@ -491,7 +498,9 @@ test.describe("Today board: Family A parent", () => {
     // The dedicated fridge surface retains its separate, per-person regions.
     await openBoard(page, "/dashboard/today?mode=fridge");
 
-    await expect(page.getByTestId("board-date")).toHaveText(
+    await expect(board(page)).toHaveCount(1);
+    await expect(board(page).getByTestId("board-date")).toHaveCount(1);
+    await expect(board(page).getByTestId("board-date")).toHaveText(
       "Monday, January 5",
     );
 
@@ -600,7 +609,7 @@ test.describe("Today board: Family A parent", () => {
     await expect(chores).toContainText("Vacuum living room");
     await expect(next.getByTestId("region-link-today")).toHaveAttribute(
       "href",
-      "/dashboard/calendar",
+      "/dashboard/calendar?view=agenda",
     );
     await expect(chores.getByTestId("region-link-chores")).toHaveAttribute(
       "href",
@@ -895,6 +904,11 @@ test.describe("Today board: Family A parent", () => {
     });
     try {
       await page.goto("/dashboard/family/settings");
+      // Board settings live in a compact disclosure on the current settings
+      // page; open the canonical section before asserting its loaded panel.
+      const disclosure = page.locator("details#household-board");
+      await expect(disclosure).toBeVisible();
+      await disclosure.locator("summary").click();
       const section = page.getByTestId("board-settings");
       await expect(
         section.getByRole("heading", { name: "Today board" }),

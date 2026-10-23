@@ -254,6 +254,18 @@ describe('withIdempotency', () => {
     expect(records().map((r) => r.key).sort()).toEqual(['bbbbbbbbbbbbbbbbbbbb', 'cccccccccccccccccccc'])
   })
 
+  it('preserves an exact receipt completed in the canonical effect transaction', async () => {
+    const exact = { note: { body: 'x'.repeat(IDEMPOTENCY_MAX_BODY_CHARS + 1) } }
+    const effect = jest.fn(async ({ recordId }: { recordId: string | null }) => {
+      await fakePrisma.idempotencyRecord.update({ where: { id: recordId! }, data: { response_status: 201, response_body: exact } })
+      return { status: 201, body: exact }
+    })
+    await withIdempotency(fakePrisma, KEY, ctxA, { title: 'Synthetic' }, effect)
+    const replay = await withIdempotency(fakePrisma, KEY, ctxA, { title: 'Synthetic' }, effect)
+    expect(await replay.json()).toEqual(exact)
+    expect(effect).toHaveBeenCalledTimes(1)
+  })
+
   it('caps the stored body', async () => {
     const big = { success: true, blob: 'x'.repeat(IDEMPOTENCY_MAX_BODY_CHARS) }
     const effect = counter({ status: 200, body: big })

@@ -13,9 +13,9 @@ import type {
 } from "@/components/fridge/board-actions";
 import { DeviceApiError, type DeviceClient } from "@/lib/device-client";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import { useTodayBoardText } from "@/i18n/today-board";
-import { getDeviceQueue } from "@/lib/offline-queue-browser";
+import { getDeviceQueue } from "@/lib/device-queue-browser";
 import { QueueError, isCheckedOperation } from "@/lib/offline-queue";
 import { MEMBER_COLOR_CSS, type MemberColorKey } from "@/lib/member-colors";
 import { focusRing } from "./styles";
@@ -112,7 +112,7 @@ export function useDeviceBoardActions({
   forgetActor: () => void;
   picker: React.ReactNode;
 } {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const todayText = useTodayBoardText();
   const profileChorePaused = todayText("profileChorePaused");
   const [subject, setSubject] = React.useState<DeviceSubjectChoice | null>(
@@ -222,10 +222,7 @@ export function useDeviceBoardActions({
           selected?.kind === "profile" &&
           selected.memberId === targetProfileId
         : selected?.kind === "account";
-      if (
-        selectionMatches &&
-        Date.now() - lastTapRef.current < ACTOR_IDLE_MS
-      ) {
+      if (selectionMatches && Date.now() - lastTapRef.current < ACTOR_IDLE_MS) {
         lastTapRef.current = Date.now();
         return Promise.resolve(true);
       }
@@ -260,7 +257,10 @@ export function useDeviceBoardActions({
       },
       completeChore: (chore) => {
         if (chore.actionAvailability?.state === "paused") {
-          return Promise.resolve({ ok: false as const, message: profileChorePaused });
+          return Promise.resolve({
+            ok: false as const,
+            message: profileChorePaused,
+          });
         }
         return post(
           `/api/device/chores/${encodeURIComponent(chore.id)}/complete`,
@@ -269,7 +269,10 @@ export function useDeviceBoardActions({
       },
       undoChore: (chore) => {
         if (chore.actionAvailability?.state === "paused") {
-          return Promise.resolve({ ok: false as const, message: profileChorePaused });
+          return Promise.resolve({
+            ok: false as const,
+            message: profileChorePaused,
+          });
         }
         return post(
           `/api/device/chores/${encodeURIComponent(chore.id)}/uncomplete`,
@@ -329,7 +332,16 @@ export function useDeviceBoardActions({
             if (!isCheckedOperation(op) || !mine.has(op.id)) continue;
             if (op.state === "failed" || op.state === "conflict") {
               mine.delete(op.id);
-              void q.discard(op.id);
+              // Ownership/storage uncertainty is recoverable saved intent,
+              // never permission to silently discard a tablet action.
+              if (
+                ![
+                  "QUEUE_REVIEW_REQUIRED",
+                  "QUEUE_OWNER_CHANGED",
+                  "QUEUE_STORAGE_UNCERTAIN",
+                ].includes(op.lastError ?? "")
+              )
+                void q.discard(op.id);
               listener(op.payload.itemId, op.payload.checked);
             }
           }
@@ -337,7 +349,15 @@ export function useDeviceBoardActions({
       },
       afterChange: () => afterRef.current(),
     };
-  }, [client, choresOn, listsOn, t, members, memberProtocol, profileChorePaused]);
+  }, [
+    client,
+    choresOn,
+    listsOn,
+    t,
+    members,
+    memberProtocol,
+    profileChorePaused,
+  ]);
 
   const picker = (
     <WhoIsThisDialog

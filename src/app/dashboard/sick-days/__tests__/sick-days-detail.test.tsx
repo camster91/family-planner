@@ -173,11 +173,11 @@ describe('sick day detail', () => {
     expect(within(dialog).getByLabelText('sickDays.severity.label').tagName).toBe('SELECT')
     expect(within(dialog).getByLabelText('sickDays.symptoms').tagName).toBe('TEXTAREA')
 
-    await user.click(within(dialog).getByRole('button', { name: 'Close' }))
+    await user.click(within(dialog).getByRole('button', { name: 'sickDays.closeForm' }))
     expect(screen.queryByRole('dialog')).toBeNull()
 
     const detail = await openDetail(user)
-    expect(within(detail).getByRole('button', { name: 'Close' })).toBeTruthy()
+    expect(within(detail).getByRole('button', { name: 'sickDays.closeDetails' })).toBeTruthy()
     await user.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByTestId('sick-day-detail')).toBeNull())
   })

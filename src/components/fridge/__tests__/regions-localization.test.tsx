@@ -91,6 +91,7 @@ function renderRegions() {
         listsHref="/dashboard/lists"
       />
       <ChoresRegion
+        preparationContext={{ chore: { eventTitle: "School trip" } }}
         people={[
           {
             member: { id: "child", name: "Casey", color: "green" },
@@ -136,6 +137,9 @@ it("renders the localized board regions while preserving household values and li
   expect(screen.getByText("3 to buy")).toBeInTheDocument();
   expect(screen.getByText("In progress")).toBeInTheDocument();
   expect(
+    screen.getByText("Getting ready for: School trip"),
+  ).toBeInTheDocument();
+  expect(
     screen.getByRole("button", { name: "Mark Pack bag done, Casey" }),
   ).toBeInTheDocument();
   expect(screen.getByText("Tomorrow")).toBeInTheDocument();
@@ -162,6 +166,9 @@ it("switches every board region to Spanish without translating inserted househol
   expect(screen.getByText("Cocina: Avery")).toBeInTheDocument();
   expect(screen.getByText("3 por comprar")).toBeInTheDocument();
   expect(screen.getByText("En curso")).toBeInTheDocument();
+  expect(
+    screen.getByText("Preparativos para: School trip"),
+  ).toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "Marcar Pack bag como hecha, Casey" }),
   ).toBeInTheDocument();

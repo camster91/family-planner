@@ -20,7 +20,7 @@ test("Help app details are deliberate, readable and recover when server identity
   });
   await loginViaUi(page, FIXTURE_EMAILS.familyA.parent);
   await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
-  await page.goto("/dashboard/help");
+  await page.goto("/dashboard/help#help-diagnostics");
   const card = page.getByRole("region", { name: "App details", exact: true });
   await expect(card).toBeVisible();
   expect(reads).toBe(0);

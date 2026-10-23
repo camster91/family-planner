@@ -23,6 +23,8 @@
  *   only reinforces them. Targets are at least 44×44.
  */
 import * as React from 'react'
+import { InventoryCookingSheet } from '@/components/inventory/InventoryCookingSheet'
+import type { CookingReviewSource } from '@/lib/inventory-cooking-review-contract'
 import Link from 'next/link'
 import {
   AlertTriangle,
@@ -39,7 +41,6 @@ import {
   Undo2,
   Utensils,
   WifiOff,
-  X,
   type LucideIcon,
 } from 'lucide-react'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -48,12 +49,21 @@ import { useUndoToast } from '@/components/ui/toast'
 import { useOnline } from '@/components/ui/use-online'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { AddToGroceriesButton } from '@/components/meals/AddToGroceriesButton'
+import { BarcodeFoodDialog } from '@/components/inventory/BarcodeFoodDialog'
+import { FoodDescriptionDraft } from '@/components/inventory/FoodDescriptionDraft'
+import { InventoryRestockSheet } from '@/components/inventory/InventoryRestockSheet'
+import { InventoryRecoveryProvider, InventoryRecoveryPanel, useInventoryWrites, useInventoryRecoveryBlocked } from '@/components/inventory/InventoryRecovery'
+import { makeInventoryChangeIntent, type InventoryChangeIntent } from '@/lib/inventory-change-client'
+import type { InventoryChangeOperation } from '@/lib/inventory-change-contract'
+import { readInventorySnapshot, INVENTORY_ITEM_PAGE_SIZE, INVENTORY_ITEM_MAX_PAGES, type InventoryReadAccess } from '@/lib/inventory-reader'
+import { inventoryReadScopeValue } from '@/lib/inventory-read-scope'
+import { makeInventoryIntakeIntent, readInventoryIntakeContext, type IntakeContext, type IntakeIntent } from '@/lib/inventory-intake-client'
 import { ScanFridgeDialog } from './ScanFridgeDialog'
+import { Dialog } from '@/components/ui/dialog'
 import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 import { useFeatureEnabled } from '@/components/providers/features-provider'
 import { cn } from '@/lib/utils'
 import { formatDateOnly, toDateOnlyLocal } from '@/lib/dates'
-import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import {
   DATE_KINDS,
   INVENTORY_CATEGORIES,
@@ -81,6 +91,8 @@ interface CookData {
   truncated: boolean
   /** Some recipes or items were past the server's scan caps (older servers omit it). */
   inputsTruncated?: boolean
+  matching?: 'presence_only'
+  comparisonIncomplete?: boolean
 }
 
 interface HistoryEntry extends AdjustmentDto {
@@ -96,35 +108,13 @@ interface PageData {
   cook: Load<CookData>
   history: HistoryEntry[]
   capped: boolean
+  historyFailed?: boolean
 }
-
-/** Items per request (the API maximum) and the most pages the page follows. */
-const ITEM_PAGE_SIZE = 500
-const ITEM_MAX_PAGES = 20
-/** History rows shown under "Recently used or thrown away". */
-const HISTORY_ROWS = 10
 
 export const OFFLINE_WRITE_MESSAGE = "You're offline. Connect to the internet to change the inventory."
 
-/** API error envelope `{ error: { message } }` or legacy `{ error: string }`. */
-async function errorMessage(res: Response, fallback: InventoryFeedback): Promise<InventoryFeedback> {
-  try {
-    const body = await res.json()
-    const err = body?.error
-    if (typeof err === 'string') return { raw: err }
-    if (err && typeof err.message === 'string') return { raw: err.message }
-  } catch {
-    // fall through
-  }
-  return fallback
-}
-
 function isOffline(): boolean {
   return typeof navigator !== 'undefined' && navigator.onLine === false
-}
-
-function todayQuery(): string {
-  return `today=${encodeURIComponent(toDateOnlyLocal(new Date()))}`
 }
 
 // Dates and times on this page are display only, in the viewer's locale
@@ -135,7 +125,7 @@ function formatClock(date: Date, locale: string): string {
 }
 
 function formatAmount(n: number): string {
-  return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100)
+  return Number.isInteger(n) ? String(n) : String(Number(n.toPrecision(15)))
 }
 
 function amountText(item: Pick<InventoryItemDto, 'amount' | 'unit'>): string | null {
@@ -143,28 +133,6 @@ function amountText(item: Pick<InventoryItemDto, 'amount' | 'unit'>): string | n
   if (item.amount === null) return item.unit
   const n = formatAmount(item.amount)
   return item.unit ? `${n} ${item.unit}` : n
-}
-
-/**
- * One idempotency key per logical change: the same body retried keeps its
- * key, a changed body gets a new one (so an edit after a failure is a new
- * change, not a 422).
- */
-function useChangeKey() {
-  const ref = React.useRef<{ body: string; key: string } | null>(null)
-  return React.useCallback((body: unknown) => {
-    const text = JSON.stringify(body ?? null)
-    if (!ref.current || ref.current.body !== text) ref.current = { body: text, key: newIdempotencyKey() }
-    return ref.current.key
-  }, [])
-}
-
-async function postJson(url: string, body: unknown, key: string, method = 'POST'): Promise<Response> {
-  return fetch(url, {
-    method,
-    headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: key },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
 }
 
 const STATUS_STYLE: Record<ExpiryStatus, string> = {
@@ -196,20 +164,57 @@ interface AdjustTarget {
   id: string
   name: string
   unit?: string | null
+  version?: string
 }
 
-export default function InventoryClient({
+type PendingStockChange = {
+  intent: InventoryChangeIntent
+  operation: InventoryChangeOperation
+  name: string
+  unit?: string | null
+  uncertain: boolean
+}
+
+type InventoryClientProps = {
+  cookingSource?: CookingReviewSource
+  canWrite: boolean
+  canOpenRecipes: boolean
+  intakeContext?: { userId: string; familyId: string }
+  canScan?: boolean
+  canCaptureDocuments?: boolean
+  recoveryRequired?: boolean
+}
+export default function InventoryClient(props: InventoryClientProps) {
+  return <InventoryRecoveryProvider required={props.recoveryRequired ?? false} original={props.intakeContext}><InventoryContent {...props} /></InventoryRecoveryProvider>
+}
+function InventoryContent({
+  cookingSource,
   canWrite,
   canOpenRecipes,
   canScan = false,
-}: {
-  canWrite: boolean
-  canOpenRecipes: boolean
-  /** Parent, and the deployment has a fridge-scan provider key (#265). */
-  canScan?: boolean
-}) {
+  canCaptureDocuments = false,
+  intakeContext,
+}: InventoryClientProps) {
   const copy = useInventoryCopy()
+  const { change: sendStockChange } = useInventoryWrites()
+  const recoveryBlocked = useInventoryRecoveryBlocked()
+  const readScope = intakeContext ? inventoryReadScopeValue(intakeContext) : undefined
+  const originalReadScope = React.useRef(readScope).current
+  const scopeRef = React.useRef(readScope)
+  scopeRef.current = readScope
+  const [readAccessLost, setReadAccessLost] = React.useState<InventoryReadAccess>(null)
+  const readBlocked = readAccessLost !== null || readScope !== originalReadScope
+  const blockedRef = React.useRef(readBlocked)
+  blockedRef.current = readBlocked
+  const readGeneration = React.useRef(0)
+  const readRequest = React.useRef<AbortController | null>(null)
+  const mounted = React.useRef(true)
+  const [refreshing, setRefreshing] = React.useState(false)
+  const readRecoveryRef = React.useRef<HTMLButtonElement>(null)
+  React.useEffect(() => { if (readBlocked) readRecoveryRef.current?.focus() }, [readBlocked])
+  const lastHistory = React.useRef<HistoryEntry[]>([])
   const mealsOn = useFeatureEnabled('meals')
+  const listsOn = useFeatureEnabled('lists')
   const online = useOnline()
   const displayLocale = useDisplayLocale()
   const showUndo = useUndoToast()
@@ -217,76 +222,87 @@ export default function InventoryClient({
   const [loadedAt, setLoadedAt] = React.useState<Date | null>(null)
   const [refreshFailed, setRefreshFailed] = React.useState(false)
   const [editing, setEditing] = React.useState<{ mode: 'add' } | { mode: 'edit'; item: InventoryItemDto } | null>(null)
+  const addItemRef = React.useRef<HTMLButtonElement>(null)
+  const focusAddAfterEdit = React.useRef(false)
   const [notice, setNotice] = React.useState<{ text: InventoryFeedback; error?: boolean } | null>(null)
   const [scanning, setScanning] = React.useState(false)
+  const [barcodeScanning, setBarcodeScanning] = React.useState(false)
+  const [cookingOpen, setCookingOpen] = React.useState(!!cookingSource)
+  React.useEffect(() => { setCookingOpen(!!cookingSource) }, [cookingSource?.kind, cookingSource?.id, cookingSource?.kind === 'recipe' ? cookingSource.servings : undefined])
+  const [restockItem, setRestockItem] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState<string | null>(null)
+  const [stockChange, setStockChange] = React.useState<PendingStockChange | null>(null)
+  const stockChangeRef = React.useRef<PendingStockChange | null>(null)
+  const stockFlight = React.useRef(false)
+  const [stockSending, setStockSending] = React.useState(false)
+  const stockNavigation = usePendingFormNavigationController(stockChange !== null)
+
   const [query, setQuery] = React.useState('')
   const [whereFilter, setWhereFilter] = React.useState<InventoryLocation | 'all'>('all')
   const [categoryFilter, setCategoryFilter] = React.useState<InventoryCategory | 'all'>('all')
   const hasData = React.useRef(false)
 
+  // Run after the removed Dialog has restored its opener. A timer can fire
+  // before that cleanup and have its focus overwritten by the old row.
+  React.useEffect(() => {
+    if (!editing && focusAddAfterEdit.current) {
+      focusAddAfterEdit.current = false
+      addItemRef.current?.focus()
+    }
+  }, [editing])
+
   const load = React.useCallback(async () => {
-    const q = todayQuery()
-    if (!hasData.current) setData({ state: 'loading' })
-    const get = async <T,>(url: string, pick: (body: any) => T): Promise<Load<T>> => {
-      try {
-        const res = await fetch(url)
-        if (!res.ok) return { state: 'error' }
-        return { state: 'ready', data: pick(await res.json()) }
-      } catch {
-        return { state: 'error' }
-      }
-    }
-    // Follow `nextOffset` so a large household sees every item, up to a
-    // bounded number of pages; past that the page says the list is cut short.
-    const getAllItems = async (): Promise<Load<{ items: InventoryItemDto[]; capped: boolean }>> => {
-      const all: InventoryItemDto[] = []
-      let offset: number | null = 0
-      for (let page = 0; offset !== null && page < ITEM_MAX_PAGES; page++) {
-        const res: Load<{ items: InventoryItemDto[]; nextOffset: number | null }> = await get(
-          `/api/inventory?${q}&limit=${ITEM_PAGE_SIZE}&offset=${offset}`,
-          (b) => ({ items: b.items as InventoryItemDto[], nextOffset: (b.nextOffset ?? null) as number | null })
-        )
-        if (res.state !== 'ready') return { state: 'error' }
-        all.push(...res.data.items)
-        offset = res.data.nextOffset
-      }
-      return { state: 'ready', data: { items: all, capped: offset !== null } }
-    }
-    const [list, soon, cooked, history] = await Promise.all([
-      getAllItems(),
-      get(`/api/inventory/use-soon?${q}&days=3`, (b) => b.items as UseSoonItem[]),
-      mealsOn
-        ? get(`/api/inventory/cook?${q}`, (b) => b as CookData)
-        : Promise.resolve<Load<CookData>>({
-            state: 'ready',
-            data: { suggestions: [], recipesConsidered: 0, truncated: false, inputsTruncated: false },
-          }),
-      get(`/api/inventory/adjustments?limit=${HISTORY_ROWS}`, (b) => (b.adjustments ?? []) as HistoryEntry[]),
-    ])
-    if (list.state !== 'ready' || soon.state !== 'ready') {
-      // Keep what was loaded; say it could not be refreshed.
-      if (hasData.current) setRefreshFailed(true)
-      else setData({ state: 'error' })
+    const own = ++readGeneration.current
+    readRequest.current?.abort()
+    if (readScope !== originalReadScope) {
+      setRefreshing(false)
+      blockedRef.current = true
+      setReadAccessLost('context')
+      hasData.current = false
+      lastHistory.current = []
+      setLoadedAt(null)
+      setData({ state: 'error' })
       return
     }
-    hasData.current = true
-    setRefreshFailed(false)
-    setLoadedAt(new Date())
-    setData({
-      state: 'ready',
-      data: {
-        items: list.data.items,
-        capped: list.data.capped,
-        useSoon: soon.data,
-        cook: cooked,
-        history: history.state === 'ready' ? history.data : [],
-      },
-    })
-  }, [mealsOn])
+    if (isOffline()) { setRefreshing(false); if (!hasData.current) setData({ state: 'error' }); return }
+    const request = new AbortController()
+    readRequest.current = request
+    const current = () => mounted.current && own === readGeneration.current
+    setRefreshing(true)
+    if (!hasData.current) setData({ state: 'loading' })
+    try {
+      const snapshot = await readInventorySnapshot({ scope: readScope, today: toDateOnlyLocal(new Date()), mealsOn, signal: request.signal })
+      if (!current()) return
+      if (snapshot.accessLost) {
+        blockedRef.current = true
+        setReadAccessLost(snapshot.accessLost)
+        hasData.current = false
+        lastHistory.current = []
+        setLoadedAt(null)
+        setData({ state: 'error' })
+        return
+      }
+      const { list, useSoon: soon, cook: cooked, history } = snapshot
+      if (list.state !== 'ready' || soon.state !== 'ready') {
+        if (hasData.current) setRefreshFailed(true)
+        else setData({ state: 'error' })
+        return
+      }
+      blockedRef.current = false
+      setReadAccessLost(null)
+      hasData.current = true
+      setRefreshFailed(false)
+      setLoadedAt(new Date())
+      if (history.state === 'ready') lastHistory.current = history.data.adjustments
+      setData({ state: 'ready', data: { items: list.data.items, capped: list.data.capped, useSoon: soon.data.items, cook: cooked,
+        history: history.state === 'ready' ? history.data.adjustments : lastHistory.current.map(entry => ({ ...entry, undoable: false })), historyFailed: history.state !== 'ready' } })
+    } finally { if (current()) setRefreshing(false) }
+  }, [mealsOn, readScope, originalReadScope])
 
   React.useEffect(() => {
-    load()
+    mounted.current = true
+    void load()
+    return () => { mounted.current = false; readGeneration.current++; readRequest.current?.abort() }
   }, [load])
 
   // Refresh when the connection comes back.
@@ -303,63 +319,84 @@ export default function InventoryClient({
     await load()
   }
 
-  const undo = React.useCallback(
-    async (adjustmentId: string, name: string) => {
-      if (isOffline()) {
-        setNotice({ text: feedback('offlineWrite'), error: true })
-        return
+  async function runStockChange(pending: PendingStockChange): Promise<InventoryFeedback | null> {
+    if (blockedRef.current) return feedback('readScopeChanged')
+    if (stockFlight.current || stockChangeRef.current !== pending) return feedback('stockChangePending')
+    stockFlight.current = true
+    setStockSending(true)
+    const operation = pending.operation
+    try {
+      const result = await sendStockChange(pending.intent)
+      if (result.kind === 'unknown' || (result.kind === 'refused' && pending.uncertain)) {
+        pending.uncertain = true
+        setStockChange({ ...pending })
+        if (result.kind === 'refused') void load()
+        return feedback('stockChangeUnknown')
       }
-      try {
-        const res = await postJson(
-          `/api/inventory/adjustments/${encodeURIComponent(adjustmentId)}/undo?${todayQuery()}`,
-          undefined,
-          newIdempotencyKey()
-        )
-        if (!res.ok) {
-          setNotice({ text: await errorMessage(res, feedback('undoFailed', { name })), error: true })
-        } else {
-          setNotice({ text: feedback('undoSuccess', { name }) })
-        }
-      } catch {
-        setNotice({ text: feedback('undoNetwork', { name }), error: true })
-      }
-      // Refresh the list and the history either way, so every Undo shown
-      // still works (a refused undo usually means the item changed).
-      await load()
-    },
-    [load]
-  )
-
-  /** "Used it" / "Throw away". Returns an error message, or null on success. */
-  const adjust = React.useCallback(
-    async (target: AdjustTarget, kind: AdjustKind, amount: number | null = null, key?: string): Promise<InventoryFeedback | null> => {
-      if (isOffline()) return feedback('offlineWrite')
-      const body = kind === 'consume' && amount !== null ? { amount } : {}
-      setBusy(target.id)
-      try {
-        const res = await postJson(
-          `/api/inventory/${encodeURIComponent(target.id)}/${kind}?${todayQuery()}`,
-          body,
-          key ?? newIdempotencyKey()
-        )
-        if (!res.ok) return await errorMessage(res, feedback('saveFailed'))
-        const result = (await res.json()) as { item: InventoryItemDto; adjustment: AdjustmentDto }
-        const partial = kind === 'consume' && result.adjustment.status_after === 'active'
-        const params = { name: target.name, amount: `${amount !== null ? formatAmount(amount) : ''}${target.unit ? ` ${target.unit}` : ''}` }
-        const title = feedback(kind === 'discard' ? 'threwName' : partial && amount !== null ? 'usedAmount' : 'usedName', params)
+      stockChangeRef.current = null
+      setStockChange(null)
+      await stockNavigation.releaseBeforeNavigation()
+      if (result.kind === 'confirmed') {
+        if (operation.kind === 'edit' || operation.kind === 'remove') focusAddAfterEdit.current = true
         setEditing(null)
-        setNotice({ text: feedback(kind === 'discard' ? 'threwNotice' : partial && amount !== null ? 'usedAmountNotice' : 'usedNotice', params) })
-        showUndo({ title: <InventoryText feedback={title} />, onUndo: () => void undo(result.adjustment.id, target.name) })
         await load()
+        if (!mounted.current || blockedRef.current || scopeRef.current !== originalReadScope) return null
+        if (operation.kind === 'undo') {
+          setNotice({ text: feedback('undoSuccess', { name: pending.name }) })
+        } else if (operation.kind === 'edit' || operation.kind === 'remove') {
+          setNotice({ text: feedback(operation.kind === 'edit' ? 'savedName' : 'removedName', { name: pending.name }) })
+        } else {
+          const amount = operation.kind === 'consume' ? operation.amount : null
+          const partial = amount !== null
+          const params = { name: pending.name, amount: `${amount === null ? '' : formatAmount(amount)}${pending.unit ? ` ${pending.unit}` : ''}` }
+          const title = feedback(operation.kind === 'discard' ? 'threwName' : partial ? 'usedAmount' : 'usedName', params)
+          setNotice({ text: feedback('stockChangeConfirmed', { name: pending.name }) })
+          if ('adjustmentId' in result.receipt) {
+            const adjustmentId = result.receipt.adjustmentId
+            showUndo({ title: <InventoryText feedback={title} />, onUndo: () => void undo(adjustmentId, pending.name) })
+          }
+        }
         return null
-      } catch {
-        return feedback('saveNetwork')
-      } finally {
-        setBusy(null)
       }
-    },
-    [load, showUndo, undo]
-  )
+      const message = feedback(result.kind === 'removed' ? 'stockChangeRemoved' : result.kind === 'not_applied' ? 'stockChangeNotApplied' : 'stockChangeRefused')
+      if (result.kind === 'not_applied' || result.kind === 'removed') setEditing(null)
+      setNotice({ text: message, error: true })
+      await load()
+      return message
+    } finally {
+      stockFlight.current = false
+      setStockSending(false)
+      setBusy(null)
+    }
+  }
+
+  async function startStockChange(operation: InventoryChangeOperation, name: string, unit?: string | null): Promise<InventoryFeedback | null> {
+    if (blockedRef.current || scopeRef.current !== originalReadScope) return feedback('readScopeChanged')
+    if (stockChangeRef.current || stockFlight.current) return feedback('stockChangePending')
+    if (isOffline()) return feedback('offlineWrite')
+    if (!intakeContext) return feedback('stockChangeContext')
+    let intent: InventoryChangeIntent
+    try { intent = makeInventoryChangeIntent(operation, intakeContext) }
+    catch { return feedback('stockChangeRefresh') }
+    const pending = { intent, operation, name, unit, uncertain: false }
+    stockChangeRef.current = pending
+    setStockChange(pending)
+    setBusy(operation.kind === 'undo' ? operation.adjustment_id : operation.item_id)
+    return runStockChange(pending)
+  }
+
+  async function undo(adjustmentId: string, name: string) {
+    const error = await startStockChange({ kind: 'undo', adjustment_id: adjustmentId }, name)
+    if (error) setNotice({ text: error, error: true })
+  }
+
+  /** Reviewed amount uses the same loaded version/unit; no silent conversion or rebasing. */
+  const adjust = async (target: AdjustTarget, kind: AdjustKind, amount: number | null = null): Promise<InventoryFeedback | null> => {
+    const current = data.state === 'ready' ? data.data.items.find(item => item.id === target.id) : undefined
+    const expectedVersion = target.version ?? current?.updated_at
+    if (!expectedVersion) return feedback('stockChangeRefresh')
+    return startStockChange(kind === 'consume' ? { kind, item_id: target.id, expected_version: expectedVersion, amount } : { kind, item_id: target.id, expected_version: expectedVersion }, target.name, target.unit ?? current?.unit)
+  }
 
   const quickAdjust = async (target: AdjustTarget, kind: AdjustKind) => {
     const err = await adjust(target, kind)
@@ -407,6 +444,7 @@ export default function InventoryClient({
   }
 
   const openAdd = () => {
+    if (recoveryBlocked) return
     if (isOffline()) {
       setNotice({ text: feedback('offlineWrite'), error: true })
       return
@@ -415,7 +453,10 @@ export default function InventoryClient({
   }
 
   return (
-    <div className="min-w-0 space-y-6">
+    <>
+    {readBlocked && <EmptyState icon={WifiOff} title={copy('readAccessTitle')} description={copy(readAccessLost === 'unsupported' ? 'readScopeUnsupported' : 'readScopeChanged')} action={<button type="button" className="btn-tinted min-h-[44px]" ref={readRecoveryRef} disabled={refreshing} onClick={() => { if (readScope !== originalReadScope) window.location.reload(); else void load() }}>{copy(readScope !== originalReadScope ? 'readReopen' : 'tryAgain')}</button>} />}
+    <div hidden={readBlocked} inert={readBlocked} className="min-w-0 space-y-6">
+      <InventoryRecoveryPanel suspended={readBlocked} onChanged={() => void load()} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-large-title font-display">{copy('title')}</h1>
@@ -423,16 +464,18 @@ export default function InventoryClient({
             {copy('subtitle')}
           </p>
         </div>
+        <button type="button" className="btn-plain min-h-[44px]" disabled={refreshing || !online} onClick={() => void load()}>{copy(refreshing ? 'readRefreshing' : 'readRefresh')}</button>
         {(canWrite || canScan) && (
           <div className="flex flex-wrap gap-2">
             {canScan && (
-              <button type="button" className="btn-tinted min-h-[44px]" onClick={() => setScanning(true)}>
+              <button type="button" className="btn-tinted min-h-[44px]" disabled={recoveryBlocked} onClick={() => setScanning(true)}>
                 <Camera className="w-4 h-4" aria-hidden="true" />
                 <span>{copy('scanFridge')}</span>
               </button>
             )}
+            {canWrite && <button type="button" className="btn-tinted min-h-[44px]" disabled={recoveryBlocked} onClick={() => setBarcodeScanning(true)}>{copy('scanFood')}</button>}
             {canWrite && (
-              <button type="button" className="btn-tinted min-h-[44px]" onClick={openAdd}>
+              <button ref={addItemRef} type="button" className="btn-tinted min-h-[44px]" disabled={recoveryBlocked} onClick={openAdd}>
                 <Plus className="w-4 h-4" aria-hidden="true" />
                 <span>{copy('addItem')}</span>
               </button>
@@ -551,7 +594,7 @@ export default function InventoryClient({
               />
               {data.data.capped && (
                 <p className="text-footnote text-label-secondary" data-testid="items-capped">
-                  {copy('capped', { count: (ITEM_PAGE_SIZE * ITEM_MAX_PAGES).toLocaleString('en-US') })}
+                  {copy('capped', { count: (INVENTORY_ITEM_PAGE_SIZE * INVENTORY_ITEM_MAX_PAGES).toLocaleString(displayLocale) })}
                 </p>
               )}
               {filtersOn && filtered.length === 0 ? (
@@ -577,29 +620,53 @@ export default function InventoryClient({
               )}
             </>
           )}
-          {(mealsOn || data.data.history.length > 0) && (
+          {(mealsOn || data.data.history.length > 0 || data.data.historyFailed) && (
             <div className={cn('grid min-w-0 grid-cols-1 items-start gap-6', mealsOn && data.data.history.length > 0 && 'xl:grid-cols-2')} data-testid="inventory-secondary">
               {mealsOn && <CookSection load={data.data.cook} onRetry={load} canOpenRecipes={canOpenRecipes} />}
+              {data.data.historyFailed && <p role="status" className="card-apple p-4 text-subhead">{copy(data.data.history.length ? 'readHistoryUnavailable' : 'readHistoryUnavailableEmpty')}</p>}
               {data.data.history.length > 0 && (
-                <HistorySection entries={data.data.history} canWrite={canWrite} onUndo={(e) => undo(e.id, e.item_name)} />
+                <HistorySection entries={data.data.history} canWrite={canWrite} onUndo={(e) => undo(e.id, e.item_name)} onRestock={listsOn && intakeContext && !recoveryBlocked ? (e) => setRestockItem(e.item_id) : undefined} />
               )}
             </div>
           )}
         </>
       )}
 
-      {scanning && <ScanFridgeDialog onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
+      {stockChange && <Dialog open={!readBlocked} variant="form" title={copy(stockSending ? 'stockChangeSaving' : 'stockChangeRecovery')} testId="inventory-change-recovery">
+        <p className="text-body break-words">{stockChange.name}</p>
+        <p className="text-subhead">{copy(stockChange.operation.kind === 'undo' ? 'undo' : stockChange.operation.kind === 'discard' ? 'throwAway' : stockChange.operation.kind === 'edit' ? 'save' : stockChange.operation.kind === 'remove' ? 'remove' : 'usedIt')}</p>
+        {stockChange.operation.kind === 'consume' && stockChange.operation.amount !== null && <p className="text-subhead">{formatAmount(stockChange.operation.amount)} {stockChange.unit ?? ''}</p>}
+        <StockEditSummary operation={stockChange.operation} />
+        {stockChange.operation.kind === 'remove' && <p className="text-footnote">{copy('removeConfirm', { name: stockChange.name })}</p>}
+        <p role="status" className="text-footnote">{copy(stockSending ? 'stockChangeSaving' : 'stockChangeUnknown')}</p>
+        <button type="button" className="btn-tinted min-h-[44px] w-full" disabled={stockSending} onClick={() => { const pending = stockChangeRef.current; if (pending) void runStockChange(pending); }}>{copy(stockSending ? 'saving' : 'intakeRetry')}</button>
+      </Dialog>}
+
+      {barcodeScanning && <BarcodeFoodDialog onVerifyAccess={() => void load()} suspended={readBlocked} initialContext={intakeContext} onClose={() => setBarcodeScanning(false)} onDone={(count) => { setBarcodeScanning(false); afterChange(feedback('barcodeAdded', { count })); }} />}
+      {scanning && <ScanFridgeDialog onVerifyAccess={() => void load()} suspended={readBlocked} canCaptureDocuments={canCaptureDocuments} initialContext={intakeContext} onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
+
+      {cookingOpen && cookingSource && mealsOn && canWrite && intakeContext && <InventoryCookingSheet key={JSON.stringify(cookingSource)} source={cookingSource} context={intakeContext} items={ready?.items ?? []} capped={ready?.capped ?? false} suspended={readBlocked || !!editing || !!stockChange} disabled={recoveryBlocked || refreshing || refreshFailed || !ready} onClose={() => setCookingOpen(false)} onChoose={item => { if (!readBlocked && !recoveryBlocked && !refreshing && !refreshFailed) setEditing({ mode: 'edit', item }) }} />}
 
       {editing && (
         <ItemModal
           mode={editing.mode}
+          suspended={readBlocked || !!stockChange}
+          onVerifyAccess={() => void load()}
+          initialContext={intakeContext}
           initial={editing.mode === 'edit' ? editing.item : undefined}
+          onRestock={editing.mode === 'edit' && listsOn && intakeContext && !recoveryBlocked ? () => setRestockItem(editing.item.id) : undefined}
           onClose={() => setEditing(null)}
-          onDone={afterChange}
+          onDone={(message) => {
+            focusAddAfterEdit.current = true
+            void afterChange(message)
+          }}
           onAdjust={adjust}
+          onChangeStock={startStockChange}
         />
       )}
+      {restockItem && <InventoryRestockSheet key={restockItem} itemId={restockItem} context={intakeContext} suspended={readBlocked} disabled={recoveryBlocked} onClose={() => setRestockItem(null)} onChanged={() => void load()} />}
     </div>
+    </>
   )
 }
 
@@ -910,7 +977,7 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
         </div>
       ) : load.data.suggestions.length === 0 ? (
         <p className="card-apple p-4 text-subhead text-label-secondary" data-testid="cook-empty">
-          {load.data.inputsTruncated
+          {load.data.comparisonIncomplete ? copy('cookComparisonIncomplete') : load.data.inputsTruncated
             ? copy('recipesEmptyCapped')
             : copy('recipesEmpty')}
         </p>
@@ -921,6 +988,8 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
               {copy('recipesIncomplete')}
             </p>
           )}
+          {load.data.comparisonIncomplete && <p className="mb-3 text-footnote" role="status">{copy('cookComparisonIncomplete')}</p>}
+          <p className="mb-3 text-footnote text-label-secondary">{copy('cookPresenceOnly')}</p>
           <ul className="space-y-3">
             {load.data.suggestions.map((s) => (
               <li key={s.recipeId} data-testid="cook-suggestion" data-recipe-id={s.recipeId} className="card-apple p-4 space-y-2">
@@ -948,6 +1017,11 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
                     {s.missing.map((m) => m.name).join(', ')}
                   </p>
                 )}
+                <details className="rounded-xl bg-[var(--surface-fill)] px-3">
+                  <summary className="min-h-[44px] cursor-pointer py-3 text-footnote">{copy('cookMatchDetails')}</summary>
+                  {s.have.some(item => item.match === undefined) && <p className="mb-2 text-footnote">{copy('cookMatchUnknown')}</p>}
+                  <ul className="pb-3 space-y-2">{s.have.map(item => <li key={item.ingredientId} className="text-footnote break-words"><span className="font-semibold">{item.name}</span>{' · '}{copy(item.match === 'linked' ? 'cookMatchLinked' : item.match === 'name' ? 'cookMatchName' : 'cookMatchUnknown')}</li>)}</ul>
+                </details>
                 <div className="flex flex-wrap items-start gap-2">
                   {canOpenRecipes && (
                     <Link
@@ -960,14 +1034,12 @@ function CookSection({ load, onRetry, canOpenRecipes }: { load: Load<CookData>; 
                       </span>
                     </Link>
                   )}
-                  {s.missing.length > 0 && (
-                    <AddToGroceriesButton
+                  <AddToGroceriesButton
                       className="flex-1 min-w-[14rem]"
                       recipeId={s.recipeId}
-                      ingredientIds={s.missing.map((m) => m.ingredientId)}
-                      label={copy('addMissing', { count: s.missing.length })}
-                    />
-                  )}
+                      ingredientIds={s.missing.length ? s.missing.map((m) => m.ingredientId) : undefined}
+                      label={s.missing.length ? copy('addMissing', { count: s.missing.length }) : copy('cookReviewGroceries')}
+                  />
                 </div>
               </li>
             ))}
@@ -1070,10 +1142,12 @@ function HistorySection({
   entries,
   canWrite,
   onUndo,
+  onRestock,
 }: {
   entries: HistoryEntry[]
   canWrite: boolean
   onUndo: (entry: HistoryEntry) => void
+  onRestock?: (entry: HistoryEntry) => void
 }) {
   const copy = useInventoryCopy()
   const locale = useDisplayLocale()
@@ -1104,6 +1178,7 @@ function HistorySection({
                   {copy('undo')}
                 </ActionButton>
               )}
+              {canWrite && onRestock && e.item_id && !e.undone_at && <button type="button" className="btn-plain min-h-[44px]" onClick={() => onRestock(e)}>{copy('restock')}</button>}
             </li>
           ))}
         </ul>
@@ -1112,21 +1187,54 @@ function HistorySection({
   )
 }
 
+function StockEditSummary({ operation }: { operation: InventoryChangeOperation }) {
+  const copy = useInventoryCopy()
+  if (operation.kind !== 'edit') return null
+  const changes = operation.changes
+  const blank = copy('stockChangeNotRecorded')
+  const fields: Array<[string, string]> = []
+  if (changes.name !== undefined) fields.push([copy('name'), changes.name])
+  if (changes.location !== undefined) fields.push([copy('where'), copy(changes.location)])
+  if (changes.amount !== undefined) fields.push([copy('amount'), changes.amount === null ? blank : formatAmount(changes.amount)])
+  if (changes.unit !== undefined) fields.push([copy('unit'), changes.unit || blank])
+  if (changes.expires_on !== undefined) fields.push([copy('packDate'), changes.expires_on || blank])
+  if (changes.date_kind !== undefined) fields.push([copy('foodPhotoDateKind'), copy(changes.date_kind)])
+  if (changes.category !== undefined) fields.push([copy('category'), changes.category ? copy(changes.category) : blank])
+  if (changes.purchased_on !== undefined) fields.push([copy('bought'), changes.purchased_on || blank])
+  if (changes.opened_on !== undefined) fields.push([copy('opened'), changes.opened_on || blank])
+  return <details className="rounded-xl bg-[var(--surface-fill)] p-3"><summary className="min-h-[44px] cursor-pointer py-2">{copy('stockChangeReviewedDetails')}</summary><dl className="space-y-2">{fields.map(([label, value]) => <div key={label} className="grid grid-cols-2 gap-3 text-footnote"><dt>{label}</dt><dd className="break-words">{value}</dd></div>)}</dl></details>
+}
+
 function ItemModal({
   mode,
+  suspended = false,
+  onVerifyAccess,
   initial,
+  initialContext,
   onClose,
   onDone,
   onAdjust,
+  onChangeStock,
+  onRestock,
 }: {
   mode: 'add' | 'edit'
+  suspended?: boolean
+  onVerifyAccess?: () => void
   initial?: InventoryItemDto
+  initialContext?: IntakeContext
   onClose: () => void
   onDone: (message: InventoryFeedback) => void
-  onAdjust: (target: AdjustTarget, kind: AdjustKind, amount: number | null, key: string) => Promise<InventoryFeedback | null>
+  onChangeStock: (operation: InventoryChangeOperation, name: string) => Promise<InventoryFeedback | null>
+  onRestock?: () => void
+  onAdjust: (
+    target: AdjustTarget,
+    kind: AdjustKind,
+    amount: number | null,
+  ) => Promise<InventoryFeedback | null>
 }) {
   const copy = useInventoryCopy()
   const [name, setName] = React.useState(initial?.name ?? '')
+  const { intake: sendIntake } = useInventoryWrites()
   const [location, setLocation] = React.useState<InventoryLocation>(initial?.location ?? 'fridge')
   const [amount, setAmount] = React.useState(initial?.amount != null ? String(initial.amount) : '')
   const [unit, setUnit] = React.useState(initial?.unit ?? '')
@@ -1139,30 +1247,46 @@ function ItemModal({
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<InventoryFeedback | null>(null)
   const titleId = React.useId()
-  const saveKey = useChangeKey()
-  const adjustKey = useChangeKey()
-  const deleteKey = useChangeKey()
+  const nameRef = React.useRef<HTMLInputElement>(null)
+  const keepRef = React.useRef<HTMLButtonElement>(null)
+  const mutationRef = React.useRef(false)
+  const [showRemove, setShowRemove] = React.useState(false)
+  const [showDetails, setShowDetails] = React.useState(
+    Boolean(initial?.category || initial?.purchased_on || initial?.opened_on),
+  )
+  // Freeze the actor/family captured when the sheet opened; never rebase a save.
+  const [context, setContext] = React.useState<IntakeContext | null>(initialContext ?? null)
+  const createAttempt = React.useRef<IntakeIntent | null>(null)
+  const [uncertain, setUncertain] = React.useState(false)
+  const locked = saving || uncertain
+  React.useEffect(() => {
+    if (mode !== 'add' || initialContext) return
+    let active = true
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 10000)
+    void readInventoryIntakeContext(controller.signal).then((value) => {
+      if (active) setContext(value)
+    }).catch(() => {
+      if (active) setError(feedback('manualIntakeContextFailed'))
+    }).finally(() => clearTimeout(timer))
+    return () => { active = false; clearTimeout(timer); controller.abort() }
+  }, [mode, initialContext])
 
-  // Keep browser Back on this route while the item mutation is in flight.
-  // The local close path below also guards Escape/backdrop/close-button
-  // dismissal so an in-flight draft cannot be discarded.
-  usePendingFormNavigationController(saving)
+  // Manual intake owns this sheet's recovery. Edit/consume/remove are owned
+  // by the parent's stock-change recovery, including its Back sentinel. Two
+  // sentinels for the same stock request can strand the parent's release after
+  // an unknown result, leaving the editor open after the request is confirmed.
+  // Local dismissal stays locked for every in-flight mutation in either mode.
+  const navigation = usePendingFormNavigationController(mode === 'add' && locked)
 
   const guardedClose = React.useCallback(() => {
-    if (saving) return
+    if (mutationRef.current || createAttempt.current) return
     onClose()
-  }, [onClose, saving])
-
-  React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') guardedClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [guardedClose])
+  }, [onClose])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (mutationRef.current || suspended) return
     const trimmed = name.trim()
     if (!trimmed) {
       setError(feedback('enterName'))
@@ -1188,28 +1312,60 @@ function ItemModal({
       purchased_on: purchasedOn || null,
       opened_on: openedOn || null,
     }
+    if (mode === 'add') {
+      if (!context) { setError(feedback('manualIntakeContextFailed')); return }
+      if (!createAttempt.current) {
+        try { createAttempt.current = makeInventoryIntakeIntent(body, context) }
+        catch { setError(feedback('manualIntakeInvalid')); return }
+      }
+      mutationRef.current = true
+      setSaving(true)
+      setError(null)
+      try {
+        const wasUncertain = uncertain
+        const result = await sendIntake(createAttempt.current)
+        if (result.kind === 'refused' && result.accessChanged) onVerifyAccess?.()
+        if (result.kind === 'confirmed') {
+          createAttempt.current = null
+          setUncertain(false)
+          await navigation.releaseBeforeNavigation()
+          onDone(feedback('addedName', { name: trimmed }))
+        } else if (result.kind === 'removed') {
+          createAttempt.current = null
+          setUncertain(false)
+          setError(feedback('manualIntakeRemoved'))
+          await navigation.releaseBeforeNavigation()
+        } else if (result.kind === 'unknown' || wasUncertain) {
+          setUncertain(true)
+          setError(feedback('manualIntakeUnknown'))
+        } else {
+          createAttempt.current = null
+          setError(feedback('manualIntakeRefused'))
+          await navigation.releaseBeforeNavigation()
+        }
+      } finally {
+        mutationRef.current = false
+        setSaving(false)
+      }
+      return
+    }
+    mutationRef.current = true
     setSaving(true)
     setError(null)
     try {
-      const url =
-        mode === 'edit' && initial
-          ? `/api/inventory/${encodeURIComponent(initial.id)}?${todayQuery()}`
-          : `/api/inventory?${todayQuery()}`
-      const res = await postJson(url, body, saveKey(body), mode === 'edit' ? 'PATCH' : 'POST')
-      if (!res.ok) {
-        setError(await errorMessage(res, feedback('saveFailed')))
-        return
-      }
-      onDone(feedback(mode === 'edit' ? 'savedName' : 'addedName', { name: trimmed }))
+      if (!initial) return
+      const err = await onChangeStock({ kind: 'edit', item_id: initial.id, expected_version: initial.updated_at, changes: body }, trimmed)
+      if (err) setError(err)
     } catch {
-      setError(feedback('saveNetwork'))
+      setError(feedback('stockChangeUnknown'))
     } finally {
+      mutationRef.current = false
       setSaving(false)
     }
   }
 
   const adjust = async (kind: AdjustKind) => {
-    if (!initial) return
+    if (!initial || mutationRef.current || suspended) return
     let usedAmount: number | null = null
     if (kind === 'consume' && used.trim() !== '') {
       usedAmount = Number(used)
@@ -1218,42 +1374,44 @@ function ItemModal({
         return
       }
     }
+    mutationRef.current = true
     setSaving(true)
     setError(null)
-    const key = adjustKey({ kind, usedAmount })
-    const err = await onAdjust({ id: initial.id, name: initial.name, unit: initial.unit }, kind, usedAmount, key)
-    setSaving(false)
-    if (err) setError(err)
+    try {
+      const err = await onAdjust({ id: initial.id, name: initial.name, unit: initial.unit, version: initial.updated_at }, kind, usedAmount)
+      if (err) setError(err)
+    } catch {
+      setError(feedback('saveNetwork'))
+    } finally {
+      mutationRef.current = false
+      setSaving(false)
+    }
   }
 
   const remove = async () => {
-    if (!initial) return
-    if (!confirm(copy('removeConfirm', { name: initial.name }))) {
-      return
-    }
+    if (!initial || mutationRef.current || suspended || !showRemove) return
     if (isOffline()) {
       setError(feedback('offlineWrite'))
       return
     }
+    mutationRef.current = true
     setSaving(true)
     setError(null)
     try {
-      const res = await postJson(
-        `/api/inventory/${encodeURIComponent(initial.id)}`,
-        undefined,
-        deleteKey({ remove: initial.id }),
-        'DELETE'
-      )
-      if (!res.ok) {
-        setError(await errorMessage(res, feedback('removeFailed')))
-        return
-      }
-      onDone(feedback('removedName', { name: initial.name }))
+      const err = await onChangeStock({ kind: 'remove', item_id: initial.id, expected_version: initial.updated_at }, initial.name)
+      if (err) setError(err)
     } catch {
-      setError(feedback('removeNetwork'))
+      setError(feedback('stockChangeUnknown'))
     } finally {
+      mutationRef.current = false
       setSaving(false)
     }
+  }
+
+  const closeRemove = () => {
+    if (mutationRef.current) return
+    setShowRemove(false)
+    setError(null)
   }
 
   const tile = (active: boolean) =>
@@ -1261,70 +1419,108 @@ function ItemModal({
       'relative min-h-[44px] flex items-center justify-center rounded-xl border px-2 text-subhead text-center cursor-pointer has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--accent)] has-[:focus-visible]:ring-offset-2',
       active
         ? 'border-[var(--accent)] bg-[var(--accent-tint)] text-[var(--accent-text)] font-semibold'
-        : 'border-[var(--surface-separator)] text-label-primary'
+        : 'border-[var(--surface-separator)] text-label-primary',
     )
   // Covers the whole tile, border included, so the hit target is >= 44px.
   const tileInput = 'absolute -left-px -top-px h-[calc(100%+2px)] w-[calc(100%+2px)] cursor-pointer opacity-0'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={guardedClose} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        data-testid="inventory-modal"
-        className="relative bg-[var(--surface-elevated)] rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 space-y-4"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <h2 id={titleId} className="min-w-0 break-words text-title-3 font-display text-label-primary">
-            {mode === 'add' ? copy('addItem') : copy('editName', { name: initial?.name ?? copy('itemFallback') })}
-          </h2>
-          <button
-            type="button"
-            onClick={guardedClose}
-            aria-label={copy('close')}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-[var(--surface-fill)]"
-          >
-            <X className="w-5 h-5 text-label-tertiary" aria-hidden="true" />
+    <Dialog
+      open={!suspended}
+      variant="form"
+      testId="inventory-modal"
+      title={mode === 'add' ? copy('addItem') : copy('editName', { name: initial?.name ?? copy('itemFallback') })}
+      closeLabel={copy('close')}
+      initialFocusRef={nameRef}
+      onClose={locked ? undefined : guardedClose}
+      footer={
+        <div className="flex gap-2">
+          {mode === 'edit' && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!mutationRef.current) {
+                  setError(null)
+                  setShowRemove(true)
+                }
+              }}
+              className="btn-destructive flex-1 min-h-[44px]"
+              disabled={saving}
+            >
+              {copy('remove')}
+            </button>
+          )}
+          <button type="submit" form={titleId} className="btn-tinted flex-1 min-h-[44px]" disabled={saving}>
+            {copy(saving ? 'saving' : uncertain ? 'intakeRetry' : 'save')}
           </button>
         </div>
-
-        {mode === 'edit' && initial && (
-          <div className="rounded-xl border border-[var(--surface-separator)] p-3 space-y-3" data-testid="adjust-panel">
-            <p className="text-subhead font-semibold text-label-primary">{copy('usedOrThrew')}</p>
-            {initial.amount !== null && (
-              <div>
-                <label htmlFor={`${titleId}-used`} className="text-subhead text-label-secondary mb-1 block">
-                  {copy('howMuch')}<span className="text-label-tertiary">{copy('emptyAll')}</span>
-                </label>
-                <input
-                  id={`${titleId}-used`}
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  step="any"
-                  value={used}
-                  onChange={(e) => setUsed(e.target.value)}
-                  placeholder={copy('allAmount', { amount: amountText(initial) ?? '' }).trim()}
-                  className="w-full input-apple"
-                />
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" className="btn-tinted min-h-[44px]" onClick={() => adjust('consume')} disabled={saving}>
-                <Utensils className="w-4 h-4" aria-hidden="true" />
-                <span>{copy('usedIt')}</span>
-              </button>
-              <button type="button" className="btn-ghost min-h-[44px]" onClick={() => adjust('discard')} disabled={saving}>
-                <Trash2 className="w-4 h-4" aria-hidden="true" />
-                <span>{copy('throwAway')}</span>
-              </button>
+      }
+    >
+      {(initial?.barcode || initial?.package_size) && <details className="rounded-xl bg-[var(--surface-fill)] p-3">
+        <summary className="min-h-[44px] cursor-pointer py-2">{copy('productDetails')}</summary>
+        {initial.barcode && <p className="text-footnote break-all">{copy('productCode')}: {initial.barcode}</p>}
+        {initial.product_brand && <p className="text-subhead">{initial.product_brand}</p>}
+        {initial.package_size && <p className="text-subhead">{copy('packageSize')}: {initial.package_size}</p>}
+        <p className="text-footnote text-label-secondary">{copy('packageNotStock')}</p>
+        {initial.product_source && initial.barcode && <a href={`https://world.openfoodfacts.org/product/${encodeURIComponent(initial.barcode)}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center">Open Food Facts · ODbL ↗</a>}
+      </details>}
+      {mode === 'edit' && initial && (
+        <div className="rounded-xl border border-[var(--surface-separator)] p-3 space-y-3" data-testid="adjust-panel">
+          <p className="text-subhead font-semibold text-label-primary">{copy('usedOrThrew')}</p>
+          {initial.amount !== null && (
+            <div>
+              <label htmlFor={`${titleId}-used`} className="text-subhead text-label-secondary mb-1 block">
+                {copy('howMuch')}
+                <span className="text-label-tertiary">{copy('emptyAll')}</span>
+              </label>
+              <input
+                id={`${titleId}-used`}
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={used}
+                disabled={saving}
+                onChange={(e) => setUsed(e.target.value)}
+                placeholder={copy('allAmount', { amount: amountText(initial) ?? '' }).trim()}
+                className="w-full input-apple"
+              />
             </div>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              className="btn-tinted min-h-[44px]"
+              onClick={() => adjust('consume')}
+              disabled={saving}
+            >
+              <Utensils className="w-4 h-4" aria-hidden="true" />
+              <span>{copy('usedIt')}</span>
+            </button>
+            <button
+              type="button"
+              className="btn-ghost min-h-[44px]"
+              onClick={() => adjust('discard')}
+              disabled={saving}
+            >
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
+              <span>{copy('throwAway')}</span>
+            </button>
+            {onRestock && <button type="button" className="btn-plain min-h-[44px]" disabled={locked || suspended} onClick={() => { if (!mutationRef.current) onRestock(); }}>{copy('restock')}</button>}
           </div>
-        )}
+        </div>
+      )}
 
-        <form onSubmit={submit} className="space-y-4" noValidate>
+      <form id={titleId} onSubmit={submit} className="space-y-4" noValidate>
+        <fieldset disabled={locked} className="space-y-4">
+          {mode === 'add' && <FoodDescriptionDraft enabled={!locked && !suspended} contextKey={`${context?.userId ?? ''}:${context?.familyId ?? ''}`} onApply={(draft) => {
+            if (locked || suspended || mutationRef.current) return
+            setName(draft.name)
+            if (draft.amount !== undefined) { setAmount(String(draft.amount)); setUnit(draft.unit ?? '') }
+            if (draft.location) setLocation(draft.location)
+            if (draft.expires_on && draft.date_kind) { setExpiresOn(draft.expires_on); setDateKind(draft.date_kind) }
+            setError(null)
+          }} />}
           <div>
             <label htmlFor={`${titleId}-name`} className="text-subhead text-label-secondary mb-1 block">
               {copy('name')}
@@ -1336,7 +1532,7 @@ function ItemModal({
               onChange={(e) => setName(e.target.value)}
               maxLength={200}
               required
-              autoFocus
+              ref={nameRef}
               className="w-full input-apple"
             />
           </div>
@@ -1412,9 +1608,7 @@ function ItemModal({
               ))}
             </div>
             <p className="text-footnote text-label-secondary" id={`${titleId}-date-help`}>
-              {dateKind === 'use_by'
-                ? copy('useBySafety')
-                : copy('bestBeforeQuality')}
+              {dateKind === 'use_by' ? copy('useBySafety') : copy('bestBeforeQuality')}
             </p>
             <div className="flex gap-2">
               <label htmlFor={`${titleId}-expires`} className="sr-only">
@@ -1440,70 +1634,92 @@ function ItemModal({
             </div>
           </fieldset>
 
-          <div>
-            <label htmlFor={`${titleId}-category`} className="text-subhead text-label-secondary mb-1 block">
-              {copy('category')} <span className="text-label-tertiary">{copy('optional')}</span>
-            </label>
-            <select
-              id={`${titleId}-category`}
-              value={category}
-              onChange={(e) => setCategory(e.target.value as InventoryCategory | '')}
-              className="w-full input-apple min-h-[44px]"
-            >
-              <option value="">{copy('noCategory')}</option>
-              {INVENTORY_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {copy(c)}
-                </option>
-              ))}
-            </select>
-          </div>
+          <details
+            open={showDetails}
+            onToggle={(event) => setShowDetails(event.currentTarget.open)}
+            className="rounded-xl border border-[var(--surface-separator)] p-3"
+          >
+            <summary tabIndex={0} className="min-h-11 cursor-pointer py-3 text-subhead font-semibold">
+              {copy('moreDetails')}
+            </summary>
+            <div className="space-y-4 pt-2">
+              <div>
+                <label htmlFor={`${titleId}-category`} className="text-subhead text-label-secondary mb-1 block">
+                  {copy('category')} <span className="text-label-tertiary">{copy('optional')}</span>
+                </label>
+                <select
+                  id={`${titleId}-category`}
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as InventoryCategory | '')}
+                  className="w-full input-apple min-h-[44px]"
+                >
+                  <option value="">{copy('noCategory')}</option>
+                  {INVENTORY_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {copy(c)}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor={`${titleId}-purchased`} className="text-subhead text-label-secondary mb-1 block">
-                {copy('bought')} <span className="text-label-tertiary">{copy('optional')}</span>
-              </label>
-              <input
-                id={`${titleId}-purchased`}
-                type="date"
-                value={purchasedOn}
-                onChange={(e) => setPurchasedOn(e.target.value)}
-                className="w-full min-w-0 input-apple"
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor={`${titleId}-purchased`} className="text-subhead text-label-secondary mb-1 block">
+                    {copy('bought')} <span className="text-label-tertiary">{copy('optional')}</span>
+                  </label>
+                  <input
+                    id={`${titleId}-purchased`}
+                    type="date"
+                    value={purchasedOn}
+                    onChange={(e) => setPurchasedOn(e.target.value)}
+                    className="w-full min-w-0 input-apple"
+                  />
+                </div>
+                <div>
+                  <label htmlFor={`${titleId}-opened`} className="text-subhead text-label-secondary mb-1 block">
+                    {copy('opened')} <span className="text-label-tertiary">{copy('optional')}</span>
+                  </label>
+                  <input
+                    id={`${titleId}-opened`}
+                    type="date"
+                    value={openedOn}
+                    onChange={(e) => setOpenedOn(e.target.value)}
+                    className="w-full min-w-0 input-apple"
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label htmlFor={`${titleId}-opened`} className="text-subhead text-label-secondary mb-1 block">
-                {copy('opened')} <span className="text-label-tertiary">{copy('optional')}</span>
-              </label>
-              <input
-                id={`${titleId}-opened`}
-                type="date"
-                value={openedOn}
-                onChange={(e) => setOpenedOn(e.target.value)}
-                className="w-full min-w-0 input-apple"
-              />
-            </div>
-          </div>
-
-          {error && (
+          </details>
+          {error && !showRemove && (
             <p role="alert" className="text-subhead text-[var(--danger-text)]">
               <InventoryText feedback={error} />
             </p>
           )}
-
-          <div className="flex gap-2 pt-2">
-            {mode === 'edit' && (
-              <button type="button" onClick={remove} className="btn-destructive flex-1 min-h-[44px]" disabled={saving}>
-                {copy('remove')}
-              </button>
-            )}
-            <button type="submit" className="btn-tinted flex-1 min-h-[44px]" disabled={saving}>
-              {copy(saving ? 'saving' : 'save')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </fieldset>
+      </form>
+      <Dialog
+        open={showRemove && !suspended}
+        role="alertdialog"
+        title={copy('remove')}
+        description={copy('removeConfirm', { name: initial?.name ?? copy('itemFallback') })}
+        closeLabel={copy('close')}
+        initialFocusRef={keepRef}
+        onClose={saving ? undefined : closeRemove}
+      >
+        {error && (
+          <p role="alert" className="mb-4 text-subhead text-[var(--danger-text)]">
+            <InventoryText feedback={error} />
+          </p>
+        )}
+        <div className="flex flex-wrap justify-end gap-2">
+          <button ref={keepRef} type="button" className="btn-tinted min-h-11" disabled={saving} onClick={closeRemove}>
+            {copy('keepItem')}
+          </button>
+          <button type="button" className="btn-destructive min-h-11" disabled={saving} onClick={() => void remove()}>
+            {copy(saving ? 'saving' : 'remove')}
+          </button>
+        </div>
+      </Dialog>
+    </Dialog>
   )
 }

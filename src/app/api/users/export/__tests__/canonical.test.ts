@@ -22,6 +22,8 @@ function seedLegacyAndBackfill() {
     db.rows('mealPlan').push({ id: `mp-${f}`, family_id, name: `${tag} week`, start_date: T, end_date: T, created_by: `parent-${f}`, created_at: T })
     db.rows('mealPlanEntry').push({ id: `mpe-${f}`, meal_plan_id: `mp-${f}`, recipe_id: `recipe-${f}`, date: T, meal_type: 'dinner', servings: 2 })
     db.rows('shoppingList').push({ id: `sl-${f}`, family_id, name: `${tag} shop`, created_by: `parent-${f}`, created_at: T, updated_at: T })
+    db.rows('recipeCollection').push({ id: `collection-${f}`, family_id, name: `${tag} favorites`, revision: 0, created_at: T })
+    db.rows('recipeCollectionEntry').push({ id: `entry-${f}`, family_id, collection_id: `collection-${f}`, recipe_id: `recipe-${f}` })
     db.rows('shoppingItem').push({ id: `si-${f}`, shopping_list_id: `sl-${f}`, ingredient_name: `${tag} flour`, checked: false })
     db.rows('importJob').push({
       id: `backfill-${f}`, family_id, source_app: BACKFILL_SOURCE_APP, source_version: 'adr-0007-backfill-v1',
@@ -66,6 +68,9 @@ describe('GET /api/users/export — canonical meal data', () => {
     const { body } = await exportAs(who)
     expect(body.recipes.map((r: any) => r.id)).toEqual(['recipe-a'])
     expect(body.recipes[0].ingredients[0].ingredient.name).toBe('Home Tomato')
+    expect(body.recipeCollections.map((r: any) => r.id)).toEqual(['collection-a'])
+    expect(body.recipeCollections[0]).toEqual({ id: 'collection-a', name: 'Home favorites', revision: 0, created_at: T.toISOString() })
+    expect(body.recipes[0].collection_entries).toEqual([{ collection_id: 'collection-a' }])
     expect(body.mealPlans.map((p: any) => p.id)).toEqual(['mp-a'])
     expect(body.mealPlans[0].entries.map((e: any) => e.id)).toEqual(['mpe-a'])
     expect(body.shoppingLists.map((l: any) => l.id)).toEqual(['sl-a'])

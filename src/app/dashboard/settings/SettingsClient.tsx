@@ -1,12 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import CalendarSubscriptionsSection from "./CalendarSubscriptionsSection";
-import CalendarSyncSection from "./CalendarSyncSection";
-import SharedDeviceSettings from "./SharedDeviceSettings";
-import DeleteAccountDialog from "@/components/account/DeleteAccountDialog";
+import LazyDeleteAccountDialog from "@/components/account/LazyDeleteAccountDialog";
 import { Dialog } from "@/components/ui/dialog";
 import { downloadMyData } from "@/lib/data-export-client";
 import {
@@ -25,14 +22,8 @@ import {
   SettingsFeedbackError,
   type SettingsFeedback,
 } from "@/i18n/settings";
-
-// Provider examples and the legacy app identity are literal data, not translated copy.
-const AI_URL_EXAMPLE =
-  "https://generativelanguage.googleapis.com/v1beta/openai";
-const AI_MODEL_EXAMPLE = "gemini-2.0-flash";
-const LEGACY_APP_NAME = "Family Planner";
+import { QuietDisplayControl } from "@/components/account/QuietDisplayControl";
 import NotificationPreferences from "@/components/account/NotificationPreferences";
-import BetaMetricsSwitch from "@/components/account/BetaMetricsSwitch";
 import SettingsDisclosure from "./SettingsDisclosure";
 import SettingsIcon from "./SettingsIcon";
 import {
@@ -59,6 +50,41 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+// Provider examples and the legacy app identity are literal data, not translated copy.
+const AI_URL_EXAMPLE =
+  "https://generativelanguage.googleapis.com/v1beta/openai";
+const AI_MODEL_EXAMPLE = "gemini-2.0-flash";
+const LEGACY_APP_NAME = "Family Planner";
+
+// Settings is the default landing tab, so keep family-only controls out of
+// its startup graph. Each child retains its existing disclosure, state and
+// API behaviour once the family group is opened.
+const LazyCalendarSubscriptionsSection = lazy(
+  () => import("./CalendarSubscriptionsSection"),
+);
+const LazyCalendarSyncSection = lazy(() => import("./CalendarSyncSection"));
+const LazySharedDeviceSettings = lazy(() => import("./SharedDeviceSettings"));
+const LazyAiUsagePanel = lazy(() =>
+  import("@/components/assistant/AiUsagePanel").then(({ AiUsagePanel }) => ({
+    default: AiUsagePanel,
+  })),
+);
+const LazyBetaMetricsSwitch = lazy(
+  () => import("@/components/account/BetaMetricsSwitch"),
+);
+
+// These controls live in lazy family/privacy children, so they are not in the
+// first DOM pass for a hash deep link. Keep the canonical anchors navigable
+// before those children resolve.
+const FAMILY_ANCHORS = new Set([
+  "calendar-subscriptions",
+  "calendar-subscriptions-heading",
+  "calendar-sync",
+  "calendar-sync-heading",
+  "tablet-pin",
+]);
+const PRIVACY_ANCHORS = new Set(["beta-metrics-switch"]);
+
 /** Who is looking at Settings; decided on the server from the database role. */
 export type SettingsViewerRole = "parent" | "teen";
 
@@ -70,13 +96,20 @@ function SettingsGroup({
   id,
   title,
   children,
+  active,
 }: {
   id: string;
   title: string;
   children: React.ReactNode;
+  active: boolean;
 }) {
   return (
-    <section aria-labelledby={id} className="space-y-4">
+    <section
+      hidden={!active}
+      data-settings-group={id}
+      aria-labelledby={id}
+      className="space-y-4"
+    >
       <h2 id={id} className="px-1 text-xl font-semibold text-foreground">
         {title}
       </h2>
@@ -138,15 +171,92 @@ export default function SettingsClient({
   betaMetrics = null,
   calendarSync = false,
   aiCaptureSettings = false,
+  aiUsage,
 }: {
   viewerRole: SettingsViewerRole;
   sharedDevice: { hasPin: boolean } | null;
   betaMetrics?: { enabled: boolean } | null;
   calendarSync?: boolean;
   aiCaptureSettings?: boolean;
+  aiUsage?: { userId: string; familyId: string };
 }) {
   const copy = useSettingsCopy();
   const isParent = viewerRole === "parent";
+  const [loading, setLoading] = useState(true);
+  const [activeSection, setActiveSection] = useState("settings-account");
+  const [hasCalendarReturn, setHasCalendarReturn] = useState(false);
+  const [familyContentMounted, setFamilyContentMounted] = useState(false);
+  const [privacyContentMounted, setPrivacyContentMounted] = useState(false);
+  const familySectionActive = activeSection === "settings-family";
+  const familyContentReady = familyContentMounted || familySectionActive;
+  const privacyContentReady =
+    privacyContentMounted || activeSection === "settings-privacy";
+  const revealCalendarReturn = useCallback(() => {
+    if (isParent) setActiveSection("settings-family");
+  }, [isParent]);
+  useEffect(() => {
+    const selectAnchor = () => {
+      const params = new URLSearchParams(window.location.search);
+      setHasCalendarReturn(
+        isParent && calendarSync && params.has("calendar_sync"),
+      );
+      const anchor = window.location.hash.slice(1);
+      const target = document.getElementById(anchor);
+      const group =
+        target?.closest<HTMLElement>("[data-settings-group]")?.dataset
+          .settingsGroup ??
+        (FAMILY_ANCHORS.has(anchor)
+          ? "settings-family"
+          : PRIVACY_ANCHORS.has(anchor)
+            ? "settings-privacy"
+            : undefined);
+      if (group && (group !== "settings-family" || isParent))
+        setActiveSection(group);
+      else if (isParent && params.get("setup") === "ai")
+        setActiveSection("settings-family");
+    };
+    selectAnchor();
+    window.addEventListener("hashchange", selectAnchor);
+    return () => window.removeEventListener("hashchange", selectAnchor);
+  }, [calendarSync, isParent, loading]);
+  useEffect(() => {
+    if (familySectionActive) setFamilyContentMounted(true);
+    if (activeSection === "settings-privacy") setPrivacyContentMounted(true);
+  }, [activeSection, familySectionActive]);
+  useEffect(() => {
+    const revealAnchor = () => {
+      const target = document.getElementById(window.location.hash.slice(1));
+      if (
+        target?.closest<HTMLElement>("[data-settings-group]")?.dataset
+          .settingsGroup !== activeSection
+      )
+        return false;
+      let parent: HTMLElement | null = target;
+      while (parent) {
+        if (parent instanceof HTMLDetailsElement) parent.open = true;
+        parent = parent.parentElement;
+      }
+      target?.scrollIntoView({ block: "start" });
+      return Boolean(target);
+    };
+    let observer: MutationObserver | null = null;
+    const frame = requestAnimationFrame(() => {
+      const anchor = window.location.hash.slice(1);
+      if (!anchor) return;
+      if (revealAnchor()) return;
+      if (!FAMILY_ANCHORS.has(anchor) && !PRIVACY_ANCHORS.has(anchor)) return;
+      // A lazy child can add the target after this effect's first frame. Watch
+      // only long enough to hand the same canonical focus/open behaviour to it.
+      observer = new MutationObserver(() => {
+        if (revealAnchor()) observer?.disconnect();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+    };
+  }, [activeSection, familyContentReady, loading]);
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -175,7 +285,6 @@ export default function SettingsClient({
   };
   // Mount household sections only after the first profile load; otherwise the
   // transient loading return unmounts them and loses one-shot OAuth feedback.
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -190,6 +299,7 @@ export default function SettingsClient({
 
   // AI capture provider state. The key is never loaded back into the form —
   // the API returns only a masked hint, so the field stays empty on load.
+  const [aiProviderRevision, setAiProviderRevision] = useState(0);
   const [aiKey, setAiKey] = useState("");
   const [aiKeyHint, setAiKeyHint] = useState<string | null>(null);
   const [aiConfigured, setAiConfigured] = useState(false);
@@ -256,7 +366,7 @@ export default function SettingsClient({
   // Load the family's calendar feed token, if one exists. Parents only — the
   // API refuses everyone else too.
   useEffect(() => {
-    if (!isParent) return;
+    if (!isParent || !familyContentReady) return;
     fetch("/api/family/feed-token")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -264,11 +374,11 @@ export default function SettingsClient({
           setFeedToken(d.feedToken);
       })
       .catch(() => {});
-  }, [isParent]);
+  }, [familyContentReady, isParent]);
 
   // Load AI capture settings (masked hint only — never the key itself). Parents
-  // only, and only while the form is shown (see aiCaptureSettings).
-  const showAi = isParent && aiCaptureSettings;
+  // only, and only after the family group is selected (see aiCaptureSettings).
+  const showAi = isParent && aiCaptureSettings && familyContentReady;
   useEffect(() => {
     if (!showAi) return;
     fetch("/api/family/ai-settings")
@@ -309,6 +419,7 @@ export default function SettingsClient({
       setAiConfigured(Boolean(data.configured));
       setAiKeyHint(data.keyHint ?? null);
       setAiKey("");
+      setAiProviderRevision((value) => value + 1);
       setAiMessage(settingsFeedback(clear ? "aiRemoved" : "saved"));
       setTimeout(() => setAiMessage(null), 2500);
     } catch (e) {
@@ -460,7 +571,7 @@ export default function SettingsClient({
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-10">
+    <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <h1 className="text-large-title text-label-primary">{copy("title")}</h1>
         <p className="mt-2 text-muted-foreground">
@@ -480,8 +591,44 @@ export default function SettingsClient({
         </div>
       )}
 
+      <nav aria-label={copy("title")} className="flex flex-wrap gap-2">
+        {(["account", ...(isParent ? ["family"] : []), "privacy"] as const).map(
+          (section) => {
+            const id = `settings-${section}`;
+            return (
+              <button
+                type="button"
+                key={section}
+                aria-pressed={activeSection === id}
+                onClick={() => {
+                  setActiveSection(id);
+                  window.history.replaceState(
+                    window.history.state,
+                    "",
+                    `${window.location.pathname}${window.location.search}#${id}`,
+                  );
+                }}
+                className={`min-h-[44px] rounded-full px-5 py-2 text-subhead font-semibold ${activeSection === id ? "bg-[var(--accent-fill)] text-[var(--on-accent)]" : "bg-[var(--surface-fill)] text-label-primary"}`}
+              >
+                {copy(
+                  section === "account"
+                    ? "account"
+                    : section === "family"
+                      ? "family"
+                      : "privacyData",
+                )}
+              </button>
+            );
+          },
+        )}
+      </nav>
+
       {/* 1. Your account: personal to whoever is signed in (parent or teen). */}
-      <SettingsGroup id="settings-account" title={copy("account")}>
+      <SettingsGroup
+        id="settings-account"
+        title={copy("account")}
+        active={activeSection === "settings-account"}
+      >
         <div className="card">
           <CardHeader icon={User} tone="blue" title={copy("profile")} />
 
@@ -632,12 +779,17 @@ export default function SettingsClient({
           {/* Saved on your account (#286), so it follows you to every device. */}
           <NotificationPreferences />
         </div>
+        <QuietDisplayControl />
       </SettingsGroup>
 
       {/* 2. Family: household-level, parents only. Not rendered for a teen and
           none of its data is fetched (the APIs refuse teens regardless). */}
       {isParent && (
-        <SettingsGroup id="settings-family" title={copy("family")}>
+        <SettingsGroup
+          id="settings-family"
+          title={copy("family")}
+          active={activeSection === "settings-family"}
+        >
           <div className="card">
             <div className="-mx-3 space-y-1">
               <Link href="/dashboard/family/settings" className={rowClass}>
@@ -717,7 +869,7 @@ export default function SettingsClient({
           </div>
 
           {/* Shared tablets (#241): only while the kill switch is on (decided in ./page.tsx). */}
-          {sharedDevice && (
+          {sharedDevice && familyContentReady && (
             <div className="card">
               <CardHeader
                 icon={TabletSmartphone}
@@ -725,7 +877,17 @@ export default function SettingsClient({
                 title={copy("familyTablet")}
               />
               <div className="-mx-3 space-y-1">
-                <SharedDeviceSettings initialHasPin={sharedDevice.hasPin} />
+                <Suspense
+                  fallback={
+                    <p role="status" className="text-sm text-muted-foreground">
+                      {copy("loading")}
+                    </p>
+                  }
+                >
+                  <LazySharedDeviceSettings
+                    initialHasPin={sharedDevice.hasPin}
+                  />
+                </Suspense>
               </div>
             </div>
           )}
@@ -821,10 +983,47 @@ export default function SettingsClient({
           </SettingsDisclosure>
 
           {/* Subscribed (read-only ICS) calendars, #232. The API enforces parent-only too. */}
-          <CalendarSubscriptionsSection />
+          {familyContentReady && (
+            <Suspense
+              fallback={
+                <p role="status" className="text-sm text-muted-foreground">
+                  {copy("loading")}
+                </p>
+              }
+            >
+              <LazyCalendarSubscriptionsSection />
+            </Suspense>
+          )}
 
           {/* Two-way Google/Outlook sync, #264. Hidden unless the server has it configured. */}
-          {calendarSync && <CalendarSyncSection />}
+          {calendarSync && (familyContentReady || hasCalendarReturn) && (
+            <Suspense
+              fallback={
+                <p role="status" className="text-sm text-muted-foreground">
+                  {copy("loading")}
+                </p>
+              }
+            >
+              <LazyCalendarSyncSection
+                onProviderReturn={revealCalendarReturn}
+              />
+            </Suspense>
+          )}
+
+          {aiUsage && isParent && familyContentReady && (
+            <Suspense
+              fallback={
+                <p role="status" className="text-sm text-muted-foreground">
+                  {copy("loading")}
+                </p>
+              }
+            >
+              <LazyAiUsagePanel
+                identity={aiUsage}
+                refreshKey={aiProviderRevision}
+              />
+            </Suspense>
+          )}
 
           {/* AI capture: the household's provider key. Only when the deployment
               turns the form on, a key is already saved, or a parent follows the explicit AI setup link. */}
@@ -947,7 +1146,11 @@ export default function SettingsClient({
       )}
 
       {/* 3. Privacy & data: a teen sees only their own export and deletion. */}
-      <SettingsGroup id="settings-privacy" title={copy("privacyData")}>
+      <SettingsGroup
+        id="settings-privacy"
+        title={copy("privacyData")}
+        active={activeSection === "settings-privacy"}
+      >
         <div className="card">
           <div className="-mx-3 space-y-1">
             <button
@@ -977,8 +1180,16 @@ export default function SettingsClient({
               </p>
             )}
             {/* Beta usage counts (#287): parents only; PATCH /api/family/beta-metrics enforces it too. */}
-            {isParent && betaMetrics && (
-              <BetaMetricsSwitch initialEnabled={betaMetrics.enabled} />
+            {isParent && betaMetrics && privacyContentReady && (
+              <Suspense
+                fallback={
+                  <p role="status" className="text-sm text-muted-foreground">
+                    {copy("loading")}
+                  </p>
+                }
+              >
+                <LazyBetaMetricsSwitch initialEnabled={betaMetrics.enabled} />
+              </Suspense>
             )}
             <button
               type="button"
@@ -1005,7 +1216,7 @@ export default function SettingsClient({
       </div>
 
       {/* A teen deletes only their own account; the household option is a parent's. */}
-      <DeleteAccountDialog
+      <LazyDeleteAccountDialog
         open={showDeleteDialog}
         onClose={() => setShowDeleteDialog(false)}
         allowHousehold={isParent}

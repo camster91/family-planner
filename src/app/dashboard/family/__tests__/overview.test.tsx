@@ -100,6 +100,7 @@ it("renders account-backed cards, preserves private text and hides self removal"
   expect(calls).toEqual([
     { url: "/api/auth/me", method: "GET" },
     { url: "/api/family/members", method: "GET" },
+    { url: "/api/family/profile-links", method: "GET" },
   ]);
 });
 

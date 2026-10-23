@@ -135,7 +135,7 @@ The Today board (`/dashboard/today`, `GET /api/family/board-version` polled ever
 | `user.findMany` members | household size | `User(family_id)` |
 | `event.findMany` not finished, starting before window end | `take: MAX_EVENTS` | `Event(family_id, start_time)` |
 | `chore.findMany` due in window | `take: MAX_CHORES` | `Chore(family_id, due_date)` (added in #306, decision O-19) |
-| `familyMeal.findMany` dinners in window (meals on) | date window only; no row cap (multiple meals per day are allowed) | `FamilyMeal(family_id, date)` |
+| `loadBoardDinners` day previews (meals on) | at most6 fixed day queries x2 rows, nested recipe ingredient lookahead201; one summary/day plus explicit more flag | `FamilyMeal(family_id, date)` |
 | `listItem.findMany` + `count` open shopping items | `take: 5` + count | `ListItem(list_id, checked)` via `List(family_id, type)` |
 | use-soon inventory (inventory on) | `limit` | see `src/lib/inventory.ts` |
 | `calendarSubscription.findMany` names | ids from the page | primary key + `family_id` |
@@ -143,8 +143,8 @@ The Today board (`/dashboard/today`, `GET /api/family/board-version` polled ever
 
 Findings, not fixed here:
 - `GET /api/chores` supports opt-in `?limit=1..200&cursor=` paging (#307, decision O-19). Without `limit`, it retains the plain `{ chores }` shape but returns at most `CHORE_UNPAGED_MAX` (500), selected newest by due date/id and returned oldest first. The parent web page uses two separate `currentChoreQueries` reads capped at `CHORE_CURRENT_MAX` (500 each), plus older verified history pages (`CHORE_HISTORY_PAGE_SIZE` 50 plus one lookahead row). The optional streak, member and rotation-template reads are separate and must not be assumed bounded by those current/history caps. Installed Android and other callers still need compatibility-aware paging review.
-- `GET /api/lists` returns one row per household list with item counts and creator name, without a row cap or paging. Expected household size is not an enforced row bound. The deprecated `GET /api/lists/items` and current server list-detail page also load all items of an authorized list; neither has paging. A bounded implementation must preserve old-client contracts, store-section ordering and truthful completeness/recovery state.
-- Today dinner reads have a date predicate but no row cap; `GET /api/meals` similarly allows date ranges up to 62 days without row paging. ADR-0007 permits multiple meals per date/type, so neither range is a cardinality bound. Nested recipe ingredients also need review. Do not silently drop additional meals to make the query appear bounded. Missing-ingredient counts load inventory once through the capped `loadCookInventory`, then run a pure in-memory dinner loop; that loop alone does not prove N+1.
+- The 2026-10-22 server Lists overview source now uses100+1 summaries, at most6 known type-count groups and progress aggregates over the100 displayed IDs in a renewed-authority repeatable-read snapshot. The web detail uses100+1 item rows and page-only section metadata. Optional API/item/version paging preserves complete no-limit legacy clients. Neither bounds scanned rows or proves latency/N+1/capacity; legacy no-limit paths remain explicit compatibility exceptions. See API_CONTRACTS.md and CORE_QUERY_PLAN.md.
+- Meal-week GET/web source has optional limit/cursor range/family-bound paging and explicit loaded-depth continuation. Today now reads two dinner candidates per UTC day in its six-day coverage, emits one first dinner with an explicit more-dinner flag and caps nested ingredient reads at201. Missing counts are withheld above200 ingredients or for incomplete inventory. Shared readers never load those ingredient fields. These are source bounds, not measured SQL counts or load acceptance. Legacy unpaged meals remain complete. No date-window-only bound or silent meal truncation claim is made.
 - The Today-board and `GET /api/chores` queries filter `family_id` and order by `due_date`; the `Chore(family_id, due_date)` index (expand-only, #306) serves both. With fixture data every table is small enough that Postgres may still scan sequentially; confirm with the slow-query hook or `EXPLAIN` on a realistic household.
 - `board-version` recomputes the whole board to hash it on every poll (rate limit 1200/hour per member). It is the hottest path; watch its p95 in `docs/testing/PERFORMANCE_BASELINE.md` before adding tiles.
 
@@ -179,3 +179,50 @@ booleans and null-or-numeric rates (no string cardinality). Retention: queue-ins
 on clear/auth loss/disposal; no database, storage, log or remote sink. Collection: internal local
 counters, with deliberate user viewing/copying in Help. No analytics consent/disclosure or provider
 boundary is widened. Fleet collection needs a separately reviewed transmission/consent/retention design.
+
+### Product measurement scope — 2026-10-20
+
+`../product/PRODUCT_MEASUREMENT.md` maps the existing nine fixed beta-count
+metrics to #140 goals, owners, replay/loss limits and missing denominators.
+Scorecard JSON/text adds `herewoven.beta-count-scorecard.v1` scope metadata: count
+thresholds only, best-effort, ordered/cohort acceptance unverified. D-6 counting
+rules and opt-in/retention behavior are unchanged. No new collection, provider,
+experiment or tracking activation. Source tests authored/unrun.
+
+
+### List-summary collection continuation — 2026-10-22 source checkpoint
+
+The canonical list GET now supports optional limit1..200/cursor with limit+1
+reads. Paged order is created_at descending/ID ascending; filter/family-bound
+positions cannot authorize reads. Legacy no-limit responses remain complete and
+unbounded. Server overview and item-detail continuation are separate outstanding
+consumers. Existing family and family/type indexes remain; no new index or query
+plan/load result is inferred from paging. Later QA must measure actual SQL/rows,
+aggregate counts, filter cardinalities and legacy/new clients on representative
+fabricated households. Source formatting only; no new execution evidence.
+
+
+The subsequent web overview source also opts into100-row server pages. Its type
+count aggregate has at most six groups and the checked-item aggregate is scoped
+to the100 visible list IDs. No item content hydration or per-list count query is
+added. This bounds returned summary/group rows, not scanned index rows, latency,
+legacy API or detail collections. Measure actual execution plans/SQL and concurrent
+snapshot behavior during consolidated QA before asserting #134 scale acceptance.
+
+
+The next source checkpoint also bounds web list-detail rows/section inputs to100
+plus one lookahead and version polling to the same101 metadata rows. Optional
+item/version API paging preserves unbounded no-limit contracts. No query-per-item
+is introduced; bounded overrides and existing household section-order reads stay
+separate. Page-only group/progress copy is not an exact global completion claim.
+Measure actual SQL/plans, list position/selectivity, section preference loads,
+concurrent snapshot/hash parity and legacy/client compatibility during later QA.
+This does not assert that all callers, database scans or core domains are bounded.
+
+
+### Current source/query plan
+
+CORE_QUERY_PLAN.md consolidates current web bounds, preserved unpaged compatibility
+exceptions, relation/scan caveats, high-volume index/retention planning and the
+fabricated concurrent household load model. Later QA must fill measured evidence;
+the source inventory does not itself satisfy the original #134 N+1/load criteria.

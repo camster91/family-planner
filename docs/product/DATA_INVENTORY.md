@@ -1,6 +1,26 @@
 # Data Inventory
 
+Restock source extension (2026-10-20): the existing private owned inventory
+journal can also hold the exact reviewed online grocery replacement request,
+original actor/household/source/list IDs, version and desired purchase values.
+No raw media or stock remaining/expiry/package values are copied into it by
+restocking. Draft-name duplicate review uses a private POST body, not a URL.
+Names/target lists appear in recovered UI only after current canonical scope
+review. This adds no public/telemetry data, no offline action and no separate
+stock store. Undo uncertainty is local to the open sheet; no new durable Undo
+record is advertised. Source only, flags off, acceptance deferred.
+
 This document is the engineering source for privacy review and future Play Data Safety answers. It must be reconciled against actual code before public release.
+
+Inventory recovery source (2026-10-20, off/gated UI integrated): the personal
+recovery journal holds only exact user-reviewed intake/change kind,
+request key and body inside a private session/household-owned envelope. At most
+20 rows, 8 KiB per body, 200 KiB per journal; no raw photos/audio/OCR, provider
+prompts, copied display titles or credentials. It reuses owned-person storage
+and generation/household retirement; unknown records stay held. No automatic
+queue replay or telemetry content is introduced. Unadopted forms still persist
+no inventory request journal; adopted forms stage before sending. Full ownership, privacy and acceptance
+boundaries: `architecture/INVENTORY_RECOVERY.md`.
 
 ## Classification levels
 - **Public/product:** non-user-specific product metadata.
@@ -79,3 +99,56 @@ Do not add a provider to production without security/privacy review and explicit
 
 ## Play submission rule
 Reconcile this table against actual dependencies, network calls, Android permissions, server integrations and production configuration before completing Data Safety declarations.
+## Barcode product recognition (#125; source candidate 2026-10-19)
+
+FoodProduct stores household-only GTIN, reviewed name/brand/package label,
+manual/public origin, attributed source URL and revision/time. Parent/teen inventory
+writers may read and opt into updating this metadata with canonical intake. It
+holds no stock amount or expiry; InventoryItem keeps nullable product snapshots
+without mutable product links. Household export includes the library for current
+parents/teens, and household deletion removes it. Shared Use soon gets no extra
+fields. No raw camera frames or public product images are persisted.
+
+The optional public adapter sends only a deliberate barcode to Open Food Facts;
+no household/profile identifier, quantity, dates, cookies or private photos. Safe
+public image loading follows explicit Apply with no referrer. Returned metadata
+and its reuse remain deployment gated pending data-license/attribution approval.
+All three configuration gates default off. Private manual recognition is usable
+without that provider. See `FOOD_CAPTURE.md` for current terms and acceptance gaps.
+
+## Food-document review (#125; source candidate 2026-10-19)
+
+Package/date-label and receipt photos use the existing fixed scanner only behind
+a separate disabled document-processing gate. Receipt upload requires the parent
+to acknowledge cropping/covering personal/payment details; this is not automatic
+redaction. Prompts exclude personal/payment/store/price data, but provider output
+remains untrusted. Eligibility, processor/retention terms and activation still need
+owner acceptance. No new provider call or persisted raw document is introduced.
+
+Printed date text/candidate and model confidence are transient review metadata.
+Receipt timestamps are discarded. Only deliberately reviewed food fields and
+optional package_size reach canonical InventoryItem via intake; the label is a
+snapshot, not stock quantity or a new product/barcode. Existing export/deletion
+already includes package_size. No raw OCR/receipt evidence is added to shared
+surfaces, logs, analytics, export or an offline queue. No native capability claim.
+
+## Durable routine metadata source foundation — 2026-10-20
+
+Proposed nullable canonical stack/root schedule definitions contain parent-authored
+cue, ordered root IDs, future title/instructions, account/profile target, schedule
+and optional duration. Occurrence cue/duration are snapshots. No new route writes
+non-null definitions yet and no schema/generation ran. Parent portability now
+includes existing durable stack definitions; non-parent exports strip root future
+control JSON. Ordinary domain/profile/complete/board/cache/read projections must
+also exclude private future definitions before activation. Existing household
+erasure inventories stacks/chores. No provider, analytics, media, timer or new
+offline action. `../plans/routine-schedule-v1.md`.
+
+Routine coordinator continuation (2026-10-20): ordinary chore JSON responses and
+server page now strip private definitions recursively; dedicated parent state/
+export stays separate. The original private command adds explicit viewer timezone
+to refuse stale-day first effects, without collecting device analytics. Current
+parent/household/session/feature and profile capability checks guard the unrouted
+coordinator. No runtime endpoint, provider, schema execution, collection activation
+or new cache/offline action. Flags remain off; future adapter/action/lifecycle
+projections and consolidated acceptance remain required.

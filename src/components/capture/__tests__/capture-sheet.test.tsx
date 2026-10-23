@@ -7,6 +7,12 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 import { CaptureSheet } from "../CaptureSheet";
+// These existing cases cover the pre-adoption sheet/legacy-envelope path.
+// Owned capture integration has its own actor/storage/batch cases.
+jest.mock("../CaptureBox", () => {
+  const actual = jest.requireActual("../CaptureBox");
+  return { ...actual, CaptureBox: actual.LegacyCaptureBox };
+});
 
 if (!globalThis.crypto?.subtle)
   Object.defineProperty(globalThis, "crypto", {
@@ -91,6 +97,7 @@ it("fails closed while availability is still loading", async () => {
   ).not.toBeInTheDocument();
   expect(document.body.style.overflow).toBe("");
 
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
   await act(async () =>
     resolveGate(
       response(200, {
@@ -234,9 +241,17 @@ it("does not focus the capture input when a closed sheet finishes retrying", asy
   expect(launcher).toHaveFocus();
 });
 
-it("hides the launcher for an explicit authenticated refusal", async () => {
-  await expectUnavailable(() => Promise.resolve(response(401, {})));
-});
+it.each([401, 403])(
+  "hides the launcher for an empty authenticated refusal (%i)",
+  async (status) => {
+    const refusal = response(status, {});
+    refusal.json = jest.fn(async () => {
+      throw new Error("empty auth refusal");
+    });
+    await expectUnavailable(() => Promise.resolve(refusal));
+    expect(refusal.json).not.toHaveBeenCalled();
+  },
+);
 
 it.each([401, 403])(
   "keeps an open sheet visible for a final auth refusal (%i)",

@@ -172,6 +172,7 @@ for (const locale of ["en", "es"] as const) {
       await installGuard(context, locale);
 
       await page.goto("/dashboard");
+      await expect(page).toHaveURL(/\/dashboard\/today$/);
       const originalProfile = await browserFetch(page, "/api/users");
       expect(originalProfile.status, originalProfile.body).toBe(200);
       const profile = JSON.parse(originalProfile.body).user as {
@@ -242,6 +243,7 @@ for (const locale of ["en", "es"] as const) {
           await installGuard(pairedContext, locale);
           const pairedPage = await pairedContext.newPage();
           await pairedPage.goto("/dashboard");
+          await expect(pairedPage).toHaveURL(/\/dashboard\/today$/);
           const pairedProfile = await browserFetch(pairedPage, "/api/users");
           expect(pairedProfile.status, pairedProfile.body).toBe(200);
           const pairedUser = JSON.parse(pairedProfile.body).user as {

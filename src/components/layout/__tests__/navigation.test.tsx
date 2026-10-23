@@ -186,7 +186,7 @@ describe('More list', () => {
     )
     expect(screen.getByRole('heading', { name: 'Explorar' })).toBeTruthy()
     expect(
-      screen.getByRole('link', { name: /Inventario de alimentos/ }).getAttribute('href'),
+      within(screen.getByTestId('more-list')).getByRole('link', { name: /Inventario de alimentos/ }).getAttribute('href'),
     ).toBe('/dashboard/inventory')
     expect(
       screen.getByRole('link', { name: /Mesada y deudas/ }).getAttribute('href'),
@@ -224,9 +224,9 @@ describe('More list', () => {
     const list = screen.getByTestId('more-list')
     const search = screen.getByRole('searchbox', { name: 'Search enabled features' })
     fireEvent.change(search, { target: { value: 'no such household feature' } })
-    expect(screen.getByRole('status').textContent).toContain('No enabled features match your search.')
+    expect(screen.getByText('No enabled features match your search.').closest('[role="status"]')).not.toBeNull()
     const clear = screen.getByRole('button', { name: 'Clear search' })
-    expect(clear.className).toContain('min-h-11')
+    expect(clear.className).toContain('min-h-[44px]')
     fireEvent.click(clear)
     expect(within(list).getAllByRole('listitem').length).toBeGreaterThan(0)
   })

@@ -14,6 +14,7 @@ import {
   install,
   identity,
   language,
+  selectSettingsTab,
   capture,
   msg,
   enabled,
@@ -162,6 +163,11 @@ for (const role of ["parentA", "parentB", "teen", "child"] as const)
           await page.locator('form button[type="submit"]').click();
           await expect(page).toHaveURL(/\/dashboard\/?$/);
         } else await page.goto("/dashboard");
+        await expect(page).toHaveURL(
+          role === "parentA" || role === "parentB"
+            ? /\/dashboard\/today$/
+            : /\/dashboard\/?$/,
+        );
         const auth = await browserFetch(page, "/api/auth/me");
         expect(auth.status).toBe(200);
         const user = JSON.parse(auth.body).user;
@@ -296,6 +302,7 @@ for (const role of ["parentA", "parentB", "teen", "child"] as const)
             const before = s.calls.length;
             await language(page, locale === "en" ? "es" : "en");
             expect(s.calls).toHaveLength(before);
+            const currentLocale = locale === "en" ? "es" : "en";
             if (role === "teen") {
               await expect(page.locator("#settings-family")).toHaveCount(0);
               await expect(page.getByTestId("beta-metrics-switch")).toHaveCount(
@@ -310,21 +317,26 @@ for (const role of ["parentA", "parentB", "teen", "child"] as const)
                 "/api/calendar/connections",
               ])
                 expect(s.count("GET", path)).toBe(0);
+              await capture(page, info, role + "-settings-visibility");
+              await selectSettingsTab(page, currentLocale, "privacy");
               await expect(
                 page.getByRole("button", {
-                  name: msg(locale === "en" ? "es" : "en", "dataExport"),
+                  name: msg(currentLocale, "dataExport"),
                   exact: false,
                 }),
               ).toBeVisible();
               await expect(
                 page.getByRole("button", {
-                  name: msg(locale === "en" ? "es" : "en", "deleteAccount"),
+                  name: msg(currentLocale, "deleteAccount"),
                   exact: true,
                 }),
               ).toBeVisible();
-            } else await expect(page.locator("#settings-family")).toBeVisible();
-            await capture(page, info, role + "-settings-visibility");
-            const currentLocale = locale === "en" ? "es" : "en";
+            } else {
+              await selectSettingsTab(page, currentLocale, "family");
+              await expect(page.locator("#settings-family")).toBeVisible();
+              await capture(page, info, role + "-settings-visibility");
+              await selectSettingsTab(page, currentLocale, "privacy");
+            }
             const exportButton = page.getByRole("button", {
               name: msg(currentLocale, "dataExport"),
               exact: false,
@@ -366,6 +378,12 @@ for (const role of ["parentA", "parentB", "teen", "child"] as const)
             await deleteButton.click();
             const modal = page.getByTestId("delete-account-dialog");
             await expect(modal).toBeVisible();
+            // The loading dialog intentionally has the same accessible title
+            // and identity. Exercise the actual consent form once its optional
+            // chunk has replaced that loading surface.
+            await expect(
+              modal.locator("#delete-account-password"),
+            ).toBeVisible();
             await page.keyboard.press("Tab");
             expect(
               await modal.evaluate((el) => el.contains(document.activeElement)),

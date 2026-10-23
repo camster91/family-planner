@@ -2,6 +2,17 @@
 import { useTranslation } from "@/i18n";
 
 export const bulkCookingEnglish = {
+  stockComparisonUnavailable:
+    "Inventory comparison unavailable. Choose what you need.",
+  stockPresenceOnly:
+    "Matches identify foods only. Check amounts and units before cooking.",
+  stockPartial: "Inventory scan is incomplete.",
+  stockLinked: "Saved ingredient link — check amount and unit",
+  stockNameMatch: "Name match only — confirm food, amount and unit",
+  stockPresent: "Present in inventory — check amount and unit",
+  stockNoMatch: "No inventory match",
+  stockNoMatchPartial: "No match in scanned inventory",
+
   views: "Meal planning views",
   navPlan: "Plan",
   navExplore: "Explore",
@@ -48,6 +59,8 @@ export const bulkCookingEnglish = {
   planningNote:
     "Portions left reflect what you record here, not an automatic inventory count.",
   addMeal: "Add a meal",
+  saveConfirmed:
+    "Save confirmed. Close this sheet to continue; the saved receipt stays available.",
   removeMeal: "Remove meal",
   mealDate: "Meal day",
   mealType: "Meal",
@@ -72,6 +85,8 @@ export const bulkCookingEnglish = {
   undoEaten: "Undo eaten entry",
   preparedGroceries:
     "This dish is already prepared. Plan next prep to buy its ingredients again.",
+  recipeHistoryUnavailable:
+    "We could not record the recipe details. Your prep plan is kept. Review the linked recipes before marking it prepared.",
   needPrepared: "Mark the session prepared before recording eaten portions.",
   groceries: "Groceries for this dish",
   fromBatch: "From bulk cook",
@@ -80,7 +95,8 @@ export const bulkCookingEnglish = {
   retry: "Retry save",
   reload: "Reload latest",
   loadError: "We couldn’t load prep sessions. Try again.",
-  reloadBeforeSave: "Reload prep sessions before saving. Your draft is still here.",
+  reloadBeforeSave:
+    "Reload prep sessions before saving. Your draft is still here.",
   more: "Load more prep sessions",
   unknown:
     "We couldn’t confirm the save. Keep this draft unchanged and retry to check the same request.",
@@ -101,6 +117,18 @@ export const bulkCookingEnglish = {
 } as const;
 type Messages = Record<keyof typeof bulkCookingEnglish, string>;
 export const bulkCookingSpanish: Messages = {
+  stockComparisonUnavailable:
+    "No se pudo comparar el inventario. Elige lo que necesitas.",
+  stockPresenceOnly:
+    "Las coincidencias solo identifican alimentos. Revisa cantidades y unidades antes de cocinar.",
+  stockPartial: "La revisión del inventario está incompleta.",
+  stockLinked: "Ingrediente vinculado; revisa cantidad y unidad",
+  stockNameMatch:
+    "Solo coincide el nombre; confirma alimento, cantidad y unidad",
+  stockPresent: "Presente en el inventario; revisa cantidad y unidad",
+  stockNoMatch: "Sin coincidencia en el inventario",
+  stockNoMatchPartial: "Sin coincidencia en el inventario revisado",
+
   views: "Vistas de planificación",
   navPlan: "Plan",
   navExplore: "Explorar",
@@ -148,6 +176,8 @@ export const bulkCookingSpanish: Messages = {
   planningNote:
     "Las porciones restantes reflejan lo que registras aquí, no un inventario automático.",
   addMeal: "Añadir comida",
+  saveConfirmed:
+    "Guardado confirmado. Cierra esta hoja para continuar; el recibo sigue disponible.",
   removeMeal: "Quitar comida",
   mealDate: "Día de la comida",
   mealType: "Comida",
@@ -175,6 +205,8 @@ export const bulkCookingSpanish: Messages = {
   undoEaten: "Deshacer consumo",
   preparedGroceries:
     "Este plato ya está preparado. Planea la próxima preparación para comprar sus ingredientes de nuevo.",
+  recipeHistoryUnavailable:
+    "No pudimos registrar los detalles de las recetas. Tu plan se conserva. Revisa las recetas antes de marcar la sesión como preparada.",
   needPrepared: "Marca la sesión preparada antes de registrar el consumo.",
   groceries: "Ingredientes de este plato",
   fromBatch: "De cocina por lotes",

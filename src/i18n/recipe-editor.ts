@@ -3,12 +3,74 @@ import { useTranslation } from "@/i18n";
 
 /** Recipe-editor controls and recovery copy. Recipe content stays verbatim. */
 export const recipeEditorEnglish = {
+  draftRecoveryUnavailable:
+    "Saved-work recovery is not enabled here. Saved stores have not been checked. Return to Meals or try again later.",
+  draftReviewTitle: "Saved recipe work",
+  draftReviewHint:
+    "Continue a recipe saved on this device, or check the outcome of an earlier save. Opening this screen does not import or submit anything.",
+  draftReviewClosed:
+    "No saved recipe work was found for this session on this device. Check your recipe box before starting another save.",
+  draftPaused:
+    "Draft saving is paused. You can review or close saved work; new changes stay unavailable.",
+  draftExpired:
+    "This draft or save has passed its retry window. It is kept for review; discard only an unsubmitted draft to start again.",
+  draftChecking: "Checking saved work…",
+  draftOwnerChanged:
+    "Your account or household changed. Reload before opening saved drafts.",
+  draftStorageHold:
+    "Saved work could not be verified. Keep this screen open and recover storage before continuing.",
+  draftFound:
+    "An unfinished recipe is saved on this device. Restore it to replace this editor, or discard it to use the current import.",
+  draftRestore: "Restore saved draft",
+  draftDiscard: "Discard draft",
+  draftDiscardConfirm:
+    "Discard this saved recipe draft and any unsaved edits? This cannot be undone.",
+  draftSaving: "Saving draft on this device…",
+  draftSaved: "Draft saved on this device.",
+  draftSubmitted:
+    "This exact save is kept on this device. Check its result or retry the same save; it will keep the original request key.",
+  draftInspect: "Check save status",
+  draftFinish: "Finish this review",
+  draftCloseKeep: "Close and keep saved work",
+  draftRecipeBox: "Open recipe box",
+  draftRecover: "Recover saved work",
+  draftCommitted: "The recipe was saved and is still in your recipe box.",
+  draftRemoved:
+    "The recipe was saved, then removed. Retrying will not recreate it. This review is kept.",
+  draftOpaque:
+    "The save completed, but its current recipe could not be verified. This review is kept.",
+  draftAbsent:
+    "No receipt is currently available. You may check the same save again within its retry window.",
+  draftPending:
+    "The original save is still being processed. Check again later.",
+  draftRefused:
+    "Access or the request could not be verified. This saved request stays locked.",
+  draftSourceRefused:
+    "This source is already saved. Open the saved recipe, or return to the draft after checking that this attempt created nothing.",
+  draftReturn: "Return to editable draft",
+
+  sourceLink: "Original source ↗",
+  sourceCopy: "Save a separate copy of this source",
+  sourceExists:
+    "This source is already saved. Open it to view or edit, or choose a separate copy.",
+  openExisting: "Open saved recipe: {title}",
+  sourceCheckUnavailable:
+    "We could not finish checking older imports. Keep this draft; check your recipe box, or deliberately choose a separate copy.",
+  revisionConflict:
+    "This recipe changed elsewhere. Your edits are kept here. Close and reload the saved recipe before applying them again.",
+  uncertainCreate:
+    "The recipe may have been saved. Check the same save to confirm it without creating a second recipe. These fields stay locked until confirmed; closing keeps the server result unchanged.",
+  retryCreate: "Check the same save",
+  expiredCreate:
+    "This save is too old to retry safely. Close and check your recipe box before making a separate new recipe.",
+  contentTooLong:
+    "Keep the title within 200 characters, description within 2,000 and method within 20,000. Edit the imported text; nothing has been saved or removed.",
   newRecipe: "New recipe",
   recipeDetails: "Recipe details",
   recipeName: "Recipe name",
   baseServings: "Base servings",
   servingsHint:
-    "The ingredient amounts below make this many servings (1–100). Grocery requests have a separate 1–50 limit.",
+    "The ingredient amounts below make this many servings (1–100). Review portions again when adding groceries.",
   description: "Description",
   method: "Method",
   prepMinutes: "Prep (min)",
@@ -41,12 +103,74 @@ export const recipeEditorEnglish = {
 export type RecipeEditorMessage = keyof typeof recipeEditorEnglish;
 
 export const recipeEditorSpanish: Record<RecipeEditorMessage, string> = {
+  draftRecoveryUnavailable:
+    "La recuperación no está habilitada aquí. No se han consultado los almacenes guardados. Vuelve a Comidas o inténtalo más tarde.",
+  draftReviewTitle: "Trabajo de recetas guardado",
+  draftReviewHint:
+    "Continúa una receta guardada en este dispositivo o comprueba un guardado anterior. Abrir esta pantalla no importa ni envía nada.",
+  draftReviewClosed:
+    "No se encontró trabajo de recetas para esta sesión en este dispositivo. Revisa tus recetas antes de iniciar otro guardado.",
+  draftPaused:
+    "Los borradores están en pausa. Puedes revisar o cerrar el trabajo guardado; los nuevos cambios no están disponibles.",
+  draftExpired:
+    "Este borrador o guardado ha superado el plazo. Se conserva para revisión; descarta solo un borrador sin enviar para empezar de nuevo.",
+  draftChecking: "Comprobando el trabajo guardado…",
+  draftOwnerChanged:
+    "Tu cuenta o tu hogar ha cambiado. Recarga antes de abrir los borradores guardados.",
+  draftStorageHold:
+    "No se pudo verificar el trabajo guardado. Mantén esta pantalla abierta y recupera el almacenamiento antes de continuar.",
+  draftFound:
+    "Hay una receta sin terminar guardada en este dispositivo. Restáurala para reemplazar este editor o descártala para usar la importación actual.",
+  draftRestore: "Restaurar borrador guardado",
+  draftDiscard: "Descartar borrador",
+  draftDiscardConfirm:
+    "¿Descartar este borrador y los cambios sin guardar? No se puede deshacer.",
+  draftSaving: "Guardando el borrador en este dispositivo…",
+  draftSaved: "Borrador guardado en este dispositivo.",
+  draftSubmitted:
+    "Este guardado exacto se conserva en este dispositivo. Comprueba el resultado o repite el mismo guardado; mantendrá la clave de solicitud original.",
+  draftInspect: "Comprobar estado del guardado",
+  draftFinish: "Finalizar esta revisión",
+  draftCloseKeep: "Cerrar y conservar el trabajo",
+  draftRecipeBox: "Abrir recetas guardadas",
+  draftRecover: "Recuperar trabajo guardado",
+  draftCommitted: "La receta se guardó y sigue en tus recetas.",
+  draftRemoved:
+    "La receta se guardó y después se eliminó. Repetir no la volverá a crear. Se conserva esta revisión.",
+  draftOpaque:
+    "El guardado terminó, pero no se pudo verificar la receta actual. Se conserva esta revisión.",
+  draftAbsent:
+    "No hay un comprobante disponible ahora. Puedes comprobar el mismo guardado dentro del plazo para reintentar.",
+  draftPending:
+    "El guardado original sigue en proceso. Vuelve a comprobarlo más tarde.",
+  draftRefused:
+    "No se pudo verificar el acceso o la solicitud. La solicitud guardada sigue bloqueada.",
+  draftSourceRefused:
+    "Esta fuente ya está guardada. Abre la receta existente o vuelve al borrador tras comprobar que este intento no creó nada.",
+  draftReturn: "Volver al borrador editable",
+
+  sourceLink: "Fuente original ↗",
+  sourceCopy: "Guardar una copia separada de esta fuente",
+  sourceExists:
+    "Esta fuente ya está guardada. Ábrela para ver o editar, o elige una copia separada.",
+  openExisting: "Abrir receta guardada: {title}",
+  sourceCheckUnavailable:
+    "No pudimos terminar de comprobar las importaciones antiguas. Conserva el borrador y revisa tus recetas, o elige una copia separada.",
+  revisionConflict:
+    "La receta cambió en otro lugar. Tus cambios se conservan aquí. Cierra y vuelve a cargar la receta antes de aplicarlos de nuevo.",
+  uncertainCreate:
+    "La receta puede haberse guardado. Comprueba el mismo guardado para confirmarlo sin crear otra receta. Los campos quedan bloqueados hasta confirmarlo; cerrar no cambia el resultado del servidor.",
+  retryCreate: "Comprobar el mismo guardado",
+  expiredCreate:
+    "Este guardado es demasiado antiguo para repetirlo con seguridad. Cierra y revisa las recetas guardadas antes de crear otra receta.",
+  contentTooLong:
+    "El título admite 200 caracteres; la descripción, 2.000; y los pasos, 20.000. Edita el texto importado; no se ha guardado ni eliminado nada.",
   newRecipe: "Nueva receta",
   recipeDetails: "Detalles de la receta",
   recipeName: "Nombre de la receta",
   baseServings: "Porciones base",
   servingsHint:
-    "Las cantidades de ingredientes indican estas porciones (1–100). Las solicitudes de compra tienen un límite aparte de 1–50.",
+    "Las cantidades corresponden a estas porciones (1–100). Revisa las porciones al añadir a la compra.",
   description: "Descripción",
   method: "Preparación",
   prepMinutes: "Preparación (min)",

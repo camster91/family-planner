@@ -4,7 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { CircleAlert, Refrigerator } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useTranslation } from '@/i18n'
+import { useCoreTranslation } from '@/i18n/core'
 import {
   expiryFeedback,
   inventoryDisplayMessages,
@@ -27,7 +27,7 @@ export const MAX_USE_SOON_ROWS = 5
  * nothing to use, so the board keeps its four-column layout.
  */
 export function UseSoonRegion({ items, inventoryHref }: { items: UseSoonEntry[]; inventoryHref: string | null }) {
-  const { t } = useTranslation()
+  const { t } = useCoreTranslation()
   const inventory = (key: InventoryDisplayMessage, params?: Record<string, string | number>) =>
     t(key, params, inventoryDisplayMessages)
   const boardText = useTodayBoardText()

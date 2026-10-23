@@ -2,6 +2,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { messages } from "../src/i18n";
 import { emergencyMessages } from "../src/i18n/emergency";
+import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import { authFile } from "./support/env";
 import { guardContext } from "./support/inventory-localization";
 import { test, expect, browserFetch } from "./support/test";
@@ -18,6 +19,11 @@ for (const locale of ["en", "es"] as const) {
       "Representative touch and keyboard form review",
     );
     await guardContext(context, baseURL!, locale);
+    const theme = locale === "es" ? "dark" : "light";
+    await context.addInitScript(
+      ({ key, value }) => localStorage.setItem(key, value),
+      { key: THEME_STORAGE_KEY, value: theme },
+    );
     const copy = messages[locale].emergency;
     const extra = emergencyMessages[locale].emergency;
     const person = "Élodie – synthetic card";
@@ -53,12 +59,16 @@ for (const locale of ["en", "es"] as const) {
       body: JSON.stringify({
         runtime,
         locale,
+        theme,
         project: info.project.name,
         transport: "synthetic contacts; no household writes",
       }),
       contentType: "application/json",
     });
     await expect(page.locator("html")).toHaveAttribute("lang", locale);
+    if (theme === "dark")
+      await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+    else await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
     await expect(
       page.getByRole("heading", { name: copy.title, exact: true }),
     ).toBeVisible();

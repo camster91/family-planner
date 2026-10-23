@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import ChoresContent from "../ChoresContent";
 import { ToastProvider } from "@/components/ui/toast";
 import { I18nProvider } from "@/i18n";
+import { profileSetupMessages } from "@/i18n/profile-setup";
 import { format } from "date-fns";
 
 jest.mock("next/navigation", () => ({
@@ -403,6 +404,19 @@ describe("ChoresContent parent check", () => {
         name: 'Send back “Brush teeth”',
       }),
     ).toBeNull();
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each(["en", "es"] as const)("%s keeps archived profile history readable without verification controls", async (locale) => {
+    const archived = {
+      ...completedChore("profile-archived", "Archived fixture chore"), assigned_to: null as never, assigned_member_id: "archived-profile", assignee: null,
+      subject: { kind: "profile" as const, memberId: "archived-profile", name: "Retained fixture member", role: "child" as const },
+      actionAvailability: { state: "paused" as const, reason: "PROFILE_ARCHIVED" as const, recovery: "choose-active-member" as const, requiresCompatibleClient: false as const, actions: { complete: false as const, undo: false as const, verify: false as const, reject: false as const } },
+    };
+    render(<I18nProvider locale={locale}><ToastProvider><ChoresContent chores={[archived]} familyMembers={[]} currentUserId="parent" userRole="parent" /></ToastProvider></I18nProvider>);
+    expect(await screen.findByText("Archived fixture chore")).toBeTruthy();
+    expect((await screen.findAllByText(profileSetupMessages[locale].profileTargetArchived, { exact: false })).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /Archived fixture chore/ })).toBeNull();
     expect(calls).toHaveLength(0);
   });
 

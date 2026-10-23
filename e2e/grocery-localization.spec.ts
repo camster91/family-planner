@@ -96,7 +96,10 @@ for (const locale of ["en", "es"] as const) {
       await page
         .getByRole("main")
         .locator(`[data-item-id="${itemId}"]`)
-        .getByRole("button", { name: "Edit Leche 🥛", exact: true })
+        .getByRole("button", {
+          name: `${locale === "es" ? "Editar" : "Edit"} Leche 🥛`,
+          exact: true,
+        })
         .click();
       const dialog = page.getByRole("dialog", {
         name: text("editTitle"),

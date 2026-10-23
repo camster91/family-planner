@@ -1,6 +1,17 @@
 /** @jest-environment jsdom */
+import {
+  inventoryReadScopeValue,
+  INVENTORY_READ_SCOPE_HEADER,
+} from "@/lib/inventory-read-scope";
 import "@testing-library/jest-dom";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import { I18nProvider, useTranslation } from "@/i18n";
 import { ToastProvider } from "@/components/ui/toast";
 import InventoryClient from "../InventoryClient";
@@ -23,6 +34,7 @@ const item = {
   purchased_on: null,
   opened_on: null,
   status: "active",
+  updated_at: "2026-01-01T00:00:00.000Z",
   expiry: { status: "soon", daysLeft: 1 },
 };
 function Switch() {
@@ -38,6 +50,15 @@ function json(status: number, body: unknown) {
     ok: status >= 200 && status < 300,
     status,
     json: async () => body,
+    headers: {
+      get: (name: string) =>
+        name.toLowerCase() === INVENTORY_READ_SCOPE_HEADER.toLowerCase()
+          ? inventoryReadScopeValue({
+              userId: "fixture-parent",
+              familyId: "fixture-family",
+            })
+          : null,
+    },
   } as Response;
 }
 function deferred() {
@@ -75,16 +96,23 @@ function mount({
       headers: init?.headers,
     });
     if (method !== "GET") {
-      if (url.includes("/consume?"))
+      if (url === "/api/inventory/change") {
+        const operation = JSON.parse(String(init?.body)).operation;
+        if (operation.kind === "edit" || operation.kind === "remove")
+          return json(200, { itemId: operation.item_id, kind: operation.kind });
         return (
           adjust?.() ??
           json(200, {
-            item,
-            adjustment: { id: "synthetic+adjust", status_after: "consumed" },
+            itemId: item.id,
+            adjustmentId:
+              operation.kind === "undo"
+                ? operation.adjustment_id
+                : "synthetic+adjust",
+            kind: operation.kind,
           })
         );
-      if (url.includes("/undo?")) return json(200, {});
-      return create?.() ?? json(201, { item });
+      }
+      return create?.() ?? json(201, { itemId: item.id });
     }
     if (url.includes("/use-soon?"))
       return json(200, {
@@ -108,7 +136,15 @@ function mount({
     <I18nProvider locale="en">
       <Switch />
       <ToastProvider>
-        <InventoryClient canWrite canOpenRecipes={false} canScan />
+        <InventoryClient
+          canWrite
+          canOpenRecipes={false}
+          canScan
+          intakeContext={{
+            userId: "fixture-parent",
+            familyId: "fixture-family",
+          }}
+        />
       </ToastProvider>
     </I18nProvider>,
   );
@@ -121,6 +157,7 @@ function switchLanguage() {
   fireEvent.click(screen.getByText("Switch language"));
 }
 beforeEach(() => {
+  window.history.replaceState({}, "", "/dashboard/inventory");
   Object.defineProperty(navigator, "onLine", {
     value: true,
     configurable: true,
@@ -174,7 +211,7 @@ it("preserves modal drafts/private values/date keys while translating visible va
   expect(calls.filter((c) => c.method !== "GET")).toEqual([]);
 });
 it.each(["fallback", "network", "raw"] as const)(
-  "renders late %s in current language and keeps the same retry key/body",
+  "renders late %s in current language and preserves uncertain create ownership",
   async (outcome) => {
     const p = deferred();
     let attempt = 0;
@@ -212,22 +249,29 @@ it.each(["fallback", "network", "raw"] as const)(
           ),
     );
     expect(within(modal).getByRole("alert")).toHaveTextContent(
-      outcome === "raw"
-        ? "Raw refusal {name} 李"
-        : outcome === "network"
-          ? "No pudimos guardar. Revisa tu conexión e inténtalo de nuevo."
-          : "No pudimos guardar. Inténtalo de nuevo.",
+      outcome === "network"
+        ? "Guardado sin confirmar. Tus datos están bloqueados. Comprueba el mismo guardado antes de salir o volver a añadirlo."
+        : "Guardado rechazado. Revisa tu cuenta, hogar y acceso al inventario. Se conserva el borrador.",
     );
     expect(within(modal).getByLabelText("Nombre")).toHaveValue(name);
-    fireEvent.click(within(modal).getByRole("button", { name: "Guardar" }));
+    // The refusal releases its pending navigation claim before enabling Save.
+    const retry = await within(modal).findByRole("button", {
+      name: outcome === "network" ? "Comprobar mismo guardado" : "Guardar",
+    });
+    await waitFor(() => expect(retry).toBeEnabled());
+    fireEvent.click(retry);
     await settle();
     const writes = calls.filter((c) => c.method !== "GET");
     expect(writes).toHaveLength(2);
-    expect(writes[0]).toEqual(writes[1]);
-    expect(writes[0].url).toBe(
-      "/api/inventory?today=" + encodeURIComponent(toDateOnlyLocal(new Date())),
-    );
-    expect(writes[0].body).toEqual({
+    if (outcome !== "network")
+      await waitFor(() =>
+        expect(
+          within(modal).getByRole("button", { name: "Guardar" }),
+        ).toBeEnabled(),
+      );
+    if (outcome === "network") expect(writes[0]).toEqual(writes[1]);
+    expect(writes[0].url).toBe("/api/inventory/intake");
+    expect((writes[0].body as { item: unknown }).item).toEqual({
       name,
       unit,
       amount: 1.5,
@@ -249,7 +293,7 @@ it("updates owned success notice and undo title/action without reloading, replay
   await settle();
   fireEvent.click(screen.getByRole("button", { name: "Used " + name }));
   await settle();
-  const toast = screen.getByTestId("undo-toast");
+  const toast = await screen.findByTestId("undo-toast");
   expect(toast).toHaveTextContent("Used " + name);
   act(() => jest.advanceTimersByTime(4000));
   const count = calls.length;
@@ -263,7 +307,9 @@ it("updates owned success notice and undo title/action without reloading, replay
     within(toast).getByRole("button", { name: "Descartar aviso" }),
   ).toBeInTheDocument();
   expect(screen.getByTestId("inventory-notice")).toHaveTextContent(
-    "Usaste " + name + ".",
+    "Se confirmó el cambio registrado de " +
+      name +
+      ". La lista muestra las existencias actuales.",
   );
   expect(calls).toHaveLength(count);
   act(() => jest.advanceTimersByTime(3999));
@@ -277,7 +323,7 @@ it("keeps native focus, paused undo and its canonical callback through a locale 
   await settle();
   fireEvent.click(screen.getByRole("button", { name: "Used " + name }));
   await settle();
-  const toast = screen.getByTestId("undo-toast");
+  const toast = await screen.findByTestId("undo-toast");
   const undo = within(toast).getByRole("button", { name: "Undo" });
   act(() => undo.focus());
   act(() => jest.advanceTimersByTime(9000));
@@ -287,15 +333,21 @@ it("keeps native focus, paused undo and its canonical callback through a locale 
   fireEvent.click(undo);
   await settle();
   expect(screen.queryByTestId("undo-toast")).not.toBeInTheDocument();
-  const undos = calls.filter((c) => c.url.includes("/undo?"));
-  expect(undos).toHaveLength(1);
-  expect(undos[0].url).toBe(
-    "/api/inventory/adjustments/synthetic%2Badjust/undo?today=" +
-      encodeURIComponent(toDateOnlyLocal(new Date())),
+  const undos = calls.filter(
+    (c) =>
+      c.url === "/api/inventory/change" &&
+      (c.body as any).operation.kind === "undo",
   );
+  expect(undos).toHaveLength(1);
+  expect(undos[0].url).toBe("/api/inventory/change");
   expect(undos[0].method).toBe("POST");
-  expect(undos[0].body).toBeUndefined();
-  expect(screen.getByTestId("inventory-notice")).toHaveTextContent(
-    "Se repuso " + name + ".",
+  expect((undos[0].body as any).operation).toEqual({
+    kind: "undo",
+    adjustment_id: "synthetic+adjust",
+  });
+  await waitFor(() =>
+    expect(screen.getByTestId("inventory-notice")).toHaveTextContent(
+      "Se repuso " + name + ".",
+    ),
   );
 });

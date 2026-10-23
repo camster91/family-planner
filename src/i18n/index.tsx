@@ -8,9 +8,10 @@ import { groceryEnglish, grocerySpanish } from './grocery-controls'
 
 import { PRODUCT_BRAND } from '@/lib/brand'
 
-import { createContext, useContext, useState, useCallback, useEffect } from 'react'
-import type { Locale } from './types'
-import { pseudolocalizeTemplate } from './pseudo'
+import { useCallback } from 'react'
+import type { ReactNode } from 'react'
+import { CoreI18nProvider, translateMessage, useCoreI18n } from './core'
+import type { Locale, ScopedMessages } from './core'
 
 // Inline messages — no external library needed
 const messages = {
@@ -484,6 +485,22 @@ const messages = {
       notesPlaceholder: 'Additional notes...',
       startedOn: 'Started on',
       noMedications: 'No medications',
+      loadFailed: 'Couldn’t load sick days. Check your connection and try again.',
+      authLoadFailed: 'Couldn’t verify your account. Actions are disabled until you try again.',
+      medicationsLoadFailed: 'Medication details are temporarily unavailable. Try again to refresh them.',
+      membersLoadFailed: 'Family members are temporarily unavailable. Try again to choose a person.',
+      tryAgain: 'Try again',
+      closeForm: 'Close sick-day form',
+      closeDetails: 'Close sick-day details',
+      draftDescription: 'Close to return. Your draft stays here.',
+      pendingDescription: 'Please wait for saving to finish.',
+      startFailed: 'Couldn’t start the sick day',
+      temperatureFailed: 'Couldn’t save the temperature',
+      endFailed: 'Couldn’t end the sick day',
+      medicationFailed: 'Couldn’t add the medication',
+      doseFailed: 'Couldn’t log the dose',
+      nextDoseFailed: 'Couldn’t set the next dose',
+      schedulePlaceholder: 'Twice daily',
     },
     meds: {
       title: 'Medications',
@@ -1009,6 +1026,22 @@ const messages = {
       notesPlaceholder: 'Notas adicionales...',
       startedOn: 'Inicio el',
       noMedications: 'Sin medicamentos',
+      loadFailed: 'No se pudieron cargar los días de enfermedad. Revisa tu conexión e inténtalo de nuevo.',
+      authLoadFailed: 'No se pudo verificar tu cuenta. Las acciones están desactivadas hasta que lo intentes de nuevo.',
+      medicationsLoadFailed: 'Los detalles de los medicamentos no están disponibles temporalmente. Intenta actualizar de nuevo.',
+      membersLoadFailed: 'Los familiares no están disponibles temporalmente. Intenta de nuevo para elegir una persona.',
+      tryAgain: 'Intentar de nuevo',
+      closeForm: 'Cerrar formulario de enfermedad',
+      closeDetails: 'Cerrar detalles de enfermedad',
+      draftDescription: 'Cierra para volver. Tu borrador se conservará aquí.',
+      pendingDescription: 'Espera a que termine de guardarse.',
+      startFailed: 'No se pudo iniciar el día de enfermedad',
+      temperatureFailed: 'No se pudo guardar la temperatura',
+      endFailed: 'No se pudo terminar la enfermedad',
+      medicationFailed: 'No se pudo agregar el medicamento',
+      doseFailed: 'No se pudo registrar la dosis',
+      nextDoseFailed: 'No se pudo fijar la próxima dosis',
+      schedulePlaceholder: 'Dos veces al día',
     },
     meds: {
       title: 'Medicamentos',
@@ -1067,116 +1100,37 @@ const messages = {
 } as const
 
 type Messages = typeof messages.en
-/** Route-owned dictionaries are passed by their consumers, never imported here. */
-export type ScopedMessages = Record<Locale, Record<string, unknown>>
-
-function translateMessage(source: unknown, key: string, params?: Record<string, string | number>, pseudolocalize = false): string {
-  let value = source
-  for (const part of key.split('.')) {
-    if (value && typeof value === 'object' && part in value) value = (value as Record<string, unknown>)[part]
-    else return key
-  }
-  if (typeof value !== 'string') return key
-  const template = pseudolocalize ? pseudolocalizeTemplate(value) : value
-  if (!params) return template
-  return template.replace(/\{(\w+)\}/g, (_, part) => String(params[part] ?? `{${part}}`))
-}
-
-interface I18nContextType {
-  locale: Locale
-  t: (key: string, params?: Record<string, string | number>, scoped?: ScopedMessages) => string
-  setLocale: (locale: Locale) => void
-}
-
-const I18nContext = createContext<I18nContextType>({
-  locale: 'en',
-  t: (key, params, scoped) => scoped ? translateMessage(scoped.en, key, params) : key,
-  setLocale: () => {},
-})
-
-// The language picked in Settings. Per device (browser storage), not per account.
-export const LOCALE_STORAGE_KEY = 'familyPlanner_language'
-
-export const SUPPORTED_LOCALES: readonly Locale[] = ['en', 'es']
-
-export function isLocale(value: unknown): value is Locale {
-  return typeof value === 'string' && (SUPPORTED_LOCALES as readonly string[]).includes(value)
-}
-
-function readStoredLocale(): Locale | null {
-  try {
-    const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY)
-    return isLocale(stored) ? stored : null
-  } catch {
-    // Storage blocked (private mode, policy): stay on the default.
-    return null
-  }
-}
-
-function writeStoredLocale(locale: Locale) {
-  try {
-    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
-  } catch {
-    // Storage blocked: the choice still applies for this visit.
-  }
-}
-
-/**
- * `persistLocale` (root layout only): after mount, switch to the language saved
- * on this device, keep `<html lang>` in sync, and save changes made through
- * `setLocale`. The server always renders `locale` (English) so hydration
- * matches; the saved language applies right after mount.
- */
 export function I18nProvider({
   children,
   locale = 'en',
   persistLocale = false,
   pseudolocalize = false,
 }: {
-  children: React.ReactNode
+  children: ReactNode
   locale?: Locale
   persistLocale?: boolean
   /** Local/CI QA only; never adds a public language or changes stored values. */
   pseudolocalize?: boolean
 }) {
-  const [currentLocale, setCurrentLocale] = useState<Locale>(locale)
-
-  useEffect(() => {
-    if (!persistLocale) return
-    const stored = readStoredLocale()
-    if (stored) setCurrentLocale(stored)
-  }, [persistLocale])
-
-  useEffect(() => {
-    if (!persistLocale) return
-    document.documentElement.lang = currentLocale
-  }, [persistLocale, currentLocale])
-
-  const setLocale = useCallback(
-    (next: Locale) => {
-      setCurrentLocale(next)
-      if (persistLocale) writeStoredLocale(next)
-    },
-    [persistLocale]
-  )
-
-  const t = useCallback(
-    (key: string, params?: Record<string, string | number>, scoped?: ScopedMessages): string =>
-      translateMessage((scoped ?? messages)[currentLocale], key, params, pseudolocalize),
-    [currentLocale, pseudolocalize]
-  )
-
   return (
-    <I18nContext.Provider value={{ locale: currentLocale, t, setLocale }}>
+    <CoreI18nProvider locale={locale} persistLocale={persistLocale} pseudolocalize={pseudolocalize}>
       {children}
-    </I18nContext.Provider>
+    </CoreI18nProvider>
   )
 }
 
 export function useTranslation() {
-  const context = useContext(I18nContext)
-  return context
+  const context = useCoreI18n()
+  const t = useCallback(
+    (key: string, params?: Record<string, string | number>, scoped?: ScopedMessages): string => {
+      if (!context.provided) return scoped ? translateMessage(scoped.en, key, params) : key
+      return translateMessage((scoped ?? messages)[context.locale], key, params, context.pseudolocalize)
+    },
+    [context.locale, context.provided, context.pseudolocalize]
+  )
+  return { locale: context.locale, t, setLocale: context.setLocale }
 }
 
 export { messages }
-export type { Locale, Messages }
+export type { Locale, Messages, ScopedMessages }
+export { LOCALE_STORAGE_KEY, SUPPORTED_LOCALES, isLocale } from './core'

@@ -50,7 +50,7 @@ export const addFromRecipeSchema = z
     mealId: idString.optional(),
     batchId: idString.optional(),
     listId: idString.optional(),
-    servings: z.number().int().min(1).max(50).optional(),
+    servings: z.number().int().min(1).max(100).optional(),
     ingredientIds: z.array(idString).min(1).max(FROM_RECIPE_MAX_INGREDIENTS).optional(),
   })
   .strict()
@@ -198,6 +198,10 @@ type AddDb = TxDb
 function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
+/** Exact canonical amount shown during review and persisted by recipe adds. */
+export function recipeGroceryAmount(amount: number, baseServings: number, targetServings: number): number {
+  return round2(amount * (targetServings / baseServings))
+}
 
 /**
  * The effect behind `POST /api/lists/items/from-recipe`. `requestId` is the
@@ -214,10 +218,12 @@ export async function addRecipeToGroceries(
   // together. If anything after the insert throws, the rows roll back with
   // it, so withIdempotency releasing the record never strands rows whose
   // source_request_id points at a deleted request (they could not be undone).
-  return db.$transaction((tx) => addInTx(tx, input, actor, requestId))
+  return db.$transaction((tx) => addRecipeToGroceriesInTx(tx, input, actor, requestId))
 }
 
-async function addInTx(
+/** Caller owns commit/rollback and receipt completion. This is the same effect
+ * as the public wrapper, including full recipe amounts and grocery Undo. */
+export async function addRecipeToGroceriesInTx(
   db: Prisma.TransactionClient,
   input: AddFromRecipeInput,
   actor: Actor,
@@ -292,7 +298,6 @@ async function addInTx(
 
   const baseServings = recipe.servings > 0 ? recipe.servings : 1
   const targetServings = batchServings ?? input.servings ?? mealServings ?? baseServings
-  const factor = targetServings / baseServings
   const sourceKey = batchId ? `batch:${batchId}` : input.mealId ? `meal:${input.mealId}` : `recipe:${recipe.id}`
 
   const last = await db.listItem.findFirst({
@@ -310,7 +315,7 @@ async function addInTx(
       content: line.ingredient.name,
       checked: false,
       quantity: 1,
-      amount: round2(line.amount * factor),
+      amount: recipeGroceryAmount(line.amount, baseServings, targetServings),
       unit: line.unit ?? line.ingredient.unit ?? null,
       ingredient_id: line.ingredient_id,
       recipe_id: recipe.id,
@@ -395,8 +400,19 @@ export async function undoRecipeAdd(
   actor: Actor,
   now: Date = new Date()
 ): Promise<{ status: number; body: UndoAddResponse | ErrorBody }> {
+  return undoGroceryAdd(db, requestId, actor, ADD_FROM_RECIPE_ACTION, now)
+}
+
+/** Shared O-5 provenance/ownership/window rule; the route fixes the source action. */
+export async function undoGroceryAdd(
+  db: UndoDb,
+  requestId: string,
+  actor: Actor,
+  action: 'grocery.add-from-recipe' | 'grocery.add-from-inventory.v1',
+  now: Date = new Date()
+): Promise<{ status: number; body: UndoAddResponse | ErrorBody }> {
   const record = await db.idempotencyRecord.findFirst({
-    where: { id: requestId, family_id: actor.family_id, action: ADD_FROM_RECIPE_ACTION },
+    where: { id: requestId, family_id: actor.family_id, action },
     select: { user_id: true, created_at: true, response_status: true },
   })
   if (!record) return fail(404, 'UNDO_NOT_FOUND')

@@ -114,10 +114,17 @@ test.describe("open grocery list convergence", () => {
       route.abort("failed"),
     );
     await page
-      .locator(`[data-item-id="${itemId}"]`)
+      // The recovery renderer can retain a second row with the same item id
+      // after the canonical row disappears. Start from the canonical row so
+      // the tick is applied to the row the user originally saw.
+      .locator(`[data-item-id="${itemId}"]:not([data-removed-elsewhere])`)
+      .first()
       .getByRole("checkbox")
       .click();
-    await expect(page.locator(`[data-item-id="${itemId}"]`)).toHaveAttribute(
+    const pendingRow = page.locator(
+      `[data-item-id="${itemId}"][data-sync-state]`,
+    );
+    await expect(pendingRow).toHaveAttribute(
       "data-sync-state",
       /pending|syncing/,
     );
@@ -125,7 +132,9 @@ test.describe("open grocery list convergence", () => {
       (await browserSend(page, "DELETE", `/api/lists/items/${itemId}`)).status,
     ).toBe(200);
     await page.clock.fastForward(BOARD_POLL_MS + 1000);
-    const row = page.locator(`[data-item-id="${itemId}"]`);
+    const row = page.locator(
+      `[data-item-id="${itemId}"][data-removed-elsewhere="true"]`,
+    );
     await expect(row).toHaveAttribute("data-removed-elsewhere", "true");
     await expect(row).toContainText(
       "Removed from the list. Discard this pending change.",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { useTranslation } from "@/i18n";
@@ -16,8 +16,14 @@ export default function ForgotPasswordPage() {
     t(key, undefined, authRecoveryMessages);
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<RecoveryFeedback | null>(null);
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    // Do not let a pre-hydration native submit expose the email in a GET URL.
+    setHydrated(true);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,7 +102,7 @@ export default function ForgotPasswordPage() {
         </div>
 
         <div className="card">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form method="post" onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div
                 role="alert"
@@ -127,7 +133,7 @@ export default function ForgotPasswordPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={!hydrated || loading}
               className="btn-primary w-full py-3"
             >
               {loading ? t("auth.sendingResetLink") : t("auth.sendResetLink")}

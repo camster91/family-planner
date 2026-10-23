@@ -1,3 +1,4 @@
+import { PRIVATE_TIMELINE_ACTIONS } from "@/lib/review-inbox/timeline-contract";
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
@@ -79,7 +80,7 @@ export async function GET(request: NextRequest) {
       }),
       prisma!.activity.findMany({
         // Legacy page-view/click rows are not household activity (#136).
-        where: { family_id: familyId, NOT: { type: legacyAnalyticsTypeFilter() } },
+        where: { family_id: familyId, NOT: { type: legacyAnalyticsTypeFilter() }, type: {notIn: [...PRIVATE_TIMELINE_ACTIONS]} },
         include: { user: { select: { name: true } } },
         orderBy: { created_at: 'desc' },
         take: 10,

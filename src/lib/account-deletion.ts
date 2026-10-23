@@ -1,3 +1,10 @@
+import { erasePersonalImportProvenanceInTx } from '@/lib/account-erasure-imports'
+import { clearHouseholdEventPreparationInTx } from '@/lib/event-preparation/storage'
+import { clearHouseholdResponsibilityInTx } from '@/lib/responsibility-storage'
+import { deleteOptionalHouseholdMetadataInTx, isOptionalDeletionMetadata } from '@/lib/account-deletion-optional'
+import { eraseRetainedAccountHistoryInTx } from '@/lib/account-erasure-history'
+import { expandSeriesInTx } from '@/lib/recurringChores'
+import { handOverRoutineControlRootsInTx, handOverHistoricalRoutineControlsInTx } from '@/lib/routine-root-handover'
 /**
  * Account and household deletion (D-3; contract: docs/product/ACCOUNT_DELETION.md).
  *
@@ -228,6 +235,17 @@ async function photoNamesUsedElsewhere(tx: any, familyId: string, names: string[
   return new Set([...chores, ...assignments].map((r: { photo_url: string }) => photoRefName(r.photo_url)))
 }
 
+async function personalMessageFiles(tx: any, userId: string, root: string): Promise<FileTarget[]> {
+  const messageFiles = await tx.messageAttachment.findMany({
+    where: { message: { sender_id: userId } },
+    select: { filename: true },
+  })
+  return messageFiles
+    .map((row: { filename: string }) => messageAttachmentPath(root, row.filename))
+    .filter((file: string | null): file is string => Boolean(file))
+    .map((file: string) => ({ path: file }))
+}
+
 // ---------------------------------------------------------------------------
 // Member account
 
@@ -257,19 +275,27 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
   const outcome = await db.$transaction(
     async (tx: any) => {
       const none = { deleted: false, successorId: null, files: [] as FileTarget[], grants: [] as CalendarGrant[] }
+      const deletionNow = (deps.now ?? (() => new Date()))()
       // User lock first (order: user, then household; src/lib/household-lock.ts).
       // Under it no create/join can attach this account to a household.
       await lockUser(tx, userId)
       const user = await tx.user.findUnique({ where: { id: userId }, select: { id: true, role: true, family_id: true } })
       if (!user) return none
-      await lockAccountProfileHouseholds(tx, user.id, user.family_id)
+      const erasureFamilies = await lockAccountProfileHouseholds(tx, user.id, user.family_id)
+      const messageFiles = await personalMessageFiles(tx, user.id, root)
+      // Exact model/record pairs must be captured before personal deletion or
+      // user cascades, including retained rows in former households.
+      await erasePersonalImportProvenanceInTx(tx, user.id, erasureFamilies)
 
       if (!user.family_id) {
         await eraseAccountProfiles(tx, user.id, null)
+        const historicalControls = await handOverHistoricalRoutineControlsInTx(tx, user.id, null)
         const grants = await takeCalendarConnections(tx, { user_id: user.id })
         await deletePersonalRows(tx, user.id)
+        await eraseRetainedAccountHistoryInTx(tx, user, erasureFamilies)
         await tx.user.delete({ where: { id: user.id } })
-        return { deleted: true, successorId: null, files: [] as FileTarget[], grants }
+        for (const control of historicalControls) await expandSeriesInTx(tx, control.rootId, control.familyId, deletionNow)
+        return { deleted: true, successorId: null, files: messageFiles, grants }
       }
 
       const familyId: string = user.family_id
@@ -280,14 +306,17 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
       if (!still || still.family_id !== familyId) return none
       const successorId = await assertMemberMayLeave(tx, user)
       await eraseAccountProfiles(tx, user.id, familyId)
+      const historicalControls = await handOverHistoricalRoutineControlsInTx(tx, user.id, familyId)
       // Their calendar connections: encrypted grants kept for the revoke
       // after commit; links, imported events and rows deleted here.
       const grants = await takeCalendarConnections(tx, { user_id: user.id })
-      const files = await handOverAndDetach(tx, user.id, familyId, successorId, root)
+      await handOverAndDetach(tx, user.id, familyId, successorId, deletionNow)
       await recordMemberLeft(tx, user, familyId)
       await deletePersonalRows(tx, user.id)
+      await eraseRetainedAccountHistoryInTx(tx, user, erasureFamilies)
       await tx.user.delete({ where: { id: user.id } })
-      return { deleted: true, successorId, files, grants }
+      for (const control of historicalControls) await expandSeriesInTx(tx, control.rootId, control.familyId, deletionNow)
+      return { deleted: true, successorId, files: messageFiles, grants }
     },
     { timeout: 60_000 }
   )
@@ -448,25 +477,17 @@ export const HOUSEHOLD_CLEARED_REFERENCES: ReadonlyArray<readonly [string, strin
 /**
  * Member path, inside the transaction: hand household content to the
  * successor, clear references, delete what was only about this member.
- * Returns the files to remove after commit.
+ * Private sent-message files are collected separately before this handover.
  */
 async function handOverAndDetach(
   tx: any,
   userId: string,
   familyId: string,
   successorId: string,
-  root: string
-): Promise<FileTarget[]> {
+  now: Date
+): Promise<void> {
   const to = successorId
   const inFamily = { family_id: familyId }
-  const messageFiles = await tx.messageAttachment.findMany({
-    where: { message: { sender_id: userId } },
-    select: { filename: true },
-  })
-  const files: FileTarget[] = messageFiles
-    .map((row: { filename: string }) => messageAttachmentPath(root, row.filename))
-    .filter((file: string | null): file is string => Boolean(file))
-    .map((file: string) => ({ path: file }))
 
   // Sessions and credentials first: nothing issued to this member stays live.
   await tx.user.update({
@@ -508,31 +529,27 @@ async function handOverAndDetach(
   // Take turns (O-39): they leave every rotation in the household.
   await dropMemberFromRotationsInTx(tx, familyId, userId)
 
+  // Preserve reviewed future plans on a new anonymous control identity before
+  // deleting the departing person's own historic rows. Surviving occurrence
+  // IDs, evidence, subjects and credit remain unchanged.
+  const routineControls = await handOverRoutineControlRootsInTx(tx, familyId, userId, to)
+
   // Their own chores (assigned to them) go; photos are handled below.
   const ownChores = await tx.chore.findMany({ where: { ...inFamily, assigned_to: userId }, select: { id: true } })
   const ownChoreIds = ownChores.map((c: { id: string }) => c.id)
-  const [ownAssignments, habitLogs, badges, redemptions, wishes] = await Promise.all([
-    tx.choreAssignment.findMany({
-      where: { OR: [{ assigned_to: userId }, { chore_id: { in: ownChoreIds } }] },
-      select: { id: true },
-    }),
-    tx.habitLog.findMany({ where: { user_id: userId }, select: { id: true } }),
-    tx.earnedBadge.findMany({ where: { user_id: userId }, select: { id: true } }),
-    tx.rewardRedemption.findMany({ where: { requested_by: userId }, select: { id: true } }),
-    tx.wishlistItem.findMany({ where: { requested_by: userId }, select: { id: true } }),
-  ])
-  const removedTargets = [...ownChores, ...ownAssignments, ...habitLogs, ...badges, ...redemptions, ...wishes].map(
-    (r: { id: string }) => r.id
-  )
-  if (removedTargets.length > 0) {
-    // Import provenance for rows that no longer exist.
-    await tx.importedRecord.deleteMany({ where: { ...inFamily, target_id: { in: removedTargets } } })
-  }
+  const ownAssignments = await tx.choreAssignment.findMany({
+    where: { OR: [{ assigned_to: userId }, { chore_id: { in: ownChoreIds } }] },
+    select: { id: true },
+  })
 
   // Delete what was only about this member before handing anything over, so
   // a chore they both created and were assigned is deleted, not handed over.
   await tx.choreAssignment.deleteMany({ where: { id: { in: ownAssignments.map((a: { id: string }) => a.id) } } })
   await tx.chore.deleteMany({ where: { id: { in: ownChoreIds } } })
+  // Top up only after personal occurrences are removed, so a deleted row
+  // cannot occupy the future plan's slot (including a one-time step).
+  // Canonical subject renewal and rollout gates still apply.
+  for (const rootId of routineControls.values()) await expandSeriesInTx(tx, rootId, familyId, now)
   await tx.allowance.deleteMany({ where: { to_user_id: userId } })
   await tx.medication.deleteMany({ where: { person_id: userId } })
   await tx.sickDay.deleteMany({ where: { person_id: userId } })
@@ -548,10 +565,7 @@ async function handOverAndDetach(
   // Permanent account erasure anonymizes the original actor without changing stack identity.
   // This is intentionally separate from ordinary household member removal.
   await tx.routineStack.updateMany({ where: { created_by: userId }, data: { created_by: null } })
-  await tx.$executeRaw`
-    UPDATE "Message" SET "read_by" = array_remove("read_by", ${userId})
-    WHERE "family_id" = ${familyId} AND ${userId} = ANY("read_by")
-  `
+
 
   // Photos this member uploaded stay with the household (uploader cleared
   // below) and go with the household when it is deleted. They are not
@@ -562,7 +576,6 @@ async function handOverAndDetach(
   // attaching at that moment would break their chore. Retention exception in
   // docs/product/ACCOUNT_DELETION.md.
   await tx.upload.updateMany({ where: { uploaded_by: userId }, data: { uploaded_by: null } })
-  return files
 }
 
 /**
@@ -626,6 +639,10 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'betaMetricDaily', scope: { kind: 'family' }, why: 'beta usage counts (#287)' },
   { model: 'householdDevice', scope: { kind: 'family' }, why: 'paired tablets (and any elevation)' },
   { model: 'parentElevationPin', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'tablet PINs' },
+  { model: 'responsibilityState', scope: { kind: 'family' }, why: 'consent and backup metadata before canonical targets/identities; compatibility-probed SQL' },
+  { model: 'householdProfileLinkChallenge', scope: { kind: 'family' }, why: 'expiring profile-link proofs before identities; compatibility-probed SQL' },
+  { model: 'aiUsageRequest', scope: { kind: 'family' }, why: 'content-free AI reservations, outcomes and accounting; compatibility-probed SQL' },
+  { model: 'aiUsagePolicy', scope: { kind: 'family' }, why: 'household AI quota/pricing policy; compatibility-probed SQL' },
   { model: 'householdMemberAccountLink', scope: { kind: 'family' }, why: 'dormant verified account links (#480)' },
   { model: 'householdMemberLegacyMapping', scope: { kind: 'family' }, why: 'dormant legacy identity mappings (#480)' },
   // 2. Tokens and links that could still reach the household.
@@ -638,11 +655,14 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   // 3. Calendar integrations (connections already cleared one by one above; listed so none is missed).
   { model: 'calendarEventLink', scope: { kind: 'family' }, why: 'provider event links' },
   { model: 'event', scope: { kind: 'family' }, why: 'events' },
+  { model: 'eventPreparationStep', scope: { kind: 'family' }, why: 'preparation links after canonical Event cascade; compatibility-probed SQL' },
+  { model: 'eventPreparation', scope: { kind: 'family' }, why: 'preparation metadata after canonical Event cascade; compatibility-probed SQL' },
   { model: 'calendarConnection', scope: { kind: 'family' }, why: 'provider tokens' },
   { model: 'calendarSubscription', scope: { kind: 'family' }, why: 'ICS feed URLs' },
   // 4. Household content.
   { model: 'inventoryAdjustment', scope: { kind: 'family' }, why: 'inventory history' },
   { model: 'inventoryItem', scope: { kind: 'family' }, why: 'inventory' },
+  { model: 'foodProduct', scope: { kind: 'family' }, why: 'private household product recognition' },
   { model: 'groceryShoppingSession', scope: { kind: 'family' }, why: 'shopping trips' },
   { model: 'grocerySectionPreference', scope: { kind: 'family' }, why: 'store sections' },
   { model: 'transaction', scope: { kind: 'family' }, why: 'budget transactions' },
@@ -673,6 +693,8 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'mealBatch', scope: { kind: 'family' }, why: 'prep dishes' },
   { model: 'mealPrepSession', scope: { kind: 'family' }, why: 'prep sessions' },
   { model: 'familyMeal', scope: { kind: 'family' }, why: 'meals' },
+  { model: 'recipeCollectionEntry', scope: { kind: 'family' }, why: 'recipe collection memberships' },
+  { model: 'recipeCollection', scope: { kind: 'family' }, why: 'household recipe collections' },
   { model: 'recipeIngredient', scope: { kind: 'parent', relation: 'recipe' }, why: 'recipe ingredients' },
   { model: 'recipe', scope: { kind: 'family' }, why: 'recipes' },
   { model: 'ingredient', scope: { kind: 'family' }, why: 'ingredients' },
@@ -799,7 +821,11 @@ export async function deleteHousehold(
 
       // 4. Every household-scoped table, in order.
       for (const step of HOUSEHOLD_DELETION_PLAN) {
-        await tx[step.model].deleteMany({ where: whereFor(step.scope, familyId, memberIds) })
+        if (isOptionalDeletionMetadata(step.model)) await deleteOptionalHouseholdMetadataInTx(tx, familyId, step.model)
+        else if (step.model === 'responsibilityState') await clearHouseholdResponsibilityInTx(tx, familyId)
+        else if (step.model === 'eventPreparationStep') await clearHouseholdEventPreparationInTx(tx, familyId, 'steps')
+        else if (step.model === 'eventPreparation') await clearHouseholdEventPreparationInTx(tx, familyId, 'plans')
+        else await tx[step.model].deleteMany({ where: whereFor(step.scope, familyId, memberIds) })
       }
       // 5. The household row.
       await tx.family.delete({ where: { id: familyId } })

@@ -174,6 +174,8 @@ it("uses normalized unlinked presence only from this household and hides unavail
   expect(await read()).toMatchObject({
     state: "available",
     haveIngredientIds: ["ingredient-a"],
+    matching: "presence_only",
+    matches: [{ ingredientId: "ingredient-a", kind: "name" }],
   });
   mockGate.mockImplementation(async (_f, k) => {
     if (k === "inventory") throw new Error("unavailable");
@@ -241,6 +243,8 @@ it("compares a directly requested zero-stock recipe using canonical presence mat
     state: "available",
     haveIngredientIds: [],
     truncated: false,
+    matching: "presence_only",
+    matches: [],
   });
   expect(db.writes).toHaveLength(0);
 });

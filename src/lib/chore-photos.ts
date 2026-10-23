@@ -1,3 +1,4 @@
+import type { PrismaClient } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
 // Chore photo ownership (D3, #102).
@@ -44,7 +45,9 @@ export const CHORE_PHOTO_INVALID = 'photo_url must be a photo uploaded with /api
 export const CHORE_PHOTO_NOT_OWNED = 'Photo not found. Upload it again and retry.'
 
 /**
- * Validate a client-supplied chore photo for a write.
+ * Validate a client-supplied chore photo for a write. A caller can supply its
+ * transaction's upload delegate so ownership is read inside its locked write;
+ * legacy callers retain the default client.
  *
  * - `undefined`: the field was not sent; nothing changes (`value: undefined`).
  * - `null` or `''`: clear the photo (`value: null`).
@@ -59,7 +62,8 @@ export const CHORE_PHOTO_NOT_OWNED = 'Photo not found. Upload it again and retry
 export async function resolveChorePhotoForWrite(
   familyId: string,
   input: string | null | undefined,
-  current?: string | null
+  current?: string | null,
+  db: Pick<PrismaClient, 'upload'> = prisma!
 ): Promise<ChorePhotoResolution> {
   if (input === undefined) return { ok: true, value: undefined }
   if (input === null || input === '') return { ok: true, value: null }
@@ -68,7 +72,7 @@ export async function resolveChorePhotoForWrite(
   const filename = chorePhotoFilename(input)
   if (!filename) return { ok: false, error: CHORE_PHOTO_INVALID }
 
-  const upload = await prisma!.upload.findFirst({
+  const upload = await db.upload.findFirst({
     where: { filename, family_id: familyId },
     select: { family_id: true },
   })

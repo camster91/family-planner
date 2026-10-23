@@ -1,4 +1,10 @@
 /** @jest-environment jsdom */
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+}));
+jest.mock("@/lib/review-document-browser", () =>
+  require("@/__tests__/helpers/legacy-recipe-review").legacyRecipeReviewMock(),
+);
 import * as React from "react";
 import {
   act,
@@ -83,7 +89,7 @@ it.each([
         onSavingChange={savingChanged}
       />,
     );
-    const title = screen.getByLabelText("Recipe name");
+    const title = await screen.findByLabelText("Recipe name");
     fireEvent.change(title, { target: { value: "New soup" } });
     const save = handler<() => void>(
       screen.getByRole("button", { name: "Save recipe" }),
@@ -93,6 +99,7 @@ it.each([
       (event: { key: string; preventDefault: () => void }) => void
     >(title, "onKeyDown");
     const enter = () => keyDown({ key: "Enter", preventDefault: jest.fn() });
+    savingChanged.mockClear(); // Scope the exact transition assertion to this save.
     await act(async () => {
       (ordering.includes("Enter/Save") ? enter : save)();
       (ordering.includes("Save/Enter") ? enter : save)();
@@ -149,7 +156,7 @@ it.each([
       ) : null;
     }
     render(<Owner />);
-    fireEvent.change(screen.getByLabelText("Recipe name"), {
+    fireEvent.change(await screen.findByLabelText("Recipe name"), {
       target: { value: "New soup" },
     });
     const save = handler<() => void>(
@@ -160,6 +167,7 @@ it.each([
       screen.getByRole("button", { name: "Cancel" }),
       "onClick",
     );
+    savingChanged.mockClear(); // The preceding context read has finished.
     await act(async () => {
       save();
       cancel();
@@ -220,7 +228,7 @@ it.each(["", "0", "101", "1.5"])(
   async (value) => {
     const user = userEvent.setup();
     render(<RecipeEditor onCreated={jest.fn()} onCancel={jest.fn()} />);
-    await user.type(screen.getByLabelText("Recipe name"), "Soup");
+    await user.type(await screen.findByLabelText("Recipe name"), "Soup");
     await user.clear(screen.getByLabelText("Base servings"));
     if (value) await user.type(screen.getByLabelText("Base servings"), value);
     await user.click(screen.getByRole("button", { name: "Save recipe" }));
@@ -236,7 +244,7 @@ it.each(["1", "100"])(
   async (value) => {
     const user = userEvent.setup();
     render(<RecipeEditor onCreated={jest.fn()} onCancel={jest.fn()} />);
-    await user.type(screen.getByLabelText("Recipe name"), "Soup");
+    await user.type(await screen.findByLabelText("Recipe name"), "Soup");
     await user.clear(screen.getByLabelText("Base servings"));
     await user.type(screen.getByLabelText("Base servings"), value);
     await user.click(screen.getByRole("button", { name: "Save recipe" }));
@@ -247,7 +255,7 @@ it.each(["1", "100"])(
 it("rejects ingredient amounts above the canonical limit rather than sending them", async () => {
   const user = userEvent.setup();
   render(<RecipeEditor onCreated={jest.fn()} onCancel={jest.fn()} />);
-  await user.type(screen.getByLabelText("Recipe name"), "Soup");
+  await user.type(await screen.findByLabelText("Recipe name"), "Soup");
   await user.type(screen.getByLabelText("Ingredient"), "Salt");
   await user.clear(screen.getByLabelText("Amount"));
   await user.type(screen.getByLabelText("Amount"), "100001");
@@ -275,7 +283,7 @@ it.each(["network", "server", "missing recipe", "unreadable response"])(
       } as unknown as Response;
     }) as typeof fetch;
     render(<RecipeEditor onCreated={created} onCancel={cancelled} />);
-    await user.type(screen.getByLabelText("Recipe name"), "Soup");
+    await user.type(await screen.findByLabelText("Recipe name"), "Soup");
     await user.click(screen.getByRole("button", { name: "Save recipe" }));
     await screen.findByRole("alert");
     expect(screen.getByRole("alert").textContent).toContain(
@@ -286,11 +294,11 @@ it.each(["network", "server", "missing recipe", "unreadable response"])(
       (screen.getByRole("button", { name: "Save recipe" }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
-    await user.type(screen.getByLabelText("Recipe name"), "{Enter}");
+    await user.type(await screen.findByLabelText("Recipe name"), "{Enter}");
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(created).not.toHaveBeenCalled();
     expect(
-      (screen.getByLabelText("Recipe name") as HTMLInputElement).value,
+      ((await screen.findByLabelText("Recipe name")) as HTMLInputElement).value,
     ).toBe("Soup");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(cancelled).toHaveBeenCalledTimes(1);
@@ -308,7 +316,7 @@ it("keeps a rejected create draft editable without exposing server details", asy
       }) as Response,
   ) as typeof fetch;
   render(<RecipeEditor onCreated={jest.fn()} onCancel={jest.fn()} />);
-  await user.type(screen.getByLabelText("Recipe name"), "Soup");
+  await user.type(await screen.findByLabelText("Recipe name"), "Soup");
   await user.click(screen.getByRole("button", { name: "Save recipe" }));
   expect(screen.getByRole("alert").textContent).toBe(
     "The recipe was not accepted. Check your entries and permissions.",
@@ -370,7 +378,7 @@ it("keeps an edit draft open when the successful response omits canonical recipe
       onCancel={jest.fn()}
     />,
   );
-  await user.type(screen.getByLabelText("Recipe name"), " new");
+  await user.type(await screen.findByLabelText("Recipe name"), " new");
   await user.click(screen.getByRole("button", { name: "Save recipe" }));
   expect(onSaved).not.toHaveBeenCalled();
   expect(screen.getByRole("alert").textContent).toContain(
@@ -445,7 +453,7 @@ it("does not alter untouched legacy text, optional base servings or ingredient n
       onCancel={jest.fn()}
     />,
   );
-  await user.type(screen.getByLabelText("Recipe name"), " new");
+  await user.type(await screen.findByLabelText("Recipe name"), " new");
   await user.click(screen.getByRole("button", { name: "Save recipe" }));
   expect(writes()[0].body).toEqual({ title: "Soup new" });
 });

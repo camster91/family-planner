@@ -84,6 +84,7 @@ describe("POST /api/notes", () => {
   });
 
   it("a valid note is still created; an unknown colour falls back to yellow", async () => {
+    db.find("family", "family-A")!.features = { notes: true };
     const res = await notes.POST(
       req({ as: "parentA", method: "POST", body: { title: " Wifi ", body: " hunter2 ", color: 7 } })
     );

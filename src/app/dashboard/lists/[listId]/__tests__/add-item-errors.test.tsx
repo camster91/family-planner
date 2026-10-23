@@ -27,9 +27,11 @@ jest.mock('../use-list-item-sync', () => ({
 
 let createReply: () => Promise<Response>
 let calls: string[] = []
+const mockRefresh = jest.fn()
 
 beforeEach(() => {
   calls = []
+  mockRefresh.mockClear()
   Object.defineProperty(window.navigator, 'onLine', { configurable: true, get: () => true })
   global.fetch = jest.fn(async (input: RequestInfo | URL) => {
     calls.push(String(input))
@@ -102,8 +104,34 @@ it('adds the item and clears the error on success', async () => {
   expect(input.value).toBe('')
 })
 
+it('keeps a newly appended item off the current page until its canonical page is loaded', async () => {
+  const item = { id: 'tail', content: 'Milk', checked: false, quantity: 1, category: null, added_by: { name: 'Pat' } }
+  createReply = async () => ({ ok: true, status: 201, json: async () => ({ item }) }) as Response
+  const paging = { continued: false, firstHref: '/dashboard/lists/l1', nextHref: '/dashboard/lists/l1?cursor=next', versionQuery: 'limit=100' }
+  const page = (items: typeof item[], continued: boolean) => (
+    <ToastProvider>
+      <ListDetailClient listId="l1" listName="Tasks" listType="todo" userId="u1" items={items}
+        paging={{ ...paging, continued, nextHref: continued ? null : paging.nextHref }} />
+    </ToastProvider>
+  )
+  const view = render(page([], false))
+  const user = userEvent.setup()
+  await user.type(screen.getByPlaceholderText('Add an item…'), 'Milk{Enter}')
+
+  await screen.findByText('Added “Milk”')
+  expect(calls).toEqual(['/api/lists/items/create'])
+  expect(mockRefresh).toHaveBeenCalledTimes(1)
+  expect(screen.queryByRole('checkbox', { name: /Milk/ })).toBeNull()
+  expect(screen.getByPlaceholderText('Add an item…')).toHaveValue('')
+  expect(screen.getByText('Saved at the end of your list. It may appear on a later page.')).toBeTruthy()
+
+  view.rerender(page([item], true))
+  await waitFor(() => expect(screen.getAllByRole('checkbox', { name: /Milk/ })).toHaveLength(1))
+  expect(calls).toHaveLength(1)
+})
+
 // Canonical refresh after a queued create; navigation is covered in browser tests.
-jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: jest.fn() }) }))
+jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mockRefresh }) }))
 
 // Submitted-create replay has its own real-queue component and browser suite.
 jest.mock('../PersonGroceryAdd', () => ({ PersonGroceryAdd: () => null }))

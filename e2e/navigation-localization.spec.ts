@@ -31,6 +31,10 @@ const projects = [
   "tablet-portrait-800x1280",
   "fridge-landscape-1280x800",
 ];
+// Chromium can report a half-pixel edge for a control whose CSS box ends at
+// the viewport boundary. Keep the no-scroll assertion exact while allowing
+// that observed compositor rounding in element-bound checks.
+const viewportEdgeTolerance = 0.5;
 function text(value: string) {
   return expanded ? pseudolocalizeTemplate(value) : value;
 }
@@ -49,7 +53,9 @@ async function capture(
     const viewport = page.viewportSize()!;
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.y).toBeGreaterThanOrEqual(0);
-    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(
+      viewport.width + viewportEdgeTolerance,
+    );
     expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
     await target.focus();
     await expect(target).toBeFocused();
@@ -114,6 +120,9 @@ for (const role of ["parent", "teen", "child"] as const)
         await loginViaUi(page, FIXTURE_EMAILS.familyA.teen);
         await expect(page).toHaveURL(/\/dashboard(?:\/)?$/);
       } else await page.goto("/dashboard");
+      await expect(page).toHaveURL(
+        role === "parent" ? /\/dashboard\/today$/ : /\/dashboard\/?$/,
+      );
       const auth = await browserFetch(page, "/api/auth/me");
       expect(auth.status).toBe(200);
       expect(JSON.parse(auth.body).user.role).toBe(role);
@@ -169,7 +178,7 @@ for (const role of ["parent", "teen", "child"] as const)
               viewport = page.viewportSize()!;
             expect(bounds!.x).toBeGreaterThanOrEqual(0);
             expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(
-              viewport.width,
+              viewport.width + viewportEdgeTolerance,
             );
             const tabs =
               info.project.name === "phone-390x844"
@@ -373,7 +382,9 @@ for (const role of ["parent", "teen", "child"] as const)
           const bounds = await opener.boundingBox(),
             viewport = page.viewportSize()!;
           expect(bounds!.x).toBeGreaterThanOrEqual(0);
-          expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
+          expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(
+            viewport.width + viewportEdgeTolerance,
+          );
           await page.screenshot({
             path: info.outputPath(`${locale}-fresh-normal-chrome.png`),
             fullPage: false,
@@ -427,7 +438,9 @@ test.describe("Explore feature shortcut", () => {
     expect(await featureLists.count()).toBeGreaterThan(0);
     for (const list of await featureLists.all()) {
       await expect(list).toBeVisible();
-      await expect(list).toHaveAttribute("aria-label", / · Features$/);
+      const group = list.locator("xpath=ancestor::section");
+      await expect(group).toHaveAttribute("aria-labelledby", /more-group-/);
+      await expect(group.getByRole("heading")).toBeVisible();
     }
   });
 });

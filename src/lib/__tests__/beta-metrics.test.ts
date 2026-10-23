@@ -35,6 +35,8 @@ describe('BETA_METRICS allowlist', () => {
   it('is the fixed list the beta criteria need, and nothing that could carry content', () => {
     expect([...BETA_METRICS]).toEqual([
       'member_joined',
+      'food_ai_choices_used',
+      'food_ai_choices_kept',
       'event_created',
       'meal_planned',
       'chore_assigned',
@@ -209,12 +211,13 @@ describe('source scan', () => {
       .sort()
     expect(callers).toEqual([
       'src/app/api/auth/register/route.ts',
-      'src/app/api/chores/create/route.ts',
       'src/app/api/chores/verify/route.ts',
       'src/app/api/family/join/route.ts',
+      'src/app/api/meals/create/route.ts',
       'src/app/api/meals/route.ts',
       'src/app/api/rewards/claim/route.ts',
       'src/lib/chore-complete.ts',
+      'src/lib/person-chore-create.ts',
       'src/lib/person-event-create.ts',
     ])
   })

@@ -23,13 +23,22 @@
  * browser defaults.
  */
 
-export const DEVICE_STORAGE_PREFIX = 'fp-device:v1:'
-export const DEVICE_IDB_NAME = 'fp-device'
-export const DEVICE_CACHE_PREFIX = 'fp-device'
-/** Stored device id, so a different device id on the same browser triggers a purge (§8). */
-export const DEVICE_ID_KEY = `${DEVICE_STORAGE_PREFIX}device-id`
-/** Reserved for the offline mutation queue (#162); dropped, never replayed, by the purge. */
-export const DEVICE_QUEUE_KEY = `${DEVICE_STORAGE_PREFIX}queue`
+import { captureQueueRetirements, retireOwnedQueueRecords } from '@/lib/owned-queue-persistence'
+import {
+  DEVICE_CACHE_PREFIX,
+  DEVICE_IDB_NAME,
+  DEVICE_ID_KEY,
+  DEVICE_QUEUE_KEY,
+  DEVICE_STORAGE_PREFIX,
+} from '@/lib/device-storage'
+
+export {
+  DEVICE_CACHE_PREFIX,
+  DEVICE_IDB_NAME,
+  DEVICE_ID_KEY,
+  DEVICE_QUEUE_KEY,
+  DEVICE_STORAGE_PREFIX,
+} from '@/lib/device-storage'
 
 /** Refresh proactively when the access token has less than this left and the page is visible (§4). */
 export const PROACTIVE_REFRESH_WINDOW_MS = 5 * 60 * 1000
@@ -137,6 +146,8 @@ export interface DeviceClientDeps {
   storages: () => StorageLike[]
   deleteIndexedDb: (name: string) => Promise<void>
   clearCaches: (prefix: string) => Promise<void>
+  /** Retire captured old pairing journals; never delete the owned database. */
+  retireOwnedQueues?: (deviceIds: readonly string[]) => Promise<void>
 }
 
 export interface RequestOptions {
@@ -230,6 +241,7 @@ export function isCompleteCode(input: string): boolean {
 }
 
 export function createDeviceClient(deps: DeviceClientDeps) {
+  const knownDeviceIds = new Set<string>()
   let accessExpiresAt: number | null = null
   let inflightRefresh: Promise<RefreshOutcome> | null = null
   let elevation: ElevationSession | null = null
@@ -300,8 +312,17 @@ export function createDeviceClient(deps: DeviceClientDeps) {
     }
   }
 
+  function retireOwned(deviceIds: readonly string[]): Promise<void> {
+    // Invoke synchronously so the dependency captures old identities now,
+    // while keeping an optional cleanup failure out of pairing completion.
+    try { return deps.retireOwnedQueues?.(deviceIds).catch(() => {}) ?? Promise.resolve() }
+    catch { return Promise.resolve() }
+  }
+
   /** Delete every client trace of the device (§8 steps 1–3). Does not navigate. */
   async function wipe(): Promise<void> {
+    const retiredDeviceIds = [...knownDeviceIds]
+    knownDeviceIds.clear()
     elevation = null
     claimToken = null
     accessExpiresAt = null
@@ -309,6 +330,7 @@ export function createDeviceClient(deps: DeviceClientDeps) {
     await Promise.all([
       deps.deleteIndexedDb(DEVICE_IDB_NAME).catch(() => {}),
       deps.clearCaches(DEVICE_CACHE_PREFIX).catch(() => {}),
+      retireOwned(retiredDeviceIds),
     ])
   }
 
@@ -477,6 +499,7 @@ export function createDeviceClient(deps: DeviceClientDeps) {
       for (const storage of safeStorages()) {
         try {
           const known = storage.getItem(DEVICE_ID_KEY)
+          if (known && /^[A-Za-z0-9_-]{1,128}$/.test(known)) knownDeviceIds.add(known)
           if (known && known !== deviceId) {
             await purge()
             return false
@@ -487,6 +510,7 @@ export function createDeviceClient(deps: DeviceClientDeps) {
         }
         break
       }
+      knownDeviceIds.add(deviceId)
       return true
     },
 
@@ -557,6 +581,8 @@ export function createDeviceClient(deps: DeviceClientDeps) {
       if (res.ok) {
         const body = (await readBody(res)) as { status?: string; device?: { id: string; label: string } } | null
         if (body?.status === 'paired' && body.device) {
+          const retiredDeviceIds = [...knownDeviceIds]
+          knownDeviceIds.clear()
           claimToken = null
           // A fresh pairing starts from a clean namespace on this browser.
           removeStorageNamespace()
@@ -575,6 +601,8 @@ export function createDeviceClient(deps: DeviceClientDeps) {
           // purge event so the cached device queue abandons the old queue
           // before any new page-level client can replay it.
           emit('purge')
+          void retireOwned(retiredDeviceIds)
+          knownDeviceIds.add(body.device.id)
           return { status: 'paired', device: body.device }
         }
         return { status: 'pending' }
@@ -618,6 +646,17 @@ export function getDeviceClient(): DeviceClient {
     csrfToken: () => readCookie('csrf_token'),
     isVisible: () => document.visibilityState === 'visible',
     storages: () => [window.localStorage, window.sessionStorage],
+    retireOwnedQueues: (deviceIds) => {
+      // Snapshot identities synchronously; an old delayed wipe never expands
+      // to a replacement pairing registered after this call.
+      const captured = captureQueueRetirements('device')
+      for (const ownerId of deviceIds) captured.push({ mode: 'device', ownerId })
+      let storage: Storage | null = null
+      let indexedDB: IDBFactory | null = null
+      try { storage = window.localStorage } catch { /* unavailable */ }
+      try { indexedDB = window.indexedDB } catch { /* unavailable */ }
+      return Promise.allSettled(captured.map(retirement => retireOwnedQueueRecords(retirement, { storage, indexedDB }))).then(() => undefined)
+    },
     deleteIndexedDb: (name) =>
       new Promise<void>((resolve) => {
         try {

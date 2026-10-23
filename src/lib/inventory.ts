@@ -32,6 +32,7 @@
  *   and device) carries `getUseSoonItems` fields only for its "Use soon" tile.
  */
 import { z } from 'zod'
+import { cookSuggestionSchema } from '@/lib/inventory-cook-contract'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { normalizeName } from '@/lib/backfill/meals-groceries'
 import { cleanIngredientName } from '@/lib/recipes'
@@ -210,6 +211,10 @@ export function parseDays(raw: string | null, fallback: number): number | null {
 // Rows and DTOs
 
 export const INVENTORY_ITEM_SELECT = {
+  barcode: true,
+  product_brand: true,
+  package_size: true,
+  product_source: true,
   id: true,
   name: true,
   ingredient_id: true,
@@ -229,6 +234,10 @@ export const INVENTORY_ITEM_SELECT = {
 } as const
 
 export interface InventoryRow {
+  barcode?: string | null
+  product_brand?: string | null
+  package_size?: string | null
+  product_source?: string | null
   id: string
   name: string
   ingredient_id: string | null
@@ -249,6 +258,10 @@ export interface InventoryRow {
 }
 
 export interface InventoryItemDto {
+  barcode?: string | null
+  product_brand?: string | null
+  package_size?: string | null
+  product_source?: string | null
   id: string
   name: string
   ingredient_id: string | null
@@ -287,6 +300,10 @@ export function toInventoryDto(row: InventoryRow, today: Date, days = DEFAULT_US
     id: row.id,
     name: row.name,
     ingredient_id: row.ingredient_id ?? null,
+    barcode: row.barcode ?? null,
+    product_brand: row.product_brand ?? null,
+    package_size: row.package_size ?? null,
+    product_source: row.product_source ?? null,
     amount: row.amount ?? null,
     unit: row.unit ?? null,
     location: asLocation(row.location),
@@ -368,7 +385,7 @@ type InventoryReader = Pick<PrismaClient, 'inventoryItem'> | Prisma.TransactionC
  * - included: a date on or before `today + days`, except a use-by day that has
  *   passed (that food is "don't eat", never "use soon"); a passed best-before
  *   day stays in (most overdue first, labelled "Best before was …");
- * - excluded: items without a date, consumed and discarded items;
+ * - excluded: items without a date, known zero stock, consumed and discarded items;
  * - order: date ascending, use-by before best-before on the same day, then
  *   name, then id.
  *
@@ -399,6 +416,7 @@ export async function getUseSoonItems(
     where: {
       family_id: familyId,
       status: 'active',
+      AND: [{ OR: [{ amount: null }, { amount: { gt: 0 } }] }],
       expires_on: { not: null, lte: addUTCDays(today, days) },
       OR: [{ date_kind: { not: 'use_by' } }, { expires_on: { gte: today } }],
     },
@@ -410,7 +428,7 @@ export async function getUseSoonItems(
   const skew =
     skewFrom && skewFrom.getTime() < today.getTime()
       ? await db.inventoryItem.findMany({
-          where: { family_id: familyId, status: 'active', date_kind: 'use_by', expires_on: { gte: skewFrom, lt: today } },
+          where: { family_id: familyId, status: 'active', AND: [{ OR: [{ amount: null }, { amount: { gt: 0 } }] }], date_kind: 'use_by', expires_on: { gte: skewFrom, lt: today } },
           select,
           orderBy: [{ expires_on: 'desc' }, { name: 'asc' }, { id: 'asc' }],
           take: limit,
@@ -466,11 +484,15 @@ export interface CookInventoryInput {
   name: string
   expires_on: Date | string | null
   date_kind?: string | null
+  amount?: number | null
+  status?: string | null
 }
 
 export interface CookIngredient {
   ingredientId: string
   name: string
+  /** Matching provenance only, never a calibrated probability or quantity check. */
+  match?: 'linked' | 'name'
 }
 
 export interface CookSuggestion {
@@ -509,6 +531,8 @@ export function indexCookInventory(
   const haveIds = new Map<string, boolean>() // ingredient id -> expiring soon
   const haveNames = new Map<string, boolean>() // normalized name -> expiring soon (unlinked items only)
   for (const item of inventory) {
+    if (item.status !== undefined && item.status !== 'active') continue
+    if (item.amount != null && (!Number.isFinite(item.amount) || item.amount <= 0)) continue
     const { status } = expiryStatus(item.expires_on, today, days, item.date_kind ?? 'best_before')
     if (status === 'expired' || status === 'past_use_by') continue
     const soon = status === 'today' || status === 'soon'
@@ -543,7 +567,7 @@ export function matchRecipeIngredients(
     const byName = index.haveNames.get(normalizeName(ing.name))
     const entry = { ingredientId: ing.id, name: ing.name }
     if (byId !== undefined || byName !== undefined) {
-      have.push(entry)
+      have.push({ ...entry, match: byId !== undefined ? 'linked' : 'name' })
       if (byId || byName) useSoonCount += 1
     } else {
       missing.push(entry)
@@ -574,7 +598,8 @@ export function countMissingIngredients(
  * - An ingredient is "in stock" when a non-expired inventory item links to it
  *   (`ingredient_id`), or when an UNLINKED non-expired item's normalized name
  *   equals the ingredient's normalized name. Expired items never count.
- * - Presence only: amounts and units are not compared (ADR-0007 O-3, no
+ * - Presence only: zero/invalid amounts never match, but positive/unknown amounts
+ *   do not prove recipe sufficiency. Amounts and units are not compared (ADR-0007 O-3, no
  *   cross-unit arithmetic).
  * - Recipes without ingredients, or with nothing in stock, are left out.
  * - Order: coverage (desc), in-stock count (desc), use-soon count (desc),
@@ -625,7 +650,7 @@ type CookReader = Pick<PrismaClient, 'inventoryItem' | 'recipe'> | Prisma.Transa
 
 export interface CookSuggestionsResult {
   suggestions: CookSuggestion[]
-  /** Recipes read and ranked (at most the recipe cap). */
+  /** Owned recipes read (at most the cap); invalid ownership/metadata is not ranked. */
   recipesConsidered: number
   /** More ranked suggestions exist than `limit` returned. */
   truncated: boolean
@@ -634,6 +659,10 @@ export interface CookSuggestionsResult {
    * so some inputs were not considered and suggestions may be missing.
    */
   inputsTruncated: boolean
+  /** Additive explicit contract: ingredient presence is not enough-for-recipe stock. */
+  matching?: 'presence_only'
+  /** An owned recipe had inconsistent ingredient ownership and was not compared. */
+  comparisonIncomplete?: boolean
 }
 
 /**
@@ -649,8 +678,8 @@ export async function loadCookInventory(
 ): Promise<{ items: CookInventoryInput[]; truncated: boolean }> {
   const cap = Math.max(opts.cap ?? COOK_INVENTORY_SCAN_LIMIT, 1)
   const rows = await db.inventoryItem.findMany({
-    where: { family_id: familyId, status: 'active', OR: [{ expires_on: null }, { expires_on: { gte: opts.from } }] },
-    select: { ingredient_id: true, name: true, expires_on: true, date_kind: true },
+    where: { family_id: familyId, status: 'active', AND: [{ OR: [{ amount: null }, { amount: { gt: 0 } }] }], OR: [{ expires_on: null }, { expires_on: { gte: opts.from } }] },
+    select: { ingredient_id: true, name: true, expires_on: true, date_kind: true, amount: true, status: true },
     orderBy: [{ id: 'asc' }],
     take: cap + 1,
   })
@@ -676,7 +705,7 @@ export async function getCookSuggestions(
 
   const { items: inventory, truncated: inventoryCut } = await loadCookInventory(db, familyId, { from: today, cap: inventoryCap })
   if (inventory.length === 0) {
-    return { suggestions: [], recipesConsidered: 0, truncated: false, inputsTruncated: false }
+    return { suggestions: [], recipesConsidered: 0, truncated: false, inputsTruncated: false, matching: 'presence_only', comparisonIncomplete: false }
   }
 
   const recipeRows = await db.recipe.findMany({
@@ -688,7 +717,7 @@ export async function getCookSuggestions(
       cook_time: true,
       servings: true,
       // Owned through the recipe; the ingredient rows are the recipe's own.
-      ingredients: { select: { ingredient: { select: { id: true, name: true } } } },
+      ingredients: { select: { ingredient: { select: { id: true, name: true, family_id: true } } } },
     },
     orderBy: [{ title: 'asc' }, { id: 'asc' }],
     take: recipeCap + 1,
@@ -696,11 +725,16 @@ export async function getCookSuggestions(
   const recipesCut = recipeRows.length > recipeCap
   const recipes = recipesCut ? recipeRows.slice(0, recipeCap) : recipeRows
 
-  const ranked = rankCookableRecipes(recipes, inventory, today)
+  // Do not disclose foreign ingredient text or silently compare a partial recipe.
+  const readable = recipes.filter(recipe => recipe.ingredients.every(line => line.ingredient?.family_id === familyId))
+  const ranked = rankCookableRecipes(readable, inventory, today)
+  const bounded = ranked.filter(row => cookSuggestionSchema.safeParse(row).success)
   return {
-    suggestions: ranked.slice(0, limit),
+    suggestions: bounded.slice(0, limit),
     recipesConsidered: recipes.length,
-    truncated: ranked.length > limit,
+    truncated: bounded.length > limit,
     inputsTruncated: inventoryCut || recipesCut,
+    matching: 'presence_only',
+    comparisonIncomplete: readable.length !== recipes.length || bounded.length !== ranked.length,
   }
 }

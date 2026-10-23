@@ -2,6 +2,15 @@
 
 Master roadmap: #128. Repository foundation: #147 / PR #129.
 
+## Active implementation-first goal — 2026-10-18
+
+Finish the approved issue-specific code and plans, then QA one integrated
+candidate. The current82-issue execution inventory is
+[ISSUE_COMPLETION_LEDGER.md](ISSUE_COMPLETION_LEDGER.md). It preserves original
+acceptance, separates local code from plans/external dependencies, and records
+remaining implementation work. Do not start another partial QA round during
+this phase or close issues merely because they appear in that inventory.
+
 ## Repository reconciliation
 
 - PR #129 merged on 2026-09-23 (`2538499`); protected `main` is the current default branch. Current state: `docs/CURRENT_STATE.md`.

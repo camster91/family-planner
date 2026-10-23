@@ -1,4 +1,4 @@
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 
 export const moreEnglish = {
   title: "Explore",
@@ -36,7 +36,7 @@ export const moreSpanish: MoreMessages = {
 export const moreMessages = { en: moreEnglish, es: moreSpanish };
 
 export function useMoreText() {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useCoreTranslation();
   return (key: MoreMessage, params?: Record<string, string | number>) =>
     translate(key, params, moreMessages);
 }

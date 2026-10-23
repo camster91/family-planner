@@ -208,7 +208,7 @@ it.each([
   },
 );
 
-it.each([0, 1.5, 51, 100, NaN, Infinity])(
+it.each([0, 1.5, 101, NaN, Infinity])(
   "rejects explicit servings %s before commit without clamping",
   async (servings) => {
     render(<AddToGroceriesButton recipeId="recipe-a" servings={servings} />);
@@ -216,7 +216,7 @@ it.each([0, 1.5, 51, 100, NaN, Infinity])(
       screen.getByRole("button", { name: "Add ingredients to groceries" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Servings must be a whole number from 1 to 50.",
+      "Servings must be a whole number from 1 to 100.",
     );
     expect(
       screen.queryByRole("button", { name: "Add selected ingredients" }),
@@ -404,11 +404,13 @@ it("shows honest presence-only hints and allows selecting ingredients already pr
   fireEvent.click(
     screen.getByRole("button", { name: "Add ingredients to groceries" }),
   );
-  expect(await screen.findByText("Present in inventory")).toBeInTheDocument();
+  expect(
+    await screen.findByText("Present in inventory — check amount and unit"),
+  ).toBeInTheDocument();
   expect(screen.getByText("No match in scanned inventory")).toBeInTheDocument();
   expect(
     screen.getByText(
-      "Presence only, not enough-for-recipe amounts. Inventory scan is incomplete.",
+      "Matches identify foods only. Check amounts and units before cooking. Inventory scan is incomplete.",
     ),
   ).toBeInTheDocument();
   expect(screen.getByRole("checkbox", { name: /Tomato/ })).toBeChecked();
@@ -647,3 +649,36 @@ it("allows editing selection, disables empty selection, and submits only selecte
     await screen.findByRole("button", { name: "Undo" }),
   ).toBeInTheDocument();
 });
+
+it.each([
+  ["linked", "Saved ingredient link — check amount and unit"],
+  ["name", "Name match only — confirm food, amount and unit"],
+] as const)(
+  "shows %s match provenance as a review hint, not quantity sufficiency",
+  async (kind, message) => {
+    (fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ...review,
+        inventory: {
+          state: "available",
+          haveIngredientIds: ["tomato"],
+          truncated: false,
+          matching: "presence_only",
+          matches: [{ ingredientId: "tomato", kind }],
+        },
+      }),
+    });
+    render(<AddToGroceriesButton recipeId="recipe-a" />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add ingredients to groceries" }),
+    );
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Matches identify foods only. Check amounts and units before cooking.",
+      ),
+    ).toBeInTheDocument();
+  },
+);

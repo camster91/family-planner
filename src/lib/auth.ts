@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
+import { randomUUID } from 'node:crypto'
 
 let _jwtSecret: string | null = null
 
@@ -77,6 +78,8 @@ export interface TokenPayload {
    * deploying this does not sign existing sessions out.
    */
   tv?: number
+  /** Per-issuance continuity nonce. Never account authority or a client credential. */
+  sid?: string
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -95,7 +98,7 @@ export async function safeVerifyPassword(password: string, hash: string | null):
 }
 
 export function signToken(payload: TokenPayload): string {
-  return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' })
+  return jwt.sign({ ...payload, sid: randomUUID() }, getJwtSecret(), { expiresIn: '7d' })
 }
 
 export function verifyToken(token: string): TokenPayload | null {
@@ -116,6 +119,7 @@ export function verifyToken(token: string): TokenPayload | null {
       family_id: (decoded as any).family_id ?? null,
       // Absent on tokens minted before the tv claim existed — generation 0.
       tv: typeof (decoded as any).tv === 'number' ? (decoded as any).tv : 0,
+      sid: typeof decoded.sid === 'string' && /^[a-f0-9-]{36}$/.test(decoded.sid) ? decoded.sid : undefined,
     }
   } catch {
     return null

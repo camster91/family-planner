@@ -49,7 +49,9 @@ const mockT = (key: string, params?: Record<string, string | number>) => {
   );
 };
 
-jest.mock("@/i18n", () => ({ useTranslation: () => ({ t: mockT }) }));
+jest.mock("@/i18n", () => ({
+  useTranslation: () => ({ t: mockT, locale: "en" }),
+}));
 jest.mock("@/components/ui/feature-gate", () => ({
   FeatureGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));

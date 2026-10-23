@@ -172,6 +172,7 @@ for (const locale of ["en", "es"] as const) {
     let restored = false;
     await setLocale(page, locale);
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     const originalResponse = await browserFetch(page, "/api/family/features");
     expect(originalResponse.status, originalResponse.body).toBe(200);
     const originalFeatures = JSON.parse(originalResponse.body)
@@ -310,6 +311,7 @@ for (const locale of ["en", "es"] as const) {
       await context.unrouteAll({ behavior: "ignoreErrors" });
       try {
         await recoveryPage.goto("/dashboard");
+        await expect(recoveryPage).toHaveURL(/\/dashboard\/today$/);
         const restoredResponse = await browserSend(
           recoveryPage,
           "PATCH",
@@ -359,6 +361,7 @@ for (const locale of ["en", "es"] as const) {
     let restored = false;
     await setLocale(page, locale);
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     const originalResponse = await browserFetch(page, "/api/family/features");
     expect(originalResponse.status, originalResponse.body).toBe(200);
     originalFeatures = JSON.parse(originalResponse.body).features as Record<
@@ -550,12 +553,14 @@ for (const locale of ["en", "es"] as const) {
       const cleanupErrors: unknown[] = [];
       try {
         await recoveryPage.goto("/dashboard");
+        await expect(recoveryPage).toHaveURL(/\/dashboard\/today$/);
         await removeExactRows(recoveryPage, expected, postKeys);
       } catch (error) {
         cleanupErrors.push(error);
       }
       try {
         await recoveryPage.goto("/dashboard");
+        await expect(recoveryPage).toHaveURL(/\/dashboard\/today$/);
         const restoredResponse = await browserSend(
           recoveryPage,
           "PATCH",

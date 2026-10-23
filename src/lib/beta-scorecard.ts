@@ -32,7 +32,19 @@ export interface CriterionResult {
   status: CriterionStatus
 }
 
+/** D-6 statuses evaluate aggregate count rules, not full household/beta acceptance. */
+export interface ScorecardMeasurement {
+  contract: 'herewoven.beta-count-scorecard.v1'
+  source: 'opt-in-daily-counts'
+  statusesEvaluate: 'count-thresholds-only'
+  completeness: 'best-effort'
+  orderedJourneyVerified: false
+  independentCohortVerified: false
+  acceptance: 'not-evaluated'
+}
+
 export interface Scorecard {
+  measurement: ScorecardMeasurement
   asOf: string
   windowStart: string
   householdsOptedIn: number
@@ -166,7 +178,7 @@ export function computeScorecard(
     name: 'Weekly core-loop completion',
     criterion: `At least ${LOOP_HOUSEHOLDS_PER_WEEK} of ${BETA_HOUSEHOLDS} beta households complete the full loop in each of four weeks`,
     measured:
-      'households completing plan week -> assign -> complete -> verify -> claim, per week: ' +
+      'households with counts for every plan/assign/complete/verify/claim step, per week (order and linked records not observed): ' +
       perWeek.map((w) => `week of ${w.monday}: ${w.done} of ${w.active} active`).join('; '),
     status: everyWeek ? 'pass' : coversWindow ? 'fail' : 'insufficient-data',
   })
@@ -208,7 +220,14 @@ export function computeScorecard(
     status: 'insufficient-data',
   })
 
-  return { asOf, windowStart, householdsOptedIn: input.householdsOptedIn, householdsReporting: reporting, criteria }
+  return {
+    measurement: {
+      contract: 'herewoven.beta-count-scorecard.v1', source: 'opt-in-daily-counts',
+      statusesEvaluate: 'count-thresholds-only', completeness: 'best-effort',
+      orderedJourneyVerified: false, independentCohortVerified: false, acceptance: 'not-evaluated',
+    },
+    asOf, windowStart, householdsOptedIn: input.householdsOptedIn, householdsReporting: reporting, criteria,
+  }
 }
 
 const STATUS_WORD: Record<CriterionStatus, string> = {
@@ -220,6 +239,7 @@ const STATUS_WORD: Record<CriterionStatus, string> = {
 export function formatScorecard(card: Scorecard): string {
   const lines = [
     `Beta scorecard as of ${card.asOf} (UTC; counts from ${card.windowStart})`,
+    'Count thresholds only; ordered journeys, independent cohort and beta acceptance require separate reviewed evidence. Counts are best-effort, not a complete event history.',
     `Households with beta usage counts on: ${card.householdsOptedIn}; households with counts: ${card.householdsReporting}`,
     '',
   ]

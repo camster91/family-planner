@@ -147,7 +147,11 @@ test.describe("Family A parent", () => {
   }, testInfo) => {
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/dashboard\/today$/);
-    await expect(page.getByTestId("today-board")).toBeVisible();
+    // Next's streamed redirect can retain a hidden server segment alongside
+    // the mounted board. Assertions target the one a person can actually see.
+    const visibleBoard = page.locator('[data-testid="today-board"]:visible');
+    await expect(visibleBoard).toHaveCount(1);
+    await expect(visibleBoard).toBeVisible();
     // Household chores due today: Taylor 2 (recycling, vacuum), and one each
     // for the parent (spec-owned) and Casey (tidy bedroom, in progress).
     await expect(summary(page)).toHaveText(
@@ -345,7 +349,7 @@ test.describe("Family A child", () => {
 test.describe("Personal-only household work", () => {
   test.use({ storageState: authFile("parentB") });
 
-  test("removes the repeated tile and fills its grid area", async ({
+  test("removes the repeated tile and follows the personal grid alignment", async ({
     page,
   }, testInfo) => {
     const B = FIXTURE_IDS.familyB;
@@ -363,18 +367,103 @@ test.describe("Personal-only household work", () => {
       ).toHaveCount(1);
       await expect(page.getByTestId("region-chores")).toHaveCount(0);
       const grid = page.getByTestId("board-grid");
-      expect(
-        await grid.evaluate(
-          (element) => getComputedStyle(element).gridTemplateAreas,
-        ),
-      ).not.toContain("chores");
-      if ((page.viewportSize()?.width ?? 0) >= 1024) {
+      await expect(grid).toHaveAttribute("data-personal-layout", "true");
+      const sections = grid.locator("[data-today-section]");
+      expect(await sections.count()).toBeGreaterThanOrEqual(2);
+      const section = (name: string) =>
+        grid.locator(`[data-today-section="${name}"]`);
+      await expect(section("next")).toHaveCount(1);
+      await expect(section("coming")).toHaveCount(1);
+
+      const width = page.viewportSize()?.width ?? 0;
+      if (width >= 768) {
         const gridBox = await grid.boundingBox();
-        const comingBox = await page.getByTestId("region-coming").boundingBox();
+        const nextBox = await section("next").boundingBox();
+        const comingBox = await section("coming").boundingBox();
         expect(gridBox).not.toBeNull();
+        expect(nextBox).not.toBeNull();
         expect(comingBox).not.toBeNull();
-        expect(Math.abs(gridBox!.width - comingBox!.width)).toBeLessThan(2);
-        expect(Math.abs(gridBox!.x - comingBox!.x)).toBeLessThan(2);
+        const gridRight = gridBox!.x + gridBox!.width;
+        const right = (box: NonNullable<typeof nextBox>) => box.x + box.width;
+        const edgeTolerance = 2;
+
+        // The personal layout keeps the saved DOM order. Its responsive
+        // spans change by viewport instead of using dense packing or CSS
+        // reordering.
+        expect(Math.abs(nextBox!.x - gridBox!.x)).toBeLessThan(edgeTolerance);
+        if (width < 1280) {
+          expect(Math.abs(right(nextBox!) - gridRight)).toBeLessThan(
+            edgeTolerance,
+          );
+        }
+        expect(Math.abs(comingBox!.x - gridBox!.x)).toBeLessThan(edgeTolerance);
+        expect(Math.abs(right(comingBox!) - gridRight)).toBeLessThan(
+          edgeTolerance,
+        );
+
+        if (width < 1280) {
+          const dinnerBox = await section("dinner").boundingBox();
+          const groceriesBox = await section("groceries").boundingBox();
+          expect(dinnerBox).not.toBeNull();
+          expect(groceriesBox).not.toBeNull();
+          expect(Math.abs(dinnerBox!.y - groceriesBox!.y)).toBeLessThan(
+            edgeTolerance,
+          );
+          expect(dinnerBox!.x).toBeLessThan(groceriesBox!.x);
+          expect(Math.abs(dinnerBox!.width - groceriesBox!.width)).toBeLessThan(
+            edgeTolerance,
+          );
+          expect(right(dinnerBox!)).toBeLessThanOrEqual(
+            groceriesBox!.x + edgeTolerance,
+          );
+          expect(right(groceriesBox!)).toBeLessThanOrEqual(
+            gridRight + edgeTolerance,
+          );
+          expect(dinnerBox!.y).toBeGreaterThanOrEqual(
+            nextBox!.y + nextBox!.height - edgeTolerance,
+          );
+          expect(comingBox!.y).toBeGreaterThanOrEqual(
+            Math.max(
+              dinnerBox!.y + dinnerBox!.height,
+              groceriesBox!.y + groceriesBox!.height,
+            ) - edgeTolerance,
+          );
+        } else {
+          const dinnerBox = await section("dinner").boundingBox();
+          const groceriesBox = await section("groceries").boundingBox();
+          expect(dinnerBox).not.toBeNull();
+          expect(groceriesBox).not.toBeNull();
+          expect(Math.abs(nextBox!.y - dinnerBox!.y)).toBeLessThan(
+            edgeTolerance,
+          );
+          expect(Math.abs(nextBox!.y - groceriesBox!.y)).toBeLessThan(
+            edgeTolerance,
+          );
+          expect(Math.abs(nextBox!.width - dinnerBox!.width)).toBeLessThan(
+            edgeTolerance,
+          );
+          expect(Math.abs(nextBox!.width - groceriesBox!.width)).toBeLessThan(
+            edgeTolerance,
+          );
+          expect(nextBox!.x).toBeLessThan(dinnerBox!.x);
+          expect(dinnerBox!.x).toBeLessThan(groceriesBox!.x);
+          expect(right(nextBox!)).toBeLessThanOrEqual(
+            dinnerBox!.x + edgeTolerance,
+          );
+          expect(right(dinnerBox!)).toBeLessThanOrEqual(
+            groceriesBox!.x + edgeTolerance,
+          );
+          expect(right(groceriesBox!)).toBeLessThanOrEqual(
+            gridRight + edgeTolerance,
+          );
+          expect(comingBox!.y).toBeGreaterThanOrEqual(
+            Math.max(
+              nextBox!.y + nextBox!.height,
+              dinnerBox!.y + dinnerBox!.height,
+              groceriesBox!.y + groceriesBox!.height,
+            ) - edgeTolerance,
+          );
+        }
       }
       expect(
         await page.evaluate(

@@ -47,6 +47,11 @@ const auditSubjectMigration = fs.readFileSync(
 dbDescribe("chore canonical subject rehearsal", () => {
   let db: pg.Client;
   async function cleanup() {
+    // Fixture-owned subject history must be removed before its profiles;
+    // the canonical audit FK correctly forbids deleting a live subject first.
+    await db.query('DELETE FROM "Activity" WHERE family_id = ANY($1::text[])', [
+      [A, B],
+    ]);
     await db.query(
       'DELETE FROM "ImportedRecord" WHERE family_id = ANY($1::text[])',
       [[A, B]],
@@ -118,8 +123,27 @@ dbDescribe("chore canonical subject rehearsal", () => {
     await rehearseHouseholdMembers(db, B, true);
   });
   afterAll(async () => {
-    await cleanup();
-    await db.end();
+    try {
+      await cleanup();
+    } finally {
+      try {
+        // This legacy rehearsal deliberately installs the old account-only
+        // subject guard. Restore the current profile-capable definition so
+        // later suites observe the migrated application schema.
+        await db.query(
+          fs.readFileSync(
+            path.join(
+              ROOT,
+              "database/migration-zzz-profile-chore-vertical-slice.sql",
+            ),
+            "utf8",
+          ),
+        );
+      } finally {
+        await db.end();
+        await prisma?.$disconnect();
+      }
+    }
   });
 
   it("resolves only explicit create subjects and preserves unmigrated accounts", async () => {
@@ -537,8 +561,18 @@ dbDescribe("chore canonical subject rehearsal", () => {
   it("backfills twice, preserving legacy actors, completions, points, dates, accounts and all history", async () => {
     const before = await snapshot();
     expect((await rehearseChoreMembers(db, A, true)).subjectsWritten).toBe(2);
+    const afterFirst = await snapshot();
+    // The new canonical subject must invalidate an older responsibility view.
+    // All legacy history remains byte-equivalent; the repeat must not bump it.
+    expect(afterFirst).toEqual({
+      ...before,
+      chores: before.chores.map((row: Record<string, unknown>) => ({
+        ...row,
+        responsibility_epoch: Number(row.responsibility_epoch) + 1,
+      })),
+    });
     expect((await rehearseChoreMembers(db, A, true)).subjectsWritten).toBe(0);
-    expect(await snapshot()).toEqual(before);
+    expect(await snapshot()).toEqual(afterFirst);
     expect(
       (
         await db.query(

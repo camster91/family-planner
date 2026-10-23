@@ -47,3 +47,14 @@ retry and history behavior. See [scope, compatibility and acceptance](../plans/e
 Profile recurrence and future-series editing remain separate work. Production
 setup/chore flags and the public capability manifest are unchanged by this source
 slice. These statements describe the candidate contract, not release proof.
+
+## Durable schedule follow-up source — 2026-10-20 (#450 / consolidated #559)
+
+`../plans/routine-schedule-v1.md` records the newly authored contract/pure planner
+and nullable schema foundation. It extends, rather than silently removes, the
+current-occurrence limits above. Shared schedule/cue/duration, explicit removed
+step policy, pause/resume/stop and conservative historical protection are defined
+in source. Canonical coordinator, private readers, expander guards, owned request
+recovery, gated routes and UI remain required. No non-null definition writer,
+client generation, migration or QA/activation is claimed. Ordinary weekly Create
+now offers an optional collapsed start date with the same selected-day cadence.

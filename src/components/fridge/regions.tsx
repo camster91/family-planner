@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+import { OwnPreparationNote } from '@/components/calendar/preparation/OwnPreparationNote'
+import type { SharedPreparationContext } from '@/lib/event-preparation/shared-discovery' 
 import Link from 'next/link'
 import {
   CalendarDays,
@@ -198,7 +200,9 @@ function AddedByLabel({ person }: { person: BoardPerson }) {
 export function ScheduleEventRows({
   events,
   people,
+  eventAction,
 }: {
+  eventAction?: (event: TodayEvent) => React.ReactNode
   events: TodayEvent[]
   people?: Map<string, BoardPerson>
 }) {
@@ -231,6 +235,7 @@ export function ScheduleEventRows({
                   {e.source && <SourceLabel source={e.source} />}
                 </div>
               )}
+              {eventAction?.(e)}
             </div>
           </li>
         )
@@ -292,7 +297,7 @@ export function dinnerRecipeLine(
 }
 
 /**
- * "2 ingredients missing" for tonight's linked recipe (#122), or null when
+ * "2 ingredients not found in inventory" for tonight's linked recipe (#122), or null when
  * nothing is missing or the count is unknown (inventory off, shared device,
  * no recipe, or a recipe without ingredients).
  */
@@ -357,6 +362,7 @@ export function DinnerRegion({
           </p>
         )}
         {dinner.cookName && <p data-testid="dinner-cook" className={cn(metaTextClass, 'mt-2')}>{text('cooking', { name: dinner.cookName })}</p>}
+        {dinner.hasMoreDinners && <p className={cn(metaTextClass, 'mt-2')} data-testid="dinner-more">{text(mealsHref ? 'moreDinners' : 'moreDinnersShared')}</p>}
       </div>
     )
   }
@@ -516,7 +522,11 @@ export function ChoreRow({
   onTick,
   canTick,
   showOwner = false,
+  preparation,
+  action,
 }: {
+  preparation?: SharedPreparationContext[string]
+  action?: React.ReactNode
   chore: BoardChore
   name: string
   onTick?: ((chore: BoardChore) => void) | null
@@ -531,13 +541,14 @@ export function ChoreRow({
         <BoardRoutineIcon icon={c.icon} />
       )}
       {c.title}
+      {preparation && <OwnPreparationNote title={preparation.eventTitle} />}
       {showOwner && <span className={cn(metaTextClass, 'block')}>{name}</span>}
       {c.status === 'in_progress' && (
         <span className={cn(metaTextClass, 'block')}>{text('inProgress')}</span>
       )}
       {c.actionAvailability?.state === 'paused' && (
         <span className={cn(metaTextClass, 'block')} role="status">
-          {text('profileChorePaused')}
+          {text(c.actionAvailability.reason === 'PROFILE_ARCHIVED' ? 'profileChoreArchived' : 'profileChorePaused')}
         </span>
       )}
     </span>
@@ -560,16 +571,19 @@ export function ChoreRow({
       ) : (
         label
       )}
+      {action}
     </li>
   )
 }
 
 export function ChoresRegion({
+  preparationContext = {},
   people,
   choresHref,
   onTick,
   canTick,
 }: {
+  preparationContext?: SharedPreparationContext
   people: PersonChores[]
   choresHref: string | null
   /** #274: tapping a chore marks it done (with Undo). Null: rows are plain text. */
@@ -611,7 +625,7 @@ export function ChoresRegion({
                     <p className={cn(metaTextClass, 'mt-1')}>{text('allDoneToday')}</p>
                   ) : (
                     <ul className="mt-1 space-y-1">
-                      {shown.map((c) => <ChoreRow key={c.id} chore={c} name={name} onTick={onTick} canTick={canTick} />)}
+                      {shown.map((c) => <ChoreRow key={c.id} chore={c} name={name} onTick={onTick} canTick={canTick} preparation={preparationContext[c.id]} />)}
                       {more > 0 && <li className={metaTextClass}>{text('more', { count: more })}</li>}
                     </ul>
                   )}
@@ -676,7 +690,10 @@ export function ComingUpRegion({
                 </ul>
               )}
               {mealsEnabled && day.dinner && (
-                <p className={cn(metaTextClass, 'mt-2 break-words')}>{text('dinnerLabel', { name: day.dinner.recipeName ?? day.dinner.recipeTitle ?? text('planned') })}</p>
+                <div className="mt-2 space-y-1">
+                  <p className={cn(metaTextClass, 'break-words')}>{text('dinnerLabel', { name: day.dinner.recipeName ?? day.dinner.recipeTitle ?? text('planned') })}</p>
+                  {day.dinner.hasMoreDinners && <p className={cn(metaTextClass, 'break-words')}>{text('moreDinnersShared')}</p>}
+                </div>
               )}
             </li>
           )

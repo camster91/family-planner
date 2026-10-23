@@ -1,4 +1,6 @@
 "use client";
+import { PreparationButton } from "@/components/calendar/preparation/PreparationProvider";
+import { ScheduleReviewButton } from "@/components/calendar/review/ScheduleReviewProvider";
 import * as React from "react";
 import Link from "next/link";
 import { useTranslation } from "@/i18n";
@@ -6,10 +8,11 @@ import {
   calendarPlannerMessages,
   type CalendarPlannerMessage,
 } from "@/i18n/calendar-planner";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import {
   addDays,
+  adjacentPlanningDate,
   dateAt,
   dayKey,
   matchesSource,
@@ -62,6 +65,7 @@ export function CalendarPlanner({
     locale = useDisplayLocale();
   const now = useNow(15000),
     online = useOnline();
+  const [sourcesExpanded, setSourcesExpanded] = React.useState(false);
   const [loadedAt, setLoadedAt] = React.useState<number | null>(null);
   const [local, setLocal] = React.useState(false),
     [date, setDate] = React.useState(initialDate),
@@ -96,15 +100,10 @@ export function CalendarPlanner({
     start = range?.start || "",
     end = range?.end || "";
   const displayState = range ? state : "unsupported";
-  const previousDate = dayKey(
-    addDays(dateAt(date, local), view === "day" ? -1 : -7, local),
-    local,
-  );
-  const nextDate = dayKey(
-    addDays(dateAt(date, local), view === "day" ? 1 : 7, local),
-    local,
-  );
-  const clockChange = days.some((day) => hasClockChange(day, local));
+  const previousDate = adjacentPlanningDate(date, view, -1, local);
+  const nextDate = adjacentPlanningDate(date, view, 1, local);
+  const clockChange =
+    view !== "month" && days.some((day) => hasClockChange(day, local));
   React.useEffect(() => {
     if (state === "ready" && gridViewport.current)
       gridViewport.current.scrollTop = 8 * 64;
@@ -212,9 +211,14 @@ export function CalendarPlanner({
     });
   const move = (key: string, nextView = view) => {
     if (!planningRange(key, nextView, local)) return;
-    setDate(key);
-    setView(nextView);
-    router.replace(planningHref(key, nextView), { scroll: false });
+    void router
+      .replace(planningHref(key, nextView), { scroll: false })
+      .then((allowed) => {
+        if (allowed) {
+          setDate(key);
+          setView(nextView);
+        }
+      });
   };
   const filtered = React.useMemo(
     () => data.filter((e) => matchesSource(e, filter)),
@@ -293,19 +297,19 @@ export function CalendarPlanner({
         <div>
           <p className={styles.eyebrow}>{msg("eyebrow")}</p>
           <h1>
-            {format(days[0], {
+            {format(view === "month" ? dateAt(date, local) : days[0], {
               weekday: view === "day" ? "long" : undefined,
               month: "long",
-              day: "numeric",
+              day: view === "month" ? undefined : "numeric",
               year: "numeric",
             })}
-            {days.length > 1
+            {view !== "month" && days.length > 1
               ? ` – ${format(days[days.length - 1], { month: "short", day: "numeric", year: "numeric" })}`
               : ""}
           </h1>
         </div>
         <nav aria-label={msg("view")} className={styles.views}>
-          {(["day", "week", "agenda"] as const).map((v) => (
+          {(["day", "week", "month", "agenda"] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -326,55 +330,70 @@ export function CalendarPlanner({
       </header>
       <div className={styles.layout}>
         <aside className={styles.sources}>
-          <label htmlFor="calendar-source">{msg("calendars")}</label>
-          <select
-            id="calendar-source"
-            aria-label={msg("source")}
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+          <button
+            type="button"
+            className={styles.sourceToggle}
+            aria-expanded={sourcesExpanded}
+            aria-controls="calendar-source-options"
+            onClick={() => setSourcesExpanded((open) => !open)}
           >
-            {options.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          {canEditEvents && (
-            <details className={styles.connectionMenu}>
-              <summary>{msg("addConnection")}</summary>
-              <div>
-                <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
-                  {calendarSyncAvailable
-                    ? msg("connectionHelp")
-                    : msg("providerUnavailableHelp")}
-                </p>
-                {calendarSyncAvailable && (
-                  <Link href="/dashboard/settings#calendar-sync">
-                    {msg("connectProvider")}
+            {msg(sourcesExpanded ? "hideCalendars" : "showCalendars")}
+          </button>
+          <div
+            id="calendar-source-options"
+            className={styles.sourceOptions}
+            data-expanded={sourcesExpanded}
+          >
+            <label htmlFor="calendar-source">{msg("calendars")}</label>
+            <select
+              id="calendar-source"
+              aria-label={msg("source")}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            >
+              {options.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            {canEditEvents && (
+              <details className={styles.connectionMenu}>
+                <summary>{msg("addConnection")}</summary>
+                <div>
+                  <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
+                    {calendarSyncAvailable
+                      ? msg("connectionHelp")
+                      : msg("providerUnavailableHelp")}
+                  </p>
+                  {calendarSyncAvailable && (
+                    <Link href="/dashboard/settings#calendar-sync">
+                      {msg("connectProvider")}
+                    </Link>
+                  )}
+                  <Link href="/dashboard/settings#calendar-subscriptions">
+                    {msg("subscribeLink")}
                   </Link>
-                )}
-                <Link href="/dashboard/settings#calendar-subscriptions">
-                  {msg("subscribeLink")}
-                </Link>
-                <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
-                  {msg("subscriptionHelp")}
-                </p>
-              </div>
-            </details>
-          )}
-          {sourceState === "loading" && (
-            <p role="status">{msg("loadingSources")}</p>
-          )}
-          {sourceState === "error" && (
-            <p role="alert">
-              {msg("sourcesFailed")}{" "}
-              <button onClick={() => setRetry((n) => n + 1)}>
-                {msg("retrySources")}
-              </button>
-            </p>
-          )}
-          <p>{msg("sourceHelp")}</p>
-          <p>{canEditEvents ? msg("parentHelp") : msg("memberHelp")}</p>
+                  <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
+                    {msg("subscriptionHelp")}
+                  </p>
+                </div>
+              </details>
+            )}
+            {sourceState === "loading" && (
+              <p role="status">{msg("loadingSources")}</p>
+            )}
+            {sourceState === "error" && (
+              <p role="alert">
+                {msg("sourcesFailed")}{" "}
+                <button onClick={() => setRetry((n) => n + 1)}>
+                  {msg("retrySources")}
+                </button>
+              </p>
+            )}
+            <p>{msg("sourceHelp")}</p>
+            <p>{canEditEvents ? msg("parentHelp") : msg("memberHelp")}</p>
+          </div>
         </aside>
         <section className={styles.main} aria-label={msg("range")}>
           {displayState === "ready" && now !== null && loadedAt !== null && (
@@ -461,20 +480,32 @@ export function CalendarPlanner({
                         </time>
                       </p>
                       {[pair.first, pair.second].map((event) => (
-                        <button
-                          key={event.id}
-                          type="button"
-                          aria-label={msg("reviewEvent", {
-                            title: event.title,
-                          })}
-                          onClick={(ev) => {
-                            trigger.current = ev.currentTarget;
-                            setSelected(event);
-                          }}
-                        >
-                          <strong>{event.title}</strong>
-                          <small>{sourceLabel(event)}</small>
-                        </button>
+                        <div key={event.id}>
+                          <button
+                            key={event.id}
+                            type="button"
+                            aria-label={msg("reviewEvent", {
+                              title: event.title,
+                            })}
+                            onClick={(ev) => {
+                              trigger.current = ev.currentTarget;
+                              setSelected(event);
+                            }}
+                          >
+                            <strong>{event.title}</strong>
+                            <small>{sourceLabel(event)}</small>
+                          </button>
+                          <ScheduleReviewButton
+                            scope={{
+                              targetId: event.id,
+                              range: { start, end },
+                              timeZone: local
+                                ? Intl.DateTimeFormat().resolvedOptions()
+                                    .timeZone
+                                : "UTC",
+                            }}
+                          />
+                        </div>
                       ))}
                     </li>
                   ))}
@@ -504,7 +535,15 @@ export function CalendarPlanner({
               )}
               {displayState === "loading" && (
                 <section className={styles.state} role="status">
-                  <h2>{msg(view === "day" ? "loadingDay" : "loadingWeek")}</h2>
+                  <h2>
+                    {msg(
+                      view === "day"
+                        ? "loadingDay"
+                        : view === "month"
+                          ? "loadingMonth"
+                          : "loadingWeek",
+                    )}
+                  </h2>
                   <p>{msg("keeping")}</p>
                 </section>
               )}
@@ -552,7 +591,76 @@ export function CalendarPlanner({
                 </section>
               )}
               {displayState === "ready" &&
-                (view === "agenda" || clockChange ? (
+                (view === "month" ? (
+                  <>
+                    <p className={styles.mobileWeekHint}>
+                      {msg("monthScroll")}
+                    </p>
+                    <div
+                      className={styles.monthScroll}
+                      tabIndex={0}
+                      aria-label={msg("month")}
+                    >
+                      <div className={styles.monthGrid}>
+                        {days.slice(0, 7).map((day) => (
+                          <div
+                            key={dayKey(day, local)}
+                            className={styles.monthWeekday}
+                          >
+                            {format(day, { weekday: "short" })}
+                          </div>
+                        ))}
+                        {days.map((day) => {
+                          const rows = filtered.filter((event) =>
+                            segmentEvent(event, day, local),
+                          );
+                          const key = dayKey(day, local);
+                          const outside = key.slice(0, 7) !== date.slice(0, 7);
+                          return (
+                            <section
+                              key={key}
+                              className={styles.monthDay}
+                              data-outside-month={outside || undefined}
+                              aria-label={format(day, {
+                                weekday: "long",
+                                month: "long",
+                                day: "numeric",
+                              })}
+                            >
+                              <h2>
+                                <button
+                                  type="button"
+                                  aria-current={
+                                    now && key === dayKey(new Date(now), local)
+                                      ? "date"
+                                      : undefined
+                                  }
+                                  onClick={() => move(key, "day")}
+                                >
+                                  {format(day, { day: "numeric" })}
+                                </button>
+                              </h2>
+                              {rows.slice(0, 2).map((event) => (
+                                <React.Fragment key={event.id}>
+                                  {eventButton(event, day)}
+                                </React.Fragment>
+                              ))}
+                              {rows.length > 2 && (
+                                <button
+                                  type="button"
+                                  className={styles.monthMore}
+                                  onClick={() => move(key, "day")}
+                                >
+                                  {msg("monthMore", { count: rows.length - 2 })}
+                                </button>
+                              )}
+                            </section>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                ) : view === "agenda" || clockChange ? (
                   <div className={styles.agenda}>
                     {days.map((day) => (
                       <section key={dayKey(day, local)}>
@@ -578,8 +686,21 @@ export function CalendarPlanner({
                   </div>
                 ) : (
                   <>
+                    {view === "week" && (
+                      <p
+                        className={styles.mobileWeekHint}
+                        id="calendar-week-scroll-help"
+                      >
+                        {msg("scrollWeek")}
+                      </p>
+                    )}
                     <div
                       ref={gridViewport}
+                      aria-describedby={
+                        view === "week"
+                          ? "calendar-week-scroll-help"
+                          : undefined
+                      }
                       className={styles.gridScroll}
                       tabIndex={0}
                       aria-label={msg("timed")}
@@ -754,6 +875,31 @@ export function CalendarPlanner({
           {selected.recurrence && <p>{msg("recurrence")}</p>}
           <div className={styles.detailActions}>
             <button onClick={() => setSelected(null)}>{msg("close")}</button>
+            <PreparationButton
+              location={{
+                eventId: selected.id,
+                timeZone: local
+                  ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                  : "UTC",
+              }}
+              beforeOpen={() => {
+                dialog.current?.close?.();
+                setSelected(null);
+              }}
+            />
+            <ScheduleReviewButton
+              scope={{
+                targetId: selected.id,
+                range: { start, end },
+                timeZone: local
+                  ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                  : "UTC",
+              }}
+              beforeOpen={() => {
+                dialog.current?.close?.();
+                setSelected(null);
+              }}
+            />
             {canEditEvents &&
               !selected.source_subscription_id &&
               !selected.source && (

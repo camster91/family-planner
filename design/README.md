@@ -84,3 +84,13 @@ A screen is not “designed” until happy, empty, loading, error, offline/stale
 ## Approved cross-feature implementation — 2026-10-17
 
 [Implementation program and coverage ledger](APPROVED_UI_ROLLOUT.md) records the accepted simplification direction, current candidate and remaining all-feature journeys. Earlier design/acceptance history stays preserved.
+
+
+## Grounded food review source extension — 2026-10-22
+
+[Food plan review](FOOD_PLAN_REVIEW.md) maps the existing meal/composition
+foundations to short per-choice review, expandable paginated ingredient/commitment/
+prepared-portion details, explicit unknowns and existing owned confirmation/recovery.
+The initial `FoodPlanSummary` source and strict browser read DTOs are authored;
+full sheet/orchestration/entry points and all rendered acceptance remain pending.
+This is a source/spec extension, not a new Figma frame, design approval or QA result.

@@ -18,7 +18,7 @@ import {
   QUEUE_MAX_OPS,
   type OfflineQueue,
 } from "@/lib/offline-queue";
-import { deviceQueueSend } from "@/lib/offline-queue-browser";
+import { deviceQueueSend } from "@/lib/device-queue-browser";
 
 let changeLocale: (locale: "en" | "es") => void;
 function LocaleControl() {
@@ -37,8 +37,8 @@ function render(ui: React.ReactNode) {
 }
 
 let mockQueue: OfflineQueue;
-jest.mock("@/lib/offline-queue-browser", () => ({
-  ...jest.requireActual("@/lib/offline-queue-browser"),
+jest.mock("@/lib/device-queue-browser", () => ({
+  ...jest.requireActual("@/lib/device-queue-browser"),
   getDeviceQueue: () => mockQueue,
 }));
 const lists = [{ id: "list-a", name: "Groceries" }];

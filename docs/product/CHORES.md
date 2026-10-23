@@ -172,3 +172,13 @@ rewrite already saved occurrence dates or completion history. Database regressio
 cover future template/copy edits, a completed reserved date, past/today retention
 and a foreign household, alongside the existing rotation integration checks.
 Source/local checks are separate from hosted, deployed and native acceptance.
+
+## Optional weekly start source — 2026-10-20 (#449/#452)
+
+Weekly create retains weekday-only scheduling and adds a collapsed Start later
+(optional) date. Empty uses viewer-local today; explicit date uses the first
+selected weekday on/after it. The existing account/rotation/profile request still
+sends due_date + weekly_days. Local hydration-safe min and immutable profile
+retry bodies remain. No mandatory weekly due date, new API field or scheduler.
+New mounted future-start source case is authored, not run. Durable future-routine
+work is tracked separately in `../plans/routine-schedule-v1.md`.

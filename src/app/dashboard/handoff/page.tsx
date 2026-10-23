@@ -1,4 +1,5 @@
 'use client'
+import { ResponsibilityButton } from '@/components/responsibility/ResponsibilityProvider'
 
 import * as React from 'react'
 import { Plus, Pencil, Trash2, Printer, Link2, Copy, Share2, RefreshCw } from 'lucide-react'
@@ -8,8 +9,10 @@ import { useTranslation } from '@/i18n'
 import { Dialog } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/toast'
 import { useHandoffText } from '@/i18n/handoff'
+import { useHandoffRecoveryText } from '@/i18n/handoff-recovery'
 import { isoToLocalDateTimeInput, localDateTimeToISO } from '@/lib/dates'
 import { canShareAppLink, shareAppLink } from '@/lib/native-app'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 
 // D2 (#102): the API returns every field to parents, everything except the
 // share token to teens, and only id/sitter_name/arrival_time/departure_time to
@@ -47,6 +50,67 @@ interface HandoffFormData {
   emergency_notes: string
   house_notes: string
   general_notes: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string'
+}
+
+function parseHandoff(value: unknown): Handoff | null {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    typeof value.sitter_name !== 'string' ||
+    !isNullableString(value.arrival_time) ||
+    !isNullableString(value.departure_time)
+  ) {
+    return null
+  }
+
+  const nullableFields = [
+    'sitter_phone',
+    'kids_bedtimes',
+    'where_snacks',
+    'pickup_authorized',
+    'code_words',
+    'pet_care',
+    'emergency_notes',
+    'house_notes',
+    'general_notes',
+    'share_expires_at',
+  ] as const
+  if (nullableFields.some((field) => field in value && !isNullableString(value[field]))) return null
+  const optionalStringFields = ['share_token', 'created_at'] as const
+  if (optionalStringFields.some((field) => field in value && typeof value[field] !== 'string')) return null
+
+  return {
+    id: value.id,
+    sitter_name: value.sitter_name,
+    sitter_phone: value.sitter_phone as string | null | undefined,
+    arrival_time: value.arrival_time,
+    departure_time: value.departure_time,
+    kids_bedtimes: value.kids_bedtimes as string | null | undefined,
+    where_snacks: value.where_snacks as string | null | undefined,
+    pickup_authorized: value.pickup_authorized as string | null | undefined,
+    code_words: value.code_words as string | null | undefined,
+    pet_care: value.pet_care as string | null | undefined,
+    emergency_notes: value.emergency_notes as string | null | undefined,
+    house_notes: value.house_notes as string | null | undefined,
+    general_notes: value.general_notes as string | null | undefined,
+    share_token: value.share_token as string | undefined,
+    share_expires_at: value.share_expires_at as string | null | undefined,
+    created_at: value.created_at as string | undefined,
+  }
+}
+
+function parseHandoffList(value: unknown): Handoff[] | null {
+  if (!isRecord(value) || !Array.isArray(value.handoffs)) return null
+  const handoffs = value.handoffs.map(parseHandoff)
+  return handoffs.every((handoff): handoff is Handoff => handoff !== null) ? handoffs : null
 }
 
 function emptyForm(): HandoffFormData {
@@ -160,6 +224,8 @@ function HandoffForm({
   t,
   saving,
   error,
+  formId,
+  showActions = true,
 }: {
   mode: 'add' | 'edit'
   initial?: Handoff
@@ -168,8 +234,11 @@ function HandoffForm({
   t: (key: string) => string
   saving: boolean
   error?: string | null
+  formId?: string
+  showActions?: boolean
 }) {
   const [form, setForm] = React.useState<HandoffFormData>(initial ? handoffToForm(initial) : emptyForm())
+  const recoveryText = useHandoffRecoveryText()
 
   const set = (key: keyof HandoffFormData, value: string) => setForm((f) => ({ ...f, [key]: value }))
 
@@ -179,146 +248,181 @@ function HandoffForm({
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="space-y-4">
-        {error && (
-          <div
-            role="alert"
-            className="bg-[var(--tint-rewards)]/20 border border-[var(--tint-rewards)]/30 rounded-xl px-4 py-3 text-subhead text-[var(--tint-rewards)]"
-          >
-            {error}
-          </div>
-        )}
-        <FormField label={t('handoff.sitterName')}>
-          {(id) => <Input id={id} value={form.sitter_name} onChange={(v) => set('sitter_name', v)} placeholder="e.g. Sarah" />}
-        </FormField>
-        <FormField label={t('handoff.sitterPhone')}>
-          {(id) => (
-            <Input
-              id={id}
-              value={form.sitter_phone}
-              onChange={(v) => set('sitter_phone', v)}
-              type="tel"
-              placeholder="(555) 123-4567"
-            />
+    <form id={formId} onSubmit={handleSubmit}>
+      <fieldset disabled={saving} className="m-0 min-w-0 border-0 p-0">
+        <div className="space-y-4">
+          {error && (
+            <div
+              role="alert"
+              className="bg-[var(--tint-rewards)]/20 border border-[var(--tint-rewards)]/30 rounded-xl px-4 py-3 text-subhead text-[var(--tint-rewards)]"
+            >
+              {error}
+            </div>
           )}
-        </FormField>
-        <FormField label={t('handoff.arrivalTime')}>
-          {(id) => (
-            <Input id={id} value={form.arrival_time} onChange={(v) => set('arrival_time', v)} type="datetime-local" />
-          )}
-        </FormField>
-        <FormField label={t('handoff.departureTime')}>
-          {(id) => (
-            <Input id={id} value={form.departure_time} onChange={(v) => set('departure_time', v)} type="datetime-local" />
-          )}
-        </FormField>
-        <FormField label={t('handoff.kidsBedtimes')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.kids_bedtimes}
-              onChange={(v) => set('kids_bedtimes', v)}
-              placeholder="e.g. Emma: 8pm, Max: 8:30pm"
-              rows={2}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.whereSnacks')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.where_snacks}
-              onChange={(v) => set('where_snacks', v)}
-              placeholder="e.g. Snacks in the pantry, fruit in the fridge"
-              rows={2}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.pickupAuthorized')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.pickup_authorized}
-              onChange={(v) => set('pickup_authorized', v)}
-              placeholder="e.g. Grandma Jane, Uncle Bob"
-              rows={2}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.codeWords')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.code_words}
-              onChange={(v) => set('code_words', v)}
-              placeholder="e.g. Code word for emergencies: PINEAPPLE"
-              rows={2}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.petCare')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.pet_care}
-              onChange={(v) => set('pet_care', v)}
-              placeholder="e.g. Dog: walk at 7pm, cat: no special care"
-              rows={2}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.emergencyNotes')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.emergency_notes}
-              onChange={(v) => set('emergency_notes', v)}
-              placeholder="Allergies, medical info, emergency contacts..."
-              rows={3}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.houseNotes')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.house_notes}
-              onChange={(v) => set('house_notes', v)}
-              placeholder="e.g. Thermostat, TV codes, alarm code..."
-              rows={3}
-            />
-          )}
-        </FormField>
-        <FormField label={t('handoff.generalNotes')}>
-          {(id) => (
-            <Textarea
-              id={id}
-              value={form.general_notes}
-              onChange={(v) => set('general_notes', v)}
-              placeholder="Any other notes for the sitter..."
-              rows={3}
-            />
-          )}
-        </FormField>
-      </div>
-      <div className="mt-4 flex gap-2">
-        {mode === 'edit' && onDelete && (
-          <button
-            type="button"
-            disabled={saving}
-            onClick={onDelete}
-            className="min-h-[44px] px-3 py-2 rounded-lg text-danger-text text-subhead font-medium flex items-center gap-1.5 hover:bg-[var(--danger-tint)]"
-          >
-            <Trash2 className="w-4 h-4" aria-hidden="true" />
-            {t('handoff.deleteHandoff')}
-          </button>
-        )}
-        <button type="submit" disabled={saving} className="btn-filled ml-auto">
-          {saving ? t('common.saving') : t('common.save')}
-        </button>
-      </div>
+          <FormField label={t('handoff.sitterName')}>
+            {(id) => <Input id={id} value={form.sitter_name} onChange={(v) => set('sitter_name', v)} placeholder="e.g. Sarah" />}
+          </FormField>
+          <FormField label={t('handoff.arrivalTime')}>
+            {(id) => (
+              <Input id={id} value={form.arrival_time} onChange={(v) => set('arrival_time', v)} type="datetime-local" />
+            )}
+          </FormField>
+          <FormField label={t('handoff.departureTime')}>
+            {(id) => (
+              <Input id={id} value={form.departure_time} onChange={(v) => set('departure_time', v)} type="datetime-local" />
+            )}
+          </FormField>
+          <details className="rounded-xl border border-[var(--separator)] bg-[var(--surface-secondary)]" data-testid="handoff-optional-details">
+            <summary className="flex min-h-[44px] cursor-pointer items-center px-4 py-2 text-subhead font-medium text-label-primary">
+              {recoveryText('optionalDetails')}
+            </summary>
+            <div className="space-y-4 border-t border-[var(--separator)] px-4 py-4">
+              <FormField label={t('handoff.sitterPhone')}>
+                {(id) => (
+                  <Input
+                    id={id}
+                    value={form.sitter_phone}
+                    onChange={(v) => set('sitter_phone', v)}
+                    type="tel"
+                    placeholder="(555) 123-4567"
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.kidsBedtimes')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.kids_bedtimes}
+                    onChange={(v) => set('kids_bedtimes', v)}
+                    placeholder="e.g. Emma: 8pm, Max: 8:30pm"
+                    rows={2}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.whereSnacks')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.where_snacks}
+                    onChange={(v) => set('where_snacks', v)}
+                    placeholder="e.g. Snacks in the pantry, fruit in the fridge"
+                    rows={2}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.pickupAuthorized')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.pickup_authorized}
+                    onChange={(v) => set('pickup_authorized', v)}
+                    placeholder="e.g. Grandma Jane, Uncle Bob"
+                    rows={2}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.codeWords')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.code_words}
+                    onChange={(v) => set('code_words', v)}
+                    placeholder="e.g. Code word for emergencies: PINEAPPLE"
+                    rows={2}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.petCare')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.pet_care}
+                    onChange={(v) => set('pet_care', v)}
+                    placeholder="e.g. Dog: walk at 7pm, cat: no special care"
+                    rows={2}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.emergencyNotes')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.emergency_notes}
+                    onChange={(v) => set('emergency_notes', v)}
+                    placeholder="Allergies, medical info, emergency contacts..."
+                    rows={3}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.houseNotes')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.house_notes}
+                    onChange={(v) => set('house_notes', v)}
+                    placeholder="e.g. Thermostat, TV codes, alarm code..."
+                    rows={3}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('handoff.generalNotes')}>
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.general_notes}
+                    onChange={(v) => set('general_notes', v)}
+                    placeholder="Any other notes for the sitter..."
+                    rows={3}
+                  />
+                )}
+              </FormField>
+            </div>
+          </details>
+        </div>
+      </fieldset>
+      {showActions && (
+        <HandoffFormActions
+          mode={mode}
+          onDelete={onDelete}
+          formId={formId}
+          t={t}
+          saving={saving}
+        />
+      )}
     </form>
+  )
+}
+
+function HandoffFormActions({
+  mode,
+  onDelete,
+  formId,
+  t,
+  saving,
+}: {
+  mode: 'add' | 'edit'
+  onDelete?: () => void
+  formId?: string
+  t: (key: string) => string
+  saving: boolean
+}) {
+  return (
+    <div className="flex gap-2" data-testid="handoff-form-footer">
+      {mode === 'edit' && onDelete && (
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onDelete}
+          className="min-h-[44px] px-3 py-2 rounded-lg text-danger-text text-subhead font-medium flex items-center gap-1.5 hover:bg-[var(--danger-tint)]"
+        >
+          <Trash2 className="w-4 h-4" aria-hidden="true" />
+          {t('handoff.deleteHandoff')}
+        </button>
+      )}
+      <button type="submit" form={formId} disabled={saving} className="btn-filled ml-auto min-h-[44px]">
+        {saving ? t('common.saving') : t('common.save')}
+      </button>
+    </div>
   )
 }
 
@@ -345,13 +449,17 @@ function ShareLinkDialog({
   onClose,
   onMakeNewLink,
   making,
+  displayLocale,
 }: {
   handoff: Handoff | null
   onClose: () => void
   onMakeNewLink: () => void
   making: boolean
+  displayLocale: string
 }) {
   const { addToast } = useToast()
+  const { t } = useTranslation()
+  const text = useHandoffRecoveryText()
   const [confirmingReset, setConfirmingReset] = React.useState(false)
   const [canNativeShare, setCanNativeShare] = React.useState(false)
   const urlId = React.useId()
@@ -371,22 +479,22 @@ function ShareLinkDialog({
   const url = live && token ? shareUrl(token) : null
 
   const copy = () => {
-    if (!url) return
+    if (!url || making) return
     // Called straight from the click, before any await.
     const write = navigator.clipboard?.writeText?.(url)
     if (!write) {
-      addToast({ type: 'info', title: 'Copy the link from the box above' })
+      addToast({ type: 'info', title: text('copyFallback') })
       return
     }
     write.then(
-      () => addToast({ type: 'success', title: 'Link copied' }),
-      () => addToast({ type: 'error', title: "Couldn't copy the link", message: 'Select the link above and copy it.' })
+      () => addToast({ type: 'success', title: t('handoff.linkCopied') }),
+      () => addToast({ type: 'error', title: text('copyFailed'), message: text('copyFailedMessage') })
     )
   }
 
   const nativeShare = () => {
-    if (!url) return
-    shareAppLink(`Handoff for ${handoff.sitter_name}`, url)
+    if (!url || making) return
+    shareAppLink(text('nativeShareTitle', { name: handoff.sitter_name }), url)
       // Dismissing the share sheet rejects; that is not an error.
       .catch(() => undefined)
   }
@@ -394,16 +502,17 @@ function ShareLinkDialog({
   return (
     <Dialog
       open
-      onClose={onClose}
-      title="Share with sitter"
-      description={`Send this link to ${handoff.sitter_name}. It opens the handoff without signing in.`}
+      onClose={making ? undefined : onClose}
+      closeLabel={text('shareClose')}
+      title={t('handoff.shareWithSitter')}
+      description={text('shareDescription', { name: handoff.sitter_name })}
       testId="handoff-share-dialog"
     >
       {url ? (
         <div className="space-y-3">
           <div>
             <label htmlFor={urlId} className="block text-caption-1 text-label-secondary mb-1">
-              Sitter link
+              {text('sitterLink')}
             </label>
             <input
               id={urlId}
@@ -414,26 +523,26 @@ function ShareLinkDialog({
             />
             {handoff.share_expires_at && (
               <p className="mt-1 text-caption-1 text-label-secondary">
-                Works until {new Date(handoff.share_expires_at).toLocaleString()}
+                {text('worksUntil', { date: new Date(handoff.share_expires_at).toLocaleString(displayLocale) })}
               </p>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={copy} className="btn-filled flex-1">
+            <button type="button" onClick={copy} disabled={making} className="btn-filled flex-1 disabled:opacity-40">
               <Copy className="w-4 h-4" aria-hidden="true" />
-              Copy link
+              {t('handoff.copyLink')}
             </button>
             {canNativeShare && (
-              <button type="button" onClick={nativeShare} className="btn-tinted min-h-[44px] flex-1">
+              <button type="button" onClick={nativeShare} disabled={making} className="btn-tinted min-h-[44px] flex-1 disabled:opacity-40">
                 <Share2 className="w-4 h-4" aria-hidden="true" />
-                Share…
+                {text('shareAction')}
               </button>
             )}
           </div>
         </div>
       ) : (
         <p className="text-subhead text-label-secondary">
-          {handoff.share_token ? 'This link has expired.' : 'There is no link yet.'} Make a new link to share.
+          {handoff.share_token ? text('expired') : text('noLink')} {text('makeNewLinkPrompt')}
         </p>
       )}
 
@@ -442,33 +551,35 @@ function ShareLinkDialog({
           <button
             type="button"
             onClick={() => setConfirmingReset(true)}
+            disabled={making}
             className="btn-ghost min-h-[44px] w-full"
           >
             <RefreshCw className="w-4 h-4" aria-hidden="true" />
-            Make a new link
+            {text('makeNewLink')}
           </button>
         ) : url && confirmingReset ? (
-          <div className="space-y-2" role="group" aria-label="Make a new link">
+          <div className="space-y-2" role="group" aria-label={text('makeNewLink')}>
             <p className="text-subhead text-label-primary">
-              The link you already sent will stop working. Make a new one?
+              {text('confirmNewLink')}
             </p>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setConfirmingReset(false)}
+                disabled={making}
                 className="btn-ghost min-h-[44px] flex-1"
               >
-                Keep current link
+                {text('keepCurrentLink')}
               </button>
               <button type="button" onClick={onMakeNewLink} disabled={making} className="btn-destructive flex-1 disabled:opacity-40">
-                {making ? 'Making…' : 'Make new link'}
+                {making ? text('making') : text('makeLink')}
               </button>
             </div>
           </div>
         ) : (
           <button type="button" onClick={onMakeNewLink} disabled={making} className="btn-filled w-full">
             <RefreshCw className="w-4 h-4" aria-hidden="true" />
-            {making ? 'Making…' : 'Make a new link'}
+            {making ? text('making') : text('makeNewLink')}
           </button>
         )}
       </div>
@@ -488,6 +599,7 @@ function HandoffCard({
   onPrint,
   printing = false,
   t,
+  displayLocale,
 }: {
   handoff: Handoff
   /** Parents only: share link and edit. Teens and children get a read-only card. */
@@ -498,6 +610,7 @@ function HandoffCard({
   /** This is the card being printed: the print stylesheet shows only it. */
   printing?: boolean
   t: (key: string) => string
+  displayLocale: string
 }) {
   return (
     <div
@@ -512,7 +625,8 @@ function HandoffCard({
               <p className="text-subhead text-label-secondary mt-0.5">{handoff.sitter_phone}</p>
             )}
           </div>
-          <div className="flex gap-1 no-print">
+          <div className="flex flex-wrap gap-1 no-print">
+            <ResponsibilityButton target={{ kind: "handoff", id: handoff.id }} />
             {canManage && (
               <button
                 type="button"
@@ -551,13 +665,13 @@ function HandoffCard({
         {handoff.arrival_time && (
           <div>
             <span className="text-label-tertiary">{t('handoff.arrivalTime')}: </span>
-            <span className="text-label-primary font-medium">{new Date(handoff.arrival_time).toLocaleString()}</span>
+            <span className="text-label-primary font-medium">{new Date(handoff.arrival_time).toLocaleString(displayLocale)}</span>
           </div>
         )}
         {handoff.departure_time && (
           <div>
             <span className="text-label-tertiary">{t('handoff.departureTime')}: </span>
-            <span className="text-label-primary font-medium">{new Date(handoff.departure_time).toLocaleString()}</span>
+            <span className="text-label-primary font-medium">{new Date(handoff.departure_time).toLocaleString(displayLocale)}</span>
           </div>
         )}
         {handoff.kids_bedtimes && (
@@ -623,6 +737,7 @@ export default function HandoffPage() {
 
 function HandoffPageInner() {
   const { t } = useTranslation()
+  const displayLocale = useDisplayLocale()
   const [handoffs, setHandoffs] = React.useState<Handoff[]>([])
   const [loading, setLoading] = React.useState(true)
   // loadError: the list failed to load. error: the open modal's save/delete failed.
@@ -642,6 +757,7 @@ function HandoffPageInner() {
   const cancelDeleteRef = React.useRef<HTMLButtonElement>(null)
   const mutationRef = React.useRef(false)
   const handoffText = useHandoffText()
+  const recoveryText = useHandoffRecoveryText()
   // The handoff whose share dialog is open, by id so a new link shows at once.
   const [shareId, setShareId] = React.useState<string | null>(null)
   const [makingLink, setMakingLink] = React.useState(false)
@@ -653,7 +769,9 @@ function HandoffPageInner() {
       const res = await fetch('/api/handoff')
       if (!res.ok) throw new Error('Failed to load')
       const data = await res.json()
-      setHandoffs(data.handoffs || [])
+      const parsed = parseHandoffList(data)
+      if (!parsed) throw new Error('Malformed handoff response')
+      setHandoffs(parsed)
       setLoadError(false)
     } catch {
       setLoadError(true)
@@ -769,8 +887,9 @@ function HandoffPageInner() {
   // Replaces the share token: the link the sitter already has stops working.
   // Only reached from the share dialog's explicit "Make new link" step.
   const handleMakeNewLink = async () => {
-    if (!shareHandoff) return
+    if (!shareHandoff || makingLink || mutationRef.current) return
     const id = shareHandoff.id
+    mutationRef.current = true
     setMakingLink(true)
     try {
       const res = await fetch(`/api/handoff/${id}/regenerate-token`, { method: 'POST' })
@@ -782,10 +901,11 @@ function HandoffPageInner() {
           h.id === id ? { ...h, share_token: updated.share_token, share_expires_at: updated.share_expires_at } : h
         )
       )
-      addToast({ type: 'success', title: 'New link made', message: 'Copy it and send it to your sitter.' })
+      addToast({ type: 'success', title: recoveryText('newLinkMade'), message: recoveryText('newLinkMadeMessage') })
     } catch {
-      addToast({ type: 'error', title: "Couldn't make a new link", message: t('common.error') })
+      addToast({ type: 'error', title: recoveryText('newLinkFailed'), message: t('common.error') })
     } finally {
+      mutationRef.current = false
       setMakingLink(false)
     }
   }
@@ -898,6 +1018,7 @@ function HandoffPageInner() {
               onPrint={() => handlePrint(h.id)}
               printing={printRequest?.id === h.id}
               t={t}
+              displayLocale={displayLocale}
             />
           ))}
         </div>
@@ -906,25 +1027,56 @@ function HandoffPageInner() {
       <Dialog
         open={isParent && showAdd && !editHandoff}
         onClose={saving || deleting ? undefined : closeModal}
+        closeLabel={recoveryText('formClose')}
         title={t('handoff.createHandoff')}
+        variant="form"
+        footer={
+          <HandoffFormActions
+            mode="add"
+            formId="handoff-create-form"
+            t={t}
+            saving={saving || deleting}
+          />
+        }
       >
-        <HandoffForm mode="add" onSave={handleSave} t={t} saving={saving || deleting} error={error} />
+        <HandoffForm
+          mode="add"
+          formId="handoff-create-form"
+          onSave={handleSave}
+          t={t}
+          saving={saving || deleting}
+          error={error}
+          showActions={false}
+        />
       </Dialog>
 
       <Dialog
         open={isParent && !!editHandoff}
         onClose={saving || deleting ? undefined : closeModal}
+        closeLabel={recoveryText('formClose')}
         title={t('handoff.editHandoff')}
+        variant="form"
+        footer={
+          <HandoffFormActions
+            mode="edit"
+            formId="handoff-edit-form"
+            onDelete={openDeleteConfirmation}
+            t={t}
+            saving={saving || deleting}
+          />
+        }
       >
         {isParent && editHandoff && (
           <HandoffForm
             mode="edit"
+            formId="handoff-edit-form"
             initial={editHandoff}
             onSave={handleSave}
             onDelete={openDeleteConfirmation}
             t={t}
             saving={saving || deleting}
             error={error}
+            showActions={false}
           />
         )}
       </Dialog>
@@ -981,6 +1133,7 @@ function HandoffPageInner() {
           onClose={() => setShareId(null)}
           onMakeNewLink={handleMakeNewLink}
           making={makingLink}
+          displayLocale={displayLocale}
         />
       )}
     </>

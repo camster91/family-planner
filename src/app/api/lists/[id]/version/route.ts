@@ -4,6 +4,11 @@ import { authenticateWithFamily } from "@/lib/api-auth";
 import { featureGate } from "@/lib/feature-gate-server";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { listVersion } from "@/lib/list-version";
+import {
+  parseListItemPaging,
+  afterListItemCursor,
+  LIST_ITEM_PAGE_ORDER,
+} from "@/lib/list-item-paging";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 
@@ -50,12 +55,30 @@ export async function GET(
           },
         },
       );
+    const paging = parseListItemPaging(request.nextUrl.searchParams, {
+      familyId: auth.user.family_id,
+      listId: id,
+    });
+    if (!paging.ok)
+      return NextResponse.json(
+        { error: paging.error },
+        { status: 400, headers: HEADERS },
+      );
     const list = await prisma!.list.findFirst({
       where: { id, family_id: auth.user.family_id },
       select: {
         id: true,
         updated_at: true,
-        items: { select: { id: true, updated_at: true } },
+        items: {
+          select: { id: true, updated_at: true },
+          ...(paging.paged
+            ? {
+                where: paging.cursor ? afterListItemCursor(paging.cursor) : {},
+                orderBy: LIST_ITEM_PAGE_ORDER,
+                take: paging.limit + 1,
+              }
+            : {}),
+        },
       },
     });
     if (!list)

@@ -33,6 +33,14 @@ BACKUP_PRUNE_DRY_RUN=1 /opt/family-planner/scripts/backup-prune.sh /data/backups
 
 Tests: `src/__tests__/backup-prune.test.ts`.
 
+The scripts require Bash4+ (Linux Bash, or an existing modern Bash installation
+for local macOS rehearsals). Retention detects GNU or BSD `date` before pruning;
+invalid calendar timestamps are ignored rather than normalized into eligible
+backup files. Unsupported date tooling fails before file deletion. The shell-test
+helper selects an existing modern macOS Bash and uses a temporary bash-only PATH
+shim for nested calls, preserving caller-provided fake Docker commands and the
+host environment. This does not install or enable a production scheduler.
+
 ## How a backup is checked
 
 `backup.sh` writes the dump to `familyplanner-<time>.sql.gz.partial` first. It only renames it to the real name after three checks: `pg_dump` exited cleanly, the gzip file is valid, and the dump ends with pg_dump's `-- PostgreSQL database dump complete` line. If any check fails, the `.partial` file is deleted, the script exits non-zero and pruning does not run. So a dump that broke halfway can never become "the newest backup" that pruning keeps or `restore.sh` picks. It also warns (but still keeps the file) if the dump has fewer than 5 `CREATE TABLE` statements.

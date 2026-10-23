@@ -70,15 +70,47 @@ describe("profile-only chore contract", () => {
     });
   });
 
-  it("refuses stale, linked, erased, and cross-household profile rows", () => {
+  it("retains archived unlinked household history but holds every action before recurrence exemptions", () => {
+    const archived = profileRow({
+      assigneeMember: {
+        ...baseMember,
+        archived_at: new Date("2026-10-20T12:00:00Z"),
+      },
+    });
+    expect(readChoreSubject(archived, "family-a")).toEqual({
+      kind: "profile",
+      memberId: "member-child",
+      name: "Child",
+      role: "child",
+    });
+    expect(profileChoreActionAvailability(archived, "scheduled-once")).toEqual({
+      state: "paused",
+      reason: "PROFILE_ARCHIVED",
+      recovery: "choose-active-member",
+      requiresCompatibleClient: false,
+      actions: { complete: false, undo: false, verify: false, reject: false },
+    });
+    expect(readChoreSubject(archived, "foreign-family")).toBeNull();
     expect(
       readChoreSubject(
         profileRow({
-          assigneeMember: { ...baseMember, archived_at: new Date() },
+          assigneeMember: {
+            ...baseMember,
+            archived_at: new Date(),
+            erasure_user_id: "erased-account",
+          },
         }),
         "family-a",
       ),
     ).toBeNull();
+    expect(
+      profileChoreActionAvailability({
+        ...archived,
+        member_subject_erased: true,
+      }),
+    ).toBeNull();
+  });
+  it("refuses stale, linked, erased, and cross-household profile rows", () => {
     expect(
       readChoreSubject(
         profileRow({
@@ -346,6 +378,31 @@ describe("profile-only chore contract", () => {
     ).toBe("active");
   });
 
+  it("does not confuse a canonical scheduled-once step with a repeating profile series", () => {
+    delete process.env[PROFILE_CHORE_RECURRENCE_ENABLE_ENV];
+    const row = {
+      assigned_to: null,
+      assigned_member_id: "member-child",
+      frequency: "once",
+      recurrence_id: "routine-root",
+    };
+    expect(profileChoreActionAvailability(row)?.state).toBe("paused");
+    expect(profileChoreActionAvailability(row, "scheduled-once")).toEqual({
+      state: "active",
+      requiresCompatibleClient: false,
+      actions: { complete: true, undo: true, verify: true, reject: true },
+    });
+    expect(profileChoreActionAvailability(row, "scheduled")?.state).toBe(
+      "paused",
+    );
+    expect(
+      profileChoreActionAvailability(
+        { ...row, assigned_to: "account", assigned_member_id: null },
+        "scheduled-once",
+      ),
+    ).toBeNull();
+  });
+
   it("locks membership before the live receipt and stores the response in the same effect", async () => {
     const lockSql: string[] = [];
     const receiptUpdate = jest.fn();
@@ -387,6 +444,7 @@ describe("profile-only chore contract", () => {
       },
       householdMember: { findFirst: jest.fn().mockResolvedValue(baseMember) },
       chore: { create: choreCreate },
+      activity: { create: jest.fn().mockResolvedValue({ id: "timeline-a" }) },
     };
     const db = {
       $transaction: async (callback: (value: typeof tx) => unknown) =>
@@ -482,10 +540,92 @@ describe("profile-only chore contract", () => {
     expect(choreCreate).not.toHaveBeenCalled();
   });
 
+  it("checks the reviewed profile revision and source before a new effect, while a completed receipt skips expired source verification", async () => {
+    process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED = "1";
+    process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY = "1";
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "parent-a",
+          family_id: "family-a",
+          role: "parent",
+          token_version: 0,
+        }),
+      },
+      householdMember: {
+        findFirst: jest.fn().mockResolvedValue({ ...baseMember, revision: 5 }),
+      },
+      chore: { create: jest.fn() },
+      idempotencyRecord: {
+        findFirst: jest.fn().mockResolvedValue({
+          response_status: 200,
+          response_body: { choreId: "already-created" },
+        }),
+        update: jest.fn(),
+      },
+    };
+    const db = {
+      $transaction: async (callback: (value: typeof tx) => unknown) =>
+        callback(tx),
+    };
+    const sourceGuard = {
+      actor: {
+        userId: "parent-a",
+        familyId: "family-a",
+        role: "parent",
+        generation: 0,
+      },
+      authorize: jest.fn().mockResolvedValue(undefined),
+      verify: jest.fn().mockRejectedValue(new Error("Synthetic stale source")),
+    };
+    const input = profileChoreCreateSchema.parse({
+      protocol: 2,
+      selection: { memberId: baseMember.id },
+      title: "Shoes",
+      due_date: "2026-10-22",
+      frequency: "once",
+    });
+    const run = (revision: number, receipt: string | null) =>
+      createProfileOnlyChoreEffect(
+        db as never,
+        { id: "parent-a", familyId: "family-a", tokenVersion: 0 },
+        input,
+        new Date("2026-10-22T00:00:00Z"),
+        null,
+        receipt,
+        new Date(),
+        {
+          sourceGuard,
+          expectedProfileRevision: revision,
+          compactReceipt: true,
+        },
+      );
+    await expect(run(4, null)).rejects.toMatchObject({
+      code: "PROFILE_TARGET_CONFLICT",
+    });
+    expect(sourceGuard.verify).not.toHaveBeenCalled();
+    await expect(run(5, null)).rejects.toThrow("Synthetic stale source");
+    expect(tx.chore.create).not.toHaveBeenCalled();
+    sourceGuard.verify.mockClear();
+    tx.householdMember.findFirst.mockClear();
+    expect(await run(4, "completed-receipt")).toEqual({
+      status: 200,
+      body: { choreId: "already-created" },
+    });
+    expect(sourceGuard.verify).not.toHaveBeenCalled();
+    expect(tx.householdMember.findFirst).not.toHaveBeenCalled();
+    expect(tx.chore.create).not.toHaveBeenCalled();
+  });
+
   it("uses the shared today-somewhere boundary for profile completion", async () => {
     const now = new Date("2026-10-11T00:30:00.000Z");
     const tx = {
-      $queryRaw: jest.fn().mockResolvedValue([]),
+      $queryRaw: jest.fn(async (query: TemplateStringsArray) =>
+        query.join("?").includes('FROM "Chore" c LEFT JOIN')
+          ? [{ id: "chore-a", own_config: null, series_config: null }]
+          : [],
+      ),
       chore: {
         findFirst: jest.fn().mockResolvedValue({
           id: "chore-a",
@@ -525,13 +665,25 @@ describe("profile-only chore contract", () => {
 
     expect(result).toBe("completed");
     expect(tx.chore.updateMany).toHaveBeenCalled();
+    expect(tx.deviceAuditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          subject_member_id: baseMember.id,
+          actor_user_id: null,
+        }),
+      }),
+    );
   });
 
   it("finds the matching completion audit when a newer audit belongs to another chore", async () => {
     const now = new Date("2026-10-11T12:00:00.000Z");
     const matchingAuditAt = new Date("2026-10-11T11:59:00.000Z");
     const tx = {
-      $queryRaw: jest.fn().mockResolvedValue([]),
+      $queryRaw: jest.fn(async (query: TemplateStringsArray) =>
+        query.join("?").includes('FROM "Chore" c LEFT JOIN')
+          ? [{ id: "chore-a", own_config: null, series_config: null }]
+          : [],
+      ),
       chore: {
         findFirst: jest.fn().mockResolvedValue({
           id: "chore-a",
@@ -577,6 +729,51 @@ describe("profile-only chore contract", () => {
     expect(result).toBe("reopened");
     expect(tx.chore.updateMany).toHaveBeenCalled();
   });
+
+  it.each(["complete", "undo"] as const)(
+    "refuses %s for an archived profile without writes",
+    async (action) => {
+      const tx = {
+        $queryRaw: jest.fn().mockResolvedValue([]),
+        chore: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: "chore-a",
+            assigned_to: null,
+            assigned_member_id: baseMember.id,
+            member_subject_erased: false,
+            status: "completed",
+          }),
+          updateMany: jest.fn(),
+        },
+        householdMember: {
+          findFirst: jest.fn().mockResolvedValue({
+            ...baseMember,
+            archived_at: new Date("2026-10-20T12:00:00Z"),
+          }),
+        },
+        deviceAuditEvent: { create: jest.fn() },
+      };
+      const db = {
+        $transaction: async (callback: (value: typeof tx) => unknown) =>
+          callback(tx),
+      };
+      const input = {
+        choreId: "chore-a",
+        familyId: "family-a",
+        memberId: baseMember.id,
+        deviceId: "device-a",
+        now: new Date("2026-10-22T12:00:00Z"),
+        windowMs: 120000,
+      };
+      const result =
+        action === "complete"
+          ? await completeProfileChoreInTx(db as never, input)
+          : await reopenProfileChoreInTx(db as never, input);
+      expect(result).toBe("profile_unavailable");
+      expect(tx.chore.updateMany).not.toHaveBeenCalled();
+      expect(tx.deviceAuditEvent.create).not.toHaveBeenCalled();
+    },
+  );
 
   it("keeps the database trigger aligned with profile role and age rules", () => {
     const migration = readFileSync(

@@ -3,9 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/ui/brand-illustration";
+import { useReviewInboxShellText } from "@/i18n/review-inbox-shell";
 import { PRODUCT_BRAND } from "@/lib/brand";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Inbox,
   Search,
   Bell,
   ChevronDown,
@@ -38,7 +40,7 @@ import {
   tabsFor,
 } from "@/lib/nav-items";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import { useFeatureNavTitle } from "@/i18n/feature-nav";
 import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
 import { clearRewardCreateIntents } from "@/lib/reward-create-intent-store";
@@ -53,7 +55,8 @@ interface DashboardNavProps {
 }
 
 export default function DashboardNav({ user }: DashboardNavProps) {
-  const { t } = useTranslation();
+  const reviewCopy = useReviewInboxShellText();
+  const { t } = useCoreTranslation();
   const featureNavTitle = useFeatureNavTitle();
   const msg = (
     key: NavigationMessage,
@@ -143,7 +146,23 @@ export default function DashboardNav({ user }: DashboardNavProps) {
       // Queue loading/clearing is best-effort; it must not skip server logout.
     }
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (response.ok && user?.id) {
+        try {
+          const body: unknown = await response.json();
+          if (body && typeof body === "object" && "retirement" in body) {
+            const { retirePersonQueueGeneration } =
+              await import("@/lib/offline-queue-browser");
+            // Includes unloaded old journals. A delayed receipt cannot target
+            // a later login's higher generation or a different account.
+            void retirePersonQueueGeneration(body.retirement, user.id).catch(
+              () => {},
+            );
+          }
+        } catch {
+          /* Cookie sign-out succeeded; uncertain local cleanup never grants replay. */
+        }
+      }
     } catch {
       // Offline or the request failed: still leave the signed-in UI. The
       // middleware sends a still-valid session straight back from /login.
@@ -226,6 +245,15 @@ export default function DashboardNav({ user }: DashboardNavProps) {
               </Link>
             )}
 
+            {user?.role === "parent" && (
+              <Link
+                href="/dashboard/review"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full text-label-secondary hover:text-label-primary hover:bg-[var(--surface-fill)]"
+                aria-label={reviewCopy.title}
+              >
+                <Inbox className="h-5 w-5" aria-hidden="true" />
+              </Link>
+            )}
             {/* Notifications bell */}
             {canSee("/dashboard/notifications") && (
               <Link
@@ -264,7 +292,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
 
               {/* Overflow dropdown */}
               {avatarOpen && (
-                <div className="absolute right-0 top-full mt-2 w-64 card-apple border border-[var(--surface-separator)] animate-spring-up">
+                <div className="absolute right-0 top-full mt-2 w-64 card-apple text-label-primary border border-[var(--surface-separator)] animate-spring-up">
                   {/* User info */}
                   <div className="px-4 py-3 border-b border-[var(--surface-separator)]">
                     <p className="text-[15px] font-semibold text-label-primary truncate">

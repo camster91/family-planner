@@ -1,14 +1,14 @@
-'use client'
+"use client";
 
-import * as React from 'react'
-import { Search } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useTranslation } from '@/i18n'
+import * as React from "react";
+import { Search } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
 import {
   choreFormMessages,
   choreRoutineIconLabels,
   type ChoreFormMessage,
-} from '@/i18n/chore-forms'
+} from "@/i18n/chore-forms";
 import {
   ROUTINE_ICONS,
   ROUTINE_NAME_MAX,
@@ -16,15 +16,15 @@ import {
   ROUTINE_SUGGESTIONS,
   routineIconLabel,
   searchRoutineIcons,
-} from '@/lib/routine-icons'
-import { RoutineIcon } from './RoutineIcon'
+} from "@/lib/routine-icons";
+import { RoutineIcon } from "./RoutineIcon";
 
 export interface RoutineIconPickerProps {
   /** Selected icon key, or null for no picture. */
-  value: string | null
-  onChange: (key: string | null) => void
+  value: string | null;
+  onChange: (key: string | null) => void;
   /** Prefix for element ids (two pickers on one page stay distinct). */
-  idPrefix?: string
+  idPrefix?: string;
 }
 
 /**
@@ -33,59 +33,82 @@ export interface RoutineIconPickerProps {
  * name under the picture; the selected one is `aria-pressed` and outlined, and
  * its name is repeated in text above the grid (not colour alone).
  */
-export function RoutineIconPicker({ value, onChange, idPrefix = 'chore-icon' }: RoutineIconPickerProps) {
-  const [query, setQuery] = React.useState('')
-  const { locale, t } = useTranslation()
-  const message = (key: ChoreFormMessage, params?: Record<string, string | number>) =>
-    t(key, params, choreFormMessages)
-  const iconLabels = choreRoutineIconLabels[locale]
+export function RoutineIconPicker({
+  value,
+  onChange,
+  idPrefix = "chore-icon",
+}: RoutineIconPickerProps) {
+  const [query, setQuery] = React.useState("");
+  const { locale, t } = useTranslation();
+  const message = (
+    key: ChoreFormMessage,
+    params?: Record<string, string | number>,
+  ) => t(key, params, choreFormMessages);
+  const iconLabels = choreRoutineIconLabels[locale];
   const labelForIcon = (key: string | null | undefined) =>
-    key && key in iconLabels ? iconLabels[key as keyof typeof iconLabels] : routineIconLabel(key)
-  const englishResults = searchRoutineIcons(query)
+    key && key in iconLabels
+      ? iconLabels[key as keyof typeof iconLabels]
+      : routineIconLabel(key);
+  const englishResults = searchRoutineIcons(query);
   const localizedResults =
-    locale === 'es' && query.trim()
+    locale === "es" && query.trim()
       ? ROUTINE_ICONS.filter((icon) => {
-          const words = query.toLocaleLowerCase('es').split(/\s+/).filter(Boolean)
-          const label = iconLabels[icon.key].toLocaleLowerCase('es')
-          return words.every((word) => label.includes(word))
+          const words = query
+            .toLocaleLowerCase("es")
+            .split(/\s+/)
+            .filter(Boolean);
+          const label = iconLabels[icon.key].toLocaleLowerCase("es");
+          return words.every((word) => label.includes(word));
         })
-      : []
+      : [];
   const results = Array.from(
-    new Map([...englishResults, ...localizedResults].map((icon) => [icon.key, icon])).values(),
-  )
-  const selectedLabel = labelForIcon(value)
-  const legendId = `${idPrefix}-legend`
-  const searchId = `${idPrefix}-search`
+    new Map(
+      [...englishResults, ...localizedResults].map((icon) => [icon.key, icon]),
+    ).values(),
+  );
+  const selectedLabel = labelForIcon(value);
+  const legendId = `${idPrefix}-legend`;
+  const searchId = `${idPrefix}-search`;
 
   return (
     <fieldset aria-labelledby={legendId} data-testid="routine-icon-picker">
       <legend id={legendId} className="label-apple">
-        {message('picture')}
+        {message("picture")}
       </legend>
       <p className="text-footnote text-label-secondary mb-2" aria-live="polite">
         {selectedLabel
-          ? message('selectedPicture', { label: selectedLabel })
-          : message('noPictureSelected')}
+          ? message("selectedPicture", { label: selectedLabel })
+          : message("noPictureSelected")}
       </p>
       <div className="relative mb-3">
         <label htmlFor={searchId} className="sr-only">
-          {message('searchPictures')}
+          {message("searchPictures")}
         </label>
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-label-tertiary" aria-hidden />
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-label-tertiary"
+          aria-hidden
+        />
         <input
           id={searchId}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={message('searchPicturesPlaceholder')}
+          placeholder={message("searchPicturesPlaceholder")}
           className="input-apple pl-9"
           autoComplete="off"
         />
       </div>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-2 max-h-[320px] overflow-y-auto p-0.5">
-        {query.trim() === '' && (
-          <PickerButton pressed={value === null} label={message('noPicture')} onClick={() => onChange(null)}>
-            <span className="flex h-9 w-9 items-center justify-center text-title-3 text-label-tertiary" aria-hidden>
+        {query.trim() === "" && (
+          <PickerButton
+            pressed={value === null}
+            label={message("noPicture")}
+            onClick={() => onChange(null)}
+          >
+            <span
+              className="flex h-9 w-9 items-center justify-center text-title-3 text-label-tertiary"
+              aria-hidden
+            >
               –
             </span>
           </PickerButton>
@@ -104,11 +127,11 @@ export function RoutineIconPicker({ value, onChange, idPrefix = 'chore-icon' }: 
       </div>
       {results.length === 0 && (
         <p className="text-footnote text-label-secondary mt-2" role="status">
-          {message('noPicturesMatch', { query: query.trim() })}
+          {message("noPicturesMatch", { query: query.trim() })}
         </p>
       )}
     </fieldset>
-  )
+  );
 }
 
 function PickerButton({
@@ -118,52 +141,62 @@ function PickerButton({
   children,
   iconKey,
 }: {
-  pressed: boolean
-  label: string
-  onClick: () => void
-  children: React.ReactNode
-  iconKey?: string
+  pressed: boolean;
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+  iconKey?: string;
 }) {
   return (
     <button
       type="button"
       aria-pressed={pressed}
       onClick={onClick}
-      data-icon-key={iconKey ?? 'none'}
+      data-icon-key={iconKey ?? "none"}
       className={cn(
-        'flex min-h-[76px] min-w-[64px] flex-col items-center justify-center gap-1 rounded-[var(--radius-md)] border-2 px-1 py-2 text-center transition-colors duration-150',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]',
+        "flex min-h-[76px] min-w-[64px] flex-col items-center justify-center gap-1 rounded-[var(--radius-md)] border-2 px-1 py-2 text-center transition-colors duration-150",
+        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
         pressed
-          ? 'border-[var(--accent)] bg-[var(--accent-tint)] text-[var(--accent)]'
-          : 'border-[var(--surface-separator)] bg-[var(--surface-fill)] text-label-primary'
+          ? "border-[var(--accent)] bg-[var(--accent-tint)] text-[var(--accent)]"
+          : "border-[var(--surface-separator)] bg-[var(--surface-fill)] text-label-primary",
       )}
     >
       {children}
       <span className="text-caption-1 leading-tight">{label}</span>
     </button>
-  )
+  );
 }
 
 export interface RoutineFieldsProps {
-  routine: string
-  onRoutineChange: (value: string) => void
+  preservePartialNumbers?: boolean;
+  routine: string;
+  onRoutineChange: (value: string) => void;
   /** Step number as typed ('' for none). */
-  order: string
-  onOrderChange: (value: string) => void
-  idPrefix?: string
+  order: string;
+  onOrderChange: (value: string) => void;
+  idPrefix?: string;
 }
 
 /** Routine name (with suggestions) and step number for a chore (#272). */
-export function RoutineFields({ routine, onRoutineChange, order, onOrderChange, idPrefix = 'chore' }: RoutineFieldsProps) {
-  const { t } = useTranslation()
-  const message = (key: ChoreFormMessage, params?: Record<string, string | number>) =>
-    t(key, params, choreFormMessages)
-  const listId = `${idPrefix}-routine-suggestions`
+export function RoutineFields({
+  routine,
+  onRoutineChange,
+  order,
+  onOrderChange,
+  idPrefix = "chore",
+  preservePartialNumbers = false,
+}: RoutineFieldsProps) {
+  const { t } = useTranslation();
+  const message = (
+    key: ChoreFormMessage,
+    params?: Record<string, string | number>,
+  ) => t(key, params, choreFormMessages);
+  const listId = `${idPrefix}-routine-suggestions`;
   return (
     <div className="grid grid-cols-[1fr_7rem] gap-3">
       <div>
         <label className="label-apple" htmlFor={`${idPrefix}-routine`}>
-          {message('routine')}
+          {message("routine")}
         </label>
         <input
           id={`${idPrefix}-routine`}
@@ -173,7 +206,7 @@ export function RoutineFields({ routine, onRoutineChange, order, onOrderChange, 
           maxLength={ROUTINE_NAME_MAX}
           onChange={(e) => onRoutineChange(e.target.value)}
           className="input-apple"
-          placeholder={message('routinePlaceholder')}
+          placeholder={message("routinePlaceholder")}
           aria-describedby={`${idPrefix}-routine-help`}
         />
         <datalist id={listId}>
@@ -184,11 +217,12 @@ export function RoutineFields({ routine, onRoutineChange, order, onOrderChange, 
       </div>
       <div>
         <label className="label-apple" htmlFor={`${idPrefix}-routine-order`}>
-          {message('step')}
+          {message("step")}
         </label>
         <input
           id={`${idPrefix}-routine-order`}
-          type="number"
+          type={preservePartialNumbers ? "text" : "number"}
+          maxLength={80}
           inputMode="numeric"
           min={1}
           max={ROUTINE_ORDER_MAX}
@@ -196,22 +230,28 @@ export function RoutineFields({ routine, onRoutineChange, order, onOrderChange, 
           onChange={(e) => onOrderChange(e.target.value)}
           className="input-apple"
           placeholder="1"
-          disabled={routine.trim() === ''}
+          disabled={routine.trim() === ""}
         />
       </div>
-      <p id={`${idPrefix}-routine-help`} className="col-span-2 -mt-1 text-footnote text-label-tertiary">
-        {message('routineHelp')}
+      <p
+        id={`${idPrefix}-routine-help`}
+        className="col-span-2 -mt-1 text-footnote text-label-tertiary"
+      >
+        {message("routineHelp")}
       </p>
     </div>
-  )
+  );
 }
 
 /** The request fields for a routine, from the form's text values. */
-export function routineRequestFields(routine: string, order: string): { routine: string | null; routine_order: number | null } {
-  const name = routine.trim()
-  const step = Number.parseInt(order, 10)
+export function routineRequestFields(
+  routine: string,
+  order: string,
+): { routine: string | null; routine_order: number | null } {
+  const name = routine.trim();
+  const step = Number.parseInt(order, 10);
   return {
-    routine: name === '' ? null : name,
-    routine_order: name !== '' && Number.isFinite(step) ? step : null,
-  }
+    routine: name === "" ? null : name,
+    routine_order: name !== "" && Number.isFinite(step) ? step : null,
+  };
 }

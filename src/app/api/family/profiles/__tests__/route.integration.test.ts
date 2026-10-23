@@ -100,9 +100,9 @@ const ARCHIVE_KEY = "profile-http-archive-01";
 
 async function loadDatabase(): Promise<PrismaClient> {
   const configuredModule = process.env.HOUSEHOLD_PROFILE_PRISMA_CLIENT_MODULE;
-  const loaded = configuredModule
-    ? await import(configuredModule)
-    : (jest.requireActual("@/lib/prisma") as unknown);
+  // Routes intentionally use the proxy above; the admitted database module
+  // must bypass that proxy even when its absolute path resolves to prisma.ts.
+  const loaded = jest.requireActual(configuredModule ?? "@/lib/prisma") as unknown;
   const candidate = loaded as {
     prisma?: unknown;
     default?: { prisma?: unknown } | unknown;

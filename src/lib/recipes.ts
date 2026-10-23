@@ -14,11 +14,16 @@
  *
  * Roles (O-7): parent and teen create/edit, parent deletes, child reads.
  */
-import { z } from "zod";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { normalizeName } from "@/lib/backfill/meals-groceries";
 
-export const RECIPE_MAX_INGREDIENTS = 100;
+import type { IngredientLine } from "@/lib/recipe-input-contract";
+export {
+  RECIPE_MAX_INGREDIENTS,
+  createRecipeSchema,
+  updateRecipeSchema,
+  type IngredientLine,
+} from "@/lib/recipe-input-contract";
 
 export function canEditRecipe(role: string | undefined | null): boolean {
   return role === "parent" || role === "teen";
@@ -27,65 +32,6 @@ export function canEditRecipe(role: string | undefined | null): boolean {
 export function canDeleteRecipe(role: string | undefined | null): boolean {
   return role === "parent";
 }
-
-const optionalText = (max: number) =>
-  z
-    .union([z.string().max(max).trim(), z.null()])
-    .optional()
-    .transform((v) => (v === "" ? null : v));
-
-const minutes = z
-  .union([
-    z
-      .number()
-      .int()
-      .min(0)
-      .max(24 * 60),
-    z.null(),
-  ])
-  .optional();
-
-const ingredientLine = z
-  .object({
-    ingredient_id: z.string().min(1).max(128).optional(),
-    name: z.string().trim().min(1).max(200).optional(),
-    amount: z.number().finite().min(0).max(100000),
-    unit: optionalText(32),
-    note: optionalText(200),
-  })
-  .strict()
-  .refine((v) => Boolean(v.ingredient_id) !== Boolean(v.name), {
-    message: "Each ingredient needs exactly one of ingredient_id or name",
-  });
-
-export type IngredientLine = z.infer<typeof ingredientLine>;
-
-const ingredients = z.array(ingredientLine).max(RECIPE_MAX_INGREDIENTS);
-
-export const createRecipeSchema = z
-  .object({
-    title: z.string().trim().min(1).max(200),
-    description: optionalText(2000),
-    instructions: optionalText(20000),
-    prep_time: minutes,
-    cook_time: minutes,
-    servings: z.number().int().min(1).max(100).optional(),
-    ingredients: ingredients.optional(),
-  })
-  .strict();
-
-export const updateRecipeSchema = z
-  .object({
-    title: z.string().trim().min(1).max(200).optional(),
-    description: optionalText(2000),
-    instructions: optionalText(20000),
-    prep_time: minutes,
-    cook_time: minutes,
-    servings: z.number().int().min(1).max(100).optional(),
-    /** When present, replaces the recipe's whole ingredient set. */
-    ingredients: ingredients.optional(),
-  })
-  .strict();
 
 /** Summary fields for list views and meal links. */
 export const RECIPE_SUMMARY_SELECT = {
@@ -96,6 +42,9 @@ export const RECIPE_SUMMARY_SELECT = {
   cook_time: true,
   servings: true,
   image_url: true,
+  source_url: true,
+  favorite: true,
+  revision: true,
   created_by: true,
   created_at: true,
   updated_at: true,

@@ -12,7 +12,7 @@ import { I18nProvider, useTranslation } from '@/i18n'
 import { TakeTurnsPicker } from '@/components/chores/TakeTurnsPicker'
 import { RoutineFields, RoutineIconPicker } from '@/components/chores/RoutineIconPicker'
 import CreateChorePage from '../create/page'
-import EditChorePage from '../edit/page'
+import EditChorePage from '../edit/EditChoreForm'
 import ChoresContent from '../ChoresContent'
 import { ToastProvider } from '@/components/ui/toast'
 
@@ -393,6 +393,20 @@ it('creates a weekly chore on selected days without entering a due date', async 
   const occurrence = sent('/api/chores/create').due_date
   expect(occurrence).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   expect([1,4]).toContain(new Date(occurrence + 'T00:00:00Z').getUTCDay())
+})
+
+it('starts a weekly schedule on the first selected day on or after an optional future start', async () => {
+  const user = userEvent.setup()
+  render(<CreateChorePage />)
+  await screen.findByRole('option', { name: 'Sam' })
+  await user.type(screen.getByLabelText('Title'), 'Fixture future trash')
+  await user.click(screen.getByRole('button', { name: 'Weekly' }))
+  await user.click(screen.getByRole('checkbox', { name: 'Monday' }))
+  await user.click(screen.getByRole('checkbox', { name: 'Thursday' }))
+  await user.click(screen.getByText('Start later (optional)'))
+  await user.type(screen.getByLabelText('Starts on or after'), '2099-10-20')
+  await user.click(screen.getByRole('button', { name: 'Create Chore' }))
+  await waitFor(() => expect(sent('/api/chores/create')).toMatchObject({ frequency: 'weekly', weekly_days: [1,4], due_date: '2099-10-22' }))
 })
 
 it('edits weekdays on a generated copy for the whole weekly series', async () => {

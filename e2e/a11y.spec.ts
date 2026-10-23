@@ -107,6 +107,8 @@ test.describe("a11y: Family A parent", () => {
   ]) {
     test(path, async ({ page }, testInfo) => {
       await page.goto(path);
+      if (path === "/dashboard")
+        await expect(page).toHaveURL(/\/dashboard\/today\/?$/);
       await expect(page.locator("#main-content")).toBeVisible();
       await settle(page);
       await scan(page, testInfo, path);
@@ -116,6 +118,7 @@ test.describe("a11y: Family A parent", () => {
   test("/dashboard (dark)", async ({ page }, testInfo) => {
     await useStoredTheme(page, "dark");
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today\/?$/);
     await expect(page.locator("html")).toHaveClass(/\bdark\b/);
     await settle(page);
     await scan(page, testInfo, "/dashboard (dark)");

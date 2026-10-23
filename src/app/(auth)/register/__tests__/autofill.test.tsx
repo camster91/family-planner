@@ -2,6 +2,7 @@
 import * as React from 'react'
 import { randomBytes } from 'crypto'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { renderToString } from 'react-dom/server'
 import RegisterPage from '../page'
 
 jest.mock('next/navigation', () => ({
@@ -22,6 +23,16 @@ function autofill(container: HTMLElement, values: Record<string, string>) {
 beforeEach(() => {
   window.history.replaceState({}, '', '/register')
   global.fetch = jest.fn().mockResolvedValue(response({}))
+})
+
+test('renders a POST backstop and gates registration until hydration', () => {
+  const serverMarkup = renderToString(<RegisterPage />)
+  expect(serverMarkup).toContain('<form method="post"')
+  expect(serverMarkup).toMatch(/<button[^>]*type="submit"[^>]*disabled/)
+
+  const { container } = render(<RegisterPage />)
+  expect(container.querySelector('form')).toHaveAttribute('method', 'post')
+  expect(container.querySelector('button[type="submit"]')).toBeEnabled()
 })
 
 test('submits generated passwords and autofilled identity without typing events', async () => {

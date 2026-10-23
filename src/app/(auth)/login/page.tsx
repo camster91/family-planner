@@ -22,6 +22,7 @@ export default function LoginPage() {
   const copy = (key: AuthEntryMessage) => t(key, undefined, authEntryMessages);
   const [email, setEmail] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<AuthEntryFeedback | null>(null);
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">(
@@ -39,6 +40,10 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // Keep native submission disabled until React owns the form. Before
+    // hydration there is no onSubmit handler, so the browser would otherwise
+    // fall back to a native GET and put credentials in the URL.
+    setHydrated(true);
     // Nobody is signed in on this page (the middleware sends a signed-in user
     // away), so offline changes left by an ended session are dropped, never
     // replayed (#162, OFFLINE_SYNC.md "Security").
@@ -153,7 +158,7 @@ export default function LoginPage() {
             </p>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form method="post" onSubmit={handleLogin} className="space-y-4">
             {error && (
               <div
                 role="alert"
@@ -242,7 +247,7 @@ export default function LoginPage() {
             <div className="pt-1">
               <button
                 type="submit"
-                disabled={loading}
+                disabled={!hydrated || loading}
                 className="btn-filled w-full py-3"
               >
                 {loading ? (

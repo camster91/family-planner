@@ -13,6 +13,7 @@ export type HouseholdProfilesResponse = {
   profiles: HouseholdProfile[];
   profileChoreSupported: boolean;
   profileChoreRecurrenceSupported?: boolean;
+  profileAccountLinkSupported?: boolean;
 };
 
 export function isHouseholdProfile(value: unknown): value is HouseholdProfile {
@@ -23,7 +24,8 @@ export function isHouseholdProfile(value: unknown): value is HouseholdProfile {
     typeof item.name === "string" &&
     item.name.trim().length > 0 &&
     (item.role === "child" || item.role === "teen" || item.role === "parent") &&
-    (item.age === null || (typeof item.age === "number" && Number.isInteger(item.age))) &&
+    (item.age === null ||
+      (typeof item.age === "number" && Number.isInteger(item.age))) &&
     (item.archived_at === null || typeof item.archived_at === "string") &&
     typeof item.revision === "number" &&
     Number.isInteger(item.revision)
@@ -38,9 +40,11 @@ export function readHouseholdProfilesResponse(
     profiles?: unknown;
     profileChoreSupported?: unknown;
     profileChoreRecurrenceSupported?: unknown;
+    profileAccountLinkSupported?: unknown;
   };
   const profiles = payload.profiles;
-  if (!Array.isArray(profiles) || !profiles.every(isHouseholdProfile)) return null;
+  if (!Array.isArray(profiles) || !profiles.every(isHouseholdProfile))
+    return null;
   if (
     payload.profileChoreSupported !== undefined &&
     typeof payload.profileChoreSupported !== "boolean"
@@ -51,16 +55,26 @@ export function readHouseholdProfilesResponse(
     typeof payload.profileChoreRecurrenceSupported !== "boolean"
   )
     return null;
+  if (
+    payload.profileAccountLinkSupported !== undefined &&
+    typeof payload.profileAccountLinkSupported !== "boolean"
+  )
+    return null;
   return {
     profiles,
     profileChoreSupported: payload.profileChoreSupported === true,
+    ...(payload.profileAccountLinkSupported === true
+      ? { profileAccountLinkSupported: true }
+      : {}),
     ...(payload.profileChoreRecurrenceSupported === true
       ? { profileChoreRecurrenceSupported: true }
       : {}),
   };
 }
 
-export function readHouseholdProfiles(value: unknown): HouseholdProfile[] | null {
+export function readHouseholdProfiles(
+  value: unknown,
+): HouseholdProfile[] | null {
   return readHouseholdProfilesResponse(value)?.profiles ?? null;
 }
 
@@ -68,7 +82,10 @@ export function findActiveHouseholdProfile(
   profiles: HouseholdProfile[],
   id: string,
 ): HouseholdProfile | null {
-  return profiles.find((profile) => profile.id === id && !profile.archived_at) ?? null;
+  return (
+    profiles.find((profile) => profile.id === id && !profile.archived_at) ??
+    null
+  );
 }
 
 export function readApiErrorCode(value: unknown): string | null {

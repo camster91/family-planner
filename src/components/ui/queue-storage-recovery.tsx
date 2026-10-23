@@ -2,11 +2,23 @@
 
 import * as React from "react";
 import type { OfflineQueue } from "@/lib/offline-queue";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
+// Ordinary, healthy queues have no older work to review. Load that review
+// surface only when the canonical queue reports it; never infer an empty queue
+// from unavailable storage or delay the storage-error/retry controls.
+const LegacyQueueRecovery = React.lazy(() =>
+  import("@/components/ui/legacy-queue-recovery").then((module) => ({
+    default: module.LegacyQueueRecovery,
+  })),
+);
 
 /** A deliberate read retry, never a replacement or discard of unread work. */
-export function QueueStorageRecovery({ queue }: { queue: OfflineQueue | null }) {
-  const { t } = useTranslation();
+export function QueueStorageRecovery({
+  queue,
+}: {
+  queue: OfflineQueue | null;
+}) {
+  const { t } = useCoreTranslation();
   const subscribe = React.useCallback(
     (listener: () => void) => queue?.subscribe(listener) ?? (() => {}),
     [queue],
@@ -14,6 +26,16 @@ export function QueueStorageRecovery({ queue }: { queue: OfflineQueue | null }) 
   const blocked = React.useSyncExternalStore(
     subscribe,
     () => queue?.hasStorageReadError() ?? false,
+    () => false,
+  );
+  const reason = React.useSyncExternalStore(
+    subscribe,
+    () => queue?.storageFailureReason?.() ?? null,
+    () => null,
+  );
+  const legacyAvailable = React.useSyncExternalStore(
+    subscribe,
+    () => queue?.legacyRecoveryAvailable?.() ?? false,
     () => false,
   );
   const [busy, setBusy] = React.useState(false);
@@ -29,7 +51,7 @@ export function QueueStorageRecovery({ queue }: { queue: OfflineQueue | null }) 
     };
   }, [queue]);
 
-  if (!queue || !blocked) return null;
+  if (!queue || (!blocked && !legacyAvailable)) return null;
 
   const retry = async () => {
     if (retrying.current) return;
@@ -53,18 +75,33 @@ export function QueueStorageRecovery({ queue }: { queue: OfflineQueue | null }) 
       className="card-apple space-y-3 p-4"
       data-testid="queue-storage-recovery"
     >
-      <p role="status" className="text-subhead text-label-primary">
-        {t("groceries.storageUnavailable")}
-      </p>
-      <button
-        type="button"
-        className="btn-secondary min-h-11 max-w-full whitespace-normal text-left"
-        disabled={busy}
-        aria-busy={busy}
-        onClick={() => void retry()}
-      >
-        {t(busy ? "groceries.storageRetrying" : "groceries.storageRetry")}
-      </button>
+      {blocked && (
+        <p role="status" className="text-subhead text-label-primary">
+          {t(
+            reason === "OWNER_CHANGED"
+              ? "groceries.storageOwnerChanged"
+              : reason === "UPDATE_REQUIRED"
+                ? "groceries.storageVersionRequired"
+                : "groceries.storageUnavailable",
+          )}
+        </p>
+      )}
+      {blocked && (
+        <button
+          type="button"
+          className="btn-secondary min-h-11 max-w-full whitespace-normal text-left"
+          disabled={busy}
+          aria-busy={busy}
+          onClick={() => void retry()}
+        >
+          {t(busy ? "groceries.storageRetrying" : "groceries.storageRetry")}
+        </button>
+      )}
+      {legacyAvailable && (
+        <React.Suspense fallback={<p role="status">{t("common.loading")}</p>}>
+          <LegacyQueueRecovery queue={queue} />
+        </React.Suspense>
+      )}
     </section>
   );
 }

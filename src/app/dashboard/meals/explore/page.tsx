@@ -6,6 +6,18 @@ import { FeatureGate } from "@/components/ui/feature-gate";
 import { Dialog } from "@/components/ui/dialog";
 import { MealViewNav } from "@/components/meals/MealViewNav";
 import { RecipeEditor } from "@/components/meals/RecipeEditor";
+import { RecipeCuration } from "@/components/meals/RecipeCuration";
+import { RecipeCollections } from "@/components/meals/RecipeCollections";
+import {
+  canonicalRecipeSource,
+  legacyRecipeSource,
+} from "@/lib/recipe-curation-contract";
+import {
+  onlineRecipeSchema,
+  importedRecipeInstructions,
+  recipeImportIssues,
+  recipeDiscoveryResponse,
+} from "@/lib/recipe-preview-contract";
 import { useRecipeExploreText } from "@/i18n/recipe-explore";
 import {
   publicRecipeUrl,
@@ -13,18 +25,33 @@ import {
   type OnlineRecipe,
 } from "@/lib/recipe-discovery";
 
-type SavedRecipe = { id: string; title: string; description: string | null };
-type RecipeSearchResult = { title: string; url: string };
+type SavedRecipe = {
+  id: string;
+  title: string;
+  description: string | null;
+  source_url?: string | null;
+  favorite?: boolean;
+};
+type RecipeSearchResult = { title: string; url: string; source?: string };
 
 export default function RecipeExplorePage() {
   const text = useRecipeExploreText();
   const [query, setQuery] = React.useState("");
+  const [favoritesOnly, setFavoritesOnly] = React.useState(false);
+  const [collectionId, setCollectionId] = React.useState("");
+  const [savedQuery, setSavedQuery] = React.useState("");
+  const [ingredient, setIngredient] = React.useState("");
+  const [maxPrep, setMaxPrep] = React.useState("");
+  const [minServings, setMinServings] = React.useState("");
+  const [libraryFilters, setLibraryFilters] = React.useState("");
   const [source, setSource] = React.useState<string>(recipeSources[0].name);
   const [resultLimit, setResultLimit] = React.useState(6);
   const [results, setResults] = React.useState<RecipeSearchResult[]>([]);
   const [searching, setSearching] = React.useState(false);
   const [searchError, setSearchError] = React.useState("");
   const [searched, setSearched] = React.useState(false);
+  const [incompleteSearch, setIncompleteSearch] = React.useState(false);
+  const searchGeneration = React.useRef(0);
   const searchController = React.useRef<AbortController | null>(null);
   const [url, setUrl] = React.useState("");
   const [recipes, setRecipes] = React.useState<SavedRecipe[]>([]);
@@ -36,12 +63,14 @@ export default function RecipeExplorePage() {
   const [error, setError] = React.useState("");
   const [preview, setPreview] = React.useState<OnlineRecipe | null>(null);
   const [editor, setEditor] = React.useState(false);
+  const [copyImport, setCopyImport] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [embedded, setEmbedded] = React.useState(false);
   const [savedId, setSavedId] = React.useState<string | null>(null);
   const libraryBusy = React.useRef(false);
   const importBusy = React.useRef(false);
   const controller = React.useRef<AbortController | null>(null);
+  const previewGeneration = React.useRef(0);
   const libraryController = React.useRef<AbortController | null>(null);
 
   const loadLibrary = React.useCallback(
@@ -52,10 +81,17 @@ export default function RecipeExplorePage() {
       libraryController.current = abort;
       setLoadingLibrary(true);
       setLibraryError("");
+      if (next === 0) {
+        setRecipes([]);
+        setOffset(0);
+      }
       try {
-        const response = await fetch(`/api/recipes?limit=100&offset=${next}`, {
-          signal: abort.signal,
-        });
+        const response = await fetch(
+          `/api/recipes?limit=100&offset=${next}${libraryFilters ? `&${libraryFilters}` : ""}`,
+          {
+            signal: abort.signal,
+          },
+        );
         const data = (await response.json().catch(() => null)) as {
           recipes?: SavedRecipe[];
           nextOffset?: number | null;
@@ -79,7 +115,7 @@ export default function RecipeExplorePage() {
         }
       }
     },
-    [text],
+    [text, libraryFilters],
   );
 
   React.useEffect(() => {
@@ -91,11 +127,19 @@ export default function RecipeExplorePage() {
           setCanSave(["parent", "teen"].includes(data?.user?.role));
       })
       .catch(() => undefined);
-    void loadLibrary(0);
     return () => {
       abort.abort();
+      previewGeneration.current++;
       controller.current?.abort();
+      searchGeneration.current++;
       searchController.current?.abort();
+      libraryController.current?.abort();
+      libraryBusy.current = false;
+    };
+  }, []);
+  React.useEffect(() => {
+    void loadLibrary(0);
+    return () => {
       libraryController.current?.abort();
       libraryBusy.current = false;
     };
@@ -109,11 +153,18 @@ export default function RecipeExplorePage() {
       setError(text("invalidLink"));
       return;
     }
+    const own = ++previewGeneration.current;
+    const current = () => own === previewGeneration.current;
     importBusy.current = true;
     setLoading(true);
     setError("");
     const abort = new AbortController();
     controller.current = abort;
+    let timedOut = false;
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      abort.abort();
+    }, 15000);
     try {
       const response = await fetch("/api/recipes/preview", {
         method: "POST",
@@ -124,20 +175,24 @@ export default function RecipeExplorePage() {
       const data = (await response.json().catch(() => null)) as {
         recipe?: OnlineRecipe;
       } | null;
-      if (!response.ok || !data?.recipe) {
-        if (!abort.signal.aborted) setError(text("readFailed"));
+      const parsed = onlineRecipeSchema.safeParse(data?.recipe);
+      if (!response.ok || !parsed.success) {
+        if (current() && !abort.signal.aborted) setError(text("readFailed"));
         return;
       }
-      if (!abort.signal.aborted) {
-        setPreview(data.recipe);
+      if (current() && !abort.signal.aborted) {
+        setPreview(parsed.data);
         setEditor(false);
+        setCopyImport(false);
         setEmbedded(false);
         setSavedId(null);
       }
     } catch {
-      if (!abort.signal.aborted) setError(text("readNetworkError"));
+      if (current() && (!abort.signal.aborted || timedOut))
+        setError(text("readNetworkError"));
     } finally {
-      if (!abort.signal.aborted) {
+      clearTimeout(deadline);
+      if (current() && (!abort.signal.aborted || timedOut)) {
         importBusy.current = false;
         setLoading(false);
       }
@@ -147,6 +202,8 @@ export default function RecipeExplorePage() {
   const searchOnline = async (event: React.FormEvent) => {
     event.preventDefault();
     searchController.current?.abort();
+    const own = ++searchGeneration.current;
+    const current = () => own === searchGeneration.current;
     const abort = new AbortController();
     searchController.current = abort;
     setSearching(true);
@@ -154,6 +211,12 @@ export default function RecipeExplorePage() {
     setResults([]);
     setResultLimit(6);
     setSearched(false);
+    setIncompleteSearch(false);
+    let timedOut = false;
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      abort.abort();
+    }, 15000);
     try {
       const response = await fetch("/api/recipes/discover", {
         method: "POST",
@@ -161,32 +224,40 @@ export default function RecipeExplorePage() {
         body: JSON.stringify({ query: query.trim(), source }),
         signal: abort.signal,
       });
-      const data = (await response.json().catch(() => null)) as {
-        results?: RecipeSearchResult[];
-      } | null;
-      if (!response.ok || !Array.isArray(data?.results)) {
-        if (!abort.signal.aborted) setSearchError(text("searchFailed"));
+      const parsed = recipeDiscoveryResponse.safeParse(
+        await response.json().catch(() => null),
+      );
+      if (!response.ok || !parsed.success) {
+        if (current() && !abort.signal.aborted)
+          setSearchError(text("searchFailed"));
         return;
       }
-      if (!abort.signal.aborted) {
-        setResults(data.results);
+      if (current() && !abort.signal.aborted) {
+        setResults(parsed.data.results);
+        setIncompleteSearch(
+          parsed.data.sources?.some(
+            (source) => source.state === "unavailable",
+          ) ?? false,
+        );
         setSearched(true);
       }
     } catch {
-      if (!abort.signal.aborted) setSearchError(text("searchNetworkError"));
+      if (current() && (!abort.signal.aborted || timedOut))
+        setSearchError(text("searchNetworkError"));
     } finally {
-      if (!abort.signal.aborted) setSearching(false);
+      clearTimeout(deadline);
+      if (current() && (!abort.signal.aborted || timedOut)) setSearching(false);
     }
   };
 
-  const visible = recipes.filter((recipe) =>
-    `${recipe.title} ${recipe.description || ""}`
-      .toLowerCase()
-      .includes(query.toLowerCase()),
-  );
+  const visible = recipes;
   const existing = preview
-    ? recipes.find((recipe) =>
-        recipe.description?.startsWith(`Source: ${preview.source}\n`),
+    ? recipes.find(
+        (recipe) =>
+          (recipe.source_url
+            ? canonicalRecipeSource(recipe.source_url)
+            : legacyRecipeSource(recipe.description)) ===
+          canonicalRecipeSource(preview.source),
       )
     : undefined;
 
@@ -201,6 +272,11 @@ export default function RecipeExplorePage() {
         </header>
 
         <MealViewNav active="explore" />
+        {canSave && (
+          <Link className="btn-plain min-h-11" href="/dashboard/meals/review">
+            {text("savedWork")}
+          </Link>
+        )}
 
         <section
           className="card-apple p-4 space-y-3"
@@ -234,6 +310,7 @@ export default function RecipeExplorePage() {
                   value={source}
                   onChange={(event) => setSource(event.target.value)}
                 >
+                  <option value="all">{text("allSources")}</option>
                   {recipeSources.map((recipeSource) => (
                     <option key={recipeSource.name}>{recipeSource.name}</option>
                   ))}
@@ -253,6 +330,11 @@ export default function RecipeExplorePage() {
               {searchError}
             </p>
           )}
+          {incompleteSearch && (
+            <p role="status" className="text-footnote">
+              {text("partialSearch")}
+            </p>
+          )}
           {searched && results.length === 0 && (
             <p role="status" className="text-label-secondary">
               {text("noSearchResults")}
@@ -265,6 +347,11 @@ export default function RecipeExplorePage() {
                 className="rounded-xl border border-[var(--surface-separator)] p-3 min-w-0"
               >
                 <p className="text-headline break-words">{result.title}</p>
+                {result.source && (
+                  <p className="text-footnote text-label-secondary">
+                    {result.source}
+                  </p>
+                )}
                 <p className="text-footnote text-label-secondary">
                   {new URL(result.url).hostname}
                 </p>
@@ -376,6 +463,130 @@ export default function RecipeExplorePage() {
           <h2 id="saved-title" className="text-title-2 mb-3">
             {text("recipeBox")}
           </h2>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const filters = new URLSearchParams();
+              if (favoritesOnly) filters.set("favorite", "1");
+              if (collectionId) filters.set("collection", collectionId);
+              if (savedQuery.trim()) filters.set("q", savedQuery.trim());
+              if (ingredient.trim())
+                filters.set("ingredient", ingredient.trim());
+              if (maxPrep) filters.set("maxPrep", maxPrep);
+              if (minServings) filters.set("minServings", minServings);
+              const next = filters.toString();
+              if (next === libraryFilters) void loadLibrary(0);
+              else setLibraryFilters(next);
+            }}
+            className="space-y-3 mb-4"
+          >
+            <label htmlFor="saved-recipe-search" className="label-apple">
+              {text("searchSaved")}
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <input
+                id="saved-recipe-search"
+                className="input-apple min-w-0 flex-1 basis-48"
+                maxLength={120}
+                value={savedQuery}
+                onChange={(event) => setSavedQuery(event.target.value)}
+              />
+              <button
+                className="btn-tinted min-h-[44px]"
+                disabled={loadingLibrary}
+              >
+                {text("searchSaved")}
+              </button>
+              {libraryFilters && (
+                <button
+                  type="button"
+                  className="btn-plain min-h-[44px]"
+                  onClick={() => {
+                    setFavoritesOnly(false);
+                    setCollectionId("");
+                    setSavedQuery("");
+                    setIngredient("");
+                    setMaxPrep("");
+                    setMinServings("");
+                    setLibraryFilters("");
+                  }}
+                >
+                  {text("clearSavedFilters")}
+                </button>
+              )}
+            </div>
+            <details>
+              <summary className="min-h-[44px] content-center cursor-pointer">
+                {text("savedFilters")}
+              </summary>
+              <div className="grid gap-3 sm:grid-cols-3 mt-2">
+                <label className="space-y-1">
+                  {text("ingredientFilter")}
+                  <input
+                    className="input-apple"
+                    maxLength={100}
+                    value={ingredient}
+                    onChange={(event) => setIngredient(event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1">
+                  {text("maxPrepFilter")}
+                  <input
+                    className="input-apple"
+                    type="number"
+                    min={1}
+                    max={1440}
+                    step={1}
+                    value={maxPrep}
+                    onChange={(event) => setMaxPrep(event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1">
+                  {text("servingsFilter")}
+                  <input
+                    className="input-apple"
+                    type="number"
+                    min={1}
+                    max={100}
+                    step={1}
+                    value={minServings}
+                    onChange={(event) => setMinServings(event.target.value)}
+                  />
+                </label>
+              </div>
+              <p className="text-footnote text-label-secondary mt-2">
+                {text("savedFiltersHint")}
+              </p>
+            </details>
+          </form>
+          <div className="grid gap-3 sm:grid-cols-2 mb-4">
+            <label className="flex min-h-[44px] items-center gap-3">
+              <input
+                type="checkbox"
+                checked={favoritesOnly}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setFavoritesOnly(checked);
+                  const filters = new URLSearchParams(libraryFilters);
+                  if (checked) filters.set("favorite", "1");
+                  else filters.delete("favorite");
+                  setLibraryFilters(filters.toString());
+                }}
+              />
+              {text("favoritesOnly")}
+            </label>
+            <RecipeCollections
+              value={collectionId}
+              canEdit={canSave}
+              onSelect={(id) => {
+                setCollectionId(id);
+                const filters = new URLSearchParams(libraryFilters);
+                if (id) filters.set("collection", id);
+                else filters.delete("collection");
+                setLibraryFilters(filters.toString());
+              }}
+            />
+          </div>
           {libraryError && (
             <div role="alert">
               <p>{libraryError}</p>
@@ -391,7 +602,7 @@ export default function RecipeExplorePage() {
           {loadingLibrary && <p role="status">{text("libraryLoading")}</p>}
           {!loadingLibrary && !libraryError && visible.length === 0 && (
             <p className="text-label-secondary">
-              {query ? text("noSavedSearch") : text("noSaved")}
+              {libraryFilters ? text("noSavedSearch") : text("noSaved")}
             </p>
           )}
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -401,11 +612,20 @@ export default function RecipeExplorePage() {
                   href={`/dashboard/meals/recipes/${recipe.id}`}
                   className="inline-flex min-h-[44px] items-center text-headline break-words"
                 >
+                  {recipe.favorite ? "★ " : ""}
                   {recipe.title}
                 </Link>
                 <p className="text-footnote text-label-secondary">
                   {text("readyToUse")}
                 </p>
+                {canSave && (
+                  <RecipeCuration
+                    id={recipe.id}
+                    title={recipe.title}
+                    favorite={recipe.favorite}
+                    onChanged={() => void loadLibrary(0)}
+                  />
+                )}
               </li>
             ))}
           </ul>
@@ -434,6 +654,32 @@ export default function RecipeExplorePage() {
             }
             closeLabel={text("closeRecipe")}
           >
+            <div className="space-y-2 mb-3">
+              {preview.reviewIssues === undefined && (
+                <p className="text-footnote">{text("importLimitsUnknown")}</p>
+              )}
+              {recipeImportIssues(preview).length > 0 && (
+                <aside
+                  className="rounded-xl bg-[var(--surface-fill)] p-3 space-y-1"
+                  aria-label={text("importReview")}
+                >
+                  <p className="text-subhead font-semibold">
+                    {text("importReview")}
+                  </p>
+                  <ul className="list-disc ps-5 text-footnote">
+                    {recipeImportIssues(preview).map((issue) => (
+                      <li key={issue}>{text(`import_${issue}`)}</li>
+                    ))}
+                  </ul>
+                </aside>
+              )}
+              {importedRecipeInstructions(preview, text("ingredients")).length >
+                20000 && (
+                <p role="alert" className="text-footnote">
+                  {text("importTooLong")}
+                </p>
+              )}
+            </div>
             {editor ? (
               <>
                 <p className="text-footnote text-label-secondary mb-3">
@@ -441,30 +687,33 @@ export default function RecipeExplorePage() {
                 </p>
                 <RecipeEditor
                   initialDraft={{
+                    source_url: preview.source,
+                    source_copy: copyImport,
                     servings: preview.servings,
                     title: preview.title,
                     description: `Source: ${preview.source}\n${preview.description}`,
-                    instructions:
-                      `${preview.ingredientLines.length ? `Ingredients\n${preview.ingredientLines.join("\n")}\n\n` : ""}${preview.instructions}`.slice(
-                        0,
-                        20000,
-                      ),
+                    instructions: importedRecipeInstructions(
+                      preview,
+                      text("ingredients"),
+                    ),
                     prep_time: preview.prep_time,
                     cook_time: preview.cook_time,
                   }}
                   onSavingChange={setSaving}
                   onCancel={() => setEditor(false)}
                   onCreated={(recipe) => {
-                    setSavedId(recipe.id);
+                    setSavedId(
+                      recipe.source_url &&
+                        canonicalRecipeSource(recipe.source_url) ===
+                          canonicalRecipeSource(preview.source)
+                        ? recipe.id
+                        : null,
+                    );
                     setEditor(false);
-                    setRecipes((previous) => [
-                      {
-                        id: recipe.id,
-                        title: recipe.title,
-                        description: `Source: ${preview.source}\n${preview.description}`,
-                      },
-                      ...previous,
-                    ]);
+                    // A restored draft may come from a different source than
+                    // this preview. Refresh canonical summaries instead of
+                    // attaching the incoming preview's description to it.
+                    void loadLibrary(0);
                   }}
                 />
               </>
@@ -486,16 +735,31 @@ export default function RecipeExplorePage() {
                     {embedded ? text("recipeReader") : text("viewOriginalHere")}
                   </button>
                   {savedId || existing ? (
-                    <Link
-                      href={`/dashboard/meals/recipes/${savedId || existing?.id}`}
-                      className="btn-filled min-h-[44px]"
-                    >
-                      {text("openSavedRecipe")}
-                    </Link>
+                    <>
+                      <Link
+                        href={`/dashboard/meals/recipes/${savedId || existing?.id}`}
+                        className="btn-filled min-h-[44px]"
+                      >
+                        {text("openSavedRecipe")}
+                      </Link>
+                      <button
+                        type="button"
+                        className="btn-tinted min-h-[44px]"
+                        onClick={() => {
+                          setCopyImport(true);
+                          setEditor(true);
+                        }}
+                      >
+                        {text("reviewCopy")}
+                      </button>
+                    </>
                   ) : (
                     <button
                       className="btn-filled min-h-[44px]"
-                      onClick={() => setEditor(true)}
+                      onClick={() => {
+                        setCopyImport(false);
+                        setEditor(true);
+                      }}
                     >
                       {text("reviewAndSave")}
                     </button>

@@ -156,6 +156,24 @@ describe('computeScorecard on seeded counts', () => {
 })
 
 describe('output', () => {
+  it('keeps count-threshold success distinct from independent cohort and ordered-journey acceptance', () => {
+    const rows = [1, 2, 3, 4, 5].flatMap((household) => [
+      ...activationRows(household, true),
+      ...WEEKS.flatMap((week) => LOOP.map((metric) => ({ household, day: week, metric, count: 1 }))),
+    ])
+    const card = computeScorecard({ rows, householdsOptedIn: 5 }, AS_OF)
+    expect(byId(card, 'activation').status).toBe('pass')
+    expect(byId(card, 'weekly-core-loop').status).toBe('pass')
+    expect(card.measurement).toEqual({
+      contract: 'herewoven.beta-count-scorecard.v1', source: 'opt-in-daily-counts',
+      statusesEvaluate: 'count-thresholds-only', completeness: 'best-effort',
+      orderedJourneyVerified: false, independentCohortVerified: false, acceptance: 'not-evaluated',
+    })
+    expect(byId(card, 'weekly-core-loop').measured).toContain('order and linked records not observed')
+    expect(formatScorecard(card)).toContain('beta acceptance require separate reviewed evidence')
+    expect(JSON.parse(JSON.stringify(card)).measurement.acceptance).toBe('not-evaluated')
+  })
+
   it('prints every criterion with its value and status, and households only as numbers', () => {
     const card = computeScorecard({ rows: [...activationRows(1, true), ...activationRows(2, false)], householdsOptedIn: 2 }, AS_OF)
     const text = formatScorecard(card)

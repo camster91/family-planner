@@ -51,22 +51,38 @@ const mockCheckRateLimit = checkRateLimit as jest.Mock;
 const mockAssertPublic = assertPublicProviderUrl as jest.Mock;
 const mockSafeFetch = safeFetch as jest.Mock;
 
-const ENV_KEYS = ["CAPTURE_AI_KEY", "CAPTURE_AI_BASE_URL", "CAPTURE_AI_MODEL"] as const;
+const ENV_KEYS = [
+  "CAPTURE_AI_KEY",
+  "CAPTURE_AI_BASE_URL",
+  "CAPTURE_AI_MODEL",
+] as const;
 const savedEnv: Record<string, string | undefined> = {};
 const originalFetch = global.fetch;
 const mockFetch = jest.fn();
 
-const parentA = { id: "parent-a", family_id: "family-A", role: "parent", name: "Parent A", last_chore_date: null };
+const parentA = {
+  id: "parent-a",
+  family_id: "family-A",
+  role: "parent",
+  name: "Parent A",
+  last_chore_date: null,
+};
 
 function makeRequest(body: unknown, headers: Record<string, string> = {}) {
-  return { json: async () => body, headers: new Headers(headers) } as any;
+  return {
+    json: async () => body,
+    text: async () => JSON.stringify(body ?? null),
+    headers: new Headers(headers),
+  } as any;
 }
 
 function modelReply(content: unknown) {
   return {
     ok: true,
     status: 200,
-    json: async () => ({ choices: [{ message: { content: JSON.stringify(content) } }] }),
+    json: async () => ({
+      choices: [{ message: { content: JSON.stringify(content) } }],
+    }),
     text: async () => "",
   };
 }
@@ -90,15 +106,24 @@ describe("POST /api/capture — server key never follows a family base URL", () 
     process.env.CAPTURE_AI_KEY = "server-env-key";
     delete process.env.CAPTURE_AI_BASE_URL;
     delete process.env.CAPTURE_AI_MODEL;
-    mockAuth.mockResolvedValue([{ payload: { userId: "parent-a" }, user: parentA }, null]);
-    mockCheckRateLimit.mockResolvedValue({ allowed: true, retryAfterMs: 0, remaining: 29 });
+    mockAuth.mockResolvedValue([
+      { payload: { userId: "parent-a" }, user: parentA },
+      null,
+    ]);
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: true,
+      retryAfterMs: 0,
+      remaining: 29,
+    });
     // No family key, but an attacker-chosen base URL and model.
     mockFamilyFindUnique.mockResolvedValue({
       capture_ai_key_enc: null,
       capture_ai_base_url: "https://evil.example",
       capture_ai_model: "evil-model",
     });
-    mockFetch.mockResolvedValue(modelReply({ kind: "event", title: "Dentist", confidence: "high" }));
+    mockFetch.mockResolvedValue(
+      modelReply({ kind: "event", title: "Dentist", confidence: "high" }),
+    );
   });
 
   function assertNeverEvil() {
@@ -113,7 +138,7 @@ describe("POST /api/capture — server key never follows a family base URL", () 
 
     expect(res.status).toBe(200);
     expect(mockFamilyFindUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "family-A" } })
+      expect.objectContaining({ where: { id: "family-A" } }),
     );
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, init] = mockFetch.mock.calls[0];
@@ -146,7 +171,9 @@ describe("POST /api/capture — server key never follows a family base URL", () 
     await POST(makeRequest({ imageBase64: "aGVsbG8=", mimeType: "image/png" }));
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch.mock.calls[0][0]).toBe("https://api.deepseek.com/chat/completions");
+    expect(mockFetch.mock.calls[0][0]).toBe(
+      "https://api.deepseek.com/chat/completions",
+    );
     assertNeverEvil();
   });
 
@@ -175,22 +202,45 @@ describe("POST /api/capture — size cap and provider timeout", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.CAPTURE_AI_KEY = "server-env-key";
-    mockAuth.mockResolvedValue([{ payload: { userId: "parent-a" }, user: parentA }, null]);
-    mockCheckRateLimit.mockResolvedValue({ allowed: true, retryAfterMs: 0, remaining: 29 });
-    mockFamilyFindUnique.mockResolvedValue({ capture_ai_key_enc: null, capture_ai_base_url: null, capture_ai_model: null });
+    mockAuth.mockResolvedValue([
+      { payload: { userId: "parent-a" }, user: parentA },
+      null,
+    ]);
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: true,
+      retryAfterMs: 0,
+      remaining: 29,
+    });
+    mockFamilyFindUnique.mockResolvedValue({
+      capture_ai_key_enc: null,
+      capture_ai_base_url: null,
+      capture_ai_model: null,
+    });
     mockFetch.mockResolvedValue(modelReply({ events: [], confidence: "low" }));
   });
 
   it("refuses an imageBase64 longer than the cap with 413 and no provider call", async () => {
-    const res = await POST(makeRequest({ imageBase64: "A".repeat(MAX_IMAGE_BASE64_LENGTH + 1), mimeType: "image/png" }));
+    const res = await POST(
+      makeRequest({
+        imageBase64: "A".repeat(MAX_IMAGE_BASE64_LENGTH + 1),
+        mimeType: "image/png",
+      }),
+    );
 
     expect(res.status).toBe(413);
-    expect(await res.json()).toEqual({ error: expect.stringMatching(/too large/i) });
+    expect(await res.json()).toEqual({
+      error: expect.stringMatching(/too large/i),
+    });
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("accepts an image exactly at the cap", async () => {
-    const res = await POST(makeRequest({ imageBase64: "A".repeat(MAX_IMAGE_BASE64_LENGTH), mimeType: "image/png" }));
+    const res = await POST(
+      makeRequest({
+        imageBase64: "A".repeat(MAX_IMAGE_BASE64_LENGTH),
+        mimeType: "image/png",
+      }),
+    );
 
     expect(res.status).toBe(200);
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -198,7 +248,10 @@ describe("POST /api/capture — size cap and provider timeout", () => {
 
   it("refuses a declared oversized body before parsing it", async () => {
     const json = jest.fn();
-    const res = await POST({ json, headers: new Headers({ "content-length": String(50 * 1024 * 1024) }) } as any);
+    const res = await POST({
+      json,
+      headers: new Headers({ "content-length": String(50 * 1024 * 1024) }),
+    } as any);
 
     expect(res.status).toBe(413);
     expect(json).not.toHaveBeenCalled();
@@ -214,7 +267,12 @@ describe("POST /api/capture — size cap and provider timeout", () => {
   });
 
   it("turns a provider timeout into a friendly 504", async () => {
-    mockFetch.mockRejectedValue(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+    mockFetch.mockRejectedValue(
+      new DOMException(
+        "The operation was aborted due to timeout",
+        "TimeoutError",
+      ),
+    );
 
     const res = await POST(makeRequest({ text: "Dentist tomorrow at 3pm" }));
 
@@ -227,7 +285,10 @@ describe("POST /api/capture — size cap and provider timeout", () => {
       ok: true,
       status: 200,
       json: async () => {
-        throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+        throw new DOMException(
+          "The operation was aborted due to timeout",
+          "TimeoutError",
+        );
       },
     });
 
@@ -261,22 +322,33 @@ describe("POST /api/capture — a family's own base URL is fetched with DNS pinn
   beforeEach(() => {
     jest.clearAllMocks();
     delete process.env.CAPTURE_AI_KEY;
-    mockAuth.mockResolvedValue([{ payload: { userId: "parent-a" }, user: parentA }, null]);
-    mockCheckRateLimit.mockResolvedValue({ allowed: true, retryAfterMs: 0, remaining: 29 });
+    mockAuth.mockResolvedValue([
+      { payload: { userId: "parent-a" }, user: parentA },
+      null,
+    ]);
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: true,
+      retryAfterMs: 0,
+      remaining: 29,
+    });
     mockFamilyFindUnique.mockResolvedValue({
       capture_ai_key_enc: encryptSecret("sk-family-own-key"),
       capture_ai_base_url: "https://llm.family.example/v1",
       capture_ai_model: "family-model",
     });
     mockAssertPublic.mockResolvedValue(undefined);
-    mockSafeFetch.mockResolvedValue(modelReply({ kind: "event", title: "Dentist", confidence: "high" }));
+    mockSafeFetch.mockResolvedValue(
+      modelReply({ kind: "event", title: "Dentist", confidence: "high" }),
+    );
   });
 
   it("vets the URL and then calls it through safeFetch, never the plain global fetch", async () => {
     const res = await POST(makeRequest({ text: "Dentist tomorrow at 3pm" }));
 
     expect(res.status).toBe(200);
-    expect(mockAssertPublic).toHaveBeenCalledWith("https://llm.family.example/v1");
+    expect(mockAssertPublic).toHaveBeenCalledWith(
+      "https://llm.family.example/v1",
+    );
     expect(mockFetch).not.toHaveBeenCalled();
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
     const [url, init] = mockSafeFetch.mock.calls[0];
@@ -293,5 +365,41 @@ describe("POST /api/capture — a family's own base URL is fetched with DNS pinn
 
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/public address/i);
+  });
+  // Authored/unrun post-provider owner-renewal boundary.
+  it("withholds a draft after the actor moves household during extraction", async () => {
+    mockAuth
+      .mockResolvedValueOnce([
+        { payload: { userId: parentA.id }, user: parentA },
+        null,
+      ])
+      .mockResolvedValueOnce([
+        {
+          payload: { userId: parentA.id },
+          user: { ...parentA, family_id: "family-B" },
+        },
+        null,
+      ]);
+    const response = await POST(makeRequest({ text: "Dentist tomorrow" }));
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body.draft).toBeUndefined();
+    expect(body.code).toBe("CAPTURE_SOURCE_CHANGED");
+  });
+
+  // Authored/unrun: size is enforced before parsing even without Content-Length.
+  it("bounds chunked capture bodies before JSON parsing or provider dispatch", async () => {
+    const cancel = jest.fn();
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(MAX_IMAGE_BASE64_LENGTH + 65537));
+      },
+      cancel,
+    });
+    const response = await POST({ body, headers: new Headers() } as any);
+    expect(response.status).toBe(413);
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockSafeFetch).not.toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalled();
   });
 });

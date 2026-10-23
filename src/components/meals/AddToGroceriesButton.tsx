@@ -6,6 +6,7 @@ import { useBulkCookingText } from "@/i18n/bulk-cooking";
 import { Loader2, ShoppingCart, Undo2 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import {
   postAddFromRecipe,
@@ -57,6 +58,16 @@ const groceryReviewSchema = z
         state: z.literal("available"),
         haveIngredientIds: z.array(reviewId).max(100),
         truncated: z.boolean(),
+        matching: z.literal("presence_only").optional(),
+        matches: z
+          .array(
+            z.object({
+              ingredientId: reviewId,
+              kind: z.enum(["linked", "name"]),
+            }),
+          )
+          .max(100)
+          .optional(),
       }),
     ]),
   })
@@ -70,7 +81,16 @@ const groceryReviewSchema = z
       (data.inventory.state === "unavailable" ||
         data.inventory.haveIngredientIds.every((id) =>
           data.ingredients.some((i) => i.ingredientId === id),
-        )),
+        )) &&
+      (data.inventory.state === "unavailable" ||
+        !data.inventory.matches ||
+        (new Set(data.inventory.matches.map((match) => match.ingredientId))
+          .size === data.inventory.matches.length &&
+          data.inventory.matches.every(
+            (match) =>
+              data.inventory.state === "available" &&
+              data.inventory.haveIngredientIds.includes(match.ingredientId),
+          ))),
   );
 type GroceryReview = z.infer<typeof groceryReviewSchema>;
 
@@ -92,6 +112,8 @@ export interface AddToGroceriesButtonProps extends AddFromRecipeRequest {
   onAdded?: (result: AddFromRecipeResult) => void;
   /** Called after a successful undo. */
   onUndone?: () => void;
+  /** Owning reader can freeze its preview/edits while exact recovery is pending. */
+  onPendingChange?: (pending: boolean) => void;
 }
 
 /**
@@ -113,11 +135,14 @@ export function AddToGroceriesButton({
   disabled = false,
   onAdded,
   onUndone,
+  onPendingChange,
 }: AddToGroceriesButtonProps) {
   const tBulk = useBulkCookingText();
   const [reviewOpen, setReviewOpen] = React.useState(false);
   const [review, setReview] = React.useState<GroceryReview | null>(null);
-  const [reviewError, setReviewError] = React.useState<string | { kind: "prepared-batch" } | null>(null);
+  const [reviewError, setReviewError] = React.useState<
+    string | { kind: "prepared-batch" } | null
+  >(null);
   const [destination, setDestination] = React.useState("");
   const [selected, setSelected] = React.useState<string[]>([]);
   const reviewSequence = React.useRef(0);
@@ -129,6 +154,8 @@ export function AddToGroceriesButton({
     request: AddFromRecipeRequest;
   } | null>(null);
   const mutationInFlight = React.useRef(false);
+  const uncertainAdd = React.useRef(false);
+  const uncertainUndo = React.useRef(false);
   // Undo is offered only while the server would still accept it.
   const [undoOpen, setUndoOpen] = React.useState(false);
   const undoTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -139,13 +166,28 @@ export function AddToGroceriesButton({
     [],
   );
   const busy = status.kind === "adding" || status.kind === "undoing";
+  const [owned, setOwned] = React.useState(false);
+  const ownedRef = React.useRef(false);
+  const ownerCallback = React.useRef(onPendingChange);
+  ownerCallback.current = onPendingChange;
+  const navigation = usePendingFormNavigationController(owned);
+  const own = (active: boolean) => {
+    ownedRef.current = active;
+    setOwned(active);
+    ownerCallback.current?.(active);
+  };
+  const release = async () => {
+    await navigation.releaseBeforeNavigation();
+    own(false);
+  };
 
   const closeReview = () => {
     reviewSequence.current++;
     setReviewOpen(false);
   };
   const openReview = async () => {
-    if (busy || disabled) return;
+    if (busy || disabled || mutationInFlight.current || ownedRef.current)
+      return;
     const sequence = ++reviewSequence.current;
     const intent = {
       recipeId,
@@ -162,9 +204,9 @@ export function AddToGroceriesButton({
       intent.servings !== undefined &&
       (!Number.isInteger(intent.servings) ||
         intent.servings < 1 ||
-        intent.servings > 50)
+        intent.servings > 100)
     ) {
-      setReviewError("Servings must be a whole number from 1 to 50.");
+      setReviewError("Servings must be a whole number from 1 to 100.");
       return;
     }
     try {
@@ -180,7 +222,10 @@ export function AddToGroceriesButton({
       if (data.recipeId !== intent.recipeId)
         throw new Error("Mismatched recipe");
       if (sequence !== reviewSequence.current) return;
-      if (data.batchPrepared) { setReviewError({ kind: "prepared-batch" }); return; }
+      if (data.batchPrepared) {
+        setReviewError({ kind: "prepared-batch" });
+        return;
+      }
       if (intent.listId && !data.lists.some((l) => l.id === intent.listId)) {
         setReviewError(
           "The chosen grocery list is unavailable. Close and choose another list.",
@@ -225,19 +270,27 @@ export function AddToGroceriesButton({
       },
     };
     mutationInFlight.current = true;
+    own(true);
     setStatus({ kind: "adding" });
     const outcome = await postAddFromRecipe(
       pending.current.request,
       pending.current.key,
     );
-    mutationInFlight.current = false;
-    if (outcome.kind === "retry") {
+    if (
+      outcome.kind === "retry" ||
+      (outcome.kind === "error" && uncertainAdd.current)
+    ) {
+      uncertainAdd.current = true;
+      mutationInFlight.current = false;
       setStatus({ kind: "error", message: outcome.message, retryable: true });
       return;
     }
     pending.current = null;
+    uncertainAdd.current = false;
+    await release();
     if (outcome.kind === "error") {
       setStatus({ kind: "error", message: outcome.message, retryable: false });
+      mutationInFlight.current = false;
       return;
     }
     setStatus({ kind: "added", result: outcome.result });
@@ -247,41 +300,55 @@ export function AddToGroceriesButton({
     const remaining = undoRemainingMs(outcome.result, UNDO_WINDOW_MS);
     setUndoOpen(outcome.result.createdCount > 0 && remaining > 0);
     undoTimer.current = setTimeout(() => setUndoOpen(false), remaining);
+    mutationInFlight.current = false;
     onAdded?.(outcome.result);
   };
 
   const undo = async () => {
-    if (status.kind !== "added") return;
+    if (status.kind !== "added" || mutationInFlight.current) return;
+    mutationInFlight.current = true;
+    own(true);
     const { result } = status;
     setStatus({ kind: "undoing", result });
     const outcome = await postUndoAdd(result.requestId);
     if (!outcome.ok) {
-      if (outcome.retryable) {
+      if (outcome.retryable || uncertainUndo.current) {
+        uncertainUndo.current = true;
         // Undo is safe to repeat and the first attempt may even have landed:
         // keep the result and the Undo control so it can be tried again.
         setStatus({ kind: "added", result, notice: outcome.message });
+        mutationInFlight.current = false;
         return;
       }
+      await release();
       setUndoOpen(false);
       setStatus({ kind: "error", message: outcome.message, retryable: false });
+      mutationInFlight.current = false;
       return;
     }
+    uncertainUndo.current = false;
     setUndoOpen(false);
+    await release();
     setStatus({ kind: "undone", message: summarizeUndo(outcome.result) });
+    mutationInFlight.current = false;
     onUndone?.();
   };
 
   const shown =
     status.kind === "added" || status.kind === "undoing" ? status : null;
   const summary = shown ? summarizeAdd(shown.result) : null;
-  const canUndo = shown !== null && undoOpen;
+  const canUndo = shown !== null && (undoOpen || owned);
 
   return (
     <div className={cn("space-y-2", className)}>
       <button
         type="button"
         onClick={status.kind === "error" && status.retryable ? add : openReview}
-        disabled={busy || disabled}
+        disabled={
+          busy ||
+          disabled ||
+          (owned && !(status.kind === "error" && status.retryable))
+        }
         aria-busy={status.kind === "adding"}
         className="btn-tinted w-full min-h-[44px]"
       >
@@ -304,19 +371,23 @@ export function AddToGroceriesButton({
         title="Review grocery ingredients"
       >
         {!review && !reviewError && <p role="status">Loading ingredients…</p>}
-        {reviewError && <p role="alert">{typeof reviewError === "string" ? reviewError : tBulk("preparedGroceries")}</p>}
+        {reviewError && (
+          <p role="alert">
+            {typeof reviewError === "string"
+              ? reviewError
+              : tBulk("preparedGroceries")}
+          </p>
+        )}
         {review && (
           <div className="space-y-4">
             <p className="font-semibold break-words">{review.title}</p>
             <p>For {review.targetServings} servings</p>
             {review.inventory.state === "unavailable" ? (
-              <p>Inventory comparison unavailable. Choose what you need.</p>
+              <p>{tBulk("stockComparisonUnavailable")}</p>
             ) : (
               <p>
-                Presence only, not enough-for-recipe amounts.
-                {review.inventory.truncated
-                  ? " Inventory scan is incomplete."
-                  : ""}
+                {tBulk("stockPresenceOnly")}
+                {review.inventory.truncated ? ` ${tBulk("stockPartial")}` : ""}
               </p>
             )}
             <label className="block">
@@ -375,10 +446,19 @@ export function AddToGroceriesButton({
                         {review.inventory.haveIngredientIds.includes(
                           i.ingredientId,
                         )
-                          ? "Present in inventory"
+                          ? review.inventory.matches?.find(
+                              (match) => match.ingredientId === i.ingredientId,
+                            )?.kind === "linked"
+                            ? tBulk("stockLinked")
+                            : review.inventory.matches?.find(
+                                  (match) =>
+                                    match.ingredientId === i.ingredientId,
+                                )?.kind === "name"
+                              ? tBulk("stockNameMatch")
+                              : tBulk("stockPresent")
                           : review.inventory.truncated
-                            ? "No match in scanned inventory"
-                            : "No inventory match"}
+                            ? tBulk("stockNoMatchPartial")
+                            : tBulk("stockNoMatch")}
                       </span>
                     )}
                   </span>

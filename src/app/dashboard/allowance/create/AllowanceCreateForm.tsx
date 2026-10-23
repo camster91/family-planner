@@ -8,7 +8,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { ArrowLeft, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "@/i18n";

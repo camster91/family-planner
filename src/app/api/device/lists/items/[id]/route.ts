@@ -6,6 +6,7 @@ import { isRouteId, openDeviceWrite, runDeviceWrite } from '@/lib/device-writes'
 import { isGroceryListType } from '@/lib/grocery-display'
 import { DUPLICATE_OPEN_ITEM, updateListItemAndNoteTick } from '@/lib/list-item-update'
 import { getRequestId } from '@/lib/request-id'
+import { deviceQueueOwner, queueOwnerMatches } from '@/lib/queue-owner-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +32,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const opened = await openDeviceWrite(request, 'lists')
     if (!opened.ok) return opened.response
     const { ctx } = opened
+    if (!queueOwnerMatches(request, deviceQueueOwner(ctx.actor))) return deviceError(409, 'QUEUE_OWNER_CHANGED')
     const { id } = await params
     if (!isRouteId(id)) return deviceError(404, 'NOT_FOUND')
     const { checked } = ctx.body

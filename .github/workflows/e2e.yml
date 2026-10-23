@@ -35,14 +35,18 @@ jobs:
       max-parallel: 4
       matrix:
         include:
-          - group: phone-pair
-            projects: --project=phone-390x844 --project=phone-430x932
+          - group: phone-390
+            projects: --project=phone-390x844
+          - group: phone-430
+            projects: --project=phone-430x932
           - group: portrait-tablet
             projects: --project=tablet-portrait-800x1280
           - group: fridge-landscape
             projects: --project=fridge-landscape-1280x800
-          - group: large-tablet-and-desktop
-            projects: --project=tablet-large-1920x1200 --project=desktop-1366x768
+          - group: large-tablet
+            projects: --project=tablet-large-1920x1200
+          - group: desktop
+            projects: --project=desktop-1366x768
     services:
       postgres:
         image: postgres:17-alpine
@@ -132,7 +136,8 @@ jobs:
 
       # Reports contain only synthetic fixture data (#154).
       - name: Upload Playwright report
-        if: ${{ failure() }}
+        # Preserve partial proof when the runner's job deadline cancels a shard.
+        if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: playwright-report-${{ matrix.group }}-${{ github.sha }}
@@ -142,20 +147,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Preserve feature UI review captures
-        if: ${{ !cancelled() && inputs.update_snapshots != true }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: feature-ui-captures-${{ matrix.group }}-${{ github.sha }}
-          path: |
-            test-results/**/emergency-*.png
-            test-results/**/emergency-runtime-*.json
-            test-results/**/pickups-*.png
-            test-results/**/wishlist-*.png
-            test-results/**/messages-*.png
-          if-no-files-found: ignore
-          retention-days: 7
-
+      # JSON reporter bodies retain inline feature PNGs and runtime metadata.
+      # They are not individual test-results files; preserve this report rather
+      # than uploading filename globs that cannot match body attachments.
       - name: Preserve queue storage recovery captures
         if: ${{ !cancelled() && inputs.update_snapshots != true }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -172,7 +166,7 @@ jobs:
 
       - name: Upload initial JavaScript budget measurements
         # Only these shards run the retained phone/desktop byte measurements.
-        if: ${{ !cancelled() && inputs.update_snapshots != true && (matrix.group == 'phone-pair' || matrix.group == 'large-tablet-and-desktop') }}
+        if: ${{ !cancelled() && inputs.update_snapshots != true && (matrix.group == 'phone-390' || matrix.group == 'desktop') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: initial-js-budget-${{ matrix.group }}-${{ github.sha }}
@@ -180,9 +174,10 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # These captures contain only synthetic product-quality fixture data.
+      # The compact metadata cases emit PNGs only at 1280x800 and 1366x768.
+      # Keep missing captures an error for those two producer shards.
       - name: Upload compact fridge metadata captures
-        if: ${{ !cancelled() && inputs.update_snapshots != true && (matrix.group == 'fridge-landscape' || matrix.group == 'large-tablet-and-desktop') }}
+        if: ${{ !cancelled() && inputs.update_snapshots != true && (matrix.group == 'fridge-landscape' || matrix.group == 'desktop') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: product-quality-fridge-captures-${{ matrix.group }}-${{ github.sha }}
@@ -374,9 +369,19 @@ jobs:
           retention-days: 7
 
   settings_localization:
-    name: Settings ordinary and expanded QA
+    name: Settings ${{ matrix.mode }} QA
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    # Each build mode retains every enabled/unavailable journey and its own
+    # disposable database. Sequential modes exceeded the unchanged job deadline.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: ordinary
+            expanded: "0"
+          - mode: expanded
+            expanded: "1"
     services:
       postgres:
         image: postgres:17-alpine
@@ -396,6 +401,8 @@ jobs:
       FIXTURES_ALLOW: "1"
       NEXT_TELEMETRY_DISABLED: "1"
       RELEASE_SHA: ${{ github.sha }}
+      I18N_PSEUDO_ENABLED: ${{ matrix.expanded }}
+      DESIGN_GALLERY_ENABLED: ${{ matrix.expanded }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -417,70 +424,35 @@ jobs:
       - name: Migrate database
         run: node scripts/migrate.js
       # Synthetic availability is installed only in the guarded server child, never compilation.
-      - name: Build ordinary Settings application
+      - name: Build ${{ matrix.mode }} Settings application
         run: npm run build
         env:
           SKIP_ENV_VALIDATION: "true"
           NODE_ENV: production
-          I18N_PSEUDO_ENABLED: "0"
-          DESIGN_GALLERY_ENABLED: "0"
-      - name: Ordinary guarded Settings journeys
+      - name: ${{ matrix.mode }} guarded Settings journeys
         run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts e2e/calendar-removal-dialogs.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
         env:
           E2E_SKIP_BUILD: "1"
           E2E_SETTINGS_QA: "enabled"
-          I18N_PSEUDO_ENABLED: "0"
-          DESIGN_GALLERY_ENABLED: "0"
-          E2E_REPORT_DIR: playwright-report/settings-ordinary-enabled
-          E2E_OUTPUT_DIR: test-results/settings-ordinary-enabled
-      - name: Ordinary unavailable Settings role gates
+          E2E_REPORT_DIR: playwright-report/settings-${{ matrix.mode }}-enabled
+          E2E_OUTPUT_DIR: test-results/settings-${{ matrix.mode }}-enabled
+      - name: ${{ matrix.mode }} unavailable Settings role gates
         run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts e2e/calendar-removal-dialogs.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
         env:
           E2E_SKIP_BUILD: "1"
           E2E_SETTINGS_QA: "unavailable"
-          I18N_PSEUDO_ENABLED: "0"
-          DESIGN_GALLERY_ENABLED: "0"
-          E2E_REPORT_DIR: playwright-report/settings-ordinary-unavailable
-          E2E_OUTPUT_DIR: test-results/settings-ordinary-unavailable
-      - name: Build expanded Settings application
-        run: npm run build
-        env:
-          SKIP_ENV_VALIDATION: "true"
-          NODE_ENV: production
-          I18N_PSEUDO_ENABLED: "1"
-          DESIGN_GALLERY_ENABLED: "1"
-      - name: Expanded guarded Settings journeys
-        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts e2e/calendar-removal-dialogs.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
-        env:
-          E2E_SKIP_BUILD: "1"
-          E2E_SETTINGS_QA: "enabled"
-          I18N_PSEUDO_ENABLED: "1"
-          DESIGN_GALLERY_ENABLED: "1"
-          E2E_REPORT_DIR: playwright-report/settings-expanded-enabled
-          E2E_OUTPUT_DIR: test-results/settings-expanded-enabled
-      - name: Expanded unavailable Settings role gates
-        run: npx playwright test e2e/settings-localization.spec.ts e2e/settings-role-localization.spec.ts e2e/calendar-removal-dialogs.spec.ts --project=phone-390x844 --project=tablet-portrait-800x1280 --project=fridge-landscape-1280x800
-        env:
-          E2E_SKIP_BUILD: "1"
-          E2E_SETTINGS_QA: "unavailable"
-          I18N_PSEUDO_ENABLED: "1"
-          DESIGN_GALLERY_ENABLED: "1"
-          E2E_REPORT_DIR: playwright-report/settings-expanded-unavailable
-          E2E_OUTPUT_DIR: test-results/settings-expanded-unavailable
-      - name: Preserve ordinary and expanded Settings proof
+          E2E_REPORT_DIR: playwright-report/settings-${{ matrix.mode }}-unavailable
+          E2E_OUTPUT_DIR: test-results/settings-${{ matrix.mode }}-unavailable
+      - name: Preserve ${{ matrix.mode }} Settings proof
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: settings-qa-${{ github.sha }}
+          name: settings-${{ matrix.mode }}-qa-${{ github.sha }}
           path: |
-            playwright-report/settings-ordinary-enabled/
-            test-results/settings-ordinary-enabled/
-            playwright-report/settings-ordinary-unavailable/
-            test-results/settings-ordinary-unavailable/
-            playwright-report/settings-expanded-enabled/
-            test-results/settings-expanded-enabled/
-            playwright-report/settings-expanded-unavailable/
-            test-results/settings-expanded-unavailable/
+            playwright-report/settings-${{ matrix.mode }}-enabled/
+            test-results/settings-${{ matrix.mode }}-enabled/
+            playwright-report/settings-${{ matrix.mode }}-unavailable/
+            test-results/settings-${{ matrix.mode }}-unavailable/
           if-no-files-found: error
           retention-days: 7
 
@@ -563,6 +535,88 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  review_documents:
+    name: Adopted Capture recovery QA (six viewports)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    # This is a separate opt-in build and disposable database. It exercises
+    # the real owned Capture journal only; ordinary journeys and visual baselines
+    # remain owned by the jobs above.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: fp_e2e_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fp_e2e_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Loopback + disposable name: accepted by the fixture guard.
+      DATABASE_URL: postgresql://postgres@localhost:5432/fp_e2e_ci
+      FIXTURES_ALLOW: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+      RELEASE_SHA: ${{ github.sha }}
+      # These flags are intentionally scoped to this hosted disposable job.
+      QUEUE_OWNER_RECOVERY_ENABLED: "1"
+      QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1"
+      FAMILY_REVIEW_DOCUMENTS_READY: "1"
+      FAMILY_REVIEW_DOCUMENTS_ROLLBACK_READY: "1"
+      CAPTURE_AI_KEY: ""
+      ANTHROPIC_API_KEY: ""
+      GEMINI_API_KEY: ""
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Migrate database
+        run: node scripts/migrate.js
+      - name: Build adopted review application
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          NODE_ENV: production
+      - name: Run provider-free owned Capture and inbox journeys
+        run: >-
+          npx playwright test --config=playwright.review-documents.config.ts
+          --project=phone-390x844
+          --project=phone-430x932
+          --project=tablet-portrait-800x1280
+          --project=fridge-landscape-1280x800
+          --project=tablet-large-1920x1200
+          --project=desktop-1366x768
+        env:
+          E2E_SKIP_BUILD: "1"
+          E2E_REPORT_DIR: playwright-report/review-documents
+          E2E_OUTPUT_DIR: test-results/review-documents
+      - name: Preserve adopted review proof
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: review-documents-qa-${{ github.sha }}
+          path: |
+            playwright-report/review-documents/
+            test-results/review-documents/
+          if-no-files-found: error
+          retention-days: 7
+
   verify:
     name: E2E (Playwright)
     needs:
@@ -572,6 +626,7 @@ jobs:
         inventory_localization,
         settings_localization,
         profile_routine,
+        review_documents,
       ]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
@@ -584,4 +639,5 @@ jobs:
           INVENTORY_RESULT: ${{ needs.inventory_localization.result }}
           SETTINGS_RESULT: ${{ needs.settings_localization.result }}
           PROFILE_ROUTINE_RESULT: ${{ needs.profile_routine.result }}
-        run: test "$SHARD_RESULT" = success && test "$RECOVERY_RESULT" = success && test "$INVENTORY_RESULT" = success && test "$SETTINGS_RESULT" = success && test "$PROFILE_ROUTINE_RESULT" = success
+          REVIEW_DOCUMENTS_RESULT: ${{ needs.review_documents.result }}
+        run: test "$SHARD_RESULT" = success && test "$RECOVERY_RESULT" = success && test "$INVENTORY_RESULT" = success && test "$SETTINGS_RESULT" = success && test "$PROFILE_ROUTINE_RESULT" = success && test "$REVIEW_DOCUMENTS_RESULT" = success

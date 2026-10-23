@@ -170,6 +170,9 @@ for (const role of ["parent", "teen", "child"] as const)
               .click();
             await expect(page).toHaveURL(/\/dashboard(?:\/)?$/);
           } else await page.goto("/dashboard");
+          await expect(page).toHaveURL(
+            role === "parent" ? /\/dashboard\/today$/ : /\/dashboard\/?$/,
+          );
           const auth = await browserFetch(page, "/api/auth/me");
           expect(auth.status).toBe(200);
           expect(JSON.parse(auth.body).user.id).toBe(FIXTURE_IDS.familyA[role]);
@@ -227,13 +230,26 @@ for (const role of ["parent", "teen", "child"] as const)
                 exact: true,
               })
               .click();
-          } else
+          } else {
+            await page
+              .getByRole("button", {
+                name: translate(settingsMessages[locale].privacyData),
+                exact: true,
+              })
+              .click();
+            await expect(
+              page.getByRole("heading", {
+                name: translate(settingsMessages[locale].privacyData),
+                exact: true,
+              }),
+            ).toBeVisible();
             await page
               .getByRole("button", {
                 name: translate(settingsMessages[locale].deleteAccount),
                 exact: true,
               })
               .click();
+          }
           const dialog = page.getByTestId("delete-account-dialog");
           await loadingSeen;
           await expect(dialog.getByRole("status")).toHaveText(msg("loading"));

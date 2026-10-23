@@ -97,6 +97,25 @@ describe('GET /api/chores?id=', () => {
   })
 })
 
+it('keeps an archived profile row readable and paused in list/detail without blocking active household chores', async () => {
+  const keys = ['HOUSEHOLD_PROFILE_CHORE_ENABLED', 'HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY', 'HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED']
+  const previous = keys.map(key => [key, process.env[key]] as const)
+  for (const key of keys) process.env[key] = '1'
+  db.rows('householdMember').push({ id: 'archived-profile-a', family_id: FAMILY_A, name: 'Archived fixture', role: 'child', age: 3, archived_at: day('2026-10-01'), erasure_user_id: null, legacy_mapping: null, account_link: null })
+  addChore('archived-profile-chore', '2026-10-02', { assigned_to: null, assigned_member_id: 'archived-profile-a', member_subject_erased: false, frequency: 'once', recurrence_id: null })
+  addChore('active-account-chore', '2026-10-02')
+  try {
+    const response = await GET(req({ as: 'parentA', headers: { 'X-Member-Protocol': '2' }, query: { from: '2026-10-01', to: '2026-10-03' } }))
+    expect(response.status).toBe(200)
+    const list = await bodyOf(response)
+    expect(list.chores).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'active-account-chore' }), expect.objectContaining({ id: 'archived-profile-chore', subject: { kind: 'profile', memberId: 'archived-profile-a', name: 'Archived fixture', role: 'child' }, actionAvailability: expect.objectContaining({ state: 'paused', reason: 'PROFILE_ARCHIVED' }) })]))
+    const detail = await GET(req({ as: 'parentA', headers: { 'X-Member-Protocol': '2' }, query: { id: 'archived-profile-chore' } }))
+    expect(detail.status).toBe(200)
+    expect((await bodyOf(detail)).chore.actionAvailability).toMatchObject({ state: 'paused', reason: 'PROFILE_ARCHIVED', actions: { complete: false, undo: false, verify: false, reject: false } })
+    expect((await GET(req({ as: 'parentB', headers: { 'X-Member-Protocol': '2' }, query: { id: 'archived-profile-chore' } }))).status).toBe(404)
+  } finally { for (const [key, value] of previous) { if (value === undefined) delete process.env[key]; else process.env[key] = value } }
+})
+
 describe('GET /api/chores from/to', () => {
   it('returns only chores due in the inclusive window', async () => {
     addChore('w-before', '2026-09-30')

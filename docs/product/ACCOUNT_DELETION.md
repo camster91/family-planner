@@ -115,6 +115,28 @@ One transaction, after the rules are checked again inside it under a per-househo
    their sick days and medications, wishlist items and reward redemptions they requested, habit logs, badges,
    notifications, push subscriptions, activity entries, and messages they sent. Import provenance rows pointing at
    deleted rows go too. They are removed from every message's `read_by`.
+   A scheduled routine's future definition is shared household content, separate from its original personal
+   root occurrence. Before deleting that occurrence, the transaction retains the reviewed future definition
+   on a new anonymous hidden control row, rewires surviving occurrence lineage and exact stack root slots,
+   and invalidates prepared versions. The replacement contains no old assignee, evidence, completion or
+   earned credit. Its internal control date precedes retained occurrence slots and is never a task due date.
+   Personal rows are still deleted; surviving occurrence IDs, subjects, evidence and credit are not copied
+   or transferred. Normal creator/actor erasure and handover rules below still apply. Erased future subjects
+   require a new explicit valid assignment; an unsupported definition stays unsupported. Old root IDs and
+   original receipts cannot recreate the erased personal row. This integration is authored source and its
+   consolidated database/device/rollback acceptance remains deferred.
+   A once-only handover interrupted by disabled writes retains a private pending checkpoint. Foreground
+   recovery can settle only that checkpoint after current gates/subject authority allow it; an occupied
+   or missed day settles without duplication/catch-up. Once settled, deliberate task deletion stays
+   deleted. This does not enroll ordinary once chores in repeat generation.
+   Discovery also includes historical personal roots when their account has already left or joined a
+   different household and their private future subject is now someone else. Those already locked
+   households retain replacement controls with an existing successor. Normal creator handover protects
+   surviving routine occurrences from the creator cascade; current-family handover is not repeated.
+   Historical member-target audit text/IDs and message read markers are explicitly scrubbed under the
+   discovered household locks, without adding another departure event. The same sent-message attachment
+   cleanup runs even when the account has no current household. Household Upload photos remain retained;
+   uploader/actor attribution is cleared. Runtime/file acceptance remains deferred.
 3. **Household content they created is handed over** to the successor (not deleted): chores they created, events,
    lists and list items they added, rewards, budget categories and transactions, projects, meals, notes, saved
    places, pickups, allowance they gave, sitter handoffs, sick days/medications they recorded for others, ICS
@@ -130,7 +152,8 @@ One transaction, after the rules are checked again inside it under a per-househo
 
 Inside the transaction, their calendar connections are read (the encrypted grants are kept in memory) and each
 one's links, imported events and row are deleted. After commit, each grant is revoked at the provider (best effort,
-see "Partial failure") and the photo files are removed from disk.
+see "Partial failure") and the private sent-message attachment files queued for this erasure are removed.
+Household Upload photos remain under the retention exception above.
 
 ### Whole household deletion (`deleteHousehold`)
 
@@ -281,3 +304,39 @@ the `Activity` deletion rules above and are also pruned 90 days after they were 
   wait, then fail cleanly once the household is deleted, and no account is orphaned; `deleteHousehold` waits on the
   same lock; a real deletion racing a join always ends consistent.
 - `e2e/account-deletion.spec.ts` also covers a teen deleting their own account from their Settings.
+
+## Personal import provenance
+
+Permanent account deletion removes import mappings for personal Chore,
+ChoreAssignment, HabitLog, EarnedBadge, RewardRedemption and WishlistItem rows
+that are deleted with the account. Cleanup matches the exact household, target
+model and target record ID, never a bare ID shared across tables. Historical
+personal targets participate in sorted household-lock discovery even when the
+account has no current household. A new scope after locking refuses the whole
+transaction; each delete predicate is bounded to 200 pairs. Shared imported
+Habit/Reward/BadgeDefinition records, their mappings and import jobs retain their
+existing household retention/handover policy. Normal import replay behavior is
+unchanged; this does not automatically reimport or recreate anything. Current and
+former-member source cases are authored; runtime acceptance is deferred.
+
+## Additive profile-link and AI accounting metadata
+
+Whole-household deletion explicitly clears `HouseholdProfileLinkChallenge`,
+`AiUsageRequest` and `AiUsagePolicy` before profiles/accounts. Each fixed SQL
+cleanup probes table presence and binds the already-authorized household ID;
+missing additive tables during rollback are skipped, while probe/delete failures
+abort the surrounding transaction. This works without newer Prisma delegates.
+Shared-device credentials still go first. Canonical FK cascades remain backstops.
+
+Permanent single-account erasure retains content-free household AI accounting,
+with `AiUsageRequest.user_id` anonymized by its reviewed `SET NULL` FK. A profile
+link challenge is a credential proof: issuer/claimant/profile erasure removes it
+by cascade; it is never exported as a token or used to reconstruct erased people.
+Responsibility consent metadata cascades when its subject/decision actor is erased;
+it never transfers an accepted decision to a replacement person. Canonical target
+history follows its existing separate erasure rules. Exact FK classifications are
+in `member-relation-inventory.json` and `member-subject-inventory.json`.
+
+Unit evidence covers fixed scoped statements, missing-table compatibility, error
+propagation and two-household deletion/export. Real PostgreSQL FK/rollback and
+migration acceptance remain separate required checks; no live account was changed.

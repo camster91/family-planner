@@ -14,12 +14,12 @@ import { ArrowLeft, BookOpen } from "lucide-react";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/Skeleton";
-import {
-  RecipeDetail,
-  type RecipeDetailData,
-} from "@/components/meals/RecipeDetail";
+import { type RecipeDetailData } from "@/components/meals/RecipeDetail";
+import { RecipeCookingView } from "@/components/meals/RecipeCookingView";
 import { AddToGroceriesButton } from "@/components/meals/AddToGroceriesButton";
 import { RecipeDetailEdit } from "@/components/meals/RecipeDetailEdit";
+import { useTranslation } from "@/i18n";
+import { RecipeCuration } from "@/components/meals/RecipeCuration";
 
 type Load =
   | { state: "loading" }
@@ -36,9 +36,21 @@ export default function RecipePage() {
 }
 
 function RecipePageInner() {
+  const { locale } = useTranslation();
+  const es = locale === "es";
   const params = useParams<{ id: string }>();
   const id = params?.id;
   const [role, setRole] = React.useState<string | null>(null);
+  const [groceryPending, setGroceryPending] = React.useState(false);
+  const groceryPendingRef = React.useRef(false);
+  const groceryOwnership = React.useCallback((pending: boolean) => {
+    groceryPendingRef.current = pending;
+    setGroceryPending(pending);
+  }, []);
+  const guardGrocery = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (groceryPendingRef.current) event.preventDefault();
+  };
+
   React.useEffect(() => {
     let active = true;
     fetch("/api/auth/me")
@@ -145,30 +157,77 @@ function RecipePageInner() {
       )}
 
       {load.state === "ready" && (
-        <RecipeDetail
+        <RecipeCookingView
+          key={load.recipe.id}
           recipe={load.recipe}
-          actions={
+          disabled={groceryPending}
+          actions={(servings) => (
             <div className="flex flex-wrap gap-2">
-              <RecipeDetailEdit
-                key={load.recipe.id}
-                recipe={load.recipe}
-                role={role}
-                onSaved={(recipe) => {
-                  if (
-                    currentId.current === id &&
-                    recipe.id === id &&
-                    generation.current === readyGeneration
-                  ) {
-                    generation.current++;
-                    setLoad({ state: "ready", recipe });
-                  }
-                }}
-              />
+              {(role === "parent" || role === "teen") && (
+                <>
+                  <Link
+                    href={`/dashboard/inventory?cookRecipe=${encodeURIComponent(load.recipe.id)}${servings ? `&portions=${servings}` : ""}`}
+                    onClick={guardGrocery}
+                    aria-disabled={groceryPending}
+                    className="btn-tinted min-h-[44px]"
+                  >
+                    {es ? "Revisar alimentos usados" : "Review food used"}
+                  </Link>
+                  <Link
+                    href={`/dashboard/meals?recipe=${encodeURIComponent(load.recipe.id)}`}
+                    onClick={guardGrocery}
+                    aria-disabled={groceryPending}
+                    className="btn-filled min-h-[44px]"
+                  >
+                    {es ? "Planificar comida" : "Plan a meal"}
+                  </Link>
+                  <Link
+                    href={`/dashboard/meals?view=bulk&recipe=${encodeURIComponent(load.recipe.id)}`}
+                    onClick={guardGrocery}
+                    aria-disabled={groceryPending}
+                    className="btn-tinted min-h-[44px]"
+                  >
+                    {es ? "Añadir a una preparación" : "Add to prep"}
+                  </Link>
+                </>
+              )}
+              <fieldset
+                disabled={groceryPending}
+                className="min-w-0 flex flex-wrap gap-2"
+              >
+                <RecipeDetailEdit
+                  key={load.recipe.id}
+                  recipe={load.recipe}
+                  role={role}
+                  onSaved={(recipe) => {
+                    if (
+                      currentId.current === id &&
+                      recipe.id === id &&
+                      generation.current === readyGeneration
+                    ) {
+                      generation.current++;
+                      setLoad({ state: "ready", recipe });
+                    }
+                  }}
+                />
+                {(role === "parent" || role === "teen") && (
+                  <RecipeCuration
+                    id={load.recipe.id}
+                    title={load.recipe.title}
+                    favorite={load.recipe.favorite}
+                    onChanged={() => void fetchRecipe()}
+                  />
+                )}
+              </fieldset>
               {load.recipe.ingredients.length > 0 && (
-                <AddToGroceriesButton recipeId={load.recipe.id} />
+                <AddToGroceriesButton
+                  recipeId={load.recipe.id}
+                  servings={servings}
+                  onPendingChange={groceryOwnership}
+                />
               )}
             </div>
-          }
+          )}
         />
       )}
     </div>

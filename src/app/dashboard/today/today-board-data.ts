@@ -1,3 +1,5 @@
+import { readSharedPreparationContext, type SharedPreparationContext } from '@/lib/event-preparation/shared-discovery' 
+import { hiddenRoutineOccurrenceIds, scheduledOnceRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 /**
  * Shared-surface DTO for the Today board (/dashboard/today, #119 / #159).
  *
@@ -38,6 +40,7 @@ import type { BoardWeather } from '@/lib/weather/board-weather'
 import { isRoutineIconKey } from '@/lib/routine-icons'
 import type { BoardDisplay } from '@/lib/ambient'
 import { COMING_UP_DAYS } from '@/lib/board-constants'
+import { loadBoardDinners, BOARD_DINNER_INGREDIENT_MAX, type DinnerRow } from './today-dinners'
 import { isProfileAgeAllowed, profileRoleSchema, type MemberProtocol } from '@/lib/member-subject-contract'
 import { isProfileChoreEnabled, profileChoreActionAvailability, profileChoreProtocolRefusal, readChoreSubject, type ProfileChoreActionAvailability } from '@/lib/chore-profile'
 
@@ -107,6 +110,8 @@ export interface BoardChore {
 }
 
 export interface BoardDinner {
+  /** Another dinner exists for this day; this preview is not the full collection. */
+  hasMoreDinners?: boolean
   id: string
   /** `YYYY-MM-DD` (UTC calendar day of the stored date-only value). */
   day: string
@@ -186,6 +191,8 @@ export interface TodayBoardData {
   members: BoardMember[]
   events: BoardEvent[]
   chores: BoardChore[]
+  /** Online shared-schedule title context only; deliberately omitted by cache schema. */
+  sharedPreparationContext?: SharedPreparationContext
   /** null when meal planning is turned off for the household. */
   dinners: BoardDinner[] | null
   /** null when the role may not open lists (never for the current roles), or for a device when lists are off. */
@@ -222,7 +229,7 @@ export interface TodayBoardData {
 
 type Db = Pick<
   PrismaClient,
-  'user' | 'event' | 'chore' | 'familyMeal' | 'calendarSubscription' | 'listItem' | 'list' | 'inventoryItem' | 'householdMember'
+  '$queryRaw' | 'user' | 'event' | 'chore' | 'familyMeal' | 'calendarSubscription' | 'listItem' | 'list' | 'inventoryItem' | 'householdMember'
 >
 
 interface BuildTodayBoardBase {
@@ -327,19 +334,6 @@ function activeUnlinkedProfile(row: ProfileBoardRow, familyId: string): boolean 
   )
 }
 
-/** A dinner row as read for the board; `ingredients` only when counting what is missing (#122). */
-interface DinnerRow {
-  id: string
-  date: Date
-  recipe_name: string | null
-  cook: { name: string } | null
-  recipe: {
-    title: string
-    prep_time: number | null
-    ingredients?: Array<{ ingredient: { id: string; name: string } }>
-  } | null
-}
-
 /**
  * Missing-ingredient counts per dinner id (#122), each against the
  * inventory on the dinner's own day, with the "What can I cook" rules
@@ -354,11 +348,12 @@ async function missingIngredientCounts(
   from: Date,
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>()
-  const withIngredients = dinners.filter((d) => (d.recipe?.ingredients?.length ?? 0) > 0)
+  const withIngredients = dinners.filter((d) => (d.recipe?.ingredients?.length ?? 0) > 0 && d.recipe!.ingredients!.length <= BOARD_DINNER_INGREDIENT_MAX)
   if (withIngredients.length === 0) return counts
   const { items, truncated } = await loadCookInventory(db, familyId, { from })
   if (truncated) return counts
   for (const d of withIngredients) {
+    if (d.recipe!.ingredients!.some(line => line.ingredient.family_id !== familyId)) continue
     const day = parseDateOnly(toDateOnlyUTC(d.date))
     if (!day) continue
     const missing = countMissingIngredients(d.recipe!.ingredients!, items, day)
@@ -421,8 +416,10 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         })
       : undefined
 
+  const hiddenRoutineIds = await hiddenRoutineOccurrenceIds(db, familyId)
   const choreWhere = {
     family_id: familyId,
+    id: { notIn: hiddenRoutineIds },
     due_date: { gte: windowStart, lt: windowEnd },
     ...(inspectProfileRows
       ? {
@@ -504,43 +501,13 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     }),
     needsProfileCompatibilityProbe
       ? db.chore.findFirst({
-          where: profileCompatibilityProbeWhere(familyId, windowStart, windowEnd),
+          where: { ...profileCompatibilityProbeWhere(familyId, windowStart, windowEnd), id: { notIn: hiddenRoutineIds } },
           select: { id: true },
           orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
         })
       : Promise.resolve(null),
     features.meals
-      ? (db.familyMeal.findMany({
-          where: {
-            family_id: familyId,
-            meal_type: 'dinner',
-            date: { gte: windowStart, lt: windowEnd },
-          },
-          select: {
-            id: true,
-            date: true,
-            recipe_name: true,
-            cook: { select: { name: true } },
-            recipe: {
-              select: {
-                title: true,
-                prep_time: true,
-                // #122: ingredient ids and names only, to count what is
-                // missing; never sent (only the count leaves the server).
-                ...(withMissing
-                  ? {
-                      ingredients: {
-                        select: {
-                          ingredient: { select: { id: true, name: true } },
-                        },
-                      },
-                    }
-                  : {}),
-              },
-            },
-          },
-          orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-        }) as Promise<DinnerRow[]>)
+      ? loadBoardDinners(db, familyId, windowStart, windowEnd, withMissing)
       : Promise.resolve(null),
     includeShopping ? getOpenShoppingItems(db, familyId, 5, ['grocery']) : Promise.resolve(null),
     // "Use soon" (#263): only with the inventory feature on. Anchored one UTC
@@ -641,8 +608,12 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     } | null
   }
   const choreRows = chores as BoardChoreRow[]
+  const scheduledOnceIds = await scheduledOnceRoutineOccurrenceIds(
+    db, familyId,
+    choreRows.filter((row) => row.assigned_to === null && row.assigned_member_id != null).map((row) => row.id),
+  )
   const hasProfileRows =
-    Boolean(profileCompatibilityProbe) || choreRows.some((chore) => readChoreSubject(chore, familyId)?.kind === 'profile')
+    Boolean(profileCompatibilityProbe) || choreRows.some((chore) => chore.assigneeMember?.archived_at === null && readChoreSubject(chore, familyId)?.kind === 'profile')
   const boardChores: BoardChore[] = choreRows.flatMap((chore): BoardChore[] => {
     const base = {
       id: chore.id,
@@ -674,7 +645,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
     const subject = readChoreSubject(chore, familyId)
     const profile = subject?.kind === 'profile' ? profileById.get(subject.memberId) : undefined
     if (!profile) return []
-    const actionAvailability = profileChoreActionAvailability(chore)
+    const actionAvailability = profileChoreActionAvailability(chore, scheduledOnceIds.has(chore.id) ? "scheduled-once" : "legacy")
     return [
       {
         ...base,
@@ -688,6 +659,16 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
       },
     ]
   })
+
+  // Use only the exact already-resolved account/profile tasks. No parent map,
+  // plan IDs/tokens, private details or profile-as-actor inference crosses here.
+  const sharedPreparationContext = protocolError || (hasProfileRows && memberProtocol === 1)
+    ? {}
+    : await readSharedPreparationContext(db, {
+        familyId,
+        memberProtocol,
+        visibleChoreIds: boardChores.map((chore) => chore.id),
+      })
 
   return {
     generatedAt: now.toISOString(),
@@ -713,10 +694,12 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
       }
     }),
     chores: boardChores,
+    ...(Object.keys(sharedPreparationContext).length ? { sharedPreparationContext } : {}),
     dinners: dinners
       ? dinners.map((d) => ({
           id: d.id,
           day: toDateOnlyUTC(d.date),
+          hasMoreDinners: d.hasMoreDinners,
           recipeName: d.recipe_name?.trim() || null,
           cookName: d.cook?.name ?? null,
           recipeTitle: d.recipe?.title?.trim() || null,

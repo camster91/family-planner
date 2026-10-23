@@ -17,6 +17,7 @@ import { downloadMyData } from "@/lib/data-export-client";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
 import { clearRewardCreateIntents } from "@/lib/reward-create-intent-store";
+import { QUEUE_RETIREMENT_HEADER } from "@/lib/queue-owner-contract";
 import {
   ACCOUNT_DELETE_PHRASE,
   confirmationMatches,
@@ -193,6 +194,26 @@ export default function DeleteAccountDialog({
       // grocery/event bodies before the redirect or host callback runs.
       clearCaptureRecoveryStorage(undefined);
       clearRewardCreateIntents();
+      try {
+        const { clearAllPersonQueues, retireErasedAccountQueues } =
+          await import("@/lib/offline-queue-browser");
+        const receipt = res.ok
+          ? res.headers.get(QUEUE_RETIREMENT_HEADER)
+          : null;
+        // Local cleanup is bounded; the server-confirmed erased ID cannot
+        // match a replacement account even if storage finishes much later.
+        await Promise.race([
+          Promise.allSettled([
+            clearAllPersonQueues(),
+            ...(receipt
+              ? [retireErasedAccountQueues(JSON.parse(receipt))]
+              : []),
+          ]),
+          new Promise<void>((resolve) => window.setTimeout(resolve, 1000)),
+        ]);
+      } catch {
+        /* Unconfirmed local cleanup never authorizes replay. */
+      }
       onDeleted(mode);
       return;
     }

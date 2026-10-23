@@ -85,8 +85,20 @@ describe('bounded request body', () => {
     expect(new Uint8Array(await file.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
   })
 
-  it('passes through test fakes that have no body stream', async () => {
+  it('accepts JSON-only requests exactly at the encoded byte bound', async () => {
     const fake = { headers: new Headers(), body: null, json: async () => ({ ok: true }) }
-    await expect(readBoundedJson(fake as never, 10)).resolves.toEqual({ ok: true })
+    await expect(readBoundedJson(fake as never, 11)).resolves.toEqual({ ok: true })
+    await expect(readBoundedJson(fake as never, 10)).rejects.toBeInstanceOf(RequestBodyTooLargeError)
   })
+})
+
+it('bounds text-only legacy request decoders and retains their JSON compatibility', async () => {
+  const request = { headers: new Headers(), body: null, text: async () => '{"value":"é"}' } as unknown as Request
+  await expect(readBoundedJson(request, 32)).resolves.toEqual({ value: 'é' })
+  await expect(readBoundedJson(request, 8)).rejects.toBeInstanceOf(RequestBodyTooLargeError)
+})
+it('post-bounds JSON-only bridges when no body stream is available', async () => {
+  const request = { headers: new Headers(), body: null, json: async () => ({ value: 'é'.repeat(16) }) } as unknown as Request
+  await expect(readBoundedJson(request, 64)).resolves.toEqual({ value: 'é'.repeat(16) })
+  await expect(readBoundedJson(request, 16)).rejects.toBeInstanceOf(RequestBodyTooLargeError)
 })

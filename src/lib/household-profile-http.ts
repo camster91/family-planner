@@ -16,6 +16,7 @@ import {
   profileRoleSchema,
 } from "@/lib/member-subject-contract";
 import { prisma } from "@/lib/prisma";
+import { isProfileAccountLinkEnabled } from "@/lib/profile-account-link-gate";
 import {
   isProfileChoreEnabled,
   isProfileChoreRecurrenceSupported,
@@ -359,6 +360,7 @@ export async function listProfiles(
       {
         profiles: dtos,
         profileChoreSupported,
+        ...(isProfileAccountLinkEnabled() ? { profileAccountLinkSupported: true } : {}),
         ...(isProfileChoreRecurrenceSupported()
           ? { profileChoreRecurrenceSupported: true }
           : {}),

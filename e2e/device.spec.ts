@@ -298,7 +298,10 @@ async function pairViaApi(
 
 async function setPinViaSettings(parent: Page, pin: string) {
   await parent.goto("/dashboard/settings");
+  // Tablet management is in the parent-only Family tab of compact Settings.
+  await parent.getByRole("button", { name: "Family", exact: true }).click();
   const row = parent.getByTestId("tablet-pin");
+  await expect(row).toBeVisible();
   await row.getByRole("button", { name: /Set PIN|Change PIN/ }).click();
   const dialog = parent.getByTestId("pin-dialog");
   await dialog.getByLabel("New 6-digit PIN").fill(pin);
@@ -696,13 +699,29 @@ test.describe("Shared tablet", () => {
         .getByRole("button", { name: "Add item", exact: true })
         .click();
       await expect(dialog).not.toBeVisible();
-      await expect(tablet.getByTestId("queued-grocery-add")).toContainText(
-        "That list is no longer available or has changed.",
-      );
       await expect(tablet).toHaveURL(/\/device\/today$/);
       await expect(tablet.getByTestId("queued-grocery-add")).toContainText(
+        "Waiting grocery add",
+      );
+      // The deleted target is intentionally not disclosed on the shared
+      // tablet. Review is the only place where the saved operation can be
+      // checked, so the original item must not be rendered here.
+      await expect(tablet.getByTestId("queued-grocery-add")).toContainText(
+        "This saved add's list cannot be confirmed here. Use Review saved changes to check it.",
+      );
+      await expect(tablet.getByTestId("queued-grocery-add")).not.toContainText(
         "Item after deletion",
       );
+      // The target was deleted before submission, so the canonical server
+      // outcome is that no item was resurrected. Keep the shared-device copy
+      // privacy-preserving instead of asserting a transient queue message.
+      await withDb(async (db) => {
+        const result = await db.query(
+          'SELECT COUNT(*)::int AS count FROM "ListItem" WHERE list_id = $1',
+          [listId],
+        );
+        expect(result.rows[0].count).toBe(0);
+      });
       await tablet.getByTestId("queued-grocery-add").scrollIntoViewIfNeeded();
       await axeScan(tablet, testInfo, "device conflicted grocery add");
       await tablet.screenshot({
@@ -1128,6 +1147,9 @@ test.describe("Shared tablet", () => {
       // O-37: a teen opens their own Settings, which has no tablet entries.
       await teen.page.goto("/dashboard/settings");
       await expect(teen.page).toHaveURL(/\/dashboard\/settings$/);
+      await teen.page
+        .getByRole("button", { name: "Privacy & data", exact: true })
+        .click();
       await expect(
         teen.page.getByRole("heading", { name: "Privacy & data" }),
       ).toBeVisible();

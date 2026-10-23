@@ -1,60 +1,5 @@
 [
   {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Allowance",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Cancel",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Cancelled",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Mark paid",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "No allowance yet",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "No reason",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Nothing yet. When a parent adds allowance for you, it shows up here.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Paid",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Pending",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Recently paid",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/allowance/page.tsx",
-    "text": "Track weekly allowance and money owed between members. Kids can see what they have coming.",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/budget/page.tsx",
     "text": "Join or create a family to start tracking your budget.",
     "count": 1
@@ -65,218 +10,18 @@
     "count": 1
   },
   {
+    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
+    "text": "YYYY-MM-DD",
+    "count": 2
+  },
+  {
     "file": "src/app/dashboard/emergency/page.tsx",
     "text": "@media print { @page { margin: 0.5in; size: letter; } body * { visibility: hidden; } .print-card, .print-card * { visibility: visible; } .print-card { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }",
     "count": 1
   },
   {
     "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "\u00b7 expires",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
     "text": "alex@example.com",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Child",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Copied",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Copy",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Copy code",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Email",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "For another phone in the room. This code does not choose a role \u2014 they join as a child or teen.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Get a new code",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Get a new family code",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Get a new family code?",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "In person instead",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Invite",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Keep the current code",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Loading\u2026",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Making a new code\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "No code",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Parent",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Pending",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Revoke invite for",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Role",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Send invite",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Sending\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Shared the code with the wrong person, or posted it somewhere? Get a new one. The old code stops working right away. People who already joined stay \u2014 remove them on the Family page.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "Teen",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "The current code stops working right away. Anyone you still want to join will need the new code.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/invite/page.tsx",
-    "text": "They get a one-time link. You choose whether they join as a parent, teen, or child.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Create Family",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Danger Zone",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Delete account or household",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Delete\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Family Name",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Join Family",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Loading\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "No Family Found",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Permanently delete your account. The only parent can delete the whole household.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Save Changes",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Saving\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "Settings",
-    "count": 3
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "The Smith Family",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/family/settings/page.tsx",
-    "text": "You don&apos;t belong to a family yet.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": ". It opens the handoff without signing in.",
     "count": 1
   },
   {
@@ -297,11 +42,6 @@
   {
     "file": "src/app/dashboard/handoff/page.tsx",
     "text": "Any other notes for the sitter...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Copy link",
     "count": 1
   },
   {
@@ -337,321 +77,6 @@
   {
     "file": "src/app/dashboard/handoff/page.tsx",
     "text": "e.g. Thermostat, TV codes, alarm code...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Keep current link",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Make a new link",
-    "count": 3
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Make a new link to share.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Make new link",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Making\u2026",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Send this link to",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Share with sitter",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Share\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Sitter link",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "The link you already sent will stop working. Make a new one?",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "There is no link yet.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "This link has expired.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Works until",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": ". Each one costs some points. Kids save up their points and claim them.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": ". Everyone can add and tick items.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": ". Everyone in the household sees what is coming up.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": ". Type their email and pick a role: child, teen or parent. They get an email with a link to join.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": ". You become its parent.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "\u2192 Privacy &amp; data \u2192 Data Export. Each family member downloads their own copy.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Add a chore on",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Add family events on the",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Add rewards on",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "After you sign up and confirm your email, create your household on",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "and choose who does it. When it is ticked off, it waits for a parent to check. Verify gives the points. Reject sends it back with a short reason, so they can try again.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "and types the code. A code always joins them as a child or teen.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Calendar",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Calendar, meals and lists",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Check your spam or junk folder. On the sign-in page you can ask for a new one. The newest link is the one that works. Still nothing after a few minutes? Contact us below.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Chores",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Chores and rewards",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Contact support",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Create a household",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Create your household",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Delete your account or household",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Download your data",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Email us and we will reply within one working day.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Family \u2192 Invite",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Forgot password",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Forgot your password",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Getting started",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Go to",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Help",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "If you ever see another family\u2019s information, stop and tell us straight away. Please do not share screenshots of it.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "In Settings \u2192 Privacy &amp; data, choose Delete Account. If you are the only parent, you can delete the whole household. With two parents, each parent deletes their own account first, and the last one can then delete the household. Deleted data stays in our backups for up to about five weeks, then it is gone.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Invite your family",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Join a family",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Join with a family code",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Keep shared lists, like groceries, on",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Lists",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Meals",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "On the Invite page, open \u201cIn person instead\u201d to see your family code. The other person signs in with their own account, opens",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Plan the week\u2019s dinners on",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Privacy",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Privacy Policy",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Read how we handle your family\u2019s information in our",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Rewards",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Settings",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "The confirmation email did not arrive",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "to get a reset link by email. The link works for one hour. If you know your password and want a new one, use Settings \u2192 Your account \u2192 Change Password.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Trouble signing in",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Until then, contact the person who invited you to the beta.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Use",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/HelpContent.tsx",
-    "text": "Your data",
     "count": 1
   },
   {
@@ -710,6 +135,11 @@
     "count": 1
   },
   {
+    "file": "src/app/dashboard/inventory/InventoryClient.tsx",
+    "text": "Open Food Facts · ODbL ↗",
+    "count": 1
+  },
+  {
     "file": "src/app/dashboard/layout.tsx",
     "text": "dashboard",
     "count": 1
@@ -730,98 +160,8 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Add",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Add an item",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Add an item\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Add items using the field below.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Couldn\u2019t save changes on this device. Keep this page open until they sync, or they will be lost.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Discard",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Discard change to",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Dismiss",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "done",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Edit",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "entries",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "List access changed. Refresh or sign in again to continue.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "No items yet",
-    "count": 2
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "of",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Retry",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Retry syncing",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/ListDetailClient.tsx",
-    "text": "Sync options for",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/lists/[listId]/page.tsx",
     "text": "list image",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/lists/[listId]/page.tsx",
-    "text": "List not found",
     "count": 1
   },
   {
@@ -836,12 +176,32 @@
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
+    "text": "Check the same save",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/page.tsx",
     "text": "Check your connection and try again.",
     "count": 1
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
+    "text": "Checking household…",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/page.tsx",
     "text": "Choose a supported seven-day week, or return to the current week.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/page.tsx",
+    "text": "Comprobando hogar…",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/page.tsx",
+    "text": "Comprobar el mismo guardado",
     "count": 1
   },
   {
@@ -866,12 +226,12 @@
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Leave blank if not set. Otherwise, enter 1\u2013100.",
+    "text": "Leave blank if not set. Otherwise, enter 1–100.",
     "count": 1
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Loading household cooks\u2026",
+    "text": "Loading household cooks…",
     "count": 1
   },
   {
@@ -891,17 +251,27 @@
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Nothing planned",
+    "text": "No pudimos comprobar tu hogar. El borrador se conserva.",
     "count": 1
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Other meals",
-    "count": 2
+    "text": "Previous week",
+    "count": 1
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
-    "text": "Previous week",
+    "text": "Reintentar",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/page.tsx",
+    "text": "Review meals in another tab",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/page.tsx",
+    "text": "Revisar comidas en otra pestaña",
     "count": 1
   },
   {
@@ -922,7 +292,7 @@
   {
     "file": "src/app/dashboard/meals/page.tsx",
     "text": "Try again",
-    "count": 1
+    "count": 2
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
@@ -941,7 +311,22 @@
   },
   {
     "file": "src/app/dashboard/meals/page.tsx",
+    "text": "We could not check your household. The draft is kept.",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/page.tsx",
     "text": "What&apos;s in the fridge",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
+    "text": "Add to prep",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
+    "text": "Añadir a una preparación",
     "count": 1
   },
   {
@@ -956,7 +341,7 @@
   },
   {
     "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Couldn\u2019t load this recipe",
+    "text": "Couldn’t load this recipe",
     "count": 1
   },
   {
@@ -976,7 +361,27 @@
   },
   {
     "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
+    "text": "Plan a meal",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
+    "text": "Planificar comida",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
     "text": "Recipe not found",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
+    "text": "Review food used",
+    "count": 1
+  },
+  {
+    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
+    "text": "Revisar alimentos usados",
     "count": 1
   },
   {
@@ -985,233 +390,8 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "\" as read",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "\" now",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "1 hour",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "15 minutes",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "24 hours",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "3 hours",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "All (",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "All caught up",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Couldn&apos;t load notifications",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Delete \"",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Loading\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Mark \"",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Mark read",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "No notifications yet",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "No snoozed notifications",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "No unread notifications",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Notifications",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Returns",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Saving\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Show \"",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Show now",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Snooze",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Snooze \"",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Snoozed (",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Snoozed notifications return here when their delay ends. No extra email or push is sent.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Try again",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "unread",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Unread (",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "Unread:",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "You'll see notifications here when things happen in your family.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/notifications/page.tsx",
-    "text": "You're all caught up!",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "&rdquo;.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "Clear search",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "Find people, events, chores, lists, recipes, notes and food at home.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "Keep typing. Search starts at",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "letters.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "Nothing matches &ldquo;",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "Search",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "Search everything at home",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "Search your household",
-    "count": 3
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "Searching\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "Try a shorter word or check the spelling.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "Try again",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "Type a name, a chore, a list item or a recipe. Only your household is searched.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/search/SearchClient.tsx",
-    "text": "You&apos;re offline. Search needs a connection.",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "Loading\u2026",
+    "text": "Loading…",
     "count": 1
   },
   {
@@ -1272,16 +452,6 @@
   {
     "file": "src/app/dashboard/settings/activity/page.tsx",
     "text": "Recent changes",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/devices/page.tsx",
-    "text": "Devices",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/devices/page.tsx",
-    "text": "Join or create a household to pair a family tablet.",
     "count": 1
   },
   {
@@ -1366,12 +536,12 @@
   },
   {
     "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "\u00b0C",
+    "text": "°C",
     "count": 1
   },
   {
     "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "\u00b0F",
+    "text": "°F",
     "count": 1
   },
   {
@@ -1382,21 +552,6 @@
   {
     "file": "src/app/dashboard/sick-days/page.tsx",
     "text": "98.6",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "Couldn&apos;t load sick days. Check your connection and try again.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "Try again",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/sick-days/page.tsx",
-    "text": "Twice daily",
     "count": 1
   },
   {
@@ -1426,7 +581,7 @@
   },
   {
     "file": "src/app/join/page.tsx",
-    "text": "Capitals, spaces and dashes don\u2019t matter.",
+    "text": "Capitals, spaces and dashes don’t matter.",
     "count": 1
   },
   {
@@ -1521,12 +676,12 @@
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": ": Settings \u2192 Data Export (GET",
+    "text": ": Settings → Data Export (GET",
     "count": 1
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": ": Settings \u2192 Delete Account. You confirm with your password. Your account, sign-ins, messages, notifications and your own chores are deleted; things you added for the household (events, lists, meals, notes, photos you uploaded) stay with the household under another parent.",
+    "text": ": Settings → Delete Account. You confirm with your password. Your account, sign-ins, messages, notifications and your own chores are deleted; things you added for the household (events, lists, meals, notes, photos you uploaded) stay with the household under another parent.",
     "count": 1
   },
   {
@@ -1551,7 +706,7 @@
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": "\u2190 Back to home",
+    "text": "← Back to home",
     "count": 1
   },
   {
@@ -1666,7 +821,7 @@
   },
   {
     "file": "src/app/privacy/page.tsx",
-    "text": "If you turn on the optional morning summary (Settings \u2192 Notifications; it is off unless you turn it on), we also send you one short email a day, to a verified address only, with your own chores for the day, today&apos;s family events and tonight&apos;s dinner. Every summary email tells you how to turn it off.",
+    "text": "If you turn on the optional morning summary (Settings → Notifications; it is off unless you turn it on), we also send you one short email a day, to a verified address only, with your own chores for the day, today&apos;s family events and tonight&apos;s dinner. Every summary email tells you how to turn it off.",
     "count": 1
   },
   {
@@ -1771,7 +926,7 @@
   },
   {
     "file": "src/app/terms/page.tsx",
-    "text": "\u2190 Back to home",
+    "text": "← Back to home",
     "count": 1
   },
   {
@@ -1885,13 +1040,123 @@
     "count": 1
   },
   {
+    "file": "src/components/account/DisplayPreferencesStatus.tsx",
+    "text": "Actualizar preferencias",
+    "count": 1
+  },
+  {
+    "file": "src/components/account/DisplayPreferencesStatus.tsx",
+    "text": "Refresh preferences",
+    "count": 1
+  },
+  {
+    "file": "src/components/account/QuietDisplayControl.tsx",
+    "text": "Hide points, streaks and celebrations on Home and Chores. Chores and rewards still work. Saved to your account across devices.",
+    "count": 1
+  },
+  {
+    "file": "src/components/account/QuietDisplayControl.tsx",
+    "text": "Oculta puntos, rachas y celebraciones en Inicio y Tareas. Las tareas y recompensas siguen funcionando. Se guarda en tu cuenta para todos tus dispositivos.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AiUsagePanel.tsx",
+    "text": "ms",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AppGuide.tsx",
+    "text": "Answers from herewoven Help. Works without an AI provider and does not read household records.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AppGuide.tsx",
+    "text": "App guide · no AI needed",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AppGuide.tsx",
+    "text": "Calendarios, recetas, listas…",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AppGuide.tsx",
+    "text": "Calendars, recipes, lists…",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AppGuide.tsx",
+    "text": "Guía de la app · sin IA",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AppGuide.tsx",
+    "text": "No hay temas coincidentes disponibles para tu cuenta. Prueba una palabra más corta.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AppGuide.tsx",
+    "text": "No matching topics are available for your account. Try a shorter word.",
+    "count": 1
+  },
+  {
+    "file": "src/components/assistant/AppGuide.tsx",
+    "text": "Respuestas de la ayuda de herewoven. Funciona sin proveedor de IA y no lee datos de tu hogar.",
+    "count": 1
+  },
+  {
     "file": "src/components/budget/TransactionForm.tsx",
     "text": "0.00",
     "count": 1
   },
   {
+    "file": "src/components/capture/CaptureDraftFields.tsx",
+    "text": "YYYY-MM-DDThh:mm",
+    "count": 2
+  },
+  {
     "file": "src/components/chores/RoutineIconPicker.tsx",
     "text": "1",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineOriginEntry.tsx",
+    "text": "Copiada:",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineOriginEntry.tsx",
+    "text": "Copied:",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineOriginEntry.tsx",
+    "text": "Esta es una tarea independiente. Cambiarla no modifica la rutina ni su historial.",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineOriginEntry.tsx",
+    "text": "No se pudo verificar la rutina de origen.",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineOriginEntry.tsx",
+    "text": "The source routine could not be verified.",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineOriginEntry.tsx",
+    "text": "This is a separate task. Editing it does not change the source routine or its history.",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineOriginEntry.tsx",
+    "text": "Ver rutina de origen",
+    "count": 1
+  },
+  {
+    "file": "src/components/chores/RoutineOriginEntry.tsx",
+    "text": "View source routine",
     "count": 1
   },
   {
@@ -1927,171 +1192,6 @@
   {
     "file": "src/components/dashboard/GetStarted.tsx",
     "text": "To do:",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "\u00b7 Paired",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "\u00b7 Version",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Active",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Android app",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Cancel",
-    "count": 2
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Could not load recent activity.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Could not load your tablets.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Devices",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Expired",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "It has not connected for 30 days. Remove it and pair it again to use it.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "It stops showing your family's information the next time it connects. To use it again, pair it again.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Loading activity",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Loading tablets",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "No activity yet.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "No tablets yet.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Pair a tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Pair a tablet to show today&apos;s plan on the fridge.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Reason (optional)",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Recent activity",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Remove",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Remove tablet",
-    "count": 2
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Remove tablet?",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Removed",
-    "count": 2
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Rename",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Rename tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Replace",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Save name",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Settings",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Shared tablets show your family&apos;s Today board. They never hold anyone&apos;s account, and a parent unlocks parent mode on them with a tablet PIN.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Tablet name",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Tablets",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Try again",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/DevicesManager.tsx",
-    "text": "Web browser",
     "count": 1
   },
   {
@@ -2360,121 +1460,6 @@
     "count": 1
   },
   {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "/device/pair",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "A tablet entered your code. It now shows a 4-digit number. Type it here to connect it. If you can&apos;t see that tablet, it isn&apos;t yours.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "and type this code.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Cancel",
-    "count": 2
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Close",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Confirmed. Waiting for the tablet to finish connecting.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Connect tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Done",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Expires in",
-    "count": 2
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Get a code",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Get a new code",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "is connected and showing today&apos;s board.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Number on the tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "On the tablet, open",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Remove",
-    "count": 2
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "still could not be removed. Try again, or remove it from the list.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Tablet name",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "The tablet shows your family&apos;s Today board. It never holds anyone&apos;s account.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "This isn&apos;t my tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "Waiting for the tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "was not removed. Remove it now so it stops showing your family's information.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "was removed.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/PairTabletDialog.tsx",
-    "text": "when the new one is connected",
-    "count": 1
-  },
-  {
     "file": "src/components/device/StatusScreens.tsx",
     "text": "Pair this tablet",
     "count": 1
@@ -2526,7 +1511,7 @@
   },
   {
     "file": "src/components/fridge/ambient-cover.tsx",
-    "text": "Next \u00b7",
+    "text": "Next ·",
     "count": 1
   },
   {
@@ -2561,7 +1546,7 @@
   },
   {
     "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "Celsius (\u00b0C)",
+    "text": "Celsius (°C)",
     "count": 1
   },
   {
@@ -2591,7 +1576,7 @@
   },
   {
     "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "Fahrenheit (\u00b0F)",
+    "text": "Fahrenheit (°F)",
     "count": 1
   },
   {
@@ -2631,7 +1616,7 @@
   },
   {
     "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "Loading board settings\u2026",
+    "text": "Loading board settings…",
     "count": 1
   },
   {
@@ -2741,7 +1726,7 @@
   },
   {
     "file": "src/components/fridge/BoardSettings.tsx",
-    "text": "Uploading\u2026",
+    "text": "Uploading…",
     "count": 1
   },
   {
@@ -2756,12 +1741,42 @@
   },
   {
     "file": "src/components/fridge/weather-tile.tsx",
-    "text": "\u00b7 L",
+    "text": "· L",
     "count": 1
   },
   {
     "file": "src/components/fridge/weather-tile.tsx",
     "text": "H",
+    "count": 1
+  },
+  {
+    "file": "src/components/inventory/BarcodeFoodDialog.tsx",
+    "text": "+1",
+    "count": 1
+  },
+  {
+    "file": "src/components/inventory/BarcodeFoodDialog.tsx",
+    "text": "500 g / 6 × 200 ml",
+    "count": 1
+  },
+  {
+    "file": "src/components/inventory/BarcodeFoodDialog.tsx",
+    "text": "EAN-8",
+    "count": 1
+  },
+  {
+    "file": "src/components/inventory/BarcodeFoodDialog.tsx",
+    "text": "Open Food Facts · CC BY-SA",
+    "count": 1
+  },
+  {
+    "file": "src/components/inventory/BarcodeFoodDialog.tsx",
+    "text": "Open Food Facts · ODbL ↗",
+    "count": 2
+  },
+  {
+    "file": "src/components/inventory/BarcodeFoodDialog.tsx",
+    "text": "UPC-E ·",
     "count": 1
   },
   {
@@ -2771,7 +1786,7 @@
   },
   {
     "file": "src/components/layout/CommandPalette.tsx",
-    "text": "\u2318K",
+    "text": "⌘K",
     "count": 1
   },
   {
@@ -2816,7 +1831,7 @@
   },
   {
     "file": "src/components/layout/CommandPalette.tsx",
-    "text": "Search or type a command\u2026",
+    "text": "Search or type a command…",
     "count": 1
   },
   {
@@ -2837,16 +1852,6 @@
   {
     "file": "src/components/layout/DashboardFormSheets.tsx",
     "text": "Close to return. Unsaved changes will be cleared.",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardFormSheets.tsx",
-    "text": "Edit Chore",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardFormSheets.tsx",
-    "text": "New Chore",
     "count": 1
   },
   {
@@ -2881,37 +1886,7 @@
   },
   {
     "file": "src/components/meals/AddToGroceriesButton.tsx",
-    "text": "Inventory comparison unavailable. Choose what you need.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/AddToGroceriesButton.tsx",
-    "text": "Inventory scan is incomplete.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/AddToGroceriesButton.tsx",
-    "text": "Loading ingredients\u2026",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/AddToGroceriesButton.tsx",
-    "text": "No inventory match",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/AddToGroceriesButton.tsx",
-    "text": "No match in scanned inventory",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/AddToGroceriesButton.tsx",
-    "text": "Presence only, not enough-for-recipe amounts.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/AddToGroceriesButton.tsx",
-    "text": "Present in inventory",
+    "text": "Loading ingredients…",
     "count": 1
   },
   {
@@ -2950,6 +1925,1091 @@
     "count": 1
   },
   {
+    "file": "src/components/meals/BulkCookingPanel.tsx",
+    "text": "Clear reuse request",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/BulkCookingPanel.tsx",
+    "text": "El enlace de porciones no es válido. No se ha elegido otro plato.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/BulkCookingPanel.tsx",
+    "text": "El plato ya no figura como preparado. Revisa la sesión antes de reutilizar porciones.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/BulkCookingPanel.tsx",
+    "text": "Este plato no tiene porciones sin planificar. No se cambió ninguna comida.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/BulkCookingPanel.tsx",
+    "text": "No se pudo comprobar el plato solicitado. No se abrió otro plato.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/BulkCookingPanel.tsx",
+    "text": "Quitar solicitud de reutilización",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/BulkCookingPanel.tsx",
+    "text": "Review food used",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/BulkCookingPanel.tsx",
+    "text": "Revisar alimentos usados",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/BulkCookingPanel.tsx",
+    "text": "The requested dish could not be checked. No other dish was opened.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/BulkCookingPanel.tsx",
+    "text": "This dish has no unplanned portions. No meals were changed.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/BulkCookingPanel.tsx",
+    "text": "This dish is not currently recorded as prepared. Review the session before reusing portions.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/BulkCookingPanel.tsx",
+    "text": "This portions link is invalid. No other dish was selected for reuse.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Add planned meal",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Allocations exceed the whole dish. Adjust portions before saving.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Almuerzo",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Añadir comida planificada",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Anterior",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Breakfast",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Cena",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Cocinero de esta comida",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Comida",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Cook for this meal",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Desayuno",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Día de la comida",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Dinner",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Las comidas superan las porciones totales. Ajusta el reparto antes de guardar.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Lunch",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Meal",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Meal day",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Meal notes (optional)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "needs checking",
+    "count": 2
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Next meal",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Notas de esta comida (opcionales)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Plan meals from this dish",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Planificar comidas con este plato",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Planificar porciones no las marca como preparadas ni consumidas. Los ingredientes de todo el plato se cuentan una sola vez.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Planned portions",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Planning portions does not mark them prepared or eaten. Ingredients are counted once for the whole dish.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "por revisar",
+    "count": 2
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Porciones",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Porciones planificadas",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Portions",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Previous meal",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Quitar esta comida",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Remove this meal allocation",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Siguiente",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Snack",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Tentempié",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Usar el cocinero del plato",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodAllocationEditor.tsx",
+    "text": "Use this dish’s cook",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "Add ingredients to groceries (optional)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "amount to review",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "Añadir ingredientes a la compra (opcional)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "Anteriores",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "cantidad por revisar",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "Choose a list before reviewing the save.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "Elige una lista antes de revisar el guardado.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "Lista de destino",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "Next ingredients",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "No se añade nada por defecto. Selecciona ingredientes y una lista. Se usan cantidades completas de receta, no déficits estimados; revisa las cantidades exactas antes de guardar.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "Nothing is added by default. Select ingredients and a list. Adds use full recipe quantities, not estimated shortfalls; review exact amounts before saving.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "Previous ingredients",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "Siguientes",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
+    "text": "Target list",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Abrir lista",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Add details unavailable; this does not mean the add failed.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Added",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Already open on list",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Añadidos",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Anterior",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Comprobar resultados de la compra",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Deshacer este añadido",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Deshacer hasta",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Details could not be checked. The meal save is still confirmed.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Detalles del añadido no disponibles; no significa que fallara.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "El plazo terminó. Revisa la lista por si un intento anterior hizo cambios.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Grocery results",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Next add",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "No items were merged. Review the list.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "No se combinaron artículos. Revisa la lista.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "No se pudieron comprobar los detalles. El guardado de las comidas sigue confirmado.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "No se pudo deshacer ahora. Los cambios de intentos anteriores siguen sin comprobar.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Open list",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Original add receipt, not the list’s current contents. Undo affects this grocery add only, not meals or the prep session.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Posibles coincidencias con texto libre",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Possible free-text lookalikes",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Previous add",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Read grocery results",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Recibo del añadido original, no el contenido actual de la lista. Deshacer solo afecta a esta compra, no a las comidas ni a la sesión.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Reintentar el mismo deshacer",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Resultado de deshacer sin confirmar. Puede haber terminado. Solo reintenta el mismo añadido; los artículos marcados se conservan.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Resultados de la compra",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Retry same Undo",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Siguiente",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "The Undo window closed. Review the list for any earlier changes.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Undo result unconfirmed; it may have finished. Retry this same add only. Checked items are preserved.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Undo this grocery add",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Undo until",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Undo was refused now. Earlier attempts may still have changed the list.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodGroceryOutcomes.tsx",
+    "text": "Ya estaban abiertos",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningLauncher.tsx",
+    "text": "Cargando planificador…",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningLauncher.tsx",
+    "text": "Loading planner…",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningLauncher.tsx",
+    "text": "Plan several dishes",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningLauncher.tsx",
+    "text": "Plan several meals",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningLauncher.tsx",
+    "text": "Planificar varias comidas",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningLauncher.tsx",
+    "text": "Planificar varios platos",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningLauncher.tsx",
+    "text": "Saved food work",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningLauncher.tsx",
+    "text": "Trabajo de comidas guardado",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Check a cooking window",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Choose an exact time",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Choose time offset",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Cleanup (min)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Clear departure and buffers",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Comer (min)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Completa un intervalo exacto para elegir una salida del calendario.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Complete an unambiguous window to choose a calendar departure.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Comprobar un intervalo para cocinar",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Departure deadline (optional)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Eating (min)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Elegir desfase horario",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Elige una hora exacta",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "End",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Extra setup (min)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Fin",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Getting ready to leave (min)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Inicio",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Limpiar (min)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Preparación extra (min)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Prepararse para salir (min)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Quitar salida y márgenes",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Salida que limita el horario (opcional)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Start",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Travel (min)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
+    "text": "Viaje (min)",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Anteriores",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Cooking-window review required.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Departure",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Es necesario revisar el intervalo para cocinar.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Estimated start",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Estimated to fit recorded household events.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Fin con los márgenes seleccionados",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Finish including selected buffers",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Inicio estimado",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "min",
+    "count": 2
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "min /",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Next records",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Previous records",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Ready by",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Salida",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Se estima que cabe entre los eventos registrados del hogar.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Siguientes",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodPlanSummary.tsx",
+    "text": "Terminar antes de",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Acota la búsqueda para encontrar más opciones.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Anteriores",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Buscar",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Buscar en el hogar",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Cargando opciones…",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Choices could not be checked. Your selection is kept.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Choose a household record.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Choose up to 50 recipes.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Clear",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Done",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Elige hasta 50 recetas.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Elige una opción del hogar.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Eventos registrados del hogar, no disponibilidad confirmada.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Household accounts only. Email-free profiles are not turned into accounts.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Listo",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Loading choices…",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "More choices",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Narrow the search to find more choices.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "No hay coincidencias para esta búsqueda.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "No matches for this search.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "No se pudieron comprobar las opciones. Tu selección se conserva.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Previous choices",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Quitar",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Recorded household events, not confirmed availability.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Reintentar lectura",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Retry read",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Search",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Search this household",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Siguientes",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodRecordPicker.tsx",
+    "text": "Solo cuentas del hogar. No se crea una cuenta para un perfil sin correo.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodSaveDetails.tsx",
+    "text": "Anteriores",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodSaveDetails.tsx",
+    "text": "Next details",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodSaveDetails.tsx",
+    "text": "Previous details",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/FoodSaveDetails.tsx",
+    "text": "Siguientes",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/MealPlanningReviewLinks.tsx",
+    "text": "Abre la función original para continuar. No se envía nada ni se marca este paso como revisado.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/MealPlanningReviewLinks.tsx",
+    "text": "Open the original feature to continue. Opening it does not submit anything or mark this step reviewed.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/MealPlanningReviewLinks.tsx",
+    "text": "Planificación y trabajo guardado",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/planning/MealPlanningReviewLinks.tsx",
+    "text": "Planning and saved work",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Cargando…",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Details recorded when prep was marked complete. Editing the current recipe does not change this record.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Detalles registrados al marcar la preparación como terminada. No cambian al editar la receta actual.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Esta sesión aún no se ha marcado como preparada.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Loading…",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "No pudimos leer este registro. Se conserva sin cambios.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "No se registraron los detalles de la receta al preparar esta sesión. La receta actual puede haber cambiado.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Receta guardada al preparar",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Receta usada",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Recipe details were not recorded when this session was prepared. The current recipe may have changed.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Recipe saved at preparation",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Recipe used",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Recorded",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Registrada",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Reintentar",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "This session has not been marked prepared yet.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "Try again",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/PreparedRecipe.tsx",
+    "text": "We could not read this record. It is kept unchanged.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeCookingView.tsx",
+    "text": "Choose a whole number from 1 to 100. Original amounts are shown.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeCookingView.tsx",
+    "text": "Cooking portions",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeCookingView.tsx",
+    "text": "Elige un número entero de 1 a 100. Se muestran las cantidades originales.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeCookingView.tsx",
+    "text": "Original ·",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeCookingView.tsx",
+    "text": "Porciones para cocinar",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeCookingView.tsx",
+    "text": "Preview only. Ingredient amounts change; directions and times keep their original text. The saved recipe stays unchanged.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeCookingView.tsx",
+    "text": "Vista previa. Solo cambian las cantidades de ingredientes; los pasos y tiempos conservan el texto original. La receta guardada no cambia.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeDetail.tsx",
+    "text": "Esta receta no tiene ingredientes registrados.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeDetail.tsx",
+    "text": "Ingredientes",
+    "count": 1
+  },
+  {
     "file": "src/components/meals/RecipeDetail.tsx",
     "text": "Ingredients",
     "count": 1
@@ -2966,7 +3026,17 @@
   },
   {
     "file": "src/components/meals/RecipeDetail.tsx",
-    "text": "Original recipe \u00b7",
+    "text": "Original recipe",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeDetail.tsx",
+    "text": "Pasos",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeDetail.tsx",
+    "text": "Receta original",
     "count": 1
   },
   {
@@ -2997,6 +3067,86 @@
   {
     "file": "src/components/meals/RecipePicker.tsx",
     "text": "Try again",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Cargando receta guardada…",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Descartar",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Dismiss",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Loading saved recipe…",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "No pudimos cargar esta receta. Puede no estar disponible en tu hogar actual.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Plan this recipe",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Planificar esta receta",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Reintentar",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Reuse saved recipe",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Reutilizar receta guardada",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Review the day and portions before saving. This uses the same saved recipe.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Revisa el día y las porciones antes de guardar. Se usa la misma receta guardada.",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Try again",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Usar en una preparación",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "Use in a prep session",
+    "count": 1
+  },
+  {
+    "file": "src/components/meals/RecipeReuseLauncher.tsx",
+    "text": "We could not load this recipe. It may be unavailable in your current household.",
     "count": 1
   },
   {

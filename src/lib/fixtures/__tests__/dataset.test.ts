@@ -3,6 +3,8 @@ import {
   buildFixtureDataset,
   DEFAULT_FIXTURE_ANCHOR,
   FIXTURE_CROSS_FAMILY,
+  FIXTURE_DISPLAY_DEFAULTS,
+  FIXTURE_DISPLAY_PREFERENCES,
   FIXTURE_EMAILS,
   FIXTURE_ID_PREFIX,
   FIXTURE_IDS,
@@ -77,6 +79,11 @@ describe('fixture dataset', () => {
     for (const u of ds.users) expect(u.email).toMatch(/@example\.(test|com)$/)
     expect(new Set(ds.users.map((u) => u.email)).size).toBe(ds.users.length)
     expect(FIXTURE_PASSWORD).toMatch(/Fixture/)
+  })
+
+  it('includes canonical display preference baselines on every fixture row', () => {
+    for (const family of ds.families) expect(family.display_defaults).toEqual(FIXTURE_DISPLAY_DEFAULTS)
+    for (const user of ds.users) expect(user.display_preferences).toEqual(FIXTURE_DISPLAY_PREFERENCES)
   })
 
   it('gives families A and B a parent, a teen and a child', () => {

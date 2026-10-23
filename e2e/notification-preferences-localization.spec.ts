@@ -127,6 +127,9 @@ for (const role of ["parent", "teen", "child"] as const)
           await loginViaUi(page, FIXTURE_EMAILS.familyA.teen);
           await expect(page).toHaveURL(/\/dashboard(?:\/)?$/);
         } else await page.goto("/dashboard");
+        await expect(page).toHaveURL(
+          role === "parent" ? /\/dashboard\/today$/ : /\/dashboard\/?$/,
+        );
         const auth = await browserFetch(page, "/api/auth/me");
         expect(auth.status).toBe(200);
         const user = JSON.parse(auth.body).user;

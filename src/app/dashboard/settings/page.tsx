@@ -1,3 +1,4 @@
+import { isAiUsageAdopted } from '@/lib/ai-usage-server'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getServerUser } from '@/lib/supabase/server'
@@ -69,6 +70,7 @@ export default async function SettingsPage({ searchParams = Promise.resolve({}) 
       betaMetrics={betaMetrics}
       calendarSync={viewerRole === 'parent' && isCalendarSyncEnabled()}
       aiCaptureSettings={aiCaptureSettings}
+      aiUsage={parentFamilyId && isAiUsageAdopted() ? { userId: sessionUser.id, familyId: parentFamilyId } : undefined}
     />
   )
 }

@@ -1,3 +1,4 @@
+import type { AssistantSourceRow } from "./assistant-references";
 /**
  * Dormant, server-only Today context for Family AI.
  *
@@ -122,6 +123,10 @@ export interface LoadAssistantTodayContextInput {
   localNow?: Date;
   /** A paired/shared device can never use the person assistant broker. */
   surface?: "person" | "paired-device";
+  /** Server-only sidecar; never included in the v1 provider projection. */
+  onSources?: (sources: AssistantSourceRow[]) => void;
+  /** Transactional source confirmation must never materialize recurring work. */
+  materializeSeries?: boolean;
 }
 
 export type AssistantTodayDb = Pick<PrismaClient, "user" | "family"> &
@@ -230,7 +235,7 @@ export async function loadAssistantTodayContext(
     // aligned with those surfaces, but never touch a household whose Chores
     // feature is off. The helper is bounded, household-scoped and idempotent;
     // it also fails closed so an exhausted series never blocks the request.
-    if (features.chores) {
+    if (features.chores && input.materializeSeries !== false) {
       await topUpHouseholdSeries(family.id, input.serverNow);
     }
     const rows = await loadAssistantTodayRows(db, {
@@ -240,6 +245,7 @@ export async function loadAssistantTodayContext(
       features,
       serverNow: input.serverNow,
       viewerTimeZone: input.viewerTimeZone,
+      onSources: input.onSources,
     });
     // Keep the capability decision at the projection boundary too. This
     // protects callers if a future loader returns a cached row after a flag

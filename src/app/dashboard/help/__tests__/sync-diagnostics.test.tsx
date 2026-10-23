@@ -2,9 +2,9 @@
 import * as React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import SyncDiagnostics from "../SyncDiagnostics";
-import { readPersonQueueDiagnostics } from "@/lib/offline-queue-browser";
+import { readPersonQueueDiagnostics } from "@/lib/person-queue-browser";
 
-jest.mock("@/lib/offline-queue-browser", () => ({
+jest.mock("@/lib/person-queue-browser", () => ({
   readPersonQueueDiagnostics: jest.fn(),
 }));
 const read = jest.mocked(readPersonQueueDiagnostics);

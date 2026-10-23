@@ -207,7 +207,7 @@ export function LongPressRow({
             aria-label={accessibleName}
             className={cn(
               'relative z-10 mx-4 mb-6 rounded-2xl overflow-hidden',
-              'bg-[var(--surface-elevated)]',
+              'bg-[var(--surface-elevated)] text-label-primary',
               'animate-spring-up'
             )}
           >

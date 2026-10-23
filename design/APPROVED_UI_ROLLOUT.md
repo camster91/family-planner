@@ -5,6 +5,25 @@ set the implementation goal: all 22 web features/supporting screens, verified
 QA, merge and deployment. Canonical work remains #499 / #128, with #132 for
 navigation and #455 for contextual forms. No competing roadmap is introduced.
 
+## Implementation-first checkpoint — 2026-10-18
+
+Cameron requested writing the outstanding UI before further QA. Local source
+now adds Family invitation/profile choice sheets and explicit account/profile
+separation, device-persisted personal quiet view, shorter Settings/household
+views, mobile calendar controls, localized list/search/notification/help states,
+shared header reflow and pending-safe tablet dialogs. The prior local Sick days,
+Handoff and Travel implementations remain included. Existing approved Auth,
+Meals, Locations and sanitized shared-fridge implementations are retained.
+
+The implementation pass is prepared for later QA; it is not a verified whole-app
+or release claim. The evidence-oriented ledger below deliberately retains its
+prior acceptance status. Account linking needs its separate canonical backend
+contract; the UI does not pretend an email invitation performs that operation.
+Real AI/provider activation and native/hardware/store work are not part of this
+UI checkpoint. See `docs/CURRENT_STATE.md` for exact local scope and deferred
+checks. Do not launch more QA rounds until implementation-first work is handed
+back for QA or Cameron changes the sequencing.
+
 ## Design reference and scope
 
 - [Editable review board](https://www.figma.com/design/s0qsOr91Au0OJ70SCZEWb4?node-id=84-7)
@@ -45,32 +64,80 @@ does not by itself mark the approved UI adopted. No row is a release claim.
 
 | Feature / surface | Approved direction | Current implementation disposition |
 | --- | --- | --- |
-| Shared personal navigation | Five parent tabs, searchable Explore, Family within Core | PR #568 verified live at main9d9e6de6 after exact-main QA and protected restore; child/teen tabs retained |
+| Shared personal navigation | Five parent tabs, searchable Explore, Family within Core | PR #568 verified live at main `9d9e6de6` after exact-main QA and protected restore; child/teen tabs retained |
 | Today (person home) | A capped Next up card, dinner and a quiet look ahead | PR #570 combines scoped events/chores; bounded rendered/source checks and 117 original browser checks passed; incorporated #574 candidate hosted checks pass and source serves main f1d103a8; wider acceptance pending |
 | Chores | Grouped series, selected weekdays, clear owner, contextual actions | Local Today/Week/Series overview with inline routine stacks; 101 focused units and independent review pass; local six-size overview/completion/Undo/budget checks and incorporated #574 hosted candidate checks pass; wider acceptance pending |
 | Calendar | Readable week/agenda, duration, clear connections and overlap review | Local timing-overlap advisory and one native source selector passed bounded review; incorporated #574 hosted candidate checks pass; mobile Week/workspace and wider visual acceptance pending |
 | Lists | Direct groceries, custom lists, simple create/edit | PR #570 compact overview, short create form and validated Back/create/delete context passed bounded review; incorporated #574 hosted candidate checks pass; remaining detail-copy migration and wider acceptance pending |
 | Family | Add everyone, email-free profiles, clear account-link distinction | Local responsive account roster and EN/ES removal/recovery presentation: 44 affected tests, 78 browser checks and independent review pass; Family/Notes #576 candidate hosted acceptance passed and main `768e4170` is merged and production verified; Add Everyone/profile-link and full acceptance pending |
 | Meals | Week plan, recipes, several-dish prep, eaten/remaining/next prep | Local shared Plan/Explore/Prep navigation candidate; existing canonical meal/prep behavior retained, incorporated #574 hosted candidate checks pass; wider visual/journey acceptance pending |
-| Inventory | Use soon, honest capture review, quantities and locations | Local full-width overview and shared location shortcuts; 121 affected units, exact build and six-size browser 95 passes/10 inherited scope skips; incorporated #574 hosted candidate checks pass; capture-review/wider acceptance pending |
+| Inventory | Use soon, honest capture review, quantities and locations | Core overview retains prior verified release behavior. PR #588 combines reviewed shared item/removal sheets and keyboard/draft recovery with chore-photo fixes. Fresh integrated hosted/rendered/release and broader capture acceptance pending |
 | Notes | Short shared notes and clear visibility | Local shared board/read-only detail and canonical color/recovery alignment: 42 affected tests, 78 browser passes/15 inherited scope skips; Family/Notes #576 candidate hosted acceptance passed and main `768e4170` is merged and production verified; wider acceptance pending |
-| Anniversaries | Upcoming dates without duplicate noise | Chronological overview, short permission-aware sheets and recoverable writes: exact application0ed841aa passes89 browser cases/10 declared scopes,103 affected units and9 PostgreSQL cases; f142 test-only Notes/Capture repairs pass42/15 declared scopes; combined #580 hosted and exact-main QA pass; serving main5cf9720b verified; wider acceptance pending |
-| Gamification | Optional quiet progress, meaningful dependencies | Parent Progress overview adapted locally; child home/routine EN/ES source19ed and resolved-claim notice follow-up pass92 affected checks, with24 new six-size browser cases prepared; final rendered/hosted and persisted quiet-mode acceptance remain pending |
-| Rewards | Clear costs and role-appropriate actions | Canonical receipt/authority and localized role-aware create/claim/approval presentation source-reviewed; appc2c95b60 build and six-size ENES matrix116PASS25declaredscopes0retry,132 captures and303 affected cases pass; API6 PostgreSQL cases pass; independent visual review is conditional on inactive-claim and Spanish recovery/singular fixes; broader child supporting-copy localization and combined hosted/release acceptance remain pending |
-| Budget | Private summaries and contextual details | Canonical transaction receipts, category detail, localized parent controls and confirmed-write/GET-only recovery are source-reviewed;144 affected cases and7 PostgreSQL cases pass; full local5833PASS403opt-ins3retained Macbackupfailures; actual rendered/combined release acceptance pending |
-| Projects | Next steps, owner and detail context | Existing behavior retained; approved layout review pending |
-| Messages | Private conversation linked to work | Existing behavior retained; approved layout review pending |
-| Analytics | Useful private trends, dependency-aware | Parent Progress55f417bd uses canonical API and localized strict-response recovery; 102 UI/localization and29 API/isolation/gamification cases pass, exact build and51 browser/startup-budget checks plus final phone visual review pass; combined #580 hosted and exact-main QA pass; serving main5cf9720b verified; broader acceptance pending |
-| Wishlist | Capture and compare family ideas | Existing behavior retained; approved layout review pending |
-| Emergency | Fast authorized access, private medical/contact fields | Existing behavior retained; approved layout review pending |
-| Locations | Saved places with private addresses protected | Existing behavior retained; approved layout review pending |
-| Pickups | Explicit responsibility, confirmation and backup | Existing behavior retained; approved layout review pending |
-| Allowance | Own balance versus parent administration | Existing behavior retained; approved layout review pending |
-| Travel | Trip preparation and deliberate recurrence changes | Existing behavior retained; approved layout review pending |
-| Handoff | Scoped brief, expiry and owned responsibility | Existing behavior retained; approved layout review pending |
-| Sick days | Role-scoped care, no private shared-display exposure | Existing behavior retained; approved layout review pending |
+| Anniversaries | Upcoming dates without duplicate noise | Chronological overview, short permission-aware sheets and recoverable writes: exact application0ed841aa passes89 browser cases/10 declared scopes,103 affected units and9 PostgreSQL cases; f142 test-only Notes/Capture repairs pass42/15 declared scopes; combined #580 hosted and exact-main QA pass; serving main `5cf9720b` verified; wider acceptance pending |
+| Gamification | Optional quiet progress, meaningful dependencies | Child home/routine localization and resolved-claim feedback are included in verified live release #581 at `d752df36`. Broader persisted quiet-mode, shared-device and feature/state acceptance remain open |
+| Rewards | Clear costs and role-appropriate actions | Reviewed role-aware create/claim/approval, canonical receipts and durable intent recovery are included in verified live release #581 at `d752df36`. Broader feature/state and customer acceptance remain open |
+| Budget | Private summaries and contextual details | Reviewed private summaries, category detail, canonical transaction receipts and recovery repairs are included in verified live release #581 at `d752df36`. Broader feature/state and customer acceptance remain open |
+| Projects | Next steps, owner and detail context | PR #582 is included unchanged in release #581, verified serving main `d752df36`. Bounded source/rendered/recovery acceptance exists; broader feature/state acceptance remains open |
+| Messages | Private conversation linked to work | Reviewed private conversation/photo/pickup-link slice merged through PR #587 atafb15426; all original gates and150 exact-candidate capture reviews pass. Coolify deployment563 finished and exact image/runtime, readiness, migrations and private upload storage are verified atafb15426; broader feature acceptance remains open |
+| Analytics | Useful private trends, dependency-aware | Parent Progress55f417bd uses canonical API and localized strict-response recovery; 102 UI/localization and29 API/isolation/gamification cases pass, exact build and51 browser/startup-budget checks plus final phone visual review pass; combined #580 hosted and exact-main QA pass; serving main `5cf9720b` verified; broader acceptance pending |
+| Wishlist | Capture and compare family ideas | Reviewed canonical states/roles/recovery slice merged through PR #587 atafb15426; original gates/capture review pass. Deployment563 and exact-live verification pass atafb15426; broader acceptance and compare/curation expansion are not implied |
+| Emergency | Fast authorized access, private medical/contact fields | Reviewed private short forms/preview/print/recovery slice merged through PR #587 atafb15426; original gates/capture review pass. Deployment563/exact-live verification pass atafb15426; shared/public permissions unchanged; wider acceptance remains open |
+| Locations | Saved places with private addresses protected | Live source includes short create/edit, pending input protection and removal/focus recovery (latest owned source b8cef86b). Approved all-feature rendered/state adoption still needs evidence reconciliation; retained code alone does not mark complete |
+| Pickups | Explicit responsibility, confirmation and backup | Reviewed member/parent coordination/removal slice merged through PR #587 atafb15426; original gates/capture review pass. Deployment563/exact-live verification pass atafb15426; broader responsibility/backup acceptance remains open |
+| Allowance | Own balance versus parent administration | PR #588 now combines reviewed Allowance/Inventory sourceb34 and chore-photo sourcec73 over mainafb15426. Canonical receipt/cancellation/history checks and source review pass; fresh integrated hosted/rendered/release acceptance pending |
+| Travel | Trip preparation and deliberate recurrence changes | Live source retains unknown-write reconciliation and narrow-screen dates. Local long-title/assignee reflow is independently source-reviewed; phone EN/ES long-text and recovery journeys pass at61045. Final combined-source/hosted/release acceptance remains pending |
+| Handoff | Scoped brief, expiry and owned responsibility | Local short sheets, optional details, strict list parsing and public transient/null/404/stale-token recovery are independently reviewed. Rendered QA found a nested-provider locale reset, now repaired; final combined rendered/hosted/release acceptance remains pending. Scoped share/expiry/privacy contracts are unchanged |
+| Sick days | Role-scoped care, no private shared-display exposure | Local short form sheets, schema-checked dependency/auth recovery, canonical nullable logs and immediate dose guards are independently reviewed. Existing16 mounted cases pass; final combined rendered/hosted/release and wider role/private-state acceptance remain open |
 | Supporting routes | Auth, onboarding, search, notifications, help, settings, devices | Existing behavior retained; approved layout review pending |
 | Shared fridge | Sanitized device Today, large targets, privacy boundaries | Existing behavior retained; approved layout review pending |
+
+## Current evidence checkpoint — 2026-10-18
+
+Production is verified PR #587 at `afb15426d9fdb63a7f4f6c437d2c23e20d55dab9`.
+Deployment563 finished through the existing Coolify route. Original candidate
+checks and all150 native capture reviews pass; all exact-main Build/Test, Android and
+E2E follow-ups pass. Public/private-route
+and exact image/runtime checks do not imply authenticated production QA.
+
+PR #588 at `7dca47b40ffcc290432be0d50fa9f587f1c88938` remains pending original
+browser acceptance. Its shared scroll-body and Inventory completion-focus
+repairs follow real bf31/ea1d failures; no check was waived. Exact7dca build,
+27 affected mounted cases,12 Inventory browser journeys and18 completion-state
+native-image reviews pass (3 auth setup cases separate). Original Build/checked
+image and Android pass; baseline5988 cases pass with433 established opt-in skips.
+Fresh restore preserves all72 existing tables and rows, including attachments.
+This is not a new merge or deployment claim.
+
+Sick days and Handoff follow-up implementations and Travel long-text reflow are
+local, unaccepted slices. Supporting routes, Add Everyone/account linking,
+quiet mode, shared-fridge and full role/device/offline/customer acceptance remain
+open. Canonical #499/#128 checkpoints hold current run/review details.
+
+## Historical checkpoint before PR587 merged — 2026-10-18
+
+The ledger distinguishes verified live source `d752df36` from pending combined
+candidate `590e5a04`, stacked Allowance/Inventory b34e976d and isolated chore-photo
+recovery c73fc945. It records bounded evidence, not full 22-feature closure.
+The combined candidate's Build/Test and Android passed; checked-image/browser
+acceptance remains in progress at this checkpoint. The preceding a927 desktop
+job failed upload EACCES and skipped five serial cases; its 92 reviewed PNGs
+cannot establish new-head or whole-job acceptance. Fresh original gates are
+39147424401 (Build/image),39147424392 (E2E),39147424415 (Android).
+
+Chore-photo follow-up replaces native alerts with localized inline recovery,
+retains drafts/photos on refusal, permits same-file retry and blocks premature
+saves. Two new mounted regressions plus existing profile/turn-taking cases pass
+35 checks. Existing weekly browser cases are extended on phone390/desktop;
+collection stays15 including setup. Build/rendered/hosted/release acceptance is
+pending. See [photo recovery](../docs/testing/CHORE_PHOTO_RECOVERY.md) and the
+[current canonical checkpoint](https://github.com/camster91/family-planner/issues/499#issuecomment-6252698983).
+
+Untouched or partially adopted supporting routes, shared-fridge states,
+Add Everyone/account-link presentation, quiet mode, full role/device/offline
+acceptance and the unaccepted rows remain open. Native/store/hardware/customer
+and real AI/voice/provider activation retain independent gates. Historical
+checkpoint prose below preserves its dated scope and does not override the
+current ledger or canonical #499/#128 status.
 
 ## Acceptance and compatibility
 
@@ -488,3 +555,20 @@ migrations were verified. Main Android passes; exact-main Build/E2E are still
 running at this checkpoint. See `docs/CURRENT_STATE.md` and the live PR record.
 No earlier broader-pending row is thereby marked fully accepted. Rewards and
 Budget remain separate subsequent local work; all22feature acceptance stays open.
+
+
+## Reviewed recovery integration — 2026-10-18
+
+PR #587 merged normally at `afb15426`, with a Git tree identical to reviewed
+candidate `590e5a04`. All original gates and150 exact-candidate PNG reviews
+pass. Fresh protected restore at21:43:49Z preserved71 existing tables/row counts,
+ran additive migrations twice and removed the temporary DB. Existing Coolify
+webhook deployment563 is in progress; production verification is not yet claimed.
+
+PR #588 now normally integrates the reviewed Allowance/Inventory/shared-modal
+work and chore-photo recovery over merged main. All application/schema/migration
+sources retain the reviewed436dc bytes; no conflicts or manual source rewrites.
+This combines related recovery fixes into one fresh hosted QA cycle. Unit/types,
+exact original hosted/rendered acceptance and release status stay separate.
+The22-feature programme, Sick days/remaining supporting-state work and independent
+native/provider/hardware/customer gates remain open.

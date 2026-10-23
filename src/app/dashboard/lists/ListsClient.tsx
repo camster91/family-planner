@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { InsetList, ListRow, SectionHeader } from "@/components/ui/list-row";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ILLUSTRATIONS } from "@/lib/brand-illustrations";
@@ -120,6 +120,25 @@ interface ListsClientProps {
   /** `?type=` from the URL (route inventory F-6): show only lists of this type. */
   initialType?: string | null;
   loadFailed?: boolean;
+  /** Exact same-snapshot household counts, independent of the displayed page. */
+  typeCounts?: Partial<Record<ListTypeKey, number>>;
+  paging?: {
+    continued: boolean;
+    firstHref: string;
+    nextHref: string | null;
+    currentCursor?: string | null;
+  };
+}
+
+function listDetailHref(
+  id: string,
+  type: ListTypeKey | null,
+  cursor?: string | null,
+) {
+  const query = new URLSearchParams();
+  if (type) query.set("type", type);
+  if (cursor) query.set("overviewCursor", cursor);
+  return `/dashboard/lists/${encodeURIComponent(id)}${query.toString() ? `?${query}` : ""}`;
 }
 
 // -----------------------------------------------------------------------
@@ -132,6 +151,8 @@ export default function ListsClient({
   canCreate = true,
   initialType = null,
   loadFailed = false,
+  typeCounts,
+  paging,
 }: ListsClientProps) {
   const router = useRouter();
   const [retrying, startRetry] = React.useTransition();
@@ -150,29 +171,35 @@ export default function ListsClient({
     setTypeFilter(listTypeFilter(initialType));
   }, [initialType]);
   const applyFilter = (next: ListTypeKey | null) => {
-    setTypeFilter(next);
-    router.replace(listsFilterHref(next), { scroll: false });
+    // Paged filters are server-owned: never show a new chip/empty state over
+    // the previous filter's page while navigation is pending or refused.
+    if (!paging) setTypeFilter(next);
+    void router.replace(listsFilterHref(next), { scroll: false });
   };
-  const shown = typeFilter ? lists.filter((l) => l.type === typeFilter) : lists;
-  const filterCfg = typeFilter ? TYPE_CONFIG[typeFilter] : null;
+  const activeType = paging ? listTypeFilter(initialType) : typeFilter;
+  const shown = activeType ? lists.filter((l) => l.type === activeType) : lists;
+  const filterCfg = activeType ? TYPE_CONFIG[activeType] : null;
   // ADR-0007 O-8: no new 'meal_plan' lists (existing ones stay readable).
   const createHref =
-    typeFilter && typeFilter !== "meal_plan"
-      ? `/dashboard/lists/create?type=${typeFilter}`
+    activeType && activeType !== "meal_plan"
+      ? `/dashboard/lists/create?type=${activeType}`
       : "/dashboard/lists/create";
-  const canCreateHere = canCreate && typeFilter !== "meal_plan";
+  const canCreateHere = canCreate && activeType !== "meal_plan";
 
   // Main type filters. 'meal_plan' is no longer a list type people
   // create (ADR-0007 O-8; meals live in /dashboard/meals), so its filter shows
   // only while the household still has such lists, which keep opening as before.
-  const hasMealPlanLists = lists.some((l) => l.type === "meal_plan");
+  const hasMealPlanLists =
+    (typeCounts?.meal_plan ??
+      lists.filter((l) => l.type === "meal_plan").length) > 0;
   const mainTypes: ListTypeKey[] = hasMealPlanLists
     ? ["grocery", "todo", "meal_plan", "wishlist", "custom"]
     : ["grocery", "todo", "wishlist", "custom"];
   // Non-food shopping remains available when used, or when directly filtered.
   if (
-    typeFilter === "shopping" ||
-    lists.some((list) => list.type === "shopping")
+    activeType === "shopping" ||
+    (typeCounts?.shopping ??
+      lists.filter((list) => list.type === "shopping").length) > 0
   ) {
     mainTypes.push("shopping");
   }
@@ -181,11 +208,11 @@ export default function ListsClient({
     <div className="pb-20">
       <LargeHeader
         greeting={familyName}
-        title={text(typeFilter === "grocery" ? "groceryName" : "title")}
+        title={text(activeType === "grocery" ? "groceryName" : "title")}
         trailing={
           canCreate &&
           !loadFailed &&
-          (shown.length > 0 || typeFilter === "meal_plan") ? (
+          (shown.length > 0 || activeType === "meal_plan") ? (
             // Same filled primary "+" as Chores and Calendar.
             <Link
               href={createHref}
@@ -225,11 +252,11 @@ export default function ListsClient({
                 <button
                   type="button"
                   aria-label={text("showAll")}
-                  aria-pressed={typeFilter === null}
+                  aria-pressed={activeType === null}
                   onClick={() => applyFilter(null)}
                   className={
                     "min-h-[44px] max-w-full [overflow-wrap:anywhere] rounded-full px-4 py-2 text-subhead font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] " +
-                    (typeFilter === null
+                    (activeType === null
                       ? "bg-[var(--accent-tint)] text-label-primary ring-1 ring-[var(--accent)]"
                       : "bg-[var(--surface-fill)] text-label-secondary")
                   }
@@ -238,10 +265,10 @@ export default function ListsClient({
                 </button>
                 {mainTypes.map((type) => {
                   const cfg = TYPE_CONFIG[type];
-                  const count = lists.filter(
-                    (list) => list.type === type,
-                  ).length;
-                  const pressed = typeFilter === type;
+                  const count =
+                    typeCounts?.[type] ??
+                    lists.filter((list) => list.type === type).length;
+                  const pressed = activeType === type;
                   return (
                     <button
                       key={type}
@@ -276,6 +303,11 @@ export default function ListsClient({
                 {text(filterCfg.showingKey)}
               </p>
             )}
+            {paging && (paging.continued || paging.nextHref) && (
+              <p className="text-footnote text-label-secondary" role="status">
+                {text("pagedHint")}
+              </p>
+            )}
             {shown.length > 0 ? (
               <section>
                 <SectionHeader>
@@ -289,7 +321,11 @@ export default function ListsClient({
                     return (
                       <ListRow
                         key={list.id}
-                        href={`/dashboard/lists/${encodeURIComponent(list.id)}${typeFilter ? `?type=${typeFilter}` : ""}`}
+                        href={listDetailHref(
+                          list.id,
+                          activeType,
+                          paging?.currentCursor,
+                        )}
                         icon={Icon}
                         glyphColor={cfg.color}
                         title={list.name}
@@ -320,20 +356,24 @@ export default function ListsClient({
                   })}
                 </InsetList>
               </section>
+            ) : paging?.continued ? (
+              <p role="status" className="text-body text-label-secondary">
+                {text("pageEmpty")}
+              </p>
             ) : (
               <EmptyState
-                icon={typeFilter ? ICONS[typeFilter] : List}
+                icon={activeType ? ICONS[activeType] : List}
                 glyphColor={filterCfg ? filterCfg.color : "lists"}
                 illustration={
-                  typeFilter === "grocery"
+                  activeType === "grocery"
                     ? ILLUSTRATIONS.groceriesClear
-                    : typeFilter === "meal_plan"
+                    : activeType === "meal_plan"
                       ? ILLUSTRATIONS.mealsEmpty
                       : ILLUSTRATIONS.listsEmpty
                 }
                 title={text(filterCfg ? filterCfg.emptyKey : "empty")}
                 description={
-                  typeFilter === "meal_plan"
+                  activeType === "meal_plan"
                     ? text("mealsNow")
                     : canCreate
                       ? filterCfg
@@ -350,6 +390,24 @@ export default function ListsClient({
                   ) : undefined
                 }
               />
+            )}
+            {paging && (paging.continued || paging.nextHref) && (
+              <nav aria-label={text("pages")} className="flex flex-wrap gap-2">
+                {paging.continued && (
+                  <Link href={paging.firstHref} className="btn-tinted min-h-11">
+                    {text("firstPage")}
+                  </Link>
+                )}
+                {paging.nextHref && (
+                  <Link
+                    href={paging.nextHref}
+                    prefetch={false}
+                    className="btn-filled min-h-11"
+                  >
+                    {text("nextPage")}
+                  </Link>
+                )}
+              </nav>
             )}
           </>
         )}

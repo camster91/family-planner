@@ -306,7 +306,10 @@ describeWithDatabase(
       // it must not be blocked by the device refusal boundary.
       const signedOut = await logout.POST(request("/api/auth/logout"));
       expect(signedOut.status).toBe(200);
-      expect(await signedOut.json()).toEqual({ success: true });
+      expect(await signedOut.json()).toEqual({
+        success: true,
+        retirement: { mode: "generation", ownerId: PARENT, throughGeneration: 0 },
+      });
       expect(signedOut.headers.get("set-cookie")).toContain("session_token=");
       expect(
         (

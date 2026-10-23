@@ -8,12 +8,12 @@ import {
   formatRelativeTime,
   type RelativeTimeMessages,
 } from "@/lib/relative-time";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import { syncStatusMessages, type SyncStatusMessage } from "@/i18n/sync-status";
 import { PRODUCT_BRAND } from "@/lib/brand";
 
 function useSyncCopy() {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (
     key: SyncStatusMessage,
     params?: Record<string, string | number>,

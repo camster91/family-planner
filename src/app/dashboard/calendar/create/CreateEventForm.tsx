@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { notifyCalendarChanged } from '@/lib/calendar-planning/changes'
-import { useRouter } from 'next/navigation'
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { ArrowLeft, Calendar as CalendarIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslation } from '@/i18n'

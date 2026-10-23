@@ -5,8 +5,10 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { updateListItemSchema } from '@/lib/validations'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { updateListItemAndNoteTick } from '@/lib/list-item-update'
-import { logRouteError } from '@/lib/api-error'
+import { apiError, logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { personQueueOwner, queueOwnerMatches } from '@/lib/queue-owner-server'
+import { QUEUE_OWNER_HEADER } from '@/lib/queue-owner-contract'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +40,9 @@ export async function PATCH(request: NextRequest) {
 
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError
+    if ((key || request.headers.has(QUEUE_OWNER_HEADER)) && !queueOwnerMatches(request, personQueueOwner(request, auth.payload))) {
+      return apiError(409, 'QUEUE_OWNER_CHANGED', 'Saved changes need a current compatible session. Keep them and review recovery before retrying.', { requestId: getRequestId(request), shape: 'nested', headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     let body: any
     try {

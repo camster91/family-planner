@@ -54,8 +54,10 @@ function fakeQueue() {
 }
 let personQueue = fakeQueue();
 let deviceQueue = fakeQueue();
-jest.mock("@/lib/offline-queue-browser", () => ({
+jest.mock("@/lib/person-queue-browser", () => ({
   getPersonQueue: () => personQueue,
+}));
+jest.mock("@/lib/device-queue-browser", () => ({
   getDeviceQueue: () => deviceQueue,
 }));
 
@@ -187,7 +189,11 @@ describe('tile sections keep clear destinations (no "Open …" buttons)', () => 
         name: "Next up",
       }),
     ).toBeTruthy();
-    expect(within(screen.getByTestId("region-today")).getByRole("link", { name: "Calendar" })).toHaveAttribute("href", "/dashboard/calendar");
+    expect(
+      within(screen.getByTestId("region-today")).getByRole("link", {
+        name: "Calendar",
+      }),
+    ).toHaveAttribute("href", "/dashboard/calendar");
     expect(
       within(groceries()).getByRole("link", { name: "1 more to buy" }),
     ).toHaveAttribute("href", "/dashboard/lists/groceries");
@@ -260,12 +266,12 @@ describe("person board (#274)", () => {
     });
     expect(screen.queryByTestId("region-chores")).toBeNull();
     expect(screen.queryByText("No chores due today.")).toBeNull();
-    expect(screen.getByTestId("board-grid").className).toContain(
-      "coming_coming_coming",
-    );
-    expect(screen.getByTestId("board-grid").className).not.toContain(
-      "chores_coming",
-    );
+    const layout = screen.getByTestId("board-grid");
+    expect(layout).toHaveAttribute("data-personal-layout");
+    expect(
+      layout.querySelector('[data-today-section="coming"]'),
+    ).toBeInTheDocument();
+    expect(layout.querySelector('[data-today-section="chores"]')).toBeNull();
   });
 
   it("keeps the complete fridge board even when personal-summary IDs are supplied", async () => {
@@ -294,14 +300,18 @@ describe("person board (#274)", () => {
     expect(personQueue.list()).toEqual([]);
   });
   it("keeps a grocery tick visible when queue storage cannot be read", async () => {
-    personQueue.enqueue.mockRejectedValue(new QueueError("STORAGE_UNAVAILABLE"));
+    personQueue.enqueue.mockRejectedValue(
+      new QueueError("STORAGE_UNAVAILABLE"),
+    );
     await renderBoard({ viewer: { id: "p", role: "parent" } });
     fireEvent.click(
       within(groceries()).getByRole("button", { name: /Tick off Milk/ }),
     );
     await settle();
     expect(within(groceries()).getByText("Milk")).toBeInTheDocument();
-    expect(screen.getByText(/couldn’t load saved changes/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/couldn’t load saved changes/i),
+    ).toBeInTheDocument();
     expect(personQueue.list()).toEqual([]);
   });
   it("offers deliberate storage recovery on a personal Today board", async () => {
@@ -312,7 +322,11 @@ describe("person board (#274)", () => {
     await renderBoard({ viewer: { id: "p", role: "parent" } });
     const recovery = screen.getByTestId("queue-storage-recovery");
     expect(recovery).toHaveTextContent(/couldn’t load saved changes/i);
-    fireEvent.click(within(recovery).getByRole("button", { name: "Try loading saved changes" }));
+    fireEvent.click(
+      within(recovery).getByRole("button", {
+        name: "Try loading saved changes",
+      }),
+    );
     await settle();
     expect(personQueue.retryStorageRead).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("queue-storage-recovery")).toBeNull();
@@ -403,7 +417,12 @@ describe("person board (#274)", () => {
               reason: "RECURRENCE_CAPABILITY_UNAVAILABLE" as const,
               recovery: "refresh-and-retain-pending" as const,
               requiresCompatibleClient: true as const,
-              actions: { complete: false as const, undo: false as const, verify: false as const, reject: false as const },
+              actions: {
+                complete: false as const,
+                undo: false as const,
+                verify: false as const,
+                reject: false as const,
+              },
             },
           },
         ],
@@ -667,7 +686,9 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
   });
 
   it("keeps a grocery tick visible when tablet queue storage cannot be read", async () => {
-    deviceQueue.enqueue.mockRejectedValue(new QueueError("STORAGE_UNAVAILABLE"));
+    deviceQueue.enqueue.mockRejectedValue(
+      new QueueError("STORAGE_UNAVAILABLE"),
+    );
     await renderDevice();
     fireEvent.click(
       within(groceries()).getByRole("button", { name: "Tick off Bread" }),
@@ -680,7 +701,9 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
     );
     await settle();
     expect(within(groceries()).getByText("Bread")).toBeInTheDocument();
-    expect(screen.getByText(/couldn’t load saved changes/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/couldn’t load saved changes/i),
+    ).toBeInTheDocument();
     expect(deviceQueue.list()).toEqual([]);
   });
 

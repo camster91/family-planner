@@ -24,12 +24,16 @@ jest.mock("next/navigation", () => ({
 
 const mockPrisma = {
   user: { findUnique: jest.fn() },
-  list: { findMany: jest.fn() },
+  list: { findMany: jest.fn(), groupBy: jest.fn() },
+  listItem: { groupBy: jest.fn() },
+  $transaction: jest.fn(
+    async (run: (tx: unknown) => unknown): Promise<unknown> => run(mockPrisma),
+  ),
 };
 jest.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 const mockServerUser = jest.fn();
 jest.mock("@/lib/supabase/server", () => ({
-  getServerUser: () => mockServerUser(),
+  getServerActor: () => mockServerUser(),
 }));
 
 import ListsByTypePage from "../type/[type]/page";
@@ -75,6 +79,8 @@ const lists = [
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockPrisma.list.groupBy.mockResolvedValue([]);
+  mockPrisma.listItem.groupBy.mockResolvedValue([]);
 });
 
 describe("/dashboard/lists/type/[type] redirect", () => {
@@ -109,9 +115,16 @@ describe("list type filter helpers", () => {
 
 describe("/dashboard/lists ?type=", () => {
   it("passes a known type to the page and drops an unknown one", async () => {
-    mockServerUser.mockResolvedValue({ id: "u1", role: "parent" });
+    mockServerUser.mockResolvedValue({
+      id: "u1",
+      role: "parent",
+      family_id: "fam-a",
+      tokenVersion: 0,
+    });
     mockPrisma.user.findUnique.mockResolvedValue({
       family_id: "fam-a",
+      role: "parent",
+      token_version: 0,
       family: { name: "Home" },
     });
     mockPrisma.list.findMany.mockResolvedValue([]);
@@ -132,7 +145,9 @@ describe("/dashboard/lists ?type=", () => {
     // The query stays household-scoped.
     expect(mockPrisma.list.findMany.mock.calls[0][0].where).toEqual({
       family_id: "fam-a",
+      type: "todo",
     });
+    expect(mockPrisma.list.findMany.mock.calls[0][0].take).toBe(101);
   });
 
   it('shows only the chosen type, says so, and "Show all lists" clears it', async () => {
@@ -405,9 +420,16 @@ it("filters custom lists without renaming household content", async () => {
 });
 
 it("shows a scoped list-read failure with retry instead of a false empty state", async () => {
-  mockServerUser.mockResolvedValue({ id: "u1", role: "parent" });
+  mockServerUser.mockResolvedValue({
+    id: "u1",
+    role: "parent",
+    family_id: "fam-a",
+    tokenVersion: 0,
+  });
   mockPrisma.user.findUnique.mockResolvedValue({
     family_id: "fam-a",
+    role: "parent",
+    token_version: 0,
     family: { name: "Home" },
   });
   mockPrisma.list.findMany.mockRejectedValue(
@@ -435,7 +457,10 @@ it("shows a scoped list-read failure with retry instead of a false empty state",
     expect(mockRefresh).toHaveBeenCalledTimes(1);
     expect(mockReplace).not.toHaveBeenCalled();
     expect(mockPrisma.list.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { family_id: "fam-a" } }),
+      expect.objectContaining({
+        where: { family_id: "fam-a", type: "todo" },
+        take: 101,
+      }),
     );
     view.rerender(
       <I18nProvider>

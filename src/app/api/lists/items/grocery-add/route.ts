@@ -10,8 +10,9 @@ import {
   withIdempotency,
 } from "@/lib/idempotency";
 import { createPersonListItem } from "@/lib/person-list-item-create";
-import { logRouteError } from "@/lib/api-error";
+import { apiError, logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { personQueueOwner, queueOwnerMatches } from "@/lib/queue-owner-server";
 
 export const dynamic = "force-dynamic";
 const schema = z
@@ -31,6 +32,17 @@ export async function POST(request: NextRequest) {
     const { key, error: keyError } = readIdempotencyKey(request);
     if (keyError) return keyError;
     if (!key) return idempotencyError("IDEMPOTENCY_KEY_REQUIRED");
+    if (!queueOwnerMatches(request, personQueueOwner(request, auth.payload)))
+      return apiError(
+        409,
+        "QUEUE_OWNER_CHANGED",
+        "Saved changes need a current compatible session. Keep them and review recovery before retrying.",
+        {
+          requestId: getRequestId(request),
+          shape: "nested",
+          headers: { "Cache-Control": "private, no-store" },
+        },
+      );
     let body: unknown;
     try {
       body = await request.json();

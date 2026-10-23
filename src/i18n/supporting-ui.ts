@@ -1,0 +1,157 @@
+"use client";
+
+import { useCallback } from "react";
+import { useTranslation } from "@/i18n";
+
+const en = {
+  notifications: "Notifications",
+  caughtUp: "All caught up",
+  unreadCount: "{count} unread",
+  all: "All",
+  unread: "Unread",
+  snoozed: "Snoozed",
+  loading: "Loading…",
+  retry: "Try again",
+  loadFailed: "Couldn't load notifications",
+  invalidNotifications:
+    "The notification response could not be read. Try again.",
+  offline:
+    "Check your connection and try again. Your notifications are unchanged.",
+  markFailed: "Couldn't mark it as read",
+  deleteFailed: "Couldn't delete the notification",
+  snoozeFailed: "Couldn't change snooze",
+  deleted: "Notification deleted",
+  alreadyDeleted: "Already deleted",
+  undoExpired: "It was removed before Undo was pressed.",
+  restored: "Notification restored",
+  snoozeDone: "Notification snoozed",
+  noSnoozed: "No snoozed notifications",
+  noUnread: "No unread notifications",
+  noNotifications: "No notifications yet",
+  snoozeHelp:
+    "Snoozed notifications return here when their delay ends. No extra email or push is sent.",
+  caughtUpHelp: "You're all caught up!",
+  notificationsHelp:
+    "You'll see notifications here when things happen in your family.",
+  returns: "Returns {date}",
+  showNow: "Show now",
+  showLabel: 'Show "{title}" now',
+  snoozeLabel: 'Snooze "{title}"',
+  saving: "Saving…",
+  snooze: "Snooze",
+  fifteenMinutes: "15 minutes",
+  oneHour: "1 hour",
+  threeHours: "3 hours",
+  oneDay: "24 hours",
+  markLabel: 'Mark "{title}" as read',
+  markRead: "Mark read",
+  deleteLabel: 'Delete "{title}"',
+  unreadPrefix: "Unread: ",
+  search: "Search",
+  searchDescription:
+    "Find people, events, chores, lists, recipes, notes and food at home.",
+  searchLabel: "Search your household",
+  clearSearch: "Clear search",
+  searchIdle: "Search everything at home",
+  searchIdleHelp:
+    "Type a name, a chore, a list item or a recipe. Only your household is searched.",
+  searchShort: "Keep typing. Search starts at {count} letters.",
+  searchOffline: "You're offline. Search needs a connection.",
+  searching: "Searching…",
+  searchFailed: "Search didn't work. Check your connection and try again.",
+  noMatches: "Nothing matches “{query}”.",
+  searchTip: "Try a shorter word or check the spelling.",
+  resultCount: "{count} results for “{query}”.",
+  resultOne: "1 result for “{query}”.",
+  member: "People",
+  event: "Events",
+  chore: "Chores",
+  list: "Lists",
+  list_item: "On a list",
+  recipe: "Recipes",
+  note: "Notes",
+  inventory: "Food at home",
+  due: "Due {date}",
+} as const;
+const es: Record<keyof typeof en, string> = {
+  notifications: "Notificaciones",
+  caughtUp: "Todo al día",
+  unreadCount: "{count} sin leer",
+  all: "Todas",
+  unread: "Sin leer",
+  snoozed: "Pospuestas",
+  loading: "Cargando…",
+  retry: "Intentar de nuevo",
+  loadFailed: "No se pudieron cargar las notificaciones",
+  invalidNotifications:
+    "No se pudo leer la respuesta de notificaciones. Inténtalo de nuevo.",
+  offline:
+    "Comprueba la conexión e inténtalo de nuevo. Tus notificaciones no han cambiado.",
+  markFailed: "No se pudo marcar como leída",
+  deleteFailed: "No se pudo eliminar la notificación",
+  snoozeFailed: "No se pudo cambiar la pausa",
+  deleted: "Notificación eliminada",
+  alreadyDeleted: "Ya se eliminó",
+  undoExpired: "Se eliminó antes de pulsar Deshacer.",
+  restored: "Notificación restaurada",
+  snoozeDone: "Notificación pospuesta",
+  noSnoozed: "No hay notificaciones pospuestas",
+  noUnread: "No hay notificaciones sin leer",
+  noNotifications: "Todavía no hay notificaciones",
+  snoozeHelp:
+    "Las notificaciones pospuestas vuelven cuando termina la pausa. No se envía otro correo ni aviso push.",
+  caughtUpHelp: "¡Todo al día!",
+  notificationsHelp: "Aquí verás avisos de lo que ocurre en tu familia.",
+  returns: "Vuelve el {date}",
+  showNow: "Mostrar ahora",
+  showLabel: 'Mostrar "{title}" ahora',
+  snoozeLabel: 'Posponer "{title}"',
+  saving: "Guardando…",
+  snooze: "Posponer",
+  fifteenMinutes: "15 minutos",
+  oneHour: "1 hora",
+  threeHours: "3 horas",
+  oneDay: "24 horas",
+  markLabel: 'Marcar "{title}" como leída',
+  markRead: "Marcar como leída",
+  deleteLabel: 'Eliminar "{title}"',
+  unreadPrefix: "Sin leer: ",
+  search: "Buscar",
+  searchDescription:
+    "Encuentra personas, eventos, tareas, listas, recetas, notas y alimentos en casa.",
+  searchLabel: "Buscar en tu hogar",
+  clearSearch: "Borrar búsqueda",
+  searchIdle: "Busca todo lo de casa",
+  searchIdleHelp:
+    "Escribe un nombre, una tarea, un artículo o una receta. Solo se busca en tu hogar.",
+  searchShort: "Sigue escribiendo. La búsqueda empieza con {count} letras.",
+  searchOffline: "Sin conexión. La búsqueda necesita conexión.",
+  searching: "Buscando…",
+  searchFailed:
+    "No se pudo buscar. Comprueba la conexión e inténtalo de nuevo.",
+  noMatches: "No hay resultados para «{query}».",
+  searchTip: "Prueba una palabra más corta o revisa la ortografía.",
+  resultCount: "{count} resultados para «{query}».",
+  resultOne: "1 resultado para «{query}».",
+  member: "Personas",
+  event: "Eventos",
+  chore: "Tareas",
+  list: "Listas",
+  list_item: "En una lista",
+  recipe: "Recetas",
+  note: "Notas",
+  inventory: "Alimentos en casa",
+  due: "Para el {date}",
+};
+export function useSupportingText() {
+  const { locale } = useTranslation();
+  return useCallback(
+    (key: keyof typeof en, params?: Record<string, string | number>) => {
+      const value: string = (locale === "es" ? es : en)[key];
+      return value.replace(/\{(\w+)\}/g, (match, name: string) =>
+        String(params?.[name] ?? match),
+      );
+    },
+    [locale],
+  );
+}

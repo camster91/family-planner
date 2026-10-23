@@ -1,5 +1,6 @@
+import { choreJson } from "@/lib/chore-json";
 import { prisma } from '@/lib/prisma'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { uncompleteChoreSchema } from '@/lib/validations'
 import { reopenCompletedChoreInTx } from '@/lib/chore-reopen'
@@ -37,31 +38,31 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return choreJson({ error: 'Invalid JSON' }, { status: 400 })
     }
     const parsed = uncompleteChoreSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return choreJson({ error: parsed.error.issues[0].message }, { status: 400 })
     }
     const { choreId } = parsed.data
 
     const chore = await prisma!.chore.findUnique({ where: { id: choreId } })
     if (!chore) {
-      return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
+      return choreJson({ error: 'Chore not found' }, { status: 404 })
     }
 
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
     if (chore.assigned_to === null && chore.assigned_member_id != null) {
-      return NextResponse.json(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+      return choreJson(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     if (auth.user.role !== 'parent' && chore.assigned_to !== auth.user.id) {
-      return NextResponse.json({ error: 'Only parents or the assignee can undo this chore' }, { status: 403 })
+      return choreJson({ error: 'Only parents or the assignee can undo this chore' }, { status: 403 })
     }
 
     if (chore.status === 'verified') {
-      return NextResponse.json(
+      return choreJson(
         { error: 'A parent has already checked this chore, so it stays done.', code: 'CHORE_ALREADY_VERIFIED' },
         { status: 409 }
       )
@@ -70,18 +71,18 @@ export async function POST(request: NextRequest) {
     const outcome = await prisma!.$transaction((tx) => reopenCompletedChoreInTx(tx, chore))
 
     if (outcome === 'verified') {
-      return NextResponse.json(
+      return choreJson(
         { error: 'A parent has already checked this chore, so it stays done.', code: 'CHORE_ALREADY_VERIFIED' },
         { status: 409 }
       )
     }
     if (outcome === 'open') {
-      return NextResponse.json({ success: true, alreadyOpen: true })
+      return choreJson({ success: true, alreadyOpen: true })
     }
-    return NextResponse.json({ success: true, choreId, status: 'pending' })
+    return choreJson({ success: true, choreId, status: 'pending' })
   } catch (error) {
-    if (error instanceof HouseholdMemberIdentityConflict) return NextResponse.json({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
+    if (error instanceof HouseholdMemberIdentityConflict) return choreJson({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
     logRouteError('POST /api/chores/uncomplete', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return choreJson({ error: 'Internal server error' }, { status: 500 })
   }
 }

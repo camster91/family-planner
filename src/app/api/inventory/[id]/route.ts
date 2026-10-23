@@ -1,20 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily } from '@/lib/api-auth'
-import { featureGate } from '@/lib/feature-gate-server'
-import { refusePairedDevice } from '@/lib/device-route'
-import { parseDateOnly } from '@/lib/dates'
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { authenticateWithFamily } from "@/lib/api-auth";
+import { featureGate } from "@/lib/feature-gate-server";
+import { refusePairedDevice } from "@/lib/device-route";
 import {
   INVENTORY_DELETE_ACTION,
   INVENTORY_ITEM_SELECT,
   INVENTORY_UPDATE_ACTION,
   InventoryInputError,
   canWriteInventory,
-  cleanItemName,
-  resolveInventoryIngredient,
   toInventoryDto,
   updateInventorySchema,
-} from '@/lib/inventory'
+} from "@/lib/inventory";
 import {
   effectError,
   finishedResult,
@@ -25,15 +22,19 @@ import {
   readJson,
   todayFrom,
   writeForbidden,
-} from '@/lib/inventory-http'
-import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
-import { nextItemVersion } from '@/lib/inventory-adjust'
-import { logRouteError } from '@/lib/api-error'
-import { getRequestId } from '@/lib/request-id'
+} from "@/lib/inventory-http";
+import { readIdempotencyKey, withIdempotency } from "@/lib/idempotency";
+import { InventoryChangeConflict } from "@/lib/inventory-adjust";
+import {
+  editInventoryItemInTransaction,
+  removeInventoryItemInTransaction,
+} from "@/lib/inventory-edit";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
-type Context = { params: Promise<{ id: string }> }
+type Context = { params: Promise<{ id: string }> };
 
 // Every lookup is scoped by family_id, so another household's item answers
 // exactly like a missing one (same 404 body).
@@ -41,25 +42,25 @@ type Context = { params: Promise<{ id: string }> }
 // GET /api/inventory/[id]?today= — any role.
 export async function GET(request: NextRequest, context: Context) {
   try {
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'inventory')
-    if (gate) return gate
+    const gate = await featureGate(auth.user.family_id, "inventory");
+    if (gate) return gate;
 
-    const today = todayFrom(new URL(request.url).searchParams)
-    if (today instanceof NextResponse) return today
+    const today = todayFrom(new URL(request.url).searchParams);
+    if (today instanceof NextResponse) return today;
 
-    const { id } = await context.params
+    const { id } = await context.params;
     const row = await prisma!.inventoryItem.findFirst({
       where: { id, family_id: auth.user.family_id },
       select: INVENTORY_ITEM_SELECT,
-    })
-    if (!row) return itemNotFound()
-    return inventoryJson({ item: toInventoryDto(row, today) })
+    });
+    if (!row) return itemNotFound();
+    return inventoryJson({ item: toInventoryDto(row, today) });
   } catch (err) {
-    logRouteError('GET /api/inventory/[id]', err, getRequestId(request))
-    return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
+    logRouteError("GET /api/inventory/[id]", err, getRequestId(request));
+    return inventoryError(500, "INTERNAL_ERROR", "Internal server error");
   }
 }
 
@@ -74,86 +75,85 @@ export async function GET(request: NextRequest, context: Context) {
 // explicit values, so a re-run after a crash converges.
 export async function PATCH(request: NextRequest, context: Context) {
   try {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
+    const deviceRefusal = await refusePairedDevice(request);
+    if (deviceRefusal) return deviceRefusal;
 
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'inventory')
-    if (gate) return gate
+    const gate = await featureGate(auth.user.family_id, "inventory");
+    if (gate) return gate;
 
-    if (!canWriteInventory(auth.user.role)) return writeForbidden()
+    if (!canWriteInventory(auth.user.role)) return writeForbidden();
 
-    const today = todayFrom(new URL(request.url).searchParams)
-    if (today instanceof NextResponse) return today
+    const today = todayFrom(new URL(request.url).searchParams);
+    if (today instanceof NextResponse) return today;
 
-    const { key, error: keyError } = readIdempotencyKey(request)
-    if (keyError) return keyError
+    const { key, error: keyError } = readIdempotencyKey(request);
+    if (keyError) return keyError;
 
-    const json = await readJson(request)
-    if (!json.ok) return json.response
-    const parsed = updateInventorySchema.safeParse(json.body)
-    if (!parsed.success) return inventoryError(400, 'VALIDATION_ERROR', parsed.error.issues[0].message)
-    const data = parsed.data
-    const familyId = auth.user.family_id
-    const { id } = await context.params
+    const json = await readJson(request);
+    if (!json.ok) return json.response;
+    const parsed = updateInventorySchema.safeParse(json.body);
+    if (!parsed.success)
+      return inventoryError(
+        400,
+        "VALIDATION_ERROR",
+        parsed.error.issues[0].message,
+      );
+    const data = parsed.data;
+    const familyId = auth.user.family_id;
+    const { id } = await context.params;
 
     const res = await withIdempotency(
       prisma!,
       key,
-      { scope: `user:${auth.user.id}`, familyId, userId: auth.user.id, action: INVENTORY_UPDATE_ACTION },
+      {
+        scope: `user:${auth.user.id}`,
+        familyId,
+        userId: auth.user.id,
+        action: INVENTORY_UPDATE_ACTION,
+      },
       { id, ...data },
       async () => {
-        const existing = await prisma!.inventoryItem.findFirst({
+        const result = await prisma!.$transaction((tx) =>
+          editInventoryItemInTransaction(tx, {
+            familyId,
+            itemId: id,
+            changes: data,
+          }),
+        );
+        if (!result.ok)
+          return result.reason === "NOT_FOUND"
+            ? notFoundResult()
+            : result.reason === "FINISHED"
+              ? finishedResult()
+              : effectError(
+                  409,
+                  "INVENTORY_CONFLICT",
+                  "The item changed while saving. Try again.",
+                );
+        const row = await prisma!.inventoryItem.findFirst({
           where: { id, family_id: familyId },
-          select: { id: true, name: true, status: true, updated_at: true },
-        })
-        if (!existing) return notFoundResult()
-        if (existing.status !== 'active') return finishedResult()
-
-        const update: Record<string, unknown> = {}
-        const name = data.name !== undefined ? cleanItemName(data.name) : undefined
-        if (name !== undefined) update.name = name
-        if (data.ingredient_id !== undefined || (name !== undefined && name !== existing.name)) {
-          update.ingredient_id = await resolveInventoryIngredient(prisma!, familyId, name ?? existing.name, data.ingredient_id)
-        }
-        if (data.amount !== undefined) update.amount = data.amount
-        if (data.unit !== undefined) update.unit = data.unit
-        if (data.location !== undefined) update.location = data.location
-        if (data.expires_on !== undefined) update.expires_on = data.expires_on ? parseDateOnly(data.expires_on) : null
-        if (data.date_kind !== undefined) update.date_kind = data.date_kind
-        if (data.category !== undefined) update.category = data.category
-        if (data.purchased_on !== undefined) update.purchased_on = data.purchased_on ? parseDateOnly(data.purchased_on) : null
-        if (data.opened_on !== undefined) update.opened_on = data.opened_on ? parseDateOnly(data.opened_on) : null
-        // Always later than the previous version (Undo's compare-and-set, #158).
-        update.updated_at = nextItemVersion(existing.updated_at)
-
-        // Compare-and-set on the version read above, scoped by family and
-        // status again: a row finished, deleted or changed in between is a
-        // 409 / 404 / retryable 409, never a silent overwrite.
-        const result = await prisma!.inventoryItem.updateMany({
-          where: { id, family_id: familyId, status: 'active', updated_at: existing.updated_at },
-          data: update,
-        })
-        if (result.count === 0) {
-          const still = await prisma!.inventoryItem.findFirst({ where: { id, family_id: familyId }, select: { status: true } })
-          if (!still) return notFoundResult()
-          return still.status !== 'active'
-            ? finishedResult()
-            : effectError(409, 'INVENTORY_CONFLICT', 'The item changed while saving. Try again.')
-        }
-        const row = await prisma!.inventoryItem.findFirst({ where: { id, family_id: familyId }, select: INVENTORY_ITEM_SELECT })
-        if (!row) return notFoundResult()
-        return { status: 200, body: { item: toInventoryDto(row, today) } }
-      }
-    )
-    res.headers.set('Cache-Control', 'private, no-store')
-    return res
+          select: INVENTORY_ITEM_SELECT,
+        });
+        if (!row) return notFoundResult();
+        return { status: 200, body: { item: toInventoryDto(row, today) } };
+      },
+    );
+    res.headers.set("Cache-Control", "private, no-store");
+    return res;
   } catch (err) {
-    if (err instanceof InventoryInputError) return inventoryError(400, 'INGREDIENT_NOT_FOUND', err.message)
-    logRouteError('PATCH /api/inventory/[id]', err, getRequestId(request))
-    return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
+    if (err instanceof InventoryInputError)
+      return inventoryError(400, "INGREDIENT_NOT_FOUND", err.message);
+    if (err instanceof InventoryChangeConflict)
+      return inventoryError(
+        409,
+        "INVENTORY_CONFLICT",
+        "The item changed while saving. Try again.",
+      );
+    logRouteError("PATCH /api/inventory/[id]", err, getRequestId(request));
+    return inventoryError(500, "INTERNAL_ERROR", "Internal server error");
   }
 }
 
@@ -170,48 +170,67 @@ export async function PATCH(request: NextRequest, context: Context) {
 // which stamp the record id on the row they create).
 export async function DELETE(request: NextRequest, context: Context) {
   try {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
+    const deviceRefusal = await refusePairedDevice(request);
+    if (deviceRefusal) return deviceRefusal;
 
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'inventory')
-    if (gate) return gate
+    const gate = await featureGate(auth.user.family_id, "inventory");
+    if (gate) return gate;
 
-    if (!canWriteInventory(auth.user.role)) return writeForbidden()
+    if (!canWriteInventory(auth.user.role)) return writeForbidden();
 
-    const { key, error: keyError } = readIdempotencyKey(request)
-    if (keyError) return keyError
+    const { key, error: keyError } = readIdempotencyKey(request);
+    if (keyError) return keyError;
 
-    const familyId = auth.user.family_id
-    const { id } = await context.params
+    const familyId = auth.user.family_id;
+    const { id } = await context.params;
     const res = await withIdempotency(
       prisma!,
       key,
-      { scope: `user:${auth.user.id}`, familyId, userId: auth.user.id, action: INVENTORY_DELETE_ACTION },
+      {
+        scope: `user:${auth.user.id}`,
+        familyId,
+        userId: auth.user.id,
+        action: INVENTORY_DELETE_ACTION,
+      },
       { id },
       async ({ recordId }) => {
-        const body = { success: true }
+        const body = { success: true };
         const deleted = await prisma!.$transaction(async (tx) => {
-          const result = await tx.inventoryItem.deleteMany({ where: { id, family_id: familyId } })
-          if (result.count === 0) return false
+          const result = await removeInventoryItemInTransaction(tx, {
+            itemId: id,
+            familyId,
+          });
+          if (!result.ok) return false;
           if (recordId) {
-            await tx.idempotencyRecord.updateMany({
-              where: { id: recordId, family_id: familyId, response_status: null },
+            const confirmed = await tx.idempotencyRecord.updateMany({
+              where: {
+                id: recordId,
+                family_id: familyId,
+                response_status: null,
+              },
               data: { response_status: 200, response_body: body },
-            })
+            });
+            if (confirmed.count !== 1) throw new InventoryChangeConflict();
           }
-          return true
-        })
-        if (!deleted) return notFoundResult()
-        return { status: 200, body }
-      }
-    )
-    res.headers.set('Cache-Control', 'private, no-store')
-    return res
+          return true;
+        });
+        if (!deleted) return notFoundResult();
+        return { status: 200, body };
+      },
+    );
+    res.headers.set("Cache-Control", "private, no-store");
+    return res;
   } catch (err) {
-    logRouteError('DELETE /api/inventory/[id]', err, getRequestId(request))
-    return inventoryError(500, 'INTERNAL_ERROR', 'Internal server error')
+    if (err instanceof InventoryChangeConflict)
+      return inventoryError(
+        409,
+        "INVENTORY_CONFLICT",
+        "The item changed while saving. Try again.",
+      );
+    logRouteError("DELETE /api/inventory/[id]", err, getRequestId(request));
+    return inventoryError(500, "INTERNAL_ERROR", "Internal server error");
   }
 }

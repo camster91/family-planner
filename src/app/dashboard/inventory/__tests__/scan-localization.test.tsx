@@ -1,6 +1,13 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import { I18nProvider, useTranslation } from "@/i18n";
 import { ScanFridgeDialog } from "../ScanFridgeDialog";
 import { IDEMPOTENCY_HEADER } from "@/lib/idempotency-key";
@@ -51,7 +58,14 @@ function mount() {
   render(
     <I18nProvider locale="en">
       <Switch />
-      <ScanFridgeDialog onDone={onDone} onClose={onClose} />
+      <ScanFridgeDialog
+        initialContext={{
+          userId: "fixture_parent",
+          familyId: "fixture_family",
+        }}
+        onDone={onDone}
+        onClose={onClose}
+      />
     </I18nProvider>,
   );
   return { onDone, onClose };
@@ -148,10 +162,10 @@ it("preserves private edited rows/canonical location/selection and stable keys t
     path === "/api/inventory/scan"
       ? json(200, { items: suggestions })
       : ++n === 1
-        ? json(201, {})
+        ? json(201, { itemId: "fixture_item" })
         : n === 2
           ? Promise.reject(new Error("synthetic lost response"))
-          : json(201, {}),
+          : json(201, { itemId: "fixture_item" }),
   );
   const { onDone } = mount();
   upload();
@@ -186,15 +200,16 @@ it("preserves private edited rows/canonical location/selection and stable keys t
   fireEvent.click(screen.getByTestId("scan-add"));
   await act(async () => {});
   expect(fetch).toHaveBeenCalledTimes(4);
-  expect(onDone).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
   expect(onDone).toHaveBeenCalledWith("Added 2 items from your photo.");
   const creates = (fetch as jest.Mock).mock.calls.slice(1);
-  expect(JSON.parse(creates[0][1].body)).toEqual({
+  expect(JSON.parse(creates[0][1].body).item).toEqual({
     name: privateName,
     unit: "raw {unit} 李",
     amount: 2,
     location: "fridge",
     expires_on: null,
+    date_kind: "best_before",
   });
   expect(JSON.parse(creates[1][1].body)).toEqual(
     JSON.parse(creates[2][1].body),

@@ -135,6 +135,8 @@ describe("member audit-subject expand contract", () => {
   it("redacts member subjects before profile deletion while preserving actors", async () => {
     const calls: string[] = [];
     const tx = {
+      // Compatibility path: routine subject storage has not been expanded yet.
+      $queryRaw: jest.fn().mockResolvedValue([{ present: false }]),
       householdMemberLegacyMapping: {
         findMany: jest
           .fn()

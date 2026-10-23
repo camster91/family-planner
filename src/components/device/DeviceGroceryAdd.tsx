@@ -5,8 +5,10 @@ import { useTranslation } from "@/i18n";
 import type { GroceryMessage } from "@/i18n/grocery-controls";
 import { Dialog } from "@/components/ui/dialog";
 import { QueueStorageRecovery } from "@/components/ui/queue-storage-recovery";
+import { RecoveredQueueChanges } from "@/components/ui/recovered-queue-changes";
+import { LocalVoiceDraft } from "@/components/assistant/LocalVoiceDraft";
 import type { DeviceClient } from "@/lib/device-client";
-import { getDeviceQueue } from "@/lib/offline-queue-browser";
+import { getDeviceQueue } from "@/lib/device-queue-browser";
 import {
   QueueError,
   type AddGroceryOperation,
@@ -216,6 +218,7 @@ export function DeviceGroceryAdd({
   return (
     <>
       {!open && storageRecovery}
+      <RecoveredQueueChanges queue={queue} deviceClient={client} />
       <button
         type="button"
         disabled={busy}
@@ -244,26 +247,44 @@ export function DeviceGroceryAdd({
           <p>{t("groceries.deviceUnconfirmedHint")}</p>
           {!durable && <p role="alert">{t("groceries.deviceMemoryHint")}</p>}
           {ops.map((op) => {
+            const targetKnown = lists.some(
+              (list) => list.id === op.payload.listId,
+            );
             const cannotRetry =
+              !targetKnown ||
               op.lastError === "EXPIRED" ||
-              op.lastError === "IDEMPOTENCY_KEY_REUSED";
-            const state =
-              op.state === "syncing"
+              op.lastError === "IDEMPOTENCY_KEY_REUSED" ||
+              op.lastError === "ORIGINAL_DEVICE_REQUIRED";
+            const state = !targetKnown
+              ? t("groceries.deviceTargetUnverified")
+              : op.state === "syncing"
                 ? t("groceries.adding")
                 : op.state === "pending"
                   ? t("groceries.deviceWaiting")
-                  : op.state === "conflict"
-                    ? t("groceries.deviceConflict")
-                    : cannotRetry
-                      ? t("groceries.deviceUnsafe")
-                      : t("groceries.deviceFailed");
+                  : op.lastError === "ORIGINAL_DEVICE_REQUIRED"
+                    ? t("groceries.originalDeviceRequired")
+                    : op.lastError === "QUEUE_REVIEW_REQUIRED"
+                      ? t("groceries.recoveredReview")
+                      : op.lastError === "QUEUE_OWNER_CHANGED"
+                        ? t("groceries.storageOwnerChanged")
+                        : op.lastError === "QUEUE_STORAGE_UNCERTAIN"
+                          ? t("groceries.storageUnavailable")
+                          : op.state === "conflict"
+                            ? t("groceries.deviceConflict")
+                            : cannotRetry
+                              ? t("groceries.deviceUnsafe")
+                              : t("groceries.deviceFailed");
             return (
               <div
                 key={op.id}
                 data-testid="queued-grocery-add"
                 className="space-y-2"
               >
-                <p className="break-words font-medium">{op.payload.content}</p>
+                <p className="break-words font-medium">
+                  {targetKnown
+                    ? op.payload.content
+                    : t("groceries.deviceUnverifiedTitle")}
+                </p>
                 <p>{state}</p>
                 {op.state !== "syncing" && (
                   <div className="flex flex-wrap gap-3">
@@ -339,6 +360,13 @@ export function DeviceGroceryAdd({
                 autoComplete="off"
                 className={inputClass}
                 onChange={(e) => setContent(e.target.value)}
+              />
+              <LocalVoiceDraft
+                enabled={open && !busy && Boolean(actorId)}
+                contextKey={`${actorId}:${listId}`}
+                value={content}
+                maxLength={200}
+                onDraft={setContent}
               />
             </div>
             {!online && <p role="status">{t("groceries.deviceOfflineHint")}</p>}

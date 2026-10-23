@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import {
   accountDeletionStatusMessages,
   type AccountDeletionStatusMessage,
@@ -18,7 +18,7 @@ import {
 export default function LazyDeleteAccountDialog(
   props: DeleteAccountDialogProps,
 ) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (key: AccountDeletionStatusMessage) =>
     t(key, undefined, accountDeletionStatusMessages);
   const [Controls, setControls] = useState<Awaited<

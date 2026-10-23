@@ -1,12 +1,12 @@
 "use client";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import {
   notificationPreferencesStatusMessages,
   type NotificationPreferencesStatusMessage,
 } from "@/i18n/notification-preferences-status";
 /** Existing preference loading/retry UI, shared by module and API loading. */
 export function NotificationPreferencesLoading() {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (key: NotificationPreferencesStatusMessage) =>
     t(key, undefined, notificationPreferencesStatusMessages);
   return (
@@ -21,7 +21,7 @@ export function NotificationPreferencesFailure({
 }: {
   onRetry: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (key: NotificationPreferencesStatusMessage) =>
     t(key, undefined, notificationPreferencesStatusMessages);
   return (

@@ -4,6 +4,12 @@
 // 3. Creates/updates tables to match the current Prisma schema
 // 4. Runs any database/migration-*.sql files (sorted alphabetically, idempotent)
 // 5. Runs POST_FEATURE_SQL (changes to tables those files create)
+// Food source continuity columns (food_generation / food_epoch) for Family,
+// User, Recipe, RecipeIngredient, Ingredient, InventoryItem, FamilyMeal,
+// MealPrepSession, MealBatch, MealBatchConsumption and List are installed with
+// their required INSERT/UPDATE triggers by the sorted per-feature file
+// database/migration-zzzzzzzzz-food-source-versions.sql. Keep that file and
+// prisma/schema.prisma aligned; do not install columns without their triggers.
 // Called from docker-entrypoint.sh before starting the server
 //
 // IMPORTANT: This file MUST stay in sync with prisma/schema.prisma.
@@ -77,6 +83,13 @@ CREATE TABLE IF NOT EXISTS "User" (
   "token_version" INTEGER NOT NULL DEFAULT 0,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+
+-- Personal display preferences and parent defaults (#560), additive and nullable.
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "display_preferences" JSONB;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "display_preferences_revision" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "display_defaults" JSONB;
+ALTER TABLE "Family" ADD COLUMN IF NOT EXISTS "display_defaults_revision" INTEGER NOT NULL DEFAULT 0;
 
 -- Backfill auth token columns if older deployments predate them
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "last_chore_date" TIMESTAMP(3);
@@ -965,6 +978,10 @@ CREATE TABLE IF NOT EXISTS "RoutineStack" (
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE "RoutineStack" ALTER COLUMN "created_by" DROP NOT NULL;
+ALTER TABLE "RoutineStack" ADD COLUMN IF NOT EXISTS "schedule_config" JSONB;
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_anchor" VARCHAR(200);
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_duration_minutes" INTEGER;
+ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_series_config" JSONB;
 ALTER TABLE "Chore" ADD COLUMN IF NOT EXISTS "routine_stack_id" TEXT;
 DO $$ BEGIN
   ALTER TABLE "RoutineStack" ADD CONSTRAINT "RoutineStack_family_id_fkey"
@@ -1121,84 +1138,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS "ListItem_open_recipe_source_key"
   ON "ListItem"("list_id", "ingredient_id", "source_key")
   WHERE "checked" = false AND "source_key" IS NOT NULL AND "ingredient_id" IS NOT NULL;
 
--- ============ Food inventory (#263; additive) ============
--- New table only, no backfill. It references "Ingredient", which
--- migration-meal-planner-domains.sql creates, so it lives here. The
--- "inventory" feature is off by default for new and existing households
--- (src/lib/features.ts), so no Family.features stamp is needed: a blob
--- without the key already reads as off. See
--- docs/architecture/MEALS_AND_GROCERIES.md "Food inventory".
-CREATE TABLE IF NOT EXISTS "InventoryItem" (
-  "id" TEXT PRIMARY KEY,
-  "family_id" TEXT NOT NULL,
-  "name" TEXT NOT NULL,
-  "ingredient_id" TEXT,
-  "amount" DOUBLE PRECISION,
-  "unit" TEXT,
-  "location" TEXT NOT NULL DEFAULT 'fridge',
-  "expires_on" DATE,
-  "added_by" TEXT,
-  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-DO $$ BEGIN
-  ALTER TABLE "InventoryItem" ADD CONSTRAINT "InventoryItem_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE "InventoryItem" ADD CONSTRAINT "InventoryItem_ingredient_id_fkey" FOREIGN KEY ("ingredient_id") REFERENCES "Ingredient"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE "InventoryItem" ADD CONSTRAINT "InventoryItem_added_by_fkey" FOREIGN KEY ("added_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-CREATE INDEX IF NOT EXISTS "InventoryItem_family_id_location_idx" ON "InventoryItem"("family_id", "location");
-CREATE INDEX IF NOT EXISTS "InventoryItem_family_id_expires_on_idx" ON "InventoryItem"("family_id", "expires_on");
-CREATE INDEX IF NOT EXISTS "InventoryItem_ingredient_id_idx" ON "InventoryItem"("ingredient_id");
-
--- ============ Inventory foundation (#158/#121; additive) ============
--- Nullable or defaulted columns and one new table, no backfill. Old rows read
--- as best-before dates on active items, which is what they were. Finished
--- (consumed/discarded) items keep their row so Undo can put them back; the
--- adjustment row records who did what and what to restore. See
--- docs/architecture/MEALS_AND_GROCERIES.md §10 "Consume, discard and undo".
-ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "date_kind" TEXT NOT NULL DEFAULT 'best_before';
-ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "category" TEXT;
-ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "purchased_on" DATE;
-ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "opened_on" DATE;
-ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'active';
-ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "finished_at" TIMESTAMP(3);
-CREATE INDEX IF NOT EXISTS "InventoryItem_family_id_status_expires_on_idx" ON "InventoryItem"("family_id", "status", "expires_on");
-CREATE TABLE IF NOT EXISTS "InventoryAdjustment" (
-  "id" TEXT PRIMARY KEY,
-  "family_id" TEXT NOT NULL,
-  "item_id" TEXT NOT NULL,
-  "kind" TEXT NOT NULL,
-  "amount_delta" DOUBLE PRECISION,
-  "amount_before" DOUBLE PRECISION,
-  "amount_after" DOUBLE PRECISION,
-  "status_before" TEXT NOT NULL,
-  "status_after" TEXT NOT NULL,
-  "actor_id" TEXT,
-  "request_id" TEXT,
-  "item_version" TIMESTAMP(3) NOT NULL,
-  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "undone_at" TIMESTAMP(3),
-  "undone_by" TEXT
-);
-DO $$ BEGIN
-  ALTER TABLE "InventoryAdjustment" ADD CONSTRAINT "InventoryAdjustment_family_id_fkey" FOREIGN KEY ("family_id") REFERENCES "Family"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE "InventoryAdjustment" ADD CONSTRAINT "InventoryAdjustment_item_id_fkey" FOREIGN KEY ("item_id") REFERENCES "InventoryItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE "InventoryAdjustment" ADD CONSTRAINT "InventoryAdjustment_actor_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE "InventoryAdjustment" ADD CONSTRAINT "InventoryAdjustment_undone_by_fkey" FOREIGN KEY ("undone_by") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-CREATE UNIQUE INDEX IF NOT EXISTS "InventoryAdjustment_request_id_key" ON "InventoryAdjustment"("request_id");
-CREATE INDEX IF NOT EXISTS "InventoryAdjustment_family_id_created_at_idx" ON "InventoryAdjustment"("family_id", "created_at");
-CREATE INDEX IF NOT EXISTS "InventoryAdjustment_item_id_created_at_idx" ON "InventoryAdjustment"("item_id", "created_at");
+-- InventoryItem/InventoryAdjustment foundation is installed earlier by
+-- database/migration-meal-planner-inventory.sql, after Ingredient exists and
+-- before later food product/source-version migrations reference inventory.
 
 -- ============ Grocery store sections (#273; additive) ============
 -- Nullable/defaulted columns and two new tables, no backfill. "Ingredient"

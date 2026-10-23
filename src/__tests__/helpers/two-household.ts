@@ -127,7 +127,7 @@ function seed(): Tables {
       id: `chore-${f}`, family_id, title: `${tag} dishes`, description: null, points: 10,
       assigned_to: `child-${f}`, due_date: SOON, status: 'pending', frequency: 'once',
       difficulty: 'easy', created_by: `parent-${f}`, photo_url: `/api/files/chores/${f === 'a' ? 'aaaaaaaaaaaaaaaa' : 'bbbbbbbbbbbbbbbb'}.jpg`,
-      recurrence_id: null, completed_at: null, created_at: T0,
+      recurrence_id: null, completed_at: null, member_subject_erased: false, created_at: T0,
     })),
     choreAssignment: [],
     // D3 ownership records. Empty at seed: the seeded chore photos above are
@@ -315,6 +315,13 @@ const RELATIONS: Record<string, Record<string, Rel>> = {
     family: { model: 'family', fk: 'family_id' },
     creator: { model: 'user', fk: 'created_by' },
     ingredients: { model: 'recipeIngredient', fk: 'recipe_id', many: true },
+    collection_entries: { model: 'recipeCollectionEntry', fk: 'recipe_id', many: true },
+  },
+  recipeCollection: { family: { model: 'family', fk: 'family_id' } },
+  recipeCollectionEntry: {
+    family: { model: 'family', fk: 'family_id' },
+    collection: { model: 'recipeCollection', fk: 'collection_id' },
+    recipe: { model: 'recipe', fk: 'recipe_id' },
   },
   recipeIngredient: {
     recipe: { model: 'recipe', fk: 'recipe_id' },
@@ -790,6 +797,7 @@ function delegate(model: string) {
     create: async (args: any) => {
       log('create', args)
       const row: Row = { id: db.nextId(model), created_at: new Date() }
+      if (model === 'chore' || model === 'choreAssignment') row.member_subject_erased = false
       applyData(model, row, args.data)
       if (violatesUnique(model, all(), row)) throw uniqueViolation(model)
       all().push(row)
@@ -801,6 +809,7 @@ function delegate(model: string) {
       let count = 0
       for (const d of data) {
         const row: Row = { id: db.nextId(model), created_at: new Date() }
+        if (model === 'chore' || model === 'choreAssignment') row.member_subject_erased = false
         applyData(model, row, d)
         if (violatesUnique(model, all(), row)) {
           if (args.skipDuplicates) continue
@@ -898,7 +907,69 @@ export const fakePrisma: any = new Proxy(
       if (prop === '$transaction') {
         return async (arg: any) => (typeof arg === 'function' ? arg(fakePrisma) : Promise.all(arg))
       }
-      if (prop === '$executeRaw' || prop === '$queryRaw') return async () => 0
+      if (prop === '$queryRaw') return async (strings: TemplateStringsArray, ...values: unknown[]) => {
+        const sql = strings.join('?').replace(/\s+/g, ' ').trim()
+        // Only the three additive metadata-table probes used by deletion.
+        if (/^SELECT to_regclass\('public\."(HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy)"'\) IS NOT NULL AS present$/.test(sql)) return [{ present: true }]
+        // Exact source query for private scheduled-root metadata. Locks are
+        // intentionally no-ops in this fixture; concurrency needs real PG.
+        if (sql.startsWith('SELECT "routine_series_config" FROM "Chore"')) {
+          const familyFirst = sql.indexOf('"family_id" = ?') < sql.indexOf('"id" = ?')
+          const familyId = familyFirst ? values[0] : values[1]
+          const choreId = familyFirst ? values[1] : values[0]
+          const series = familyFirst && values[2] === true
+          const selected = db.find('chore', String(choreId))
+          return db.rows('chore').filter(row => row.family_id === familyId && (row.id === choreId || (series && row.id === selected?.recurrence_id))).map(row => ({ routine_series_config: row.routine_series_config ?? null }))
+        }
+        if (sql.startsWith('SELECT c."id", c."recurrence_id", r."id" AS root_id')) {
+          const familyId = values[0], choreId = values[1]
+          const hiddenRead = sql.includes("c.\"status\" IN")
+          return db.rows('chore').filter(row => row.family_id === familyId &&
+            (choreId == null || row.id === choreId)).flatMap(row => {
+              const root = db.find('chore', String(row.recurrence_id))
+              const scopedRoot = root?.family_id === familyId ? root : null
+              const own = row.routine_series_config ?? null, config = scopedRoot?.routine_series_config ?? null
+              if (hiddenRead && ((!own && !config) || !['pending', 'in_progress', 'overdue'].includes(String(row.status)))) return []
+              return [{ ...row, root_id: scopedRoot?.id ?? null, root_recurrence_id: scopedRoot?.recurrence_id ?? null,
+                own_config: own, series_config: config, photo_url: row.photo_url ?? null,
+                photo_verified: row.photo_verified ?? false, verified_at: row.verified_at ?? null,
+                verified_notes: row.verified_notes ?? null, completed_at: row.completed_at ?? null,
+                successor_id: row.successor_id ?? null, member_subject_erased: row.member_subject_erased ?? false }]
+            })
+        }
+        if (sql.startsWith('SELECT s."schedule_config" AS schedule_config')) {
+          const familyId = values[0], stackId = values[1], selected = values[3] as string[]
+          const stack = db.find('routineStack', String(stackId))
+          const rows = stack && stack.family_id === familyId ? [{ schedule_config: stack.schedule_config ?? null }] : []
+          return rows.concat(db.rows('chore').filter(row => row.family_id === familyId && selected.includes(String(row.id))).map(row => {
+            const root = db.find('chore', String(row.recurrence_id))
+            return { schedule_config: row.routine_series_config ?? (root && root.family_id === familyId ? root.routine_series_config : null) ?? null }
+          }))
+        }
+        // A raw SELECT always returns rows, including an empty result. Unknown
+        // fixture queries grant no permission or schema readiness by default.
+        return []
+      }
+      if (prop === '$executeRaw') return async (strings: TemplateStringsArray, ...values: unknown[]) => {
+        const sql = strings.join('?').replace(/\s+/g, ' ').trim()
+        const optionalMetadata = /^DELETE FROM "(HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy)" WHERE "family_id" = \?$/.exec(sql)
+        if (optionalMetadata) {
+          const model = optionalMetadata[1][0].toLowerCase() + optionalMetadata[1].slice(1)
+          return fakePrisma[model].deleteMany({ where: { family_id: values[0] } }).then((result: { count: number }) => result.count)
+        }
+        // Exact source erasure statement; no generic SQL interpretation.
+        if (sql.startsWith('UPDATE "Message" SET "read_by" = array_remove')) {
+          const userId = values[0], familyId = values[1]
+          let count = 0
+          for (const row of db.rows('message')) {
+            if (row.family_id !== familyId || !Array.isArray(row.read_by) || !row.read_by.includes(userId)) continue
+            row.read_by = row.read_by.filter((id: unknown) => id !== userId)
+            count += 1
+          }
+          return count
+        }
+        return 0
+      }
       if (prop === 'then') return undefined
       if (!delegates[prop]) delegates[prop] = delegate(prop)
       return delegates[prop]
@@ -967,6 +1038,9 @@ class MockNextResponse {
     this.body = body
     this.status = init?.status ?? 200
     this.headers = new Headers(init?.headers)
+  }
+  get ok() {
+    return this.status >= 200 && this.status < 300
   }
   async json() {
     return typeof this.body === 'string' ? JSON.parse(this.body) : this.body

@@ -10,7 +10,7 @@ const openPanels: Array<{ panel: HTMLElement; previous: HTMLElement | null }> =
   [];
 
 const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'a[href], summary:not([tabindex="-1"]), button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"]):not(:disabled)';
 
 /**
  * Modal dialog: `role="dialog"`, `aria-modal`, labelled by its title, focus
@@ -155,7 +155,7 @@ export function Dialog({
         tabIndex={-1}
         data-testid={testId}
         className={cn(
-          "max-h-[100dvh] w-full overflow-y-auto rounded-t-[var(--radius-2xl)] bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-lg)] outline-none sm:max-w-lg sm:rounded-[var(--radius-2xl)]",
+          "max-h-[100dvh] w-full overflow-y-auto rounded-t-[var(--radius-2xl)] bg-[var(--surface-elevated)] text-label-primary p-6 shadow-[var(--shadow-lg)] outline-none sm:max-w-lg sm:rounded-[var(--radius-2xl)]",
           "motion-safe:animate-spring-in",
           variant === "form" &&
             "flex max-h-[92dvh] flex-col overflow-hidden p-0 sm:max-h-[90dvh] sm:max-w-xl",
@@ -199,6 +199,9 @@ export function Dialog({
         {variant === "form" ? (
           <>
             <div
+              // Disabled fields cannot make this independently scrolling area
+              // keyboard reachable while a request is pending.
+              tabIndex={0}
               className={cn(
                 "min-h-0 overflow-y-auto overscroll-contain px-5 pt-5",
                 footer

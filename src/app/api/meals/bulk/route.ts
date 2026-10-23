@@ -68,16 +68,17 @@ export async function GET(request: NextRequest) {
               total_servings: true,
               reserve_storage: true,
               recipe_id: true,
+              recipe_snapshot_at: true,
               cook_id: true,
               meals: {
                 where,
-                take: 50,
+                take: 51,
                 orderBy: [{ date: "asc" }, { id: "asc" }],
                 select: BATCH_MEALS_SELECT,
               },
               consumption: {
                 where: { ...where, cancelled_at: null },
-                take: 50,
+                take: 51,
                 orderBy: [{ consumed_at: "desc" }, { id: "desc" }],
                 select: BATCH_CONSUMPTION_SELECT,
               },
@@ -87,7 +88,16 @@ export async function GET(request: NextRequest) {
       });
       if (sessionId && rows.length === 0)
         return batchJson(batchFailure(404, "SESSION_UNAVAILABLE"));
-      const sessions = rows.slice(0, 20);
+      const sessions = rows.slice(0, 20).map((session) => ({
+        ...session,
+        batches: session.batches.map((batch) => ({
+          ...batch,
+          portions_complete:
+            batch.meals.length <= 50 && batch.consumption.length <= 50,
+          meals: batch.meals.slice(0, 50),
+          consumption: batch.consumption.slice(0, 50),
+        })),
+      }));
       return batchJson({
         status: 200,
         body: {

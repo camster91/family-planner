@@ -6,8 +6,15 @@ jest.mock("@/lib/api-auth", () => ({ authenticateWithFamily: jest.fn() }));
 jest.mock("@/lib/rate-limit-db", () => ({
   checkRateLimit: jest.fn(async () => ({ allowed: true })),
 }));
+jest.mock("@/lib/household-lock", () => ({
+  lockUser: jest.fn(async () => undefined),
+  lockHousehold: jest.fn(async () => undefined),
+}));
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    $transaction: async (run: (tx: unknown) => unknown) =>
+      run(require("@/lib/prisma").prisma),
+    user: { findFirst: jest.fn(async () => ({ token_version: 0 })) },
     appFeedback: { findMany: jest.fn(async () => []), upsert: jest.fn() },
   },
 }));
@@ -27,8 +34,12 @@ const req = (body: unknown = draft) =>
   ({ text: async () => JSON.stringify(body) }) as NextRequest;
 beforeEach(() => {
   jest.clearAllMocks();
+  (prisma!.user.findFirst as jest.Mock).mockResolvedValue({ token_version: 0 });
   (authenticateWithFamily as jest.Mock).mockResolvedValue([
-    { user: { id: "user-a", family_id: "family-a", role: "child" } },
+    {
+      payload: { tv: 0 },
+      user: { id: "user-a", family_id: "family-a", role: "child" },
+    },
     null,
   ]);
   (checkRateLimit as jest.Mock).mockResolvedValue({ allowed: true });
@@ -94,3 +105,32 @@ it("requires auth and respects rate limit", async () => {
   expect((await POST(req())).status).toBe(429);
   expect(prisma!.appFeedback.upsert).not.toHaveBeenCalled();
 });
+
+it.each(["kind", "title", "details", "page"] as const)(
+  "refuses same-key changed %s without disclosing or overwriting the earlier report",
+  async (field) => {
+    (prisma!.appFeedback.upsert as jest.Mock).mockResolvedValue({
+      ...draft,
+      family_id: "family-a",
+      request_id: draft.requestId,
+      id: "earlier-private-receipt",
+      [field]: field === "kind" ? "feature" : "Earlier private value",
+    });
+    const res = await POST(req());
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body).toMatchObject({ code: "REPORT_REQUEST_CONFLICT" });
+    expect(JSON.stringify(body)).not.toContain("earlier-private-receipt");
+    expect(prisma!.appFeedback.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: {} }),
+    );
+  },
+);
+it.each([null, { token_version: 1 }])(
+  "refuses stale membership/session before writing a report",
+  async (member) => {
+    (prisma!.user.findFirst as jest.Mock).mockResolvedValue(member);
+    expect((await POST(req())).status).toBe(401);
+    expect(prisma!.appFeedback.upsert).not.toHaveBeenCalled();
+  },
+);

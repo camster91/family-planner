@@ -9,14 +9,44 @@ import { ownFeatureAudit } from "./support/feature-audit";
 import { authFile } from "./support/env";
 import { browserFetch, browserSend, expect, test } from "./support/test";
 
-const PROJECTS = [
-  "phone-390x844",
-  "phone-430x932",
-  "tablet-portrait-800x1280",
-  "fridge-landscape-1280x800",
-  "tablet-large-1920x1200",
-  "desktop-1366x768",
-] as const;
+const PROJECTS = ["phone-390x844", "desktop-1366x768"] as const;
+
+const SYNTHETIC_HANDOFF_ID = "e2e_handoff_recovery";
+const SYNTHETIC_PUBLIC_TOKEN = "synthetic-handoff-recovery-token";
+const SYNTHETIC_EXPIRED_TOKEN = "synthetic-handoff-expired-token";
+const SYNTHETIC_HANDOFF = {
+  id: SYNTHETIC_HANDOFF_ID,
+  sitter_name: "Synthetic sitter",
+  sitter_phone: "555-0100",
+  arrival_time: "2099-04-10T20:00:00.000Z",
+  departure_time: null,
+  kids_bedtimes: null,
+  where_snacks: null,
+  pickup_authorized: null,
+  code_words: null,
+  pet_care: null,
+  emergency_notes: null,
+  house_notes: "Synthetic house notes",
+  general_notes: null,
+  share_token: SYNTHETIC_PUBLIC_TOKEN,
+  share_expires_at: "2099-04-11T02:00:00.000Z",
+};
+const SYNTHETIC_PUBLIC_HANDOFF = {
+  id: SYNTHETIC_HANDOFF_ID,
+  sitter_name: SYNTHETIC_HANDOFF.sitter_name,
+  sitter_phone: null,
+  arrival_time: SYNTHETIC_HANDOFF.arrival_time,
+  departure_time: null,
+  kids_bedtimes: null,
+  where_snacks: null,
+  pickup_authorized: null,
+  code_words: null,
+  pet_care: null,
+  emergency_notes: null,
+  house_notes: null,
+  general_notes: null,
+  family: { name: "Synthetic household" },
+};
 
 test.use({ storageState: authFile("parentA") });
 
@@ -85,7 +115,8 @@ async function runtimeIdentity(
     locale,
     role: "parent",
     canonicalFeatureTransport: "PATCH /api/family/features enable and restore",
-    handoffTransport: "GET /api/handoff synthetic 503 then empty 200",
+    handoffTransport:
+      "GET /api/handoff synthetic 503/malformed/empty recovery; POST and public share responses intercepted",
   };
   expect(identity.buildId).not.toBe("");
   expect(identity.buildTree).toMatch(/^[a-f0-9]{40}$/);
@@ -99,14 +130,26 @@ async function runtimeIdentity(
 async function captureState(
   page: Page,
   info: TestInfo,
-  state: "error" | "loading" | "empty",
+  state:
+    | "error"
+    | "loading"
+    | "malformed"
+    | "empty"
+    | "create-pending"
+    | "create-error"
+    | "create-success"
+    | "public-error"
+    | "public-malformed"
+    | "public-valid"
+    | "public-expired",
   identity: Awaited<ReturnType<typeof runtimeIdentity>>,
+  scope = "#main-content",
 ) {
   const overflowFree = await page.evaluate(
     () => document.documentElement.scrollWidth <= innerWidth,
   );
   const violations = (
-    await new AxeBuilder({ page }).include("#main-content").analyze()
+    await new AxeBuilder({ page }).include(scope).analyze()
   ).violations.filter(
     (violation) =>
       violation.impact === "serious" || violation.impact === "critical",
@@ -137,7 +180,7 @@ for (const locale of ["en", "es"] as const) {
   }, info) => {
     test.skip(
       !PROJECTS.includes(info.project.name as (typeof PROJECTS)[number]),
-      "Handoff recovery runs at the six representative responsive sizes",
+      "Handoff transport recovery runs on phone and desktop; deletion layout retains all six sizes",
     );
     assertFixtureTargetAllowed(process.env);
     expect(["localhost", "127.0.0.1", "[::1]"]).toContain(
@@ -157,6 +200,7 @@ for (const locale of ["en", "es"] as const) {
     );
 
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     await expect(page.locator("html")).toHaveAttribute("lang", locale);
     const identity = await runtimeIdentity(page, info, locale);
     const featuresResponse = await browserFetch(page, "/api/family/features");
@@ -168,37 +212,133 @@ for (const locale of ["en", "es"] as const) {
 
     let featuresRestored = false;
     let handoffAttempts = 0;
+    let createWrites = 0;
+    let publicAttempts = 0;
+    let createAccepted = false;
+    const interceptedWrites: string[] = [];
+    const blockedWrites: string[] = [];
     const releaseSuccessfulResponse = {
       current: null as (() => void) | null,
     };
     const successfulResponse = new Promise<void>((resolve) => {
       releaseSuccessfulResponse.current = resolve;
     });
+    const releaseCreateResponse = {
+      current: null as (() => void) | null,
+    };
+    const pendingCreateResponse = new Promise<void>((resolve) => {
+      releaseCreateResponse.current = resolve;
+    });
 
     await page.route("**/api/handoff**", async (route) => {
       const request = route.request();
       const url = new URL(request.url());
-      if (request.method() !== "GET" || url.pathname !== "/api/handoff") {
-        await route.continue();
-        return;
-      }
-
-      handoffAttempts += 1;
-      if (handoffAttempts === 1) {
+      if (request.method() === "GET" && url.pathname === "/api/handoff") {
+        handoffAttempts += 1;
+        if (handoffAttempts === 1) {
+          await route.fulfill({
+            status: 503,
+            contentType: "application/json",
+            body: JSON.stringify({
+              error: "Synthetic initial handoff refusal",
+            }),
+          });
+          return;
+        }
+        if (handoffAttempts === 2) {
+          await successfulResponse;
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ handoffs: null }),
+          });
+          return;
+        }
         await route.fulfill({
-          status: 503,
+          status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ error: "Synthetic initial handoff refusal" }),
+          body: JSON.stringify({
+            handoffs: createAccepted ? [SYNTHETIC_HANDOFF] : [],
+          }),
         });
         return;
       }
 
-      await successfulResponse;
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ handoffs: [] }),
-      });
+      if (
+        request.method() === "GET" &&
+        url.pathname === `/api/handoff/share/${SYNTHETIC_EXPIRED_TOKEN}`
+      ) {
+        await route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Synthetic expired handoff" }),
+        });
+        return;
+      }
+
+      if (
+        request.method() === "GET" &&
+        url.pathname === `/api/handoff/share/${SYNTHETIC_PUBLIC_TOKEN}`
+      ) {
+        publicAttempts += 1;
+        if (publicAttempts === 1) {
+          await route.fulfill({
+            status: 503,
+            contentType: "application/json",
+            body: JSON.stringify({ error: "Synthetic public handoff outage" }),
+          });
+        } else if (publicAttempts === 2) {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: "null",
+          });
+        } else {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ handoff: SYNTHETIC_PUBLIC_HANDOFF }),
+          });
+        }
+        return;
+      }
+
+      if (request.method() === "POST" && url.pathname === "/api/handoff") {
+        expect(request.headers()["x-csrf-token"]).toBeTruthy();
+        createWrites += 1;
+        interceptedWrites.push(`${request.method()} ${url.pathname}`);
+        expect(request.postDataJSON()).toMatchObject({
+          sitter_name: SYNTHETIC_HANDOFF.sitter_name,
+          sitter_phone: SYNTHETIC_HANDOFF.sitter_phone,
+          house_notes: SYNTHETIC_HANDOFF.house_notes,
+        });
+        if (createWrites === 1) {
+          await pendingCreateResponse;
+          await route.fulfill({
+            status: 503,
+            contentType: "application/json",
+            body: JSON.stringify({ error: "Synthetic handoff save refusal" }),
+          });
+        } else {
+          createAccepted = true;
+          await route.fulfill({
+            status: 201,
+            contentType: "application/json",
+            body: JSON.stringify({ handoff: SYNTHETIC_HANDOFF }),
+          });
+        }
+        return;
+      }
+
+      const method = request.method();
+      if (["POST", "PATCH", "PUT", "DELETE"].includes(method)) {
+        blockedWrites.push(`${method} ${url.pathname}`);
+        await route.abort("blockedbyclient");
+        return;
+      }
+
+      blockedWrites.push(`${method} ${url.pathname}`);
+      await route.abort("blockedbyclient");
     });
 
     try {
@@ -246,13 +386,194 @@ for (const locale of ["en", "es"] as const) {
 
       releaseSuccessfulResponse.current?.();
       expect((await retryResponse).status()).toBe(200);
+      await expect(loadError).toContainText(copy.handoff.errorLoad);
+      await captureState(page, info, "malformed", identity);
+
+      const malformedRetry = main.getByRole("button", {
+        name: copy.routeState.tryAgain,
+        exact: true,
+      });
+      await malformedRetry.click();
       await expect(
         main.getByRole("heading", { name: copy.handoff.empty, exact: true }),
       ).toBeVisible();
       await expect(loadError).toHaveCount(0);
       await captureState(page, info, "empty", identity);
+
+      const createTrigger = main
+        .getByRole("button", { name: copy.handoff.createHandoff, exact: true })
+        .first();
+      await createTrigger.click();
+      const createDialog = page.getByRole("dialog", {
+        name: copy.handoff.createHandoff,
+        exact: true,
+      });
+      const optionalDetails = createDialog.getByTestId(
+        "handoff-optional-details",
+      );
+      const optionalDetailsCopy =
+        locale === "es" ? "Detalles opcionales" : "Optional details";
+      await optionalDetails
+        .getByText(optionalDetailsCopy, { exact: true })
+        .click();
+      await expect(optionalDetails).toHaveAttribute("open", "");
+      await createDialog
+        .getByLabel(copy.handoff.sitterName, { exact: true })
+        .fill(SYNTHETIC_HANDOFF.sitter_name);
+      await createDialog
+        .getByLabel(copy.handoff.arrivalTime, { exact: true })
+        .fill("2099-04-10T20:00");
+      await createDialog
+        .getByLabel(copy.handoff.sitterPhone, { exact: true })
+        .fill(SYNTHETIC_HANDOFF.sitter_phone);
+      await createDialog
+        .getByLabel(copy.handoff.houseNotes, { exact: true })
+        .fill(SYNTHETIC_HANDOFF.house_notes);
+
+      const createResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/handoff",
+      );
+      await createDialog
+        .getByRole("button", { name: copy.common.save, exact: true })
+        .click();
+      await expect.poll(() => createWrites).toBe(1);
+      await expect(
+        createDialog.getByRole("button", {
+          name: copy.common.saving,
+          exact: true,
+        }),
+      ).toBeDisabled();
+      for (const control of await createDialog
+        .locator("input, textarea, select")
+        .all()) {
+        await expect(control).toBeDisabled();
+      }
+      await expect(
+        createDialog.getByTestId("handoff-form-footer"),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(createDialog).toBeVisible();
+      await expect(
+        createDialog.getByLabel(copy.handoff.sitterName, { exact: true }),
+      ).toHaveValue(SYNTHETIC_HANDOFF.sitter_name);
+      await captureState(page, info, "create-pending", identity);
+
+      releaseCreateResponse.current?.();
+      expect((await createResponse).status()).toBe(503);
+      await expect(createDialog.getByRole("alert")).toContainText(
+        "Synthetic handoff save refusal",
+      );
+      await expect(
+        createDialog.getByLabel(copy.handoff.sitterName, { exact: true }),
+      ).toHaveValue(SYNTHETIC_HANDOFF.sitter_name);
+      await expect(
+        createDialog.getByLabel(copy.handoff.houseNotes, { exact: true }),
+      ).toHaveValue(SYNTHETIC_HANDOFF.house_notes);
+      await captureState(page, info, "create-error", identity);
+
+      const successfulCreateResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/handoff",
+      );
+      await createDialog
+        .getByRole("button", { name: copy.common.save, exact: true })
+        .click();
+      expect((await successfulCreateResponse).status()).toBe(201);
+      await expect(createDialog).toHaveCount(0);
+      await expect(
+        main.getByText(SYNTHETIC_HANDOFF.sitter_name, { exact: true }),
+      ).toBeVisible();
+      expect(createWrites).toBe(2);
+      await captureState(page, info, "create-success", identity);
+
+      const publicRecoveryCopy =
+        locale === "es"
+          ? "No se pudo cargar esta entrega"
+          : "This handoff could not be loaded";
+      await page.goto(`/handoff/${SYNTHETIC_PUBLIC_TOKEN}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", locale);
+      const publicMain = page.locator("body");
+      await expect(
+        publicMain.getByRole("heading", {
+          name: publicRecoveryCopy,
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        publicMain.getByRole("button", {
+          name: copy.routeState.tryAgain,
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        publicMain.getByText(copy.handoff.linkInvalid, { exact: true }),
+      ).toHaveCount(0);
+      await captureState(page, info, "public-error", identity, "body");
+
+      const publicRetry = publicMain.getByRole("button", {
+        name: copy.routeState.tryAgain,
+        exact: true,
+      });
+      await publicRetry.click();
+      await expect(
+        publicMain.getByRole("heading", {
+          name: publicRecoveryCopy,
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        publicMain.getByText(copy.handoff.linkInvalid, { exact: true }),
+      ).toHaveCount(0);
+      await captureState(page, info, "public-malformed", identity, "body");
+
+      await publicRetry.click();
+      await expect(
+        publicMain.getByRole("heading", {
+          name: copy.handoff.handoffFor.replace(
+            "{family}",
+            SYNTHETIC_PUBLIC_HANDOFF.family.name,
+          ),
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        publicMain.getByText(SYNTHETIC_PUBLIC_HANDOFF.sitter_name, {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await captureState(page, info, "public-valid", identity, "body");
+
+      await page.goto(`/handoff/${SYNTHETIC_EXPIRED_TOKEN}`);
+      await expect(
+        page.locator("body").getByRole("heading", {
+          name: copy.handoff.linkInvalid,
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        page
+          .locator("body")
+          .getByRole("heading", { name: publicRecoveryCopy, exact: true }),
+      ).toHaveCount(0);
+      await captureState(page, info, "public-expired", identity, "body");
+
+      expect(blockedWrites).toEqual([]);
+      await info.attach("handoff-domain-write-receipts", {
+        body: JSON.stringify({
+          identity,
+          interceptedWrites,
+          blockedWrites,
+          createWrites,
+          publicAttempts,
+        }),
+        contentType: "application/json",
+      });
     } finally {
       releaseSuccessfulResponse.current?.();
+      releaseCreateResponse.current?.();
       try {
         let restored;
         for (let attempt = 0; attempt < 2; attempt += 1) {

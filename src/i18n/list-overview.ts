@@ -3,6 +3,13 @@
  * Count templates are selected using the display locale; canonical counts are unchanged. */
 export const listOverviewEnglish = {
   title: "Lists",
+  pages: "List pages",
+  nextPage: "Next lists",
+  firstPage: "Back to first page",
+  pagedHint:
+    "Lists are shown in pages, newest created first. Type counts include all household lists.",
+  pageEmpty:
+    "No lists remain on this page. Go back to the first page to see current lists.",
   add: "Add list",
   filter: "Filter by type",
   countOne: "{count} list",
@@ -60,6 +67,13 @@ export const listOverviewEnglish = {
 export type ListOverviewMessage = keyof typeof listOverviewEnglish;
 export const listOverviewSpanish: Record<ListOverviewMessage, string> = {
   title: "Listas",
+  pages: "Páginas de listas",
+  nextPage: "Siguientes listas",
+  firstPage: "Volver a la primera página",
+  pagedHint:
+    "Las listas se muestran por páginas, primero las creadas más recientemente. Los recuentos incluyen todas las listas del hogar.",
+  pageEmpty:
+    "No quedan listas en esta página. Vuelve a la primera página para ver las listas actuales.",
   add: "Añadir lista",
   filter: "Filtrar por tipo",
   countOne: "{count} lista",

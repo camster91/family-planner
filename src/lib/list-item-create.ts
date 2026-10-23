@@ -41,6 +41,8 @@ export async function createListItem(
      * takeover finds the row instead of adding a second one.
      */
     sourceRequestId?: string | null
+    /** Internal, immutable manual-stock replacement provenance; never a client field. */
+    inventorySourceKey?: string
   } = {}
 ): Promise<CreateListItemResult> {
   const { listId, content, quantity, category, notes, amount, unit, ingredient_id } = input
@@ -81,6 +83,7 @@ export async function createListItem(
       added_by: actor.addedBy,
       position: nextPosition,
       ...(options.sourceRequestId ? { source_request_id: options.sourceRequestId } : {}),
+      ...(options.inventorySourceKey ? { source: 'manual', source_key: options.inventorySourceKey } : {}),
     },
   })
 

@@ -198,9 +198,16 @@
   font-weight: 600;
   list-style: none;
 }
-.connectionMenu summary::-webkit-details-marker { display: none; }
-.connectionMenu summary::before { content: "+"; font-size: 18px; }
-.connectionMenu[open] summary::before { content: "−"; }
+.connectionMenu summary::-webkit-details-marker {
+  display: none;
+}
+.connectionMenu summary::before {
+  content: "+";
+  font-size: 18px;
+}
+.connectionMenu[open] summary::before {
+  content: "−";
+}
 .connectionMenu a {
   display: flex;
   align-items: center;
@@ -210,7 +217,9 @@
   overflow-wrap: anywhere;
   border-top: 1px solid var(--surface-separator-opaque);
 }
-.connectionMenu a:hover { background: var(--surface-fill); }
+.connectionMenu a:hover {
+  background: var(--surface-fill);
+}
 .connectionMenu summary:focus-visible,
 .connectionMenu a:focus-visible {
   outline: 3px solid var(--accent-text);
@@ -246,9 +255,19 @@
   margin: 12px 0;
   color: var(--label-secondary);
 }
-.emptyNotice { padding: 8px 0 12px; color: var(--label-secondary); }
-.planner .emptyNotice h2 { font-size: 14px; font-family: inherit; font-weight: 500; }
-.emptyNotice p { font-size: 12px; margin: 4px 0; }
+.emptyNotice {
+  padding: 8px 0 12px;
+  color: var(--label-secondary);
+}
+.planner .emptyNotice h2 {
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 500;
+}
+.emptyNotice p {
+  font-size: 12px;
+  margin: 4px 0;
+}
 .agenda {
   display: flex;
   flex-direction: column;
@@ -260,7 +279,11 @@
 .planner .event {
   text-align: left;
   color: var(--label-primary);
-  background: color-mix(in srgb, var(--accent-fill) 18%, var(--surface-elevated));
+  background: color-mix(
+    in srgb,
+    var(--accent-fill) 18%,
+    var(--surface-elevated)
+  );
   border: 1px solid var(--calendar-line);
   border-left: 3px solid var(--accent-text);
   display: flex;
@@ -272,8 +295,12 @@
   white-space: normal;
   border-radius: 8px;
 }
-.planner .event[data-calendar-kind="connected"] { border-left-color: var(--label-primary); }
-.planner .event[data-calendar-kind="subscribed"] { border-left-style: dashed; }
+.planner .event[data-calendar-kind="connected"] {
+  border-left-color: var(--label-primary);
+}
+.planner .event[data-calendar-kind="subscribed"] {
+  border-left-style: dashed;
+}
 .event strong {
   font-weight: 600;
 }
@@ -314,7 +341,12 @@
   padding: 8px 6px;
   text-align: right;
 }
-.hours span:first-child { position: sticky; top: 0; z-index: 2; background: var(--surface-elevated); }
+.hours span:first-child {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-elevated);
+}
 .dayColumn {
   min-width: 0;
   border-left: 1px solid var(--calendar-line);
@@ -334,9 +366,25 @@
   background: var(--surface-elevated);
   z-index: 1;
 }
-.weekday { font-size: 11px; color: var(--label-secondary); font-weight: 500; }
-.dayNumber { display: flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; font-size: 20px; font-weight: 600; }
-.dayColumn > h2[aria-current="date"] .dayNumber { border-radius: 50%; background: var(--accent-fill); color: var(--on-accent); }
+.weekday {
+  font-size: 11px;
+  color: var(--label-secondary);
+  font-weight: 500;
+}
+.dayNumber {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.dayColumn > h2[aria-current="date"] .dayNumber {
+  border-radius: 50%;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
 .dayGrid {
   display: grid;
   grid-template-rows: repeat(48, 32px);
@@ -375,7 +423,9 @@
   position: sticky;
   top: 64px;
 }
-.eventContent strong { order: -1; }
+.eventContent strong {
+  order: -1;
+}
 .gridScroll .eventContent > * {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -388,7 +438,9 @@
   line-height: 15px;
   max-height: 30px;
 }
-.gridScroll .eventContent > span { font-size: 11px; }
+.gridScroll .eventContent > span {
+  font-size: 11px;
+}
 /* Source text remains in the accessible event label and full details. */
 .gridScroll .eventContent small {
   position: absolute;
@@ -486,4 +538,106 @@
   .details {
     padding: 20px;
   }
+}
+
+/* On phones the schedule leads. Calendar filters remain one tap away. */
+.sourceToggle,
+.mobileWeekHint {
+  display: none;
+}
+.gridScroll {
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+}
+@media (max-width: 899px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .planner .sourceToggle {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    text-align: start;
+  }
+  .sourceOptions[data-expanded="false"] {
+    display: none;
+  }
+  .sourceOptions {
+    padding-top: 12px;
+  }
+}
+@media (max-width: 639px) {
+  .mobileWeekHint {
+    display: block;
+    margin: 8px 0;
+    color: var(--label-secondary);
+    font-size: 12px;
+  }
+}
+
+.monthScroll {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  border: 1px solid var(--calendar-line);
+  border-radius: 16px;
+  background: var(--surface-elevated);
+}
+.monthScroll:focus-visible {
+  outline: 3px solid var(--accent-text);
+  outline-offset: 3px;
+}
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  min-width: 840px;
+}
+.monthWeekday {
+  padding: 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--calendar-line);
+}
+.monthDay {
+  min-width: 0;
+  min-height: 180px;
+  padding: 8px;
+  border-inline-end: 1px solid var(--calendar-line);
+  border-bottom: 1px solid var(--calendar-line);
+}
+.monthDay[data-outside-month] {
+  background: var(--surface-fill);
+}
+.planner .monthDay h2 {
+  margin-bottom: 4px;
+  font-family: inherit;
+  font-size: 14px;
+}
+.monthDay h2 button[aria-current="date"] {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+.planner .monthDay .event {
+  height: auto;
+  margin-top: 4px;
+  min-height: 44px;
+  padding: 6px;
+}
+.monthDay .eventContent > span,
+.monthDay .eventContent small {
+  display: none;
+}
+.monthDay .eventContent strong {
+  display: block;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.planner .monthMore {
+  width: 100%;
+  margin-top: 4px;
+  padding: 4px;
+  font-size: 11px;
+  background: transparent;
 }

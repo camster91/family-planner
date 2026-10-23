@@ -38,7 +38,7 @@ describe("capture — two households", () => {
 
   it("family A does not inherit family B's configured key", async () => {
     const status = await (await GET(req({ as: "parentA" }))).json();
-    expect(status).toEqual({ configured: false, model: null, allowed: true, userId: "parent-a", familyId: "family-A" });
+    expect(status).toEqual({ configured: false, model: null, allowed: true, userId: "parent-a", familyId: "family-A", role: "parent" });
 
     const res = await POST(req({ as: "teenA", body: { text: "dentist tuesday" } }));
     expect(res.status).toBe(503);
@@ -47,7 +47,7 @@ describe("capture — two households", () => {
 
   it("family B sees its own configuration", async () => {
     const status = await (await GET(req({ as: "parentB" }))).json();
-    expect(status).toEqual({ configured: true, model: "model-b", allowed: true, userId: "parent-b", familyId: "family-B" });
+    expect(status).toEqual({ configured: true, model: "model-b", allowed: true, userId: "parent-b", familyId: "family-B", role: "parent" });
   });
 
   it("D4: a child is refused with 'Ask a parent to add this.' and the key is never used", async () => {
@@ -62,6 +62,7 @@ describe("capture — two households", () => {
       model: "model-b",
       allowed: false,
       userId: "child-b",
+      role: "child",
       familyId: "family-B",
       message: "Ask a parent to add this.",
     });

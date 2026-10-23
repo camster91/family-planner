@@ -234,7 +234,7 @@ describe('POST /api/lists/items/from-recipe', () => {
     expect((await todo.json()).error.code).toBe('LIST_NOT_GROCERY')
 
     expect((await add('parentA', { recipeId: 'recipe-a', source: 'manual' })).status).toBe(400)
-    expect((await add('parentA', { recipeId: 'recipe-a', servings: 51 })).status).toBe(400)
+    expect((await add('parentA', { recipeId: 'recipe-a', servings: 101 })).status).toBe(400)
     expect(writesTo('listItem')).toHaveLength(0)
   })
 

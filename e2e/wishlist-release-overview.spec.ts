@@ -675,6 +675,7 @@ for (const locale of ["en", "es"] as const) {
 
       try {
         await page.goto("/dashboard");
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
         const feature = await browserFetch(page, "/api/family/features");
         expect(feature.status, feature.body).toBe(200);
         originalFeatures = JSON.parse(feature.body).features as FeatureMap;

@@ -17,7 +17,7 @@
  * outside this file. The fixture guard refuses production-like databases.
  */
 import AxeBuilder from "@axe-core/playwright";
-import type { Locator, Page, TestInfo } from "@playwright/test";
+import type { Locator, Page, Request, TestInfo } from "@playwright/test";
 import pg from "pg";
 import {
   FIXTURE_IDS,
@@ -155,6 +155,52 @@ const slotRows = (page: Page, type: string) =>
     `[data-testid="meal-slot"][data-meal-type="${type}"] [data-testid="meal-row"]`,
   );
 const dialog = (page: Page) => page.getByRole("dialog");
+
+async function mealCreateScope(page: Page) {
+  const response = await browserFetch(page, "/api/meals/create");
+  expect(response.status, response.body).toBe(200);
+  const scope = JSON.parse(response.body) as {
+    userId?: unknown;
+    familyId?: unknown;
+  };
+  expect(scope).toEqual({ userId: A.parent, familyId: A.family });
+  return {
+    userId: scope.userId as string,
+    familyId: scope.familyId as string,
+  };
+}
+
+async function expectMealCreateRequest(
+  requestPromise: Promise<Request>,
+  scope: { userId: string; familyId: string },
+  expected: Record<string, unknown>,
+) {
+  const request = await requestPromise;
+  const body = request.postDataJSON() as Record<string, unknown>;
+  expect(body).toMatchObject({
+    protocol: "herewoven.meal-create.v1",
+    expected_user_id: scope.userId,
+    expected_family_id: scope.familyId,
+    ...expected,
+  });
+  expect(body.issued_at).toEqual(expect.any(String));
+  expect(body.issued_at as string).toMatch(/T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  expect(request.headers()["idempotency-key"]).toMatch(
+    /^[A-Za-z0-9_-]{16,128}$/,
+  );
+  expect(Object.keys(body).sort()).toEqual(
+    [
+      "date",
+      "expected_family_id",
+      "expected_user_id",
+      "issued_at",
+      "meal_type",
+      "protocol",
+      "recipe_name",
+      ...(expected.recipe_id !== undefined ? ["recipe_id"] : []),
+    ].sort(),
+  );
+}
 
 async function openMeals(page: Page) {
   await page.goto("/dashboard/meals");
@@ -302,6 +348,7 @@ test.describe("meals (parent)", () => {
 
   test("add, edit and delete a free-text meal", async ({ page }) => {
     await openMeals(page);
+    const scope = await mealCreateScope(page);
     await todayCard(page)
       .getByRole("button", { name: /Other meals/ })
       .click();
@@ -313,11 +360,11 @@ test.describe("meals (parent)", () => {
     await expect(dialog(page).getByLabel("Recipe (optional)")).toHaveValue("");
     await dialog(page).getByLabel("Recipe name").fill(`${PREFIX} porridge`);
     const posted = page.waitForRequest(
-      (r) => r.url().endsWith("/api/meals") && r.method() === "POST",
+      (r) => r.url().endsWith("/api/meals/create") && r.method() === "POST",
     );
     await dialog(page).getByRole("button", { name: "Save" }).click();
     // Free text: the request body has no recipe link, exactly as before #252.
-    expect((await posted).postDataJSON()).toEqual({
+    await expectMealCreateRequest(posted, scope, {
       date: TODAY_KEY,
       meal_type: "breakfast",
       recipe_name: `${PREFIX} porridge`,
@@ -360,6 +407,7 @@ test.describe("meals (parent)", () => {
     page,
   }, testInfo) => {
     await openMeals(page);
+    const scope = await mealCreateScope(page);
     await todayCard(page)
       .getByRole("button", { name: /Other meals/ })
       .click();
@@ -379,10 +427,12 @@ test.describe("meals (parent)", () => {
     await expectTargets(dialog(page));
     await expectNoSeriousAxe(page, testInfo, "meal modal with recipe");
     const posted = page.waitForRequest(
-      (r) => r.url().endsWith("/api/meals") && r.method() === "POST",
+      (r) => r.url().endsWith("/api/meals/create") && r.method() === "POST",
     );
     await dialog(page).getByRole("button", { name: "Save" }).click();
-    expect((await posted).postDataJSON()).toMatchObject({
+    await expectMealCreateRequest(posted, scope, {
+      date: TODAY_KEY,
+      meal_type: "lunch",
       recipe_id: L.recipeSoup,
       recipe_name: `${PREFIX} soup night`,
     });
@@ -461,7 +511,9 @@ test.describe("meals (parent)", () => {
     await todayCard(page)
       .getByRole("button", { name: `Add another dinner, ${TODAY_LONG}` })
       .click();
-    await expect(dialog(page).getByLabel("Meal")).toHaveValue("dinner");
+    await expect(dialog(page).getByLabel("Meal", { exact: true })).toHaveValue(
+      "dinner",
+    );
     await dialog(page).getByLabel("Recipe name").fill(LONG_NAME);
     await dialog(page).getByRole("button", { name: "Save" }).click();
     await expect(slotRows(page, "dinner")).toHaveCount(2);

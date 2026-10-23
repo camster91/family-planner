@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
+import { useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { Dialog } from "@/components/ui/dialog";
 import { toDateOnlyLocal } from "@/lib/dates";
@@ -12,6 +13,7 @@ import {
   type RoutineStackMessage,
 } from "@/i18n/routine-stack";
 import { useTranslation } from "@/i18n";
+import { useRoutineScheduleText } from "@/i18n/routine-schedule";
 
 type Candidate = ParsedCandidates["candidates"][number];
 type AssignmentOption = ParsedCandidates["assignmentOptions"][number];
@@ -281,6 +283,8 @@ function localizedRequestError(
       return msg("forbidden");
     case "MEMBER_PROTOCOL_UNAVAILABLE":
       return msg("loadError");
+    case "ROUTINE_SCHEDULE_EDITOR_REQUIRED":
+      return msg("scheduleRequired");
     case "ROUTINE_STACK_NOT_FOUND":
       return msg("notFound");
     case "ROUTINE_STACK_INVALID_DRAFT":
@@ -441,6 +445,7 @@ export default function RoutineStackEditor({
   const router = useRouter();
   const params = useSearchParams();
   const { t } = useTranslation();
+  const scheduleText = useRoutineScheduleText();
   const msg = React.useCallback(
     (key: RoutineStackMessage, params?: Record<string, string | number>) =>
       t(key, params, routineStackMessages),
@@ -464,6 +469,7 @@ export default function RoutineStackEditor({
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [scheduleHandoff, setScheduleHandoff] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [newTitle, setNewTitle] = React.useState("");
   const [newAssignee, setNewAssignee] = React.useState("");
@@ -671,6 +677,7 @@ export default function RoutineStackEditor({
     let active = true;
     setLoading(true);
     setLoadError(null);
+    setScheduleHandoff(false);
     setSaveError(null);
     setSubmissionState(null);
     idempotencyKeyRef.current = null;
@@ -753,6 +760,10 @@ export default function RoutineStackEditor({
           (error instanceof DOMException && error.name === "AbortError")
         )
           return;
+        setScheduleHandoff(
+          error instanceof RoutineEditorRequestError &&
+            error.code === "ROUTINE_SCHEDULE_EDITOR_REQUIRED",
+        );
         setLoadError(
           localizedRequestError(
             error,
@@ -1124,16 +1135,28 @@ export default function RoutineStackEditor({
       ) : loadError ? (
         <div className="space-y-3" role="alert">
           <SectionHeading className="text-title-3 text-label-primary">
-            {msg("loadErrorTitle")}
+            {scheduleHandoff ? scheduleText("title") : msg("loadErrorTitle")}
           </SectionHeading>
           <p className="text-body text-label-secondary">{loadError}</p>
-          <button
-            type="button"
-            className="btn-tinted min-h-[44px]"
-            onClick={() => setReloadVersion((value) => value + 1)}
-          >
-            {msg("retry")}
-          </button>
+          {scheduleHandoff && requestedStackId && (
+            <p className="space-y-3">
+              <a
+                href={`/dashboard/chores/schedules?stack_id=${encodeURIComponent(requestedStackId)}`}
+                className="btn-filled inline-flex min-h-[44px] items-center"
+              >
+                {scheduleText("open")}
+              </a>
+            </p>
+          )}
+          {!scheduleHandoff && (
+            <button
+              type="button"
+              className="btn-tinted min-h-[44px]"
+              onClick={() => setReloadVersion((value) => value + 1)}
+            >
+              {msg("retry")}
+            </button>
+          )}
         </div>
       ) : (
         <>

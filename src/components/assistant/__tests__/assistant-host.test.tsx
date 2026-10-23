@@ -1,7 +1,10 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
 import * as React from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -12,10 +15,11 @@ import userEvent from "@testing-library/user-event";
 import { I18nProvider, useTranslation } from "@/i18n";
 import AssistantHost from "../AssistantHost";
 let mockMode = "",
+  mockPathname = "/dashboard/today",
   mockRecognition: any;
 const mockRefresh = jest.fn();
 jest.mock("next/navigation", () => ({
-  usePathname: () => "/dashboard/today",
+  usePathname: () => mockPathname,
   useSearchParams: () => new URLSearchParams(mockMode),
   useRouter: () => ({ push: jest.fn(), refresh: mockRefresh }),
 }));
@@ -37,12 +41,56 @@ const response = (
 });
 beforeEach(() => {
   mockMode = "";
+  mockPathname = "/dashboard/today";
   mockRefresh.mockClear();
   Object.defineProperty(global.crypto, "randomUUID", {
     value: () => "24db1d70-1278-4e01-b4aa-a0efc1f7387d",
     configurable: true,
   });
   delete (window as any).SpeechRecognition;
+});
+it("keeps a late Spanish launcher hydration-safe and localizes after hydration", async () => {
+  const serverUi = (
+    <I18nProvider locale="en">
+      <React.Suspense fallback={null}>
+        <AssistantHost role="parent" />
+      </React.Suspense>
+    </I18nProvider>
+  );
+  const clientUi = (
+    <I18nProvider locale="es">
+      <React.Suspense fallback={null}>
+        <AssistantHost role="parent" />
+      </React.Suspense>
+    </I18nProvider>
+  );
+  const html = renderToString(serverUi);
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  const errors: string[] = [];
+  const recoverable: unknown[] = [];
+  const errorSpy = jest
+    .spyOn(console, "error")
+    .mockImplementation((...args: unknown[]) => {
+      errors.push(args.map(String).join(" "));
+    });
+  let root: ReturnType<typeof hydrateRoot> | undefined;
+  try {
+    await act(async () => {
+      root = hydrateRoot(container, clientUi, {
+        onRecoverableError: (error) => recoverable.push(error),
+      });
+    });
+    expect(errors).toEqual([]);
+    expect(recoverable).toEqual([]);
+    expect(container.textContent).toContain("Informar / Sugerir");
+    expect(container.textContent).toContain("Asistente de IA");
+  } finally {
+    errorSpy.mockRestore();
+    act(() => root?.unmount());
+    container.remove();
+  }
 });
 it("proposes an editable list and only writes after explicit confirm", async () => {
   const user = userEvent.setup(),
@@ -141,7 +189,8 @@ it("keeps a chore proposal and draft when member choices fail, then reloads choi
       });
     if (path === "/api/family/members") {
       memberLoads += 1;
-      if (memberLoads === 1) return response({ error: "Provider unavailable" }, false);
+      if (memberLoads === 1)
+        return response({ error: "Provider unavailable" }, false);
       if (memberLoads === 2)
         return new Promise((resolve) => {
           releaseMembers = () =>
@@ -183,8 +232,13 @@ it("keeps a chore proposal and draft when member choices fail, then reloads choi
     "/api/family/members",
   ]);
 
-  await user.selectOptions(within(dialog).getByLabelText("Chore assignee"), "member-a");
-  await user.click(within(dialog).getByRole("button", { name: "Confirm and save" }));
+  await user.selectOptions(
+    within(dialog).getByLabelText("Chore assignee"),
+    "member-a",
+  );
+  await user.click(
+    within(dialog).getByRole("button", { name: "Confirm and save" }),
+  );
   await within(dialog).findByText("Saved “Recycling”.");
   expect(calls).toEqual([
     "/api/assistant",
@@ -224,17 +278,25 @@ it("keeps a removal proposal when its choices GET fails, then reloads that GET o
   render(<AssistantHost role="parent" />);
   await user.click(screen.getByRole("button", { name: "AI assistant" }));
   const dialog = screen.getByRole("dialog");
-  await user.type(within(dialog).getByLabelText("Your message"), "Remove dentist");
+  await user.type(
+    within(dialog).getByLabelText("Your message"),
+    "Remove dentist",
+  );
   await user.click(within(dialog).getByRole("button", { name: "Send" }));
   expect(await within(dialog).findByRole("alert")).toHaveTextContent(
     "Could not load choices.",
   );
   expect(within(dialog).getByLabelText("Item to remove")).toBeInTheDocument();
-  await user.click(within(dialog).getByRole("button", { name: "Reload choices" }));
+  await user.click(
+    within(dialog).getByRole("button", { name: "Reload choices" }),
+  );
   await within(dialog).findByRole("option", { name: /Dentist/ });
   expect(calls).toEqual(["/api/assistant", "/api/events", "/api/events"]);
 
-  await user.selectOptions(within(dialog).getByLabelText("Item to remove"), "event-a");
+  await user.selectOptions(
+    within(dialog).getByLabelText("Item to remove"),
+    "event-a",
+  );
   await user.click(within(dialog).getByRole("checkbox"));
   await user.click(
     within(dialog).getByRole("button", { name: "Remove selected item" }),
@@ -437,9 +499,7 @@ it("keeps a failed chat request exact while retrying without overwriting a newer
   await user.type(message, "Add school pickup tomorrow");
   await user.click(screen.getByRole("button", { name: "Send" }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "No connection",
-  );
+  expect(await screen.findByRole("alert")).toHaveTextContent("No connection");
   expect(message).toHaveValue("Add school pickup tomorrow");
   await user.clear(message);
   await user.type(message, "A newer draft");
@@ -490,12 +550,16 @@ it("localizes provider setup and unreadable chat recovery without granting teen 
     "La IA del hogar aún no está conectada",
   );
   expect(
-    within(dialog).queryByRole("link", { name: "Configurar la IA del hogar en Ajustes" }),
+    within(dialog).queryByRole("link", {
+      name: "Configurar la IA del hogar en Ajustes",
+    }),
   ).toBeNull();
   expect(message).toHaveValue("Ayuda");
 
   mode = "unreadable";
-  await user.click(within(dialog).getByRole("button", { name: "Reintentar mensaje" }));
+  await user.click(
+    within(dialog).getByRole("button", { name: "Reintentar mensaje" }),
+  );
   expect(await within(dialog).findByRole("alert")).toHaveTextContent(
     "No se pudo leer la respuesta de IA",
   );
@@ -531,28 +595,36 @@ it("locks chat send and retry controls while a recovery request is pending", asy
 
 it.each([
   [429, "Chat limit reached. Your question is still here; try again later."],
-  [413, "That message is too long. Your question is still here; shorten it and try again."],
-])("keeps the draft and avoids actions for chat status %s", async (status, copy) => {
-  const user = userEvent.setup();
-  const calls: string[] = [];
-  global.fetch = jest.fn(async (path) => {
-    calls.push(String(path));
-    return response({ error: "server detail" }, false, {}, status);
-  }) as any;
+  [
+    413,
+    "That message is too long. Your question is still here; shorten it and try again.",
+  ],
+])(
+  "keeps the draft and avoids actions for chat status %s",
+  async (status, copy) => {
+    const user = userEvent.setup();
+    const calls: string[] = [];
+    global.fetch = jest.fn(async (path) => {
+      calls.push(String(path));
+      return response({ error: "server detail" }, false, {}, status);
+    }) as any;
 
-  render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
-  const message = screen.getByLabelText("Your message");
-  const draft = status === 429 ? "Try again" : "A message that is too long";
-  await user.type(message, draft);
-  await user.click(screen.getByRole("button", { name: "Send" }));
+    render(<AssistantHost role="parent" />);
+    await user.click(screen.getByRole("button", { name: "AI assistant" }));
+    const message = screen.getByLabelText("Your message");
+    const draft = status === 429 ? "Try again" : "A message that is too long";
+    await user.type(message, draft);
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent(copy);
-  expect(message).toHaveValue(draft);
-  expect(screen.queryByRole("button", { name: "Retry message" })).toBeNull();
-  expect(screen.queryByRole("region", { name: "Review proposed action" })).toBeNull();
-  expect(calls).toEqual(["/api/assistant"]);
-});
+    expect(await screen.findByRole("alert")).toHaveTextContent(copy);
+    expect(message).toHaveValue(draft);
+    expect(screen.queryByRole("button", { name: "Retry message" })).toBeNull();
+    expect(
+      screen.queryByRole("region", { name: "Review proposed action" }),
+    ).toBeNull();
+    expect(calls).toEqual(["/api/assistant"]);
+  },
+);
 
 it("offers a read-only affected-section check after an uncertain action without a mutation retry", async () => {
   const user = userEvent.setup();
@@ -570,7 +642,9 @@ it("offers a read-only affected-section check after an uncertain action without 
   await user.click(screen.getByRole("button", { name: "AI assistant" }));
   await user.type(screen.getByLabelText("Your message"), "Make a trip list");
   await user.click(screen.getByRole("button", { name: "Send" }));
-  await user.click(await screen.findByRole("button", { name: "Confirm and save" }));
+  await user.click(
+    await screen.findByRole("button", { name: "Confirm and save" }),
+  );
 
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "connection ended before confirmation",
@@ -651,7 +725,9 @@ it("preserves uncertain-action recovery across report tabs until explicitly clea
 
   await user.click(within(dialog).getByRole("button", { name: "Clear chat" }));
   expect(within(dialog).queryByRole("alert")).toBeNull();
-  expect(within(dialog).queryByRole("link", { name: "Check Lists" })).toBeNull();
+  expect(
+    within(dialog).queryByRole("link", { name: "Check Lists" }),
+  ).toBeNull();
 });
 
 it("keeps Chat recovery ahead of a Reports request that resolves after the write", async () => {
@@ -711,7 +787,9 @@ it("keeps Chat recovery ahead of a Reports request that resolves after the write
   expect(await within(dialog).findByRole("alert")).toHaveTextContent(
     "connection ended before confirmation",
   );
-  expect(within(dialog).getByRole("link", { name: "Check Lists" })).toBeInTheDocument();
+  expect(
+    within(dialog).getByRole("link", { name: "Check Lists" }),
+  ).toBeInTheDocument();
   expect(
     within(dialog).queryByRole("button", { name: "Confirm and save" }),
   ).toBeNull();
@@ -757,8 +835,7 @@ it("does not let a late Reports failure overwrite Report state", async () => {
       return new Promise((resolve) => {
         releaseReports = resolve;
       });
-    if (path === "/api/feedback")
-      return response({ report: { id: "r-1" } });
+    if (path === "/api/feedback") return response({ report: { id: "r-1" } });
     throw new TypeError("Unexpected request");
   }) as any;
 
@@ -779,7 +856,9 @@ it("does not let a late Reports failure overwrite Report state", async () => {
 
   releaseReports(response({ error: "Reports unavailable" }, false));
   await waitFor(() => expect(within(dialog).queryByRole("alert")).toBeNull());
-  expect(within(dialog).getByText(/Report saved privately/)).toBeInTheDocument();
+  expect(
+    within(dialog).getByText(/Report saved privately/),
+  ).toBeInTheDocument();
 });
 
 it("keeps a grocery proposal editable after list discovery fails until explicit confirm", async () => {
@@ -817,7 +896,9 @@ it("keeps a grocery proposal editable after list discovery fails until explicit 
   expect(
     screen.getByRole("region", { name: "Review proposed action" }),
   ).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Confirm and save" })).toBeEnabled();
+  expect(
+    screen.getByRole("button", { name: "Confirm and save" }),
+  ).toBeEnabled();
   expect(calls).toEqual(["/api/assistant", "/api/lists"]);
 
   await user.click(screen.getByRole("button", { name: "Confirm and save" }));
@@ -860,9 +941,7 @@ it("keeps a grocery item write uncertain after discovery succeeds", async () => 
     "href",
     "/dashboard/lists",
   );
-  expect(
-    screen.queryByRole("button", { name: "Confirm and save" }),
-  ).toBeNull();
+  expect(screen.queryByRole("button", { name: "Confirm and save" })).toBeNull();
   expect(calls).toEqual([
     "/api/assistant",
     "/api/lists",
@@ -1162,7 +1241,9 @@ it("keeps an invalid event proposal editable without POST, then writes only afte
 
   const end = within(proposal).getByLabelText("Proposed end");
   fireEvent.change(end, { target: { value: "2026-10-10T15:30" } });
-  await user.click(within(proposal).getByRole("button", { name: "Confirm and save" }));
+  await user.click(
+    within(proposal).getByRole("button", { name: "Confirm and save" }),
+  );
   await within(dialog).findByText("Saved “Pickup”.");
   expect(calls).toEqual(["/api/assistant", "/api/events"]);
 });
@@ -1363,6 +1444,15 @@ it("expires a Today preview when the tab backgrounds before confirmation", async
     response(
       {
         reply: "Review this list.",
+        evidence: [
+          {
+            ref: `asr1_${"a".repeat(64)}`,
+            kind: "event",
+            label: "School trip source",
+            observedAt: generated,
+            href: "/dashboard/calendar/edit?id=event-a",
+          },
+        ],
         action: { kind: "list_create", title: "Trip", type: "custom" },
       },
       true,
@@ -1387,6 +1477,9 @@ it("expires a Today preview when the tab backgrounds before confirmation", async
     name: "Confirm and save",
   });
   await waitFor(() => expect(confirm).toBeEnabled());
+  expect(
+    within(dialog).getByRole("link", { name: "School trip source" }),
+  ).toHaveAttribute("href", "/dashboard/calendar/edit?id=event-a");
   const originalVisibility = Object.getOwnPropertyDescriptor(
     document,
     "visibilityState",
@@ -1397,6 +1490,12 @@ it("expires a Today preview when the tab backgrounds before confirmation", async
   });
   fireEvent(document, new Event("visibilitychange"));
   await waitFor(() => expect(confirm).toBeDisabled());
+  expect(
+    within(dialog).queryByRole("link", { name: "School trip source" }),
+  ).toBeNull();
+  expect(
+    within(dialog).getByText("Refresh Today to check these sources again."),
+  ).toBeInTheDocument();
   expect(
     within(dialog).getByText(/Today context has expired/i),
   ).toBeInTheDocument();
@@ -1502,3 +1601,298 @@ it("rejects a Today response that arrives after the request-start lease", async 
     performanceSpy.mockRestore();
   }
 });
+
+it("retains a report after a malformed receipt and retries its exact original body after navigation", async () => {
+  const user = userEvent.setup();
+  const bodies: string[] = [];
+  global.fetch = jest.fn(async (_path, options) => {
+    bodies.push(String(options?.body));
+    return response({
+      report: bodies.length === 1 ? {} : { id: "confirmed-report" },
+    });
+  }) as unknown as typeof fetch;
+  const view = render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "Report / Suggest" }));
+  await user.type(screen.getByLabelText("Title"), "Private report draft");
+  await user.type(
+    screen.getByLabelText("What happened or what would help?"),
+    "Keep this draft until a receipt is confirmed.",
+  );
+  await user.click(screen.getByRole("button", { name: "Save report" }));
+  await screen.findByRole("alert");
+  expect(screen.getByLabelText("Title")).toHaveValue("Private report draft");
+  expect(
+    screen.getByLabelText("What happened or what would help?"),
+  ).toHaveValue("Keep this draft until a receipt is confirmed.");
+  expect(JSON.parse(bodies[0]).page).toBe("/dashboard/today");
+  mockPathname = "/dashboard/calendar";
+  view.rerender(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "Save report" }));
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "confirmed-report",
+  );
+  expect(bodies).toHaveLength(2);
+  expect(bodies[1]).toBe(bodies[0]);
+  expect(screen.getByLabelText("Title")).toHaveValue("");
+});
+
+// Authored/unrun: explicit source refresh cannot erase deliberate proposal edits.
+it.each(["same", "different", "unavailable"] as const)(
+  "keeps edited fields after a %s-kind source refresh and never writes automatically",
+  async (mode) => {
+    const user = userEvent.setup();
+    let calls = 0,
+      clock = 1000;
+    const headers = {
+      "X-Assistant-Today-Protocol": "herewoven.assistant-today.v1",
+      "X-Assistant-Today-Generated-At": new Date().toISOString(),
+      "X-Assistant-Today-Expires-At": new Date(
+        Date.now() + 60000,
+      ).toISOString(),
+    };
+    const paths: string[] = [];
+    global.fetch = jest.fn(async (path) => {
+      paths.push(String(path));
+      calls += 1;
+      if (calls > 1 && mode === "unavailable")
+        throw new TypeError("Synthetic unavailable refresh");
+      return response(
+        {
+          reply: "Review the proposal.",
+          sourceProof: `synthetic-proof-${calls}`,
+          action:
+            calls > 1 && mode === "different"
+              ? { kind: "grocery_add", title: "Changed kind" }
+              : {
+                  kind: "list_create",
+                  title: calls > 1 ? "Provider replacement" : "Trip",
+                  type: "custom",
+                },
+        },
+        true,
+        headers,
+      );
+    }) as any;
+    render(
+      <AssistantHost role="parent" todayContextEnabled confirmationEnabled />,
+    );
+    await user.click(screen.getByRole("button", { name: "AI assistant" }));
+    await user.click(screen.getByRole("checkbox", { name: /Include Today/i }));
+    await user.type(
+      screen.getByLabelText("Your message"),
+      "Create a trip list",
+    );
+    const spy = jest.spyOn(performance, "now").mockImplementation(() => clock);
+    try {
+      fireEvent.submit(
+        screen.getByRole("button", { name: "Send" }).closest("form")!,
+      );
+      const title = await screen.findByLabelText("Proposed title");
+      fireEvent.change(title, {
+        target: { value: "Human edited camping list" },
+      });
+      clock = 61001;
+      fireEvent(document, new Event("visibilitychange"));
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Confirm and save" }),
+        ).toBeDisabled(),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Refresh Today context" }),
+      );
+      await waitFor(() => expect(calls).toBe(2));
+      await waitFor(() =>
+        expect(screen.getByLabelText("Proposed title")).toHaveValue(
+          "Human edited camping list",
+        ),
+      );
+      const confirm = screen.getByRole("button", { name: "Confirm and save" });
+      await waitFor(() =>
+        mode === "same"
+          ? expect(confirm).toBeEnabled()
+          : expect(confirm).toBeDisabled(),
+      );
+      expect(paths).toEqual(["/api/assistant", "/api/assistant"]);
+    } finally {
+      spy.mockRestore();
+    }
+  },
+);
+
+// Authored/unrun: exact target details must load before deletion can be approved.
+it("reviews the current removal target and sends both source and target proofs only after confirmation", async () => {
+  const user = userEvent.setup();
+  const calls: Array<{ path: string; body: any }> = [];
+  const headers = {
+    "X-Assistant-Today-Protocol": "herewoven.assistant-today.v1",
+    "X-Assistant-Today-Generated-At": new Date().toISOString(),
+    "X-Assistant-Today-Expires-At": new Date(Date.now() + 60000).toISOString(),
+  };
+  global.fetch = jest.fn(async (path, options) => {
+    calls.push({
+      path: String(path),
+      body: options?.body ? JSON.parse(String(options.body)) : undefined,
+    });
+    if (path === "/api/assistant")
+      return response(
+        {
+          reply: "Choose the list to remove.",
+          action: { kind: "list_delete", title: "Supplies" },
+          sourceProof: "synthetic-source",
+        },
+        true,
+        headers,
+      );
+    if (path === "/api/lists")
+      return response({
+        lists: [
+          {
+            id: "list-a",
+            name: "Supplies",
+            type: "custom",
+            _count: { items: 1 },
+          },
+        ],
+      });
+    if (path === "/api/assistant/actions/target")
+      return response({
+        target: {
+          id: "list-a",
+          title: "Current camping supplies",
+          context: "custom",
+          itemCount: 2,
+          proof: "synthetic-target",
+        },
+      });
+    return response({ success: true });
+  }) as any;
+  render(
+    <AssistantHost role="parent" todayContextEnabled confirmationEnabled />,
+  );
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await user.click(screen.getByRole("checkbox", { name: /Include Today/i }));
+  await user.type(
+    screen.getByLabelText("Your message"),
+    "Remove the supplies list",
+  );
+  await user.click(screen.getByRole("button", { name: "Send" }));
+  const chooser = await screen.findByLabelText("Item to remove");
+  expect(
+    screen.getByRole("button", { name: "Remove selected item" }),
+  ).toBeDisabled();
+  await user.selectOptions(chooser, "list-a");
+  const consent = await screen.findByRole("checkbox", {
+    name: "I confirm removing “Current camping supplies”",
+  });
+  expect(
+    screen.getByText("This also removes 2 list items."),
+  ).toBeInTheDocument();
+  expect(calls.map((call) => call.path)).toEqual([
+    "/api/assistant",
+    "/api/lists",
+    "/api/assistant/actions/target",
+  ]);
+  await user.click(consent);
+  await user.click(
+    screen.getByRole("button", { name: "Remove selected item" }),
+  );
+  await screen.findByText("Removed “Current camping supplies”.");
+  expect(calls[3]).toEqual({
+    path: "/api/assistant/actions/confirm",
+    body: {
+      kind: "list_delete",
+      sourceProof: "synthetic-source",
+      targetProof: "synthetic-target",
+      body: { listId: "list-a" },
+    },
+  });
+  expect(calls).toHaveLength(4);
+});
+
+// Authored/unrun: profile identity is a human choice, never an authenticated actor.
+it.each([true, false])(
+  "keeps an email-free profile explicit when recurrence support is %s",
+  async (supported) => {
+    const user = userEvent.setup();
+    const calls: Array<{ path: string; body: any }> = [];
+    global.fetch = jest.fn(async (path, options) => {
+      calls.push({
+        path: String(path),
+        body: options?.body ? JSON.parse(String(options.body)) : undefined,
+      });
+      if (path === "/api/assistant")
+        return response({
+          reply: "Choose who does it.",
+          action: {
+            kind: "chore_create",
+            title: "Put away shoes",
+            frequency: "weekly",
+            weekdays: [1, 4],
+            points: 10,
+            difficulty: "easy",
+          },
+        });
+      if (path === "/api/family/members")
+        return response({
+          members: [{ id: "same-id", name: "Signed-in parent" }],
+        });
+      if (path === "/api/family/profiles")
+        return response({
+          profiles: [
+            {
+              id: "same-id",
+              name: "Young child",
+              role: "child",
+              age: 3,
+              revision: 2,
+              archived_at: null,
+            },
+          ],
+          profileChoreSupported: true,
+          profileChoreRecurrenceSupported: supported,
+        });
+      return response({ choreId: "created-chore" });
+    }) as any;
+    render(<AssistantHost role="parent" profileAssignmentEnabled />);
+    await user.click(screen.getByRole("button", { name: "AI assistant" }));
+    await user.type(
+      screen.getByLabelText("Your message"),
+      "Make a shoes chore",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    const assignee = await screen.findByLabelText("Chore assignee");
+    await user.selectOptions(assignee, "profile:same-id");
+    expect(
+      screen.getByText(/This is an email-free family profile/),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Proposed title")).toHaveValue(
+      "Put away shoes",
+    );
+    const confirm = screen.getByRole("button", { name: "Confirm and save" });
+    if (!supported) {
+      expect(confirm).toBeDisabled();
+      expect(screen.getByLabelText("Chore frequency")).toHaveValue("weekly");
+      expect(
+        screen.getByText(/Repeating chores are paused for this profile/),
+      ).toBeInTheDocument();
+      expect(calls).toHaveLength(3);
+      return;
+    }
+    await user.click(confirm);
+    await screen.findByText("Saved “Put away shoes”.");
+    expect(calls[3].path).toBe("/api/assistant/actions/confirm");
+    expect(calls[3].body).toMatchObject({
+      kind: "chore_create",
+      profileRevision: 2,
+      body: {
+        protocol: 2,
+        selection: { memberId: "same-id" },
+        frequency: "weekly",
+        weekly_days: [1, 4],
+      },
+    });
+    expect(calls[3].body.body).not.toHaveProperty("assigned_to");
+    expect(calls).toHaveLength(4);
+  },
+);

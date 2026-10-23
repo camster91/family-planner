@@ -4,7 +4,7 @@
 // read-only ICS subscriptions. The feed link is write-only: once saved, only a
 // host hint comes back from the API.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import CalendarRemovalDialog, {
   focusCalendarSection,
 } from "./CalendarRemovalDialog";
@@ -78,6 +78,8 @@ export default function CalendarSubscriptionsSection() {
   // Keeps "Last updated 3 min ago" current (#271).
   const now = useNow(30 * 1000) ?? Date.now();
   const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadInFlight = useRef(false);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [color, setColor] = useState(COLORS[0].value);
@@ -90,12 +92,22 @@ export default function CalendarSubscriptionsSection() {
   );
 
   const load = useCallback(async () => {
+    if (loadInFlight.current) return;
+    loadInFlight.current = true;
+    setLoaded(false);
+    setLoadFailed(false);
     try {
       const res = await fetch("/api/calendar/subscriptions");
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && Array.isArray(data.subscriptions))
-        setSubs(data.subscriptions);
+      const data = await res.json();
+      if (!res.ok || !data || !Array.isArray(data.subscriptions))
+        throw new Error("Subscription list unavailable");
+      setSubs(data.subscriptions);
+    } catch {
+      // A failed read is not evidence that the household has no calendars.
+      // Store semantic state so a mounted language change needs no new read.
+      setLoadFailed(true);
     } finally {
+      loadInFlight.current = false;
       setLoaded(true);
     }
   }, []);
@@ -144,6 +156,7 @@ export default function CalendarSubscriptionsSection() {
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!loaded || loadFailed || busy !== null) return;
     setBusy("add");
     setError(null);
     setNotice(null);
@@ -236,6 +249,19 @@ export default function CalendarSubscriptionsSection() {
         <p className="text-sm text-muted-foreground">
           {copy("loadingEllipsis")}
         </p>
+      ) : loadFailed ? (
+        <div className="mb-4 space-y-3">
+          <p role="alert" className="text-sm text-danger-text">
+            {copy("subscriptionsLoadFailed")}
+          </p>
+          <button
+            type="button"
+            className="btn-secondary min-h-[44px]"
+            onClick={() => void load()}
+          >
+            {copy("retrySubscriptions")}
+          </button>
+        </div>
       ) : subs.length === 0 ? (
         <p className="text-sm text-muted-foreground mb-4">
           {copy("noSubscriptions")}
@@ -421,7 +447,13 @@ export default function CalendarSubscriptionsSection() {
         </fieldset>
         <button
           type="submit"
-          disabled={busy !== null || !name.trim() || !url.trim()}
+          disabled={
+            !loaded ||
+            loadFailed ||
+            busy !== null ||
+            !name.trim() ||
+            !url.trim()
+          }
           className="btn-primary inline-flex items-center min-h-[44px]"
         >
           <CalendarPlus className="w-4 h-4 mr-2" aria-hidden="true" />

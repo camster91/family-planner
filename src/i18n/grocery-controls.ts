@@ -2,6 +2,19 @@
  * Item content is user-entered and must only be interpolated, never translated.
  * These keys describe display state, not persisted operation or API codes. */
 export const groceryEnglish = {
+  deviceUnverifiedTitle: "Waiting grocery add",
+  deviceTargetUnverified:
+    "This saved add's list cannot be confirmed here. Use Review saved changes to check it.",
+  originalDeviceRequired:
+    "The original tablet for this add could not be confirmed. It stays saved but cannot be retried. Check the list before discarding it.",
+  recoveredReview:
+    "Review this saved change before retrying. It may have been cleared in an earlier session.",
+  tickReviewOnList:
+    "Open the matching list to review this item before retrying. You can discard the saved change here.",
+  storageOwnerChanged:
+    "Saved changes belong to an earlier account, household or tablet session. They are kept here and will not be sent.",
+  storageVersionRequired:
+    "Saved changes need a compatible recovery version. They are kept here. Do not add them again.",
   storageUnavailable:
     "We couldn’t load saved changes. New changes are paused to protect them.",
   storageRetry: "Try loading saved changes",
@@ -144,6 +157,19 @@ export const groceryEnglish = {
 
 export type GroceryMessage = keyof typeof groceryEnglish;
 export const grocerySpanish: Record<GroceryMessage, string> = {
+  deviceUnverifiedTitle: "Añadido de compra en espera",
+  deviceTargetUnverified:
+    "No se puede confirmar aquí la lista de este añadido. Usa Revisar cambios guardados para comprobarla.",
+  originalDeviceRequired:
+    "No se pudo confirmar la tableta original de este añadido. Se conserva, pero no se puede reintentar. Revisa la lista antes de descartarlo.",
+  recoveredReview:
+    "Revisa este cambio guardado antes de volver a intentarlo. Es posible que se borrara en una sesión anterior.",
+  tickReviewOnList:
+    "Abre la lista correspondiente para revisar este artículo antes de volver a intentarlo. Puedes descartar aquí el cambio guardado.",
+  storageOwnerChanged:
+    "Los cambios guardados pertenecen a una sesión anterior de la cuenta, el hogar o la tableta. Se conservan aquí y no se enviarán.",
+  storageVersionRequired:
+    "Los cambios guardados necesitan una versión de recuperación compatible. Se conservan aquí. No los añadas de nuevo.",
   storageUnavailable:
     "No pudimos cargar los cambios guardados. Pausamos los cambios nuevos para protegerlos.",
   storageRetry: "Intentar cargar los cambios guardados",

@@ -1,4 +1,7 @@
 'use client'
+import { PreparationEntry } from '@/components/calendar/preparation/PreparationEntry'
+import type { PreparationBacklinks } from '@/lib/event-preparation/discovery'
+import { ResponsibilityButton } from '@/components/responsibility/ResponsibilityProvider'
 
 import * as React from 'react'
 import Link from 'next/link'
@@ -20,6 +23,7 @@ import {
 } from '@/lib/home-summary'
 
 export interface HomeSummaryProps {
+  preparationBacklinks?: PreparationBacklinks
   viewer: { id: string; role: string }
   /** Household chores due around today (the server sends a window; the client picks the local day). */
   chores: HomeChore[]
@@ -43,7 +47,7 @@ export interface HomeSummaryProps {
  *
  * Colour marks state only (the check); there are no decorative glyph tiles.
  */
-export default function HomeSummary({ viewer, chores, members, toCheckCount, choresHref }: HomeSummaryProps) {
+export default function HomeSummary({ viewer, chores, members, toCheckCount, choresHref, preparationBacklinks = {} }: HomeSummaryProps) {
   const router = useRouter()
   const { addToast } = useToast()
   const showUndo = useUndoToast()
@@ -143,16 +147,19 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
             const done = isDoneStatus(chore.status)
             const checked = chore.status === 'verified'
             return (
-              <CheckboxRow
-                key={chore.id}
-                checked={done}
-                disabled={checked}
-                wrap
-                onChange={(next) => void (next ? complete(chore) : reopen(chore))}
-                title={chore.title}
-                subtitle={checked ? copy.checkedByParent : done ? doneLabel : copy.dueToday}
-                className={cn(i < rows.length - 1 && 'border-b border-[var(--surface-separator)]')}
-              />
+              <div key={chore.id}>
+                <CheckboxRow
+                  checked={done}
+                  disabled={checked}
+                  wrap
+                  onChange={(next) => void (next ? complete(chore) : reopen(chore))}
+                  title={chore.title}
+                  subtitle={checked ? copy.checkedByParent : done ? doneLabel : copy.dueToday}
+                  className={cn(i < rows.length - 1 && 'border-b border-[var(--surface-separator)]')}
+                />
+                {!done && <ResponsibilityButton target={{ kind: 'chore', id: chore.id }} />}
+                {isParent && preparationBacklinks[chore.id] && <PreparationEntry eventId={preparationBacklinks[chore.id]} backlink />}
+              </div>
             )
           })}
         </div>

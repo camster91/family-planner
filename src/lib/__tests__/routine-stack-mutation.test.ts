@@ -28,6 +28,18 @@ function makeTx(
       state.queries.push(
         `${Array.from(strings).join("?")} ${values.map(String).join("|")}`,
       );
+      if (strings.join("?").includes('SELECT s."schedule_config"')) {
+        const selected = values[3] as string[];
+        return [
+          state.stack,
+          ...state.chores.filter((row) => selected.includes(String(row.id))),
+        ]
+          .filter(Boolean)
+          .map((row) => ({
+            schedule_config:
+              row?.schedule_config ?? row?.routine_series_config ?? null,
+          }));
+      }
       return [{ id: "family-a" }];
     },
     family: { findFirst: async () => ({ id: "family-a" }) },

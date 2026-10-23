@@ -32,9 +32,13 @@ export default function RegisterPage() {
     role: string;
   } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<AuthEntryFeedback | null>(null);
 
   useEffect(() => {
+    // Do not allow a native pre-hydration submit to serialize passwords into
+    // a GET URL before React owns this form.
+    setHydrated(true);
     const token = new URLSearchParams(window.location.search).get("token");
     if (!token) return;
     setInviteToken(token);
@@ -187,7 +191,7 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          <form onSubmit={handleRegister} className="space-y-4">
+          <form method="post" onSubmit={handleRegister} className="space-y-4">
             {error && (
               <div
                 role="alert"
@@ -306,7 +310,7 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={!hydrated || loading}
               className="btn-filled w-full py-3"
             >
               {loading ? (

@@ -18,7 +18,8 @@ jest.mock('@/components/ui/feature-gate', () => ({
 
 import SickDaysPage from '../page'
 
-type Handler = (method: string, body: unknown) => { status: number; body: unknown } | 'network-error'
+type RouteReply = { status: number; body: unknown } | 'network-error'
+type Handler = (method: string, body: unknown) => RouteReply | Promise<RouteReply>
 let routes: Record<string, Handler>
 let calls: { url: string; method: string }[] = []
 let unhandled: unknown[] = []
@@ -34,7 +35,7 @@ const SICK_DAY = {
   symptoms: 'Cough',
   severity: 'mild',
   status: 'active',
-  temperature_log: [],
+  temperature_log: null,
   notes: null,
   medications: [],
 }
@@ -72,7 +73,7 @@ beforeEach(() => {
     const method = (init?.method ?? 'GET').toUpperCase()
     calls.push({ url, method })
     const handler = routes[url]
-    const reply = handler ? handler(method, init?.body ? JSON.parse(String(init.body)) : undefined) : ok({})
+    const reply = handler ? await handler(method, init?.body ? JSON.parse(String(init.body)) : undefined) : ok({})
     if (reply === 'network-error') throw new TypeError('Failed to fetch')
     return { ok: reply.status < 400, status: reply.status, json: async () => reply.body } as Response
   }) as unknown as typeof fetch
@@ -91,24 +92,30 @@ const renderPage = () =>
 
 describe('sick days page errors', () => {
   it('a failed load says so instead of showing the empty state, and Try again reloads', async () => {
-    routes['/api/sick-days'] = () => ({ status: 500, body: { error: 'Internal server error' } })
+    routes['/api/sick-days'] = () => ({
+      status: 200,
+      body: { sickDays: [{ ...SICK_DAY, temperature_log: { malformed: true } }] },
+    })
     const user = userEvent.setup()
     renderPage()
 
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toMatch(/Couldn.t load sick days/)
+    expect(alert.textContent).toMatch(/sickDays.loadFailed/)
     expect(screen.queryByText('sickDays.empty')).toBeNull()
 
     routes['/api/sick-days'] = () => ok({ sickDays: [SICK_DAY] })
-    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+    await user.click(within(alert).getByRole('button', { name: 'sickDays.tryAgain' }))
     expect(await screen.findByText('Sam')).toBeTruthy()
-    expect(screen.queryByText(/Couldn.t load sick days/)).toBeNull()
+    expect(screen.queryByText(/sickDays.loadFailed/)).toBeNull()
   })
 
   it('an offline load shows the same message with no unhandled rejection', async () => {
     routes['/api/sick-days'] = () => 'network-error'
+    routes['/api/auth/me'] = () => 'network-error'
     renderPage()
-    expect((await screen.findByRole('alert')).textContent).toMatch(/Couldn.t load sick days/)
+    expect(await screen.findByText('sickDays.loadFailed')).toBeTruthy()
+    expect(await screen.findByText('sickDays.authLoadFailed')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'sickDays.startSickDay' })).toBeNull()
     await new Promise((r) => setTimeout(r, 0))
     expect(unhandled).toEqual([])
   })
@@ -117,6 +124,7 @@ describe('sick days page errors', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Sam')
+    await screen.findByRole('button', { name: 'sickDays.startSickDay' })
     routes['/api/sick-days'] = (method) =>
       method === 'POST' ? { status: 403, body: { error: 'You can only report yourself' } } : ok({ sickDays: [SICK_DAY] })
 
@@ -124,7 +132,7 @@ describe('sick days page errors', () => {
     await user.selectOptions(screen.getAllByRole('combobox')[0], 'kid1')
     await user.click(screen.getByRole('button', { name: 'common.save' }))
 
-    expect(await screen.findByText("Couldn't start the sick day")).toBeTruthy()
+    expect(await screen.findByText('sickDays.startFailed')).toBeTruthy()
     expect(screen.getByText('You can only report yourself')).toBeTruthy()
   })
 
@@ -132,13 +140,14 @@ describe('sick days page errors', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Sam')
+    await screen.findByRole('button', { name: 'sickDays.startSickDay' })
     routes['/api/sick-days'] = (method) => (method === 'POST' ? 'network-error' : ok({ sickDays: [SICK_DAY] }))
 
     await user.click(screen.getByRole('button', { name: 'sickDays.startSickDay' }))
     await user.selectOptions(screen.getAllByRole('combobox')[0], 'kid1')
     await user.click(screen.getByRole('button', { name: 'common.save' }))
 
-    expect(await screen.findByText("Couldn't start the sick day")).toBeTruthy()
+    expect(await screen.findByText('sickDays.startFailed')).toBeTruthy()
     expect(screen.getByText(OFFLINE_MESSAGE)).toBeTruthy()
     // The form stays usable.
     await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).toHaveProperty('disabled', false))
@@ -152,7 +161,7 @@ describe('sick days page errors', () => {
     await user.click(await screen.findByText('Sam'))
     await user.click(screen.getByRole('button', { name: /sickDays.markDoseTaken/ }))
 
-    expect(await screen.findByText("Couldn't log the dose")).toBeTruthy()
+    expect(await screen.findByText('sickDays.doseFailed')).toBeTruthy()
     await new Promise((r) => setTimeout(r, 0))
     expect(unhandled).toEqual([])
     expect(calls.filter((c) => c.url === '/api/medications/m1' && c.method === 'PATCH')).toHaveLength(1)
@@ -197,5 +206,87 @@ describe('sick days page errors', () => {
 
     expect(await screen.findByText(/sickDays.lastDoseAt/)).toBeTruthy()
     expect(screen.queryByLabelText('sickDays.nextDoseInHours')).toBeNull()
+  })
+
+  it('keeps embedded medication data visible when the medication dependency fails', async () => {
+    routes['/api/sick-days'] = () => ok({ sickDays: [{ ...SICK_DAY, medications: [MED] }] })
+    routes['/api/medications'] = () => ok({ medications: { malformed: true } })
+    routes['/api/family/members'] = () => ok({ members: { malformed: true } })
+
+    const user = userEvent.setup()
+    renderPage()
+
+    expect(await screen.findByText('sickDays.medicationsLoadFailed')).toBeTruthy()
+    expect(await screen.findByText('sickDays.membersLoadFailed')).toBeTruthy()
+    await user.click(await screen.findByText('Sam'))
+    const detail = await screen.findByTestId('sick-day-detail')
+    expect(within(detail).getByText('Syrup')).toBeTruthy()
+    expect(within(detail).queryByText('sickDays.noMedications')).toBeNull()
+  })
+
+  it('keeps a draft sheet open while saving and disables dismissal', async () => {
+    let resolveStart: ((reply: RouteReply) => void) | undefined
+    const startPending = new Promise<RouteReply>((resolve) => {
+      resolveStart = resolve
+    })
+    routes['/api/auth/me'] = () => ok({ user: { id: 'p1', role: 'parent' } })
+    routes['/api/sick-days'] = (method) => (method === 'POST' ? startPending : ok({ sickDays: [SICK_DAY] }))
+
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Sam')
+    await user.click(await screen.findByRole('button', { name: 'sickDays.startSickDay' }))
+    const dialog = screen.getByRole('dialog', { name: 'sickDays.startSickDay' })
+    await user.selectOptions(within(dialog).getByLabelText('sickDays.person'), 'kid1')
+    await user.type(within(dialog).getByLabelText('sickDays.symptoms'), 'headache')
+    const save = within(dialog).getByRole('button', { name: 'common.save' })
+    expect(save.getAttribute('form')).toBe('sick-day-start-form')
+    await user.click(save)
+
+    expect(within(dialog).getByText('sickDays.pendingDescription')).toBeTruthy()
+    expect(within(dialog).queryByRole('button', { name: 'sickDays.closeForm' })).toBeNull()
+    expect(within(dialog).getByRole('button', { name: 'common.cancel' })).toHaveProperty('disabled', true)
+    expect((within(dialog).getByLabelText('sickDays.person') as HTMLSelectElement).matches(':disabled')).toBe(true)
+    expect((within(dialog).getByLabelText('sickDays.symptoms') as HTMLTextAreaElement).matches(':disabled')).toBe(true)
+
+    resolveStart?.(ok({ sickDay: SICK_DAY }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'sickDays.startSickDay' })).toBeNull())
+  })
+
+  it('retains an unsaved draft after the sheet is dismissed', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Sam')
+    await user.click(await screen.findByRole('button', { name: 'sickDays.startSickDay' }))
+    let dialog = screen.getByRole('dialog', { name: 'sickDays.startSickDay' })
+    await user.selectOptions(within(dialog).getByLabelText('sickDays.person'), 'kid1')
+    await user.type(within(dialog).getByLabelText('sickDays.symptoms'), 'still coughing')
+    await user.click(within(dialog).getByRole('button', { name: 'sickDays.closeForm' }))
+
+    await user.click(screen.getByRole('button', { name: 'sickDays.startSickDay' }))
+    dialog = screen.getByRole('dialog', { name: 'sickDays.startSickDay' })
+    expect((within(dialog).getByLabelText('sickDays.symptoms') as HTMLTextAreaElement).value).toBe('still coughing')
+    expect((within(dialog).getByLabelText('sickDays.person') as HTMLSelectElement).value).toBe('kid1')
+  })
+
+  it('allows only one in-flight dose log for a medication', async () => {
+    let resolveDose: ((reply: RouteReply) => void) | undefined
+    const dosePending = new Promise<RouteReply>((resolve) => {
+      resolveDose = resolve
+    })
+    routes['/api/medications/m1'] = () => dosePending
+
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByText('Sam'))
+    const doseButton = screen.getByRole('button', { name: /sickDays.markDoseTaken/ })
+    await user.click(doseButton)
+    await waitFor(() => expect(calls.filter((c) => c.url === '/api/medications/m1' && c.method === 'PATCH')).toHaveLength(1))
+    expect(doseButton).toHaveProperty('disabled', true)
+
+    medState = { ...MED, last_dose_at: '2026-10-01T10:00:00.000Z', next_dose_at: null }
+    resolveDose?.(ok({ medication: medState }))
+    await waitFor(() => expect(screen.getByText(/sickDays.lastDoseAt/)).toBeTruthy())
+    expect(calls.filter((c) => c.url === '/api/medications/m1' && c.method === 'PATCH')).toHaveLength(1)
   })
 })

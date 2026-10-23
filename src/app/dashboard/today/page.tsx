@@ -13,6 +13,15 @@ import { loadHomeSummary } from "./home-summary-data";
 import { loadGetStarted } from "./get-started-data";
 import { isDoneStatus, isOpenStatus } from "@/lib/home-summary";
 import { isProfileChoreEnabled } from "@/lib/chore-profile";
+import { Suspense } from "react";
+import loadable from "next/dynamic";
+// The existing server readiness/role gate decides whether this optional
+// workspace is rendered. A dormant launcher need not enter the cold board.
+const WeeklyResetLauncher = loadable(
+  () => import("@/components/dashboard/WeeklyResetLauncher"),
+);
+import { weeklyResetReady } from "@/lib/weekly-reset";
+import { readPreparationBacklinks } from "@/lib/event-preparation/discovery";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -119,6 +128,19 @@ export default async function TodayBoardPage({
   if (!home)
     return <TodayBoard data={data} fridgeMode={fridgeMode} viewer={viewer} />;
 
+  const preparationBacklinks =
+    user.role === "parent" && data.links.calendar && data.links.chores
+      ? await readPreparationBacklinks(prisma!, {
+          userId: sessionUser.id,
+          familyId,
+          role: user.role,
+          choreIds: [
+            ...home.chores.map((c) => c.id),
+            ...data.chores.map((c) => c.id),
+          ],
+        })
+      : {};
+
   // Own chore rows already have completion/reopen/Undo in the personal summary.
   // Exclude only those exact IDs from the household tile, not every chore for
   // this member: the two bounded reads can contain different sets of rows.
@@ -132,12 +154,28 @@ export default async function TodayBoardPage({
 
   return (
     <>
-      <HomeSummary viewer={viewer} {...home} />
+      <HomeSummary
+        viewer={viewer}
+        {...home}
+        preparationBacklinks={preparationBacklinks}
+      />
+      {weeklyResetReady() &&
+        !fridgeMode &&
+        ["parent", "teen", "child"].includes(user.role) && (
+          <Suspense fallback={null}>
+            <WeeklyResetLauncher
+              key={`${sessionUser.id}:${familyId}`}
+              userId={sessionUser.id}
+              familyId={familyId}
+            />
+          </Suspense>
+        )}
       <TodayBoard
         data={data}
         fridgeMode={fridgeMode}
         viewer={viewer}
         choresShownElsewhere={choresShownElsewhere}
+        preparationBacklinks={preparationBacklinks}
       />
       {getStarted && (
         <TodaySetup viewer={viewer} familyId={familyId} steps={getStarted} />

@@ -6,8 +6,8 @@
  * size check runs. These helpers stop reading as soon as the stream passes
  * the bound, so one oversized request cannot exhaust server memory.
  *
- * Fake requests in route tests have no body stream and provide
- * formData()/json()/text() directly; those are passed through.
+ * Legacy decoders without a body stream cannot enforce a preallocation bound.
+ * JSON/text fallbacks enforce a post-decode byte bound; formData passes through.
  */
 
 export class RequestBodyTooLargeError extends Error {
@@ -59,7 +59,11 @@ async function readBoundedBytes(body: ReadableStream<Uint8Array>, maxBytes: numb
 /** Body as UTF-8 text. Throws RequestBodyTooLargeError past maxBytes. */
 export async function readBoundedText(request: BodyRequest, maxBytes: number): Promise<string> {
   if (declaresTooLarge(request, maxBytes)) throw new RequestBodyTooLargeError()
-  if (!request.body) return request.text()
+  if (!request.body) {
+    const text = await request.text()
+    if (new TextEncoder().encode(text).byteLength > maxBytes) throw new RequestBodyTooLargeError()
+    return text
+  }
   return new TextDecoder().decode(await readBoundedBytes(request.body, maxBytes))
 }
 
@@ -69,7 +73,16 @@ export async function readBoundedText(request: BodyRequest, maxBytes: number): P
  */
 export async function readBoundedJson(request: BodyRequest, maxBytes: number): Promise<unknown> {
   if (declaresTooLarge(request, maxBytes)) throw new RequestBodyTooLargeError()
-  if (!request.body) return request.json()
+  if (!request.body) {
+    // Legacy bridge/test requests may expose only one decoder. This is a
+    // post-parse bound when no stream is available, not streaming protection.
+    if (typeof request.json !== 'function') return JSON.parse(await readBoundedText(request, maxBytes))
+    const value: unknown = await request.json()
+    const encoded = JSON.stringify(value)
+    if (typeof encoded !== 'string') throw new SyntaxError('Invalid JSON')
+    if (new TextEncoder().encode(encoded).byteLength > maxBytes) throw new RequestBodyTooLargeError()
+    return value
+  }
   return JSON.parse(await readBoundedText(request, maxBytes))
 }
 

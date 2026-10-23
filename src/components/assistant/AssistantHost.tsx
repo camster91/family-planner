@@ -4,7 +4,8 @@ import * as React from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Sparkles, MessageSquareWarning } from "lucide-react";
-import { useTranslation } from "@/i18n";
+import { useHydrated } from "@/components/ui/use-hydrated";
+import { useCoreTranslation } from "@/i18n/core";
 import {
   assistantShellMessages,
   type AssistantShellMessage,
@@ -13,7 +14,7 @@ import {
 type AssistantPanelTab = "chat" | "report" | "reports";
 
 function AssistantLoading() {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (key: AssistantShellMessage) =>
     t(key, undefined, assistantShellMessages);
   return (
@@ -39,15 +40,22 @@ const target =
 export default function AssistantHost({
   role,
   todayContextEnabled = false,
+  confirmationEnabled = false,
+  profileAssignmentEnabled = false,
 }: {
   role: string;
   todayContextEnabled?: boolean;
+  confirmationEnabled?: boolean;
+  profileAssignmentEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const params = useSearchParams();
-  const { t } = useTranslation();
+  const { locale, t } = useCoreTranslation();
+  const hydrated = useHydrated();
   const msg = (key: AssistantShellMessage) =>
-    t(key, undefined, assistantShellMessages);
+    hydrated || locale === "en"
+      ? t(key, undefined, assistantShellMessages)
+      : assistantShellMessages.en[key];
   const [tab, setTab] = React.useState<AssistantPanelTab | null>(null);
   const [panelLoaded, setPanelLoaded] = React.useState(false);
   const [panelBusy, setPanelBusy] = React.useState(false);
@@ -172,6 +180,8 @@ export default function AssistantHost({
           onClose={close}
           onBusyChange={setPanelBusy}
           todayContextEnabled={todayContextEnabled}
+          confirmationEnabled={confirmationEnabled}
+          profileAssignmentEnabled={profileAssignmentEnabled}
         />
       )}
     </>

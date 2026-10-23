@@ -1,6 +1,9 @@
 /**
  * @jest-environment jsdom
  */
+jest.mock("@/lib/review-document-browser", () =>
+  require("@/__tests__/helpers/legacy-recipe-review").legacyRecipeReviewMock(),
+);
 import * as React from "react";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -27,6 +30,10 @@ jest.mock("next/navigation", () => ({
     return new URLSearchParams(search);
   },
   useRouter: () => ({
+    replace: (url: string) => {
+      window.history.replaceState({}, "", url);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    },
     push: (url: string) => {
       window.history.pushState({}, "", url);
       window.dispatchEvent(new PopStateEvent("popstate"));
@@ -48,6 +55,22 @@ const LASAGNA = {
 };
 
 type Call = { url: string; method: string; body: unknown };
+
+function mealPage(meals: unknown[], url?: string) {
+  const query = url ? new URL(url, "https://example.test").searchParams : null;
+  return {
+    meals: meals.filter((row) => {
+      const date = (row as { date?: unknown })?.date;
+      return (
+        !query ||
+        typeof date !== "string" ||
+        (date >= `${query.get("start")}T00:00:00.000Z` &&
+          date < `${query.get("end")}T00:00:00.000Z`)
+      );
+    }),
+    nextCursor: null,
+  };
+}
 
 function setup({
   meals,
@@ -74,10 +97,15 @@ function setup({
           status,
           json: async () => data,
         }) as Response;
+      if (url === "/api/meals/create" && method === "GET")
+        return json(200, {
+          userId: "fixture_parent",
+          familyId: "fixture_family",
+        });
       if (url.startsWith("/api/meals?"))
         return json(
           mealsStatus,
-          mealsStatus === 200 ? { meals } : { error: "boom" },
+          mealsStatus === 200 ? mealPage(meals, url) : { error: "boom" },
         );
       if (url === "/api/family/members")
         return json(membersStatus, {
@@ -94,6 +122,8 @@ function setup({
         url.startsWith("/api/meals")
       )
         return json(saveError.status, { error: saveError.error });
+      if (url === "/api/meals/create" && method === "POST")
+        return json(201, { mealId: "new" });
       if (url === "/api/meals" && method === "POST")
         return json(201, { meal: { id: "new" } });
       if (url.startsWith("/api/meals/") && method === "PATCH")
@@ -223,6 +253,7 @@ describe("/dashboard/meals", () => {
       release({
         ok: true,
         json: async () => ({
+          nextCursor: null,
           meals: [
             {
               ...dinnerA,
@@ -347,7 +378,7 @@ describe("/dashboard/meals", () => {
       await user.click(
         within(dialog).getByRole("button", { name: "New recipe" }),
       );
-      const editor = screen.getByTestId("recipe-quick-create");
+      const editor = await screen.findByTestId("recipe-quick-create");
       await user.type(
         within(editor).getByLabelText("Recipe name"),
         "Inline soup",
@@ -463,7 +494,7 @@ describe("/dashboard/meals", () => {
       let enter: (() => void) | undefined;
       if (editorOpen) {
         await user.click(newRecipe);
-        const editor = screen.getByTestId("recipe-quick-create");
+        const editor = await screen.findByTestId("recipe-quick-create");
         const title = within(editor).getByLabelText("Recipe name");
         await user.type(title, "Do not orphan this recipe");
         attempt = handler<() => void>(
@@ -519,7 +550,7 @@ describe("/dashboard/meals", () => {
         calls.filter((c) => c.url === "/api/recipes" && c.method === "POST"),
       ).toHaveLength(0);
       if (editorOpen) {
-        expect(screen.getByTestId("recipe-quick-create")).toHaveProperty(
+        expect(await screen.findByTestId("recipe-quick-create")).toHaveProperty(
           "disabled",
           true,
         );
@@ -536,9 +567,14 @@ describe("/dashboard/meals", () => {
         calls.filter((c) => c.url === "/api/recipes" && c.method === "POST"),
       ).toHaveLength(0);
       await act(async () => {
-        resolve({ ok: true, status: 200, json: async () => ({}) } as Response);
+        resolve({
+          ok: true,
+          status: 200,
+          json: async () =>
+            method === "POST" ? { mealId: "created_fixture" } : {},
+        } as Response);
       });
-      expect(screen.queryByRole("dialog")).toBeNull();
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     },
   );
   it("blocks owning meal dismissal and submission while inline recipe creation is pending", async () => {
@@ -550,7 +586,7 @@ describe("/dashboard/meals", () => {
       within(dialog).getByRole("button", { name: "New recipe" }),
     );
     await user.type(
-      within(screen.getByTestId("recipe-quick-create")).getByLabelText(
+      within(await screen.findByTestId("recipe-quick-create")).getByLabelText(
         "Recipe name",
       ),
       "Inline soup",
@@ -660,7 +696,7 @@ describe("/dashboard/meals", () => {
             resolveMutation = resolve;
           });
         }
-        if (url === "/api/meals?start=2026-12-08&end=2026-12-15") {
+        if (url === "/api/meals?start=2026-12-08&end=2026-12-15&limit=100") {
           calls.push({ url, method: "GET", body: undefined });
           if (++selectedReads === 1)
             return new Promise<Response>((resolve) => {
@@ -668,7 +704,7 @@ describe("/dashboard/meals", () => {
             });
           return {
             ok: true,
-            json: async () => ({ meals: [selectedMeal] }),
+            json: async () => mealPage([selectedMeal]),
           } as Response;
         }
         return original(input, init);
@@ -696,7 +732,11 @@ describe("/dashboard/meals", () => {
         c.url.startsWith("/api/meals?"),
       ).length;
       await act(async () => {
-        resolveMutation({ ok: true, json: async () => ({}) } as Response);
+        resolveMutation({
+          ok: true,
+          json: async () =>
+            action === "undo" ? { mealId: "restored_fixture" } : {},
+        } as Response);
       });
       await waitFor(() =>
         expect(
@@ -705,14 +745,14 @@ describe("/dashboard/meals", () => {
       );
       expect(
         calls.filter((c) => c.url.startsWith("/api/meals?")).at(-1)?.url,
-      ).toBe("/api/meals?start=2026-12-08&end=2026-12-15");
+      ).toBe("/api/meals?start=2026-12-08&end=2026-12-15&limit=100");
       expect((await screen.findByTestId("meal-row")).textContent).toContain(
         "Green salad",
       );
       await act(async () => {
         resolveWindow({
           ok: true,
-          json: async () => ({ meals: [] }),
+          json: async () => mealPage([]),
         } as Response);
       });
       expect(screen.getByTestId("meal-row").textContent).toContain(
@@ -764,7 +804,7 @@ describe("/dashboard/meals", () => {
     await user.type(within(dialog).getByLabelText("Servings (optional)"), "1");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() =>
-      expect(calls.find((c) => c.method === "POST")?.body).toEqual({
+      expect(calls.find((c) => c.method === "POST")?.body).toMatchObject({
         date: today,
         meal_type: "lunch",
         recipe_name: "",
@@ -790,7 +830,7 @@ describe("/dashboard/meals", () => {
     await user.click(screen.getByRole("button", { name: "Next week" }));
     expect(await screen.findByTestId("meal-row")).toBeTruthy();
     await act(async () => {
-      resolve({ ok: true, json: async () => ({ meals: [] }) } as Response);
+      resolve({ ok: true, json: async () => mealPage([]) } as Response);
     });
     expect(screen.getByTestId("meal-row").textContent).toContain("Tacos");
   });
@@ -882,7 +922,9 @@ describe("/dashboard/meals", () => {
       expect(cards[0].getAttribute("data-day")).toBe(start);
       const end = start === "2026-03-08" ? "2026-03-15" : "2026-11-08";
       expect(
-        calls.some((c) => c.url === `/api/meals?start=${start}&end=${end}`),
+        calls.some(
+          (c) => c.url === `/api/meals?start=${start}&end=${end}&limit=100`,
+        ),
       ).toBe(true);
     },
   );
@@ -891,9 +933,7 @@ describe("/dashboard/meals", () => {
     window.history.replaceState({}, "", "/dashboard/meals?view=bulk");
     setup({ meals: [] });
     await screen.findByTestId("bulk-cooking-panel");
-    expect(
-      screen.queryByRole("button", { name: /^Add meal$/i }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Add meal$/i })).toBeNull();
     expect(
       screen.getByRole("button", { name: "Plan a prep session" }),
     ).toHaveProperty("disabled", true);
@@ -950,7 +990,7 @@ describe("/dashboard/meals", () => {
       expect(cards[0].getAttribute("data-day")).toBe(start);
       expect(
         calls.filter((c) => c.url.startsWith("/api/meals?")).map((c) => c.url),
-      ).toEqual([`/api/meals?start=${start}&end=${end}`]);
+      ).toEqual([`/api/meals?start=${start}&end=${end}&limit=100`]);
       const button = screen.getByRole("button", { name: blocked });
       expect(button).toHaveProperty("disabled", true);
       await user.click(button);
@@ -1010,7 +1050,7 @@ describe("/dashboard/meals", () => {
     await user.type(within(dialog).getByLabelText("Recipe name"), "Apples");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() =>
-      expect(calls.find((c) => c.method === "POST")?.body).toEqual({
+      expect(calls.find((c) => c.method === "POST")?.body).toMatchObject({
         date: today,
         meal_type: "snack",
         recipe_name: "Apples",
@@ -1030,7 +1070,8 @@ describe("/dashboard/meals", () => {
     await waitFor(() =>
       expect(
         calls.some(
-          (c) => c.url === "/api/meals?start=2026-12-28&end=2027-01-04",
+          (c) =>
+            c.url === "/api/meals?start=2026-12-28&end=2027-01-04&limit=100",
         ),
       ).toBe(true),
     );
@@ -1042,7 +1083,8 @@ describe("/dashboard/meals", () => {
     await waitFor(() =>
       expect(
         calls.some(
-          (c) => c.url === "/api/meals?start=2027-01-04&end=2027-01-11",
+          (c) =>
+            c.url === "/api/meals?start=2027-01-04&end=2027-01-11&limit=100",
         ),
       ).toBe(true),
     );
@@ -1105,12 +1147,17 @@ describe("/dashboard/meals", () => {
     await user.click(within(toast).getByRole("button", { name: "Undo" }));
     await waitFor(() =>
       expect(
-        calls.some((c) => c.url === "/api/meals" && c.method === "POST"),
+        calls.some((c) => c.url === "/api/meals/create" && c.method === "POST"),
       ).toBe(true),
     );
     expect(
-      calls.find((c) => c.url === "/api/meals" && c.method === "POST")!.body,
+      calls.find((c) => c.url === "/api/meals/create" && c.method === "POST")!
+        .body,
     ).toEqual({
+      protocol: "herewoven.meal-create.v1",
+      expected_user_id: "fixture_parent",
+      expected_family_id: "fixture_family",
+      issued_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       date: today,
       meal_type: "dinner",
       recipe_name: "Green salad",
@@ -1207,7 +1254,7 @@ describe("/dashboard/meals", () => {
     await waitFor(() =>
       expect(calls.some((c) => c.method === "POST")).toBe(true),
     );
-    expect(calls.find((c) => c.method === "POST")!.body).toEqual({
+    expect(calls.find((c) => c.method === "POST")!.body).toMatchObject({
       date: today,
       meal_type: "breakfast",
       recipe_name: "Porridge",
@@ -1238,7 +1285,7 @@ describe("/dashboard/meals", () => {
     await waitFor(() =>
       expect(calls.some((c) => c.method === "POST")).toBe(true),
     );
-    expect(calls.find((c) => c.method === "POST")!.body).toEqual({
+    expect(calls.find((c) => c.method === "POST")!.body).toMatchObject({
       date: today,
       meal_type: "dinner",
       recipe_name: "Veggie lasagna",
@@ -1380,7 +1427,7 @@ describe("/dashboard/meals", () => {
     expect(document.querySelector("img[data-brand-illustration]")).toBeNull();
   });
 
-  it("shows the server's reason in a toast when a save fails, not alert(), and keeps the dialog open", async () => {
+  it("shows the server's reason inline when a create fails and keeps the dialog open", async () => {
     const user = userEvent.setup();
     setup({
       meals: [],
@@ -1395,7 +1442,8 @@ describe("/dashboard/meals", () => {
     await user.type(within(dialog).getByLabelText("Recipe name"), "Porridge");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(await screen.findByText("Recipe name is too long")).toBeTruthy();
-    expect(screen.getByText("Couldn't add the meal")).toBeTruthy();
+    expect(screen.getAllByText("Recipe name is too long")).toHaveLength(1);
+    expect(screen.queryByText("Couldn't add the meal")).toBeNull();
     expect(window.alert).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeTruthy();
   });

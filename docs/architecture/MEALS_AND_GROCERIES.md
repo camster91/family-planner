@@ -2,6 +2,16 @@
 
 Supporting detail for [ADR-0007](adr/0007-canonical-meal-recipe-grocery-models.md) (**Accepted 2026-09-27**, issue #149). If this file and the ADR disagree, the ADR wins. `prisma/schema.prisma` and the route source remain authoritative for what exists today.
 
+Inventory replacement source addendum (2026-10-20, #125): explicit restocking
+uses existing canonical ListItem with `source='manual'`, immutable
+`source_key='inventory:<itemId>'` and creating receipt provenance. This extends
+manual provenance without another stock/list model or source enum. Exact open
+replacement lots skip under household serialization; similar rows are reviewed,
+never automatically merged or converted. The existing O-5 grocery Undo primitive
+is shared with its recipe compatibility export preserved. Backend source only;
+UI/owned recovery and consolidated acceptance remain open. See
+[inventory restocking](INVENTORY_RESTOCK.md).
+
 ## 1. Evidence base
 
 - Inspected on `master` @ `2fd6cc5` on 2026-09-27. Static source inspection only. No production data was read, and no row counts in this document come from a live database.
@@ -366,7 +376,7 @@ offline and stale states). FridgeCal-style inventory without AI: what the househ
 
 ### Model (additive)
 
-`InventoryItem` (`prisma/schema.prisma`; idempotent DDL in `scripts/migrate.js` `POST_FEATURE_SQL`, because it references `Ingredient`, which `database/migration-meal-planner-domains.sql` creates):
+`InventoryItem` (`prisma/schema.prisma`; idempotent DDL in `database/migration-meal-planner-inventory.sql`, applied by `scripts/migrate.js` immediately after the Ingredient domain foundation and before later food product/source-version migrations):
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -518,7 +528,7 @@ drops rows that are not yet due or already past use-by for its own day.
 
 ### Fridge photo scan (#265)
 
-**Status (2026-09-28): implemented, off until configured.** A parent photographs the fridge, freezer or pantry; a vision model suggests items; the parent reviews and edits them; the ticked ones are added through the ordinary `POST /api/inventory`. The scan never writes anything itself.
+**Original release: 2026-09-28; intake contract updated 2026-10-22.** A parent photographs the fridge, freezer or pantry; a vision model suggests items; the parent reviews and edits them; selected rows use owner-bound `POST /api/inventory/intake`. The scan itself writes no inventory. See `docs/product/FOOD_CAPTURE.md` for the current intake/unknown-result contract; provider activation remains deployment-controlled.
 
 - **Route:** `POST /api/inventory/scan` (`src/app/api/inventory/scan/route.ts`, helpers in `src/lib/inventory-scan.ts`). Multipart body with one `image` field. Returns `{ items: [{ name, amount, unit, location, confidence }], dropped }`: `name` ≤ 80 characters, `amount` a positive number or null, `unit` ≤ 32 characters or null, `location` `fridge` | `freezer` | `pantry` or null (the page defaults it to the fridge), `confidence` 0–1. At most 50 items; `dropped` counts entries that were unusable or duplicates.
 - **Order of checks:** paired shared device refused (403 `DEVICE_WRITE_NOT_ALLOWED`) → person session (401) → kill switch (404 `INVENTORY_SCAN_DISABLED` when no key is configured) → `featureGate('inventory')` (403) → parent only (403 `INVENTORY_SCAN_FORBIDDEN`) → body checks → rate limits → provider.
@@ -528,7 +538,7 @@ drops rows that are not yet due or already past use-by for its own day.
 - **Provider:** Anthropic Messages API at the fixed `https://api.anthropic.com/v1/messages` (redirects not followed, 45 s timeout), key `INVENTORY_SCAN_ANTHROPIC_API_KEY` from the server environment only, model `INVENTORY_SCAN_MODEL` (default `claude-sonnet-5`; must look like a model id, otherwise the default is used). One user message with a base64 image block and a JSON-schema structured output (`output_config.format`), effort `low`. There is no per-household key, URL or model, so the text-capture configuration (`src/lib/capture.ts`, per-family OpenAI-compatible endpoint) is deliberately not reused. Raw `fetch` rather than the Anthropic SDK keeps the dependency set unchanged and the host fixed.
 - **Untrusted output:** the model's JSON is validated with zod and cleaned item by item (NFC, control/bidi/zero-width characters and angle brackets removed, whitespace collapsed, lengths bounded, amounts clamped, unknown locations → null, confidence clamped to 0–1, names without a letter dropped, duplicates by name and location merged). A top level that is not `{ items: [...] }`, non-JSON text or a refusal is 502 `SCAN_UNREADABLE`; an upstream error, timeout or network failure is 502 `SCAN_PROVIDER_UNAVAILABLE` (both `retryable: true`); upstream bodies are never read into responses or logs. The page renders suggestions only as React text and input values, never HTML, and the edited values go through the create route's own validation.
 - **Privacy:** when enabled, the photo is sent to Anthropic for this one request. It is held in memory only: never written to disk, the database or logs, and nothing about it is stored after the response. Logs carry the byte size, sniffed type, item and dropped counts, duration and upstream status, never the image, the model text or item names. The dialog tells the parent before they pick a photo that it is sent to the AI provider and not saved. Anthropic's handling of API inputs is governed by the deployment's Anthropic account terms (see the runbook).
-- **Review and add (UI):** `/dashboard/inventory` → "Scan fridge" → "Take or choose a photo" (`<input type="file" accept="image/*" capture="environment">`) → loading → one editable row per suggestion (tick box, name, amount, unit, where, use-by date, and "Likely" / "Check this" / "Unsure" in words; suggestions under 0.5 start unticked) → "Add N items". Items are posted one at a time (there is no batch create). Each row sends one `Idempotency-Key` for its whole life, so a create that committed but lost its response is replayed on retry instead of adding a second row; each added row leaves the list, so after a partial failure "Add" sends only what is left. If an in-doubt row is edited before the retry, the server answers 422 `IDEMPOTENCY_KEY_REUSED`; the dialog then unticks the row, says it was probably added already and gives it a fresh key, so adding it again is deliberate. The dialog is the shared `Dialog` (focus moved in and to each new step, Tab kept inside, focus returned to "Scan fridge"); Escape and Close both report items already added, so the page reloads with a notice. Errors (feature off, rate limited, daily cap, provider down, unreadable photo, network) are shown in words with "Try another photo".
+- **Review and add (UI):** `/dashboard/inventory` → "Scan fridge" → "Take or choose a photo" (`<input type="file" accept="image/*" capture="environment">`) → loading → editable suggestions (selection, name, amount, unit, storage, date and worded confidence; suggestions under0.5 start unselected) → "Add N items". Rows use typed owner-bound intake one at a time. Each attempted row freezes its serialized body/key while the result is unknown, including through a later refusal; fields/selection and Close/Back/new-photo replacement stay locked until confirmation. Confirmed rows leave the tray and partial counts distinguish already-added rows from unresolved ones. An initial definite refusal keeps the row editable for a fresh explicit attempt with a new key. `IDEMPOTENCY_KEY_REUSED` does not prove this row was added; the former probably-added/deselect behavior is retired. Original-item removal has its own explicit outcome and requires a deliberate new selection/key before re-adding. The shared Dialog retains focus/keyboard behavior and reports confirmed partial additions on allowed Close/Escape; an unresolved original request cannot be discarded through those controls. Source/contract details and activation/evidence boundaries are in `docs/product/FOOD_CAPTURE.md` and `docs/architecture/INVENTORY_RECOVERY.md`.
 - **Operations:** enabling, the key, the spend cap and turning it off are in `docs/runbooks/INVENTORY_SCAN.md`.
 
 ### Follow-ups (not in #263 or #265)
@@ -600,3 +610,65 @@ When a person's `PATCH /api/lists/items/update` changes a grocery/shopping row f
 - Per-store layouts (a household that shops at two stores with different walking orders); today there is one learned order per household.
 - Editing `Ingredient.section` from the recipe screen, and a way to review or reset all of a household's section choices at once.
 - A design reference for the section headers, the "Move" sheet and the switch (#150–#153), as for #252.
+
+
+### Recipe portion preview additive candidate — 2026-10-19 (#460)
+
+Saved Recipe detail locally previews 1–100 target servings when its canonical base
+is known. Only reviewed numeric ingredient quantities scale; no unit conversion,
+raw-text ingredient inference, stock change or canonical write. Recipe-grocery
+explicit `servings` now permits 1–100, matching ordinary meals and recipes; the
+prep-domain 1–50 cap remains. Review/confirmation, household provenance and owned
+Undo still govern grocery mutation. Older grocery servers can refuse >50 before
+write; no automatic clamping or fallback changes the reviewed payload. Source
+candidate only: the full integrated QA/release gate remains open.
+
+### Reviewed stock change transaction (#125, 2026-10-19; candidate)
+
+`/api/inventory/change` uses `inventory-change-contract.ts` for consume/discard/
+undo, canonical primitives in `inventory-adjust.ts`, and a single membership/
+receipt/item transaction in `inventory-change.ts`. No stock/history shadow store.
+Expected versions bind current amounts/units for new consumes/discards; no inferred
+unit conversion or excess deduction. Undo cannot replace later stock changes.
+
+The compact historical receipt carries item/adjustment/kind only; live data is
+refetched after current-authority confirmation. The client's serialized key/body
+survives uncertain responses and later refusals in memory. Known no-effect
+outcomes release for fresh review; unknown expiration is not treated as no effect.
+Old APIs remain compatible and use the same canonical transaction primitives,
+without claiming their cached DTOs/fresh-role checks have the new guarantees.
+Edit/remove and offline/native capability reconciliation remain separate work.
+Source tests only; no integrated QA or runtime proof has run.
+
+### Reviewed stock edit/removal extension (2026-10-19; candidate)
+
+Edit/remove join inventory-change.v1 and shared `inventory-edit.ts` primitives.
+A reviewed item version refuses stale form writes. Ingredient resolution remains
+same-household and creates no new ingredient. Product/label snapshots are not
+rewritten by ordinary edits. Delete preserves the explicit history-loss decision.
+
+All stock change replies are verified against a completed current-actor/family/
+action/request-hash receipt. Edit/remove pointers carry item/kind, while original
+adjustment pointers retain item/adjustment/kind. Removal proof survives the item
+and history cascade in the existing receipt retention window; absent proof never
+causes blind replay. Live stock is refetched; no receipt is a current quantity.
+Legacy routes share primitives but retain their old envelopes, without claiming
+new expected-context/replay guarantees. No new schema/offline/native action.
+All acceptance remains pending the later integrated QA.
+
+### Presence matching transparency (2026-10-19; source candidate)
+
+ADR-0007 remains presence-only: no cross-unit arithmetic or automatic stock usage.
+`indexCookInventory` rejects non-positive/non-finite/finished stock; positive or
+unknown amount is presence, not sufficiency. Cooking and Use soon SQL exclude
+zero quantities before caps while preserving minimal shared DTOs. Matched recipe
+ingredients carry link/name provenance. Cross-household recipe ingredient links
+skip that whole recipe with `comparisonIncomplete`, never leaking foreign names.
+
+`inventory-cook-contract.ts` validates bounded and consistent response metadata,
+retains legacy presence responses, and rejects unsupported sufficiency modes.
+Grocery review receives optional presence/link/name hints without stock values.
+Inventory/Today copy describes recorded matches, not confirmed real-world absence
+or enough stock. All-matched recipes still offer explicit grocery review. No
+inventory decrement, quantity comparison, synonym engine or provider call added.
+Source tests/fixtures only; integrated QA and native acceptance remain deferred.

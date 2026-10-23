@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 
 /** Visible Today/fridge-board copy. Event, member, recipe and list values stay caller-supplied. */
 export const todayBoardEnglish = {
@@ -20,13 +20,16 @@ export const todayBoardEnglish = {
   moreLaterToday: "{count} more later today",
   recipe: "Recipe: {title}",
   prep: "Prep {duration}",
-  missingIngredientOne: "1 ingredient missing",
-  missingIngredientMany: "{count} ingredients missing",
+  missingIngredientOne: "1 ingredient not found in inventory",
+  missingIngredientMany: "{count} ingredients not found in inventory",
   mealPlanningOff: "Meal planning is turned off for this household.",
   turnOnMealPlanning: "Turn on meal planning",
   dinnerEmpty: "No dinner planned yet.",
   planDinner: "Plan dinner",
   dinnerPlanned: "Dinner is planned",
+  moreDinners:
+    "More dinners are planned for this day. Open Meals to see them all.",
+  moreDinnersShared: "More dinners are planned for this day.",
   dinnerTonight: "Dinner tonight",
   openMeals: "open meals",
   cooking: "Cooking: {name}",
@@ -42,6 +45,8 @@ export const todayBoardEnglish = {
   choresEmpty: "No chores due today.",
   allDoneToday: "All done for today",
   inProgress: "In progress",
+  profileChoreArchived:
+    "This profile is archived. History is kept and actions are paused.",
   profileChorePaused:
     "This recurring profile chore is paused while compatibility is refreshed. Your pending chore and history are still here; refresh to try again.",
   more: "{count} more",
@@ -112,14 +117,18 @@ export const todayBoardSpanish: TodayBoardMessages = {
   moreLaterToday: "{count} más hoy",
   recipe: "Receta: {title}",
   prep: "Preparación {duration}",
-  missingIngredientOne: "Falta 1 ingrediente",
-  missingIngredientMany: "Faltan {count} ingredientes",
+  missingIngredientOne: "1 ingrediente sin coincidencia en el inventario",
+  missingIngredientMany:
+    "{count} ingredientes sin coincidencia en el inventario",
   mealPlanningOff:
     "La planificación de comidas está desactivada para este hogar.",
   turnOnMealPlanning: "Activar la planificación de comidas",
   dinnerEmpty: "Aún no hay cena planificada.",
   planDinner: "Planificar cena",
   dinnerPlanned: "La cena está planificada",
+  moreDinners:
+    "Hay más cenas planificadas para este día. Abre Comidas para verlas todas.",
+  moreDinnersShared: "Hay más cenas planificadas para este día.",
   dinnerTonight: "Cena de esta noche",
   openMeals: "abrir comidas",
   cooking: "Cocina: {name}",
@@ -135,6 +144,8 @@ export const todayBoardSpanish: TodayBoardMessages = {
   choresEmpty: "No hay tareas para hoy.",
   allDoneToday: "Todo listo por hoy",
   inProgress: "En curso",
+  profileChoreArchived:
+    "Este perfil está archivado. El historial se conserva y las acciones están en pausa.",
   profileChorePaused:
     "Esta tarea recurrente del perfil está en pausa mientras se actualiza la compatibilidad. Tu tarea pendiente y tu historial siguen aquí; actualiza para intentarlo de nuevo.",
   more: "{count} más",
@@ -211,6 +222,6 @@ export const defaultTodayBoardText: TodayBoardTranslator = (key, params) =>
   interpolate(todayBoardEnglish[key], params);
 
 export function useTodayBoardText(): TodayBoardTranslator {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   return (key, params) => t(key, params, todayBoardMessages);
 }

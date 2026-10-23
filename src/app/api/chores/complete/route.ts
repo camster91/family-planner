@@ -1,5 +1,6 @@
+import { choreJson } from "@/lib/chore-json";
 import { prisma } from '@/lib/prisma'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
 import { completeChoreSchema } from '@/lib/validations'
 import { resolveChorePhotoForWrite } from '@/lib/chore-photos'
@@ -9,6 +10,7 @@ import { getRequestId } from '@/lib/request-id'
 import { profileChoreLegacyWriteRefusal } from '@/lib/chore-profile'
 
 import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
+import { RoutineOccurrenceUnavailableError } from '@/lib/routine-occurrence-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,31 +30,31 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return choreJson({ error: 'Invalid JSON' }, { status: 400 })
     }
     const parsed = completeChoreSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return choreJson({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
     const { choreId, photoUrl } = parsed.data
 
     const chore = await prisma!.chore.findUnique({ where: { id: choreId }, select: COMPLETABLE_CHORE_SELECT })
     if (!chore) {
-      return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
+      return choreJson({ error: 'Chore not found' }, { status: 404 })
     }
 
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
     if (chore.assigned_to === null && chore.assigned_member_id != null) {
-      return NextResponse.json(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+      return choreJson(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     // D3 (#102): a completion photo must be an upload owned by the caller's
     // family. Checked before the transaction so a bad photo changes nothing.
     const photo = await resolveChorePhotoForWrite(auth.user.family_id, photoUrl, chore.photo_url)
     if (!photo.ok) {
-      return NextResponse.json({ error: photo.error }, { status: 400 })
+      return choreJson({ error: photo.error }, { status: 400 })
     }
 
     const completed = await completeChore(
@@ -63,16 +65,17 @@ export async function POST(request: NextRequest) {
     )
 
     if (!completed) {
-      return NextResponse.json({ success: true, alreadyCompleted: true })
+      return choreJson({ success: true, alreadyCompleted: true })
     }
 
-    return NextResponse.json({
+    return choreJson({
       success: true,
       choreId,
     })
   } catch (error) {
-    if (error instanceof HouseholdMemberIdentityConflict) return NextResponse.json({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
+    if (error instanceof RoutineOccurrenceUnavailableError) return choreJson({ error: { code: error.code, message: error.message } }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+    if (error instanceof HouseholdMemberIdentityConflict) return choreJson({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
     logRouteError('POST /api/chores/complete', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return choreJson({ error: 'Internal server error' }, { status: 500 })
   }
 }

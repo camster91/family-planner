@@ -141,13 +141,23 @@ async function expectTargets(page: Page, scope: Locator) {
   const controls = scope.locator("button, a[href], input, textarea, select");
   for (const control of await controls.all()) {
     if (!(await control.isVisible())) continue;
-    await control.scrollIntoViewIfNeeded();
-    const box = await control.boundingBox();
+    // Native checkboxes/radios remain small controls, while their associated
+    // labels provide the intended full-size touch target. Other controls keep
+    // the direct target assertion.
+    const label = control.locator("xpath=ancestor::label[1]");
+    const nativeChoice = await control.evaluate(
+      (element) =>
+        element.tagName === "INPUT" &&
+        ["checkbox", "radio"].includes((element as HTMLInputElement).type),
+    );
+    const target = nativeChoice && (await label.count()) > 0 ? label : control;
+    await target.scrollIntoViewIfNeeded();
+    const box = await target.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.height).toBeGreaterThanOrEqual(44);
     expect(
-      await control.evaluate((element) => {
+      await target.evaluate((element) => {
         const rect = element.getBoundingClientRect();
         const hit = document.elementFromPoint(
           rect.left + rect.width / 2,
@@ -245,7 +255,6 @@ for (const locale of ["en", "es"] as const) {
             contentType: "application/json",
             body: JSON.stringify({
               results: [{ title: "Synthetic Provider Soup", url: sourceUrl }],
-              synthetic: "provider search response; no external request",
             }),
           });
           return;

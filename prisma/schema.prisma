@@ -11,6 +11,16 @@ datasource db {
 
 // User model
 model User {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
+  food_epoch Int @default(0) @ignore
+  ai_usage_requests AiUsageRequest[]
+  responsibility_coordinations ResponsibilityState[] @relation("ResponsibilityCoordinator")
+  responsibility_backups ResponsibilityState[] @relation("ResponsibilityBackupAccount")
+  responsibility_statements_about ResponsibilityState[] @relation("ResponsibilityPrimaryAccount")
+  responsibility_primary_statements ResponsibilityState[] @relation("ResponsibilityPrimaryActor")
+  responsibility_backup_statements ResponsibilityState[] @relation("ResponsibilityBackupActor")
   feedback_reports AppFeedback[]
   id                            String             @id @default(cuid())
   email                         String             @unique
@@ -36,6 +46,12 @@ model User {
   /// Today board colour (#262): a palette key from src/lib/member-colors.ts,
   /// set by a parent. NULL = deterministic fallback by household order.
   board_color                   String?
+  /// Personal presentation only; never roles, shared-device identity or feature availability.
+  display_preferences           Json?
+  display_preferences_revision  Int                @default(0)
+  /// Personal weekly-review metadata only, never domain completion or shared approval.
+  weekly_reset_progress          Json?
+  weekly_reset_revision          Int                @default(0)
   /// Per-member notification preferences (#286, PR101 D-5), one switch per
   /// category in src/lib/notification-policy.ts. Default true keeps today's
   /// behaviour. Account and safety messages ignore them (always sent).
@@ -63,6 +79,8 @@ model User {
   // Dormant #480 identity foundation; not used by auth or profile APIs.
   household_member_mapping       HouseholdMemberLegacyMapping? @relation("LegacyMemberUser")
   household_member_account_link  HouseholdMemberAccountLink? @relation("LinkedMemberUser")
+  profile_links_issued          HouseholdProfileLinkChallenge[] @relation("ProfileLinkIssuer")
+  profile_links_claimed         HouseholdProfileLinkChallenge[] @relation("ProfileLinkClaimant")
   archived_member_erasure_profiles HouseholdMember[] @relation("ArchivedMemberErasureAccount")
   // Relations
   family                        Family?            @relation(fields: [family_id], references: [id], onDelete: SetNull)
@@ -148,12 +166,24 @@ model User {
 }
 
 model Family {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
+  food_epoch Int @default(0) @ignore
+  ai_usage_policy AiUsagePolicy?
+  ai_usage_requests AiUsageRequest[]
+  event_preparations EventPreparation[]
+  event_preparation_steps EventPreparationStep[]
+  responsibility_states ResponsibilityState[]
   feedback_reports AppFeedback[]
   id                 String    @id @default(cuid())
   name               String
   invite_code        String    @unique @default(cuid())
   subscription_tier  String    @default("free") // 'free', 'premium', 'family'
   features           Json?     @default("{\"chores\":true,\"calendar\":true,\"lists\":true,\"family\":true,\"meals\":true,\"notes\":false,\"anniversaries\":false,\"rewards\":false,\"budget\":false,\"projects\":false,\"messages\":false,\"analytics\":false,\"wishlist\":false,\"emergency\":true,\"locations\":false,\"pickups\":false,\"allowance\":false,\"travel\":false,\"handoff\":false,\"sick-days\":false,\"gamification\":false,\"inventory\":false}")
+  /// Parent-selected personal Today defaults; does not configure paired displays.
+  display_defaults          Json?
+  display_defaults_revision Int @default(0)
   travel_mode_active Boolean   @default(false)
   travel_start_date  DateTime?
   travel_end_date    DateTime?
@@ -229,6 +259,7 @@ model Family {
   family_goals       FamilyGoal[]
   push_subscriptions PushSubscription[]
   recipes            Recipe[]
+  recipe_collections RecipeCollection[]
   ingredients        Ingredient[]
   meal_plans         MealPlan[]
   shopping_lists     ShoppingList[]
@@ -248,6 +279,7 @@ model Family {
   // Offline sync (#162)
   idempotency_records IdempotencyRecord[]
   // Food inventory (#263)
+  food_products       FoodProduct[]
   inventory_items     InventoryItem[]
   // Inventory consume/discard history (#158/#121)
   inventory_adjustments InventoryAdjustment[]
@@ -414,6 +446,13 @@ model FamilyInvite {
 }
 
 model Chore {
+  /// Preparation-only completion/proof continuity; canonical status remains authoritative.
+  preparation_epoch Int @default(0)
+  event_preparation_step EventPreparationStep?
+  /// Consent source continuity, not a credential. Legacy material edits advance the epoch in SQL.
+  responsibility_generation String @default(dbgenerated("(gen_random_uuid())::text"))
+  responsibility_epoch Int @default(0)
+  responsibility_state ResponsibilityState?
   id             String    @id @default(cuid())
   family_id      String
   title          String
@@ -469,6 +508,11 @@ model Chore {
   /// Durable cross-member routine-stack identity. Nullable for legacy rows;
   /// routine/routine_order remain the compatibility presentation fields.
   routine_stack_id String?
+  /// Authored cue and duration snapshot for this occurrence; future edits never rewrite history.
+  routine_anchor String? @db.VarChar(200)
+  routine_duration_minutes Int?
+  /// Root-only future definition, separate from historical occurrence fields.
+  routine_series_config Json?
 
   // Take turns (O-39). On a series template: the members who take turns, in
   // order (empty = no rotation, every copy goes to the template's assignee).
@@ -502,12 +546,15 @@ model Chore {
   @@index([family_id, due_date])
   @@index([recurrence_id])
   @@index([family_id, routine_stack_id])
+  @@unique([id, family_id], map: "Chore_id_family_id_key")
 }
 
 /// Durable identity for a cross-member routine stack. This is additive: old
 /// chores remain valid with a NULL routine_stack_id and are never backfilled
 /// or merged from a display label.
 model RoutineStack {
+  /// Versioned future schedule/step definitions; null preserves current-occurrence v1.
+  schedule_config Json?
   id         String   @id @default(cuid())
   family_id  String
   label      String
@@ -602,6 +649,10 @@ model ImportedRecord {
 }
 
 model Recipe {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id           String   @id @default(cuid())
   family_id    String
   title        String
@@ -611,6 +662,10 @@ model Recipe {
   cook_time    Int?
   servings     Int      @default(2)
   image_url    String?
+  source_url   String?
+  source_key   String?  @db.VarChar(64)
+  favorite     Boolean  @default(false)
+  revision     Int      @default(0)
   created_by   String
   created_at   DateTime @default(now())
   updated_at   DateTime @default(now()) @updatedAt
@@ -623,11 +678,41 @@ model Recipe {
   meal_batches MealBatch[]
   meals        FamilyMeal[]
   list_items   ListItem[]
+  collection_entries RecipeCollectionEntry[]
 
+  @@unique([id, family_id], map: "Recipe_id_family_key")
   @@index([family_id, title], map: "Recipe_family_title_idx")
+  @@index([family_id, source_key], map: "Recipe_family_source_idx")
+}
+
+model RecipeCollection {
+  id         String @id @default(cuid())
+  family_id  String
+  name       String
+  name_key   String
+  revision   Int @default(0)
+  created_at DateTime @default(now())
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  entries RecipeCollectionEntry[]
+  @@unique([id, family_id], map: "RecipeCollection_id_family_key")
+  @@unique([family_id, name_key], map: "RecipeCollection_family_name_key")
+}
+
+model RecipeCollectionEntry {
+  recipe_id String
+  collection_id String
+  family_id String
+  recipe Recipe @relation(fields: [recipe_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  collection RecipeCollection @relation(fields: [collection_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  @@id([recipe_id, collection_id])
+  @@index([collection_id, family_id])
 }
 
 model Ingredient {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id        String  @id @default(cuid())
   family_id String
   name      String
@@ -644,6 +729,10 @@ model Ingredient {
 }
 
 model RecipeIngredient {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id            String  @id @default(cuid())
   recipe_id     String
   ingredient_id String
@@ -862,6 +951,12 @@ model PushSubscription {
 }
 
 model Event {
+  preparation_epoch Int @default(0)
+  preparation EventPreparation?
+  // Source identity for explicit conflict-review proposals. Additive, default-off;
+  // database triggers cover legacy writers and material away/back changes.
+  schedule_generation String @default(dbgenerated("(gen_random_uuid())::text"))
+  schedule_epoch Int @default(0)
   id          String   @id @default(cuid())
   family_id   String
   title       String
@@ -903,10 +998,12 @@ model Event {
   source_connection   CalendarConnection?   @relation("CalendarConnectionEvents", fields: [source_connection_id], references: [id], onDelete: Cascade)
   sync_links          CalendarEventLink[]
 
+  @@unique([id, family_id], map: "Event_id_family_id_key")
   @@unique([source_subscription_id, source_uid, source_occurrence_start])
   @@index([family_id])
   @@index([start_time])
   @@index([family_id, start_time])
+  @@index([family_id, end_time])
   @@index([project_id])
   @@index([source_subscription_id, start_time])
   @@index([source_connection_id])
@@ -981,6 +1078,10 @@ model Notification {
 }
 
 model List {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id                String    @id @default(cuid())
   family_id         String
   name              String
@@ -1219,6 +1320,10 @@ model RateLimitEntry {
 
 // Bulk sessions/portions share the household and canonical meal slots.
 model MealPrepSession {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id                String   @id @default(cuid())
   family_id         String
   prepared_on       DateTime
@@ -1234,6 +1339,10 @@ model MealPrepSession {
 }
 
 model MealBatch {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id              String   @id @default(cuid())
   family_id       String
   prep_session_id String
@@ -1242,6 +1351,8 @@ model MealBatch {
   total_servings  Int
   reserve_storage String   @default("freezer")
   recipe_id       String?
+  recipe_snapshot Json?
+  recipe_snapshot_at DateTime?
   cook_id         String?
   created_at      DateTime @default(now())
   family       Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
@@ -1255,6 +1366,10 @@ model MealBatch {
 }
 
 model MealBatchConsumption {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id                String @id @default(cuid())
   family_id         String
   batch_id          String
@@ -1274,6 +1389,10 @@ model MealBatchConsumption {
 }
 
 model FamilyMeal {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id          String   @id @default(cuid())
   family_id   String
   date        DateTime
@@ -1392,6 +1511,10 @@ model EmergencyContact {
 }
 
 model Pickup {
+  /// Consent source continuity, not a credential. Legacy material edits advance the epoch in SQL.
+  responsibility_generation String @default(dbgenerated("(gen_random_uuid())::text"))
+  responsibility_epoch Int @default(0)
+  responsibility_state ResponsibilityState?
   id           String    @id @default(cuid())
   family_id    String
   title        String // 'School pickup', 'Soccer practice'
@@ -1413,6 +1536,7 @@ model Pickup {
   @@index([family_id])
   @@index([family_id, pickup_time])
   @@index([assigned_to])
+  @@unique([id, family_id], map: "Pickup_id_family_id_key")
 }
 
 model Allowance {
@@ -1461,6 +1585,10 @@ model WishlistItem {
 }
 
 model Handoff {
+  /// Consent source continuity, not a credential. Legacy material edits advance the epoch in SQL.
+  responsibility_generation String @default(dbgenerated("(gen_random_uuid())::text"))
+  responsibility_epoch Int @default(0)
+  responsibility_state ResponsibilityState?
   id                String    @id @default(cuid())
   family_id         String
   sitter_name       String
@@ -1485,6 +1613,7 @@ model Handoff {
   creator User   @relation("HandoffCreator", fields: [created_by], references: [id])
 
   @@index([family_id])
+  @@unique([id, family_id], map: "Handoff_id_family_id_key")
 }
 
 model SickDay {
@@ -1694,10 +1823,34 @@ model IdempotencyRecord {
 // household (ADR-0007), proven server-side before every write. Additive only:
 // scripts/migrate.js creates the table idempotently. Contract and rules:
 // docs/architecture/MEALS_AND_GROCERIES.md "Food inventory".
+// Private household-reviewed product recognition; never a separate stock ledger.
+model FoodProduct {
+  id String @id @default(cuid())
+  family_id String
+  barcode String @db.VarChar(14)
+  name String
+  brand String?
+  package_size String?
+  origin String @default("manual")
+  source_url String?
+  revision Int @default(0)
+  updated_at DateTime @default(now()) @updatedAt
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@unique([family_id, barcode], map: "FoodProduct_family_barcode_key")
+}
+
 model InventoryItem {
+  /// Read-source continuity, never an actor credential. SQL assigns insertion
+  /// identity and advances every legacy update; callers cannot reset either.
+  food_generation String @default(dbgenerated("(gen_random_uuid())::text")) @ignore
+  food_epoch Int @default(0) @ignore
   id            String    @id @default(cuid())
   family_id     String
   name          String
+  barcode       String? @db.VarChar(14)
+  product_brand String?
+  package_size  String?
+  product_source String?
   ingredient_id String?
   amount        Float?
   unit          String?
@@ -1894,6 +2047,8 @@ model AppFeedback {
 
 // #480 dormant identity foundation. A member is never a User/session principal.
 model HouseholdMember {
+  responsibility_backups ResponsibilityState[] @relation("ResponsibilityBackupProfile")
+  responsibility_statements_about ResponsibilityState[] @relation("ResponsibilityPrimaryProfile")
   id             String    @id @default(cuid())
   family_id      String
   name           String
@@ -1910,6 +2065,7 @@ model HouseholdMember {
   family         Family    @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   legacy_mapping HouseholdMemberLegacyMapping?
   account_link   HouseholdMemberAccountLink?
+  link_challenges HouseholdProfileLinkChallenge[]
   erasure_account User? @relation("ArchivedMemberErasureAccount", fields: [erasure_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   chores Chore[] @relation("MemberChores")
   chore_assignments ChoreAssignment[] @relation("MemberChoreAssignments")
@@ -1946,4 +2102,153 @@ model HouseholdMemberAccountLink {
 
   @@unique([user_id, family_id])
   @@unique([member_id, family_id])
+}
+
+/// #557 dormant owner proof. Never a session or shared-device identity.
+model HouseholdProfileLinkChallenge {
+  id                    String   @id
+  family_id             String
+  member_id             String
+  issued_by             String
+  issued_token_version  Int
+  profile_revision      Int
+  token_hash            String   @unique
+  request_hash          String
+  state                 String   @default("pending")
+  expires_at            DateTime
+  created_at            DateTime @default(now())
+  claimed_by            String?
+  claimed_token_version Int?
+  claimed_at            DateTime?
+  linked_at             DateTime?
+  revision              Int      @default(0)
+  issuer   User @relation("ProfileLinkIssuer", fields: [issued_by], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  claimant User? @relation("ProfileLinkClaimant", fields: [claimed_by], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  member HouseholdMember @relation(fields: [member_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([family_id, state, expires_at])
+  @@index([member_id, family_id])
+}
+
+
+/// Consent/backup metadata attached to exactly one canonical target; no competing chore/pickup owner.
+model ResponsibilityState {
+  id String @id @default(cuid())
+  protocol String @default("herewoven.responsibility.v1")
+  family_id String
+  chore_id String?
+  pickup_id String?
+  handoff_id String?
+  source_token String
+  revision Int @default(0)
+  coordinator_id String?
+  backup_account_id String?
+  backup_member_id String?
+  primary_subject_account_id String?
+  primary_subject_member_id String?
+  primary_decision String?
+  primary_by_id String?
+  primary_method String?
+  primary_at DateTime?
+  backup_decision String?
+  backup_by_id String?
+  backup_method String?
+  backup_at DateTime?
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  chore Chore? @relation(fields: [chore_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  pickup Pickup? @relation(fields: [pickup_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  handoff Handoff? @relation(fields: [handoff_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  coordinator User? @relation("ResponsibilityCoordinator", fields: [coordinator_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  backupAccount User? @relation("ResponsibilityBackupAccount", fields: [backup_account_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  backupMember HouseholdMember? @relation("ResponsibilityBackupProfile", fields: [backup_member_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  primaryAccount User? @relation("ResponsibilityPrimaryAccount", fields: [primary_subject_account_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  primaryMember HouseholdMember? @relation("ResponsibilityPrimaryProfile", fields: [primary_subject_member_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  primaryActor User? @relation("ResponsibilityPrimaryActor", fields: [primary_by_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+  backupActor User? @relation("ResponsibilityBackupActor", fields: [backup_by_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([chore_id, family_id])
+  @@unique([pickup_id, family_id])
+  @@unique([handoff_id, family_id])
+  @@index([family_id, updated_at])
+  @@index([coordinator_id, family_id])
+  @@index([backup_account_id, family_id])
+  @@index([backup_member_id, family_id])
+  @@index([primary_subject_account_id, family_id])
+  @@index([primary_subject_member_id, family_id])
+  @@index([primary_by_id, family_id])
+  @@index([backup_by_id, family_id])
+}
+
+
+// Ordering/cue links only. Canonical Chore owns assignment, due day and checks.
+model EventPreparation {
+  id String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  family_id String
+  event_id String
+  reviewed_event_source String
+  revision Int @default(0)
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  event Event @relation(fields: [event_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction, map: "EventPreparation_event_fkey")
+  steps EventPreparationStep[]
+  @@unique([id, family_id], map: "EventPreparation_id_family_id_key")
+  @@unique([event_id, family_id], map: "EventPreparation_event_id_family_id_key")
+  @@index([family_id])
+}
+model EventPreparationStep {
+  id String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  family_id String
+  preparation_id String
+  chore_id String
+  position Int
+  cue_anchor String?
+  cue_direction String?
+  cue_minutes Int?
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  preparation EventPreparation @relation(fields: [preparation_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction, map: "EventPreparationStep_plan_fkey")
+  chore Chore @relation(fields: [chore_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction, map: "EventPreparationStep_chore_fkey")
+  // SQL owns deferred uniqueness and cue/position CHECK constraints.
+  @@unique([chore_id, family_id], map: "EventPreparationStep_chore_id_family_id_key")
+  @@unique([preparation_id, position], map: "EventPreparationStep_plan_position_key")
+  @@index([family_id])
+}
+
+/// Content-free AI limits. All money is integer micro-USD at parent-entered rates.
+model AiUsagePolicy {
+  family_id String @id
+  revision Int @default(0)
+  enabled Boolean @default(true)
+  daily_limit Int @default(120)
+  user_daily_limit Int @default(40)
+  monthly_budget_microusd BigInt?
+  input_rate BigInt?
+  output_rate BigInt?
+  priced_config_hash String?
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// Reservation precedes dispatch; pending/unknown outcomes never refund quota.
+model AiUsageRequest {
+  id String @id
+  family_id String
+  user_id String?
+  job String
+  created_at DateTime @db.Timestamptz(6)
+  finished_at DateTime? @db.Timestamptz(6)
+  outcome String @default("pending")
+  provider_status String @default("unconfirmed")
+  latency_ms Int?
+  input_tokens Int?
+  output_tokens Int?
+  input_rate BigInt?
+  output_rate BigInt?
+  reserved_microusd BigInt?
+  estimated_microusd BigInt?
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  @@index([family_id, created_at], map: "AiUsageRequest_family_time_idx")
+  @@index([user_id, created_at], map: "AiUsageRequest_user_time_idx")
 }

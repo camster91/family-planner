@@ -1,6 +1,7 @@
+import { choreJson } from "@/lib/chore-json";
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { notificationServiceServer } from '@/lib/notifications-server'
 import { verifyChoreSchema } from '@/lib/validations'
@@ -57,11 +58,11 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return choreJson({ error: 'Invalid JSON' }, { status: 400 })
     }
     const parsed = verifyChoreSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return choreJson({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
     const { choreId, decision, verificationNotes } = parsed.data
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!chore) {
-      return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
+      return choreJson({ error: 'Chore not found' }, { status: 404 })
     }
 
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
@@ -202,19 +203,19 @@ export async function POST(request: NextRequest) {
     })
 
     if (outcome.kind === 'forbidden') {
-      return NextResponse.json({ error: 'Only parents can perform this action' }, { status: 403 })
+      return choreJson({ error: 'Only parents can perform this action' }, { status: 403 })
     }
     if (outcome.kind === 'notFound') {
-      return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
+      return choreJson({ error: 'Chore not found' }, { status: 404 })
     }
     if (outcome.kind === 'profileUnavailable') {
-      return NextResponse.json({ error: 'This profile chore is no longer available for verification.', code: 'MEMBER_PROTOCOL_UNAVAILABLE' }, { status: 409 })
+      return choreJson({ error: 'This profile chore is no longer available for verification.', code: 'MEMBER_PROTOCOL_UNAVAILABLE' }, { status: 409 })
     }
     if (outcome.kind === 'alreadyVerified') {
-      return NextResponse.json({ success: true, alreadyVerified: true, chore: await choreState(choreId) })
+      return choreJson({ success: true, alreadyVerified: true, chore: await choreState(choreId) })
     }
     if (outcome.kind === 'notCompleted') {
-      return NextResponse.json({ error: 'Only completed chores can be verified' }, { status: 400 })
+      return choreJson({ error: 'Only completed chores can be verified' }, { status: 400 })
     }
     if (outcome.kind === 'lost') {
       // The conditional update lost: re-read before answering. Already
@@ -223,9 +224,9 @@ export async function POST(request: NextRequest) {
       // undid the tick) is a conflict, never a false "verified".
       const current = await choreState(choreId)
       if (current?.status === 'verified') {
-        return NextResponse.json({ success: true, alreadyVerified: true, chore: current })
+        return choreJson({ success: true, alreadyVerified: true, chore: current })
       }
-      return NextResponse.json(
+      return choreJson(
         {
           error: 'This chore changed while you were checking it and is no longer waiting to be checked.',
           code: 'CHORE_NOT_COMPLETED',
@@ -270,16 +271,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    return choreJson({
       success: true,
       choreId,
       gamified: outcome.xp !== null,
       chore: await choreState(choreId),
     })
   } catch (error) {
-    if (error instanceof HouseholdMemberIdentityConflict) return NextResponse.json({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
+    if (error instanceof HouseholdMemberIdentityConflict) return choreJson({ error: error.message, code: 'IDENTITY_CONFLICT' }, { status: 409 })
     logRouteError('POST /api/chores/verify', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return choreJson({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -392,22 +393,22 @@ async function rejectChore(
   })
 
   if (reopened.kind === 'forbidden') {
-    return NextResponse.json({ error: 'Only parents can perform this action' }, { status: 403 })
+    return choreJson({ error: 'Only parents can perform this action' }, { status: 403 })
   }
   if (reopened.kind === 'notFound') {
-    return NextResponse.json({ error: 'Chore not found' }, { status: 404 })
+    return choreJson({ error: 'Chore not found' }, { status: 404 })
   }
   if (reopened.kind === 'profileUnavailable') {
-    return NextResponse.json({ error: 'This profile chore is no longer available for verification.', code: 'MEMBER_PROTOCOL_UNAVAILABLE' }, { status: 409 })
+    return choreJson({ error: 'This profile chore is no longer available for verification.', code: 'MEMBER_PROTOCOL_UNAVAILABLE' }, { status: 409 })
   }
   if (reopened.kind === 'verified') {
-    return NextResponse.json(
+    return choreJson(
       { error: 'This chore has already been checked, so it stays done.', code: 'CHORE_ALREADY_VERIFIED' },
       { status: 409 }
     )
   }
   if (reopened.kind === 'open') {
-    return NextResponse.json({ success: true, alreadyOpen: true, chore: await choreState(choreId) })
+    return choreJson({ success: true, alreadyOpen: true, chore: await choreState(choreId) })
   }
 
   if (reopened.assignee) {
@@ -424,7 +425,7 @@ async function rejectChore(
     }
   }
 
-  return NextResponse.json({ success: true, choreId, rejected: true, chore: await choreState(choreId) })
+  return choreJson({ success: true, choreId, rejected: true, chore: await choreState(choreId) })
 }
 
 /**

@@ -1,6 +1,12 @@
 /**
  * @jest-environment jsdom
  */
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+}));
+jest.mock("@/lib/review-document-browser", () =>
+  require("@/__tests__/helpers/legacy-recipe-review").legacyRecipeReviewMock(),
+);
 import * as React from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -152,7 +158,7 @@ describe("RecipePicker", () => {
     render(<Harness onSubmit={onSubmit} />);
     await screen.findByRole("option", { name: "Tomato soup" });
     await user.click(screen.getByRole("button", { name: "New recipe" }));
-    const panel = screen.getByTestId("recipe-quick-create");
+    const panel = await screen.findByTestId("recipe-quick-create");
     await user.type(within(panel).getByLabelText("Recipe name"), "Chili");
     await user.clear(within(panel).getByLabelText("Base servings"));
     await user.type(within(panel).getByLabelText("Base servings"), "8");
@@ -179,6 +185,7 @@ describe("RecipePicker", () => {
       url: "/api/recipes",
       method: "POST",
       body: {
+        creation_protocol: "herewoven.recipe-create.v1",
         title: "Chili",
         servings: 8,
         description: "A family favourite",

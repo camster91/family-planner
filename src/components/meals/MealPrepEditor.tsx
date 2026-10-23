@@ -1,5 +1,8 @@
 "use client";
 import * as React from "react";
+import { useBulkFormDraft } from "./recovery/BulkRecoveryContext";
+import { navigateAfterOwnedDrafts } from "@/lib/owned-draft-exit";
+import type { PrepDraft } from "@/lib/meal-prep-recovery/draft-contract";
 import { z } from "zod";
 import { Dialog } from "@/components/ui/dialog";
 import {
@@ -38,8 +41,10 @@ const emptyDish = (): DishDraft => ({
 export function MealPrepEditor({
   defaultDay,
   seed,
+  initialRecipe,
   context,
   freshWritesBlocked = false,
+  restoredDraft,
   onClose,
   onSaved,
   onReload,
@@ -47,41 +52,60 @@ export function MealPrepEditor({
   defaultDay: string;
   context: MealPrepContext;
   seed?: MealPrepSummary;
+  initialRecipe?: RecipeOption;
   freshWritesBlocked?: boolean;
+  restoredDraft?: Extract<PrepDraft, { kind: "create" }>;
   onClose: () => void;
   onSaved: (sessionId?: string) => void;
   onReload?: () => Promise<MealPrepSummary[] | null>;
 }) {
   const tBulk = useBulkCookingText();
   const origin = React.useRef(context);
-  const [day, setDay] = React.useState(defaultDay);
-  const [nextDay, setNextDay] = React.useState("");
+  const [day, setDay] = React.useState(restoredDraft?.day ?? defaultDay);
+  const [nextDay, setNextDay] = React.useState(restoredDraft?.nextDay ?? "");
   const [dishes, setDishes] = React.useState<DishDraft[]>(() =>
-    seed
-      ? seed.batches.map((batch) => ({
-          name: batch.name,
-          portions: String(batch.total_servings),
-          recipe: batch.recipe_id
-            ? {
-                id: batch.recipe_id,
-                title: batch.name,
-                servings: batch.total_servings,
-                prep_time: null,
-                cook_time: null,
-              }
-            : null,
-          cookId: batch.cook_id ?? "",
-          storage: batch.reserve_storage,
-          meals: [],
-        }))
-      : [emptyDish()],
+    restoredDraft
+      ? restoredDraft.dishes
+      : seed
+        ? seed.batches.map((batch) => ({
+            name: batch.name,
+            portions: String(batch.total_servings),
+            recipe: batch.recipe_id
+              ? {
+                  id: batch.recipe_id,
+                  title: batch.name,
+                  servings: batch.total_servings,
+                  prep_time: null,
+                  cook_time: null,
+                }
+              : null,
+            cookId: batch.cook_id ?? "",
+            storage: batch.reserve_storage,
+            meals: [],
+          }))
+        : [
+            {
+              ...emptyDish(),
+              ...(initialRecipe
+                ? {
+                    name: initialRecipe.title,
+                    recipe: initialRecipe,
+                    portions: String(
+                      initialRecipe.servings && initialRecipe.servings <= 50
+                        ? initialRecipe.servings
+                        : 8,
+                    ),
+                  }
+                : {}),
+            },
+          ],
   );
-  const initial = React.useRef(
-    JSON.stringify({ day: defaultDay, nextDay: "", dishes }),
-  );
+  const initial = React.useRef(JSON.stringify({ day, nextDay, dishes }));
   const dirty = JSON.stringify({ day, nextDay, dishes }) !== initial.current;
-  const [step, setStep] = React.useState(0);
-  const [selectedDish, setSelectedDish] = React.useState(0);
+  const [step, setStep] = React.useState(restoredDraft?.step ?? 0);
+  const [selectedDish, setSelectedDish] = React.useState(
+    restoredDraft?.selectedDish ?? 0,
+  );
   const [discard, setDiscard] = React.useState(false);
   const [validation, setValidation] = React.useState(false);
   const [members, setMembers] = React.useState<{ id: string; name: string }[]>(
@@ -91,6 +115,14 @@ export function MealPrepEditor({
   const [reloading, setReloading] = React.useState(false);
   const prefix = React.useId();
   const form = React.useRef<HTMLFormElement>(null);
+  useBulkFormDraft({
+    kind: "create",
+    day,
+    nextDay,
+    dishes,
+    step,
+    selectedDish,
+  });
   const mutation = useMealPrepMutation(
     (receipt) =>
       onSaved("sessionId" in receipt ? receipt.sessionId : undefined),
@@ -119,14 +151,14 @@ export function MealPrepEditor({
   }, []);
   React.useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (dirty) {
+      if (dirty && !mutation.owned) {
         event.preventDefault();
         event.returnValue = "";
       }
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  }, [dirty, mutation.owned]);
   const update = (change: Partial<DishDraft>) => {
     setDishes((prev) =>
       prev.map((dish, i) =>
@@ -137,6 +169,10 @@ export function MealPrepEditor({
     mutation.clearError();
   };
   const requestClose = () => {
+    if (mutation.owned) {
+      if (!mutation.closeBlocked) void navigateAfterOwnedDrafts(onClose);
+      return;
+    }
     if (mutation.isPending()) return;
     if (dirty) setDiscard(true);
     else onClose();
@@ -207,7 +243,7 @@ export function MealPrepEditor({
         open
         variant="form"
         title={tBulk("add")}
-        onClose={mutation.locked ? undefined : requestClose}
+        onClose={mutation.closeBlocked ? undefined : requestClose}
         closeLabel={tBulk("close")}
         className="sm:max-w-xl"
         testId="meal-prep-editor"
@@ -457,6 +493,11 @@ export function MealPrepEditor({
               )}
             </>
           )}
+          {mutation.completed && (
+            <p role="status" className="text-footnote text-label-secondary">
+              {tBulk("saveConfirmed")}
+            </p>
+          )}
           {(validation || mutation.error) && (
             <p role="alert" className="text-subhead text-[var(--danger-text)]">
               {mutation.error ?? tBulk("invalid")}
@@ -494,7 +535,7 @@ export function MealPrepEditor({
               <button
                 type="button"
                 className="btn-filled min-h-[44px]"
-                disabled={mutation.busy}
+                disabled={mutation.retryBlocked}
                 onClick={() => void mutation.retry()}
               >
                 {mutation.busy ? tBulk("saving") : tBulk("retry")}
@@ -516,7 +557,7 @@ export function MealPrepEditor({
                 key="save-prep-session"
                 type="submit"
                 className="btn-filled min-h-[44px]"
-                disabled={mutation.busy || freshWritesBlocked}
+                disabled={mutation.locked || freshWritesBlocked}
               >
                 {mutation.busy ? tBulk("saving") : tBulk("save")}
               </button>
@@ -524,10 +565,10 @@ export function MealPrepEditor({
             <button
               type="button"
               className="btn-tinted min-h-[44px]"
-              disabled={mutation.locked}
+              disabled={mutation.closeBlocked}
               onClick={requestClose}
             >
-              {tBulk("cancel")}
+              {mutation.owned ? tBulk("close") : tBulk("cancel")}
             </button>
           </div>
         </form>

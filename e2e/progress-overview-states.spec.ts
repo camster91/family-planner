@@ -153,7 +153,10 @@ async function enableProgressFeatures(
   try {
     await guardNetwork(context, baseURL);
     const page = await context.newPage();
-    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+    // Use the final parent landing route directly. `/dashboard` redirects to
+    // Today, and issuing the first same-origin API request while that redirect
+    // is still committing can destroy the page's execution context.
+    await page.goto("/dashboard/today", { waitUntil: "domcontentloaded" });
     const response = await browserFetch(page, "/api/family/features");
     expect(response.status, response.body).toBe(200);
     const original = JSON.parse(response.body).features as Record<
@@ -188,7 +191,7 @@ async function restoreProgressFeatures(
   try {
     await guardNetwork(context, baseURL);
     const page = await context.newPage();
-    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+    await page.goto("/dashboard/today", { waitUntil: "domcontentloaded" });
     const update = await browserSend(page, "PATCH", "/api/family/features", {
       features: setup.original,
     });

@@ -205,6 +205,24 @@ jobs:
           src/lib/__tests__/household-audit.integration.test.ts
           src/lib/__tests__/idempotency.integration.test.ts
           src/lib/__tests__/legacy-analytics.integration.test.ts
+          src/app/api/__tests__/paired-device-person-auth.integration.test.ts
+          src/app/api/cron/morning-summary/__tests__/morning-summary.integration.test.ts
+          src/app/api/family/__tests__/family-code.integration.test.ts
+          src/app/api/family/__tests__/lean-defaults.integration.test.ts
+          src/app/api/family/profiles/__tests__/route.integration.test.ts
+          src/app/api/projects/__tests__/send-to-calendar.integration.test.ts
+          src/app/api/recipes/__tests__/recipe-editor-roundtrip.integration.test.ts
+          src/lib/__tests__/chore-rotation.integration.test.ts
+          src/lib/__tests__/food-product-intake.integration.test.ts
+          src/lib/__tests__/household-profile-management.integration.test.ts
+          src/lib/__tests__/inventory-change.integration.test.ts
+          src/lib/__tests__/inventory-intake.integration.test.ts
+          src/lib/__tests__/inventory-restock.integration.test.ts
+          src/lib/__tests__/meal-create.integration.test.ts
+          src/lib/__tests__/meal-prep.integration.test.ts
+          src/lib/__tests__/meal-recipe-history.integration.test.ts
+          src/lib/__tests__/recipe-curation.integration.test.ts
+          src/lib/__tests__/recipe-write.integration.test.ts
           src/lib/__tests__/list-item-delete.integration.test.ts
           src/lib/__tests__/list-item-provenance.integration.test.ts
           src/lib/__tests__/list-item-update.integration.test.ts
@@ -215,6 +233,7 @@ jobs:
           src/lib/__tests__/recurring-series.integration.test.ts
           src/lib/__tests__/reward-mutations.integration.test.ts
           src/lib/__tests__/routine-stack.integration.test.ts
+          src/lib/__tests__/routine-schedule-runtime.integration.test.ts
           src/lib/__tests__/routine-stack-migration-guards.integration.test.ts
           src/lib/__tests__/profile-chore.integration.test.ts
           src/lib/calendar-import/__tests__/sync.integration.test.ts
@@ -226,6 +245,41 @@ jobs:
           FIXTURES_ALLOW: "1"
           RUN_DB_INTEGRATION: "1"
           PROFILE_CHORE_PRISMA_CLIENT_MODULE: ${{ github.workspace }}/src/lib/prisma.ts
+
+      # Catalog/backfill contract suites deliberately create malformed schema
+      # cases. Give each a fresh, migrated service database; they never share
+      # the route/import fixture database or production configuration.
+      - name: Test isolated catalog and backfill contracts
+        run: |
+          set -euo pipefail
+          contract_database=""
+          cleanup_contract_database() {
+            if [ -n "$contract_database" ]; then
+              docker exec "$CI_POSTGRES_CONTAINER" dropdb -U postgres --if-exists "$contract_database"
+            fi
+          }
+          trap cleanup_contract_database EXIT
+          contract_index=0
+          for contract_suite in \
+            src/lib/backfill/__tests__/household-members.integration.test.ts \
+            src/lib/backfill/__tests__/chore-members.integration.test.ts \
+            src/lib/__tests__/member-audit-subject.integration.test.ts
+          do
+            contract_index=$((contract_index + 1))
+            contract_database="familyplanner_contract_${contract_index}_ci"
+            docker exec "$CI_POSTGRES_CONTAINER" createdb -U postgres "$contract_database"
+            export DATABASE_URL="postgresql://postgres@localhost:5432/$contract_database"
+            node scripts/migrate.js
+            npx jest --ci --runInBand --no-watchman --forceExit "$contract_suite"
+            node scripts/migrate.js
+            npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+            cleanup_contract_database
+            contract_database=""
+          done
+        env:
+          CI_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          FIXTURES_ALLOW: "1"
+          RUN_DB_INTEGRATION: "1"
 
       # Backup -> restore -> compare -> migrate twice -> Prisma smoke on throwaway
       # fp_rehearsal_* databases in the CI service (#288). backup.sh/restore.sh

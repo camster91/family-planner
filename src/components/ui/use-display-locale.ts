@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useTranslation } from '@/i18n'
+import { useCoreI18n } from '@/i18n/core'
 import { deviceLanguages, pickDisplayLocale } from '@/lib/display-locale'
 
 function subscribe(onChange: () => void) {
@@ -20,7 +20,7 @@ const serverSnapshot = () => ''
  * client render match; the device region applies right after.
  */
 export function useDisplayLocale(): string {
-  const { locale } = useTranslation()
+  const { locale } = useCoreI18n()
   const languages = React.useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot)
   return React.useMemo(() => pickDisplayLocale(locale, languages ? languages.split(',') : []), [locale, languages])
 }

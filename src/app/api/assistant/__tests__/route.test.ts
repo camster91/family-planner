@@ -32,6 +32,11 @@ jest.mock("@/lib/assistant-today-context", () => ({
     }
   },
 }));
+jest.mock("@/lib/assistant-references", () => ({
+  ...jest.requireActual("@/lib/assistant-references"),
+  isAssistantReferencesEnabled: jest.fn(() => false),
+  loadReferencedAssistantToday: jest.fn(),
+}));
 jest.mock("@/lib/capture", () => ({
   resolveCaptureConfig: jest.fn(() => ({ model: "test" })),
   structuredAssistantReply: jest.fn(),
@@ -39,6 +44,11 @@ jest.mock("@/lib/capture", () => ({
     status = 502;
   },
 }));
+import {
+  isAssistantReferencesEnabled,
+  loadReferencedAssistantToday,
+  buildAssistantReferenceCatalog,
+} from "@/lib/assistant-references";
 import { POST } from "../route";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { resolveCaptureConfig, structuredAssistantReply } from "@/lib/capture";
@@ -55,10 +65,20 @@ const input = {
   timeZone: "America/Toronto",
 };
 const request = (body: unknown = input) =>
-  ({ text: async () => JSON.stringify(body) }) as NextRequest;
+  ({
+    text: async () => JSON.stringify(body),
+    headers: new Headers({
+      "X-Assistant-References": "herewoven.assistant-references.v1",
+    }),
+  }) as NextRequest;
+afterEach(() => jest.restoreAllMocks());
 beforeEach(() => {
+  jest
+    .spyOn(Date, "now")
+    .mockReturnValue(Date.parse("2026-10-09T12:00:30.000Z"));
   jest.clearAllMocks();
   mockTodayEnabled = false;
+  jest.mocked(isAssistantReferencesEnabled).mockReturnValue(false);
   (loadAssistantTodayContext as jest.Mock).mockResolvedValue(null);
   (authenticateWithFamily as jest.Mock).mockResolvedValue([
     { user: { id: "a", role: "parent", family_id: "family-a" } },
@@ -188,4 +208,212 @@ it("checks provider configuration and rate limits before Today DB loading", asyn
     429,
   );
   expect(loadAssistantTodayContext).not.toHaveBeenCalled();
+});
+
+// Source cases authored for the later consolidated QA pass.
+it("withholds a provider reply after the actor moves household", async () => {
+  (authenticateWithFamily as jest.Mock)
+    .mockResolvedValueOnce([
+      { user: { id: "a", role: "parent", family_id: "family-a" } },
+      null,
+    ])
+    .mockResolvedValueOnce([
+      { user: { id: "a", role: "parent", family_id: "family-b" } },
+      null,
+    ]);
+  const response = await POST(request());
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual(
+    expect.objectContaining({ code: "ASSISTANT_SOURCE_CHANGED" }),
+  );
+});
+it("withholds an answer if provider permission/configuration disappears while waiting", async () => {
+  (resolveCaptureConfig as jest.Mock)
+    .mockReturnValueOnce({ model: "test" })
+    .mockReturnValueOnce(null);
+  const response = await POST(request());
+  expect(response.status).toBe(409);
+  const body = await response.json();
+  expect(body.reply).toBeUndefined();
+  expect(body.action).toBeUndefined();
+});
+
+function freshTodayFixture() {
+  return {
+    protocol: "herewoven.assistant-today.v1",
+    generatedAt: "2026-10-09T12:00:00.000Z",
+    expiresAt: "2026-10-09T12:01:00.000Z",
+    viewer: {
+      role: "parent",
+      localDate: "2026-10-09",
+      timeZone: "America/Toronto",
+    },
+    today: {
+      events: [],
+      chores: [],
+      dinner: null,
+      groceries: [],
+      useSoon: [],
+      weather: null,
+      unavailable: ["weather"],
+    },
+  };
+}
+it("withholds grounded output after a referenced record changes during provider latency", async () => {
+  mockTodayEnabled = true;
+  const context = freshTodayFixture();
+  (loadAssistantTodayContext as jest.Mock)
+    .mockResolvedValueOnce(context)
+    .mockResolvedValueOnce({
+      ...context,
+      today: {
+        ...context.today,
+        groceries: [{ item: "Milk", quantity: 1, list: "Groceries" }],
+      },
+    });
+  const response = await POST(request({ ...input, includeToday: true }));
+  expect(response.status).toBe(409);
+  expect((await response.json()).reply).toBeUndefined();
+});
+it("does not return expired grounded context even if all source values are unchanged", async () => {
+  mockTodayEnabled = true;
+  (loadAssistantTodayContext as jest.Mock).mockResolvedValue(
+    freshTodayFixture(),
+  );
+  (structuredAssistantReply as jest.Mock).mockImplementationOnce(async () => {
+    jest
+      .mocked(Date.now)
+      .mockReturnValue(Date.parse("2026-10-09T12:01:00.000Z"));
+    return { reply: "Old household answer", action: null };
+  });
+  const response = await POST(request({ ...input, includeToday: true }));
+  expect(response.status).toBe(409);
+  expect((await response.json()).reply).toBeUndefined();
+});
+
+/** Authored/unrun catalog-bound response cases. */
+function referenceFixture() {
+  mockTodayEnabled = true;
+  jest.mocked(isAssistantReferencesEnabled).mockReturnValue(true);
+  jest.mocked(authenticateWithFamily).mockResolvedValue([
+    {
+      user: { id: "person-a", role: "parent", family_id: "family-a" },
+      payload: { tv: 3 },
+    },
+    null,
+  ] as never);
+  const context = freshTodayFixture();
+  const catalog = buildAssistantReferenceCatalog(
+    [
+      {
+        kind: "chore",
+        id: "task-a",
+        index: 0,
+        label: "Pack bag",
+        versionInput: { epoch: 1 },
+      },
+    ],
+    { userId: "person-a", familyId: "family-a", role: "parent", generation: 3 },
+    context.generatedAt,
+    "fabricated-reference-test-key",
+  );
+  const snapshot = {
+    context: {
+      ...context,
+      today: {
+        ...context.today,
+        chores: [
+          {
+            title: "Pack bag",
+            dueDay: "2026-10-09",
+            status: "open",
+            assignee: "A household member",
+          },
+        ],
+      },
+    },
+    catalog,
+  };
+  jest
+    .mocked(loadReferencedAssistantToday)
+    .mockResolvedValue(snapshot as never);
+  jest.mocked(structuredAssistantReply).mockResolvedValue({
+    reply: "Pack bag is on Today",
+    action: null,
+    basis: "context",
+    references: [catalog[0].provider.ref],
+  });
+  return snapshot;
+}
+it("returns only server-built current evidence and keeps actual record identity out of provider input", async () => {
+  const snapshot = referenceFixture();
+  const response = await POST(request({ ...input, includeToday: true }));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    reply: "Pack bag is on Today",
+    action: null,
+    evidence: [snapshot.catalog[0].evidence],
+  });
+  expect(loadReferencedAssistantToday).toHaveBeenCalledTimes(2);
+  const references = jest.mocked(structuredAssistantReply).mock.calls[0][4];
+  expect(references).toEqual(snapshot.catalog.map((entry) => entry.provider));
+  expect(JSON.stringify(references)).not.toMatch(
+    /task-a|person-a|family-a|dashboard/,
+  );
+});
+it("rejects fabricated references instead of displaying the provider claim", async () => {
+  referenceFixture();
+  jest.mocked(structuredAssistantReply).mockResolvedValue({
+    reply: "Fabricated household claim",
+    action: null,
+    basis: "context",
+    references: [`asr1_${"0".repeat(64)}`],
+  });
+  const response = await POST(request({ ...input, includeToday: true }));
+  expect(response.status).toBe(502);
+  expect((await response.json()).reply).toBeUndefined();
+});
+it("withholds unchanged display values when canonical source revision changed", async () => {
+  const snapshot = referenceFixture();
+  jest
+    .mocked(loadReferencedAssistantToday)
+    .mockResolvedValueOnce(snapshot as never)
+    .mockResolvedValueOnce({
+      ...snapshot,
+      catalog: [
+        {
+          ...snapshot.catalog[0],
+          provider: {
+            ...snapshot.catalog[0].provider,
+            revision: "changed-source",
+          },
+        },
+      ],
+    } as never);
+  const response = await POST(request({ ...input, includeToday: true }));
+  expect(response.status).toBe(409);
+  const body = await response.json();
+  expect(body.reply).toBeUndefined();
+  expect(body.evidence).toBeUndefined();
+});
+
+it("keeps the legacy response contract for clients that do not advertise reference support", async () => {
+  referenceFixture();
+  jest.mocked(loadReferencedAssistantToday).mockClear();
+  jest
+    .mocked(loadAssistantTodayContext)
+    .mockResolvedValue(freshTodayFixture() as never);
+  jest
+    .mocked(structuredAssistantReply)
+    .mockResolvedValue({ reply: "Current summary", action: null });
+  const response = await POST({
+    text: async () => JSON.stringify({ ...input, includeToday: true }),
+    headers: new Headers(),
+  } as NextRequest);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    reply: "Current summary",
+    action: null,
+  });
+  expect(loadReferencedAssistantToday).not.toHaveBeenCalled();
 });

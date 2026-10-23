@@ -1,3 +1,4 @@
+import { hiddenRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 /**
  * Data for the personal home summary on /dashboard/today (#268, #269).
  *
@@ -118,12 +119,14 @@ export async function loadHomeSummary(
 ): Promise<HomeSummaryData> {
   const start = startOfTodayUTC(opts.now ?? new Date())
   const isParent = opts.role === 'parent'
+  const hiddenRoutineIds = await hiddenRoutineOccurrenceIds(db, opts.familyId)
   const [chores, profileCompatibilityProbe, members, toCheckCount] = await Promise.all([
     // Due dates are UTC-midnight date-only values: yesterday..tomorrow covers
     // "today" in any zone; the client picks the viewer's local day.
     db.chore.findMany({
       where: {
         family_id: opts.familyId,
+        id: { notIn: hiddenRoutineIds },
         // Inspect canonical profile ownership even for the account-personal
         // summary so protocol 1 never silently loses a stored profile row.
         OR: [{ assigned_to: { not: null } }, { assigned_member_id: { not: null } }],
@@ -144,7 +147,7 @@ export async function loadHomeSummary(
     }),
     opts.memberProtocol !== 2
       ? db.chore.findFirst({
-          where: profileCompatibilityProbeWhere(opts.familyId, addUTCDays(start, -1), addUTCDays(start, 1)),
+          where: { ...profileCompatibilityProbeWhere(opts.familyId, addUTCDays(start, -1), addUTCDays(start, 1)), id: { notIn: hiddenRoutineIds } },
           select: { id: true },
           orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
         })

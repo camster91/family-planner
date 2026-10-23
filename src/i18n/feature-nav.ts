@@ -1,4 +1,4 @@
-import { useTranslation } from '@/i18n'
+import { useCoreI18n } from '@/i18n/core'
 import type { FeatureKey } from '@/lib/features'
 import type { Locale } from './types'
 
@@ -45,6 +45,6 @@ export function getFeatureNavTitle(locale: Locale, key: FeatureKey): string {
 }
 
 export function useFeatureNavTitle(): FeatureNavTitleResolver {
-  const { locale } = useTranslation()
+  const { locale } = useCoreI18n()
   return (key) => getFeatureNavTitle(locale, key)
 }

@@ -22,6 +22,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(LocalVoicePlugin.class);
         super.onCreate(savedInstanceState);
 
         // Shared tablet (#242, docs/architecture/SHARED_DEVICE.md): Back on a

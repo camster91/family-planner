@@ -14,6 +14,72 @@ The native helper `readNativeBuildIdentity` reads the existing App plugin's actu
 
 ## Activation and recovery rules
 
+### Personal food capture compatibility (#125, source 2026-10-20)
+
+Food capture does not add a queue action or change the public capability
+manifest. Its request-specific protocols are enforced at their routes; a
+manifest response alone cannot establish a generated schema, household feature,
+provider gate, camera permission or supported installed binary.
+
+| Surface | Current source behavior | Forward/rollback and native evidence still needed |
+| --- | --- | --- |
+| Personal list/use-soon/cook/history | Optional original-person/household header; canonical success echo; new reader checks before parsing private data | Backend-first deployment; old unbound clients still read. Older server without echo leaves new bound UI in explicit unsupported recovery. Check real proxy/WebView header preservation |
+| Reviewed intake | `herewoven.inventory-intake.v1`, original actor/family, issued-at and immutable key/body | Unsupported/malformed reply never confirms a save; missing/deleted target cannot be recreated by receipt replay. Check current/previous web-server candidates and additive schema prerequisites |
+| Stock changes | `herewoven.inventory-change.v1`; versioned edit/remove/consume/discard and owned Undo | Original key/body survives unknown replies while mounted; rollback must retain these routes and receipt semantics or stop writes without translating intent to legacy routes |
+| Photo/document review | Explicit versioned original-context response and gated document modes | No provider activation. Camera/file permission denial, image formats, upload/review interruption and actual target devices remain unverified |
+| Barcode review | Local camera detection with typed fallback; explicit private/public metadata apply | Web source does not establish scanner availability or installed camera permission. Verify denied permission, unsupported detector, background/resume and hardware |
+| Offline/process death | Unadopted inventory stays memory-only; gated owned exact-online-request journals and EN/ES recovery UI are authored, not accepted. No offline inventory action/cache is advertised | Verify restart/upgrade/process death, original scope/key/body retention, paused-write review and local dismissal on real clients. Never auto-resubmit reconstructed stock |
+
+Original-owner access loss suspends personal sheets and conceals cached reads.
+It does not transfer pending work to a new account/household. Account/role remount
+and explicit page reload clear mounted memory; adopted inventory journals reuse
+#564 owner/generation/household retirement with a separate inventory scope. That
+source integration is not proof of physical lifecycle or durable purge acceptance. Inventory must remain absent from
+`QUEUEABLE_ACTIONS` until a separate approved payload/storage/retirement contract
+and later recovery QA establish support. No physical-device, native build,
+schema migration, provider, release or rollback execution is claimed here.
+
+### Bounded storage candidate recovery (#565)
+
+The follow-on #564 owner/retirement implementation is in progress; see
+[its source contract and remaining integration work](QUEUE_OWNER_RECOVERY.md).
+It is off by default and does not establish durable purge acceptance.
+
+Source reconciliation on 2026-10-18 found the requested earlier-candidate retry
+already present in `src/lib/offline-queue.ts` (`391844c9`). No replacement
+algorithm is needed. Before each write, `fallbackQueueStore` probes candidate
+contents. The current readable authority is tried first, followed by every
+other candidate in preference order, including candidates earlier than a
+previously selected fallback. Each candidate is attempted once per requested
+write; there is no background retry loop. This can move a failed localStorage
+write back to a recovered IndexedDB store without changing the serialized
+request keys, operation bodies or public queue format.
+
+Different readable nonempty snapshots pause the adapter without merging,
+overwriting or selecting a preferred winner. An empty readable fallback does
+not establish that an unreadable primary is empty. After a successful write,
+every other candidate must be removed before durability is reported; uncertain
+cleanup blocks the adapter. The exact saved operations remain available for
+explicit recovery, not automatic guessed replay. Existing paused/recovery EN/ES
+UI and the operation/container compatibility gate remain the presentation and
+protocol authority.
+
+Browser adapters obtain a stable `persistenceLane` per database/key. Custom
+wrappers around the same persisted namespace must pass the **same lane object**
+to `fallbackQueueStore(candidates, lane)` and route mutations through the queue's
+serialized persistence lane. One active queue owns a namespace; retire the old
+instance before replacement. A fresh wrapper object without the shared lane
+does not serialize against its predecessor. The lane orders in-page writes and
+cleanup; it is not a durable retirement record or a cross-tab/process lease.
+
+Existing test source includes fallback-to-primary write recovery, divergent and
+identical copies, recovered stale primaries, exhausted/read-failing stores and
+uncertain cleanup. No tests were rerun during this implementation-first pass.
+#565 remains open for the later consolidated recovery/concurrency acceptance.
+#564 is separate: a fresh runtime cannot infer an earlier failed purge from a
+sole surviving stale version-one snapshot. An in-memory lane/blocked flag alone
+cannot establish durable authority after process death.
+
 Before advertising protocol 2, migrate every member-subject reader/writer and affected domain, finish route/setup/assignment/rotation/points and safe shared attribution, and verify the current/previous client and forward/rollback candidates. Separate account authority from profile eligibility and preserve original #480 acceptance. The currently unused negotiation helpers must be integrated with the actual new consumers; a metadata check alone cannot enforce write support or prevent data loss.
 
 On unsupported capability, retain pending work, its original key and body; refresh server capabilities and canonical data, then offer a compatible update or browser fallback. Do not silently drop, reinterpret, renew, or replay a profile operation as an account operation. For an unavailable server, retain the pending intent rather than treating the missing manifest as a new feature grant. A previous server without this endpoint is an explicit unknown state.

@@ -11,7 +11,7 @@ import {
 } from "@testing-library/react";
 import { I18nProvider, useTranslation } from "@/i18n";
 import PendingTickRecovery from "../PendingTickRecovery";
-import { getPersonQueue } from "@/lib/offline-queue-browser";
+import { getPersonQueue } from "@/lib/person-queue-browser";
 
 let changeLocale: (locale: "en" | "es") => void;
 function LocaleControl() {
@@ -29,7 +29,7 @@ function render(ui: React.ReactNode) {
   });
 }
 
-jest.mock("@/lib/offline-queue-browser", () => ({ getPersonQueue: jest.fn() }));
+jest.mock("@/lib/person-queue-browser", () => ({ getPersonQueue: jest.fn() }));
 const getQueue = jest.mocked(getPersonQueue);
 let ops: any[], listener: (event: any) => void;
 let queue: any;
@@ -168,6 +168,8 @@ it("translates a live retry notice and open discard confirmation without subscri
     "Retry requested. The change remains here until the server confirms it.",
   );
   fireEvent.click(screen.getByRole("button", { name: "Discard change 1" }));
+  const subscriptionsBeforeLocale = queue.subscribe.mock.calls.length;
+  expect(subscriptionsBeforeLocale).toBeGreaterThan(0);
   act(() => changeLocale("es"));
   expect(
     screen.getByRole("alertdialog", {
@@ -180,7 +182,7 @@ it("translates a live retry notice and open discard confirmation without subscri
     ),
   ).toBeVisible();
   expect(screen.getByText("Cambio 1: Marcar un artículo")).toBeVisible();
-  expect(queue.subscribe).toHaveBeenCalledTimes(2);
+  expect(queue.subscribe).toHaveBeenCalledTimes(subscriptionsBeforeLocale);
   expect(getQueue).toHaveBeenCalledTimes(1);
   expect(ops).toEqual(before);
   fireEvent.click(

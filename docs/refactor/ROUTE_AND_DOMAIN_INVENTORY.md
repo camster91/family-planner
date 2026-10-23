@@ -1,5 +1,90 @@
 # Route and domain inventory (#148)
 
+### Restock UI/owned request extension — 2026-10-20
+
+New read-only body-based POST `/api/inventory/restock/review` avoids private draft
+names in URLs, with common auth, read-scope echo and canonical restock review.
+InventoryRestockSheet is wired from item editing/history; explicit target/amount/
+duplicate policy, exact retry/result/list-link/Undo controls are authored. Existing
+inventory entry/recovered-review/provider contracts add the fixed `restock` kind;
+no new schema, offline queue action or provider/native activation. Unknown Undo
+is open-sheet retry/manual acknowledgement, not another durable operation. Source
+tests are authored only; cooking stock review remains implementation work.
+
+### Inventory restock backend source — 2026-10-20
+
+New GET/POST `/api/inventory/restock` and POST `/api/inventory/restock/undo` use
+paired-first personal auth and renewed canonical parent/teen inventory+lists
+authority. Shared effect in `inventory-restock.ts`, strict v1 contract, explicit
+source version/purchase values and atomic canonical ListItem/receipt. Existing
+createListItem accepts internal inventory provenance; grocery O-5 Undo is shared
+with its existing recipe wrapper retained. No schema/source enum/new stock store.
+UI/owned-journal integration remains open; source integration/paired tests are
+authored, not run. Details: `architecture/INVENTORY_RESTOCK.md`.
+
+### Shared meal/food foreground draft source — 2026-10-20
+
+No route/model/schema added. `ReviewedDescriptionDraft` owns common collapsed
+typing/browser/local-preview voice, owner-context/lifecycle guards and explicit
+Apply. FoodDescriptionDraft reuses it. New MealDescriptionDraft + bounded
+meal-description parser fill only free-text unlinked Add meal fields. Linked
+recipe/edit/prepared paths are not repurposed; useMealCreation still owns the
+atomic save/original context and recovery. EN/ES test source is authored, not
+run. Stock-lot consumption review and direct replacement restocking remain open.
+
+### Food voice/text draft source — 2026-10-20
+
+No route/schema added. `FoodDescriptionDraft` is an optional disclosure in the
+canonical ItemModal create mode. `food-description.ts` is a bounded suggestion
+parser, not another stock model. Browser speech reuses `use-voice-draft` with
+optional language/deadline and stale-callback guards; the existing local Android
+preview gate remains unchanged. Only explicit Apply updates editable fields;
+Save retains the intake/recovery contracts. Parsing/UI test source is authored,
+not executed. Recipe/prep stock review and direct restocking remain code gaps.
+
+### Inventory recovery UI integration source — 2026-10-20
+
+No new route/schema. Personal InventoryClient now owns InventoryRecoveryProvider
+and EN/ES recovery sheets. Manual ItemModal, BarcodeFoodDialog, ScanFridgeDialog
+and stock actions share gated stage/send/confirmed-dismiss. Root server props
+carry the adopted rollback boundary; default legacy mode does not negotiate or
+persist. Paused writing retains current-owner review/local dismissal while
+stage/send stay refused. Both write transports settle unknown at 15 seconds
+even if the native bridge ignores abort. New source tests cover sender order,
+storage failure, original-key retry, hidden names and EN/ES/paused controls.
+No code execution or rendered/native acceptance; provider/activation gates stay off.
+
+### Inventory recovery canonical review — 2026-10-20
+
+New `POST /api/inventory/recovery/review`: paired-first personal auth, required
+inventory owner proof and canonical inventory authority; read-only receipt and
+owned target/Undo review with time/size/rate boundaries. Shared reviewer and
+response contract in `inventory-recovery-review*.ts`; bounded browser reads in
+`inventory-recovery-client.ts`, storage binding in `inventory-recovery-browser.ts`.
+No model/queue action or native capability added. Form/UI integration is next;
+source tests and common paired-context negatives are authored, not run.
+
+### Inventory restart recovery source addendum — 2026-10-20
+
+One new personal GET route: `/api/inventory/recovery`, common paired-first auth
+and canonical parent/teen inventory authority, gated support/private no-store.
+`inventory-recovery-{contract,server,store}.ts` provide bounded original online
+requests, a separate owner scope, optional pre-replay proof and owned persistence
+with explicit recovered review. No schema/new queue action. Existing intake and
+change routes keep legacy no-header behavior. Browser/canonical-review/UI
+integration remains in progress; all source test execution is deferred.
+
+### Inventory read binding source addendum — 2026-10-19
+
+No route added: inventory list, use-soon, cook and adjustments GET now share
+`inventory-read-http.ts` for optional original-actor/household request binding,
+canonical success echo and private/no-store outcomes. Personal clients share
+`inventory-reader.ts`, `inventory-read-contract.ts` and `inventory-read-scope.ts`
+for bounded refresh generations and DTO validation. Old unbound reads remain
+compatible; new bound readers need the backend first. Details and limits live in
+`architecture/API_CONTRACTS.md` and `architecture/OFFLINE_SYNC.md`. Source only;
+no new queue/manifest action and no QA/release claim.
+
 **Inspected:** `master` at `cbef026` (#280), 2026-09-29. Static source inspection only: no route was run for this document, no production data was read, and nothing here claims runtime behaviour.
 
 **Scope:** every page (`src/app/**/page.tsx`, 57 files) and every API route (`src/app/api/**/route.ts`, 131 files, 197 exported handlers; reconciled with #281 at `32f10d0`). The lists were produced by a throwaway Node script (not committed; the repository has no tooling-scripts location for doc generators) that walks `src/app`, reads each file's exported HTTP methods, `featureGate(...)` / `FeatureGate` / `useFeatureEnabled(...)` calls, device helpers (`authenticateDevice`, `requireElevation`, `refusePairedDevice`), env kill-switch helpers, Prisma delegates used in the route file and its direct `@/lib/*` imports, and joins each handler to the "Role gate" column of [`security/API_ISOLATION_AUDIT.md`](../security/API_ISOLATION_AUDIT.md). Hand-checked rows are marked.
@@ -411,3 +496,159 @@ Generated table. Roles are the audit's "Role gate" column per method; the three 
 | `/api/wishlist/[id]`                            | PATCH, DELETE            | PATCH: requester or P ; DELETE: requester or P                                                                             | no                                 | wishlist                                                           | —                                     | —                                                                                     |
 | `/api/wishlist/[id]/status`                     | PATCH                    | PATCH: P                                                                                                                   | no                                 | wishlist                                                           | —                                     | —                                                                                     |
 | `/api/wishlist`                                 | GET, POST                | GET: all ; POST: all                                                                                                       | no                                 | wishlist                                                           | —                                     | —                                                                                     |
+
+### Recipe curation additive source candidate (#460, 2026-10-18)
+
+- `/api/recipes/collections` GET (all personal recipe-reading roles), POST
+  create/rename/delete (parent/teen), private/no-store, meals gate.
+- `/api/recipes/[id]/curation` GET/PATCH, same role boundaries; current User and
+  household locking plus revision-bound favorite/membership update.
+- Canonical `RecipeCollection`, `RecipeCollectionEntry` and additive Recipe
+  source/favorite/revision fields. Composite household FKs, export and family
+  erasure inventory included. No shared-device API or separate AI recipe store.
+- Source candidate only: additive migration/generation and all QA deferred.
+
+
+### Prepared recipe history additive source candidate (#460, 2026-10-19)
+
+- `/api/meals/bulk/[id]/recipe` GET: current verified personal parent/teen,
+  household/session generation and meals checks, private/no-store. Paired
+  identities refused by the existing authentication boundary.
+- Nullable MealBatch recipe_snapshot/recipe_snapshot_at capture canonical
+  recipe details at first prep completion, in the same receipt transaction.
+  Explicit no-record state for legacy sessions; no current-content backfill.
+- Full evidence is fetched only on demand and included in household export;
+  prep lists contain only timestamp metadata. Existing batch/family erasure
+  covers it. No new shared-device route, provider call or offline action.
+- Source candidate only; additive migration/generation and all QA deferred.
+
+
+### Ordinary meal create confirmation source candidate (#460, 2026-10-19)
+
+- `/api/meals/create` GET/POST: current personal ordinary meal authorization,
+  User/household/session/meals locks; paired sessions refused; private/no-store.
+  GET returns current user/family context only. POST bounds JSON to 8 KiB and
+  30 requests/minute/user, requires strict v1 envelope and Idempotency-Key.
+- Canonical FamilyMeal and compact receipt commit together; actor, recipe and
+  cook remain household-bound. Confirmation renews authority and existence;
+  deleted meals never recreate on replay. Old `/api/meals` POST stays legacy.
+- Saved recipe intent links seed existing editors only after explicit review;
+  no new model, provider, offline action, shared-device API or media retention.
+- Source only; integrated QA and release compatibility remain unverified.
+
+
+### Recipe preview review contract candidate (#460, 2026-10-19)
+
+- Existing `/api/recipes/preview` remains personal parent/teen and meals-gated.
+  Request accepts only public HTTPS URL shape, stream-bounded to 8 KiB; outbound
+  transport still pins public DNS and bounds redirects/bytes/time. All responses
+  are private/no-store. No schema or write action is introduced.
+- Shared response schema adds optional typed extraction-review issues; old
+  previews remain readable with explicit unavailable-limit-report copy. The
+  client refuses malformed/future metadata and bounds waiting/unmount behavior.
+- Raw extracted ingredients/directions remain review text. Over-limit combined
+  drafts are retained for explicit shortening; missing servings are not guessed.
+- Source candidate only; consolidated QA and release proof remain deferred.
+
+
+### Reviewed inventory intake source candidate (#125, 2026-10-19)
+
+- `/api/inventory/intake` GET/POST: current personal parent/teen, inventory
+  feature and session generation; explicit paired refusal; private/no-store.
+  GET returns original actor/family context only. POST bounds JSON to 8 KiB,
+  60 requests/minute/user and requires known v1 plus Idempotency-Key.
+- Canonical InventoryItem + compact receipt commit together under User/household/
+  receipt locks; current replay checks owned existence. Deleted rows do not
+  recreate, and abandoned expired intent cannot silently become a new create.
+- Photo review uses this path and immutable row recovery, not legacy create.
+  Legacy manual item form/POST and broader capture remain separate unfinished
+  work. No new model, queue action, provider, media store or shared-device API.
+- Source only: full capture matrix in `docs/product/FOOD_CAPTURE.md`; integrated
+  QA/native/compatibility evidence and normal release gates remain deferred.
+
+### Barcode recognition extension (#125, 2026-10-19; source only)
+
+- `/api/inventory/products` GET: current personal parent/teen inventory authority,
+  same-family barcode metadata, private/no-store; paired sessions refused. Public
+  lookup needs explicit `lookup=1` and disabled-by-default server reuse/contact/
+  enable gates, fixed-host bounds and globally spaced DB reservations.
+- Intake v1 gains an optional strict product envelope; old servers fail closed.
+  Optional remembered correction, stock snapshot and receipt commit atomically;
+  stale changed revision refuses before stock. No fallback to legacy create.
+- FoodProduct owns recognition by `(family_id, barcode)`; it is not stock. Export
+  parent/teen library, household deletion and personal stock metadata are wired.
+  Shared Use soon selects unchanged minimal fields. Additive schema/migration is
+  authored only; no client generation, migration or QA has run.
+
+### Manual inventory create intake (#125, 2026-10-19; source only)
+
+- Personal Add item uses dedicated intake v1 and immutable uncertain-save ownership
+  with original actor/family; no legacy POST fallback. Standalone context waiting
+  is bounded. Edit/adjustment/delete contracts are unchanged.
+- Source tests and EN/ES state are updated; consolidated QA remains deferred.
+
+### Food-document suggestion extension (#125, 2026-10-19; source only)
+
+- `/api/inventory/scan` optional explicit package/receipt mode uses known
+  `herewoven.food-photo.v1`, original actor/family, personal parent authority and
+  separate disabled document-processing gate. Legacy fridge shape remains.
+- Multipart bytes/time and provider JSON bytes are bounded. Post-read personal
+  authority/role/feature checks renew access before suggestions are returned.
+- Output keeps printed label/date evidence transient. Receipt dates/storage are
+  stripped, package weight is not stock, and dates require explicit apply/edit.
+  One-item document review starts unselected. No media store or new provider.
+- Intake optional strict label package_size snapshots reuse InventoryItem and
+  its atomic receipt; no barcode/product row is invented. Old strict servers
+  refuse unknown extensions; no legacy fallback or new offline action advertised.
+- Tests/EN-ES source only, not QA or provider/native acceptance evidence.
+
+### Versioned personal stock changes (#125, 2026-10-19; source only)
+
+- `/api/inventory/change` POST: strict inventory-change.v1, original actor/family,
+  issued-at, key required, 8-KiB stream bound and 60/minute/person; paired refusal
+  and private/no-store for every response. No native/offline action advertised.
+- Fresh User/household/receipt/item locks cover stock, canonical adjustment and
+  compact pointer receipt in one transaction. Consume/discard require the reviewed
+  item version. Undo checks the version left by the adjustment; stale work refuses.
+- Replay/current confirmation rechecks owned history and stock, never recreates
+  deleted rows or exposes cached quantities as current. Client owns exact unknown
+  intent through later access refusal; explicit no-effect results permit refresh.
+- Canonical adjustment primitives now accept the caller's transaction; old route
+  wrappers retain compatibility. Their legacy auth/receipt contracts and edit/
+  removal paths are not upgraded by the new endpoint. QA remains deferred.
+
+### Stock edit/remove extension (#125, 2026-10-19; source only)
+
+- inventory-change.v1 adds strict edit/remove with reviewed item versions; compact
+  item/kind receipts, no fabricated adjustment history or deletion Undo.
+- All change confirmation also requires matching completed actor/family/action/
+  request-hash proof. Remove confirms historical deletion even after stock/history
+  cascade; absent/mismatched proof stays unknown. Edit still checks current owned
+  existence and never reapplies cached fields.
+- `inventory-edit.ts` provides canonical transaction primitives for new changes
+  and old PATCH/DELETE. New writes include receipt/current-authority boundaries;
+  old client-context/replay contracts remain explicitly legacy. Failed legacy
+  delete completion-row update now rolls back the deletion.
+- Personal editor uses the existing recovery owner and a collapsed readable edit
+  summary; source tests/EN-ES only. Consolidated QA and native acceptance deferred.
+
+### Cooking presence evidence (#125, 2026-10-19; source only)
+
+- Cook and recipe-grocery review add optional link/name provenance and explicit
+  presence-only semantics. Zero stock is excluded before cooking/use-soon caps;
+  unknown positive availability never implies enough-for-recipe amounts.
+- Owned recipes with foreign ingredient links are skipped whole with incomplete
+  disclosure. Personal cook JSON is bounded/validated; old presence replies retain
+  an explicit unknown-details fallback. No new stock write or provider action.
+- Personal Today counts use the same eligibility and omit inconsistent ownership;
+  shared DTOs/selects retain their existing minimal field boundary. QA deferred.
+
+## Cooking-stock handoff source — 2026-10-20
+
+Recipe and prep dish links open an Inventory sheet with scoped canonical
+recipe/captured-history ingredient context. GET `/api/inventory/cooking-review`
+is private current parent/teen authority, bounded and household-owned. Explicit
+lot selection opens the existing amount-used editor and stock/recovery/Undo
+write path. No auto allocation, conversion, separate stock model or atomic
+recipe-consumption ledger. Source tests authored/unrun; acceptance deferred.
+See `../architecture/COOKING_STOCK_REVIEW.md`.

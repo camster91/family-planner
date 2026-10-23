@@ -388,6 +388,7 @@ for (const locale of ["en", "es"] as const) {
 
       try {
         await page.goto("/dashboard");
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
         const featureResponse = await browserFetch(
           page,
           "/api/family/features",
@@ -416,6 +417,9 @@ for (const locale of ["en", "es"] as const) {
         await expect(
           page.getByRole("heading", { name: copy.pageTitle, exact: true }),
         ).toBeVisible();
+        await expect(
+          page.getByText(copy.noTransactions, { exact: true }),
+        ).toHaveCount(1);
         await expect(
           page.getByText(copy.noTransactions, { exact: true }),
         ).toBeVisible();
@@ -687,6 +691,9 @@ for (const locale of ["en", "es"] as const) {
         await expect(refreshNotice).toHaveCount(0);
         await expect(
           page.getByText(copy.noTransactions, { exact: true }),
+        ).toHaveCount(1);
+        await expect(
+          page.getByText(copy.noTransactions, { exact: true }),
         ).toBeVisible();
         await expect(page.getByTestId("budget-category-empty")).toContainText(
           copy.noCategorySpending,
@@ -900,6 +907,7 @@ for (const locale of ["en", "es"] as const) {
         try {
           if (featureChanged && originalFeatures) {
             await page.goto("/dashboard");
+            await expect(page).toHaveURL(/\/dashboard\/today$/);
             const restored = await browserSend(
               page,
               "PATCH",

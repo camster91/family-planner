@@ -2,10 +2,96 @@ import {
   expiryFeedback as compactExpiryFeedback,
   inventoryDisplayEnglish,
   inventoryDisplaySpanish,
-} from './inventory-display'
+} from "./inventory-display";
 
 /** Owned presentation only. Private names, units, model text and API refusals stay raw. */
 export const inventoryEnglish = {
+  restock: "Add a replacement",
+  readHistoryUnavailableEmpty:
+    "History could not be loaded. Refresh to check earlier changes and Undo.",
+  readRefresh: "Refresh inventory",
+  readRefreshing: "Refreshing…",
+  readReopen: "Reopen Inventory",
+  readAccessTitle: "Inventory access needs checking",
+  readScopeChanged:
+    "Your account, household or inventory access changed. Check again with the original account, or reopen Inventory after switching households. Pending drafts are kept in this view until it closes.",
+  readScopeUnsupported:
+    "This server cannot confirm the household for this inventory view. Refresh after the app is updated. No other household's stock was loaded.",
+  readHistoryUnavailable:
+    "History could not be refreshed. Earlier entries are shown without Undo until the next successful refresh.",
+
+  cookPresenceOnly:
+    "Matches identify foods only. Check amounts, units and condition before cooking.",
+  cookMatchDetails: "How these foods matched",
+  cookMatchLinked: "Saved ingredient link",
+  cookMatchName: "Name match only — confirm the food",
+  cookMatchUnknown: "Match details unavailable; check the food and amount.",
+  cookComparisonIncomplete:
+    "Some saved recipes could not be compared. Review their ingredients in Meals.",
+  cookReviewGroceries: "Review recipe groceries",
+
+  stockChangeReviewedDetails: "Reviewed changes",
+  stockChangeNotRecorded: "Not recorded",
+  stockChangePending: "Check the pending food change before starting another.",
+  stockChangeUnknown:
+    "This change is not confirmed. Check the same request before leaving or changing this food again. Its original details are kept.",
+  stockChangeConfirmed:
+    "Confirmed the recorded change for {name}. The list shows current stock.",
+  stockChangeNotApplied:
+    "This check confirmed that the request did not change stock. The list was refreshed; review it before trying again.",
+  stockChangeRemoved:
+    "The original food change was recorded, then removed. This check did not recreate it.",
+  stockChangeRefused:
+    "Food change refused. Check your account, household and inventory access.",
+  stockChangeContext:
+    "Reopen Inventory to confirm your account and household before changing stock.",
+  stockChangeRefresh:
+    "Refresh Inventory and review this food before changing it.",
+  stockChangeSaving: "Checking food change…",
+  stockChangeRecovery: "Confirm food change",
+
+  foodPhotoTitle: "Photo food capture",
+  foodPhotoMode: "What are you photographing?",
+  foodPhotoFridge: "Fridge",
+  foodPhotoPackage: "Package / date",
+  foodPhotoReceipt: "Receipt",
+  foodPhotoPackageIntro:
+    "Photograph one food package or its printed date label. Keep the whole date and food name readable. Dates stay blank until you review them.",
+  foodPhotoReceiptIntro:
+    "Crop the receipt to food lines first. Cover names, addresses, loyalty numbers and payment details. Purchased amounts are suggestions, not a count of what remains at home.",
+  foodPhotoRedacted: "I cropped or covered personal and payment details.",
+  foodPhotoReview:
+    "Review and tick each item you want. Nothing is preselected. Confirm stock amount and storage yourself; receipt dates never become expiry dates.",
+  foodPhotoDropped:
+    "{count} unreadable, duplicate or excess suggestions were omitted. Check the photo for anything missing.",
+  foodPhotoPages: "Photo review pages",
+  foodPhotoPrevious: "Previous",
+  foodPhotoNext: "Next",
+  foodPhotoPage: "Item {page} of {total}",
+  foodPhotoDateKind: "Printed date type",
+  foodPhotoPrinted: "Printed date suggestion",
+  foodPhotoUseDate: "Use {kind}: {date}",
+  foodPhotoUnclearDate:
+    "The full date or date type is unclear. Read the label and enter it yourself; no year or shelf life was guessed.",
+
+  scanFood: "Scan food",
+  productDetails: "Product details",
+  productCode: "Product code (GTIN)",
+  packageSize: "Label package size",
+  packageNotStock:
+    "Package size describes the label; stock amount and dates are recorded separately.",
+  barcodeAdded: "Confirmed {count} reviewed food items.",
+  intakeContextLoading: "Checking your household before capture…",
+  intakeContextFailed:
+    "We could not check your household. Your suggestions are kept; retry before adding stock.",
+  intakeRetryContext: "Check household again",
+  intakeUnknown:
+    "The item may have been added. Its reviewed values stay locked. Retry to check the same save before closing or scanning another photo.",
+  intakeRefused:
+    "This item was not confirmed. Review your account, household and item details before trying again.",
+  intakeRemoved:
+    "The original saved item was removed. Tick this row only if you deliberately want to add it again.",
+
   ...inventoryDisplayEnglish,
   scanTitle: "Scan the fridge",
   close: "Close",
@@ -110,6 +196,16 @@ export const inventoryEnglish = {
   undoNetwork:
     "Could not put {name} back. Check your connection and try again.",
   undoSuccess: "Put {name} back.",
+  manualIntakeContextFailed:
+    "Could not confirm your account and household. Keep your draft and reopen Add item when connected.",
+  manualIntakeInvalid: "Review the name, amount and dates before saving.",
+  manualIntakeUnknown:
+    "Save not confirmed. Your details are locked. Check the same save before leaving or adding it again.",
+  manualIntakeRefused:
+    "Save refused. Check your account, household and inventory access. Your draft is kept.",
+  manualIntakeRemoved:
+    "The original item was saved and then removed. This check did not add it again. Review before starting a new save.",
+  intakeRetry: "Check same save",
   saveFailed: "Could not save. Try again.",
   saveNetwork: "Could not save. Check your connection and try again.",
   searchInventory: "Search the inventory",
@@ -124,18 +220,18 @@ export const inventoryEnglish = {
   recipesEmptyCapped:
     "No match among the recipes and items checked. You have more recipes or items than we can compare at once, so this may be incomplete.",
   recipesEmpty:
-    "No saved recipe uses what you have yet. Add items, or save recipes in Meals, to see ideas here.",
+    "No saved recipe matches recorded stock yet. Add food, or save recipes in Meals, to see ideas here.",
   recipesIncomplete:
     "You have more recipes or items than we can compare at once, so this list may be incomplete.",
-  haveAllOne: "You have all {count} ingredient",
-  haveAllMany: "You have all {count} ingredients",
-  haveSome: "You have {have} of {total} ingredients",
+  haveAllOne: "Found {count} of {count} ingredient in inventory",
+  haveAllMany: "Found {count} of {count} ingredients in inventory",
+  haveSome: "Found {have} of {total} ingredients in inventory",
   cookSoonOne: " · uses {count} item to use soon",
   cookSoonMany: " · uses {count} items to use soon",
-  inStock: "In stock: ",
-  missing: "Missing: ",
+  inStock: "Matched foods: ",
+  missing: "No match: ",
   viewRecipe: "View recipe",
-  addMissing: "Add {count} missing to groceries",
+  addMissing: "Review {count} unmatched for groceries",
   openedDate: "Opened {date}",
   noAmountDate: "No amount or date",
   nothingFridge: "Nothing in the fridge.",
@@ -174,6 +270,8 @@ export const inventoryEnglish = {
   noCategory: "No category",
   bought: "Bought",
   opened: "Opened",
+  keepItem: "Keep item",
+  moreDetails: "Category and purchase dates",
   remove: "Remove",
   saving: "Saving…",
   save: "Save",
@@ -189,6 +287,93 @@ export const inventoryEnglish = {
 } as const;
 export type InventoryMessage = keyof typeof inventoryEnglish;
 export const inventorySpanish: Record<InventoryMessage, string> = {
+  restock: "Añadir un reemplazo",
+  readHistoryUnavailableEmpty:
+    "No se pudo cargar el historial. Actualiza para comprobar cambios anteriores y Deshacer.",
+  readRefresh: "Actualizar inventario",
+  readRefreshing: "Actualizando…",
+  readReopen: "Volver a abrir Inventario",
+  readAccessTitle: "Hay que comprobar el acceso al inventario",
+  readScopeChanged:
+    "Cambió tu cuenta, hogar o acceso al inventario. Comprueba de nuevo con la cuenta original o vuelve a abrir Inventario tras cambiar de hogar. Los borradores se conservan en esta vista hasta cerrarla.",
+  readScopeUnsupported:
+    "Este servidor no puede confirmar el hogar de esta vista. Actualiza cuando se actualice la aplicación. No se cargaron existencias de otro hogar.",
+  readHistoryUnavailable:
+    "No se pudo actualizar el historial. Las entradas anteriores se muestran sin Deshacer hasta una actualización correcta.",
+
+  cookPresenceOnly:
+    "Las coincidencias solo identifican alimentos. Revisa cantidades, unidades y estado antes de cocinar.",
+  cookMatchDetails: "Cómo se identificaron estos alimentos",
+  cookMatchLinked: "Ingrediente vinculado",
+  cookMatchName: "Solo coincide el nombre; confirma el alimento",
+  cookMatchUnknown:
+    "No hay detalles de la coincidencia; revisa el alimento y la cantidad.",
+  cookComparisonIncomplete:
+    "No se pudieron comparar algunas recetas guardadas. Revisa sus ingredientes en Comidas.",
+  cookReviewGroceries: "Revisar compras de la receta",
+
+  stockChangeReviewedDetails: "Cambios revisados",
+  stockChangeNotRecorded: "Sin registrar",
+  stockChangePending: "Comprueba el cambio pendiente antes de iniciar otro.",
+  stockChangeUnknown:
+    "Este cambio no está confirmado. Comprueba la misma solicitud antes de salir o volver a cambiar el alimento. Se conservan los datos originales.",
+  stockChangeConfirmed:
+    "Se confirmó el cambio registrado de {name}. La lista muestra las existencias actuales.",
+  stockChangeNotApplied:
+    "Esta comprobación confirmó que la solicitud no cambió las existencias. Se actualizó la lista; revísala antes de otro intento.",
+  stockChangeRemoved:
+    "El cambio original se registró y luego se eliminó. Esta comprobación no lo volvió a crear.",
+  stockChangeRefused:
+    "Cambio rechazado. Revisa tu cuenta, hogar y acceso al inventario.",
+  stockChangeContext:
+    "Vuelve a abrir Inventario para confirmar tu cuenta y hogar antes de cambiar existencias.",
+  stockChangeRefresh:
+    "Actualiza Inventario y revisa este alimento antes de cambiarlo.",
+  stockChangeSaving: "Comprobando cambio de alimento…",
+  stockChangeRecovery: "Confirmar cambio de alimento",
+
+  foodPhotoTitle: "Capturar alimentos con foto",
+  foodPhotoMode: "¿Qué vas a fotografiar?",
+  foodPhotoFridge: "Refrigerador",
+  foodPhotoPackage: "Envase / fecha",
+  foodPhotoReceipt: "Recibo",
+  foodPhotoPackageIntro:
+    "Fotografía un envase o su etiqueta de fecha. El nombre y la fecha completa deben ser legibles. Las fechas quedan vacías hasta que las revises.",
+  foodPhotoReceiptIntro:
+    "Recorta primero el recibo a las líneas de alimentos. Cubre nombres, direcciones, números de fidelidad y datos de pago. Las cantidades compradas son sugerencias, no lo que queda en casa.",
+  foodPhotoRedacted: "Recorté o cubrí los datos personales y de pago.",
+  foodPhotoReview:
+    "Revisa y marca cada alimento que quieras. Ninguno está preseleccionado. Confirma cantidad y lugar; las fechas del recibo nunca se usan como caducidad.",
+  foodPhotoDropped:
+    "Se omitieron {count} sugerencias ilegibles, repetidas o de más. Revisa si falta algo de la foto.",
+  foodPhotoPages: "Páginas de revisión de fotos",
+  foodPhotoPrevious: "Anterior",
+  foodPhotoNext: "Siguiente",
+  foodPhotoPage: "Alimento {page} de {total}",
+  foodPhotoDateKind: "Tipo de fecha impresa",
+  foodPhotoPrinted: "Sugerencia de fecha impresa",
+  foodPhotoUseDate: "Usar {kind}: {date}",
+  foodPhotoUnclearDate:
+    "La fecha completa o su tipo no está claro. Lee la etiqueta e introdúcela; no se estimó el año ni la vida útil.",
+
+  scanFood: "Escanear alimentos",
+  productDetails: "Datos del producto",
+  productCode: "Código del producto (GTIN)",
+  packageSize: "Tamaño en la etiqueta",
+  packageNotStock:
+    "El tamaño describe la etiqueta; la cantidad disponible y las fechas se registran por separado.",
+  barcodeAdded: "Se confirmaron {count} alimentos revisados.",
+  intakeContextLoading: "Comprobando tu hogar antes de capturar…",
+  intakeContextFailed:
+    "No pudimos comprobar tu hogar. Se conservan las sugerencias; reintenta antes de añadir existencias.",
+  intakeRetryContext: "Comprobar hogar otra vez",
+  intakeUnknown:
+    "El alimento puede haberse añadido. Los valores revisados quedan bloqueados. Reintenta el mismo guardado antes de cerrar o escanear otra foto.",
+  intakeRefused:
+    "No se confirmó este alimento. Revisa tu cuenta, hogar y los datos antes de reintentar.",
+  intakeRemoved:
+    "Se eliminó el alimento guardado original. Márcalo solo si quieres añadirlo de nuevo expresamente.",
+
   ...inventoryDisplaySpanish,
   scanTitle: "Escanear el refrigerador",
   close: "Cerrar",
@@ -295,6 +480,17 @@ export const inventorySpanish: Record<InventoryMessage, string> = {
   undoNetwork:
     "No pudimos reponer {name}. Revisa tu conexión e inténtalo de nuevo.",
   undoSuccess: "Se repuso {name}.",
+  manualIntakeContextFailed:
+    "No pudimos confirmar tu cuenta y hogar. Conserva el borrador y vuelve a abrir Añadir alimento cuando tengas conexión.",
+  manualIntakeInvalid:
+    "Revisa el nombre, la cantidad y las fechas antes de guardar.",
+  manualIntakeUnknown:
+    "Guardado sin confirmar. Tus datos están bloqueados. Comprueba el mismo guardado antes de salir o volver a añadirlo.",
+  manualIntakeRefused:
+    "Guardado rechazado. Revisa tu cuenta, hogar y acceso al inventario. Se conserva el borrador.",
+  manualIntakeRemoved:
+    "El alimento original se guardó y luego se eliminó. Esta comprobación no lo añadió de nuevo. Revisa antes de otro guardado.",
+  intakeRetry: "Comprobar mismo guardado",
   saveFailed: "No pudimos guardar. Inténtalo de nuevo.",
   saveNetwork: "No pudimos guardar. Revisa tu conexión e inténtalo de nuevo.",
   searchInventory: "Buscar en el inventario",
@@ -312,15 +508,16 @@ export const inventorySpanish: Record<InventoryMessage, string> = {
     "Aún no hay una receta guardada que use lo que tienes. Añade alimentos o guarda recetas en Comidas para ver ideas aquí.",
   recipesIncomplete:
     "Tienes más recetas o alimentos de los que podemos comparar a la vez, así que esta lista puede estar incompleta.",
-  haveAllOne: "Tienes el {count} ingrediente",
-  haveAllMany: "Tienes los {count} ingredientes",
-  haveSome: "Tienes {have} de {total} ingredientes",
+  haveAllOne: "Se encontró {count} de {count} ingrediente en el inventario",
+  haveAllMany:
+    "Se encontraron {count} de {count} ingredientes en el inventario",
+  haveSome: "Se encontraron {have} de {total} ingredientes en el inventario",
   cookSoonOne: " · usa {count} alimento que hay que usar pronto",
   cookSoonMany: " · usa {count} alimentos que hay que usar pronto",
-  inStock: "Disponible: ",
-  missing: "Falta: ",
+  inStock: "Alimentos identificados: ",
+  missing: "Sin coincidencia: ",
   viewRecipe: "Ver receta",
-  addMissing: "Añadir {count} ingredientes que faltan a la compra",
+  addMissing: "Revisar {count} sin coincidencia para la compra",
   openedDate: "Abierto el {date}",
   noAmountDate: "Sin cantidad ni fecha",
   nothingFridge: "No hay nada en el refrigerador.",
@@ -360,6 +557,8 @@ export const inventorySpanish: Record<InventoryMessage, string> = {
   noCategory: "Sin categoría",
   bought: "Comprado",
   opened: "Abierto",
+  keepItem: "Conservar alimento",
+  moreDetails: "Categoría y fechas de compra",
   remove: "Eliminar",
   saving: "Guardando…",
   save: "Guardar",

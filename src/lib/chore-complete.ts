@@ -21,6 +21,7 @@ import { toDateOnlyUTC } from '@/lib/dates'
 import { recordBetaMetric } from '@/lib/beta-metrics'
 import { choreAssigneeForCreateInTx } from '@/lib/chore-member-subject'
 import { lockHousehold } from '@/lib/household-lock'
+import { routineOccurrencePolicyInTx, RoutineOccurrenceUnavailableError } from '@/lib/routine-occurrence-policy'
 
 type Db = Pick<PrismaClient, 'chore' | '$transaction' | '$executeRaw'>
 
@@ -67,7 +68,7 @@ export async function completeChore(
   db: Db,
   requestedChore: CompletableChore,
   actor: { id: string; name: string },
-  options: { photoValue?: string | null; now?: Date } = {}
+  options: { photoValue?: string | null; now?: Date; actorKind?: "person" | "device" } = {}
 ): Promise<boolean> {
   const now = options.now ?? new Date()
   const photoValue = options.photoValue ?? null
@@ -78,6 +79,8 @@ export async function completeChore(
     // Profile-only chores use the gated protocol-2 device path. The legacy
     // User/XP/recurrence path must never infer an account from a null subject.
     if (chore.assigned_to === null) return false
+    const routinePolicy = await routineOccurrencePolicyInTx(tx, chore.family_id, chore.id)
+    if (routinePolicy === 'inactive' || routinePolicy === 'unsupported') throw new RoutineOccurrenceUnavailableError()
     const updateResult = await tx.chore.updateMany({
       where: { id: chore.id, family_id: chore.family_id, status: { in: ['pending', 'in_progress', 'overdue'] } },
       data: {
@@ -94,6 +97,8 @@ export async function completeChore(
         user_id: actor.id,
         type: 'chore_completed',
         title: `${actor.name} completed "${chore.title}"`,
+        subject_member_id: chore.assigned_member_id ?? null,
+        metadata: JSON.stringify({timeline: 1, actorKind: options.actorKind ?? "person", target: {kind: "chore", id: chore.id}}),
       },
     })
 

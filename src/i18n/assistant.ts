@@ -33,6 +33,10 @@ export const assistantDestinationLabels: Record<
     "sick-days": "Sick days & meds",
     routines: "Routines",
     recipes: "Recipe explorer",
+    "food-plan": "Plan meals",
+    "bulk-prep": "Plan several prep dishes",
+    "food-recovery": "Saved meal planning work",
+    "bulk-recovery": "Saved bulk cooking work",
   },
   es: {
     today: "Hoy",
@@ -62,11 +66,17 @@ export const assistantDestinationLabels: Record<
     "sick-days": "Días de enfermedad y medicinas",
     routines: "Rutinas",
     recipes: "Explorar recetas",
+    "food-plan": "Planificar comidas",
+    "bulk-prep": "Planificar varios platos",
+    "food-recovery": "Trabajo de comidas guardado",
+    "bulk-recovery": "Cocina por lotes guardada",
   },
 };
 
 export const assistantEnglish = {
   loading: "Opening assistant…",
+  sourceEvidence: "Sources for this answer",
+  sourceEvidenceExpired: "Refresh Today to check these sources again.",
   launcherReport: "Report / Suggest",
   launcherAssistant: "AI assistant",
   titleChat: "AI assistant",
@@ -101,6 +111,13 @@ export const assistantEnglish = {
   whoDoesIt: "Who does it?",
   choreAssignee: "Chore assignee",
   chooseMember: "Choose a family member…",
+  emailFreeProfile: "Family profile",
+  profileAssignmentDescription:
+    "This is an email-free family profile. You are adding the chore as the signed-in parent.",
+  assigneeChanged:
+    "This family member changed or is unavailable. Reload the choices and review who does this chore.",
+  profileRecurrenceUnavailable:
+    "Repeating chores are paused for this profile. Choose Once or keep the draft and use Chores.",
   repeats: "Repeats",
   choreFrequency: "Chore frequency",
   once: "Once",
@@ -132,6 +149,9 @@ export const assistantEnglish = {
   none: "None",
   groceryInfo:
     "Adds to your household’s grocery list when there is exactly one. Choose a list in Lists when you have several.",
+  deleteTargetReviewed:
+    "Current details checked. Changes before removal will require another review.",
+  deleteListItemCount: "This also removes {count} list items.",
   chooseExactItem: "Choose the exact item",
   itemToRemove: "Item to remove",
   chooseItem: "Choose an item…",
@@ -195,6 +215,8 @@ export const assistantEnglish = {
   checkNotes: "Check Notes",
   checkHelp: "Open Help",
   actionFailed: "Action failed. Check the app before retrying.",
+  sourceChanged:
+    "The source information changed or expired. Refresh Today to review this proposal again.",
   checkProposedDetails: "Check the proposed details.",
   loadChoicesFailed: "Could not load choices.",
   retryChoices: "Reload choices",
@@ -236,6 +258,8 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   tabReports: "Mis informes",
   chatIntro:
     "Pide añadir un evento, tarea, lista, artículo de compras o nota; eliminar un evento, tarea o lista; o abrir otra sección. Los cambios requieren tu revisión. El texto del chat se envía al proveedor de IA configurado para tu hogar. No se adjuntan registros del hogar.",
+  sourceEvidence: "Fuentes de esta respuesta",
+  sourceEvidenceExpired: "Actualiza Hoy para volver a comprobar estas fuentes.",
   chatIntroWithToday:
     "Incluir Hoy está activado: esta solicitud envía un resumen breve y de solo lectura de los eventos, tareas, cena, compras y alimentos marcados para usar pronto al proveedor de IA configurado para tu hogar. El texto del chat también se envía allí. El resumen caduca pronto y nunca ejecuta una acción por sí solo.",
   includeToday: "Incluir Hoy",
@@ -259,6 +283,13 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   whoDoesIt: "¿Quién lo hace?",
   choreAssignee: "Persona asignada",
   chooseMember: "Elige un miembro de la familia…",
+  emailFreeProfile: "Perfil familiar",
+  profileAssignmentDescription:
+    "Este es un perfil familiar sin correo electrónico. Agregas la tarea como el padre o la madre que inició sesión.",
+  assigneeChanged:
+    "Este miembro de la familia cambió o no está disponible. Vuelve a cargar las opciones y revisa quién hará esta tarea.",
+  profileRecurrenceUnavailable:
+    "Las tareas repetidas están en pausa para este perfil. Elige Una vez o conserva el borrador y usa Tareas.",
   repeats: "Se repite",
   choreFrequency: "Frecuencia de la tarea",
   once: "Una vez",
@@ -290,6 +321,9 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   none: "Ninguna",
   groceryInfo:
     "Se añade a la lista de compras del hogar cuando solo hay una. Elige una lista en Listas si hay varias.",
+  deleteTargetReviewed:
+    "Detalles actuales comprobados. Los cambios antes de eliminar requerirán otra revisión.",
+  deleteListItemCount: "También se eliminarán {count} artículos de la lista.",
   chooseExactItem: "Elige el artículo exacto",
   itemToRemove: "Artículo que eliminar",
   chooseItem: "Elige un artículo…",
@@ -338,8 +372,7 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   reportsLoadFailed: "No se pudieron cargar tus informes. Inténtalo de nuevo.",
   replyUnreadable:
     "No se pudo leer la respuesta de IA. Tu pregunta sigue aquí; reintenta o reformúlala.",
-  chatFailed:
-    "No se pudo enviar el mensaje. Tu pregunta sigue aquí.",
+  chatFailed: "No se pudo enviar el mensaje. Tu pregunta sigue aquí.",
   chatOffline:
     "No hay conexión. Tu pregunta sigue aquí; reintenta cuando vuelvas a estar conectado.",
   chatUnavailable:
@@ -356,6 +389,8 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   checkLists: "Revisar Listas",
   checkNotes: "Revisar Notas",
   checkHelp: "Abrir Ayuda",
+  sourceChanged:
+    "La información cambió o caducó. Actualiza Hoy para revisar esta propuesta de nuevo.",
   actionFailed:
     "La acción falló. Revisa la aplicación antes de volver a intentarlo.",
   checkProposedDetails: "Revisa los detalles propuestos.",

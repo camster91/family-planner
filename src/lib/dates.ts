@@ -1,5 +1,3 @@
-import { format } from 'date-fns'
-
 /**
  * Date helpers for date-only values (e.g. meal dates) and month windows.
  *
@@ -32,7 +30,11 @@ export function toDateOnlyUTC(value: Date | string): string {
 
 /** `YYYY-MM-DD` of a Date in the runtime's local time zone (client-side use). */
 export function toDateOnlyLocal(date: Date): string {
-  return format(date, 'yyyy-MM-dd')
+  if (!Number.isFinite(date.getTime())) throw new RangeError('Invalid time value')
+  // Keep the existing calendar-year formatting (including years before AD 1)
+  // without loading a general-purpose date formatter into every app route.
+  const year = date.getFullYear()
+  return `${String(year > 0 ? year : 1 - year).padStart(4, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 /**
@@ -185,7 +187,7 @@ export function localDateTimeToISO(value: string): string | null {
 export function isoToLocalDateTimeInput(value: Date | string): string {
   const date = new Date(value)
   if (isNaN(date.getTime())) return ''
-  return format(date, "yyyy-MM-dd'T'HH:mm")
+  return `${toDateOnlyLocal(date)}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
 /** Manual form input must name a real local minute, never an offset or a normalized gap/date. */

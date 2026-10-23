@@ -15,6 +15,8 @@ import { useMoreText } from '@/i18n/more'
 import { useTranslation } from '@/i18n'
 import { profileSetupMessages } from '@/i18n/profile-setup'
 import { useFamilyOverviewText, type FamilyFeedback } from '@/i18n/family-overview'
+import { ProfileSetupPanel } from '@/components/family/ProfileSetupPanel'
+import ProfileAccountLinkManager from '@/components/family/ProfileAccountLinkManager'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 
 /**
@@ -168,6 +170,10 @@ export default function FamilyPage() {
           <span>{copy('settings')}</span>
         </Link>
       </div>}
+
+      {userRole === 'parent' && hasHousehold && !loading && !loadError && (
+        <div className="flex flex-wrap gap-3"><ProfileSetupPanel /><ProfileAccountLinkManager /></div>
+      )}
 
       {/* Members list */}
       <section aria-labelledby="family-members-heading" className="min-w-0">

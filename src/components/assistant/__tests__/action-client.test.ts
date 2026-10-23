@@ -2,9 +2,12 @@ import {
   defaultEnglishError,
   executeAssistantAction,
   removalTargets,
+  previewRemovalTarget,
+  choreAssignees,
   AssistantActionError,
   AssistantActionPreflightError,
   ActionOutcomeUnknown,
+  AssistantSourceRefusal,
 } from "../action-client";
 const fetchMock = jest.fn();
 beforeEach(() => {
@@ -91,7 +94,9 @@ it("tags grocery discovery failures as preflight but keeps item writes uncertain
 
   fetchMock.mockReset();
   fetchMock
-    .mockResolvedValueOnce(ok({ lists: [{ id: "grocery-a", type: "grocery" }] }))
+    .mockResolvedValueOnce(
+      ok({ lists: [{ id: "grocery-a", type: "grocery" }] }),
+    )
     .mockRejectedValueOnce(new Error("Offline after write started"));
   const itemWrite = executeAssistantAction(
     { kind: "grocery_add", title: "Milk" },
@@ -127,12 +132,8 @@ it("classifies a failed choice GET as safely reloadable", async () => {
     json: async () => ({ error: "Provider unavailable" }),
   });
   const result = removalTargets({ kind: "event_delete", title: "Dentist" });
-  await expect(
-    result,
-  ).rejects.toBeInstanceOf(ActionOutcomeUnknown);
-  await expect(
-    result,
-  ).rejects.toMatchObject({ code: "loadChoicesFailed" });
+  await expect(result).rejects.toBeInstanceOf(ActionOutcomeUnknown);
+  await expect(result).rejects.toMatchObject({ code: "loadChoicesFailed" });
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 it("distinguishes same-named lists by household details", async () => {
@@ -253,4 +254,203 @@ it("creates weekly chores through the canonical weekday rule and user-chosen ass
     frequency: "weekly",
   });
   jest.useRealTimers();
+});
+
+/** Authored/unrun versioned confirmation transport cases. */
+it("sends a reviewed context action only through the versioned canonical confirmation endpoint", async () => {
+  fetchMock.mockResolvedValue(ok({ event: { id: "event-a" } }));
+  await executeAssistantAction(
+    {
+      kind: "event_create",
+      title: "Reviewed title",
+      start: "2026-10-22T15:00",
+      end: "2026-10-22T15:30",
+    },
+    "stable-reviewed-key",
+    undefined,
+    "fabricated-proof",
+  );
+  const [path, options] = fetchMock.mock.calls[0];
+  expect(path).toBe("/api/assistant/actions/confirm");
+  expect(options.headers["Idempotency-Key"]).toBe("stable-reviewed-key");
+  expect(JSON.parse(options.body)).toMatchObject({
+    kind: "event_create",
+    sourceProof: "fabricated-proof",
+    body: { title: "Reviewed title" },
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+it("distinguishes a proven source refusal from an unknown mutation result and never retries", async () => {
+  fetchMock.mockResolvedValue({
+    ok: false,
+    status: 409,
+    json: async () => ({
+      error: "Source unavailable",
+      code: "ASSISTANT_SOURCE_REFUSED",
+    }),
+  });
+  await expect(
+    executeAssistantAction(
+      {
+        kind: "event_create",
+        title: "Review",
+        start: "2026-10-22T15:00",
+        end: "2026-10-22T15:30",
+      },
+      "stable-key",
+      undefined,
+      "fabricated-proof",
+    ),
+  ).rejects.toBeInstanceOf(AssistantSourceRefusal);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it("requires exact target proof before a sourced removal, then forwards it only to the fixed confirmation route", async () => {
+  const action = { kind: "list_delete" as const, title: "Supplies" };
+  await expect(
+    executeAssistantAction(
+      action,
+      "synthetic-removal-key",
+      { id: "list-a", title: "Supplies" },
+      "source-proof",
+    ),
+  ).rejects.toBeInstanceOf(AssistantActionPreflightError);
+  expect(fetchMock).not.toHaveBeenCalled();
+  fetchMock.mockResolvedValueOnce(
+    ok({
+      target: {
+        id: "list-a",
+        title: "Current supplies",
+        itemCount: 2,
+        proof: "target-proof",
+      },
+    }),
+  );
+  const reviewed = await previewRemovalTarget(action, "list-a", "source-proof");
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/assistant/actions/target");
+  fetchMock.mockResolvedValueOnce(ok({ success: true }));
+  await executeAssistantAction(
+    action,
+    "synthetic-removal-key",
+    reviewed,
+    "source-proof",
+  );
+  const [path, options] = fetchMock.mock.calls[1];
+  expect(path).toBe("/api/assistant/actions/confirm");
+  expect(JSON.parse(options.body)).toEqual({
+    kind: "list_delete",
+    sourceProof: "source-proof",
+    targetProof: "target-proof",
+    body: { listId: "list-a" },
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+it("keeps account/profile namespaces distinct and sends an explicit profile selection and reviewed revision through the versioned route", async () => {
+  fetchMock.mockResolvedValueOnce(
+    ok({ members: [{ id: "same-id", name: "Account name" }] }),
+  );
+  fetchMock.mockResolvedValueOnce(
+    ok({
+      profiles: [
+        {
+          id: "same-id",
+          name: "Profile name",
+          role: "child",
+          age: 3,
+          archived_at: null,
+          revision: 4,
+        },
+      ],
+      profileChoreSupported: true,
+      profileChoreRecurrenceSupported: true,
+    }),
+  );
+  const targets = await choreAssignees(true);
+  expect(targets.map((target) => target.id)).toEqual([
+    "account:same-id",
+    "profile:same-id",
+  ]);
+  fetchMock.mockResolvedValueOnce(ok({ choreId: "created-chore" }));
+  await executeAssistantAction(
+    {
+      kind: "chore_create",
+      title: "Put away shoes",
+      date: "2026-10-22",
+      frequency: "once",
+      weekdays: [],
+      points: 10,
+      difficulty: "easy",
+    },
+    "synthetic-profile-key",
+    targets[1],
+  );
+  const [path, options] = fetchMock.mock.calls[2];
+  expect(path).toBe("/api/assistant/actions/confirm");
+  const payload = JSON.parse(options.body);
+  expect(payload.profileRevision).toBe(4);
+  expect(payload.sourceProof).toBeUndefined();
+  expect(payload.body).toMatchObject({
+    protocol: 2,
+    selection: { memberId: "same-id" },
+    frequency: "once",
+  });
+  expect(payload.body).not.toHaveProperty("assigned_to");
+  expect(payload.body).not.toHaveProperty("actingMemberId");
+});
+it("does not silently fall back to account choices when the requested profile catalog is paused or malformed", async () => {
+  fetchMock.mockResolvedValueOnce(
+    ok({ members: [{ id: "account-a", name: "Parent" }] }),
+  );
+  fetchMock.mockResolvedValueOnce(
+    ok({ profiles: [], profileChoreSupported: false }),
+  );
+  await expect(choreAssignees(true)).rejects.toBeInstanceOf(
+    ActionOutcomeUnknown,
+  );
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+it("holds unsupported profile recurrence before mutation and keeps canonical revision refusals retryable as choice reads", async () => {
+  const subject = {
+    kind: "profile" as const,
+    memberId: "member-a",
+    revision: 2,
+    recurrenceSupported: false,
+  };
+  await expect(
+    executeAssistantAction(
+      {
+        kind: "chore_create",
+        title: "Shoes",
+        frequency: "weekly",
+        weekdays: [1],
+        points: 10,
+        difficulty: "easy",
+      },
+      "synthetic-key",
+      { id: "profile:member-a", title: "Child", subject },
+    ),
+  ).rejects.toMatchObject({ code: "profileRecurrenceUnavailable" });
+  expect(fetchMock).not.toHaveBeenCalled();
+  fetchMock.mockResolvedValue({
+    ok: false,
+    status: 409,
+    json: async () => ({ error: "PROFILE_TARGET_CONFLICT" }),
+  });
+  await expect(
+    executeAssistantAction(
+      {
+        kind: "chore_create",
+        title: "Shoes",
+        date: "2026-10-22",
+        frequency: "once",
+        weekdays: [],
+        points: 10,
+        difficulty: "easy",
+      },
+      "synthetic-key",
+      { id: "profile:member-a", title: "Child", subject },
+    ),
+  ).rejects.toMatchObject({ code: "assigneeChanged" });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
 });

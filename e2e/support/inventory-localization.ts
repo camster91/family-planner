@@ -64,12 +64,16 @@ export async function cleanRows() {
       [A.family, B.family, [ITEM, PAST, CANARY], PREFIX + "%"],
     );
     await db.query(
-      "DELETE FROM \"IdempotencyRecord\" WHERE family_id IN ($1,$2) AND (action LIKE 'inventory-item.%' OR action = 'inventory-adjustment.undo')",
+      "DELETE FROM \"IdempotencyRecord\" WHERE family_id IN ($1,$2) AND (action LIKE 'inventory-item.%' OR action = 'inventory-adjustment.undo' OR action IN ('inventory.intake.v1','inventory.change.v1'))",
       [A.family, B.family],
     );
     const day = E2E_ANCHOR.toISOString().slice(0, 10);
     await db.query('DELETE FROM "RateLimitEntry" WHERE key = ANY($1::text[])', [
       [
+        `inventory-intake:${A.parent}`,
+        `inventory-intake:${B.parent}`,
+        `inventory-change:${A.parent}`,
+        `inventory-change:${B.parent}`,
         `inventory-scan:user:${A.parent}`,
         `inventory-scan:family:${A.family}`,
         `inventory-scan:day:${A.family}:${day}`,

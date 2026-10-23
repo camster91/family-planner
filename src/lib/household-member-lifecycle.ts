@@ -1,3 +1,6 @@
+import { accountErasureImportHouseholds } from '@/lib/account-erasure-imports'
+import { accountErasureHistoryHouseholds } from '@/lib/account-erasure-history'
+import { rewriteRoutineSubjectsInTx, routineSubjectHouseholds } from '@/lib/routine-subject-lifecycle'
 /** Dormant #480 compatibility for existing account removal/deletion transactions. */
 import { lockHousehold } from '@/lib/household-lock'
 export class HouseholdMemberIdentityConflict extends Error {
@@ -8,13 +11,15 @@ export class HouseholdMemberIdentityConflict extends Error {
 }
 
 /** Account lock first. Lock current and historic erasure households in stable order. */
-export async function lockAccountProfileHouseholds(tx: any, userId: string, familyId: string | null): Promise<void> {
+export async function lockAccountProfileHouseholds(tx: any, userId: string, familyId: string | null): Promise<string[]> {
   const profiles: Array<{ family_id: string }> = await tx.householdMember.findMany({
     where: { erasure_user_id: userId }, select: { family_id: true },
   })
-  const families = new Set(profiles.map((p) => p.family_id))
+  const families = new Set([...profiles.map((p) => p.family_id), ...await routineSubjectHouseholds(tx, userId), ...await accountErasureHistoryHouseholds(tx, userId), ...await accountErasureImportHouseholds(tx, userId)])
   if (familyId) families.add(familyId)
-  for (const id of [...families].sort()) await lockHousehold(tx, id)
+  const ordered = [...families].sort()
+  for (const id of ordered) await lockHousehold(tx, id)
+  return ordered
 }
 
 /** Caller holds the account lock, then its household membership lock. */
@@ -41,6 +46,9 @@ async function exclusiveAccountProfiles(tx: any, userId: string, familyId: strin
 /** Removal retains household profile/history, archives it, and detaches account authority. */
 export async function archiveAccountProfilesInTx(tx: any, userId: string, familyId: string, now: Date): Promise<void> {
   const ids = await exclusiveAccountProfiles(tx, userId, familyId)
+  // Account-only future aliases also need to invalidate prepared review when
+  // membership changes; no subject is transferred to the removing parent.
+  await rewriteRoutineSubjectsInTx(tx, familyId, { kind: 'invalidate', userId, memberIds: ids })
   if (ids.length === 0) return
   await tx.householdMember.updateMany({
     where: { id: { in: ids }, family_id: familyId, archived_at: null },
@@ -63,6 +71,14 @@ export async function eraseAccountProfilesInTx(tx: any, userId: string, familyId
     select: { id: true, family_id: true },
   })
   const ids = [...new Set([...current, ...historic.map((p) => p.id)])].sort()
+  // Future definitions can name an account without a canonical profile. Redact
+  // all currently/historically locked households, independent of rollout flags.
+  const routineSubjectsByFamily = new Map<string, string[]>((await routineSubjectHouseholds(tx, userId)).map((id) => [id, []]))
+  if (familyId) routineSubjectsByFamily.set(familyId, [...current])
+  for (const profile of historic) routineSubjectsByFamily.set(profile.family_id, [...(routineSubjectsByFamily.get(profile.family_id) ?? []), profile.id])
+  for (const [subjectFamilyId, memberIds] of routineSubjectsByFamily) {
+    await rewriteRoutineSubjectsInTx(tx, subjectFamilyId, { kind: 'erase', userId, memberIds: [...new Set(memberIds)] })
+  }
   if (ids.length === 0) return
   // Archived erasure ownership is private provenance, not current household access.
   const [otherMappings, otherLinks] = await Promise.all([

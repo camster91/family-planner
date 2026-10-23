@@ -14,6 +14,7 @@ import {
   install,
   identity,
   language,
+  selectSettingsTab,
   open,
   capture,
   PROFILE,
@@ -51,6 +52,7 @@ async function begin(
 ) {
   await guard(context, baseURL, locale);
   await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/dashboard\/today$/);
   const auth = await browserFetch(page, "/api/auth/me");
   expect(auth.status).toBe(200);
   const user = JSON.parse(auth.body).user;
@@ -794,6 +796,7 @@ test.describe("parentA household controls", () => {
       settings: s,
     }, info) => {
       await begin(page, context, baseURL!, locale, s, info);
+      await selectSettingsTab(page, locale, "privacy");
       const section = page.getByTestId("beta-metrics-switch");
       const toggle = section.getByRole("switch");
       await expect(toggle).toHaveAttribute("aria-checked", "false");
@@ -865,6 +868,7 @@ test.describe("parentA household controls", () => {
         settings: s,
       }, info) => {
         await begin(page, context, baseURL!, locale, s, info);
+        await selectSettingsTab(page, locale, "family");
         const pin = page.getByTestId("tablet-pin");
         await expect(
           pin.getByText(msg(locale, "pinUnsetDescription"), { exact: true }),
@@ -1249,14 +1253,15 @@ test.describe("parentA connected calendars", () => {
         await expect(picker).toBeFocused();
         // Arrow navigation works with both inline and popup native selects;
         // Enter commits a popup choice, and Escape closes any remaining popup.
-        const nativeKeys = [];
-        for (const key of [
+        const nativeKeysToPress = [
           "ArrowUp",
           "ArrowUp",
           "ArrowUp",
           "Enter",
           "Escape",
-        ]) {
+        ];
+        const nativeKeys = [];
+        for (const key of nativeKeysToPress) {
           await page.keyboard.press(key);
           nativeKeys.push({
             key,
@@ -1362,10 +1367,21 @@ test.describe("parentA connected calendars", () => {
           error: "connectionError",
         } as const;
         for (const [outcome, message] of Object.entries(outcomes)) {
+          const subscriptionsBefore = s.count(
+            "GET",
+            "/api/calendar/subscriptions",
+          );
           await page.goto(
             "/dashboard/settings?calendar_sync=" + outcome + "&keep=synthetic",
           );
+          await selectSettingsTab(page, locale, "account");
           await expect(page.locator("#profileName")).toBeVisible();
+          await selectSettingsTab(page, locale, "family");
+          await s.arrived(
+            "GET",
+            "/api/calendar/subscriptions",
+            subscriptionsBefore + 1,
+          );
           const section = page.locator("#calendar-sync");
           await expect(
             section.getByText(msg(locale, message), { exact: true }),
@@ -1386,10 +1402,21 @@ test.describe("parentA connected calendars", () => {
           await language(page, locale);
         }
         for (const outcome of ["constructor", "toString", "future_status"]) {
+          const subscriptionsBefore = s.count(
+            "GET",
+            "/api/calendar/subscriptions",
+          );
           await page.goto(
             "/dashboard/settings?calendar_sync=" + outcome + "&keep=synthetic",
           );
+          await selectSettingsTab(page, locale, "account");
           await expect(page.locator("#profileName")).toBeVisible();
+          await selectSettingsTab(page, locale, "family");
+          await s.arrived(
+            "GET",
+            "/api/calendar/subscriptions",
+            subscriptionsBefore + 1,
+          );
           await expect(
             page.getByRole("heading", {
               name: msg(locale, "connectedCalendars"),
@@ -1587,6 +1614,8 @@ if (enabled)
         );
         expect(new URL(page.url()).searchParams.get("keep")).toBe("synthetic");
         expect(s.count("GET", "/api/calendar/connections")).toBe(1);
+        await expect(page.locator("#calendar-subscriptions")).toBeAttached();
+        await s.arrived("GET", "/api/calendar/subscriptions");
         expect(s.count("GET", "/api/calendar/subscriptions")).toBe(1);
         expect(s.count("GET", conPath + "/calendars")).toBe(1);
         const before = s.calls.length;

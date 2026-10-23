@@ -8,6 +8,7 @@
  */
 import AxeBuilder from "@axe-core/playwright";
 import type { BrowserContext, Page, TestInfo } from "@playwright/test";
+import { allowanceMessages } from "../src/i18n/allowance";
 import { allowanceCreateMessages } from "../src/i18n/allowance-create";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
@@ -280,6 +281,7 @@ for (const locale of ["en", "es"] as const) {
       await context.unrouteAll({ behavior: "ignoreErrors" });
       try {
         await recoveryPage.goto("/dashboard");
+        await expect(recoveryPage).toHaveURL(/\/dashboard\/today$/);
         const restoredResponse = await browserSend(
           recoveryPage,
           "PATCH",
@@ -310,7 +312,7 @@ for (const locale of ["en", "es"] as const) {
     page,
     context,
     baseURL,
-  }) => {
+  }, info) => {
     assertFixtureTargetAllowed(process.env);
     expect(LOOPBACK_HOSTS.has(new URL(baseURL!).hostname)).toBe(true);
     await setLocale(page, locale);
@@ -328,6 +330,7 @@ for (const locale of ["en", "es"] as const) {
       "POST /api/allowance",
     ]);
     let allowanceId: string | null = null;
+    let releaseCancel: (() => void) | undefined;
     let reason = "";
     const postKeys: string[] = [];
     let restored = false;
@@ -399,13 +402,104 @@ for (const locale of ["en", "es"] as const) {
         reason,
         amount: 17.35,
       });
+      if (info.project.name === "desktop-1366x768") {
+        const actions = allowanceMessages[locale];
+        allowedWrites.add(`PATCH /api/allowance/${allowanceId}`);
+        let attempts = 0;
+        await page.route(`**/api/allowance/${allowanceId}`, async (route) => {
+          expect(route.request().method()).toBe("PATCH");
+          expect(route.request().postDataJSON()).toEqual({
+            status: "cancelled",
+          });
+          attempts += 1;
+          if (attempts === 1) {
+            await route.fulfill({
+              status: 503,
+              json: { error: "Synthetic cancellation refusal" },
+            });
+            return;
+          }
+          await new Promise<void>((resolve) => {
+            releaseCancel = resolve;
+          });
+          await route.fallback();
+        });
+        const row = page.locator(".row-apple").filter({ hasText: reason });
+        await row
+          .getByRole("button", { name: actions.cancelAction, exact: true })
+          .click();
+        const confirmation = page.getByRole("alertdialog", {
+          name: actions.cancelConfirm,
+        });
+        await expect(
+          confirmation.getByRole("button", { name: actions.keep, exact: true }),
+        ).toBeFocused();
+        await confirmation
+          .getByRole("button", { name: actions.cancelAction, exact: true })
+          .click();
+        await expect(confirmation.getByRole("alert")).toContainText(
+          actions.cancelFailed,
+        );
+        await expect(row).toBeVisible();
+        const axe = await new AxeBuilder({ page })
+          .include('[role="alertdialog"]')
+          .analyze();
+        expect(
+          axe.violations.filter(
+            (v) => v.impact === "critical" || v.impact === "serious",
+          ),
+        ).toEqual([]);
+        await info.attach(`allowance-cancel-refusal-${locale}`, {
+          body: await page.screenshot({ animations: "disabled" }),
+          contentType: "image/png",
+        });
+        await confirmation
+          .getByRole("button", { name: actions.cancelAction, exact: true })
+          .dblclick();
+        await expect.poll(() => attempts).toBe(2);
+        await expect(
+          confirmation.getByRole("button", { name: actions.keep, exact: true }),
+        ).toBeDisabled();
+        await page.keyboard.press("Escape");
+        await expect(confirmation).toBeVisible();
+        const cancelledResponse = page.waitForResponse(
+          (response) =>
+            response.request().method() === "PATCH" &&
+            new URL(response.url()).pathname ===
+              `/api/allowance/${allowanceId}`,
+        );
+        releaseCancel?.();
+        expect((await cancelledResponse).status()).toBe(200);
+        await expect(confirmation).toHaveCount(0);
+        await expect(
+          page.getByRole("link", { name: copy.add, exact: true }),
+        ).toBeFocused();
+        const canonical = await browserFetch(page, "/api/allowance");
+        expect(canonical.status).toBe(200);
+        expect(
+          JSON.parse(canonical.body).items.find(
+            (row: { id: string }) => row.id === allowanceId,
+          ),
+        ).toMatchObject({ status: "cancelled", paid_at: null });
+        await info.attach(`allowance-cancelled-${locale}`, {
+          body: await page.screenshot({ animations: "disabled" }),
+          contentType: "image/png",
+        });
+        await info.attach(`allowance-runtime-${locale}`, {
+          body: (await browserFetch(page, "/api/version")).body,
+          contentType: "application/json",
+        });
+      }
+      expect(blockedWrites).toEqual([]);
     } finally {
+      releaseCancel?.();
       // Remove exact, verified rows and receipts through the guarded PG helper.
       // This runs before feature restoration so a failed UI path cannot leave
       // a money row behind as a cancelled record.
       try {
         await context.unrouteAll({ behavior: "ignoreErrors" });
         await recoveryPage.goto("/dashboard");
+        await expect(recoveryPage).toHaveURL(/\/dashboard\/today$/);
         const cleanupIds = new Set<string>();
         if (allowanceId) cleanupIds.add(allowanceId);
         if (reason) {
@@ -434,6 +528,7 @@ for (const locale of ["en", "es"] as const) {
         // was closed by a failed navigation or an interrupted response.
         try {
           await recoveryPage.goto("/dashboard");
+          await expect(recoveryPage).toHaveURL(/\/dashboard\/today$/);
           const restoredResponse = await browserSend(
             recoveryPage,
             "PATCH",

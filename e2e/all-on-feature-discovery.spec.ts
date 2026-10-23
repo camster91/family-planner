@@ -347,13 +347,35 @@ async function assertMoreSurface(
     );
   }
   await links.first().focus();
-  await expect(links.first()).toBeFocused();
-  for (let index = 1; index < expectedHrefs.length; index += 1) {
-    await page.keyboard.press("Tab");
+  for (let index = 0; index < expectedHrefs.length; index += 1) {
     await expect(
       list.locator(`a[href="${expectedHrefs[index]}"]`),
     ).toBeFocused();
+    const pin = links
+      .nth(index)
+      .locator("xpath=ancestor::li")
+      .getByRole("button");
+    await expect(pin).toBeEnabled();
+    const pressed = await pin.getAttribute("aria-pressed");
+    expect(pressed).toMatch(/^(true|false)$/);
+    const verb =
+      locale === "es"
+        ? pressed === "true"
+          ? "Desfijar"
+          : "Fijar"
+        : pressed === "true"
+          ? "Unpin"
+          : "Pin";
+    await expect(pin).toHaveAccessibleName(`${verb} ${items[index].title}`);
+    await page.keyboard.press("Tab");
+    await expect(pin).toBeFocused();
+    await page.keyboard.press("Tab");
   }
+  // The provider-free guide is a closed disclosure between the feature rows
+  // and household Features. It adds one deliberate keyboard stop.
+  const guide = page.locator("[data-app-guide]");
+  await expect(guide).not.toHaveAttribute("open", "");
+  await expect(guide.locator(":scope > summary")).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(featuresLink).toBeFocused();
 
@@ -473,6 +495,7 @@ for (const locale of ["en", "es"] as const) {
     );
 
     const bootstrap = await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     expect(bootstrap?.status()).toBe(200);
     const profileResponse = await browserFetch(page, "/api/users");
     expect(profileResponse.status, profileResponse.body).toBe(200);

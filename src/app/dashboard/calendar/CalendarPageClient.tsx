@@ -13,9 +13,14 @@ import {
   IMPORT_UNDO_WINDOW_MS,
   type ImportCommitResult,
 } from "@/lib/event-import-client";
-import { ImportEventsDialog } from "./ImportEventsDialog";
 import { CalendarPlanner } from "./CalendarPlanner";
 import type { PlanningView } from "@/lib/calendar-planning/view";
+
+const LazyImportEventsDialog = React.lazy(() =>
+  import("./ImportEventsDialog").then(({ ImportEventsDialog }) => ({
+    default: ImportEventsDialog,
+  })),
+);
 interface CalendarPageClientProps {
   events: unknown[];
   currentMonth: number;
@@ -90,10 +95,18 @@ export default function CalendarPageClient({
         </div>
       )}
       {importOpen && (
-        <ImportEventsDialog
-          onClose={() => setImportOpen(false)}
-          onDone={onImported}
-        />
+        <React.Suspense
+          fallback={
+            <p role="status" className="px-4 text-footnote text-label-secondary">
+              {t("common.loading")}
+            </p>
+          }
+        >
+          <LazyImportEventsDialog
+            onClose={() => setImportOpen(false)}
+            onDone={onImported}
+          />
+        </React.Suspense>
       )}
       {imported && (
         <ImportUndoToast

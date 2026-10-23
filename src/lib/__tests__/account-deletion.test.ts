@@ -26,6 +26,12 @@ type Row = Record<string, any>
 
 function seedExtras() {
   const t = new Date('2026-09-01T00:00:00Z')
+  for (const model of ['householdProfileLinkChallenge', 'aiUsageRequest', 'aiUsagePolicy']) {
+    db.rows(model).push(
+      { id: `${model}-a`, family_id: FAMILY_A, user_id: 'parent-a' },
+      { id: `${model}-b`, family_id: FAMILY_B, user_id: 'parent-b' },
+    )
+  }
   const both = (fn: (f: 'a' | 'b', family: string) => Row) => [fn('a', FAMILY_A), fn('b', FAMILY_B)]
   db.rows('householdMember').push(...both((f, family_id) => ({ id: `member-${f}`, family_id, name: 'Fixture profile' })))
   db.rows('householdMemberLegacyMapping').push(...both((f, family_id) => ({ user_id: `child-${f}`, member_id: `member-${f}`, family_id })))
@@ -164,6 +170,10 @@ describe('deletion plan', () => {
     const order = HOUSEHOLD_DELETION_PLAN.map((s) => s.model)
     expect(order[0]).toBe('deviceSession')
     expect(order[order.length - 1]).toBe('user')
+    for (const metadata of ['responsibilityState', 'householdProfileLinkChallenge', 'aiUsageRequest', 'aiUsagePolicy']) {
+      expect(order.indexOf(metadata)).toBeGreaterThan(order.indexOf('parentElevationPin'))
+      expect(order.indexOf(metadata)).toBeLessThan(order.indexOf('householdMember'))
+    }
     expect(order.indexOf('listItem')).toBeLessThan(order.indexOf('list'))
     expect(order.indexOf('event')).toBeLessThan(order.indexOf('calendarConnection'))
   })
@@ -341,6 +351,62 @@ describe('deleteMemberAccount', () => {
   beforeEach(() => {
     db.reset()
     seedExtras()
+  })
+
+  it.each(['current', 'historical'] as const)('removes only exact personal import mappings for a %s member', async (membership) => {
+    if (membership === 'historical') {
+      db.find('user', 'child-a')!.family_id = null
+      await fakePrisma.householdMemberAccountLink.deleteMany({ where: { user_id: 'child-a' } })
+      await fakePrisma.householdMemberLegacyMapping.deleteMany({ where: { user_id: 'child-a' } })
+      Object.assign(db.find('householdMember', 'member-a')!, { archived_at: new Date('2026-10-01'), erasure_user_id: 'child-a' })
+    }
+    // IDs can legally coincide across tables. Provenance must bind model as well
+    // as household and target id, including imported records in a former home.
+    db.rows('habitLog').push({ id: 'personal-import-target', family_id: FAMILY_A, user_id: 'child-a', habit_id: 'habit-a' })
+    db.rows('habit').push({ id: 'personal-import-target', family_id: FAMILY_A, title: 'Keep shared habit', created_by: 'parent-a' })
+    const mapping = (id: string, family_id: string, target_model: string, target_id: string) => ({
+      id, family_id, import_job_id: family_id === FAMILY_A ? 'import-a' : 'import-b',
+      source_app: 'chore-champs', source_model: target_model, source_id: id, target_model, target_id,
+    })
+    db.rows('importedRecord').push(
+      mapping('erase-personal-log', FAMILY_A, 'HabitLog', 'personal-import-target'),
+      mapping('retain-shared-model', FAMILY_A, 'Habit', 'personal-import-target'),
+      mapping('retain-foreign-scope', FAMILY_B, 'HabitLog', 'personal-import-target'),
+      mapping('retain-other-person', FAMILY_A, 'HabitLog', 'other-person-target'),
+    )
+    const beforeB = snapshot((model, row) => row.family_id === FAMILY_B)
+    const { d } = deps()
+    await deleteMemberAccount('child-a', d)
+    expect(db.find('importedRecord', 'erase-personal-log')).toBeUndefined()
+    for (const id of ['retain-shared-model', 'retain-foreign-scope', 'retain-other-person']) {
+      expect(db.find('importedRecord', id)).toBeDefined()
+    }
+    expect(db.find('habit', 'personal-import-target')).toBeDefined()
+    expect(db.find('habitLog', 'personal-import-target')).toBeUndefined()
+    expect(snapshot((model, row) => row.family_id === FAMILY_B)).toEqual(beforeB)
+  })
+
+  it('erases former-member message files and copied history while retaining household photos and other members', async () => {
+    db.find('user', 'child-a')!.family_id = null
+    await fakePrisma.householdMemberAccountLink.deleteMany({ where: { user_id: 'child-a' } })
+    await fakePrisma.householdMemberLegacyMapping.deleteMany({ where: { user_id: 'child-a' } })
+    Object.assign(db.find('householdMember', 'member-a')!, { archived_at: new Date('2026-10-01'), erasure_user_id: 'child-a' })
+    db.rows('message').push({ id: 'former-sent', family_id: FAMILY_A, sender_id: 'child-a', content: 'Private fixture', read_by: ['child-a'] }, { id: 'surviving-message', family_id: FAMILY_A, sender_id: 'parent-a', content: 'Keep household message', read_by: ['parent-a', 'child-a'] })
+    db.rows('messageAttachment').push({ id: 'former-file', family_id: FAMILY_A, message_id: 'former-sent', uploaded_by: 'child-a', filename: `${'c'.repeat(32)}.png` })
+    db.rows('auditLog').push({ id: 'former-joined', family_id: FAMILY_A, actor_user_id: 'parent-a', action: 'member.joined', target_type: 'member', target_id: 'child-a', summary: 'Private old name joined' }, { id: 'former-removed', family_id: FAMILY_A, actor_user_id: 'child-a', action: 'member.removed', target_type: 'member', target_id: 'child-a', summary: 'Removed Private old name' }, { id: 'other-member', family_id: FAMILY_A, actor_user_id: 'parent-a', action: 'member.joined', target_type: 'member', target_id: 'parent-a', summary: 'Keep this parent history' })
+    const beforeB = snapshot((m, r) => !belongsToA(m, r) && !(m === 'user' && r.id === 'child-a')), leftBefore = db.rows('auditLog').filter(r => r.action === 'member.left').length
+    const { d, removed } = deps()
+    const result = await deleteMemberAccount('child-a', d)
+    expect(result.deleted).toBe(true)
+    expect(removed).toEqual([path.join(UPLOADS, 'messages', `${'c'.repeat(32)}.png`)])
+    expect(removed.some(name => name.includes(`${path.sep}chores${path.sep}`))).toBe(false)
+    expect(db.find('message', 'former-sent')).toBeUndefined()
+    expect(db.find('message', 'surviving-message')).toMatchObject({ content: 'Keep household message', read_by: ['parent-a'] })
+    for (const id of ['former-joined', 'former-removed']) { expect(db.find('auditLog', id)?.target_id).toBeNull(); expect(db.find('auditLog', id)?.summary).not.toContain('Private old name') }
+    expect(db.find('auditLog', 'former-removed')?.actor_user_id).toBeNull()
+    expect(db.find('auditLog', 'other-member')?.summary).toBe('Keep this parent history')
+    expect(db.rows('auditLog').filter(r => r.action === 'member.left')).toHaveLength(leftBefore)
+    expect(snapshot((m, r) => !belongsToA(m, r) && !(m === 'user' && r.id === 'child-a'))).toEqual(beforeB)
   })
 
   it('a child: their own chores, sick days, allowance and wishes go; the household and B stay', async () => {

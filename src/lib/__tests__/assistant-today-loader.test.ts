@@ -84,7 +84,10 @@ describe("loadAssistantTodayRows", () => {
       serverNow: NOW,
       viewerTimeZone: "America/Toronto",
     };
-    const parent = await loadAssistantTodayRows(db, { ...input, role: "parent" });
+    const parent = await loadAssistantTodayRows(db, {
+      ...input,
+      role: "parent",
+    });
     expect(parent.chores).toHaveLength(1);
     expect(parent.chores[0].assignee).toBe("A household member");
     const teen = await loadAssistantTodayRows(db, {
@@ -287,4 +290,54 @@ describe("loadAssistantTodayRows", () => {
     expect(db.listItem.findMany).not.toHaveBeenCalled();
     expect(db.inventoryItem.findMany).not.toHaveBeenCalled();
   });
+});
+
+/** Authored/unrun: optional raw identity stays in a server-only sidecar. */
+it("collects source identity/version for the exact projected event without changing provider context", async () => {
+  const db = dbFor();
+  (db.event.findMany as jest.Mock).mockResolvedValue([
+    {
+      id: "event-canonical-a",
+      created_at: NOW,
+      updated_at: NOW,
+      schedule_generation: "fixture-generation",
+      schedule_epoch: 2,
+      title: "School trip",
+      start_time: new Date("2026-10-11T14:00:00.000Z"),
+      end_time: new Date("2026-10-11T16:00:00.000Z"),
+      is_task: false,
+      source_subscription: null,
+      source_connection: null,
+    },
+  ]);
+  const onSources = jest.fn();
+  const context = await loadAssistantTodayRows(db, {
+    familyId: "family-a",
+    userId: "parent-id",
+    role: "parent",
+    features: {
+      calendar: true,
+      chores: false,
+      lists: false,
+      meals: false,
+      inventory: false,
+    },
+    serverNow: NOW,
+    viewerTimeZone: "America/Toronto",
+    onSources,
+  });
+  expect(onSources).toHaveBeenCalledWith([
+    expect.objectContaining({
+      kind: "event",
+      id: "event-canonical-a",
+      index: 0,
+      label: "School trip",
+      versionInput: expect.objectContaining({
+        row: expect.objectContaining({ schedule_epoch: 2 }),
+      }),
+    }),
+  ]);
+  expect(JSON.stringify(context)).not.toMatch(
+    /event-canonical-a|fixture-generation|schedule_epoch|updated_at/,
+  );
 });

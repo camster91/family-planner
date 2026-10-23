@@ -1,5 +1,43 @@
 # API household-isolation audit (issue #102)
 
+2026-10-20 restock integration source: the new body-based read-only review POST
+shares common paired-first auth, canonical inventory+lists authority, size/rate
+bounds and scope echo. Draft names are not put into URLs by modern clients.
+Restock recovered review binds original list/source/version/duplicate policy and
+receipt/current list-item ownership; foreign ingredient links refuse. Lists and
+private names are shown only after canonical inspection. Common paired and
+client/sender/recovered-review/UI cases are authored, not run; no isolation,
+browser, native or rollback acceptance is claimed.
+
+2026-10-20 restock source: GET/POST inventory/restock and POST restock/undo use
+paired-first auth, canonical current parent/teen inventory+lists authority and
+original actor/household binding. Item/list/ingredient/receipt references are
+household checked, source versions prevent silent retargeting, supplied inventory
+owner proof is enforced and replay rechecks current list-item ownership/existence.
+All outcomes private/no-store; stream/rate limits apply. Tests for common paired
+context and disposable-DB ownership/concurrency are authored only. No isolation
+or runtime pass claimed; UI/journal integration remains open.
+
+Source addendum 2026-10-20: `POST /api/inventory/recovery/review` additionally
+requires original inventory session-owner proof before original-entry parsing.
+Canonical authority is renewed inside the read transaction. Receipt action,
+hash, key, actor and household must agree before exposing historical success;
+stock/adjustment/ingredient targets are household filtered. Foreign and missing
+targets produce the same nameless unavailable result. No stock/product/receipt
+writes. Body 32 KiB, rate 60/user/minute, all responses private/no-store. Shared
+paired-context and focused review test source is authored, not executed.
+
+Source addendum 2026-10-20: `GET /api/inventory/recovery` uses common paired-first
+person/family auth, then canonical parent/teen inventory authority. It returns
+private/no-store current context and a domain-specific session continuity owner,
+never stock content or credentials; support is off by default. Negotiation is
+limited to 240/user/minute. Intake/change optionally validate supplied inventory
+owner proof before processing/replay; existing live authority still applies.
+Common paired-with-person-cookie source cases include recovery and the earlier
+intake/change/products routes. New contract/negative tests are authored only;
+no isolation pass is claimed. See `architecture/INVENTORY_RECOVERY.md` for the
+unfinished browser integration and rollback boundaries.
+
 Date: 2026-09-25
 Scope: every `src/app/api/**/route.ts` (86 route files, 139 exported handlers) checked against
 `docs/architecture/AUTHORIZATION.md`, `AGENTS.md` (parent-only finance, private messages, addresses,
@@ -653,3 +691,14 @@ provides:
 As a check that the tests guard the fixes, `meals/route.ts`, `files/[filename]/route.ts`, `locations/route.ts`
 and `handoff/route.ts` were temporarily restored to their `HEAD` versions. 8 of the new tests failed, and they
 passed again once the fixes were restored.
+
+## Cooking context source addendum — 2026-10-20
+
+New personal GET `/api/inventory/cooking-review` reuses current inventory
+authority and additionally meals feature checks. Recipe/batch/prep/live
+ingredient joins are household-scoped; prepared history is never substituted
+with a live recipe. Scope echo precedes modern private JSON parsing, with
+128 KiB/15-second client bounds and 100-line source bounds. Read-only output is
+guidance; every selected lot still uses canonical versioned stock authorization.
+Paired-route test inventory and scoped source cases are authored, not run.
+`../architecture/COOKING_STOCK_REVIEW.md`.

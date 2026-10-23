@@ -4,11 +4,39 @@ Family Planner should remain useful during short home-network outages without cr
 
 ## MVP read behaviour
 
+Personal inventory (#125, source candidate 2026-10-19) keeps its last successful
+read and unresolved intake/change requests in component memory only. Refreshes
+are bounded and original-person/household bound; a known access change conceals
+the cache and suspends forms without rewriting pending intents. Suspended forms
+keep those intents only while mounted. Owner/role remount, page reload, browser
+close and native process death discard them. Nothing is stored in localStorage,
+IndexedDB or a native queue by this slice. Existing low-risk queue actions below
+do not authorize inventory creates, consumption, edits, deletion or Undo.
+Durable recovery must reconcile original intent with current server receipts and
+fresh authorization before exposing any queued/native inventory capability;
+#135/#473 acceptance remains open. No lifecycle or offline QA has been run.
+
+The 2026-10-20 [inventory recovery foundation](INVENTORY_RECOVERY.md) adds a
+separate exact online-request journal and optional server owner proof. It is
+off by default with gated manual/capture/stock UI wiring now authored. It reuses
+generic owned-record retirement and preserves read/review/local dismissal while
+new stock writing is paused. The offline action allowlist is unchanged. Browser
+review, real storage/lifecycle and restart acceptance remain unverified until the
+consolidated QA pass; source integration alone does not prove working recovery.
+
 Shared-device snapshot behavior is implemented in `device-board-cache.ts` and `use-device-board-snapshot.ts`: see [`SHARED_DEVICE.md`](SHARED_DEVICE.md) §8 for exact allowlist, 24-hour display bound, read-only restoration, revocation and application-shell/native limits. This does not extend the mutation allowlist or establish physical Android acceptance.
 
 Cache only allowlisted shared-surface data needed for a recent dashboard/detail view. Show the user when data is cached/stale and when it was last synced.
 
 ## Offline mutation allowlist
+
+2026-10-20 restock extension: adopted personal inventory journals may retain
+exact pending online replacement-add requests using kind `restock`. This does
+not add an offline queue action: target/source/duplicate review and every send
+still require current authority and an explicit user action. Canonical recovered
+review binds the original list and receipt; newer kinds must remain held by old
+readers. Restock Undo has open-sheet unknown recovery/manual acknowledgement,
+not persisted automatic replay. All lifecycle/rollback acceptance is deferred.
 Only explicitly reviewed, low-risk actions may queue offline. Initial candidates:
 - grocery check/uncheck;
 - grocery quick add;

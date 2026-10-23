@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Dialog } from "@/components/ui/dialog";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import { navigationMessages, type NavigationMessage } from "@/i18n/navigation";
 import { loadCommandPalette } from "./load-command-palette";
 
@@ -20,7 +20,7 @@ export default function CommandPaletteHost({ role }: { role?: string | null }) {
   > | null>(null);
   const [failed, setFailed] = React.useState(false);
   const [attempt, setAttempt] = React.useState(0);
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (key: NavigationMessage) => t(key, undefined, navigationMessages);
   React.useEffect(() => {
     if (!loaded || Palette) return;

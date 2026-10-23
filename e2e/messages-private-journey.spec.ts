@@ -296,6 +296,7 @@ test.describe("Messages private send and recovery", () => {
 
       try {
         await page.goto("/dashboard");
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
         const featuresResponse = await browserFetch(
           page,
           "/api/family/features",
@@ -627,6 +628,7 @@ test.describe("Messages responsive states", () => {
       let childMessage: { id: string; key: string } | undefined;
       try {
         await page.goto("/dashboard");
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
         const featuresResponse = await browserFetch(
           page,
           "/api/family/features",
@@ -778,6 +780,7 @@ test.describe("Messages role and API boundary", () => {
       let restored = false;
       try {
         await page.goto("/dashboard");
+        await expect(page).toHaveURL(/\/dashboard\/today$/);
         const featuresResponse = await browserFetch(
           page,
           "/api/family/features",

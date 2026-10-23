@@ -1,330 +1,484 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useCallback } from 'react'
-import { Copy, Check, Mail, X, RefreshCw } from 'lucide-react'
-import { LargeHeader } from '@/components/ui/large-header'
-import { BrandIllustration } from '@/components/ui/brand-illustration'
-import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
-import { Dialog } from '@/components/ui/dialog'
-import { FAMILY_CODE_LENGTH, formatFamilyCode } from '@/lib/family-code'
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Copy, Check, Mail, X, RefreshCw } from "lucide-react";
+import { LargeHeader } from "@/components/ui/large-header";
+import { Dialog } from "@/components/ui/dialog";
+import { ProfileSetupPanel } from "@/components/family/ProfileSetupPanel";
+import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
+import { FAMILY_CODE_LENGTH, formatFamilyCode } from "@/lib/family-code";
+import { useFamilyInviteText } from "@/i18n/family-invite";
+import { useDisplayLocale } from "@/components/ui/use-display-locale";
 
+type InviteRole = "child" | "teen" | "parent";
 type PendingInvite = {
-  id: string
-  email: string
-  role: string
-  expires_at: string
+  id: string;
+  email: string;
+  role: InviteRole;
+  expires_at: string;
+};
+function isRole(value: unknown): value is InviteRole {
+  return value === "child" || value === "teen" || value === "parent";
 }
-
-/**
- * A new 12-character code is copied as shown (`K7QM-4XPD-2HNA`); an older
- * 24/25-character code is copied exactly as stored, so a paste works anywhere.
- * The join form accepts either (src/lib/family-code.ts).
- */
-function codeToCopy(code: string): string {
-  return code.length === FAMILY_CODE_LENGTH ? formatFamilyCode(code) : code
+function isInvite(value: unknown): value is PendingInvite {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.id === "string" &&
+    row.id.length > 0 &&
+    typeof row.email === "string" &&
+    isRole(row.role) &&
+    typeof row.expires_at === "string" &&
+    Number.isFinite(Date.parse(row.expires_at))
+  );
+}
+function codeToCopy(code: string) {
+  return code.length === FAMILY_CODE_LENGTH ? formatFamilyCode(code) : code;
 }
 
 export default function InviteMemberPage() {
-  const [familyCode, setFamilyCode] = useState('')
-  const [inviteLink, setInviteLink] = useState('')
-  const [copied, setCopied] = useState<'code' | 'link' | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [email, setEmail] = useState('')
-  const [role, setRole] = useState<'child' | 'teen' | 'parent'>('child')
-  const [sending, setSending] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [invites, setInvites] = useState<PendingInvite[]>([])
-  // "Get a new family code" (O-34): confirm step, then POST /api/family/invite-code.
-  const [confirmNewCode, setConfirmNewCode] = useState(false)
-  const [rotating, setRotating] = useState(false)
-  const [codeError, setCodeError] = useState<string | null>(null)
-  const [codeMessage, setCodeMessage] = useState<string | null>(null)
+  const text = useFamilyInviteText();
+  const locale = useDisplayLocale();
+  const [familyCode, setFamilyCode] = useState("");
+  const [inviteLink, setInviteLink] = useState("");
+  const [copied, setCopied] = useState<"code" | "link" | null>(null);
+  const [state, setState] = useState<
+    "loading" | "ready" | "error" | "forbidden"
+  >("loading");
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<InviteRole>("child");
+  const [busy, setBusy] = useState<"send" | "rotate" | string | null>(null);
+  const busyRef = useRef(false);
+  const loadSequence = useRef(0);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [invites, setInvites] = useState<PendingInvite[]>([]);
+  const [confirmNewCode, setConfirmNewCode] = useState(false);
+  usePendingFormNavigationController(busy !== null);
 
   const showCode = useCallback((code: string) => {
-    setFamilyCode(code)
-    setInviteLink(`${window.location.origin}/join?code=${encodeURIComponent(code)}`)
-  }, [])
-
+    setFamilyCode(code);
+    setInviteLink(
+      `${window.location.origin}/join?code=${encodeURIComponent(code)}`,
+    );
+  }, []);
   const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
+    setState("loading");
     try {
-      const meRes = await fetch('/api/auth/me')
-      const meData = await meRes.json()
-      if (!meRes.ok || meData.user?.role !== 'parent') return
-
+      const meRes = await fetch("/api/auth/me", { cache: "no-store" });
+      const meData = await meRes.json();
+      if (sequence !== loadSequence.current) return;
+      if (!meRes.ok || !meData?.user || !isRole(meData.user.role))
+        throw new Error();
+      if (meData.user.role !== "parent") {
+        setState("forbidden");
+        return;
+      }
       const [familyRes, inviteRes] = await Promise.all([
-        fetch('/api/family'),
-        fetch('/api/family/invites'),
-      ])
-      const familyData = await familyRes.json()
-      const inviteData = await inviteRes.json()
-      const inviteCode = familyData.family?.invite_code
-      if (familyRes.ok && inviteCode) showCode(inviteCode)
-      if (inviteRes.ok) setInvites(inviteData.invites || [])
-    } catch (err) {
-      console.error('Error loading invite page:', err)
-    } finally {
-      setLoading(false)
+        fetch("/api/family", { cache: "no-store" }),
+        fetch("/api/family/invites", { cache: "no-store" }),
+      ]);
+      const [familyData, inviteData] = await Promise.all([
+        familyRes.json(),
+        inviteRes.json(),
+      ]);
+      if (sequence !== loadSequence.current) return;
+      const code: unknown = familyData?.family?.invite_code;
+      if (
+        !familyRes.ok ||
+        !inviteRes.ok ||
+        typeof code !== "string" ||
+        !code ||
+        !Array.isArray(inviteData?.invites) ||
+        !inviteData.invites.every(isInvite)
+      )
+        throw new Error();
+      showCode(code);
+      setInvites(inviteData.invites);
+      setState("ready");
+    } catch {
+      if (sequence === loadSequence.current) setState("error");
     }
-  }, [showCode])
-
+  }, [showCode]);
   useEffect(() => {
-    void load()
-  }, [load])
+    void load();
+    return () => {
+      loadSequence.current += 1;
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    };
+  }, [load]);
 
-  const handleNewCode = async () => {
-    setRotating(true)
-    setCodeError(null)
+  const start = (action: string) => {
+    if (busyRef.current || state !== "ready") return false;
+    busyRef.current = true;
+    setBusy(action);
+    setError(null);
+    setMessage(null);
+    return true;
+  };
+  const finish = () => {
+    busyRef.current = false;
+    setBusy(null);
+  };
+  const handleSend = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const targetEmail = email.trim();
+    if (!targetEmail || !start("send")) return;
     try {
-      const res = await fetch('/api/family/invite-code', { method: 'POST' })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || typeof data.inviteCode !== 'string') {
-        setCodeError(
-          typeof data.error === 'string' ? data.error : 'Could not make a new code. Please try again.'
-        )
-        return
-      }
-      showCode(data.inviteCode)
-      setConfirmNewCode(false)
-      setCodeMessage('New code ready. The old code no longer works.')
+      const res = await fetch("/api/family/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: targetEmail, role }),
+      });
+      const body = await res.json();
+      if (
+        !res.ok ||
+        body?.success !== true ||
+        !body.invite ||
+        typeof body.invite.email !== "string" ||
+        !isRole(body.invite.role) ||
+        typeof body.invite.expires_at !== "string" ||
+        !Number.isFinite(Date.parse(body.invite.expires_at)) ||
+        body.invite.email.toLowerCase() !== targetEmail.toLowerCase() ||
+        body.invite.role !== role
+      )
+        throw new Error();
+      setEmail("");
+      setInviteOpen(false);
+      setMessage(text("sent", { email: body.invite.email }));
+      // Send receipts intentionally omit database IDs. Re-read the canonical list.
+      void load();
     } catch {
-      setCodeError('Could not make a new code. Check your connection and try again.')
+      setError(text("sendFailed"));
     } finally {
-      setRotating(false)
+      finish();
     }
-  }
-
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSending(true)
-    setError(null)
-    setMessage(null)
-    try {
-      const res = await fetch('/api/family/invites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), role }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || 'Could not send invite')
-        return
-      }
-      setEmail('')
-      setMessage(`Invite sent to ${data.invite.email}`)
-      await load()
-    } catch {
-      setError('Could not send invite')
-    } finally {
-      setSending(false)
-    }
-  }
-
+  };
   const handleRevoke = async (id: string) => {
-    setError(null)
+    if (!start(id)) return;
     try {
-      const res = await fetch(`/api/family/invites/${id}`, { method: 'DELETE' })
-      if (res.ok) {
-        setInvites((current) => current.filter((invite) => invite.id !== id))
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      setError(data.error || 'Could not cancel that invite. Please try again.')
+      const res = await fetch(`/api/family/invites/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error();
+      setInvites((current) => current.filter((invite) => invite.id !== id));
     } catch {
-      setError('Could not cancel that invite. Check your connection and try again.')
+      setError(text("revokeFailed"));
+    } finally {
+      finish();
     }
-  }
-
-  const copy = async (kind: 'code' | 'link', value: string) => {
+  };
+  const handleNewCode = async () => {
+    if (!start("rotate")) return;
     try {
-      // Missing or refused on plain http and in some Android WebViews.
-      await navigator.clipboard.writeText(value)
-      setCopied(kind)
-      setTimeout(() => setCopied(null), 2000)
+      const res = await fetch("/api/family/invite-code", { method: "POST" });
+      const body = await res.json();
+      if (!res.ok || typeof body?.inviteCode !== "string" || !body.inviteCode)
+        throw new Error();
+      showCode(body.inviteCode);
+      setConfirmNewCode(false);
+      setMessage(text("rotated"));
     } catch {
-      setError('Could not copy. Select the text and copy it yourself.')
+      // A lost response may have rotated the code. Disable sharing until a fresh read.
+      setFamilyCode("");
+      setInviteLink("");
+      setError(text("rotateFailed"));
+      setConfirmNewCode(false);
+      setState("error");
+    } finally {
+      finish();
     }
-  }
+  };
+  const copy = async (kind: "code" | "link", value: string) => {
+    if (!value || busyRef.current || state !== "ready") return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(kind);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(null), 2000);
+    } catch {
+      setError(text("copyFailed"));
+    }
+  };
 
   return (
-    <div className="pb-20">
-      <LargeHeader
-        title="Invite"
-        subtitle="Email a family member"
-        trailing={
-          <BrandIllustration
-            source={ILLUSTRATIONS.invite}
-            priority
-            className="h-24 w-auto shrink-0 md:h-28"
-          />
-        }
-        className="px-4"
-      />
-
-      <div className="px-4 space-y-4">
-        <form onSubmit={handleSend} className="card-apple p-5 space-y-4">
-          <p className="text-subhead text-label-secondary">
-            They get a one-time link. You choose whether they join as a parent, teen, or child.
-          </p>
-          {error && (
-            <div className="bg-[var(--danger-tint)] text-[var(--danger-text)] text-[15px] rounded-[var(--radius-md)] px-4 py-3">
-              {error}
-            </div>
-          )}
-          {message && (
-            <div className="bg-[var(--success-tint)] text-success-text text-[15px] rounded-[var(--radius-md)] px-4 py-3">
-              {message}
-            </div>
-          )}
-          <div>
-            <label htmlFor="invite-email" className="label-apple">Email</label>
-            <input
-              id="invite-email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input-apple"
-              placeholder="alex@example.com"
-              autoComplete="email"
-            />
-          </div>
-          <div>
-            <label htmlFor="invite-role" className="label-apple">Role</label>
-            <select
-              id="invite-role"
-              value={role}
-              onChange={(e) => setRole(e.target.value as typeof role)}
-              className="input-apple"
-            >
-              <option value="child">Child</option>
-              <option value="teen">Teen</option>
-              <option value="parent">Parent</option>
-            </select>
-          </div>
-          <button type="submit" disabled={sending || !email.trim()} className="btn-filled w-full py-3">
-            <Mail className="w-4 h-4" />
-            {sending ? 'Sending…' : 'Send invite'}
+    <div className="mx-auto max-w-4xl space-y-5 pb-20">
+      <LargeHeader title={text("title")} subtitle={text("description")} />
+      {message && (
+        <p
+          role="status"
+          className="rounded-xl bg-[var(--success-tint)] p-4 text-success-text [overflow-wrap:anywhere]"
+        >
+          {message}
+        </p>
+      )}
+      {error && !inviteOpen && (
+        <p
+          role="alert"
+          className="rounded-xl bg-[var(--danger-tint)] p-4 text-[var(--danger-text)]"
+        >
+          {error}
+        </p>
+      )}
+      {state === "loading" && <p role="status">{text("loading")}</p>}
+      {state === "forbidden" && <p role="status">{text("parentOnly")}</p>}
+      {state === "error" && (
+        <div role="alert" className="card-apple space-y-3 p-5">
+          <p>{text("loadFailed")}</p>
+          <button
+            className="btn-tinted min-h-[44px]"
+            onClick={() => void load()}
+          >
+            {text("retry")}
           </button>
-        </form>
-
-        {invites.length > 0 && (
-          <div className="card-apple p-5">
-            <p className="text-subhead text-label-secondary mb-3">Pending</p>
-            <ul className="space-y-3">
-              {invites.map((invite) => (
-                <li key={invite.id} className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[15px] font-medium truncate">{invite.email}</p>
-                    <p className="text-footnote text-label-secondary">
-                      {invite.role} · expires {new Date(invite.expires_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRevoke(invite.id)}
-                    className="btn-plain min-h-[44px] min-w-[44px] shrink-0"
-                    aria-label={`Revoke invite for ${invite.email}`}
-                  >
-                    <X className="w-4 h-4" aria-hidden="true" />
-                  </button>
-                </li>
-              ))}
-            </ul>
+        </div>
+      )}
+      {state === "ready" && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <section className="card-apple space-y-3 p-5">
+              <h2 className="text-title-3 text-label-primary">
+                {text("emailChoice")}
+              </h2>
+              <p className="text-subhead text-label-secondary">
+                {text("emailHelp")}
+              </p>
+              <button
+                type="button"
+                disabled={busy !== null}
+                className="btn-filled min-h-[44px] w-full"
+                onClick={() => {
+                  setError(null);
+                  setInviteOpen(true);
+                }}
+              >
+                <Mail className="h-4 w-4" aria-hidden="true" />
+                {text("invite")}
+              </button>
+            </section>
+            <section className="card-apple space-y-3 p-5">
+              <h2 className="text-title-3 text-label-primary">
+                {text("profileChoice")}
+              </h2>
+              <p className="text-subhead text-label-secondary">
+                {text("profileHelp")}
+              </p>
+              <ProfileSetupPanel />
+            </section>
           </div>
-        )}
-
-        <details className="card-apple p-5">
-          <summary className="text-[15px] font-medium cursor-pointer">In person instead</summary>
-          <p className="text-footnote text-label-secondary mt-3 mb-4">
-            For another phone in the room. This code does not choose a role — they join as a child or teen.
+          <p className="text-footnote text-label-secondary">
+            {text("separate")}
           </p>
-          <p className="text-title-3 font-mono tabular-nums tracking-wider break-words">
-            {loading ? 'Loading…' : familyCode ? formatFamilyCode(familyCode) : 'No code'}
-          </p>
+          <section
+            className="card-apple space-y-3 p-5"
+            aria-labelledby="pending-invites"
+          >
+            <h2
+              id="pending-invites"
+              className="text-title-3 text-label-primary"
+            >
+              {text("pending")}
+            </h2>
+            {!invites.length ? (
+              <p className="text-subhead text-label-secondary">
+                {text("none")}
+              </p>
+            ) : (
+              <ul className="divide-y divide-[var(--surface-separator)]">
+                {invites.map((invite) => (
+                  <li
+                    key={invite.id}
+                    className="flex items-start justify-between gap-3 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-body font-medium [overflow-wrap:anywhere]">
+                        {invite.email}
+                      </p>
+                      <p className="text-footnote text-label-secondary">
+                        {text("expires", {
+                          role: text(invite.role),
+                          date: new Date(invite.expires_at).toLocaleDateString(
+                            locale,
+                          ),
+                        })}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() => void handleRevoke(invite.id)}
+                      className="btn-plain min-h-[44px] min-w-[44px] shrink-0"
+                      aria-label={text("revoke", { email: invite.email })}
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <details className="card-apple p-5">
+            <summary className="min-h-[44px] cursor-pointer content-center text-body font-semibold">
+              {text("inPerson")}
+            </summary>
+            <div className="mt-3 space-y-3">
+              <p className="text-subhead text-label-secondary">
+                {text("codeHelp")}
+              </p>
+              <label className="block text-footnote text-label-secondary">
+                {text("codeLabel")}
+                <input
+                  readOnly
+                  value={codeToCopy(familyCode)}
+                  className="input-apple mt-1 font-mono"
+                  onFocus={(event) => event.target.select()}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={busy !== null || !familyCode}
+                onClick={() => void copy("code", codeToCopy(familyCode))}
+                className="btn-tinted min-h-[44px]"
+              >
+                {copied === "code" ? (
+                  <Check aria-hidden="true" className="h-4 w-4" />
+                ) : (
+                  <Copy aria-hidden="true" className="h-4 w-4" />
+                )}
+                {text(copied === "code" ? "copied" : "copyCode")}
+              </button>
+              <label className="block text-footnote text-label-secondary">
+                {text("linkLabel")}
+                <input
+                  readOnly
+                  value={inviteLink}
+                  className="input-apple mt-1"
+                  onFocus={(event) => event.target.select()}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={busy !== null || !inviteLink}
+                onClick={() => void copy("link", inviteLink)}
+                className="btn-tinted min-h-[44px]"
+              >
+                {text(copied === "link" ? "copied" : "copyLink")}
+              </button>
+              <p className="text-footnote text-label-secondary">
+                {text("rotateHelp")}
+              </p>
+              <button
+                type="button"
+                disabled={busy !== null || !familyCode}
+                onClick={() => {
+                  setError(null);
+                  setConfirmNewCode(true);
+                }}
+                className="btn-ghost min-h-[44px]"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                {text("rotate")}
+              </button>
+            </div>
+          </details>
+        </>
+      )}
+      <Dialog
+        open={inviteOpen}
+        onClose={busy !== null ? undefined : () => setInviteOpen(false)}
+        title={text("inviteTitle")}
+        description={text("inviteDescription")}
+        closeLabel={text("close")}
+        variant="form"
+        footer={
+          <button
+            type="submit"
+            form="family-invite-form"
+            disabled={busy !== null || state !== "ready" || !email.trim()}
+            className="btn-filled min-h-[44px] w-full"
+          >
+            {text(busy === "send" ? "sending" : "send")}
+          </button>
+        }
+      >
+        <form
+          id="family-invite-form"
+          onSubmit={handleSend}
+          className="space-y-4"
+        >
+          {error && (
+            <p role="alert" className="text-[var(--danger-text)]">
+              {error}
+            </p>
+          )}
+          <fieldset disabled={busy !== null} className="space-y-4">
+            <div>
+              <label htmlFor="invite-email" className="label-apple">
+                {text("email")}
+              </label>
+              <input
+                id="invite-email"
+                type="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="input-apple"
+                placeholder="alex@example.com"
+                autoComplete="email"
+              />
+            </div>
+            <div>
+              <label htmlFor="invite-role" className="label-apple">
+                {text("role")}
+              </label>
+              <select
+                id="invite-role"
+                value={role}
+                onChange={(event) => {
+                  if (isRole(event.target.value)) setRole(event.target.value);
+                }}
+                className="input-apple"
+              >
+                {(["child", "teen", "parent"] as const).map((option) => (
+                  <option key={option} value={option}>
+                    {text(option)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </fieldset>
+        </form>
+      </Dialog>
+      <Dialog
+        open={confirmNewCode}
+        onClose={busy !== null ? undefined : () => setConfirmNewCode(false)}
+        title={text("rotateTitle")}
+        description={text("rotateDescription")}
+        closeLabel={text("close")}
+        role="alertdialog"
+      >
+        <div className="flex flex-col-reverse gap-3 sm:flex-row">
           <button
             type="button"
-            onClick={() => familyCode && copy('code', codeToCopy(familyCode))}
-            className="btn-tinted mt-3"
-            disabled={!familyCode}
+            disabled={busy !== null}
+            onClick={() => setConfirmNewCode(false)}
+            className="btn-ghost min-h-[44px] flex-1"
           >
-            {copied === 'code' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            <span>{copied === 'code' ? 'Copied' : 'Copy code'}</span>
+            {text("keepCode")}
           </button>
-          <div className="flex items-center gap-2 mt-4">
-            <div className="flex-1 input-apple text-footnote truncate font-mono text-label-secondary">
-              {loading ? 'Loading…' : inviteLink}
-            </div>
-            <button
-              type="button"
-              onClick={() => inviteLink && copy('link', inviteLink)}
-              className="btn-secondary shrink-0"
-              disabled={!inviteLink}
-            >
-              {copied === 'link' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              <span>Copy</span>
-            </button>
-          </div>
-          {codeMessage && (
-            <p role="status" className="mt-4 text-[15px] font-medium text-label-primary">
-              {codeMessage}
-            </p>
-          )}
-          <div className="mt-4 border-t border-[var(--surface-separator)] pt-4">
-            <p className="text-footnote text-label-secondary mb-3">
-              Shared the code with the wrong person, or posted it somewhere? Get a new one. The old code stops
-              working right away. People who already joined stay — remove them on the Family page.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setCodeError(null)
-                setCodeMessage(null)
-                setConfirmNewCode(true)
-              }}
-              className="btn-ghost min-h-[44px]"
-              disabled={!familyCode}
-            >
-              <RefreshCw className="w-4 h-4" aria-hidden="true" />
-              <span>Get a new family code</span>
-            </button>
-          </div>
-        </details>
-
-        <Dialog
-          open={confirmNewCode}
-          onClose={rotating ? undefined : () => setConfirmNewCode(false)}
-          title="Get a new family code?"
-          description="The current code stops working right away. Anyone you still want to join will need the new code."
-        >
-          {codeError && (
-            <p
-              role="alert"
-              className="mb-4 rounded-[var(--radius-md)] bg-[var(--danger-tint)] px-4 py-3 text-[15px] text-[var(--danger-text)]"
-            >
-              {codeError}
-            </p>
-          )}
-          <div className="flex flex-col-reverse gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => setConfirmNewCode(false)}
-              disabled={rotating}
-              className="btn-ghost min-h-[44px] flex-1"
-            >
-              Keep the current code
-            </button>
-            <button
-              type="button"
-              onClick={handleNewCode}
-              disabled={rotating}
-              className="btn-filled min-h-[44px] flex-1"
-            >
-              {rotating ? 'Making a new code…' : 'Get a new code'}
-            </button>
-          </div>
-        </Dialog>
-      </div>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => void handleNewCode()}
+            className="btn-filled min-h-[44px] flex-1"
+          >
+            {text(busy === "rotate" ? "rotating" : "newCode")}
+          </button>
+        </div>
+      </Dialog>
     </div>
-  )
+  );
 }

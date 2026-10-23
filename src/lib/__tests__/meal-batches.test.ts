@@ -122,3 +122,21 @@ describe("multi-dish prep planning", () => {
     ).toBe(false);
   });
 });
+
+it("preserves legacy allocation requests and makes prepared-only reuse explicit", () => {
+  const allocation = {
+    ...context,
+    action: "allocate",
+    batch_id: "batch-a",
+    meals: [meal],
+  };
+  expect(mealPrepActionSchema.safeParse(allocation).success).toBe(true);
+  expect(
+    mealPrepActionSchema.safeParse({ ...allocation, require_prepared: true })
+      .success,
+  ).toBe(true);
+  expect(
+    mealPrepActionSchema.safeParse({ ...allocation, require_prepared: false })
+      .success,
+  ).toBe(false);
+});

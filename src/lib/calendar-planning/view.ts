@@ -1,4 +1,4 @@
-export type PlanningView = "day" | "week" | "agenda";
+export type PlanningView = "day" | "week" | "agenda" | "month";
 
 /** Timing overlap is advisory: this model does not describe who must attend. */
 export function overlappingEvents<
@@ -192,14 +192,19 @@ export function visibleDays(
   local: boolean,
 ): Date[] {
   let start = dateAt(key, local);
-  if (view === "week")
+  if (view === "month") {
+    if (local) start.setDate(1);
+    else start.setUTCDate(1);
+  }
+  if (view === "week" || view === "month")
     start = addDays(
       start,
       -(((local ? start.getDay() : start.getUTCDay()) + 6) % 7),
       local,
     );
-  return Array.from({ length: view === "day" ? 1 : 7 }, (_, i) =>
-    addDays(start, i, local),
+  return Array.from(
+    { length: view === "day" ? 1 : view === "month" ? 42 : 7 },
+    (_, i) => addDays(start, i, local),
   );
 }
 
@@ -226,4 +231,27 @@ export function planningRange(
   )
     return null;
   return { start: start.toISOString(), end: end.toISOString() };
+}
+
+/** Month navigation anchors to the first, so Jan 31 cannot skip February. */
+export function adjacentPlanningDate(
+  key: string,
+  view: PlanningView,
+  direction: -1 | 1,
+  local: boolean,
+): string {
+  const date = dateAt(key, local);
+  if (view !== "month")
+    return dayKey(
+      addDays(date, direction * (view === "day" ? 1 : 7), local),
+      local,
+    );
+  if (local) {
+    date.setDate(1);
+    date.setMonth(date.getMonth() + direction);
+  } else {
+    date.setUTCDate(1);
+    date.setUTCMonth(date.getUTCMonth() + direction);
+  }
+  return dayKey(date, local);
 }

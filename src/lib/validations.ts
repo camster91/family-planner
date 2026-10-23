@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { ROUTINE_ICON_KEYS, ROUTINE_NAME_MAX, ROUTINE_ORDER_MAX, normalizeRoutineName } from '@/lib/routine-icons'
 import { parseDateOnly } from '@/lib/dates'
-import { ROTATION_MAX, ROTATION_MIN } from '@/lib/chore-rotation'
+import { ROTATION_MAX, ROTATION_MIN } from '@/lib/chore-rotation-shared'
 
 // Auth
 // Trimmed before the format check, so an autofilled trailing space does not

@@ -243,14 +243,14 @@ describeWithDatabase('inventory consume / discard / undo against Postgres', () =
     const dk = key(9)
     // Make withIdempotency's own response store fail once (the lost-response
     // case). The route reads the client from the `@/lib/prisma` module, so
-    // swap that export for a proxy whose idempotencyRecord.update throws once;
+    // swap that export for a proxy whose idempotencyRecord.updateMany throws once;
     // $transaction (and so the route's transaction client) stays the real one.
     const mod = require('@/lib/prisma') as { prisma: typeof prisma }
     const real = mod.prisma
     let storeFailures = 0
     const failingRecords = new Proxy(real.idempotencyRecord, {
       get(target, prop) {
-        if (prop === 'update' && storeFailures === 0) {
+        if (prop === 'updateMany' && storeFailures === 0) {
           return async () => {
             storeFailures += 1
             throw new Error('connection reset')

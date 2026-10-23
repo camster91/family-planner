@@ -224,10 +224,46 @@ export async function install(page: Page, controller: SettingsRequests) {
 }
 export async function language(page: Page, locale: Locale) {
   // The actual existing native Settings selector; no remount or storage event.
+  const current = await page.locator("html").getAttribute("lang");
+  expect(["en", "es"]).toContain(current);
+  const currentLocale = current as Locale;
+  const activeGroup = page.locator("[data-settings-group]:not([hidden])");
+  const activeId = await activeGroup.getAttribute("data-settings-group");
+  const restore: "account" | "family" | "privacy" =
+    activeId === "settings-family"
+      ? "family"
+      : activeId === "settings-privacy"
+        ? "privacy"
+        : "account";
+  if (restore !== "account")
+    await selectSettingsTab(page, currentLocale, "account");
   await page.locator("#preferredLanguage").selectOption(locale);
   await expect(page.locator("html")).toHaveAttribute("lang", locale);
+  if (restore !== "account") await selectSettingsTab(page, locale, restore);
+}
+export async function selectSettingsTab(
+  page: Page,
+  locale: Locale,
+  section: "account" | "family" | "privacy",
+) {
+  const messageKey = section === "privacy" ? "privacyData" : section;
+  const tab = page.getByRole("button", {
+    name: msg(locale, messageKey),
+    exact: true,
+  });
+  await expect(tab).toBeVisible();
+  if ((await tab.getAttribute("aria-pressed")) !== "true") await tab.click();
+  await expect(tab).toHaveAttribute("aria-pressed", "true");
+  if (section === "family") {
+    // The family tab now loads its optional sections on first entry. Wait for
+    // the real subscriptions surface, while leaving its API loading/error
+    // state available to the scenario's controlled-response assertions.
+    await expect(page.locator("#calendar-subscriptions")).toBeAttached();
+  }
 }
 export async function open(page: Page, locale: Locale, name: SettingsMessage) {
+  // Family disclosures are rendered only in the active family group.
+  await selectSettingsTab(page, locale, "family");
   const heading = page.getByRole("heading", {
     name: msg(locale, name),
     exact: true,

@@ -1,13 +1,22 @@
 "use client";
+import { OwnPreparationNote } from "@/components/calendar/preparation/OwnPreparationNote";
+import { RoutineOriginEntry } from "@/components/chores/RoutineOriginEntry";
+import { useChorePreparationContext } from "@/components/chores/useChorePreparationContext";
+import { PreparationEntry } from "@/components/calendar/preparation/PreparationEntry";
+import type { PreparationBacklinks } from "@/lib/event-preparation/discovery";
+import { ResponsibilityButton } from "@/components/responsibility/ResponsibilityProvider";
 
 import * as React from "react";
 import { Plus, CheckSquare, ChevronDown, Flame } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { RecurringChoreRows } from "@/components/chores/RecurringChoreRows";
-import { ChoreViewControls, type ChorePresentation } from "@/components/chores/ChoreViewControls";
+import {
+  ChoreViewControls,
+  type ChorePresentation,
+} from "@/components/chores/ChoreViewControls";
 import { useChoreOverviewText } from "@/i18n/chore-overview";
-import { RoutineStacks } from "@/components/chores/RoutineStacks";
 import { RoutineIcon } from "@/components/chores/RoutineIcon";
 import { CheckboxRow } from "@/components/ui/checkbox-row";
 import { ListRow } from "@/components/ui/list-row";
@@ -26,14 +35,15 @@ import { Dialog } from "@/components/ui/dialog";
 import { useLocalNow } from "@/components/ui/use-hydrated";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { cn } from "@/lib/utils";
+import { useDisplayPreferences } from "@/components/providers/display-preferences-provider";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { useChoreVerificationText } from "@/i18n/chore-verification";
-import { useProfileSetupText } from "@/i18n/profile-setup";
 import {
-  choreFormMessages,
-  type ChoreFormMessage,
-} from "@/i18n/chore-forms";
+  useProfileSetupText,
+  profileChorePauseMessage,
+} from "@/i18n/profile-setup";
+import { choreFormMessages, type ChoreFormMessage } from "@/i18n/chore-forms";
 import { useTranslation } from "@/i18n";
 import {
   formatDateOnly,
@@ -55,16 +65,32 @@ import type {
 
 type FilterMode = "today" | "week" | "all";
 
+// Routine stacks and parent scheduling are optional workspaces. Keep their
+// graph out of the default chores hydration path and load it only after a
+// person enters the routines view or opens the inline routine disclosure.
+const DeferredRoutineStacks = dynamic(
+  () =>
+    import("@/components/chores/RoutineStacks").then(
+      ({ RoutineStacks }) => RoutineStacks,
+    ),
+  { ssr: false, loading: () => null },
+);
+const DeferredRoutineScheduleEntry = dynamic(
+  () =>
+    import("@/components/chores/RoutineScheduleEntry").then(
+      ({ RoutineScheduleEntry }) => RoutineScheduleEntry,
+    ),
+  { ssr: false, loading: () => null },
+);
+
 function isActiveRepeatingChore(chore: Chore): boolean {
   const frequency = chore.recurrence_frequency ?? chore.frequency;
-  return Boolean(
-    chore.recurrence_id &&
-      frequency &&
-      frequency !== "once",
-  );
+  return Boolean(chore.recurrence_id && frequency && frequency !== "once");
 }
 
 interface ChoresContentProps {
+  preparationBacklinks?: PreparationBacklinks;
+  preparationContextEnabled?: boolean;
   chores: (Chore & {
     assignee: { name: string } | null;
     creator: { name: string } | null;
@@ -78,6 +104,7 @@ interface ChoresContentProps {
   currentUserId: string;
   userRole: string;
   familyId?: string;
+  routineSchedulesEnabled?: boolean;
   /** `GET /api/chores` cursor for older verified chores not loaded yet (O-19), or null when all are here. */
   historyCursor?: string | null;
 }
@@ -115,13 +142,19 @@ function isPausedProfileChore(
 }
 
 /** "Morning, step 2" for a chore in a picture routine (#272), else null. */
-function routineLabel(chore: {
-  routine?: string | null;
-  routine_order?: number | null;
-}, text: ReturnType<typeof useChoreOverviewText>): string | null {
+function routineLabel(
+  chore: {
+    routine?: string | null;
+    routine_order?: number | null;
+  },
+  text: ReturnType<typeof useChoreOverviewText>,
+): string | null {
   if (!chore.routine) return null;
   return chore.routine_order
-    ? text("routineStep", { routine: chore.routine, order: chore.routine_order })
+    ? text("routineStep", {
+        routine: chore.routine,
+        order: chore.routine_order,
+      })
     : chore.routine;
 }
 
@@ -168,13 +201,29 @@ function ReassignModal({
           >
             <div
               aria-hidden="true"
-              className={cn("w-7 h-7 shrink-0 rounded-full bg-[var(--surface-fill-secondary)] flex items-center justify-center text-footnote font-medium", selectedId === m.id ? "text-inherit" : "text-label-secondary")}
+              className={cn(
+                "w-7 h-7 shrink-0 rounded-full bg-[var(--surface-fill-secondary)] flex items-center justify-center text-footnote font-medium",
+                selectedId === m.id ? "text-inherit" : "text-label-secondary",
+              )}
             >
               {m.name[0].toUpperCase()}
             </div>
-            <span className="min-w-0 flex-1 text-body [overflow-wrap:anywhere]">{m.name}</span>
-            <span className={cn("ml-auto max-w-[45%] shrink-0 text-right text-footnote [overflow-wrap:anywhere]", selectedId === m.id ? "text-inherit" : "text-label-tertiary")}>
-              {m.role === "parent" ? profileText("roleParent") : m.role === "teen" ? profileText("roleTeen") : m.role === "child" ? profileText("roleChild") : m.role}
+            <span className="min-w-0 flex-1 text-body [overflow-wrap:anywhere]">
+              {m.name}
+            </span>
+            <span
+              className={cn(
+                "ml-auto max-w-[45%] shrink-0 text-right text-footnote [overflow-wrap:anywhere]",
+                selectedId === m.id ? "text-inherit" : "text-label-tertiary",
+              )}
+            >
+              {m.role === "parent"
+                ? profileText("roleParent")
+                : m.role === "teen"
+                  ? profileText("roleTeen")
+                  : m.role === "child"
+                    ? profileText("roleChild")
+                    : m.role}
             </span>
           </button>
         ))}
@@ -206,19 +255,43 @@ export default function ChoresContent({
   currentUserId,
   userRole,
   familyId,
+  routineSchedulesEnabled = false,
   historyCursor = null,
+  preparationBacklinks: initialPreparationBacklinks = {},
+  preparationContextEnabled = false,
 }: ChoresContentProps) {
   const [view, setView] = React.useState<"chores" | "routines">("chores");
+  const [inlineRoutinePanelOpen, setInlineRoutinePanelOpen] =
+    React.useState(true);
+  const [inlineRoutinePanelLoaded, setInlineRoutinePanelLoaded] =
+    React.useState(false);
   const [filter, setFilter] = React.useState<FilterMode>("today");
   const [seriesMode, setSeriesMode] = React.useState(false);
   const overviewText = useChoreOverviewText();
-  const presentation: ChorePresentation = view === "routines" ? "routines" : seriesMode ? "series" : filter;
+  const presentation: ChorePresentation =
+    view === "routines" ? "routines" : seriesMode ? "series" : filter;
   const changePresentation = (next: ChorePresentation) => {
     setSeriesMode(next === "series");
     setView(next === "routines" ? "routines" : "chores");
-    if (next !== "routines") setFilter(next === "series" ? "all" : next);
+    if (next !== "routines") {
+      const nextFilter = next === "series" ? "all" : next;
+      setFilter(nextFilter);
+      // Match the original native disclosure defaults: Today opens, while
+      // Week/Series/All start collapsed when their range appears.
+      setInlineRoutinePanelOpen(nextFilter === "today");
+    }
   };
   const [localChores, setLocalChores] = React.useState(chores);
+  const preparationContext = useChorePreparationContext(
+    familyId ? { userId: currentUserId, familyId } : undefined,
+    localChores.map((chore) => chore.id),
+    preparationContextEnabled && ["parent", "child", "teen"].includes(userRole),
+  );
+  const preparationBacklinks = preparationContextEnabled
+    ? preparationContext.backlinks
+    : initialPreparationBacklinks;
+  const routineOrigins = preparationContext.origins;
+  const ownPreparationContext = preparationContext.ownContext;
   const [doneCollapsed, setDoneCollapsed] = React.useState(true);
   const { addToast } = useToast();
   const showUndo = useUndoToast();
@@ -231,7 +304,9 @@ export default function ChoresContent({
   );
   // Points & streaks (#248). When off, the page's server component already
   // omits each chore's points and streak; this only decides what to draw.
-  const gamification = useFeatureEnabled("gamification");
+  const { quiet } = useDisplayPreferences();
+  const gamificationEnabled = useFeatureEnabled("gamification");
+  const gamification = gamificationEnabled && !quiet;
   const [reassignTarget, setReassignTarget] = React.useState<string | null>(
     null,
   );
@@ -353,7 +428,10 @@ export default function ChoresContent({
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
-      (deleteDialog.notFound ? deleteRefreshRef : deleteRetryRef).current?.focus();
+      (deleteDialog.notFound
+        ? deleteRefreshRef
+        : deleteRetryRef
+      ).current?.focus();
     });
     return () => {
       cancelled = true;
@@ -405,7 +483,9 @@ export default function ChoresContent({
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(data.chores)) {
         throw new Error(
-          typeof data.error === "string" ? data.error : overviewText("retryMessage"),
+          typeof data.error === "string"
+            ? data.error
+            : overviewText("retryMessage"),
         );
       }
       const page = data.chores as ChoresContentProps["chores"];
@@ -458,7 +538,9 @@ export default function ChoresContent({
         );
         // Undo over confirm (#269): reopen through POST /api/chores/uncomplete.
         showUndo({
-          title: before ? overviewText("doneTitle", { title: before.title }) : overviewText("choreDone"),
+          title: before
+            ? overviewText("doneTitle", { title: before.title })
+            : overviewText("choreDone"),
           onUndo: async () => {
             const result = await setChoreDone(choreId, false);
             if (!result.ok) {
@@ -486,7 +568,10 @@ export default function ChoresContent({
         addToast({
           type: "error",
           title: overviewText("completeFailed"),
-          message: error instanceof Error ? error.message : overviewText("retryMessage"),
+          message:
+            error instanceof Error
+              ? error.message
+              : overviewText("retryMessage"),
         });
       }
     },
@@ -663,13 +748,26 @@ export default function ChoresContent({
         addToast({
           type: "success",
           title: overviewText("snoozed"),
-          message: overviewText("snoozedMessage", { date: formatRelativeDueDate(storedDueDate, new Date(), displayLocale, { today: overviewText("today"), tomorrow: overviewText("tomorrowInSentence") }) }),
+          message: overviewText("snoozedMessage", {
+            date: formatRelativeDueDate(
+              storedDueDate,
+              new Date(),
+              displayLocale,
+              {
+                today: overviewText("today"),
+                tomorrow: overviewText("tomorrowInSentence"),
+              },
+            ),
+          }),
         });
       } catch (error) {
         addToast({
           type: "error",
           title: overviewText("snoozeFailed"),
-          message: error instanceof Error ? error.message : overviewText("retryMessage"),
+          message:
+            error instanceof Error
+              ? error.message
+              : overviewText("retryMessage"),
         });
       }
     },
@@ -710,7 +808,10 @@ export default function ChoresContent({
         addToast({
           type: "error",
           title: overviewText("reassignFailed"),
-          message: error instanceof Error ? error.message : overviewText("retryMessage"),
+          message:
+            error instanceof Error
+              ? error.message
+              : overviewText("retryMessage"),
         });
       }
     },
@@ -774,7 +875,10 @@ export default function ChoresContent({
         setLocalChores((prev) => prev.filter((c) => c.id !== choreId));
         setDeleteDialog(null);
         requestDeleteFallback((request) => request + 1);
-        addToast({ type: "success", title: message("deleteOccurrenceSuccess") });
+        addToast({
+          type: "success",
+          title: message("deleteOccurrenceSuccess"),
+        });
       } catch {
         setDeleteDialog((current) =>
           current?.choreId === choreId
@@ -859,14 +963,32 @@ export default function ChoresContent({
       })
     : [];
 
-  const routineRows = filtered.filter(c => c.routine?.trim() || c.routine_stack_id);
-  const showInlineRoutines = view === "chores" && !seriesMode && filter !== "all" && routineRows.length > 0;
-  const routineIds = new Set(showInlineRoutines ? routineRows.map(c => c.id) : []);
-  const choreById = new Map(localChores.map(c => [c.id, c]));
+  const routineRows = filtered.filter(
+    (c) => c.routine?.trim() || c.routine_stack_id,
+  );
+  const showInlineRoutines =
+    view === "chores" &&
+    !seriesMode &&
+    filter !== "all" &&
+    routineRows.length > 0;
+  const inlineRoutinePanelMounted =
+    (showInlineRoutines && inlineRoutinePanelOpen) || inlineRoutinePanelLoaded;
+  React.useEffect(() => {
+    // The Today disclosure starts open by design. Once it is visibly open,
+    // latch the loaded component so closing it or changing views does not
+    // discard its focus/progress context.
+    if (showInlineRoutines && inlineRoutinePanelOpen) {
+      setInlineRoutinePanelLoaded(true);
+    }
+  }, [inlineRoutinePanelOpen, showInlineRoutines]);
+  const routineIds = new Set(
+    showInlineRoutines ? routineRows.map((c) => c.id) : [],
+  );
+  const choreById = new Map(localChores.map((c) => [c.id, c]));
   const todayChores = filtered.filter(
     (c) => c.status === "pending" || c.status === "in_progress",
   );
-  const listChores = todayChores.filter(c => !routineIds.has(c.id));
+  const listChores = todayChores.filter((c) => !routineIds.has(c.id));
   // Done by a child and waiting for a parent's check (any date).
   const toCheckCount = localChores.filter(
     (c) => c.status === "completed",
@@ -885,59 +1007,59 @@ export default function ChoresContent({
       ? profileText("profileTargetRefresh")
       : subjectName(chore);
     const actions = [
-          chore.recurrence_id
-            ? {
-                // Moving an occurrence onto an already-expanded date violates
-                // the series' (recurrence_id, due_date) key. Until a proper
-                // exception model exists, explain why this action is unavailable
-                // instead of sending a request that can fail or corrupt the series.
-                label: overviewText("snoozeUnavailable"),
-                onClick: () => undefined,
-                disabled: true,
-              }
-            : {
-                label: overviewText("snooze"),
-                onClick: () => handleSnoozeChore(chore.id, chore.due_date),
-              },
-          {
-            label: overviewText("edit"),
-            onClick: () => router.push(`/dashboard/chores/edit?id=${chore.id}`),
+      chore.recurrence_id
+        ? {
+            // Moving an occurrence onto an already-expanded date violates
+            // the series' (recurrence_id, due_date) key. Until a proper
+            // exception model exists, explain why this action is unavailable
+            // instead of sending a request that can fail or corrupt the series.
+            label: overviewText("snoozeUnavailable"),
+            onClick: () => undefined,
+            disabled: true,
+          }
+        : {
+            label: overviewText("snooze"),
+            onClick: () => handleSnoozeChore(chore.id, chore.due_date),
           },
-          ...(userRole === "parent" && isActiveRepeatingChore(chore)
-            ? [
-                {
-                  label: message("stopRepeating"),
-                  onClick: () =>
-                    router.push(
-                      `/dashboard/chores/edit?id=${encodeURIComponent(chore.id)}&stop=1`,
-                    ),
-                },
-              ]
-            : []),
-          {
-            label: overviewText("reassign"),
-            // The action sheet hands focus back to its trigger on a
-            // 0 ms timer; open the dialog after that, so the dialog
-            // takes focus (and returns it to the trigger on close).
-            onClick: () =>
-              window.setTimeout(() => setReassignTarget(chore.id), 0),
-          },
-          {
-            label: overviewText("markComplete"),
-            onClick: () => handleCompleteChore(chore.id),
-          },
-          {
-            label: message("deleteOccurrence"),
-            onClick: () => openDeleteDialog(chore.id),
-            destructive: true,
-          },
-        ] as const;
+      {
+        label: overviewText("edit"),
+        onClick: () => router.push(`/dashboard/chores/edit?id=${chore.id}`),
+      },
+      ...(userRole === "parent" && isActiveRepeatingChore(chore)
+        ? [
+            {
+              label: message("stopRepeating"),
+              onClick: () =>
+                router.push(
+                  `/dashboard/chores/edit?id=${encodeURIComponent(chore.id)}&stop=1`,
+                ),
+            },
+          ]
+        : []),
+      {
+        label: overviewText("reassign"),
+        // The action sheet hands focus back to its trigger on a
+        // 0 ms timer; open the dialog after that, so the dialog
+        // takes focus (and returns it to the trigger on close).
+        onClick: () => window.setTimeout(() => setReassignTarget(chore.id), 0),
+      },
+      {
+        label: overviewText("markComplete"),
+        onClick: () => handleCompleteChore(chore.id),
+      },
+      {
+        label: message("deleteOccurrence"),
+        onClick: () => openDeleteDialog(chore.id),
+        destructive: true,
+      },
+    ] as const;
     // Profile-only chores are readable on the parent board, but protocol 2 is
     // intentionally off. Do not expose legacy controls that can only return
     // MEMBER_PROTOCOL_UNAVAILABLE; paired-device actions arrive with that
     // protocol in a later vertical slice.
     const row = (
-      <CheckboxRow
+      <div>
+        <CheckboxRow
           checked={false}
           disabled={profileOnly || profilePaused}
           toggleArea="control"
@@ -945,9 +1067,12 @@ export default function ChoresContent({
           title={chore.title}
           subtitle={[
             ownerLabel,
-            formatRelativeDueDate(chore.due_date, now, displayLocale, { today: overviewText("today"), tomorrow: overviewText("tomorrow") }),
+            formatRelativeDueDate(chore.due_date, now, displayLocale, {
+              today: overviewText("today"),
+              tomorrow: overviewText("tomorrow"),
+            }),
             profilePaused
-              ? profileText("profileTargetRecurrencePaused")
+              ? profileText(profileChorePauseMessage(chore.actionAvailability))
               : null,
             routineLabel(chore, overviewText),
             chore.rotation_next_name
@@ -976,7 +1101,9 @@ export default function ChoresContent({
                 {(chore.streak ?? 0) >= 3 && (
                   <span
                     className="flex items-center text-warning-text"
-                    title={overviewText("dayStreak", { count: chore.streak ?? 0 })}
+                    title={overviewText("dayStreak", {
+                      count: chore.streak ?? 0,
+                    })}
                   >
                     <Flame className="w-3 h-3 fill-brand-mustard" />
                     <span className="text-footnote">{chore.streak}</span>
@@ -987,6 +1114,19 @@ export default function ChoresContent({
           }
           className={cn("pr-3", i === todayChores.length - 1 && "border-b-0")}
         />
+        <ResponsibilityButton target={{ kind: "chore", id: chore.id }} />
+        {userRole !== "parent" && ownPreparationContext[chore.id] && (
+          <OwnPreparationNote
+            title={ownPreparationContext[chore.id].eventTitle}
+          />
+        )}
+        {userRole === "parent" && preparationBacklinks[chore.id] && (
+          <PreparationEntry eventId={preparationBacklinks[chore.id]} backlink />
+        )}
+        {userRole === "parent" && routineOrigins[chore.id] && (
+          <RoutineOriginEntry origin={routineOrigins[chore.id]} />
+        )}
+      </div>
     );
     if (profileOnly) return <div key={chore.id}>{row}</div>;
     // A visible "⋯" opens the actions (they used to be long-press only), and
@@ -1006,6 +1146,9 @@ export default function ChoresContent({
 
   return (
     <div className="pb-20">
+      {routineSchedulesEnabled &&
+        userRole === "parent" &&
+        view === "routines" && <DeferredRoutineScheduleEntry />}
       <LargeHeader
         title={overviewText("title")}
         subtitle={
@@ -1031,9 +1174,16 @@ export default function ChoresContent({
       />
 
       <div className="px-4 mb-4">
-        <ChoreViewControls value={presentation} range={filter}
-          onChange={changePresentation} onRangeChange={setFilter}
-          todayRef={node => { verificationFallbackRef.current = node; deleteFallbackRef.current = node; }} />
+        <ChoreViewControls
+          value={presentation}
+          range={filter}
+          onChange={changePresentation}
+          onRangeChange={setFilter}
+          todayRef={(node) => {
+            verificationFallbackRef.current = node;
+            deleteFallbackRef.current = node;
+          }}
+        />
       </div>
 
       <div className="space-y-6 px-4">
@@ -1059,7 +1209,9 @@ export default function ChoresContent({
                     const ownerLabel = profileUnavailable
                       ? profileText("profileTargetRefresh")
                       : subjectName(chore)
-                        ? overviewText("assignedTo", { name: subjectName(chore) ?? "" })
+                        ? overviewText("assignedTo", {
+                            name: subjectName(chore) ?? "",
+                          })
                         : null;
                     return (
                       <div
@@ -1088,58 +1240,81 @@ export default function ChoresContent({
                               ownerLabel,
                               routineLabel(chore, overviewText),
                               profilePaused
-                                ? profileText("profileTargetRecurrencePaused")
-                                : verificationText("waitingForCheck", undefined),
+                                ? profileText(
+                                    profileChorePauseMessage(
+                                      chore.actionAvailability,
+                                    ),
+                                  )
+                                : verificationText(
+                                    "waitingForCheck",
+                                    undefined,
+                                  ),
                             ]
                               .filter(Boolean)
                               .join(" · ")}
                           </p>
+                          {preparationBacklinks[chore.id] && (
+                            <PreparationEntry
+                              eventId={preparationBacklinks[chore.id]}
+                              backlink
+                            />
+                          )}
+                          {routineOrigins[chore.id] && (
+                            <RoutineOriginEntry
+                              origin={routineOrigins[chore.id]}
+                            />
+                          )}
                         </div>
-                        {!profileUnavailable && !profilePaused && (() => {
-                          const verificationBusy = verificationBusyIds.has(
-                            chore.id,
-                          );
-                          const verificationDialogOpen =
-                            verificationDialog?.choreId === chore.id;
-                          const actionsDisabled =
-                            verificationBusy || verificationDialogOpen;
-                          return (
-                            <div
-                              className="flex gap-2 shrink-0"
-                              aria-busy={verificationBusy || undefined}
-                            >
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleCheckChore(chore.id, "approve")
-                                }
-                                aria-label={verificationText("verifyAriaLabel", {
-                                  title: chore.title,
-                                })}
-                                disabled={actionsDisabled}
-                                className="btn-filled text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
+                        {!profileUnavailable &&
+                          !profilePaused &&
+                          (() => {
+                            const verificationBusy = verificationBusyIds.has(
+                              chore.id,
+                            );
+                            const verificationDialogOpen =
+                              verificationDialog?.choreId === chore.id;
+                            const actionsDisabled =
+                              verificationBusy || verificationDialogOpen;
+                            return (
+                              <div
+                                className="flex gap-2 shrink-0"
+                                aria-busy={verificationBusy || undefined}
                               >
-                                {verificationBusy
-                                  ? verificationText("verifying", undefined)
-                                  : verificationText("verify", undefined)}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleCheckChore(chore.id, "reject")
-                                }
-                                aria-label={verificationText(
-                                  "sendBackAriaLabel",
-                                  { title: chore.title },
-                                )}
-                                disabled={actionsDisabled}
-                                className="btn-destructive text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
-                              >
-                                {verificationText("sendBack", undefined)}
-                              </button>
-                            </div>
-                          );
-                        })()}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleCheckChore(chore.id, "approve")
+                                  }
+                                  aria-label={verificationText(
+                                    "verifyAriaLabel",
+                                    {
+                                      title: chore.title,
+                                    },
+                                  )}
+                                  disabled={actionsDisabled}
+                                  className="btn-filled text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
+                                >
+                                  {verificationBusy
+                                    ? verificationText("verifying", undefined)
+                                    : verificationText("verify", undefined)}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleCheckChore(chore.id, "reject")
+                                  }
+                                  aria-label={verificationText(
+                                    "sendBackAriaLabel",
+                                    { title: chore.title },
+                                  )}
+                                  disabled={actionsDisabled}
+                                  className="btn-destructive text-sm py-1.5 px-3 min-h-[44px] disabled:opacity-40"
+                                >
+                                  {verificationText("sendBack", undefined)}
+                                </button>
+                              </div>
+                            );
+                          })()}
                       </div>
                     );
                   })}
@@ -1147,61 +1322,114 @@ export default function ChoresContent({
               </section>
             );
           })()}
-        <div className={cn(showInlineRoutines && listChores.length > 0 ? "grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2 items-start" : "space-y-6")}>
-        {!now ? (
-          <section
-            aria-label={overviewText("title")}
-            aria-busy="true"
-            data-testid="chores-pending"
-          >
-            <div className="h-16 rounded-[var(--radius-xl)] bg-[var(--surface-fill)]" />
-          </section>
-        ) : view === "routines" ? (
-          <RoutineStacks
-            chores={filtered}
-            userRole={userRole}
-            currentUserId={currentUserId}
-            familyId={familyId}
-            locale={displayLocale}
-            collapseRepeats={filter !== "today"}
-            onComplete={handleCompleteChore}
-          />
-        ) : listChores.length > 0 ? (
-          <section>
-            <p className="section-header">{overviewText(seriesMode ? "series" : filter === "today" ? "now" : filter === "week" ? "thisWeek" : "toDo")}</p>
-            <div className="list-inset stagger">
-              {filter === "today" ? (
-                listChores.map(renderOpenChore)
-              ) : (
-                <RecurringChoreRows
-                  chores={listChores}
-                  now={now}
-                  locale={displayLocale}
-                  renderRow={renderOpenChore}
-                />
+        <div
+          className={cn(
+            showInlineRoutines && listChores.length > 0
+              ? "grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2 items-start"
+              : "space-y-6",
+          )}
+        >
+          {!now ? (
+            <section
+              aria-label={overviewText("title")}
+              aria-busy="true"
+              data-testid="chores-pending"
+            >
+              <div className="h-16 rounded-[var(--radius-xl)] bg-[var(--surface-fill)]" />
+            </section>
+          ) : view === "routines" ? null : listChores.length > 0 ? (
+            <section>
+              <p className="section-header">
+                {overviewText(
+                  seriesMode
+                    ? "series"
+                    : filter === "today"
+                      ? "now"
+                      : filter === "week"
+                        ? "thisWeek"
+                        : "toDo",
+                )}
+              </p>
+              <div className="list-inset stagger">
+                {filter === "today" ? (
+                  listChores.map(renderOpenChore)
+                ) : (
+                  <RecurringChoreRows
+                    chores={listChores}
+                    now={now}
+                    locale={displayLocale}
+                    renderRow={renderOpenChore}
+                  />
+                )}
+              </div>
+            </section>
+          ) : showInlineRoutines ? null : (
+            <EmptyState
+              icon={CheckSquare}
+              glyphColor="chore"
+              motion={MOTION.tea}
+              title={overviewText("empty")}
+              description={overviewText(
+                seriesMode
+                  ? "noSeries"
+                  : filter === "today"
+                    ? "emptyToday"
+                    : "emptyRange",
               )}
+            />
+          )}
+          {now && showInlineRoutines && (
+            <details
+              open={inlineRoutinePanelOpen}
+              onToggle={(event) => {
+                const open = event.currentTarget.open;
+                setInlineRoutinePanelOpen(open);
+                if (open) setInlineRoutinePanelLoaded(true);
+              }}
+              className="min-w-0 rounded-[var(--radius-xl)] border border-[var(--surface-separator)]"
+            >
+              <summary className="min-h-[44px] cursor-pointer px-4 py-3 text-headline text-label-primary">
+                {overviewText("routinePanel")}
+              </summary>
+              <div className="p-3 pt-0">
+                {inlineRoutinePanelMounted && (
+                  <DeferredRoutineStacks
+                    routineOrigins={routineOrigins}
+                    ownPreparationContext={ownPreparationContext}
+                    preparationBacklinks={preparationBacklinks}
+                    chores={routineRows}
+                    userRole={userRole}
+                    currentUserId={currentUserId}
+                    familyId={familyId}
+                    locale={displayLocale}
+                    collapseRepeats={filter !== "today"}
+                    showBuilder={false}
+                    onComplete={handleCompleteChore}
+                    renderOpenRow={(id) => {
+                      const chore = choreById.get(id);
+                      return chore ? renderOpenChore(chore, 0) : null;
+                    }}
+                  />
+                )}
+              </div>
+            </details>
+          )}
+          {now && view === "routines" && (
+            <div className="min-w-0">
+              <DeferredRoutineStacks
+                preparationBacklinks={preparationBacklinks}
+                routineOrigins={routineOrigins}
+                ownPreparationContext={ownPreparationContext}
+                chores={filtered}
+                userRole={userRole}
+                currentUserId={currentUserId}
+                familyId={familyId}
+                locale={displayLocale}
+                collapseRepeats={filter !== "today"}
+                onComplete={handleCompleteChore}
+              />
             </div>
-          </section>
-        ) : showInlineRoutines ? null : (
-          <EmptyState
-            icon={CheckSquare}
-            glyphColor="chore"
-            motion={MOTION.tea}
-            title={overviewText("empty")}
-            description={
-              overviewText(seriesMode ? "noSeries" : filter === "today" ? "emptyToday" : "emptyRange")
-            }
-          />
-        )}
-        {now && showInlineRoutines && <details key={filter} open={filter === "today"} className="min-w-0 rounded-[var(--radius-xl)] border border-[var(--surface-separator)]">
-          <summary className="min-h-[44px] cursor-pointer px-4 py-3 text-headline text-label-primary">{overviewText("routinePanel")}</summary>
-          <div className="p-3 pt-0">
-            <RoutineStacks chores={routineRows} userRole={userRole} currentUserId={currentUserId} familyId={familyId}
-              locale={displayLocale} collapseRepeats={filter !== "today"} showBuilder={false}
-              onComplete={handleCompleteChore}
-              renderOpenRow={id => { const chore = choreById.get(id); return chore ? renderOpenChore(chore, 0) : null; }} />
-          </div>
-        </details>}
+          )}
         </div>
 
         {view === "chores" && doneChores.length > 0 && (
@@ -1228,26 +1456,52 @@ export default function ChoresContent({
             {!doneCollapsed && (
               <div className="list-inset">
                 {doneChores.map((chore, i) => (
-                  <ListRow
-                    key={chore.id}
-                    icon={CheckSquare}
-                    glyphColor="chore"
-                    title={chore.title}
-                    subtitle={formatDateOnly(
-                      chore.due_date,
-                      undefined,
-                      displayLocale,
+                  <div key={chore.id}>
+                    <ListRow
+                      icon={CheckSquare}
+                      glyphColor="chore"
+                      title={chore.title}
+                      subtitle={formatDateOnly(
+                        chore.due_date,
+                        undefined,
+                        displayLocale,
+                      )}
+                      showChevron={false}
+                      trailing={
+                        gamification ? (
+                          <span className="text-footnote text-label-tertiary">
+                            +{chore.points}
+                          </span>
+                        ) : undefined
+                      }
+                      className={cn(
+                        i === doneChores.length - 1 && "border-b-0",
+                      )}
+                    />
+                    {userRole !== "parent" &&
+                      ownPreparationContext[chore.id] && (
+                        <div className="px-4 pb-2">
+                          <OwnPreparationNote
+                            title={ownPreparationContext[chore.id].eventTitle}
+                          />
+                        </div>
+                      )}
+                    {userRole === "parent" && (
+                      <div className="px-4 pb-2 space-y-1">
+                        {preparationBacklinks[chore.id] && (
+                          <PreparationEntry
+                            eventId={preparationBacklinks[chore.id]}
+                            backlink
+                          />
+                        )}
+                        {routineOrigins[chore.id] && (
+                          <RoutineOriginEntry
+                            origin={routineOrigins[chore.id]}
+                          />
+                        )}
+                      </div>
                     )}
-                    showChevron={false}
-                    trailing={
-                      gamification ? (
-                        <span className="text-footnote text-label-tertiary">
-                          +{chore.points}
-                        </span>
-                      ) : undefined
-                    }
-                    className={cn(i === doneChores.length - 1 && "border-b-0")}
-                  />
+                  </div>
                 ))}
               </div>
             )}
@@ -1324,9 +1578,7 @@ export default function ChoresContent({
                 {message("deleteOccurrenceCancel")}
               </button>
               <button
-                ref={
-                  deleteDialog.notFound ? deleteRefreshRef : deleteRetryRef
-                }
+                ref={deleteDialog.notFound ? deleteRefreshRef : deleteRetryRef}
                 type="button"
                 onClick={() =>
                   deleteDialog.notFound
@@ -1440,7 +1692,11 @@ export default function ChoresContent({
   );
 }
 
-function choresSubtitle(open: number, toCheck: number, text: ReturnType<typeof useChoreOverviewText>): string {
+function choresSubtitle(
+  open: number,
+  toCheck: number,
+  text: ReturnType<typeof useChoreOverviewText>,
+): string {
   const parts = [text("openCount", { count: open })];
   if (toCheck > 0) parts.push(text("checkCount", { count: toCheck }));
   return parts.join(" · ");

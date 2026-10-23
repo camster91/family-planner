@@ -5,7 +5,7 @@
 // parent who registered without their invite link must be able to reach the
 // join page from here, not only "Create Family".
 import * as React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 
@@ -44,13 +44,118 @@ describe("family creation next step", () => {
   afterEach(() => jest.restoreAllMocks());
 
   async function enterFamily() {
-    render(<OnboardingFlow userId="u1" />);
+    const view = render(<OnboardingFlow userId="u1" />);
     await userEvent.click(screen.getByRole("button", { name: /get started/i }));
     await userEvent.type(
       screen.getByRole("textbox", { name: /family name/i }),
       "Our Family",
     );
+    return view;
   }
+
+  it("owns creation immediately across same-turn Enter and click, and ignores composing Enter", async () => {
+    let finish!: (value: unknown) => void;
+    global.fetch = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    ) as unknown as typeof fetch;
+    await enterFamily();
+    const name = screen.getByRole("textbox", { name: /family name/i });
+    const create = screen.getByRole("button", { name: /create family/i });
+    fireEvent.keyDown(name, { key: "Enter", isComposing: true });
+    expect(fetch).not.toHaveBeenCalled();
+    act(() => {
+      fireEvent.keyDown(name, { key: "Enter" });
+      fireEvent.click(create);
+      fireEvent.keyDown(name, { key: "Enter" });
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      finish({
+        ok: false,
+        status: 422,
+        json: async () => ({ error: "Fixture rejection" }),
+      }),
+    );
+    expect((name as HTMLInputElement).value).toBe("Our Family");
+    expect(
+      (
+        screen.getByRole("button", {
+          name: /create family/i,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+  });
+
+  it.each(["fetch", "body"] as const)(
+    "bounds an ambiguous create readback with a stalled %s, retaining draft without another create",
+    async (stalled) => {
+      const view = await enterFamily();
+      jest.useFakeTimers();
+      let completeLate!: (value: any) => void;
+      const late = new Promise<any>((resolve) => {
+        completeLate = resolve;
+      });
+      global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+        if (String(input) === "/api/family")
+          throw new Error("Ambiguous create");
+        if (String(input) === "/api/auth/me")
+          return stalled === "fetch" ? late : { ok: true, json: () => late };
+        throw new Error("Unexpected fixture request");
+      }) as unknown as typeof fetch;
+      try {
+        await act(async () => {
+          fireEvent.click(
+            screen.getByRole("button", { name: /create family/i }),
+          );
+        });
+        await act(async () => {
+          jest.advanceTimersByTime(2501);
+        });
+        expect(
+          screen.queryByRole("heading", { name: /add everyone/i }),
+        ).toBeNull();
+        expect(
+          (
+            screen.getByRole("textbox", {
+              name: /family name/i,
+            }) as HTMLInputElement
+          ).value,
+        ).toBe("Our Family");
+        expect(
+          (
+            screen.getByRole("button", {
+              name: /create family/i,
+            }) as HTMLButtonElement
+          ).disabled,
+        ).toBe(false);
+        expect(
+          (fetch as jest.Mock).mock.calls.filter(
+            ([url]) => url === "/api/family",
+          ),
+        ).toHaveLength(1);
+        await act(async () =>
+          completeLate(
+            stalled === "fetch"
+              ? {
+                  ok: true,
+                  json: async () => ({ user: { family_id: "late-household" } }),
+                }
+              : { user: { family_id: "late-household" } },
+          ),
+        );
+        expect(
+          screen.queryByRole("heading", { name: /add everyone/i }),
+        ).toBeNull();
+      } finally {
+        view.unmount();
+        await act(async () => { jest.runAllTimers(); });
+        jest.useRealTimers();
+      }
+    },
+  );
 
   it("prompts adding everyone after the successful canonical creation", async () => {
     global.fetch = jest.fn().mockResolvedValue({

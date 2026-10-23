@@ -20,8 +20,11 @@ all-day defaults and fetched timestamp precision stay unchanged.
 Close or Escape returns through router history and discards the unsaved draft.
 Browser Back also restores the prior screen; reopening starts a fresh draft.
 No persistent local storage of household form contents is introduced. While a
-save, upload, or event deletion is pending, explicit Close and Escape are unavailable; browser
-history remains platform-owned. Successful saves retain their canonical route
+save, upload, or event deletion is pending, explicit Close and Escape are unavailable.
+The pending-navigation controller owns a same-URL history sentinel to hold a
+same-document Back attempt while work is pending; authorized success navigation
+awaits release of that entry. Actual Next/browser and native Back behavior still
+need the consolidated acceptance pass. Successful saves retain their canonical route
 and refresh behavior. No new mutation endpoints, auth rules, or database tables.
 
 The shared dialog owns focus trapping/restoration and reduced-motion behavior.
@@ -38,3 +41,11 @@ through the existing EN/ES calendar-form messages. Original exact event instants
 read-only subscription handling, role checks and nested delete confirmation are
 retained. Those remain full application/browser release gates. Rollback removes the slot
 and sheet wrappers; the standalone canonical pages and APIs remain usable.
+
+New/Edit Chore sheet titles, close labels and draft/save/upload notices use the
+typed EN/ES chore-form dictionary. The shared wrapper keeps the existing canonical
+CreateChoreForm/EditChoreForm and busy callback, including upload work. Wrapper
+localization/busy source cases are authored; they do not substitute for actual
+form/API, browser history or native acceptance. Source reconciliation for #455
+(including consolidated #453) and #456 is recorded in
+`docs/plans/calendar-connections-and-form-sheets-reconciliation.md`.

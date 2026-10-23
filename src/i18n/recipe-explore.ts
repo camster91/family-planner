@@ -3,6 +3,42 @@ import { useTranslation } from "@/i18n";
 
 /** Explore-page controls and safe recovery copy. Recipe/source content stays verbatim. */
 export const recipeExploreEnglish = {
+  savedWork: "Continue saved recipe work",
+  allSources: "All supported sites",
+  partialSearch:
+    "Some sites were unavailable. These results are incomplete; try their original search links below.",
+  importReview: "Review imported details",
+  importLimitsUnknown:
+    "This preview did not report extraction limits. Compare it with the original before saving.",
+  "import_title-shortened":
+    "The title was shortened. Compare it with the original.",
+  "import_description-shortened":
+    "The description was shortened. Compare it with the original.",
+  "import_ingredients-shortened":
+    "Some ingredient text was shortened, omitted or unreadable. Check the original before saving.",
+  "import_directions-shortened":
+    "Some directions were shortened or omitted. Check the original before cooking or saving.",
+  "import_servings-unknown":
+    "Base servings are unknown. Enter and confirm them before saving.",
+  "import_prep-time-unknown": "Prep time is unknown; it stays blank.",
+  "import_cook-time-unknown": "Cook time is unknown; it stays blank.",
+  "import_ingredients-missing":
+    "No ingredient lines were found. Add reviewed ingredients manually.",
+  "import_directions-missing":
+    "No directions were found. Open the original or add them manually.",
+  importTooLong:
+    "Combined ingredients and directions exceed the 20,000-character save limit. The draft keeps all extracted text; shorten it explicitly in the editor before saving.",
+
+  favoritesOnly: "Household favorites",
+  reviewCopy: "Review a separate copy",
+  searchSaved: "Search saved recipes",
+  clearSavedFilters: "Clear filters",
+  savedFilters: "More filters",
+  ingredientFilter: "Contains ingredient",
+  maxPrepFilter: "Prep at most (minutes)",
+  servingsFilter: "Serves at least",
+  savedFiltersHint:
+    "Searches your whole household recipe box. Ingredient matching uses reviewed ingredient rows; unknown prep times are excluded when a prep limit is set.",
   backToMeals: "← Meals",
   title: "Explore recipes",
   subtitle:
@@ -60,6 +96,43 @@ export const recipeExploreEnglish = {
 export type RecipeExploreMessage = keyof typeof recipeExploreEnglish;
 
 export const recipeExploreSpanish: Record<RecipeExploreMessage, string> = {
+  savedWork: "Continuar una receta guardada",
+  allSources: "Todos los sitios compatibles",
+  partialSearch:
+    "Algunos sitios no estaban disponibles. Los resultados están incompletos; prueba los enlaces de búsqueda originales.",
+  importReview: "Revisar datos importados",
+  importLimitsUnknown:
+    "Esta vista previa no informó los límites de extracción. Compárala con el original antes de guardar.",
+  "import_title-shortened":
+    "El título se ha acortado. Compáralo con el original.",
+  "import_description-shortened":
+    "La descripción se ha acortado. Compárala con el original.",
+  "import_ingredients-shortened":
+    "Se acortó, omitió o no se pudo leer parte de los ingredientes. Revisa el original antes de guardar.",
+  "import_directions-shortened":
+    "Se acortaron u omitieron algunos pasos. Revisa el original antes de cocinar o guardar.",
+  "import_servings-unknown":
+    "No se conocen las porciones originales. Indícalas y confírmalas antes de guardar.",
+  "import_prep-time-unknown":
+    "Se desconoce el tiempo de preparación; queda vacío.",
+  "import_cook-time-unknown": "Se desconoce el tiempo de cocción; queda vacío.",
+  "import_ingredients-missing":
+    "No se encontraron ingredientes. Añade ingredientes revisados manualmente.",
+  "import_directions-missing":
+    "No se encontraron pasos. Abre el original o añádelos manualmente.",
+  importTooLong:
+    "Los ingredientes y pasos superan el límite de 20.000 caracteres. El borrador conserva todo el texto extraído; acórtalo expresamente en el editor antes de guardar.",
+
+  favoritesOnly: "Favoritas del hogar",
+  reviewCopy: "Revisar una copia separada",
+  searchSaved: "Buscar recetas guardadas",
+  clearSavedFilters: "Borrar filtros",
+  savedFilters: "Más filtros",
+  ingredientFilter: "Contiene ingrediente",
+  maxPrepFilter: "Preparación máxima (minutos)",
+  servingsFilter: "Porciones mínimas",
+  savedFiltersHint:
+    "Busca en todas las recetas del hogar. Los ingredientes se comparan con filas revisadas; los tiempos desconocidos se excluyen al establecer un límite.",
   backToMeals: "← Comidas",
   title: "Explorar recetas",
   subtitle:

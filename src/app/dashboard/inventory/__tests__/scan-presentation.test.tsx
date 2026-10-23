@@ -1,6 +1,13 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import { useState } from "react";
 import { I18nProvider, useTranslation } from "@/i18n";
 import { inventoryMessages, type InventoryFeedback } from "@/i18n/inventory";
@@ -50,7 +57,14 @@ for (const locale of ["en", "es"] as const)
       global.fetch = jest.fn().mockResolvedValue(json({ items: rows }));
       render(
         <I18nProvider locale={locale} pseudolocalize={expanded}>
-          <ScanFridgeDialog onDone={jest.fn()} onClose={jest.fn()} />
+          <ScanFridgeDialog
+            initialContext={{
+              userId: "fixture_parent",
+              familyId: "fixture_family",
+            }}
+            onDone={jest.fn()}
+            onClose={jest.fn()}
+          />
         </I18nProvider>,
       );
       expect(
@@ -85,29 +99,34 @@ for (const locale of ["en", "es"] as const)
       expect(document.querySelector("b")).toBeNull();
       expect(fetch).toHaveBeenCalledTimes(1);
     });
-    it(`${locale} expanded=${expanded}: collision refusal preserves its deliberate unticked state and raw other refusal`, async () => {
+    it(`${locale} expanded=${expanded}: explicit refusals preserve selection without guessing a previous save or exposing raw server text`, async () => {
       let calls = 0;
-      global.fetch = jest
-        .fn()
-        .mockImplementation(async (input: string) =>
-          input === "/api/inventory/scan"
-            ? json({ items: rows })
-            : json(
-                {
-                  error:
-                    ++calls === 1
-                      ? {
-                          code: "IDEMPOTENCY_KEY_REUSED",
-                          message: "Raw collision",
-                        }
-                      : { message: "Raw refusal {name} 李" },
-                },
-                false,
-              ),
-        );
+      global.fetch = jest.fn().mockImplementation(async (input: string) =>
+        input === "/api/inventory/scan"
+          ? json({ items: rows })
+          : json(
+              {
+                error:
+                  ++calls === 1
+                    ? {
+                        code: "IDEMPOTENCY_KEY_REUSED",
+                        message: "Raw collision",
+                      }
+                    : { message: "Raw refusal {name} 李" },
+              },
+              false,
+            ),
+      );
       render(
         <I18nProvider locale={locale} pseudolocalize={expanded}>
-          <ScanFridgeDialog onDone={jest.fn()} onClose={jest.fn()} />
+          <ScanFridgeDialog
+            initialContext={{
+              userId: "fixture_parent",
+              familyId: "fixture_family",
+            }}
+            onDone={jest.fn()}
+            onClose={jest.fn()}
+          />
         </I18nProvider>,
       );
       upload();
@@ -115,14 +134,16 @@ for (const locale of ["en", "es"] as const)
       fireEvent.click(screen.getByTestId("scan-add"));
       await act(async () => {});
       const suggestions = screen.getAllByTestId("scan-suggestion");
-      expect(within(suggestions[0]).getByRole("checkbox")).not.toBeChecked();
+      await waitFor(() => expect(screen.getByTestId("scan-add")).toBeEnabled());
+      expect(within(suggestions[0]).getByRole("checkbox")).toBeChecked();
       expect(
         within(suggestions[0]).getByTestId("scan-row-error"),
-      ).toHaveTextContent(copy("probablyAdded"));
+      ).toHaveTextContent(copy("intakeRefused"));
+      expect(screen.queryByText(copy("probablyAdded"))).toBeNull();
       expect(within(suggestions[1]).getByRole("checkbox")).toBeChecked();
       expect(
         within(suggestions[1]).getByTestId("scan-row-error"),
-      ).toHaveTextContent("Raw refusal {name} 李");
+      ).toHaveTextContent(copy("intakeRefused"));
       expect(within(suggestions[2]).getByRole("checkbox")).not.toBeChecked();
       expect(fetch).toHaveBeenCalledTimes(3);
     });
@@ -137,7 +158,7 @@ it("reports one semantic partial-close result while legacy callbacks remain unto
       input === "/api/inventory/scan"
         ? json({ items: rows })
         : ++creates === 1
-          ? json({})
+          ? json({ itemId: "fixture-confirmed" })
           : json({}, false),
     );
   function Host() {
@@ -154,6 +175,10 @@ it("reports one semantic partial-close result while legacy callbacks remain unto
         )}
         {open && (
           <ScanFridgeDialog
+            initialContext={{
+              userId: "fixture_parent",
+              familyId: "fixture_family",
+            }}
             onDone={legacy}
             onClose={closed}
             onFeedback={(value) => {
@@ -174,6 +199,9 @@ it("reports one semantic partial-close result while legacy callbacks remain unto
   await act(async () => {});
   fireEvent.click(screen.getByTestId("scan-add"));
   await act(async () => {});
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled(),
+  );
   fireEvent.click(screen.getByRole("button", { name: "Close" }));
   expect(screen.getByTestId("notice")).toHaveTextContent(
     "Added 1 item from your photo.",

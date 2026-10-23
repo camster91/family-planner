@@ -51,6 +51,7 @@ for (const locale of ["en", "es"] as const) {
     );
 
     await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard\/today$/);
     await expect(page.locator("html")).toHaveAttribute("lang", locale);
     const versionResponse = await browserFetch(page, "/api/version");
     expect(versionResponse.status, versionResponse.body).toBe(200);

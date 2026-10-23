@@ -1,12 +1,17 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { Mic, MicOff } from "lucide-react";
+import {
+  assistantResponseSchema,
+  ASSISTANT_REFERENCES_PROTOCOL,
+  ASSISTANT_CONFIRMATION_PROTOCOL,
+  type AssistantEvidence,
+} from "@/lib/assistant-reference-contract";
 import { Dialog } from "@/components/ui/dialog";
 import { useFeatures } from "@/components/providers/features-provider";
 import {
-  assistantReplySchema,
   assistantDestination,
   canUseAssistantAction,
   type AssistantAction,
@@ -14,9 +19,11 @@ import {
 import {
   executeAssistantAction,
   removalTargets,
+  previewRemovalTarget,
   choreAssignees,
   AssistantActionError,
   AssistantActionPreflightError,
+  AssistantSourceRefusal,
   ActionOutcomeUnknown,
   type AssistantActionErrorCode,
   type RemovalTarget,
@@ -29,9 +36,16 @@ import {
   type AssistantMessage,
   type VoiceErrorCode,
 } from "@/i18n/assistant";
+import AppGuide from "./AppGuide";
+import { MealPlanningReviewLinks } from "@/components/meals/planning/MealPlanningReviewLinks";
 import { useVoiceDraft } from "./use-voice-draft";
+import { LocalVoiceDraft } from "./LocalVoiceDraft";
 
-type Message = { role: "user" | "assistant"; content: string };
+type Message = {
+  role: "user" | "assistant";
+  content: string;
+  evidence?: AssistantEvidence[];
+};
 type ChatRequest = {
   messages: Message[];
   inputText: string;
@@ -67,6 +81,8 @@ export type AssistantPanelProps = {
   onClose: () => void;
   onBusyChange: (busy: boolean) => void;
   todayContextEnabled?: boolean;
+  confirmationEnabled?: boolean;
+  profileAssignmentEnabled?: boolean;
 };
 
 type AssistantError =
@@ -185,6 +201,8 @@ export default function AssistantPanel({
   onClose,
   onBusyChange,
   todayContextEnabled = false,
+  confirmationEnabled = false,
+  profileAssignmentEnabled = false,
 }: AssistantPanelProps) {
   const router = useRouter(),
     { features } = useFeatures();
@@ -198,18 +216,25 @@ export default function AssistantPanel({
     [busy, setBusy] = React.useState(false),
     [error, setError] = React.useState<AssistantError | null>(null),
     [failedChat, setFailedChat] = React.useState<ChatRequest | null>(null),
-    [actionRecovery, setActionRecovery] =
-      React.useState<ActionRecovery | null>(null),
+    [actionRecovery, setActionRecovery] = React.useState<ActionRecovery | null>(
+      null,
+    ),
     [includeToday, setIncludeToday] = React.useState(false),
     [todayFreshness, setTodayFreshness] = React.useState<TodayFreshness | null>(
       null,
     ),
     [todayExpired, setTodayExpired] = React.useState(false);
+  const [sourceProof, setSourceProof] = React.useState<string | undefined>();
   const [action, setAction] = React.useState<AssistantAction | null>(null),
     [targets, setTargets] = React.useState<RemovalTarget[]>([]),
     [selected, setSelected] = React.useState(""),
     [deleteConfirm, setDeleteConfirm] = React.useState(false),
     [choiceLoadFailed, setChoiceLoadFailed] = React.useState(false);
+  const chosenSubject = targets.find(
+    (target) => target.id === selected,
+  )?.subject;
+  const profileRecurrencePaused =
+    chosenSubject?.kind === "profile" && !chosenSubject.recurrenceSupported;
   const [kind, setKind] = React.useState("bug"),
     [title, setTitle] = React.useState(""),
     [details, setDetails] = React.useState(""),
@@ -217,8 +242,14 @@ export default function AssistantPanel({
     [reports, setReports] = React.useState<Report[]>([]),
     [reportsLoading, setReportsLoading] = React.useState(false),
     [reportsLoadFailed, setReportsLoadFailed] = React.useState(false);
-  const requestId = React.useRef(""),
-    actionKey = React.useRef(""),
+  const reportRequest = React.useRef<{
+    requestId: string;
+    kind: string;
+    title: string;
+    details: string;
+    page: string;
+  } | null>(null);
+  const actionKey = React.useRef(""),
     lock = React.useRef(false),
     consumed = React.useRef(false),
     textRef = React.useRef(""),
@@ -342,7 +373,11 @@ export default function AssistantPanel({
     if (tab === "reports") reportsLoadGeneration.current += 1;
     onClose();
   };
-  async function requestChat(request: ChatRequest, preserveDraft = false) {
+  async function requestChat(
+    request: ChatRequest,
+    preserveDraft = false,
+    reviewedAction?: AssistantAction,
+  ) {
     if (lock.current || !canChat) return;
     lock.current = true;
     setBusy(true);
@@ -351,24 +386,28 @@ export default function AssistantPanel({
       setFailedChat(null);
     }
     setActionRecovery(null);
-    setAction(null);
+    // A source refresh holds the edited proposal until a matching fresh
+    // action kind is available. Failed refreshes must not erase user edits.
+    if (!reviewedAction) setAction(null);
+    else {
+      consumed.current = true;
+      setTodayExpired(true);
+    }
+    setSourceProof(undefined);
     setTargets([]);
     setDeleteConfirm(false);
     setChoiceLoadFailed(false);
     voice.stop();
-    const {
-      messages: next,
-      includeToday,
-      localNow,
-      timeZone,
-    } = request;
+    const { messages: next, includeToday, localNow, timeZone } = request;
     const leaseStartedAt = includeToday ? monotonicNow() : null;
     let messageFinished = false;
     try {
       if (includeToday && leaseStartedAt === null)
         throw new AssistantCopyError("todayContextUnavailable");
       const requestBody = {
-        messages: next,
+        // Server-resolved citations are presentation only, never replayed as
+        // provider instructions or caller-selected record authority.
+        messages: next.map(({ role, content }) => ({ role, content })),
         localNow,
         timeZone,
         ...(includeToday ? { includeToday: true } : {}),
@@ -376,10 +415,18 @@ export default function AssistantPanel({
       let r: Response;
       try {
         r = await fetch("/api/assistant", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody),
-          });
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(includeToday
+              ? { "X-Assistant-References": ASSISTANT_REFERENCES_PROTOCOL }
+              : {}),
+            ...(includeToday && confirmationEnabled
+              ? { "X-Assistant-Confirmation": ASSISTANT_CONFIRMATION_PROTOCOL }
+              : {}),
+          },
+          body: JSON.stringify(requestBody),
+        });
       } catch {
         throw new AssistantCopyError("chatOffline");
       }
@@ -392,8 +439,7 @@ export default function AssistantPanel({
         );
       }
       if (!r.ok) {
-        if (r.status === 429)
-          throw new AssistantCopyError("chatRateLimited");
+        if (r.status === 429) throw new AssistantCopyError("chatRateLimited");
         if (r.status === 413) throw new AssistantCopyError("chatTooLong");
         const errorBody = isChatErrorBody(body) ? body : null;
         if (
@@ -415,7 +461,7 @@ export default function AssistantPanel({
           r.status >= 500 ? "chatUnavailable" : "chatFailed",
         );
       }
-      const parsedReply = assistantReplySchema.safeParse(body);
+      const parsedReply = assistantResponseSchema.safeParse(body);
       if (!parsedReply.success) throw new AssistantCopyError("replyUnreadable");
       const responseAt = includeToday ? monotonicNow() : null;
       const freshness = includeToday
@@ -429,6 +475,22 @@ export default function AssistantPanel({
       if (includeToday && !freshness)
         throw new AssistantCopyError("todayContextUnavailable");
       const proposal = parsedReply.data;
+      if (
+        includeToday &&
+        confirmationEnabled &&
+        proposal.action &&
+        proposal.action.kind !== "open" &&
+        !proposal.sourceProof
+      )
+        throw new AssistantCopyError("todayContextUnavailable");
+      if (
+        reviewedAction &&
+        (!proposal.action ||
+          proposal.action.kind !== reviewedAction.kind ||
+          !canUseAssistantAction(reviewedAction, role, features))
+      )
+        throw new AssistantCopyError("todayContextUnavailable");
+      setSourceProof(proposal.sourceProof);
       messageFinished = true;
       setError(null);
       setFailedChat(null);
@@ -436,7 +498,11 @@ export default function AssistantPanel({
       setMessages(
         [
           ...next,
-          { role: "assistant" as const, content: proposal.reply },
+          {
+            role: "assistant" as const,
+            content: proposal.reply,
+            ...(proposal.evidence ? { evidence: proposal.evidence } : {}),
+          },
         ].slice(-12),
       );
       if (freshness) {
@@ -450,13 +516,16 @@ export default function AssistantPanel({
         proposal.action &&
         canUseAssistantAction(proposal.action, role, features)
       ) {
-        setAction(proposal.action);
+        // The proof binds the renewed source basis and action kind; it does
+        // not approve a model body. Preserve deliberate human edits and still
+        // require a new explicit confirmation with a new key.
+        setAction(reviewedAction ?? proposal.action);
         consumed.current = false;
         actionKey.current = crypto.randomUUID();
         try {
           const choices =
             proposal.action.kind === "chore_create"
-              ? await choreAssignees()
+              ? await choreAssignees(profileAssignmentEnabled)
               : proposal.action.kind.endsWith("_delete")
                 ? await removalTargets(proposal.action)
                 : null;
@@ -485,7 +554,11 @@ export default function AssistantPanel({
       } else {
         setError(toChatError(e, "chatFailed"));
       }
-      setAction(null);
+      setAction(reviewedAction ?? null);
+      if (reviewedAction) {
+        setSourceProof(undefined);
+        setTodayExpired(true);
+      }
     } finally {
       lock.current = false;
       setBusy(false);
@@ -503,7 +576,7 @@ export default function AssistantPanel({
     try {
       const choices =
         pendingAction.kind === "chore_create"
-          ? await choreAssignees()
+          ? await choreAssignees(profileAssignmentEnabled)
           : pendingAction.kind.endsWith("_delete")
             ? await removalTargets(pendingAction)
             : null;
@@ -550,7 +623,11 @@ export default function AssistantPanel({
   async function retryFailedChat() {
     const request = failedChat;
     if (!request || lock.current) return;
-    await requestChat(request, true);
+    await requestChat(
+      request,
+      true,
+      todayExpired ? (action ?? undefined) : undefined,
+    );
   }
   async function refreshTodayContext() {
     const request = lastTodayRequest.current;
@@ -565,6 +642,7 @@ export default function AssistantPanel({
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
       true,
+      action ?? undefined,
     );
   }
   function hasValidTodayLease(): boolean {
@@ -580,6 +658,39 @@ export default function AssistantPanel({
     if (!valid) setTodayExpired(true);
     return valid;
   }
+  async function selectRemovalTarget(id: string) {
+    if (lock.current || !action || !action.kind.endsWith("_delete")) return;
+    setDeleteConfirm(false);
+    setSelected(id);
+    if (!id || !sourceProof) return;
+    const reviewedAction = action;
+    const reviewedProof = sourceProof;
+    lock.current = true;
+    setBusy(true);
+    setError(null);
+    setTargets((rows) =>
+      rows.map((row) =>
+        row.id === id
+          ? { ...row, proof: undefined, itemCount: undefined }
+          : row,
+      ),
+    );
+    try {
+      const target = await previewRemovalTarget(
+        reviewedAction,
+        id,
+        reviewedProof,
+      );
+      setTargets((rows) => rows.map((row) => (row.id === id ? target : row)));
+    } catch (error) {
+      setSelected("");
+      setError(toAssistantError(error, "loadChoicesFailed"));
+      if (error instanceof AssistantSourceRefusal) setTodayExpired(true);
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
   async function confirm() {
     if (
       !action ||
@@ -590,14 +701,24 @@ export default function AssistantPanel({
       return;
     if (!hasValidTodayLease()) return;
     if (action.kind === "open") {
-      close();
-      router.push(assistantDestination(action.destination));
+      if (await router.push(assistantDestination(action.destination))) close();
       return;
     }
     const removing = action.kind.endsWith("_delete"),
       chosen = targets.find((t) => t.id === selected);
-    if (removing && (!chosen || !deleteConfirm)) return;
-    if (action.kind === "chore_create" && !chosen) return;
+    if (
+      removing &&
+      (!chosen || !deleteConfirm || (sourceProof && !chosen.proof))
+    )
+      return;
+    if (
+      action.kind === "chore_create" &&
+      (!chosen ||
+        (chosen.subject?.kind === "profile" &&
+          action.frequency !== "once" &&
+          !chosen.subject.recurrenceSupported))
+    )
+      return;
     lock.current = true;
     consumed.current = true;
     setBusy(true);
@@ -605,7 +726,12 @@ export default function AssistantPanel({
     setActionRecovery(null);
     setChoiceLoadFailed(false);
     try {
-      await executeAssistantAction(action, actionKey.current, chosen);
+      await executeAssistantAction(
+        action,
+        actionKey.current,
+        chosen,
+        sourceProof,
+      );
       setMessages((prev) => [
         ...prev,
         {
@@ -621,10 +747,21 @@ export default function AssistantPanel({
       setDeleteConfirm(false);
       router.refresh();
     } catch (e) {
+      if (e instanceof AssistantSourceRefusal) {
+        setError(toAssistantError(e, "actionFailed"));
+        setTodayExpired(true);
+        // Proven refusal has no new effect. A fresh reviewed proposal gets a
+        // new key/proof; never retry an expired or unavailable basis blindly.
+        return;
+      }
       if (e instanceof AssistantActionPreflightError) {
-        // This error is proven to occur before executeAssistantAction starts
-        // any mutation request. Keep the proposal editable and allow a retry.
+        // Local validation or a canonical pre-effect refusal proves no new
+        // effect. Keep edits; changed assignees require a read-only reload.
         consumed.current = false;
+        if (e.code === "assigneeChanged") {
+          setChoiceLoadFailed(true);
+          setSelected("");
+        }
         setError(toAssistantError(e, "actionFailed"));
         return;
       }
@@ -650,28 +787,33 @@ export default function AssistantPanel({
     lock.current = true;
     setBusy(true);
     setError(null);
-    if (!requestId.current) requestId.current = crypto.randomUUID();
+    // Retrying a lost response must use the exact original body, including
+    // pathname, even if navigation changed while this draft remained mounted.
+    reportRequest.current ??= {
+      requestId: crypto.randomUUID(),
+      kind,
+      title,
+      details,
+      page: pathname,
+    };
+    const pendingReport = reportRequest.current;
     try {
       const r = await fetch("/api/feedback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            requestId: requestId.current,
-            kind,
-            title,
-            details,
-            page: pathname,
-          }),
+          body: JSON.stringify(pendingReport),
         }),
         b = await r.json();
       if (!r.ok) {
         if (typeof b.error === "string" && b.error) throw new Error(b.error);
         throw new AssistantCopyError("reportSaveFailed");
       }
+      if (typeof b?.report?.id !== "string" || !b.report.id.trim())
+        throw new AssistantCopyError("reportSaveFailed");
       setReceipt(b.report.id);
       setTitle("");
       setDetails("");
-      requestId.current = "";
+      reportRequest.current = null;
     } catch (e) {
       setError(toAssistantError(e, "reportSaveFailed"));
     } finally {
@@ -750,17 +892,20 @@ export default function AssistantPanel({
                     ? msg(displayedError.key)
                     : displayedError.message}
             </p>
-            {displayedError.kind === "chat" && failedChat &&
-              !["chatRateLimited", "chatTooLong"].includes(displayedError.key) && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void retryFailedChat()}
-                className={`${target} bg-surface-fill`}
-              >
-                {msg("retryChat")}
-              </button>
-            )}
+            {displayedError.kind === "chat" &&
+              failedChat &&
+              !["chatRateLimited", "chatTooLong"].includes(
+                displayedError.key,
+              ) && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void retryFailedChat()}
+                  className={`${target} bg-surface-fill`}
+                >
+                  {msg("retryChat")}
+                </button>
+              )}
             {tab === "chat" && actionRecovery && (
               <Link
                 href={actionRecovery.href}
@@ -788,6 +933,19 @@ export default function AssistantPanel({
         )}
         {tab === "chat" && (
           <div className="space-y-4">
+            <AppGuide
+              role={role}
+              disabled={busy}
+              canNavigate={() => !lock.current}
+              onNavigated={close}
+            />
+            {canChat && features.meals && (
+              <MealPlanningReviewLinks
+                disabled={busy}
+                canNavigate={() => !lock.current}
+                onNavigated={close}
+              />
+            )}
             <p className="text-sm text-label-secondary">
               {msg(includeToday ? "chatIntroWithToday" : "chatIntro")}
             </p>
@@ -841,15 +999,51 @@ export default function AssistantPanel({
               className="space-y-3 max-h-64 overflow-y-auto"
             >
               {messages.map((m, i) => (
-                <p
+                <div
                   key={i}
                   className={`rounded-2xl p-3 whitespace-pre-wrap break-words ${m.role === "user" ? "bg-accent-tint" : "bg-surface-fill"}`}
                 >
-                  <span className="font-semibold">
-                    {m.role === "user" ? msg("you") : msg("assistant")}:{" "}
-                  </span>
-                  {m.content}
-                </p>
+                  <p>
+                    <span className="font-semibold">
+                      {m.role === "user" ? msg("you") : msg("assistant")}:{" "}
+                    </span>
+                    {m.content}
+                  </p>
+                  {Boolean(m.evidence?.length) &&
+                    (i === messages.length - 1 &&
+                    todayFreshness &&
+                    !todayExpired ? (
+                      <div className="mt-2 border-t border-[var(--surface-separator)] pt-2 text-footnote">
+                        <p>{msg("sourceEvidence")}</p>
+                        <ul
+                          className="space-y-1"
+                          aria-label={msg("sourceEvidence")}
+                        >
+                          {m.evidence!.map((source) => (
+                            <li key={source.ref}>
+                              <Link
+                                href={source.href}
+                                className="inline-flex min-h-11 items-center underline [overflow-wrap:anywhere]"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  if (busy || todayExpired) return;
+                                  void (async () => {
+                                    if (await router.push(source.href)) close();
+                                  })();
+                                }}
+                              >
+                                {source.label}
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-footnote text-label-secondary">
+                        {msg("sourceEvidenceExpired")}
+                      </p>
+                    ))}
+                </div>
               ))}
             </div>
             {action && (
@@ -893,10 +1087,18 @@ export default function AssistantPanel({
                         {targets.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.title}
+                            {t.subject?.kind === "profile"
+                              ? ` · ${msg("emailFreeProfile")}`
+                              : ""}
                           </option>
                         ))}
                       </select>
                     </label>
+                    {chosenSubject?.kind === "profile" && (
+                      <p role="status" className="text-sm text-label-secondary">
+                        {msg("profileAssignmentDescription")}
+                      </p>
+                    )}
                     <label className="block">
                       {msg("repeats")}
                       <select
@@ -912,11 +1114,31 @@ export default function AssistantPanel({
                         className="input-apple min-h-[44px] w-full"
                       >
                         <option value="once">{msg("once")}</option>
-                        <option value="daily">{msg("daily")}</option>
-                        <option value="weekly">{msg("weekly")}</option>
-                        <option value="monthly">{msg("monthly")}</option>
+                        <option
+                          value="daily"
+                          disabled={profileRecurrencePaused}
+                        >
+                          {msg("daily")}
+                        </option>
+                        <option
+                          value="weekly"
+                          disabled={profileRecurrencePaused}
+                        >
+                          {msg("weekly")}
+                        </option>
+                        <option
+                          value="monthly"
+                          disabled={profileRecurrencePaused}
+                        >
+                          {msg("monthly")}
+                        </option>
                       </select>
                     </label>
+                    {profileRecurrencePaused && action.frequency !== "once" && (
+                      <p role="status" className="text-sm text-label-secondary">
+                        {msg("profileRecurrenceUnavailable")}
+                      </p>
+                    )}
                     {action.frequency === "weekly" ? (
                       <WeeklyDaysPicker
                         days={action.weekdays}
@@ -1023,10 +1245,9 @@ export default function AssistantPanel({
                         disabled={busy}
                         aria-label={msg("itemToRemove")}
                         value={selected}
-                        onChange={(e) => {
-                          setSelected(e.target.value);
-                          setDeleteConfirm(false);
-                        }}
+                        onChange={(e) =>
+                          void selectRemovalTarget(e.target.value)
+                        }
                         className="input-apple min-h-[44px] w-full"
                       >
                         <option value="">{msg("chooseItem")}</option>
@@ -1044,20 +1265,48 @@ export default function AssistantPanel({
                     <p className="text-sm text-label-secondary">
                       {msg("deletionInfo")}
                     </p>
-                    {selected && (
-                      <label className="flex min-h-[44px] items-center gap-3">
-                        <input
-                          type="checkbox"
-                          disabled={busy}
-                          checked={deleteConfirm}
-                          onChange={(e) => setDeleteConfirm(e.target.checked)}
-                        />
-                        {msg("confirmRemoving", {
-                          title:
-                            targets.find((t) => t.id === selected)?.title ?? "",
-                        })}
-                      </label>
-                    )}
+                    {sourceProof &&
+                      selected &&
+                      targets.find((t) => t.id === selected)?.proof && (
+                        <div
+                          role="status"
+                          className="rounded-xl bg-surface-fill p-3 text-sm [overflow-wrap:anywhere]"
+                        >
+                          <p className="font-semibold">
+                            {targets.find((t) => t.id === selected)?.title}
+                          </p>
+                          <p>
+                            {targets.find((t) => t.id === selected)?.context}
+                          </p>
+                          {targets.find((t) => t.id === selected)?.itemCount !==
+                            undefined && (
+                            <p>
+                              {msg("deleteListItemCount", {
+                                count: targets.find((t) => t.id === selected)!
+                                  .itemCount!,
+                              })}
+                            </p>
+                          )}
+                          <p>{msg("deleteTargetReviewed")}</p>
+                        </div>
+                      )}
+                    {selected &&
+                      (!sourceProof ||
+                        targets.find((t) => t.id === selected)?.proof) && (
+                        <label className="flex min-h-[44px] items-center gap-3">
+                          <input
+                            type="checkbox"
+                            disabled={busy}
+                            checked={deleteConfirm}
+                            onChange={(e) => setDeleteConfirm(e.target.checked)}
+                          />
+                          {msg("confirmRemoving", {
+                            title:
+                              targets.find((t) => t.id === selected)?.title ??
+                              "",
+                          })}
+                        </label>
+                      )}
                   </>
                 )}
                 {action.kind === "open" && (
@@ -1076,11 +1325,16 @@ export default function AssistantPanel({
                       todayExpired ||
                       (action.kind === "chore_create" &&
                         (!selected ||
+                          (profileRecurrencePaused &&
+                            action.frequency !== "once") ||
                           (action.frequency === "weekly"
                             ? !action.weekdays.length
                             : !action.date))) ||
                       (action.kind.endsWith("_delete") &&
-                        (!selected || !deleteConfirm))
+                        (!selected ||
+                          !deleteConfirm ||
+                          (Boolean(sourceProof) &&
+                            !targets.find((t) => t.id === selected)?.proof)))
                     }
                     onClick={() => void confirm()}
                     className={`${target} bg-[var(--accent-fill)] text-white`}
@@ -1130,7 +1384,16 @@ export default function AssistantPanel({
                 <button
                   disabled={busy || !voice.supported}
                   type="button"
-                  onClick={voice.start}
+                  onClick={() => {
+                    if (voice.listening) {
+                      voice.stop();
+                      return;
+                    }
+                    window.dispatchEvent(
+                      new Event("herewoven:voice-input-start"),
+                    );
+                    voice.start();
+                  }}
                   aria-pressed={voice.listening}
                   className={`${target} bg-surface-fill inline-flex items-center gap-2`}
                 >
@@ -1157,6 +1420,13 @@ export default function AssistantPanel({
                   {msg("clearChat")}
                 </button>
               </div>
+              <LocalVoiceDraft
+                enabled={panelOpen && tab === "chat" && canChat && !busy}
+                contextKey={`${role}:${pathname}`}
+                value={text}
+                onDraft={setText}
+                beforeListen={voice.stop}
+              />
               <p className="text-xs text-label-secondary">
                 {voice.supported
                   ? msg("voiceGuidance")
@@ -1193,7 +1463,7 @@ export default function AssistantPanel({
                 value={kind}
                 onChange={(e) => {
                   setKind(e.target.value);
-                  requestId.current = "";
+                  reportRequest.current = null;
                 }}
                 className="input-apple min-h-[44px] w-full"
               >
@@ -1211,7 +1481,7 @@ export default function AssistantPanel({
                 value={title}
                 onChange={(e) => {
                   setTitle(e.target.value);
-                  requestId.current = "";
+                  reportRequest.current = null;
                 }}
                 className="input-apple w-full"
               />
@@ -1229,13 +1499,15 @@ export default function AssistantPanel({
                 value={details}
                 onChange={(e) => {
                   setDetails(e.target.value);
-                  requestId.current = "";
+                  reportRequest.current = null;
                 }}
                 className="input-apple min-h-28 w-full"
               />
             </div>
             <p className="text-xs text-label-secondary">
-              {msg("reportPage", { pathname })}
+              {msg("reportPage", {
+                pathname: reportRequest.current?.page ?? pathname,
+              })}
             </p>
             <button
               disabled={busy}

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { notifyCalendarChanged } from '@/lib/calendar-planning/changes'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { Suspense } from 'react'

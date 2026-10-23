@@ -1,3 +1,5 @@
+import * as historyRead from '../adjustments/route'
+import { inventoryReadScopeValue, INVENTORY_READ_SCOPE_HEADER } from '@/lib/inventory-read-scope'
 // /api/inventory/** (#263): two households, roles (parent/teen write, child
 // read), the `inventory` feature gate (plus `meals` for "what can I cook"),
 // foreign ids answered like missing ones, and no cross-household ingredient
@@ -365,4 +367,36 @@ describe('inventory — two households, roles and gates', () => {
     expect((await cook.GET(req({ as: 'parentA' }))).status).toBe(403)
     expect((await list('parentA')).status).toBe(200)
   })
+it('does not count zero stock or disclose cross-household recipe ingredients in cooking hints', async () => {
+  const own = db.rows('inventoryItem').find(row => row.family_id === 'family-A' && row.ingredient_id === 'ingredient-a');
+  if (!own) throw new Error('fixture stock missing');
+  own.amount = 0;
+  let body = await (await cook.GET(req({ as: 'childA' }))).json();
+  expect(body.suggestions).toEqual([]);
+  own.amount = 1;
+  const line = db.rows('recipeIngredient').find(row => row.recipe_id === 'recipe-a');
+  if (!line) throw new Error('fixture recipe line missing');
+  line.ingredient_id = 'ingredient-b';
+  body = await (await cook.GET(req({ as: 'childA' }))).json();
+  expect(body.suggestions).toEqual([]);
+  expect(body.comparisonIncomplete).toBe(true);
+  expect(JSON.stringify(body)).not.toContain(FOREIGN);
+});
+
+
+  it('binds every personal inventory snapshot reader to the expected actor/household while keeping old reads compatible', async () => {
+    const scope = inventoryReadScopeValue({ userId: 'parent-a', familyId: 'family-A' });
+    const other = inventoryReadScopeValue({ userId: 'parent-b', familyId: 'family-B' });
+    for (const handler of [collection.GET, useSoon.GET, cook.GET, historyRead.GET]) {
+      const matched = await handler(req({ as: 'parentA', headers: { [INVENTORY_READ_SCOPE_HEADER]: scope } }));
+      expect(matched.status).toBe(200);
+      expect(matched.headers.get(INVENTORY_READ_SCOPE_HEADER)).toBe(scope);
+      const refused = await handler(req({ as: 'parentA', headers: { [INVENTORY_READ_SCOPE_HEADER]: other } }));
+      expect(refused.status).toBe(403);
+      expect(refused.headers.get('Cache-Control')).toBe('private, no-store');
+      expect(JSON.stringify(await refused.json())).not.toContain(FOREIGN);
+      expect((await handler(req({ as: 'parentA' }))).status).toBe(200);
+    }
+  });
+
 })

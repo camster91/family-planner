@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
-import { useTranslation } from '@/i18n'
+import { useCoreTranslation } from '@/i18n/core'
 
 /**
  * Route-level error state for every /dashboard page (route inventory F-9).
@@ -14,7 +14,7 @@ import { useTranslation } from '@/i18n'
  * can carry query text or ids. The nav and tab bar (the layout) stay usable.
  */
 export default function DashboardError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  const { t } = useTranslation()
+  const { t } = useCoreTranslation()
   const headingRef = React.useRef<HTMLHeadingElement>(null)
 
   // Move focus to the message so keyboard and screen-reader users land on it.

@@ -1,11 +1,11 @@
 "use client";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 const toastMessages = {
   en: { undo: "Undo", dismiss: "Dismiss" },
   es: { undo: "Deshacer", dismiss: "Descartar aviso" },
 };
 export function useToastCopy() {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   return (key: "undo" | "dismiss") => t(key, undefined, toastMessages);
 }
 export function UndoLabel() {

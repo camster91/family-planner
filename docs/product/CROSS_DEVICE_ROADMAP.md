@@ -4,13 +4,40 @@ Date: 2026-10-10. Owner: Cameron. Execution: Codex. Parent: [#128](https://githu
 Status: planned delivery, with a verified web foundation and specific live QA evidence. Market leadership is a target requiring customer comparison, not a claim.
 Authority: [Fridge Tablet Program](../FRIDGE_TABLET_PROGRAM.md), repository operating rules and original issue acceptance. This document supplies the current execution sequence; it does not replace the charter or waive older criteria.
 
+## Implementation-first goal — 2026-10-18
+
+Cameron set the active goal to finish the approved plans/issues/code, then QA
+one integrated candidate. Continue implementation without launching repeated
+partial QA rounds. The [open-issue completion ledger](../engineering/ISSUE_COMPLETION_LEDGER.md)
+maps all82 currently open issues to source, remaining work and dependencies;
+it does not close issues or replace their original acceptance criteria.
+
+Local source now includes a personal Today layout editor (order/visibility,
+spacing, preview/save/reset/Undo and a calendar-view shortcut), role-filtered
+Explore favorites, provider-free app guidance using canonical Help content and
+a bounded Month calendar view. Account-backed personalization and parent defaults
+now have the revision-bound canonical contract in
+`../architecture/DISPLAY_PREFERENCES.md`; runtime/sync acceptance remains open.
+Shared fridge data/privacy and original auth/role/feature rules stay intact.
+
+No new QA or release acceptance is claimed for this implementation phase.
+Provider credentials/eligibility, signing, actual hardware, store processing and
+real household/customer evidence remain explicit dependencies. Do not attempt
+to satisfy those issues by closing a code plan or enabling unapproved services.
+
 ## Outcome
 
 A family can add everyone, including a child without an email, and coordinate today using whichever screen is nearby. Parents have controls, teens have useful planning, children have a calm task view, and the shared fridge has only household-safe information. Turning on every feature must not turn Today into a wall of cards. A family helper explains the app, retrieves allowed current information, and proposes reliable actions by text or voice.
 
 One household model, backend, authorization system and set of domain APIs serve all devices. Start from the existing responsive web and Capacitor shells. Add native capabilities where lifecycle, permissions, offline storage, audio, deep links or device management require them; do not promise native parity because a website opens in an app shell.
 
-## Evidence baseline
+## Historical evidence baseline — 2026-10-10
+
+This section preserves the original observations, not current missing-source
+claims. Current connected code paths and later QA obligations are mapped in
+`../engineering/WEB_IMPLEMENTATION_HANDOFF.md`. In particular, household-grounded
+references/planning now have source behind default-off gates; passive wake and
+real provider/hardware observations remain separate.
 
 - Production at QA start: `1454db208e3259a02fe4f6b24e828dbe057579f7`; release #467 and privacy fix #469 closed. Current source audit: `8b7dc1a`, with unrelated lowercase wordmark edits pending locally.
 - Live, isolated personal parent session: signup/verification, household onboarding, grocery create/check/reload, direct Today grocery routing, 30-minute event persistence, weekly Monday/Saturday selection including today, collapsed recurrence group, completion/undo and phone Agenda rendering.

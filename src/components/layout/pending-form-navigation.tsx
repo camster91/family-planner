@@ -36,7 +36,9 @@ function isBaseEntry(
   entry: HistorySnapshot,
   state: unknown = window.history.state,
 ) {
-  return window.location.href === entry.url && sameHistoryState(state, entry.state);
+  return (
+    window.location.href === entry.url && sameHistoryState(state, entry.state)
+  );
 }
 
 export type PendingFormNavigation = {
@@ -69,6 +71,12 @@ const PendingFormNavigationContext =
  */
 export function usePendingFormNavigationController(
   busy: boolean,
+  options?: {
+    /** An owned Back attempt may close a local sheet after its work is saved. */
+    onBack?: () => void;
+    /** A clean sheet can own Back without warning when the document unloads. */
+    warnOnUnload?: boolean;
+  },
 ): PendingFormNavigation {
   const mountedRef = useRef(true);
   const busyRef = useRef(busy);
@@ -82,7 +90,11 @@ export function usePendingFormNavigationController(
   const consumingRef = useRef(false);
   const cleanupTimerRef = useRef<number | null>(null);
 
+  const onBackRef = useRef(options?.onBack);
+  const warnOnUnloadRef = useRef(options?.warnOnUnload ?? busy);
   busyRef.current = busy;
+  onBackRef.current = options?.onBack;
+  warnOnUnloadRef.current = options?.warnOnUnload ?? busy;
 
   const finishRelease = useCallback((allowed = true) => {
     const entry = entryRef.current;
@@ -254,6 +266,7 @@ export function usePendingFormNavigationController(
         ? "sentinel"
         : "base-then-sentinel";
       window.history.forward();
+      onBackRef.current?.();
       return true;
     },
     [finishRelease],
@@ -274,7 +287,9 @@ export function usePendingFormNavigationController(
       // A committed fallback traversal may already be restoring the sentinel.
       // Let that controller-owned Forward/Back reach popstate; only cancel
       // while the current entry is still the one owned by this form.
-      return entry ? ownsEntry(entry) : false;
+      if (!entry || !ownsEntry(entry)) return false;
+      onBackRef.current?.();
+      return true;
     },
     [],
   );
@@ -291,7 +306,7 @@ export function usePendingFormNavigationController(
     }
 
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!busyRef.current) return;
+      if (!warnOnUnloadRef.current) return;
       event.preventDefault();
       event.returnValue = "";
     };

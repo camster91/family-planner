@@ -54,3 +54,12 @@ It also supports the separately built opt-in expanded-text mode documented in
 `PSEUDOLOCALE.md`; rebuild normally with QA mode off afterward. Expanded phone QA
 found an overflowing Spanish Auto label, resolved by wrapping and narrower button
 padding without reducing target height. Captures use fabricated local households.
+
+
+## 2026-10-22 implementation reconciliation
+
+The exact reviewed source delta, bilingual branches, literal attribution/format
+records, corrected device status and remaining migration limits are documented in
+[UI_COPY_RECONCILIATION_20261022.md](UI_COPY_RECONCILIATION_20261022.md).
+This updates the inventory to current source; it does not waive new findings or
+change the scanner/test coverage. Broader #142 debt remains open.

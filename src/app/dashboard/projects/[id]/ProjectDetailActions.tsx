@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import {
   Pencil,
   Archive,
@@ -43,20 +43,81 @@ export function ProjectDetailActions({
   const menuId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const deletingRef = useRef(false);
 
-  // Menu keyboard support: focus the first item on open, Escape closes and
-  // returns focus to the trigger, arrow keys move between items.
+  // Keep the action menu anchored to the trigger while ensuring its full
+  // surface stays inside the viewport. The header can wrap on a phone, so a
+  // parent-relative `right: 0` position can otherwise place a 12rem menu
+  // partly off-screen. Recalculate on resize/scroll so keyboard and touch
+  // users get the same visible, hit-testable menu.
+  const positionMenu = useCallback(() => {
+    const trigger = triggerRef.current;
+    const menu = menuRef.current;
+    if (!trigger || !menu) return;
+    const triggerRect = trigger.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const margin = 8;
+    const menuWidth = menuRect.width || 192;
+    const menuHeight = menuRect.height;
+    const maxLeft = Math.max(margin, window.innerWidth - menuWidth - margin);
+    const left = Math.min(
+      Math.max(margin, triggerRect.right - menuWidth),
+      maxLeft,
+    );
+    const maxTop = Math.max(margin, window.innerHeight - menuHeight - margin);
+    const top = Math.max(margin, Math.min(triggerRect.bottom + 4, maxTop));
+    setMenuPosition({ left, top });
+  }, []);
+
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen) {
+      setMenuPosition(null);
+      return;
+    }
+    positionMenu();
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", positionMenu, true);
+    return () => {
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu, true);
+    };
+  }, [menuOpen, positionMenu]);
+
+  const menuReady = menuOpen && menuPosition !== null;
+
+  // React can commit visible styles before the browser exposes the menu to
+  // layout. Focus only once it is actually rendered, without a fixed delay.
+  useEffect(() => {
+    if (!menuReady) return;
     const items = () =>
       Array.from(
         menuRef.current?.querySelectorAll<HTMLElement>(
           '[role="menuitem"]:not([disabled])',
         ) ?? [],
       );
-    items()[0]?.focus();
+    let focusFrame: number | undefined;
+    let disposed = false;
+    const focusFirstItem = () => {
+      if (disposed) return;
+      const list = items();
+      if (!list.length || list.includes(document.activeElement as HTMLElement))
+        return;
+      const first = list[0];
+      if (
+        first.getClientRects().length === 0 ||
+        window.getComputedStyle(first).visibility !== "visible"
+      ) {
+        focusFrame = window.requestAnimationFrame(focusFirstItem);
+        return;
+      }
+      first.focus({ preventScroll: true });
+    };
+    focusFirstItem();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
@@ -76,8 +137,12 @@ export function ProjectDetailActions({
       list[next].focus();
     };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [menuOpen]);
+    return () => {
+      disposed = true;
+      if (focusFrame !== undefined) window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuReady]);
 
   const updateStatus = async (status: "active" | "completed" | "archived") => {
     setLoading(status);
@@ -240,7 +305,12 @@ export function ProjectDetailActions({
             id={menuId}
             role="menu"
             aria-label={text("projectActions")}
-            className="absolute right-0 top-full mt-1 z-20 w-48 rounded-xl bg-card border shadow-lg py-1 overflow-hidden"
+            className="fixed z-20 w-48 max-w-[calc(100vw-16px)] max-h-[calc(100dvh-16px)] rounded-xl bg-[var(--surface-elevated)] text-label-primary border border-[var(--surface-separator)] shadow-lg py-1 overflow-y-auto"
+            style={{
+              left: menuPosition?.left ?? 0,
+              top: menuPosition?.top ?? 0,
+              visibility: menuPosition ? "visible" : "hidden",
+            }}
           >
             {actions.length === 0 && (
               <p className="px-4 py-3 text-sm text-label-secondary">

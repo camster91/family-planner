@@ -4,12 +4,13 @@
 // Quick capture tells its host page when something was saved (the calendar
 // refreshes), and a photo batch that partly fails keeps the failed events on
 // screen with "Added X of Y" instead of dropping them.
+import '@testing-library/jest-dom'
 import * as React from 'react'
 import { webcrypto } from 'node:crypto'
 import { TextDecoder, TextEncoder } from 'node:util'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { CaptureBox } from '../CaptureBox'
+import { LegacyCaptureBox as CaptureBox } from '../CaptureBox'
 import { I18nProvider } from '@/i18n'
 import { CAPTURE_RECOVERY_RETENTION_MS, captureRecoveryStorageKey } from '@/lib/capture-recovery'
 import { captureEnglish, captureSpanish } from '@/i18n/capture'
@@ -62,6 +63,10 @@ beforeAll(() => {
     onerror: (() => void) | null = null
     set src(_v: string) {
       setTimeout(() => this.onload?.(), 0)
+    }
+    removeAttribute(_name: string) {
+      this.onload = null
+      this.onerror = null
     }
   }
   ;(global as unknown as { Image: unknown }).Image = FakeImage
@@ -1112,11 +1117,13 @@ it('clears recovery and exposes no retry when capture is forbidden', async () =>
   expect(posts).toBe(0)
 })
 
-it.each([401, 403])('clears recovery on an authenticated refusal (%i)', async (status) => {
+it.each<[number, boolean]>([[401, false], [403, false], [401, true], [403, true]])('clears recovery on an authenticated refusal (%i), empty body=%s', async (status, empty) => {
   const storageKey = captureRecoveryStorageKey('user-a', 'family-a')
   window.localStorage.setItem(storageKey, JSON.stringify([]))
   window.localStorage.setItem('family-planner:capture-recovery:v1:active', storageKey)
-  global.fetch = jest.fn(async () => json(status, { error: 'unauthorized' })) as unknown as typeof fetch
+  const refusal = json(status, { error: 'unauthorized' })
+  if (empty) refusal.json = async () => { throw new Error('empty auth refusal') }
+  global.fetch = jest.fn(async () => refusal) as unknown as typeof fetch
 
   render(<CaptureBox />)
   await waitFor(() => expect(window.localStorage.getItem(storageKey)).toBeNull())
@@ -1148,4 +1155,54 @@ it('keeps a logical refusal when forbidden-role recovery purge cannot be confirm
   } finally {
     Storage.prototype.removeItem = originalRemoveItem
   }
+})
+
+// Authored/unrun: a replacement parse failure must not erase the reviewed draft.
+it('keeps the existing typed draft when a later extraction is malformed', async () => {
+  mockFetch(() => 201)
+  const baseFetch = global.fetch
+  let previews = 0
+  global.fetch = jest.fn(async (input, init) => {
+    if (String(input) === '/api/capture' && init?.method === 'POST') {
+      previews++
+      if (previews > 1) return json(200, { draft: { kind: 'unexpected', title: { private: 'not text' } } })
+    }
+    return baseFetch(input, init)
+  }) as typeof fetch
+  render(<CaptureBox />)
+  const user = userEvent.setup()
+  const input = screen.getByLabelText(captureEnglish.captureInputLabel)
+  await user.type(input, 'Dentist Tuesday')
+  await user.click(screen.getByRole('button', { name: captureEnglish.readIt }))
+  expect(await screen.findByText('Dentist')).toBeVisible()
+  await user.clear(input)
+  await user.type(input, 'Another notice')
+  await user.click(screen.getByRole('button', { name: captureEnglish.readIt }))
+  await screen.findByText(captureEnglish.couldNotRead)
+  expect(screen.getByText('Dentist')).toBeVisible()
+  expect((global.fetch as jest.Mock).mock.calls.some(([url]) => String(url) === '/api/events')).toBe(false)
+})
+
+// Authored only; execution remains in the consolidated QA pass.
+it.each(['parent', 'teen'])('keeps task proposals out of the event create path for %s', async (role) => {
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/capture' && init?.method === 'POST') {
+      return json(200, { draft: { kind: 'task', title: 'Wash dishes', confidence: 'high' } })
+    }
+    if (String(url) === '/api/capture') return json(200, { configured: true, allowed: true, role, userId: 'fixture-capture-parent', familyId: 'fixture-capture-family' })
+    throw new Error('Unexpected fixture endpoint')
+  }) as unknown as typeof fetch
+  const person = userEvent.setup()
+  render(<CaptureBox />)
+  await person.type(await screen.findByRole('textbox'), 'wash dishes')
+  await person.click(screen.getByRole('button', { name: 'Read it' }))
+  await screen.findByText('Wash dishes')
+  expect(screen.queryByRole('button', { name: 'Add it' })).not.toBeInTheDocument()
+  expect(screen.getByText(captureEnglish.taskNeedsReview)).toBeVisible()
+  const link = screen.queryByRole('link', { name: captureEnglish.openChoreReview })
+  if (role === 'parent') {
+    expect(link).toHaveAttribute('href', '/dashboard/chores/create')
+    expect(link).toHaveAttribute('target', '_blank')
+  } else expect(link).not.toBeInTheDocument()
+  expect(jest.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/api/events'))).toBe(false)
 })

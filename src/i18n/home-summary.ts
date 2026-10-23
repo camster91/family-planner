@@ -1,4 +1,4 @@
-import { useTranslation } from '@/i18n'
+import { useCoreI18n } from '@/i18n/core'
 import {
   defaultHomeSummaryMessages,
   type HomeSummaryPresentationMessages,
@@ -34,6 +34,6 @@ export const homeSummaryMessages = {
 } as const
 
 export function useHomeSummaryText(): HomeSummaryPresentationMessages {
-  const { locale } = useTranslation()
+  const { locale } = useCoreI18n()
   return homeSummaryMessages[locale]
 }

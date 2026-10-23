@@ -6,6 +6,7 @@ const FAMILY = 'fam_a'
 
 function mockDb(overrides: Partial<Record<string, unknown>> = {}) {
   const db = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
     user: {
       findMany: jest.fn().mockResolvedValue([
         { id: 'u_parent', name: 'Avery Parent', color: 'indigo' },
@@ -75,8 +76,8 @@ function mockDb(overrides: Partial<Record<string, unknown>> = {}) {
           id: 'm1',
           date: new Date('2026-01-05T00:00:00Z'),
           recipe_name: '  Tacos ',
-          cook: { name: 'Avery Parent' },
-          recipe: { title: 'Street tacos', prep_time: 20 },
+          cook: { name: 'Avery Parent', family_id: FAMILY },
+          recipe: { family_id: FAMILY, title: 'Street tacos', prep_time: 20 },
         },
         {
           id: 'm2',
@@ -109,6 +110,11 @@ function mockDb(overrides: Partial<Record<string, unknown>> = {}) {
     },
     ...overrides,
   }
+  const readDinners = db.familyMeal.findMany.getMockImplementation()
+  db.familyMeal.findMany.mockImplementation(async (args: any) => {
+    const rows = await readDinners!(args)
+    return rows.filter((row: { date: Date }) => row.date >= args.where.date.gte && row.date < args.where.date.lt).slice(0, args.take)
+  })
   return db
 }
 
@@ -147,7 +153,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     expect(selectedKeys(mealArgs.select)).not.toContain('notes')
     // ADR-0007: only the linked recipe's title and prep time reach the board.
     expect(mealArgs.select.recipe).toEqual({
-      select: { title: true, prep_time: true },
+      select: { title: true, prep_time: true, family_id: true },
     })
     expect(selectedKeys(mealArgs.select)).not.toContain('instructions')
     expect(selectedKeys(mealArgs.select)).not.toContain('description')
@@ -623,6 +629,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         cookName: 'Avery Parent',
         recipeTitle: 'Street tacos',
         prepMinutes: 20,
+        hasMoreDinners: false,
       },
       {
         id: 'm2',
@@ -631,6 +638,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         cookName: null,
         recipeTitle: null,
         prepMinutes: null,
+        hasMoreDinners: false,
       },
     ])
     expect(data.shopping).toEqual({
@@ -937,12 +945,13 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
           recipe_name: 'Tacos',
           cook: null,
           recipe: {
+            family_id: FAMILY,
             title: 'Street tacos',
             prep_time: 20,
             ingredients: [
-              { ingredient: { id: 'ing-tortilla', name: 'Tortillas' } },
-              { ingredient: { id: 'ing-beans', name: 'Black beans' } },
-              { ingredient: { id: 'ing-salsa', name: 'Salsa' } },
+              { ingredient: { id: 'ing-tortilla', name: 'Tortillas', family_id: FAMILY } },
+              { ingredient: { id: 'ing-beans', name: 'Black beans', family_id: FAMILY } },
+              { ingredient: { id: 'ing-salsa', name: 'Salsa', family_id: FAMILY } },
             ],
           },
         },
@@ -952,7 +961,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
           date: new Date('2026-01-06T00:00:00Z'),
           recipe_name: null,
           cook: null,
-          recipe: { title: 'Soup', prep_time: null, ingredients: [] },
+          recipe: { family_id: FAMILY, title: 'Soup', prep_time: null, ingredients: [] },
         },
         // Free-text dinner: no count.
         {
@@ -996,14 +1005,16 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
 
       const mealArgs = (db.familyMeal.findMany as jest.Mock).mock.calls[0][0]
       expect(mealArgs.select.recipe.select.ingredients).toEqual({
-        select: { ingredient: { select: { id: true, name: true } } },
+        select: { ingredient: { select: { id: true, name: true, family_id: true } } },
+        orderBy: { id: 'asc' },
+        take: 201,
       })
       const matchArgs = findMany.mock.calls[2][0]
       expect(matchArgs.where).toMatchObject({
         family_id: FAMILY,
         status: 'active',
       })
-      expect(Object.keys(matchArgs.select).sort()).toEqual(['date_kind', 'expires_on', 'ingredient_id', 'name'])
+      expect(Object.keys(matchArgs.select).sort()).toEqual(['amount', 'date_kind', 'expires_on', 'ingredient_id', 'name', 'status'])
 
       expect(data.dinners?.[0]).toEqual({
         id: 'm1',
@@ -1012,6 +1023,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         cookName: null,
         recipeTitle: 'Street tacos',
         prepMinutes: 20,
+        hasMoreDinners: false,
         missingIngredients: 1,
       })
       expect(data.dinners?.[1]).not.toHaveProperty('missingIngredients')
@@ -1029,7 +1041,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         now: NOW,
       })
       expect(db.familyMeal.findMany.mock.calls[0][0].select.recipe).toEqual({
-        select: { title: true, prep_time: true },
+        select: { title: true, prep_time: true, family_id: true },
       })
       expect((db as any).inventoryItem.findMany).not.toHaveBeenCalled()
       for (const d of data.dinners ?? []) expect(d).not.toHaveProperty('missingIngredients')
@@ -1048,7 +1060,7 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
         now: NOW,
       })
       expect((db.familyMeal.findMany as jest.Mock).mock.calls[0][0].select.recipe).toEqual({
-        select: { title: true, prep_time: true },
+        select: { title: true, prep_time: true, family_id: true },
       })
       // Only the two use-soon reads; no matching read.
       expect(findMany).toHaveBeenCalledTimes(2)
