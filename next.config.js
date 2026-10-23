@@ -91,23 +91,39 @@ const nextConfig = {
     if (!dev) config.cache = false
     if (dev || isServer || !config.optimization?.splitChunks) return config
     const splitChunks = config.optimization.splitChunks
-    // These small providers/UI modules are already part of initial app entries.
-    // Share repeated copies without grouping optional feature chunks into a
-    // fixed bundle, and retain Next's framework/vendor groups and priorities.
-    const initialSharedSource = /(?:[\\/]src[\\/]|[\\/]node_modules[\\/]lucide-react[\\/]dist[\\/]esm[\\/])/;
+    // Consolidate code already required by the root/dashboard layout. A fixed
+    // name is safe only for that existing layout membership: async-only
+    // features and modules used by another initial route stay with Next's
+    // ordinary splitting. Styles keep their existing chunking and order.
+    const initialSharedSource = /(?:[\\/]src[\\/]|[\\/]node_modules[\\/]lucide-react[\\/]dist[\\/]esm[\\/])/
+    const eligible = (module) => {
+      const resource = module.nameForCondition?.()
+      return Boolean(resource && !/\.(?:css|scss|sass|less|styl)(?:$|\?)/i.test(resource) && initialSharedSource.test(resource))
+    }
+    const inLayout = (module, chunkGraph, layout) => {
+      if (!eligible(module)) return false
+      const chunks = Array.from(chunkGraph.getModuleChunksIterable(module))
+      if (!chunks.some(chunk => chunk.name === layout && chunk.canBeInitial())) return false
+      // Root is present on every route. Dashboard modules must not make a
+      // different initial route download dashboard controls.
+      return layout === 'app/layout' || chunks.every(chunk => !chunk.canBeInitial() || chunk.name?.startsWith('app/dashboard/'))
+    }
+    const sharedLayoutGroup = (layout, name, priority) => ({
+      test: (module, { chunkGraph }) => inLayout(module, chunkGraph, layout),
+      chunks: 'initial',
+      minChunks: 1,
+      minSize: 0,
+      name,
+      reuseExistingChunk: true,
+      enforce: true,
+      priority,
+    })
     config.optimization.splitChunks = {
       ...splitChunks,
       cacheGroups: {
         ...splitChunks.cacheGroups,
-        herewovenInitialShared: {
-          test: initialSharedSource,
-          chunks: 'initial',
-          minChunks: 2,
-          minSize: 0,
-          name: false,
-          reuseExistingChunk: true,
-          priority: 10,
-        },
+        herewovenRootLayout: sharedLayoutGroup('app/layout', 'root-layout-shared', 20),
+        herewovenDashboardLayout: sharedLayoutGroup('app/dashboard/layout', 'dashboard-layout-shared', 10),
       },
     }
     return config
