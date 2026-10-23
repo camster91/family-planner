@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import type { NavUser } from "@/types";
 import { isTabActive, tabsFor } from "@/lib/nav-items";
 import { useFeatures } from "@/components/providers/features-provider";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import {
   navigationMessages,
   navigationTabKey,
@@ -21,7 +21,7 @@ import {
  * their feature is off. The top bar carries the same tabs from `md` up.
  */
 export function TabBar({ user }: { user: NavUser | null }) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (key: NavigationMessage) => t(key, undefined, navigationMessages);
   const pathname = usePathname();
   const { features } = useFeatures();

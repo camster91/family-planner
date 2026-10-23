@@ -8,9 +8,10 @@ import { groceryEnglish, grocerySpanish } from './grocery-controls'
 
 import { PRODUCT_BRAND } from '@/lib/brand'
 
-import { createContext, useContext, useState, useCallback, useEffect } from 'react'
-import type { Locale } from './types'
-import { pseudolocalizeTemplate } from './pseudo'
+import { useCallback } from 'react'
+import type { ReactNode } from 'react'
+import { CoreI18nProvider, translateMessage, useCoreI18n } from './core'
+import type { Locale, ScopedMessages } from './core'
 
 // Inline messages — no external library needed
 const messages = {
@@ -1099,116 +1100,37 @@ const messages = {
 } as const
 
 type Messages = typeof messages.en
-/** Route-owned dictionaries are passed by their consumers, never imported here. */
-export type ScopedMessages = Record<Locale, Record<string, unknown>>
-
-function translateMessage(source: unknown, key: string, params?: Record<string, string | number>, pseudolocalize = false): string {
-  let value = source
-  for (const part of key.split('.')) {
-    if (value && typeof value === 'object' && part in value) value = (value as Record<string, unknown>)[part]
-    else return key
-  }
-  if (typeof value !== 'string') return key
-  const template = pseudolocalize ? pseudolocalizeTemplate(value) : value
-  if (!params) return template
-  return template.replace(/\{(\w+)\}/g, (_, part) => String(params[part] ?? `{${part}}`))
-}
-
-interface I18nContextType {
-  locale: Locale
-  t: (key: string, params?: Record<string, string | number>, scoped?: ScopedMessages) => string
-  setLocale: (locale: Locale) => void
-}
-
-const I18nContext = createContext<I18nContextType>({
-  locale: 'en',
-  t: (key, params, scoped) => scoped ? translateMessage(scoped.en, key, params) : key,
-  setLocale: () => {},
-})
-
-// The language picked in Settings. Per device (browser storage), not per account.
-export const LOCALE_STORAGE_KEY = 'familyPlanner_language'
-
-export const SUPPORTED_LOCALES: readonly Locale[] = ['en', 'es']
-
-export function isLocale(value: unknown): value is Locale {
-  return typeof value === 'string' && (SUPPORTED_LOCALES as readonly string[]).includes(value)
-}
-
-function readStoredLocale(): Locale | null {
-  try {
-    const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY)
-    return isLocale(stored) ? stored : null
-  } catch {
-    // Storage blocked (private mode, policy): stay on the default.
-    return null
-  }
-}
-
-function writeStoredLocale(locale: Locale) {
-  try {
-    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
-  } catch {
-    // Storage blocked: the choice still applies for this visit.
-  }
-}
-
-/**
- * `persistLocale` (root layout only): after mount, switch to the language saved
- * on this device, keep `<html lang>` in sync, and save changes made through
- * `setLocale`. The server always renders `locale` (English) so hydration
- * matches; the saved language applies right after mount.
- */
 export function I18nProvider({
   children,
   locale = 'en',
   persistLocale = false,
   pseudolocalize = false,
 }: {
-  children: React.ReactNode
+  children: ReactNode
   locale?: Locale
   persistLocale?: boolean
   /** Local/CI QA only; never adds a public language or changes stored values. */
   pseudolocalize?: boolean
 }) {
-  const [currentLocale, setCurrentLocale] = useState<Locale>(locale)
-
-  useEffect(() => {
-    if (!persistLocale) return
-    const stored = readStoredLocale()
-    if (stored) setCurrentLocale(stored)
-  }, [persistLocale])
-
-  useEffect(() => {
-    if (!persistLocale) return
-    document.documentElement.lang = currentLocale
-  }, [persistLocale, currentLocale])
-
-  const setLocale = useCallback(
-    (next: Locale) => {
-      setCurrentLocale(next)
-      if (persistLocale) writeStoredLocale(next)
-    },
-    [persistLocale]
-  )
-
-  const t = useCallback(
-    (key: string, params?: Record<string, string | number>, scoped?: ScopedMessages): string =>
-      translateMessage((scoped ?? messages)[currentLocale], key, params, pseudolocalize),
-    [currentLocale, pseudolocalize]
-  )
-
   return (
-    <I18nContext.Provider value={{ locale: currentLocale, t, setLocale }}>
+    <CoreI18nProvider locale={locale} persistLocale={persistLocale} pseudolocalize={pseudolocalize}>
       {children}
-    </I18nContext.Provider>
+    </CoreI18nProvider>
   )
 }
 
 export function useTranslation() {
-  const context = useContext(I18nContext)
-  return context
+  const context = useCoreI18n()
+  const t = useCallback(
+    (key: string, params?: Record<string, string | number>, scoped?: ScopedMessages): string => {
+      if (!context.provided) return scoped ? translateMessage(scoped.en, key, params) : key
+      return translateMessage((scoped ?? messages)[context.locale], key, params, context.pseudolocalize)
+    },
+    [context.locale, context.provided, context.pseudolocalize]
+  )
+  return { locale: context.locale, t, setLocale: context.setLocale }
 }
 
 export { messages }
-export type { Locale, Messages }
+export type { Locale, Messages, ScopedMessages }
+export { LOCALE_STORAGE_KEY, SUPPORTED_LOCALES, isLocale } from './core'

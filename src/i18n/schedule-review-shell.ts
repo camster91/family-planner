@@ -1,4 +1,4 @@
-import { useTranslation } from "@/i18n";
+import { useCoreI18n } from "@/i18n/core";
 
 /** Launcher and loading copy only; full editor dictionaries stay with their sheets. */
 export const scheduleReviewShellMessages = {
@@ -18,5 +18,5 @@ export const scheduleReviewShellMessages = {
   },
 };
 export function useScheduleReviewShellText() {
-  return scheduleReviewShellMessages[useTranslation().locale];
+  return scheduleReviewShellMessages[useCoreI18n().locale];
 }

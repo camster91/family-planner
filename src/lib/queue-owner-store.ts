@@ -16,10 +16,11 @@ import {
 } from "@/lib/offline-queue";
 import { canonicalBodySignature } from "@/lib/request-signature";
 import { rememberQueueOwner } from "@/lib/owned-queue-persistence";
-import {
-  createLegacyMigration,
-  LegacyQueueError,
-} from "@/lib/legacy-queue-migration";
+import { LegacyQueueError } from "@/lib/legacy-queue-error";
+import type {
+  LegacyQueueDecision,
+  LegacyQueuePreview,
+} from "@/lib/legacy-queue-contract";
 import type { QueueReviewEntry } from "@/lib/queue-review-contract";
 import {
   ownedQueueEnvelope,
@@ -59,6 +60,10 @@ type Options = {
   withLease?: <T>(owner: QueueOwner, run: () => Promise<T>) => Promise<T>;
   withLegacyLease?: <T>(run: () => Promise<T>) => Promise<T>;
   reviewLegacy?: (entries: QueueReviewEntry[]) => Promise<unknown>;
+};
+type LegacyMigration = {
+  preview: () => Promise<LegacyQueuePreview>;
+  migrate: (decision: LegacyQueueDecision) => Promise<void>;
 };
 /**
  * All reads/writes run through the queue's shared namespace lane. Unknown
@@ -303,90 +308,129 @@ export function ownerQueueStore(options: Options) {
       canonicalBodySignature([b.id, b.action, b.v, b.createdAt, b.payload])
     );
   }
-  const migration =
-    options.ownedCandidates && options.withLegacyLease && options.reviewLegacy
-      ? createLegacyMigration({
-          stores: options.candidates,
-          namespace: options.namespace.kind,
-          runtime: options.runtime,
-          getOwner: currentMigrationOwner,
-          reviewTargets: options.reviewLegacy,
-          lease: (run) => options.withLegacyLease!(() => withLease(run)),
-          copyStarted: () => migrationCopy !== null,
-          copied: () => {
-            migrationCopy = null;
-            legacyDetected = false;
-          },
-          async copy(request, owner, incoming) {
-            if (retirementRequested) await store.remove();
-            if (migrationCopy && migrationCopy.request !== request)
-              return fail("DIVERGENT");
-            if (!migrationCopy) {
-              const values = await probe();
-              const previousAttempt = pendingWrite;
-              if (previousAttempt !== null)
-                assertKnownCopies(values, expected, previousAttempt);
-              const raw = previousAttempt ?? consistent(values);
-              const original = raw === null ? null : active(raw, owner);
-              const merged = (original?.ops ?? []).map(hold);
-              for (const op of incoming) {
-                const found = merged.find((saved) => saved.id === op.id);
-                if (found) {
-                  if (!sameIntent(found, op)) return fail("DIVERGENT");
-                  continue;
-                }
-                merged.push(
-                  op.action === "device.list-item.add"
-                    ? {
-                        ...op,
-                        state: "failed",
-                        lastError: ORIGINAL_DEVICE_REQUIRED,
-                      }
-                    : hold(op),
-                );
-              }
-              if (merged.length > QUEUE_MAX_OPS)
-                throw new QueueError("QUEUE_FULL");
-              reviewHeld = new Set(merged.map((op) => op.id));
-              migrationCopy = {
-                request,
-                baseline: values,
-                previousAttempt,
-                text: merged.length
-                  ? makeEnvelope(serializeQueue(merged), owner)
-                  : RETIRED_QUEUE_ENVELOPE,
-              };
-            }
-            const attempt = migrationCopy;
+  const canMigrateLegacy = () =>
+    Boolean(
+      options.ownedCandidates &&
+        options.withLegacyLease &&
+        options.reviewLegacy,
+    );
+  let migration: LegacyMigration | null = null;
+  let migrationLoading: Promise<LegacyMigration> | null = null;
+
+  /**
+   * Keep the migration engine out of the initial queue graph. A failed lazy
+   * load clears the in-flight promise so the explicit recovery action can
+   * retry it; there is no empty/success fallback.
+   */
+  async function loadMigration(): Promise<LegacyMigration> {
+    if (migration) return migration;
+    if (!canMigrateLegacy()) return fail("UPDATE_REQUIRED");
+    if (migrationLoading) return migrationLoading;
+
+    const loading = (async () => {
+      const { createLegacyMigration } = await import(
+        "@/lib/legacy-queue-migration"
+      );
+      const created = createLegacyMigration({
+        stores: options.candidates,
+        namespace: options.namespace.kind,
+        runtime: options.runtime,
+        getOwner: currentMigrationOwner,
+        reviewTargets: options.reviewLegacy!,
+        lease: (run) => options.withLegacyLease!(() => withLease(run)),
+        copyStarted: () => migrationCopy !== null,
+        copied: () => {
+          migrationCopy = null;
+          legacyDetected = false;
+        },
+        async copy(request, owner, incoming) {
+          if (retirementRequested) await store.remove();
+          if (migrationCopy && migrationCopy.request !== request)
+            return fail("DIVERGENT");
+          if (!migrationCopy) {
             const values = await probe();
-            if (
-              values.some(
-                (value, index) =>
-                  value !== null &&
-                  value !== attempt.baseline[index] &&
-                  value !== attempt.previousAttempt &&
-                  value !== attempt.text,
-              )
+            const previousAttempt = pendingWrite;
+            if (previousAttempt !== null)
+              assertKnownCopies(values, expected, previousAttempt);
+            const raw = previousAttempt ?? consistent(values);
+            const original = raw === null ? null : active(raw, owner);
+            const merged = (original?.ops ?? []).map(hold);
+            for (const op of incoming) {
+              const found = merged.find((saved) => saved.id === op.id);
+              if (found) {
+                if (!sameIntent(found, op)) return fail("DIVERGENT");
+                continue;
+              }
+              merged.push(
+                op.action === "device.list-item.add"
+                  ? {
+                      ...op,
+                      state: "failed",
+                      lastError: ORIGINAL_DEVICE_REQUIRED,
+                    }
+                  : hold(op),
+              );
+            }
+            if (merged.length > QUEUE_MAX_OPS)
+              throw new QueueError("QUEUE_FULL");
+            reviewHeld = new Set(merged.map((op) => op.id));
+            migrationCopy = {
+              request,
+              baseline: values,
+              previousAttempt,
+              text: merged.length
+                ? makeEnvelope(serializeQueue(merged), owner)
+                : RETIRED_QUEUE_ENVELOPE,
+            };
+          }
+          const attempt = migrationCopy;
+          const values = await probe();
+          if (
+            values.some(
+              (value, index) =>
+                value !== null &&
+                value !== attempt.baseline[index] &&
+                value !== attempt.previousAttempt &&
+                value !== attempt.text,
             )
-              return fail("DIVERGENT");
-            await writeAll(attempt.text);
-            pendingWrite = null;
-          },
-        })
-      : null;
+          )
+            return fail("DIVERGENT");
+          await writeAll(attempt.text);
+          pendingWrite = null;
+        },
+      });
+      migration = created;
+      return created;
+    })();
+    migrationLoading = loading;
+    try {
+      return await loading;
+    } finally {
+      if (migrationLoading === loading) migrationLoading = null;
+    }
+  }
+
+  async function migrationForRecovery(): Promise<LegacyMigration> {
+    try {
+      return await loadMigration();
+    } catch (error) {
+      if (error instanceof QueueOwnerStorageError) throw error;
+      return fail("UNAVAILABLE");
+    }
+  }
   const store: QueueStore = {
     persistenceLane: options.persistenceLane,
     failureReason: () => failure,
     usesOwnerRecovery: () => negotiated?.enabled === true,
-    legacyRecoveryAvailable: () => legacyDetected && migration !== null,
+    legacyRecoveryAvailable: () => legacyDetected && canMigrateLegacy(),
     previewLegacy: async () => {
-      if (!migration) return fail("UPDATE_REQUIRED");
-      return migration.preview();
+      const loaded = await migrationForRecovery();
+      return loaded.preview();
     },
     migrateLegacy: async (decision) => {
-      if (!migration) return fail("UPDATE_REQUIRED");
+      const loaded = await migrationForRecovery();
       try {
-        await migration.migrate(decision);
+        await loaded.migrate(decision);
       } catch (error) {
         if (error instanceof LegacyQueueError) return fail(error.reason);
         throw error;

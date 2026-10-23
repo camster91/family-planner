@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Sparkles, MessageSquareWarning } from "lucide-react";
 import { useHydrated } from "@/components/ui/use-hydrated";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import {
   assistantShellMessages,
   type AssistantShellMessage,
@@ -14,7 +14,7 @@ import {
 type AssistantPanelTab = "chat" | "report" | "reports";
 
 function AssistantLoading() {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (key: AssistantShellMessage) =>
     t(key, undefined, assistantShellMessages);
   return (
@@ -50,7 +50,7 @@ export default function AssistantHost({
 }) {
   const pathname = usePathname();
   const params = useSearchParams();
-  const { locale, t } = useTranslation();
+  const { locale, t } = useCoreTranslation();
   const hydrated = useHydrated();
   const msg = (key: AssistantShellMessage) =>
     hydrated || locale === "en"

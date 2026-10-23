@@ -1,5 +1,5 @@
 "use client";
-import { useTranslation } from "@/i18n";
+import { useCoreI18n } from "@/i18n/core";
 const en = {
   customize: "Customize Today",
   title: "Make Today yours",
@@ -102,7 +102,7 @@ const es: Record<keyof typeof en, string> = {
     "Los favoritos se guardan en tu cuenta. Solo aparecen funciones que puedes usar ahora.",
 };
 export function usePersonalLayoutText() {
-  const { locale } = useTranslation();
+  const { locale } = useCoreI18n();
   return (key: keyof typeof en, params?: Record<string, string>) => {
     const value: string = (locale === "es" ? es : en)[key];
     return value.replace(

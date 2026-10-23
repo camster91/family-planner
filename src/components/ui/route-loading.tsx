@@ -1,7 +1,7 @@
 'use client'
 
 import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton'
-import { useTranslation } from '@/i18n'
+import { useCoreTranslation } from '@/i18n/core'
 
 /**
  * Route-level loading state for the server-rendered /dashboard tabs (route
@@ -18,7 +18,7 @@ import { useTranslation } from '@/i18n'
  * pages do neither get one.
  */
 export default function RouteLoading() {
-  const { t } = useTranslation()
+  const { t } = useCoreTranslation()
 
   return (
     <div role="status" aria-live="polite" aria-busy="true" className="space-y-6" data-testid="dashboard-loading">

@@ -23,6 +23,9 @@ import type {
   LegacyQueueDecision,
   LegacyQueuePreview,
 } from "@/lib/legacy-queue-contract";
+import { LegacyQueueError } from "@/lib/legacy-queue-error";
+
+export { LegacyQueueError } from "@/lib/legacy-queue-error";
 type Options = {
   stores: QueueStore[];
   namespace: QueueNamespace["kind"];
@@ -38,15 +41,6 @@ type Options = {
   copied: () => void;
   copyStarted: () => boolean;
 };
-export class LegacyQueueError extends Error {
-  constructor(
-    public readonly reason:
-      "UNAVAILABLE" | "DIVERGENT" | "OWNER_CHANGED" | "UPDATE_REQUIRED",
-  ) {
-    super("Older saved changes could not be confirmed.");
-    this.name = "LegacyQueueError";
-  }
-}
 export function createLegacyMigration(options: Options) {
   let serial = 0;
   let preview: {

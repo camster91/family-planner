@@ -48,7 +48,7 @@ import { actionLinkClass, regionClass } from "./styles";
 import TodayControls from "./TodayControls";
 import { useDisplayPreferences } from "@/components/providers/display-preferences-provider";
 import type { TodaySection } from "@/lib/personal-layout";
-import { usePersonalLayoutText } from "@/i18n/personal-layout";
+import { usePersonalLayoutShellText } from "@/i18n/personal-layout-shell";
 import DisplayPreferencesStatus from "@/components/account/DisplayPreferencesStatus";
 import personalStyles from "./personal-today.module.css";
 import { PersonQueueStorageRecovery } from "./PersonQueueStorageRecovery";
@@ -69,7 +69,7 @@ const LazyTodayLayoutEditor = React.lazy(() => import("./TodayLayoutEditor"));
 
 function DeferredTodayLayoutEditor({ available }: { available: TodaySection[] }) {
   const { saving, syncState } = useDisplayPreferences();
-  const text = usePersonalLayoutText();
+  const text = usePersonalLayoutShellText();
   const [started, setStarted] = React.useState(false);
   const [open, setOpen] = React.useState(false);
 

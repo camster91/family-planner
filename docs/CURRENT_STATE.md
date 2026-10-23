@@ -1,3 +1,22 @@
+## Today startup and Settings acceptance repairs — 2026-10-23
+
+The latest user instruction authorizes the remaining Today startup-size and
+Settings repairs, followed by merge/deployment when QA passes. The f3eada48
+optimized artifact passes five route budgets, while Today remains286606 against
+its unchanged250000-byte limit. Inventory ordinary acceptance passes64 cases
+with2 original viewport skips atd0743925. Settings diagnostic improves to90
+passing/15 failed atf3eada48; optional subscriptions readiness and platform-native
+keyboard selection remain under repair. That Settings run crossed a dirty E2E
+source boundary and is not exact-candidate release acceptance. Full evidence and
+cleanup are recorded in docs/testing/WEB_QA_20261023.md.
+
+The next source candidate separates core locale context and initial shell copy
+from legacy route dictionaries and defers only the explicit legacy queue
+migration engine. Canonical queue discovery/refusal, ownership, dictionaries and
+provider-free/hydration behavior remain. A clean optimized measurement and
+Settings rerun are required before hosted gates and the authorized release.
+No merge, deployment, provider activation or issue acceptance is claimed.
+
 ## Integrated source repair batch frozen for consolidated QA — 2026-10-23
 
 The implementation review of this repair batch is complete. It follows the

@@ -5,7 +5,7 @@ import { setChoreDone } from '@/lib/chore-tick-client'
 import { getPersonQueue } from '@/lib/person-queue-browser'
 import { QueueError, isCheckedOperation } from '@/lib/offline-queue'
 import type { BoardActions } from './board-actions'
-import { useTranslation } from '@/i18n'
+import { useCoreTranslation } from '@/i18n/core'
 import { useTodayBoardText } from '@/i18n/today-board'
 
 /**
@@ -24,7 +24,7 @@ export function usePersonBoardActions(
   viewer: { id: string; role: string } | null | undefined,
   afterChange: () => void
 ): BoardActions | undefined {
-  const { t } = useTranslation()
+  const { t } = useCoreTranslation()
   const todayText = useTodayBoardText()
   const afterRef = React.useRef(afterChange)
   afterRef.current = afterChange

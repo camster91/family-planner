@@ -1,4 +1,4 @@
-import { useTranslation } from "@/i18n";
+import { useCoreI18n } from "@/i18n/core";
 
 /** Launcher and loading copy only; full editor dictionaries stay with their sheets. */
 export const responsibilityShellMessages = {
@@ -12,5 +12,5 @@ export const responsibilityShellMessages = {
   },
 };
 export function useResponsibilityShellText() {
-  return responsibilityShellMessages[useTranslation().locale];
+  return responsibilityShellMessages[useCoreI18n().locale];
 }

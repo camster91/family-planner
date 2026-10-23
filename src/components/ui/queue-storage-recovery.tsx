@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { OfflineQueue } from "@/lib/offline-queue";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 // Ordinary, healthy queues have no older work to review. Load that review
 // surface only when the canonical queue reports it; never infer an empty queue
 // from unavailable storage or delay the storage-error/retry controls.
@@ -18,7 +18,7 @@ export function QueueStorageRecovery({
 }: {
   queue: OfflineQueue | null;
 }) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const subscribe = React.useCallback(
     (listener: () => void) => queue?.subscribe(listener) ?? (() => {}),
     [queue],

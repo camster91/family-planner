@@ -40,7 +40,7 @@ import {
   tabsFor,
 } from "@/lib/nav-items";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import { useFeatureNavTitle } from "@/i18n/feature-nav";
 import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
 import { clearRewardCreateIntents } from "@/lib/reward-create-intent-store";
@@ -56,7 +56,7 @@ interface DashboardNavProps {
 
 export default function DashboardNav({ user }: DashboardNavProps) {
   const reviewCopy = useReviewInboxShellText();
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const featureNavTitle = useFeatureNavTitle();
   const msg = (
     key: NavigationMessage,

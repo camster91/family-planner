@@ -1,4 +1,4 @@
-import { useTranslation } from "@/i18n";
+import { useCoreI18n } from "@/i18n/core";
 
 /** Launcher and loading copy only; full editor dictionaries stay with their sheets. */
 export const reviewInboxShellMessages = {
@@ -10,5 +10,5 @@ export const reviewInboxShellMessages = {
   },
 };
 export function useReviewInboxShellText() {
-  return reviewInboxShellMessages[useTranslation().locale];
+  return reviewInboxShellMessages[useCoreI18n().locale];
 }

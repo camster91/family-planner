@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useWeeklyResetText } from "@/i18n/weekly-reset";
+import { useWeeklyResetShellText } from "@/i18n/weekly-reset-shell";
 import { toDateOnlyLocal } from "@/lib/dates";
 import { addDaysToKey } from "@/lib/local-day-key";
 import type { WeeklyResetScope } from "@/lib/weekly-reset";
@@ -14,7 +14,7 @@ export default function WeeklyResetLauncher({
   userId: string;
   familyId: string;
 }) {
-  const copy = useWeeklyResetText(),
+  const copy = useWeeklyResetShellText(),
     router = useRouter(),
     pathname = usePathname(),
     params = useSearchParams();

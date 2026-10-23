@@ -13,7 +13,7 @@ import type {
 } from "@/components/fridge/board-actions";
 import { DeviceApiError, type DeviceClient } from "@/lib/device-client";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import { useTodayBoardText } from "@/i18n/today-board";
 import { getDeviceQueue } from "@/lib/device-queue-browser";
 import { QueueError, isCheckedOperation } from "@/lib/offline-queue";
@@ -112,7 +112,7 @@ export function useDeviceBoardActions({
   forgetActor: () => void;
   picker: React.ReactNode;
 } {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const todayText = useTodayBoardText();
   const profileChorePaused = todayText("profileChorePaused");
   const [subject, setSubject] = React.useState<DeviceSubjectChoice | null>(

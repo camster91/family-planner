@@ -254,6 +254,12 @@ export async function selectSettingsTab(
   await expect(tab).toBeVisible();
   if ((await tab.getAttribute("aria-pressed")) !== "true") await tab.click();
   await expect(tab).toHaveAttribute("aria-pressed", "true");
+  if (section === "family") {
+    // The family tab now loads its optional sections on first entry. Wait for
+    // the real subscriptions surface, while leaving its API loading/error
+    // state available to the scenario's controlled-response assertions.
+    await expect(page.locator("#calendar-subscriptions")).toBeAttached();
+  }
 }
 export async function open(page: Page, locale: Locale, name: SettingsMessage) {
   // Family disclosures are rendered only in the active family group.

@@ -21,7 +21,7 @@ import * as React from "react";
 import { Wifi, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOnline } from "@/components/ui/use-online";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import {
   offlineBannerMessages,
   type OfflineBannerMessage,
@@ -35,7 +35,7 @@ export const OFFLINE_TEXT =
 export const BACK_ONLINE_TEXT = "Back online.";
 
 export function OfflineBanner({ className }: { className?: string }) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (key: OfflineBannerMessage) =>
     t(key, undefined, offlineBannerMessages);
   const online = useOnline();

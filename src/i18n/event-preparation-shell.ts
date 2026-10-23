@@ -1,4 +1,4 @@
-import { useTranslation } from "@/i18n";
+import { useCoreI18n } from "@/i18n/core";
 
 /** Launcher and loading copy only; full editor dictionaries stay with their sheets. */
 export const preparationShellMessages = {
@@ -22,5 +22,5 @@ export const preparationShellMessages = {
   },
 };
 export function usePreparationShellText() {
-  return preparationShellMessages[useTranslation().locale];
+  return preparationShellMessages[useCoreI18n().locale];
 }

@@ -1,11 +1,11 @@
 "use client";
 import { useDisplayPreferences } from "@/components/providers/display-preferences-provider";
-import { useTranslation } from "@/i18n";
+import { useCoreI18n } from "@/i18n/core";
 /** Honest read-cache and save states, shared by every personalization surface. */
 export default function DisplayPreferencesStatus() {
   const { syncState, syncError, saving, remembered, refresh } =
     useDisplayPreferences();
-  const { locale } = useTranslation();
+  const { locale } = useCoreI18n();
   const es = locale === "es";
   if (syncState === "ready" && !syncError && remembered && !saving) return null;
   const message = saving

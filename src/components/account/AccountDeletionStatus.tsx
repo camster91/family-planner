@@ -1,12 +1,12 @@
 "use client";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import {
   accountDeletionStatusMessages,
   type AccountDeletionStatusMessage,
 } from "@/i18n/account-deletion-status";
 /** Original account-dialog loading and retry presentation, shared with its chunk loader. */
 export function AccountDeletionLoading() {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (key: AccountDeletionStatusMessage) =>
     t(key, undefined, accountDeletionStatusMessages);
   return (
@@ -17,7 +17,7 @@ export function AccountDeletionLoading() {
 }
 
 export function AccountDeletionFailure({ onRetry }: { onRetry: () => void }) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (key: AccountDeletionStatusMessage) =>
     t(key, undefined, accountDeletionStatusMessages);
   return (
