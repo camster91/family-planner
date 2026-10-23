@@ -146,7 +146,7 @@ for (const locale of ["en", "es"] as const) {
       });
       await nav.getByRole("link", { name: text.savedTab, exact: true }).click();
       await page
-        .getByLabel(text.savedType, { exact: true })
+        .getByRole("combobox", { name: text.savedType, exact: true })
         .selectOption("capture");
       await page
         .getByRole("button", { name: text.checkDevice, exact: true })
@@ -231,7 +231,7 @@ for (const locale of ["en", "es"] as const) {
       ).toHaveCount(0);
       await page.goto("/dashboard/review?source=saved");
       await page
-        .getByLabel(text.savedType, { exact: true })
+        .getByRole("combobox", { name: text.savedType, exact: true })
         .selectOption("capture");
       await page
         .getByRole("button", { name: text.checkDevice, exact: true })
