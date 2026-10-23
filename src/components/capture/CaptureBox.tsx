@@ -316,6 +316,8 @@ export function LegacyCaptureBox({
     "loading",
   );
   const focusAfterAvailabilityRef = React.useRef(false);
+  const sheetFocusPending = React.useRef(false);
+  const previousSheetOpen = React.useRef(false);
   // D4 (#102): children may not use capture; the API says so via `allowed`.
   const [childBlocked, setChildBlocked] = React.useState(false);
   const [captureRole, setCaptureRole] = React.useState<
@@ -822,12 +824,22 @@ export function LegacyCaptureBox({
   }, [availability]);
 
   React.useEffect(() => {
-    if (availability !== "available" || !focusAfterAvailabilityRef.current)
+    const sheetOpen = inSheet && open;
+    if (sheetOpen && !previousSheetOpen.current)
+      sheetFocusPending.current = true;
+    previousSheetOpen.current = sheetOpen;
+    if (!open) sheetFocusPending.current = false;
+    // The owning boundary can renew access after Dialog opens. Its hidden
+    // input cannot take the initial focus until that same owner is revealed.
+    if (availability !== "available" || !open || privacyHidden) return;
+    if (!sheetFocusPending.current && !focusAfterAvailabilityRef.current)
       return;
+    const input = textInputRef.current;
+    if (!input || input.disabled) return;
+    sheetFocusPending.current = false;
     focusAfterAvailabilityRef.current = false;
-    if (!open) return;
-    textInputRef.current?.focus();
-  }, [availability, open]);
+    input.focus();
+  }, [availability, open, inSheet, privacyHidden]);
 
   const storageRecoveryNotice = recoveryStorageBlocked ? (
     <div

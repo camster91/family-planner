@@ -317,3 +317,97 @@ it("lets the owner stop a source read while normal controls are disabled and ign
     confirm.mockRestore();
   }
 });
+
+it("focuses the legacy sheet input only after its original owner is renewed", async () => {
+  // jsdom permits focusing a hidden input; real browsers refuse it.
+  const nativeFocus = HTMLElement.prototype.focus;
+  const focus = jest
+    .spyOn(HTMLElement.prototype, "focus")
+    .mockImplementation(function (this: HTMLElement, options?: FocusOptions) {
+      if (!this.closest("[hidden]")) nativeFocus.call(this, options);
+    });
+  try {
+    window.localStorage.clear();
+    const legacy = { ...context, adopted: false, enabled: false, owner: null };
+    jest.mocked(readReviewDocumentContext).mockResolvedValue(legacy);
+    global.fetch = jest.fn(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            configured: true,
+            allowed: true,
+            role: "parent",
+            userId: context.userId,
+            familyId: context.familyId,
+          }),
+        }) as Response,
+    );
+    const availability = jest.fn();
+    const host = render(
+      <CaptureBox
+        presentation="sheet"
+        open={false}
+        onAvailabilityChange={availability}
+      />,
+    );
+    await waitFor(() =>
+      expect(availability).toHaveBeenLastCalledWith("available"),
+    );
+    let renew!: (value: typeof legacy) => void;
+    jest.mocked(readReviewDocumentContext).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          renew = resolve;
+        }),
+    );
+    host.rerender(
+      <CaptureBox
+        presentation="sheet"
+        open
+        onAvailabilityChange={availability}
+      />,
+    );
+    await waitFor(() => expect(renew).toBeDefined());
+    expect(
+      screen.getByLabelText("What would you like to add?"),
+    ).not.toBeVisible();
+    expect(
+      screen.getByLabelText("What would you like to add?"),
+    ).not.toHaveFocus();
+    await act(async () => {
+      renew(legacy);
+    });
+    const input = await screen.findByRole("textbox", {
+      name: "What would you like to add?",
+    });
+    await waitFor(() => expect(input).toHaveFocus());
+    fireEvent.change(input, { target: { value: "Keep this unsent phrase" } });
+    host.rerender(
+      <CaptureBox
+        presentation="sheet"
+        open={false}
+        onAvailabilityChange={availability}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    host.rerender(
+      <CaptureBox
+        presentation="sheet"
+        open
+        onAvailabilityChange={availability}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "What would you like to add?" }),
+      ).toHaveFocus(),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "What would you like to add?" }),
+    ).toHaveValue("Keep this unsent phrase");
+  } finally {
+    focus.mockRestore();
+  }
+});

@@ -1,5 +1,22 @@
 # Current State
 
+## Consolidated browser failures and Capture focus repair — 2026-10-22
+
+Run39874900393 is terminal failure. Inventory failed; all four general viewport
+jobs and Settings reached their40-minute limit and were cancelled by the runner.
+Password recovery and six-size profile-routine jobs passed at2125c339. None of
+the unfinished/expanded/visual coverage is treated as passing. Completed job
+logs are retained locally and source repairs are being batched before another
+CI-triggering push, with explicit per-agent file ownership.
+
+Source review confirms a legacy Capture focus race: the Dialog opens while the
+owner-renewal boundary hides its input, and a successful renewal did not repeat
+the missed focus. A pending-open focus request now waits for that same boundary
+to reveal the available input, without stealing later focus. A real-boundary
+regression covers deferred owner renewal, close/reopen and unsent text retention.
+Adopted manual rows/saved reviews remain provider independent; no availability
+policy is changed to satisfy old extraction-only assertions.
+
 ## Preserve typed inventory refusal semantics — 2026-10-22
 
 The wider14-suite inventory check found4 EN/ES/pseudolocale failures in the
