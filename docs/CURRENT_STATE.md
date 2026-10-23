@@ -1,3 +1,24 @@
+## Loading budget repaired; current main integrated — 2026-10-23
+
+Atad1657b1 all six original cold-start JavaScript budgets pass on phone390 and
+desktop1366: Today246146 bytes against250000; the other five routes stay below
+300000. The optimized build and all15 budget/setup cases pass, and the owned
+database is dropped. Layout membership grouping removes duplicate code without
+making async-only features eager; no budget, collector or feature gate changes.
+
+The Settings0f0a916d run passes93 cases and fails12. Four local native-select
+keyboard failures reproduce outside the app on macOS Chrome; the original
+keyboard flow passed on hosted Linux and is retained for exact-candidate CI.
+Eight readiness failures receive bounded test repairs preserving exact one-read/
+no-refetch assertions. Hosted Settings/expanded QA remains required. Details and
+failed evidence are preserved in docs/testing/WEB_QA_20261023.md.
+
+Production and main now reportcd5521fe (dependency PR593), which has been merged
+into this branch. A fresh combined build and hosted checks must pass before the
+user-authorized protected merge/existing Coolify deployment. Previous755685f8
+recovery evidence must be refreshed against the current image. No current-candidate
+release or household acceptance is claimed.
+
 ## Today startup and Settings acceptance repairs — 2026-10-23
 
 The latest user instruction authorizes the remaining Today startup-size and
