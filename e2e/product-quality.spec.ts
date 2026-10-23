@@ -579,7 +579,7 @@ for (const locale of ["en", "es"] as const) {
       await featureSearch.fill(getFeatureDisplayCopy(locale, "budget").title);
       await expect(more.locator('a[href="/dashboard/budget"]')).toHaveCount(1);
       await expect(more.getByRole("listitem")).toHaveCount(1);
-      await more
+      await page
         .getByRole("button", {
           name: moreMessages[locale].clearSearch,
           exact: true,

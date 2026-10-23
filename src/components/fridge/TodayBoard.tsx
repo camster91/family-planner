@@ -67,7 +67,11 @@ function createUseSoonRegion() {
 /** Keep the Today layout editor out of the board's initial JavaScript. */
 const LazyTodayLayoutEditor = React.lazy(() => import("./TodayLayoutEditor"));
 
-function DeferredTodayLayoutEditor({ available }: { available: TodaySection[] }) {
+function DeferredTodayLayoutEditor({
+  available,
+}: {
+  available: TodaySection[];
+}) {
   const { saving, syncState } = useDisplayPreferences();
   const text = usePersonalLayoutShellText();
   const [started, setStarted] = React.useState(false);
@@ -950,15 +954,14 @@ export default function TodayBoard({
         </header>
 
         {!fridgeMode && viewer && !tileActions && (
-          <div className="mb-4 flex flex-wrap items-start gap-2">
-            <TodayControls
-              links={data.links}
-              role={viewer.role}
-              onRefresh={refresh}
-              online={online}
-            />
+          <TodayControls
+            links={data.links}
+            role={viewer.role}
+            onRefresh={refresh}
+            online={online}
+          >
             <DeferredTodayLayoutEditor available={availableSections} />
-          </div>
+          </TodayControls>
         )}
         {viewer && !tileActions && (
           <PersonQueueStorageRecovery userId={viewer.id} />

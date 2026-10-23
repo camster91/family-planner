@@ -28,11 +28,13 @@ export default function TodayControls({
   role,
   onRefresh,
   online,
+  children,
 }: {
   links: BoardLinks;
   role: string;
   onRefresh: () => void;
   online: boolean;
+  children?: React.ReactNode;
 }) {
   const text = useTodayBoardText();
   const details = React.useRef<HTMLDetailsElement>(null);
@@ -140,6 +142,7 @@ export default function TodayControls({
           )}
         </div>
       </details>
+      {children}
     </nav>
   );
 }
