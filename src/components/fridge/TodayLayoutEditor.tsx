@@ -16,9 +16,23 @@ import { usePendingFormNavigationController } from "@/components/layout/pending-
 export default function TodayLayoutEditor({
   available,
   scope = "person",
+  openOnMount = false,
+  open: controlledOpen,
+  onOpenChange,
+  hideInternalLauncher = false,
+  showStatus = true,
 }: {
   available: TodaySection[];
   scope?: "person" | "household";
+  /** Used by the Today-board launcher after its optional chunk has loaded. */
+  openOnMount?: boolean;
+  /** Optional controlled dialog state for a launcher that stays mounted. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** The parent launcher owns the opener when the editor is deferred. */
+  hideInternalLauncher?: boolean;
+  /** The Today board keeps the status row in its lightweight launcher. */
+  showStatus?: boolean;
 }) {
   const preferences = useDisplayPreferences();
   const {
@@ -39,8 +53,10 @@ export default function TodayLayoutEditor({
   const household = scope === "household";
   const text = usePersonalLayoutText(),
     showUndo = useUndoToast();
-  const [open, setOpen] = React.useState(false),
+  const controlled = controlledOpen !== undefined;
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(openOnMount),
     [draft, setDraft] = React.useState<TodayLayout>(today);
+  const open = controlledOpen ?? uncontrolledOpen;
   const [previewing, setPreviewing] = React.useState(false),
     [inherit, setInherit] = React.useState(false);
   const writing = React.useRef(false);
@@ -62,6 +78,10 @@ export default function TodayLayoutEditor({
   );
   const currentRevision = household ? defaultsRevision : revision;
   const changedElsewhere = open && baselineView !== currentRevision;
+  const setOpen = (next: boolean) => {
+    if (!controlled) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
   const close = () => {
     if (writing.current || saving) return;
     if (!household) previewToday(null);
@@ -88,6 +108,14 @@ export default function TodayLayoutEditor({
       if (!household) previewToday(null);
     }
   };
+  const captureLatestRef = React.useRef(captureLatest);
+  captureLatestRef.current = captureLatest;
+  const previousOpen = React.useRef(false);
+  React.useEffect(() => {
+    const wasOpen = previousOpen.current;
+    previousOpen.current = open;
+    if (open && !wasOpen) captureLatestRef.current(false);
+  }, [open]);
   const reorder = (section: TodaySection, direction: -1 | 1) => {
     const visibleOrder = draft.order.filter((item) => available.includes(item));
     const other = visibleOrder[visibleOrder.indexOf(section) + direction];
@@ -129,19 +157,18 @@ export default function TodayLayoutEditor({
   if (household && syncState === "ready" && !canManageDefaults) return null;
   return (
     <>
-      <button
-        type="button"
-        className="btn-tinted min-h-[44px]"
-        disabled={saving || syncState !== "ready"}
-        onClick={() => {
-          captureLatest(false);
-          setOpen(true);
-        }}
-      >
-        <SlidersHorizontal size={18} aria-hidden="true" />
-        {text(household ? "householdDefaults" : "customize")}
-      </button>
-      <DisplayPreferencesStatus />
+      {!hideInternalLauncher && (
+        <button
+          type="button"
+          className="btn-tinted min-h-[44px]"
+          disabled={saving || syncState !== "ready"}
+          onClick={() => setOpen(true)}
+        >
+          <SlidersHorizontal size={18} aria-hidden="true" />
+          {text(household ? "householdDefaults" : "customize")}
+        </button>
+      )}
+      {showStatus && <DisplayPreferencesStatus />}
       <Dialog
         open={open}
         onClose={saving ? undefined : close}

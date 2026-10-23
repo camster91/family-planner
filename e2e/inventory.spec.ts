@@ -436,6 +436,12 @@ test.describe("inventory (Family A parent)", () => {
       }
       await page.evaluate(() => window.scrollTo(0, 0));
       if (page.viewportSize()!.width < 768) {
+        // The mobile tab bar is fixed and is not part of the browser scroll
+        // port. The overview can follow the safety section and page header,
+        // so center the shortcuts before checking their clearance from it.
+        await shortcuts.evaluate((element) =>
+          element.scrollIntoView({ block: "center", inline: "nearest" }),
+        );
         const firstScreenLocations = await shortcuts.boundingBox();
         const visibleBottom = await page
           .getByRole("navigation")

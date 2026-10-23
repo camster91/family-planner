@@ -1,3 +1,41 @@
+## Integrated source repair batch frozen for consolidated QA — 2026-10-23
+
+The implementation review of this repair batch is complete. It follows the
+requirement-by-requirement source map in WEB_SOURCE_AUDIT_20261022.md; remaining
+work is verification, repair of observed failures, and authorized release. No
+additional feature expansion is needed to postpone QA. The fresh GitHub read
+still has82 open issues with82 unique ledger rows and no missing/closed/duplicate
+entries. All remain open pending their actual evidence and external dependencies.
+
+Source review also removed hidden, mounted bulk/routine workspaces introduced
+by the loading optimization: hidden dialogs must not retain an active focus trap
+when a person changes views. The original view lifecycle and owned recovery
+protocol remain in place. Calendar import has a localized loading status. This
+checkpoint starts the consolidated QA phase; the unverified changes below must
+pass before merge/deployment. Existing failed runs are retained as failures.
+
+## Latest instruction: finish implementation before more tests — 2026-10-23
+
+Cameron renewed the instruction to defer tests until the remaining implementation
+is finished. No new test, build, browser run or CI-triggering push accompanies
+this source follow-through. The current unverified repair batch restores the
+approved personal Today geometry, keeps phone project menus inside the viewport,
+resets fabricated fixture display preferences, and defers optional Today,
+Explore, calendar-import, chore-review, routine and meal-editor code. Today customization retains its mounted opener and editor state; bulk/routine
+view navigation keeps its existing mount and recovery lifecycle. Provider-independent
+Capture ownership remains part of the implementation contract. Calendar import now shows a localized
+loading status while its optional chunk loads.
+
+The original77c115e1 hosted E2E run is terminal failure: Settings, Inventory,
+portrait and fridge failed; phone and large-tablet/desktop timed out. Its
+Build/Test/checked-image and Android checks passed, as did password recovery and
+profile routines. These older results do not validate the current repair batch.
+JavaScript budgets and visual acceptance remain unverified after the new changes;
+limits and baselines have not been relaxed. Finish source review, freeze the
+integrated candidate, then run consolidated QA and repair failures before the
+already-authorized protected merge and existing Coolify deployment. No release
+or household acceptance is claimed.
+
 ## Consolidated repair QA resumed — 2026-10-23 UTC
 
 The latest implementation-first follow-through is complete and consolidated QA

@@ -570,7 +570,10 @@ for (const locale of ["en", "es"] as const) {
         );
       }
       await expect(more.getByRole("listitem")).toHaveCount(moreKeys.length);
-      const featureSearch = more.getByRole("searchbox", {
+      // The search field is the ExploreBrowser header, outside the list's
+      // data-testid container. Keep the list scoped for result assertions but
+      // resolve the real field at page scope.
+      const featureSearch = page.getByRole("searchbox", {
         name: moreMessages[locale].searchLabel,
       });
       await featureSearch.fill(getFeatureDisplayCopy(locale, "budget").title);

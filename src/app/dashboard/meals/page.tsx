@@ -14,9 +14,6 @@ import {
   mealCreateReceipt,
 } from "@/lib/meal-create-contract";
 import { useMealCreation } from "@/components/meals/use-meal-creation";
-import { MealDescriptionDraft } from "@/components/meals/MealDescriptionDraft";
-import { RecipeReuseLauncher } from "@/components/meals/RecipeReuseLauncher";
-import { BulkCookingPanel } from "@/components/meals/BulkCookingPanel";
 import { useBulkCookingText } from "@/i18n/bulk-cooking";
 import { useMealWeek } from "@/components/meals/use-meal-week";
 import { useMealWeekText } from "@/i18n/meal-week";
@@ -28,10 +25,7 @@ import { useFeatureEnabled } from "@/components/providers/features-provider";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/Skeleton";
-import {
-  RecipePicker,
-  type RecipeOption,
-} from "@/components/meals/RecipePicker";
+import type { RecipeOption } from "@/components/meals/RecipePicker";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/i18n";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
@@ -50,6 +44,30 @@ import {
   type MealType,
   type PlannedMeal as MealSlot,
 } from "@/lib/meal-slots";
+
+// These controls are only needed after an explicit interaction or when a
+// deep-link opens the corresponding view. Keep their substantial form and
+// recovery graphs out of the default week planner bundle.
+const MealDescriptionDraft = React.lazy(() =>
+  import("@/components/meals/MealDescriptionDraft").then((module) => ({
+    default: module.MealDescriptionDraft,
+  })),
+);
+const RecipeReuseLauncher = React.lazy(() =>
+  import("@/components/meals/RecipeReuseLauncher").then((module) => ({
+    default: module.RecipeReuseLauncher,
+  })),
+);
+const BulkCookingPanel = React.lazy(() =>
+  import("@/components/meals/BulkCookingPanel").then((module) => ({
+    default: module.BulkCookingPanel,
+  })),
+);
+const RecipePicker = React.lazy(() =>
+  import("@/components/meals/RecipePicker").then((module) => ({
+    default: module.RecipePicker,
+  })),
+);
 
 interface MealSaveData {
   date: string;
@@ -258,18 +276,26 @@ function MealModal({
           className="space-y-4 min-w-0"
         >
           {mode === "add" && !recipe && (
-            <MealDescriptionDraft
-              enabled={!busy && creation.ready}
-              contextKey={creation.contextKey}
-              onApply={(draft) => {
-                if (busy || isBusy() || recipe || !creation.ready) return;
-                setRecipeName(draft.recipe_name);
-                if (draft.date) setDate(draft.date);
-                if (draft.meal_type) setMealType(draft.meal_type);
-                if (draft.servings !== undefined)
-                  setServings(String(draft.servings));
-              }}
-            />
+            <React.Suspense
+              fallback={
+                <p role="status" className="text-footnote text-label-secondary">
+                  {t("common.loading")}
+                </p>
+              }
+            >
+              <MealDescriptionDraft
+                enabled={!busy && creation.ready}
+                contextKey={creation.contextKey}
+                onApply={(draft) => {
+                  if (busy || isBusy() || recipe || !creation.ready) return;
+                  setRecipeName(draft.recipe_name);
+                  if (draft.date) setDate(draft.date);
+                  if (draft.meal_type) setMealType(draft.meal_type);
+                  if (draft.servings !== undefined)
+                    setServings(String(draft.servings));
+                }}
+              />
+            </React.Suspense>
           )}
           {initial?.batch_id && (
             <p className="text-subhead text-label-secondary">
@@ -331,16 +357,24 @@ function MealModal({
             />
           </div>
 
-          <RecipePicker
-            value={recipe?.id ?? null}
-            onChange={handleRecipeChange}
-            initialRecipe={initial?.recipe ?? defaultRecipe ?? null}
-            onCreatingChange={handleRecipeCreatingChange}
-            disabled={saving || creation.locked}
-            isMutationPending={() =>
-              isMealMutationPending() || creation.isPending()
+          <React.Suspense
+            fallback={
+              <p role="status" className="text-footnote text-label-secondary">
+                {t("common.loading")}
+              </p>
             }
-          />
+          >
+            <RecipePicker
+              value={recipe?.id ?? null}
+              onChange={handleRecipeChange}
+              initialRecipe={initial?.recipe ?? defaultRecipe ?? null}
+              onCreatingChange={handleRecipeCreatingChange}
+              disabled={saving || creation.locked}
+              isMutationPending={() =>
+                isMealMutationPending() || creation.isPending()
+              }
+            />
+          </React.Suspense>
           <div>
             <label
               htmlFor={`${titleId}-cook`}
@@ -821,38 +855,56 @@ function MealsPageInner() {
         }}
       />
       {view === "week" && reuseRecipeId && anchor && !modal && (
-        <RecipeReuseLauncher
-          recipeId={reuseRecipeId}
-          onDismiss={dismissReuse}
-          kind="meal"
-          onUse={(recipe) => {
-            if (mealMutationPending.current) return;
-            setModal({
-              mode: "add",
-              defaultDate: startKey,
-              defaultRecipe: recipe,
-            });
-          }}
-        />
+        <React.Suspense
+          fallback={
+            <p role="status" className="text-footnote text-label-secondary">
+              {t("common.loading")}
+            </p>
+          }
+        >
+          <RecipeReuseLauncher
+            recipeId={reuseRecipeId}
+            onDismiss={dismissReuse}
+            kind="meal"
+            onUse={(recipe) => {
+              if (mealMutationPending.current) return;
+              setModal({
+                mode: "add",
+                defaultDate: startKey,
+                defaultRecipe: recipe,
+              });
+            }}
+          />
+        </React.Suspense>
       )}
 
       {view === "bulk" && (
-        <BulkCookingPanel
-          reuseRecipeId={reuseRecipeId}
-          onDismissReuse={dismissReuse}
-          preparedReuse={preparedReuse}
-          recoveryRequested={searchParams.get("bulkWork") === "recovery"}
-          personalRecoveryAllowed={
-            searchParams.get("mode") !== "fridge" && !preparationActive
-          }
-          onDismissPreparedReuse={dismissPreparedReuse}
-          defaultDay={anchor ? startKey : toDateOnlyLocal(new Date())}
-          refreshKey={meals}
-          onMealsChanged={() => void fetchMeals()}
-          onContext={(scope) => {
-            bulkContext.current = scope;
-          }}
-        />
+        <div>
+          <React.Suspense
+            fallback={
+              <p role="status" className="text-footnote text-label-secondary">
+                {t("common.loading")}
+              </p>
+            }
+          >
+            <BulkCookingPanel
+              reuseRecipeId={reuseRecipeId}
+              onDismissReuse={dismissReuse}
+              preparedReuse={preparedReuse}
+              recoveryRequested={searchParams.get("bulkWork") === "recovery"}
+              personalRecoveryAllowed={
+                searchParams.get("mode") !== "fridge" && !preparationActive
+              }
+              onDismissPreparedReuse={dismissPreparedReuse}
+              defaultDay={anchor ? startKey : toDateOnlyLocal(new Date())}
+              refreshKey={meals}
+              onMealsChanged={() => void fetchMeals()}
+              onContext={(scope) => {
+                bulkContext.current = scope;
+              }}
+            />
+          </React.Suspense>
+        </div>
       )}
       {/* Week section */}
       {view === "week" && (

@@ -31,6 +31,10 @@ const projects = [
   "tablet-portrait-800x1280",
   "fridge-landscape-1280x800",
 ];
+// Chromium can report a half-pixel edge for a control whose CSS box ends at
+// the viewport boundary. Keep the no-scroll assertion exact while allowing
+// that observed compositor rounding in element-bound checks.
+const viewportEdgeTolerance = 0.5;
 function text(value: string) {
   return expanded ? pseudolocalizeTemplate(value) : value;
 }
@@ -49,7 +53,9 @@ async function capture(
     const viewport = page.viewportSize()!;
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.y).toBeGreaterThanOrEqual(0);
-    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(
+      viewport.width + viewportEdgeTolerance,
+    );
     expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
     await target.focus();
     await expect(target).toBeFocused();
@@ -172,7 +178,7 @@ for (const role of ["parent", "teen", "child"] as const)
               viewport = page.viewportSize()!;
             expect(bounds!.x).toBeGreaterThanOrEqual(0);
             expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(
-              viewport.width,
+              viewport.width + viewportEdgeTolerance,
             );
             const tabs =
               info.project.name === "phone-390x844"
@@ -376,7 +382,9 @@ for (const role of ["parent", "teen", "child"] as const)
           const bounds = await opener.boundingBox(),
             viewport = page.viewportSize()!;
           expect(bounds!.x).toBeGreaterThanOrEqual(0);
-          expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
+          expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(
+            viewport.width + viewportEdgeTolerance,
+          );
           await page.screenshot({
             path: info.outputPath(`${locale}-fresh-normal-chrome.png`),
             fullPage: false,

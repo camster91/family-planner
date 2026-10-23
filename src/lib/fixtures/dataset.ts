@@ -170,6 +170,37 @@ export const FIXTURE_CROSS_FAMILY = {
  */
 export const FIXTURE_FEATURES = { gamification: true } as const
 
+/**
+ * Canonical presentation baselines for fixture-owned accounts and families.
+ *
+ * Keep these values explicit instead of relying on nullable-column fallbacks:
+ * fixture reseeding must remove presentation drift left by a prior browser
+ * run while retaining the same defaults used by the display-preferences
+ * reader. The factories below return fresh nested objects so one test cannot
+ * mutate another fixture row's JSON by reference.
+ */
+export const FIXTURE_DISPLAY_PREFERENCES = { version: 1 } as const
+export const FIXTURE_DISPLAY_DEFAULTS = {
+  version: 1,
+  today: {
+    order: ['next', 'dinner', 'groceries', 'coming', 'usesoon'],
+    hidden: [],
+    density: 'comfortable',
+    includeChores: true,
+    calendarView: 'agenda',
+  },
+} as const
+
+const fixtureDisplayPreferences = () => ({ ...FIXTURE_DISPLAY_PREFERENCES })
+const fixtureDisplayDefaults = () => ({
+  version: FIXTURE_DISPLAY_DEFAULTS.version,
+  today: {
+    ...FIXTURE_DISPLAY_DEFAULTS.today,
+    order: [...FIXTURE_DISPLAY_DEFAULTS.today.order],
+    hidden: [...FIXTURE_DISPLAY_DEFAULTS.today.hidden],
+  },
+})
+
 type WithId<T> = T & { id: string }
 
 export type FixtureFamily = WithId<Prisma.FamilyUncheckedCreateInput> & { invite_code: string }
@@ -261,9 +292,30 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
   // seed writes this on every run, so a test that toggles a flag is reset.
   const features = { ...FIXTURE_FEATURES }
   const families: FixtureFamily[] = [
-    { id: A.family, name: 'Fixture Family A (busy)', invite_code: 'fxinvitefamilya', created_at: created, features },
-    { id: B.family, name: 'Fixture Family B (sparse)', invite_code: 'fxinvitefamilyb', created_at: created, features },
-    { id: E.family, name: 'Fixture Family (empty)', invite_code: 'fxinvitefamilyempty', created_at: created, features },
+    {
+      id: A.family,
+      name: 'Fixture Family A (busy)',
+      invite_code: 'fxinvitefamilya',
+      created_at: created,
+      features,
+      display_defaults: fixtureDisplayDefaults(),
+    },
+    {
+      id: B.family,
+      name: 'Fixture Family B (sparse)',
+      invite_code: 'fxinvitefamilyb',
+      created_at: created,
+      features,
+      display_defaults: fixtureDisplayDefaults(),
+    },
+    {
+      id: E.family,
+      name: 'Fixture Family (empty)',
+      invite_code: 'fxinvitefamilyempty',
+      created_at: created,
+      features,
+      display_defaults: fixtureDisplayDefaults(),
+    },
   ]
 
   const user = (
@@ -287,6 +339,7 @@ export function buildFixtureDataset(anchorInput: Date | string = DEFAULT_FIXTURE
     best_streak: 0,
     token_version: 0,
     created_at: created,
+    display_preferences: fixtureDisplayPreferences(),
     ...extra,
   })
 

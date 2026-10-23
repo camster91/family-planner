@@ -452,9 +452,9 @@ test.describe("new household sign-up journey", () => {
     await test.step("parent finds the in-person family code", async () => {
       await page.goto("/dashboard/family/invite");
       await page.getByText("In person instead").click();
-      await expect(
-        page.getByText(formatFamilyCode(inviteCode), { exact: true }),
-      ).toBeVisible();
+      await expect(page.getByLabel("Family code", { exact: true })).toHaveValue(
+        formatFamilyCode(inviteCode),
+      );
       await expect(
         page.getByRole("button", { name: "Copy code" }),
       ).toBeEnabled();

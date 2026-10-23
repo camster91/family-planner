@@ -5,7 +5,13 @@
  */
 import { hashPassword, verifyPassword } from '@/lib/auth'
 import { assertFixtureTargetAllowed } from '../guard'
-import { buildFixtureDataset, FIXTURE_IDS, FIXTURE_PASSWORD } from '../dataset'
+import {
+  buildFixtureDataset,
+  FIXTURE_DISPLAY_DEFAULTS,
+  FIXTURE_DISPLAY_PREFERENCES,
+  FIXTURE_IDS,
+  FIXTURE_PASSWORD,
+} from '../dataset'
 import { FixtureConflictError, resetFixtures, seedFixtures } from '../seed'
 
 const describeWithDatabase = process.env.RUN_DB_INTEGRATION === '1' ? describe : describe.skip
@@ -100,6 +106,21 @@ describeWithDatabase('fixture seed/reset against a database', () => {
   it('reconciles drift, prunes stale fx_ rows and leaves app-created rows alone', async () => {
     await prisma.chore.update({ where: { id: A.chore }, data: { title: 'Edited during a test', status: 'completed' } })
     await prisma.user.update({ where: { id: A.teen }, data: { password: await hashPassword('changed-in-test') } })
+    await prisma.family.update({
+      where: { id: A.family },
+      data: {
+        display_defaults: {
+          version: FIXTURE_DISPLAY_DEFAULTS.version,
+          today: {
+            ...FIXTURE_DISPLAY_DEFAULTS.today,
+            order: [...FIXTURE_DISPLAY_DEFAULTS.today.order],
+            hidden: [...FIXTURE_DISPLAY_DEFAULTS.today.hidden],
+            density: 'compact',
+          },
+        },
+      },
+    })
+    await prisma.user.update({ where: { id: A.parent }, data: { display_preferences: { version: 1, quiet: true } } })
     await prisma.event.create({
       data: {
         id: 'fx_event_a_stale',
@@ -127,6 +148,12 @@ describeWithDatabase('fixture seed/reset against a database', () => {
     expect(await prisma.chore.findUniqueOrThrow({ where: { id: A.chore } })).toMatchObject({
       title: 'Take out recycling',
       status: 'pending',
+    })
+    expect(await prisma.family.findUniqueOrThrow({ where: { id: A.family } })).toMatchObject({
+      display_defaults: FIXTURE_DISPLAY_DEFAULTS,
+    })
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: A.parent } })).toMatchObject({
+      display_preferences: FIXTURE_DISPLAY_PREFERENCES,
     })
     expect(await prisma.event.findUnique({ where: { id: 'fx_event_a_stale' } })).toBeNull()
     expect(await prisma.event.findUnique({ where: { id: 'fxZapp-created-event' } })).not.toBeNull()

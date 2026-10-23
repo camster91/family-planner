@@ -6,7 +6,7 @@ import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { useTodayBoardText } from "@/i18n/today-board";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Maximize2, Minimize2 } from "lucide-react";
+import { Maximize2, Minimize2, SlidersHorizontal } from "lucide-react";
 import type {
   BoardDisplayData,
   BoardPhoto,
@@ -46,9 +46,10 @@ import {
 } from "./regions";
 import { actionLinkClass, regionClass } from "./styles";
 import TodayControls from "./TodayControls";
-import TodayLayoutEditor from "./TodayLayoutEditor";
 import { useDisplayPreferences } from "@/components/providers/display-preferences-provider";
 import type { TodaySection } from "@/lib/personal-layout";
+import { usePersonalLayoutText } from "@/i18n/personal-layout";
+import DisplayPreferencesStatus from "@/components/account/DisplayPreferencesStatus";
 import personalStyles from "./personal-today.module.css";
 import { PersonQueueStorageRecovery } from "./PersonQueueStorageRecovery";
 import { NextUpRegion } from "./NextUpRegion";
@@ -61,6 +62,51 @@ function createUseSoonRegion() {
     const useSoonModule = await import("./use-soon-region");
     return { default: useSoonModule.UseSoonRegion };
   });
+}
+
+/** Keep the Today layout editor out of the board's initial JavaScript. */
+const LazyTodayLayoutEditor = React.lazy(() => import("./TodayLayoutEditor"));
+
+function DeferredTodayLayoutEditor({ available }: { available: TodaySection[] }) {
+  const { saving, syncState } = useDisplayPreferences();
+  const text = usePersonalLayoutText();
+  const [started, setStarted] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <>
+      <DisplayPreferencesStatus />
+      <button
+        type="button"
+        className="btn-tinted min-h-[44px]"
+        disabled={saving || syncState !== "ready"}
+        onClick={() => {
+          setStarted(true);
+          setOpen(true);
+        }}
+      >
+        <SlidersHorizontal size={18} aria-hidden="true" />
+        {text("customize")}
+      </button>
+      {started && (
+        <React.Suspense
+          fallback={
+            <p role="status" className="text-footnote text-label-secondary">
+              {text("customize")}…
+            </p>
+          }
+        >
+          <LazyTodayLayoutEditor
+            available={available}
+            open={open}
+            onOpenChange={setOpen}
+            hideInternalLauncher
+            showStatus={false}
+          />
+        </React.Suspense>
+      )}
+    </>
+  );
 }
 
 /**
@@ -911,7 +957,7 @@ export default function TodayBoard({
               onRefresh={refresh}
               online={online}
             />
-            <TodayLayoutEditor available={availableSections} />
+            <DeferredTodayLayoutEditor available={availableSections} />
           </div>
         )}
         {viewer && !tileActions && (

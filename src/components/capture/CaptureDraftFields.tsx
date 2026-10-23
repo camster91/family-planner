@@ -1,7 +1,6 @@
 "use client";
 import * as React from "react";
 import { Dialog } from "@/components/ui/dialog";
-import CreateChoreForm from "@/app/dashboard/chores/create/CreateChoreForm";
 import type { CaptureChoreDraft } from "@/lib/capture-chore-review";
 import { captureReviewInstant } from "@/lib/capture-document";
 import type {
@@ -10,6 +9,11 @@ import type {
 } from "@/lib/capture-document";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { useCaptureDraftText } from "@/i18n/capture-drafts";
+
+/** Chore scheduling is optional; keep its form graph out of quick-add startup. */
+const LazyCreateChoreForm = React.lazy(
+  () => import("@/app/dashboard/chores/create/CreateChoreForm"),
+);
 const types = [
   "school",
   "sports",
@@ -318,45 +322,47 @@ export function CaptureDraftFields({
           onClose={choreBusy ? undefined : () => setTaskId(null)}
         >
           <fieldset disabled={disabled}>
-            <CreateChoreForm
-              key={task.clientId}
-              inSheet
-              onBusyChange={choreBusyChange}
-              review={{
-                initial:
-                  task.chore?.draft ??
-                  ({
-                    title: task.title,
-                    description: "",
-                    points: "10",
-                    assignment: { kind: "account", id: "" },
-                    dueDate: "",
-                    weeklyStart: "",
-                    frequency: "once",
-                    difficulty: "medium",
-                    weeklyDays: [],
-                    photoUrl: null,
-                    icon: null,
-                    routine: "",
-                    routineOrder: "",
-                    takeTurns: false,
-                    rotation: [],
-                  } satisfies CaptureChoreDraft),
-                submitLabel: text.reviewChore,
-                onChange: (draft) =>
-                  patch(task, {
-                    title: draft.title,
-                    chore: { draft, reviewed: null },
-                  }),
-                onReview: (draft, reviewed) => {
-                  patch(task, {
-                    title: draft.title,
-                    chore: { draft, reviewed },
-                  });
-                  setTaskId(null);
-                },
-              }}
-            />
+            <React.Suspense fallback={<p role="status">{text.checking}</p>}>
+              <LazyCreateChoreForm
+                key={task.clientId}
+                inSheet
+                onBusyChange={choreBusyChange}
+                review={{
+                  initial:
+                    task.chore?.draft ??
+                    ({
+                      title: task.title,
+                      description: "",
+                      points: "10",
+                      assignment: { kind: "account", id: "" },
+                      dueDate: "",
+                      weeklyStart: "",
+                      frequency: "once",
+                      difficulty: "medium",
+                      weeklyDays: [],
+                      photoUrl: null,
+                      icon: null,
+                      routine: "",
+                      routineOrder: "",
+                      takeTurns: false,
+                      rotation: [],
+                    } satisfies CaptureChoreDraft),
+                  submitLabel: text.reviewChore,
+                  onChange: (draft) =>
+                    patch(task, {
+                      title: draft.title,
+                      chore: { draft, reviewed: null },
+                    }),
+                  onReview: (draft, reviewed) => {
+                    patch(task, {
+                      title: draft.title,
+                      chore: { draft, reviewed },
+                    });
+                    setTaskId(null);
+                  },
+                }}
+              />
+            </React.Suspense>
           </fieldset>
         </Dialog>
       )}

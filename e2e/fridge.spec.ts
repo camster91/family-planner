@@ -899,6 +899,11 @@ test.describe("Today board: Family A parent", () => {
     });
     try {
       await page.goto("/dashboard/family/settings");
+      // Board settings live in a compact disclosure on the current settings
+      // page; open the canonical section before asserting its loaded panel.
+      const disclosure = page.locator("details#household-board");
+      await expect(disclosure).toBeVisible();
+      await disclosure.locator("summary").click();
       const section = page.getByTestId("board-settings");
       await expect(
         section.getByRole("heading", { name: "Today board" }),

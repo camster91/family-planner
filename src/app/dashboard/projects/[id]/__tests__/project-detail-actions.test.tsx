@@ -55,6 +55,79 @@ beforeEach(() => {
 });
 
 describe("ProjectDetailActions deletion", () => {
+  it("keeps the action menu inside a narrow viewport at a right-edge trigger", async () => {
+    const user = userEvent.setup();
+    const previousWidth = window.innerWidth;
+    const previousHeight = window.innerHeight;
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 390,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: 844,
+    });
+    try {
+      renderActions();
+
+      const trigger = screen.getByRole("button", { name: "Actions" });
+      Object.defineProperty(trigger, "getBoundingClientRect", {
+        configurable: true,
+        value: () =>
+          ({
+            left: 320,
+            right: 382,
+            top: 100,
+            bottom: 144,
+            width: 62,
+            height: 44,
+          }) as DOMRect,
+      });
+      await user.click(trigger);
+
+      const menu = screen.getByRole("menu", { name: "Project actions" });
+      const left = Number.parseFloat(menu.style.left);
+      expect(left).toBeGreaterThanOrEqual(8);
+      expect(left + 192).toBeLessThanOrEqual(window.innerWidth - 8);
+      expect(menu.style.top).toBe("148px");
+      expect(
+        screen.getByRole("menuitem", { name: "Mark complete" }),
+      ).toHaveFocus();
+      await user.keyboard("{Escape}");
+      // A wrapped header can put the trigger near the left edge as well.
+      Object.defineProperty(trigger, "getBoundingClientRect", {
+        configurable: true,
+        value: () =>
+          ({
+            left: 60,
+            right: 122,
+            top: 100,
+            bottom: 144,
+            width: 62,
+            height: 44,
+          }) as DOMRect,
+      });
+      await user.click(trigger);
+      const reopened = screen.getByRole("menu", { name: "Project actions" });
+      expect(Number.parseFloat(reopened.style.left)).toBeGreaterThanOrEqual(8);
+      expect(Number.parseFloat(reopened.style.left) + 192).toBeLessThanOrEqual(
+        window.innerWidth - 8,
+      );
+      expect(
+        screen.getByRole("menuitem", { name: "Mark complete" }),
+      ).toHaveFocus();
+    } finally {
+      Object.defineProperty(window, "innerWidth", {
+        configurable: true,
+        value: previousWidth,
+      });
+      Object.defineProperty(window, "innerHeight", {
+        configurable: true,
+        value: previousHeight,
+      });
+    }
+  });
+
   it("opens a project-named confirmation, focuses Cancel, and does not write when cancelled", async () => {
     const user = userEvent.setup();
     renderActions();

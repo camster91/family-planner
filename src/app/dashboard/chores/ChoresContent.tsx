@@ -9,6 +9,7 @@ import { ResponsibilityButton } from "@/components/responsibility/Responsibility
 import * as React from "react";
 import { Plus, CheckSquare, ChevronDown, Flame } from "lucide-react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { RecurringChoreRows } from "@/components/chores/RecurringChoreRows";
 import {
@@ -16,8 +17,6 @@ import {
   type ChorePresentation,
 } from "@/components/chores/ChoreViewControls";
 import { useChoreOverviewText } from "@/i18n/chore-overview";
-import { RoutineStacks } from "@/components/chores/RoutineStacks";
-import { RoutineScheduleEntry } from "@/components/chores/RoutineScheduleEntry";
 import { RoutineIcon } from "@/components/chores/RoutineIcon";
 import { CheckboxRow } from "@/components/ui/checkbox-row";
 import { ListRow } from "@/components/ui/list-row";
@@ -65,6 +64,24 @@ import type {
 } from "@/lib/chore-profile";
 
 type FilterMode = "today" | "week" | "all";
+
+// Routine stacks and parent scheduling are optional workspaces. Keep their
+// graph out of the default chores hydration path and load it only after a
+// person enters the routines view or opens the inline routine disclosure.
+const DeferredRoutineStacks = dynamic(
+  () =>
+    import("@/components/chores/RoutineStacks").then(
+      ({ RoutineStacks }) => RoutineStacks,
+    ),
+  { ssr: false, loading: () => null },
+);
+const DeferredRoutineScheduleEntry = dynamic(
+  () =>
+    import("@/components/chores/RoutineScheduleEntry").then(
+      ({ RoutineScheduleEntry }) => RoutineScheduleEntry,
+    ),
+  { ssr: false, loading: () => null },
+);
 
 function isActiveRepeatingChore(chore: Chore): boolean {
   const frequency = chore.recurrence_frequency ?? chore.frequency;
@@ -244,6 +261,10 @@ export default function ChoresContent({
   preparationContextEnabled = false,
 }: ChoresContentProps) {
   const [view, setView] = React.useState<"chores" | "routines">("chores");
+  const [inlineRoutinePanelOpen, setInlineRoutinePanelOpen] =
+    React.useState(true);
+  const [inlineRoutinePanelLoaded, setInlineRoutinePanelLoaded] =
+    React.useState(false);
   const [filter, setFilter] = React.useState<FilterMode>("today");
   const [seriesMode, setSeriesMode] = React.useState(false);
   const overviewText = useChoreOverviewText();
@@ -252,7 +273,13 @@ export default function ChoresContent({
   const changePresentation = (next: ChorePresentation) => {
     setSeriesMode(next === "series");
     setView(next === "routines" ? "routines" : "chores");
-    if (next !== "routines") setFilter(next === "series" ? "all" : next);
+    if (next !== "routines") {
+      const nextFilter = next === "series" ? "all" : next;
+      setFilter(nextFilter);
+      // Match the original native disclosure defaults: Today opens, while
+      // Week/Series/All start collapsed when their range appears.
+      setInlineRoutinePanelOpen(nextFilter === "today");
+    }
   };
   const [localChores, setLocalChores] = React.useState(chores);
   const preparationContext = useChorePreparationContext(
@@ -944,6 +971,16 @@ export default function ChoresContent({
     !seriesMode &&
     filter !== "all" &&
     routineRows.length > 0;
+  const inlineRoutinePanelMounted =
+    (showInlineRoutines && inlineRoutinePanelOpen) || inlineRoutinePanelLoaded;
+  React.useEffect(() => {
+    // The Today disclosure starts open by design. Once it is visibly open,
+    // latch the loaded component so closing it or changing views does not
+    // discard its focus/progress context.
+    if (showInlineRoutines && inlineRoutinePanelOpen) {
+      setInlineRoutinePanelLoaded(true);
+    }
+  }, [inlineRoutinePanelOpen, showInlineRoutines]);
   const routineIds = new Set(
     showInlineRoutines ? routineRows.map((c) => c.id) : [],
   );
@@ -1111,7 +1148,7 @@ export default function ChoresContent({
     <div className="pb-20">
       {routineSchedulesEnabled &&
         userRole === "parent" &&
-        view === "routines" && <RoutineScheduleEntry />}
+        view === "routines" && <DeferredRoutineScheduleEntry />}
       <LargeHeader
         title={overviewText("title")}
         subtitle={
@@ -1300,20 +1337,7 @@ export default function ChoresContent({
             >
               <div className="h-16 rounded-[var(--radius-xl)] bg-[var(--surface-fill)]" />
             </section>
-          ) : view === "routines" ? (
-            <RoutineStacks
-              preparationBacklinks={preparationBacklinks}
-              routineOrigins={routineOrigins}
-              ownPreparationContext={ownPreparationContext}
-              chores={filtered}
-              userRole={userRole}
-              currentUserId={currentUserId}
-              familyId={familyId}
-              locale={displayLocale}
-              collapseRepeats={filter !== "today"}
-              onComplete={handleCompleteChore}
-            />
-          ) : listChores.length > 0 ? (
+          ) : view === "routines" ? null : listChores.length > 0 ? (
             <section>
               <p className="section-header">
                 {overviewText(
@@ -1356,33 +1380,55 @@ export default function ChoresContent({
           )}
           {now && showInlineRoutines && (
             <details
-              key={filter}
-              open={filter === "today"}
+              open={inlineRoutinePanelOpen}
+              onToggle={(event) => {
+                const open = event.currentTarget.open;
+                setInlineRoutinePanelOpen(open);
+                if (open) setInlineRoutinePanelLoaded(true);
+              }}
               className="min-w-0 rounded-[var(--radius-xl)] border border-[var(--surface-separator)]"
             >
               <summary className="min-h-[44px] cursor-pointer px-4 py-3 text-headline text-label-primary">
                 {overviewText("routinePanel")}
               </summary>
               <div className="p-3 pt-0">
-                <RoutineStacks
-                  routineOrigins={routineOrigins}
-                  ownPreparationContext={ownPreparationContext}
-                  preparationBacklinks={preparationBacklinks}
-                  chores={routineRows}
-                  userRole={userRole}
-                  currentUserId={currentUserId}
-                  familyId={familyId}
-                  locale={displayLocale}
-                  collapseRepeats={filter !== "today"}
-                  showBuilder={false}
-                  onComplete={handleCompleteChore}
-                  renderOpenRow={(id) => {
-                    const chore = choreById.get(id);
-                    return chore ? renderOpenChore(chore, 0) : null;
-                  }}
-                />
+                {inlineRoutinePanelMounted && (
+                  <DeferredRoutineStacks
+                    routineOrigins={routineOrigins}
+                    ownPreparationContext={ownPreparationContext}
+                    preparationBacklinks={preparationBacklinks}
+                    chores={routineRows}
+                    userRole={userRole}
+                    currentUserId={currentUserId}
+                    familyId={familyId}
+                    locale={displayLocale}
+                    collapseRepeats={filter !== "today"}
+                    showBuilder={false}
+                    onComplete={handleCompleteChore}
+                    renderOpenRow={(id) => {
+                      const chore = choreById.get(id);
+                      return chore ? renderOpenChore(chore, 0) : null;
+                    }}
+                  />
+                )}
               </div>
             </details>
+          )}
+          {now && view === "routines" && (
+            <div className="min-w-0">
+              <DeferredRoutineStacks
+                preparationBacklinks={preparationBacklinks}
+                routineOrigins={routineOrigins}
+                ownPreparationContext={ownPreparationContext}
+                chores={filtered}
+                userRole={userRole}
+                currentUserId={currentUserId}
+                familyId={familyId}
+                locale={displayLocale}
+                collapseRepeats={filter !== "today"}
+                onComplete={handleCompleteChore}
+              />
+            </div>
           )}
         </div>
 

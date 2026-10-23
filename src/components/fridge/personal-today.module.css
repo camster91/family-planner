@@ -21,9 +21,26 @@
   .layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  /*
+   * Keep the viewer's saved DOM order while giving the board its intended
+   * tablet rhythm: Next Up and Coming Up are full rows around the paired
+   * Dinner/Groceries row. Direct-child selectors avoid CSS reordering or
+   * dense packing when a person customizes that order.
+   */
+  .layout > [data-today-section="next"],
+  .layout > [data-today-section="coming"],
+  .layout > [data-today-section="usesoon"] {
+    grid-column: 1 / -1;
+  }
 }
 @media (min-width: 1280px) {
   .layout {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* At hub width, Next Up joins Dinner and Groceries in the first row. */
+  .layout > [data-today-section="next"] {
+    grid-column: auto;
   }
 }

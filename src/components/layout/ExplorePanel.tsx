@@ -4,7 +4,9 @@ import { LayoutGrid } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { useTranslation } from "@/i18n";
 import { useMoreText } from "@/i18n/more";
-import ExploreBrowser from "./ExploreBrowser";
+
+/** The feature catalog is only needed after a person opens Explore. */
+const LazyExploreBrowser = React.lazy(() => import("./ExploreBrowser"));
 
 export default function ExplorePanel({ role }: { role: string }) {
   const [open, setOpen] = React.useState(false);
@@ -23,15 +25,35 @@ export default function ExplorePanel({ role }: { role: string }) {
         <LayoutGrid size={18} aria-hidden="true" />
         {more("title")}
       </button>
-      <Dialog
-        open={open}
-        onClose={() => setOpen(false)}
-        title={more("title")}
-        closeLabel={locale === "es" ? "Cerrar" : "Close"}
-        variant="form"
-      >
-        <ExploreBrowser role={role} inSheet onNavigate={() => setOpen(false)} />
-      </Dialog>
+      {open && (
+        <React.Suspense
+          fallback={
+            <Dialog
+              open
+              onClose={() => setOpen(false)}
+              title={more("title")}
+              closeLabel={locale === "es" ? "Cerrar" : "Close"}
+              variant="form"
+            >
+              <p role="status">{more("title")}…</p>
+            </Dialog>
+          }
+        >
+          <Dialog
+            open
+            onClose={() => setOpen(false)}
+            title={more("title")}
+            closeLabel={locale === "es" ? "Cerrar" : "Close"}
+            variant="form"
+          >
+            <LazyExploreBrowser
+              role={role}
+              inSheet
+              onNavigate={() => setOpen(false)}
+            />
+          </Dialog>
+        </React.Suspense>
+      )}
     </>
   );
 }

@@ -794,6 +794,9 @@ test.describe("offline grocery ticks: Family A parent", () => {
     await expect(
       page.getByRole("heading", { name: "Help", exact: true }),
     ).toBeVisible();
+    const diagnostics = page.locator("#help-diagnostics");
+    await diagnostics.locator("summary").click();
+    await expect(diagnostics).toHaveAttribute("open", "");
     await page.getByRole("button", { name: "View sync details" }).click();
     await expect(page.getByText(/2 queued changes/)).toBeVisible();
     await page.getByText("Report for support", { exact: true }).click();
