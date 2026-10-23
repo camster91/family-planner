@@ -11,7 +11,7 @@ import {
 } from "@testing-library/react";
 import { I18nProvider, useTranslation } from "@/i18n";
 import PendingTickRecovery from "../PendingTickRecovery";
-import { getPersonQueue } from "@/lib/offline-queue-browser";
+import { getPersonQueue } from "@/lib/person-queue-browser";
 
 let changeLocale: (locale: "en" | "es") => void;
 function LocaleControl() {
@@ -29,7 +29,7 @@ function render(ui: React.ReactNode) {
   });
 }
 
-jest.mock("@/lib/offline-queue-browser", () => ({ getPersonQueue: jest.fn() }));
+jest.mock("@/lib/person-queue-browser", () => ({ getPersonQueue: jest.fn() }));
 const getQueue = jest.mocked(getPersonQueue);
 let ops: any[], listener: (event: any) => void;
 let queue: any;

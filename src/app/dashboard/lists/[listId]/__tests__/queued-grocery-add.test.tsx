@@ -31,7 +31,7 @@ function render(ui: React.ReactNode) {
 
 let mockQueue: OfflineQueue;
 const mockRefresh = jest.fn();
-jest.mock("@/lib/offline-queue-browser", () => ({
+jest.mock("@/lib/person-queue-browser", () => ({
   getPersonQueue: () => mockQueue,
 }));
 jest.mock("next/navigation", () => ({

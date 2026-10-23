@@ -1,10 +1,10 @@
 /** @jest-environment jsdom */
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { createOfflineQueue } from '@/lib/offline-queue'
-import { getPersonQueue } from '@/lib/offline-queue-browser'
+import { getPersonQueue } from '@/lib/person-queue-browser'
 import { useListItemSync } from '../use-list-item-sync'
 
-jest.mock('@/lib/offline-queue-browser', () => ({ getPersonQueue: jest.fn() }))
+jest.mock('@/lib/person-queue-browser', () => ({ getPersonQueue: jest.fn() }))
 
 it('changes from unread storage to compatible-client recovery without sending or rewriting future work', async () => {
   let blocked = true
