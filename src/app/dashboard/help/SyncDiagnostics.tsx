@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { readPersonQueueDiagnostics } from "@/lib/offline-queue-browser";
+import { readPersonQueueDiagnostics } from "@/lib/person-queue-browser";
 import type { QueueDiagnostics } from "@/lib/offline-queue";
 
 /** Deliberate local support report, never an automatic analytics export. */

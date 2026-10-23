@@ -14,7 +14,12 @@ import { loadGetStarted } from "./get-started-data";
 import { isDoneStatus, isOpenStatus } from "@/lib/home-summary";
 import { isProfileChoreEnabled } from "@/lib/chore-profile";
 import { Suspense } from "react";
-import WeeklyResetLauncher from "@/components/dashboard/WeeklyResetLauncher";
+import loadable from "next/dynamic";
+// The existing server readiness/role gate decides whether this optional
+// workspace is rendered. A dormant launcher need not enter the cold board.
+const WeeklyResetLauncher = loadable(
+  () => import("@/components/dashboard/WeeklyResetLauncher"),
+);
 import { weeklyResetReady } from "@/lib/weekly-reset";
 import { readPreparationBacklinks } from "@/lib/event-preparation/discovery";
 

@@ -20,7 +20,7 @@
  * is unit-testable without a DOM (src/lib/__tests__/offline-queue.test.ts).
  * Browser wiring: src/lib/offline-queue-browser.ts.
  */
-import { DEVICE_IDB_NAME, DEVICE_QUEUE_KEY } from '@/lib/device-client'
+import { DEVICE_IDB_NAME, DEVICE_QUEUE_KEY } from '@/lib/device-storage'
 import type { LegacyQueueDecision, LegacyQueuePreview } from '@/lib/legacy-queue-contract'
 
 // ---------------------------------------------------------------------------

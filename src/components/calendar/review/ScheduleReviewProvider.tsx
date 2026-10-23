@@ -7,7 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   scheduleReviewScope,
   type ScheduleReviewScope,
-} from "@/lib/calendar-planning/conflict-review";
+} from "@/lib/calendar-planning/review-scope";
 import { useScheduleReviewShellText } from "@/i18n/schedule-review-shell";
 const Sheet = React.lazy(() => import("./ScheduleReviewSheet"));
 const Context = React.createContext<{

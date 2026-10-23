@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { setChoreDone } from '@/lib/chore-tick-client'
-import { getPersonQueue } from '@/lib/offline-queue-browser'
+import { getPersonQueue } from '@/lib/person-queue-browser'
 import { QueueError, isCheckedOperation } from '@/lib/offline-queue'
 import type { BoardActions } from './board-actions'
 import { useTranslation } from '@/i18n'

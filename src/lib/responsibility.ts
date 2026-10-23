@@ -1,17 +1,19 @@
+import {
+  responsibilityTarget,
+  type ResponsibilityTarget,
+} from "@/lib/responsibility-target";
+export { responsibilityTarget } from "@/lib/responsibility-target";
+export type { ResponsibilityTarget } from "@/lib/responsibility-target";
 /** Provider-free consent metadata. Canonical target ownership is supplied by
  * a fresh authorized server read, never by a selected profile or client claim. */
 import { z } from "zod";
 import { memberIdentityIdSchema as id } from "@/lib/member-subject-contract";
 export const RESPONSIBILITY_PROTOCOL = "herewoven.responsibility.v1" as const;
-export const responsibilityTarget = z
-  .object({ kind: z.enum(["chore", "pickup", "handoff"]), id })
-  .strict();
 export const responsibilitySubject = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("account"), accountId: id }).strict(),
   z.object({ kind: z.literal("profile"), memberId: id }).strict(),
 ]);
 export type ResponsibilitySubject = z.infer<typeof responsibilitySubject>;
-export type ResponsibilityTarget = z.infer<typeof responsibilityTarget>;
 const statement = z
   .object({
     decision: z.enum(["accepted", "declined"]),

@@ -5,7 +5,7 @@ import { useTranslation } from "@/i18n";
 import type { GroceryMessage } from "@/i18n/grocery-controls";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
-import { getPersonQueue } from "@/lib/offline-queue-browser";
+import { getPersonQueue } from "@/lib/person-queue-browser";
 import {
   QueueError,
   type OfflineQueue,

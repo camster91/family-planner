@@ -366,7 +366,7 @@ export default function SettingsClient({
   // Load the family's calendar feed token, if one exists. Parents only — the
   // API refuses everyone else too.
   useEffect(() => {
-    if (!isParent || activeSection !== "settings-family") return;
+    if (!isParent || !familyContentReady) return;
     fetch("/api/family/feed-token")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -374,12 +374,11 @@ export default function SettingsClient({
           setFeedToken(d.feedToken);
       })
       .catch(() => {});
-  }, [activeSection, isParent]);
+  }, [familyContentReady, isParent]);
 
   // Load AI capture settings (masked hint only — never the key itself). Parents
   // only, and only after the family group is selected (see aiCaptureSettings).
-  const showAi =
-    isParent && aiCaptureSettings && activeSection === "settings-family";
+  const showAi = isParent && aiCaptureSettings && familyContentReady;
   useEffect(() => {
     if (!showAi) return;
     fetch("/api/family/ai-settings")

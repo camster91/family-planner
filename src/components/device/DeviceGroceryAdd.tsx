@@ -8,7 +8,7 @@ import { QueueStorageRecovery } from "@/components/ui/queue-storage-recovery";
 import { RecoveredQueueChanges } from "@/components/ui/recovered-queue-changes";
 import { LocalVoiceDraft } from "@/components/assistant/LocalVoiceDraft";
 import type { DeviceClient } from "@/lib/device-client";
-import { getDeviceQueue } from "@/lib/offline-queue-browser";
+import { getDeviceQueue } from "@/lib/device-queue-browser";
 import {
   QueueError,
   type AddGroceryOperation,

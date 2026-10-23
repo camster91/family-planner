@@ -839,9 +839,7 @@ it.each(["password", "pin", "remove"] as const)(
     await screen.findByLabelText("Full Name");
     await spanish();
     if (kind !== "password")
-      fireEvent.click(
-        screen.getByRole("button", { name: "Familia" }),
-      );
+      fireEvent.click(screen.getByRole("button", { name: "Familia" }));
     await userEvent.click(
       screen.getByRole("button", {
         name:
@@ -856,3 +854,31 @@ it.each(["password", "pin", "remove"] as const)(
     expect(within(modal).getByRole("button", { name: "Cerrar" })).toBeVisible();
   },
 );
+
+it("retains private family drafts and avoids refetching when tabs change for language selection", async () => {
+  const calls = api(undefined, (url) =>
+    url === "/api/family/ai-settings"
+      ? reply(200, {
+          configured: true,
+          keyHint: "saved hint",
+          baseUrl: "https://synthetic.example.test",
+          model: "saved-model",
+        })
+      : undefined,
+  );
+  mounted("parent", true);
+  await familyTab();
+  await userEvent.click(
+    screen.getByRole("heading", { name: "AI capture" }).closest("summary")!,
+  );
+  const model = screen.getByLabelText("Model (optional)");
+  await waitFor(() => expect(model).toHaveValue("saved-model"));
+  fireEvent.change(model, { target: { value: "private-unsaved-model" } });
+  const count = calls.length;
+  await userEvent.click(screen.getByRole("button", { name: "Your account" }));
+  await spanish();
+  await userEvent.click(screen.getByRole("button", { name: "Familia" }));
+  expect(model).toBeVisible();
+  expect(model).toHaveValue("private-unsaved-model");
+  expect(calls).toHaveLength(count);
+});

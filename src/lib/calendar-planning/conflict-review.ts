@@ -3,30 +3,17 @@
  * no permission. No calendar mutation or availability claim occurs here. */
 import { z } from "zod";
 import { parseCalendarInstant, CALENDAR_RANGE_MAX_MS } from "./instant";
+import {
+  reviewInstant as instant,
+  reviewInterval as interval,
+  reviewComparisonInterval as comparisonInterval,
+  scheduleReviewScope,
+} from "./review-scope";
+import type { ScheduleReviewScope } from "./review-scope";
 import { isValidTimeZone } from "@/lib/calendar-import/timezone";
 import { memberIdentityIdSchema as id } from "@/lib/member-subject-contract";
 export const SCHEDULE_REVIEW_PROTOCOL = "herewoven.schedule-review.v1" as const;
 const token = z.string().regex(/^[a-f0-9]{64}$/);
-const instant = z.string().refine((value) => {
-  try {
-    parseCalendarInstant(value);
-    return true;
-  } catch {
-    return false;
-  }
-});
-const interval = z
-  .object({ start: instant, end: instant })
-  .strict()
-  .refine(
-    (value) => Date.parse(value.end) > Date.parse(value.start),
-    "Positive interval required",
-  );
-const comparisonInterval = interval.refine(
-  (value) =>
-    Date.parse(value.end) - Date.parse(value.start) <= CALENDAR_RANGE_MAX_MS,
-  "Comparison range is at most 45 days",
-);
 const owner = z.object({ userId: id, familyId: id }).strict();
 export const scheduleBuffers = z
   .object({
@@ -407,21 +394,8 @@ export function previewScheduleMove(
   });
 }
 
-/** Shared read scope. A fingerprint cannot reconstruct or authorize a range. */
-export const scheduleReviewScope = z
-  .object({
-    targetId: id,
-    range: comparisonInterval,
-    timeZone: z.string().max(100).refine(isValidTimeZone),
-  })
-  .strict()
-  .refine(
-    (value) =>
-      Date.parse(value.range.end) - Date.parse(value.range.start) <=
-      CALENDAR_RANGE_MAX_MS,
-    "Comparison range is at most 45 days",
-  );
-export type ScheduleReviewScope = z.infer<typeof scheduleReviewScope>;
+export { scheduleReviewScope } from "./review-scope";
+export type { ScheduleReviewScope } from "./review-scope";
 export const scheduleReviewInstant = instant;
 export function requireScheduleIntentAge(
   command: ScheduleMoveCommand,

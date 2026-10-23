@@ -15,7 +15,7 @@ import { DeviceApiError, type DeviceClient } from "@/lib/device-client";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { useTranslation } from "@/i18n";
 import { useTodayBoardText } from "@/i18n/today-board";
-import { getDeviceQueue } from "@/lib/offline-queue-browser";
+import { getDeviceQueue } from "@/lib/device-queue-browser";
 import { QueueError, isCheckedOperation } from "@/lib/offline-queue";
 import { MEMBER_COLOR_CSS, type MemberColorKey } from "@/lib/member-colors";
 import { focusRing } from "./styles";

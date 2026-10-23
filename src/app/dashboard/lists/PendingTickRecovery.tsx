@@ -6,7 +6,7 @@ import type { GroceryMessage } from "@/i18n/grocery-controls";
 import { Dialog } from "@/components/ui/dialog";
 import { QueueStorageRecovery } from "@/components/ui/queue-storage-recovery";
 import { RecoveredQueueChanges } from "@/components/ui/recovered-queue-changes";
-import { getPersonQueue } from "@/lib/offline-queue-browser";
+import { getPersonQueue } from "@/lib/person-queue-browser";
 import {
   isCheckedOperation,
   type CheckedQueuedOperation,

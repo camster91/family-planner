@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { getPersonQueue } from '@/lib/offline-queue-browser'
+import { getPersonQueue } from '@/lib/person-queue-browser'
 import type { OfflineQueue } from '@/lib/offline-queue'
 import { QueueStorageRecovery } from '@/components/ui/queue-storage-recovery'
 

@@ -7,7 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   responsibilityTarget,
   type ResponsibilityTarget,
-} from "@/lib/responsibility";
+} from "@/lib/responsibility-target";
 import { useResponsibilityShellText } from "@/i18n/responsibility-shell";
 const Preview = React.lazy(() => import("./ResponsibilityPreview"));
 const Sheet = React.lazy(() => import("./ResponsibilitySheet"));

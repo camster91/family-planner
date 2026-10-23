@@ -24,14 +24,21 @@
  */
 
 import { captureQueueRetirements, retireOwnedQueueRecords } from '@/lib/owned-queue-persistence'
+import {
+  DEVICE_CACHE_PREFIX,
+  DEVICE_IDB_NAME,
+  DEVICE_ID_KEY,
+  DEVICE_QUEUE_KEY,
+  DEVICE_STORAGE_PREFIX,
+} from '@/lib/device-storage'
 
-export const DEVICE_STORAGE_PREFIX = 'fp-device:v1:'
-export const DEVICE_IDB_NAME = 'fp-device'
-export const DEVICE_CACHE_PREFIX = 'fp-device'
-/** Stored device id, so a different device id on the same browser triggers a purge (§8). */
-export const DEVICE_ID_KEY = `${DEVICE_STORAGE_PREFIX}device-id`
-/** Reserved for the offline mutation queue (#162); dropped, never replayed, by the purge. */
-export const DEVICE_QUEUE_KEY = `${DEVICE_STORAGE_PREFIX}queue`
+export {
+  DEVICE_CACHE_PREFIX,
+  DEVICE_IDB_NAME,
+  DEVICE_ID_KEY,
+  DEVICE_QUEUE_KEY,
+  DEVICE_STORAGE_PREFIX,
+} from '@/lib/device-storage'
 
 /** Refresh proactively when the access token has less than this left and the page is visible (§4). */
 export const PROACTIVE_REFRESH_WINDOW_MS = 5 * 60 * 1000

@@ -378,6 +378,12 @@ for (const role of ["parentA", "parentB", "teen", "child"] as const)
             await deleteButton.click();
             const modal = page.getByTestId("delete-account-dialog");
             await expect(modal).toBeVisible();
+            // The loading dialog intentionally has the same accessible title
+            // and identity. Exercise the actual consent form once its optional
+            // chunk has replaced that loading surface.
+            await expect(
+              modal.locator("#delete-account-password"),
+            ).toBeVisible();
             await page.keyboard.press("Tab");
             expect(
               await modal.evaluate((el) => el.contains(document.activeElement)),
