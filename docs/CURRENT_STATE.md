@@ -1,5 +1,24 @@
 # Current State
 
+## Repaired candidate ready for hosted QA — 2026-10-22
+
+All currently identified source repairs are complete. The integrated candidate
+adds guarded auth-form hydration, late-reveal Capture focus, body-independent
+401/403 availability revocation, foreground inventory recovery and Next parallel
+slot typing. Adaptive UI browser scenarios preserve current canonical protocols,
+role/privacy/recovery assertions and original gate coverage. No deployment or
+provider/production activation is implied.
+
+Typecheck passes atd4cccf40, full configured format passes, repository lint passes
+with45 warnings and final changed-file lint has0 errors/warnings. Auth units pass
+82 cases, Capture units63 and inventory-area units105 at the source identities
+recorded in WEB_QA_20261022.md. All3375 E2E cases collect; collection is not a
+runtime pass. The repaired legacy Capture phone journey passes on loopback-only
+development source with no page errors/canonical writes. Its preview/browser are
+closed and its isolated database is dropped; existing QA PostgreSQL is retained.
+A new hosted candidate must pass original full-build/database/image/browser/visual
+gates before protected merge and existing Coolify source-build deployment.
+
 ## Consolidated browser failures and Capture focus repair — 2026-10-22
 
 Run39874900393 is terminal failure. Inventory failed; all four general viewport
