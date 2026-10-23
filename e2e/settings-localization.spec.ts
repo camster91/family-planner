@@ -796,7 +796,7 @@ test.describe("parentA household controls", () => {
       settings: s,
     }, info) => {
       await begin(page, context, baseURL!, locale, s, info);
-      await selectSettingsTab(page, locale, "family");
+      await selectSettingsTab(page, locale, "privacy");
       const section = page.getByTestId("beta-metrics-switch");
       const toggle = section.getByRole("switch");
       await expect(toggle).toHaveAttribute("aria-checked", "false");
@@ -1369,7 +1369,9 @@ test.describe("parentA connected calendars", () => {
           await page.goto(
             "/dashboard/settings?calendar_sync=" + outcome + "&keep=synthetic",
           );
+          await selectSettingsTab(page, locale, "account");
           await expect(page.locator("#profileName")).toBeVisible();
+          await selectSettingsTab(page, locale, "family");
           const section = page.locator("#calendar-sync");
           await expect(
             section.getByText(msg(locale, message), { exact: true }),
@@ -1393,7 +1395,9 @@ test.describe("parentA connected calendars", () => {
           await page.goto(
             "/dashboard/settings?calendar_sync=" + outcome + "&keep=synthetic",
           );
+          await selectSettingsTab(page, locale, "account");
           await expect(page.locator("#profileName")).toBeVisible();
+          await selectSettingsTab(page, locale, "family");
           await expect(
             page.getByRole("heading", {
               name: msg(locale, "connectedCalendars"),
