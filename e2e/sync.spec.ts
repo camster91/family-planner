@@ -223,10 +223,10 @@ function row(page: Page, itemId: string) {
     .locator(`[data-item-id="${itemId}"]:not([data-removed-elsewhere])`);
 }
 
-function recoveryRow(page: Page, itemId: string) {
+function conflictRow(page: Page, itemId: string) {
   return page
     .getByRole("main")
-    .locator(`[data-item-id="${itemId}"][data-removed-elsewhere="true"]`);
+    .locator(`[data-item-id="${itemId}"][data-sync-state="conflict"]`);
 }
 
 function trackUpdates(page: Page) {
@@ -1102,14 +1102,13 @@ test.describe("offline grocery ticks: Family A parent", () => {
     expect(del.status, del.body).toBe(200);
 
     await item.getByRole("checkbox").click();
-    const recovery = recoveryRow(page, itemId);
-    await expect(recovery).toHaveAttribute("data-sync-state", "conflict");
-    await expect(recovery).toContainText("this item was removed");
-    await recovery
+    const conflict = conflictRow(page, itemId);
+    await expect(conflict).toContainText("this item was removed");
+    await conflict
       .getByRole("button", { name: "Discard change to Sync jam" })
       .click();
-    await expect(recovery).not.toHaveAttribute("data-sync-state", /.+/);
-    await expect(recovery.getByRole("checkbox")).toHaveAttribute(
+    await expect(conflict).not.toHaveAttribute("data-sync-state", /.+/);
+    await expect(conflict.getByRole("checkbox")).toHaveAttribute(
       "aria-checked",
       "false",
     );
