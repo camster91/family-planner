@@ -5,22 +5,14 @@ import { createPortal } from "react-dom";
 import { Sparkles } from "lucide-react";
 import { useTranslation } from "@/i18n";
 import { captureMessages, type CaptureMessage } from "@/i18n/capture";
-import {
-  readCaptureAvailability,
-  type CaptureAvailabilityData,
-} from "./capture-availability";
+import { CaptureBox } from "./CaptureBox";
 
 type CaptureAvailability = "available" | "unavailable" | "retry";
 
-const LazyCaptureBox = React.lazy(() =>
-  import("./CaptureBox").then(({ CaptureBox }) => ({ default: CaptureBox })),
-);
-
 /**
- * Calendar's compact entry point for capture. The editor loads on the first
- * open and stays mounted after that so a dismissed proposal remains
- * available, while the shared Dialog owns the actual overlay, focus and scroll
- * boundary.
+ * Calendar's compact entry point for capture. CaptureBox stays mounted after
+ * the first page load so a dismissed proposal remains available, while the
+ * shared Dialog owns the actual overlay, focus and scroll boundary.
  */
 export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
   const { t } = useTranslation();
@@ -29,13 +21,9 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
   const [availability, setAvailability] = React.useState<
     "loading" | CaptureAvailability
   >("loading");
-  const [availabilityData, setAvailabilityData] =
-    React.useState<CaptureAvailabilityData | null>(null);
-  const [boxLoaded, setBoxLoaded] = React.useState(false);
   const [portalReady, setPortalReady] = React.useState(false);
   const available = availability === "available" || availability === "retry";
   const openRef = React.useRef(open);
-  const availabilityController = React.useRef<AbortController | null>(null);
   openRef.current = open;
   const pageLock = React.useRef<{
     background: HTMLElement | null;
@@ -58,29 +46,6 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
     setOpen(false);
   }, [releasePageLock]);
 
-  const checkAvailability = React.useCallback(async () => {
-    availabilityController.current?.abort();
-    const controller = new AbortController();
-    availabilityController.current = controller;
-    try {
-      const result = await readCaptureAvailability(controller.signal);
-      if (controller.signal.aborted) return;
-      if (result.state === "available") {
-        setAvailabilityData(result.data);
-        setAvailability("available");
-      } else {
-        setAvailabilityData(result.data ?? null);
-        setAvailability("unavailable");
-      }
-    } catch {
-      if (controller.signal.aborted) return;
-      setAvailability("retry");
-    } finally {
-      if (availabilityController.current === controller)
-        availabilityController.current = null;
-    }
-  }, []);
-
   const handleAvailabilityChange = React.useCallback(
     (next: CaptureAvailability) => {
       setAvailability(next);
@@ -96,20 +61,6 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
   React.useEffect(() => {
     setPortalReady(true);
   }, []);
-
-  React.useEffect(() => {
-    if (boxLoaded) return;
-    void checkAvailability();
-    const refresh = () => {
-      if (document.visibilityState !== "hidden") void checkAvailability();
-    };
-    window.addEventListener("focus", refresh);
-    return () => {
-      window.removeEventListener("focus", refresh);
-      availabilityController.current?.abort();
-      availabilityController.current = null;
-    };
-  }, [boxLoaded, checkAvailability]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -137,45 +88,23 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
           className="btn-tinted min-h-[44px]"
           aria-haspopup="dialog"
           aria-expanded={open}
-          onClick={() => {
-            setBoxLoaded(true);
-            setOpen(true);
-          }}
+          onClick={() => setOpen(true)}
         >
           <Sparkles className="h-4 w-4" aria-hidden="true" />
           {msg("openQuickAdd")}
         </button>
       )}
       {portalReady
-        ? boxLoaded
-          ? createPortal(
-              <React.Suspense
-                fallback={
-                  open ? (
-                    <p role="status" className="sr-only">
-                      {msg("checking")}
-                    </p>
-                  ) : null
-                }
-              >
-                <LazyCaptureBox
-                  presentation="sheet"
-                  open={open}
-                  onClose={close}
-                  onSaved={onSaved}
-                  onAvailabilityChange={handleAvailabilityChange}
-                  initialAvailability={
-                    availability === "available" && availabilityData
-                      ? { state: "available", data: availabilityData }
-                      : availability === "retry"
-                        ? { state: "retry" }
-                        : undefined
-                  }
-                />
-              </React.Suspense>,
-              document.body,
-            )
-          : null
+        ? createPortal(
+            <CaptureBox
+              presentation="sheet"
+              open={open}
+              onClose={close}
+              onSaved={onSaved}
+              onAvailabilityChange={handleAvailabilityChange}
+            />,
+            document.body,
+          )
         : null}
     </>
   );
