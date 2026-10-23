@@ -233,7 +233,6 @@ async function openPendingSurfaceFromExplore(page: Page, surface: string) {
   );
   const menu = page.getByRole("button", {
     name: navigationText("userMenu"),
-    exact: true,
   });
   await menu.click();
   await expect(page.getByTestId("user-menu-explore")).toBeVisible();

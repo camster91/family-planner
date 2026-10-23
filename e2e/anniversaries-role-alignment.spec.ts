@@ -430,7 +430,6 @@ for (const locale of ["en", "es"] as const) {
         if (role !== "parent") {
           const menu = opened.page.getByRole("button", {
             name: locale === "es" ? "Menú de usuario" : "User menu",
-            exact: true,
           });
           await menu.click();
           const datesLink = opened.page

@@ -240,7 +240,6 @@ for (const role of ["parent", "teen", "child"] as const) {
         }
         const userMenu = page.getByRole("button", {
           name: locale === "es" ? "Menú de usuario" : "User menu",
-          exact: true,
         });
         await userMenu.click();
         const geometry = [];
