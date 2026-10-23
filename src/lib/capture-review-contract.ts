@@ -7,7 +7,8 @@ const optionalText = (max: number) =>
     .string()
     .max(max)
     .nullish()
-    .transform((value) => value ?? undefined);
+    .transform((value) => value ?? undefined)
+    .optional();
 const instant = z
   .string()
   .max(80)
@@ -18,7 +19,8 @@ const instant = z
       ) && Number.isFinite(Date.parse(value)),
   )
   .nullish()
-  .transform((value) => value ?? undefined);
+  .transform((value) => value ?? undefined)
+  .optional();
 const eventFields = {
   title,
   start_time: instant,

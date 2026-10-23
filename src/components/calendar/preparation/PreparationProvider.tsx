@@ -3,19 +3,14 @@ import * as React from "react";
 import { PREPARATION_CHANGED_EVENT } from "@/lib/event-preparation/changes";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { usePathname, useSearchParams } from "next/navigation";
-import { z } from "zod";
-import { memberIdentityIdSchema } from "@/lib/member-subject-contract";
-import { isValidTimeZone } from "@/lib/calendar-import/timezone";
+import {
+  preparationLocationSchema,
+  type PreparationLocation,
+} from "@/lib/preparation-location-contract";
 import { usePreparationShellText } from "@/i18n/event-preparation-shell";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 const Sheet = React.lazy(() => import("./PreparationSheet"));
-const locationSchema = z
-  .object({
-    eventId: memberIdentityIdSchema,
-    timeZone: z.string().max(100).refine(isValidTimeZone),
-  })
-  .strict();
-export type PreparationLocation = z.infer<typeof locationSchema>;
+export type { PreparationLocation } from "@/lib/preparation-location-contract";
 const Context = React.createContext<{
   active: boolean;
   allowed: boolean;
@@ -38,7 +33,7 @@ export default function PreparationProvider({
     role === "parent" &&
     params.get("mode") !== "fridge" &&
     !path.startsWith("/device");
-  const parsed = locationSchema.safeParse({
+  const parsed = preparationLocationSchema.safeParse({
     eventId: params.get("prepareEvent"),
     timeZone: params.get("prepareZone"),
   });
@@ -84,7 +79,7 @@ export default function PreparationProvider({
     });
   }
   function open(input: PreparationLocation) {
-    const checked = locationSchema.safeParse(input);
+    const checked = preparationLocationSchema.safeParse(input);
     if (
       !personal ||
       !checked.success ||
@@ -182,7 +177,10 @@ export function PreparationButton({
 }) {
   const context = React.useContext(Context),
     copy = usePreparationShellText();
-  if (!context?.allowed || !locationSchema.safeParse(location).success)
+  if (
+    !context?.allowed ||
+    !preparationLocationSchema.safeParse(location).success
+  )
     return null;
   return (
     <button

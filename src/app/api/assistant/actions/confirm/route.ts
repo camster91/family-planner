@@ -32,7 +32,7 @@ const input = z
     kind: assistantConfirmationKind,
     sourceProof: z.string().min(1).max(4096).optional(),
     profileRevision: z.number().int().min(0).max(2147483647).optional(),
-    body: z.record(z.unknown()),
+    body: z.record(z.string(), z.unknown()),
     targetProof: z.string().min(1).max(4096).optional(),
   })
   .strict();

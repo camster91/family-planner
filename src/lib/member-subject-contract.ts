@@ -1,14 +1,19 @@
 import { z } from "zod";
+import { MEMBER_ID_PATTERN } from "@/lib/member-identity-schema";
+
+/**
+ * Legacy subject schemas remain classic-Zod contracts. Browser-safe eager
+ * leaves import the equivalent Mini schema directly from member-identity-
+ * schema.ts so this compatibility surface does not pull classic Zod into
+ * those bundles.
+ */
+export const memberIdentityIdSchema = z.string().regex(MEMBER_ID_PATTERN);
 
 /**
  * Stable identifiers are opaque to the member contract. They are validated
  * for transport safety only; no name, email or display value is identity
  * evidence.
  */
-export const memberIdentityIdSchema = z
-  .string()
-  .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/);
-
 export const memberDisplayNameSchema = z.string().trim().min(1).max(100);
 
 export const profileRoleSchema = z.enum(["child", "teen", "parent"]);

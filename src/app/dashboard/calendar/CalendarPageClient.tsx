@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import {
   calendarPageMessages,
   type CalendarPageMessage,
@@ -9,10 +9,8 @@ import {
 import { Sparkles, Undo2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { CaptureSheet } from "@/components/capture/CaptureSheet";
-import {
-  IMPORT_UNDO_WINDOW_MS,
-  type ImportCommitResult,
-} from "@/lib/event-import-client";
+import type { ImportCommitResult } from "@/lib/event-import-contract";
+import { IMPORT_UNDO_WINDOW_MS } from "@/lib/event-import-contract";
 import { CalendarPlanner } from "./CalendarPlanner";
 import type { PlanningView } from "@/lib/calendar-planning/view";
 
@@ -47,7 +45,7 @@ export default function CalendarPageClient({
   calendarSyncAvailable = false,
   monthFromUrl = true,
 }: CalendarPageClientProps) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (
     key: CalendarPageMessage,
     params?: Record<string, string | number>,
@@ -97,7 +95,10 @@ export default function CalendarPageClient({
       {importOpen && (
         <React.Suspense
           fallback={
-            <p role="status" className="px-4 text-footnote text-label-secondary">
+            <p
+              role="status"
+              className="px-4 text-footnote text-label-secondary"
+            >
               {t("common.loading")}
             </p>
           }
@@ -128,7 +129,7 @@ export function SourceBadge({
   name: string;
   color: string | null;
 }) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (
     key: CalendarPageMessage,
     params?: Record<string, string | number>,
@@ -166,7 +167,7 @@ export function ImportUndoToast({
   onDismiss: () => void;
   onUndone: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (
     key: CalendarPageMessage,
     params?: Record<string, string | number>,

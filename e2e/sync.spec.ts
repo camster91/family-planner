@@ -216,7 +216,17 @@ async function serverItem(page: Page, listId: string, itemId: string) {
 }
 
 function row(page: Page, itemId: string) {
-  return page.locator(`[data-item-id="${itemId}"]`);
+  // Recovery can briefly retain a second row with the same id. Start actions
+  // from the canonical row; recovery assertions opt into that state below.
+  return page
+    .getByRole("main")
+    .locator(`[data-item-id="${itemId}"]:not([data-removed-elsewhere])`);
+}
+
+function conflictRow(page: Page, itemId: string) {
+  return page
+    .getByRole("main")
+    .locator(`[data-item-id="${itemId}"][data-sync-state="conflict"]`);
 }
 
 function trackUpdates(page: Page) {
@@ -339,7 +349,9 @@ test.describe("offline grocery ticks: Family A parent", () => {
           exact: true,
         });
         await input.fill("Keep this unsent draft");
-        await page.getByRole("button", { name: "Add", exact: true }).click();
+        const add = page.getByRole("button", { name: "Add", exact: true });
+        await expect(add).toBeDisabled();
+        await input.press("Enter");
         await expect(input).toHaveValue("Keep this unsent draft");
         expect(await storedQueue("read")).toBe(raw);
         await page.reload();
@@ -426,8 +438,9 @@ test.describe("offline grocery ticks: Family A parent", () => {
       }
     });
     await page.goto(`/dashboard/lists/${listId}`);
-    await goOffline(page);
     const section = page.getByRole("region", { name: "Grocery adds" });
+    await expect(section).toHaveAttribute("data-queue-settled", "true");
+    await goOffline(page);
     await section.getByRole("textbox", { name: "Add an item" }).fill(content);
     await section.getByRole("button", { name: "Add", exact: true }).click();
     const queued = page.getByTestId("queued-grocery-add");
@@ -496,6 +509,82 @@ test.describe("offline grocery ticks: Family A parent", () => {
     });
   });
 
+  test("a failed owner bootstrap keeps a grocery draft until explicit recovery", async ({
+    page,
+  }, testInfo) => {
+    fixture = await createList(page, testInfo, []);
+    const ownerRequests: number[] = [];
+    let ownerAvailable = false;
+    await page.route("**/api/queue/owner", async (route) => {
+      ownerRequests.push(Date.now());
+      if (!ownerAvailable) {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: "Queue ownership temporarily unavailable",
+          }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+    const groceryAdds: Request[] = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        request.url().endsWith("/api/lists/items/grocery-add")
+      )
+        groceryAdds.push(request);
+    });
+
+    await page.goto(`/dashboard/lists/${fixture.listId}`);
+    const main = page.getByRole("main");
+    const section = page.getByRole("region", { name: "Grocery adds" });
+    await expect(section).toHaveAttribute("data-queue-settled", "true");
+    await expect(
+      main.getByText("New changes are paused to protect them.", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    const input = section.getByRole("textbox", { name: "Add an item" });
+    await input.fill("Keep this draft through owner recovery");
+    const add = section.getByRole("button", { name: "Add", exact: true });
+    await expect(add).toBeDisabled();
+    await input.press("Enter");
+    await expect(input).toHaveValue("Keep this draft through owner recovery");
+    expect(groceryAdds).toHaveLength(0);
+    await page.screenshot({
+      path: testInfo.outputPath("grocery-add-owner-paused.png"),
+      fullPage: true,
+    });
+
+    ownerAvailable = true;
+    await main
+      .getByRole("button", { name: "Try loading saved changes", exact: true })
+      .click();
+    await expect(
+      main.getByRole("button", {
+        name: "Try loading saved changes",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await expect(add).toBeEnabled();
+    expect(ownerRequests.length).toBeGreaterThanOrEqual(2);
+
+    await goOffline(page);
+    await add.click();
+    await expect(page.getByTestId("queued-grocery-add")).toHaveAttribute(
+      "data-sync-state",
+      "pending",
+    );
+    expect(groceryAdds).toHaveLength(0);
+    await page.screenshot({
+      path: testInfo.outputPath("grocery-add-recovered-offline.png"),
+      fullPage: true,
+    });
+  });
+
   test("a failed personal add retries the same intent and a deleted list keeps recovery after reload", async ({
     page,
   }, testInfo) => {
@@ -517,6 +606,7 @@ test.describe("offline grocery ticks: Family A parent", () => {
     });
     await page.goto(`/dashboard/lists/${listId}`);
     const section = page.getByRole("region", { name: "Grocery adds" });
+    await expect(section).toHaveAttribute("data-queue-settled", "true");
     await section.getByRole("textbox").fill("Retry recovery milk");
     await section.getByRole("button", { name: "Add", exact: true }).click();
     const queued = page.getByTestId("queued-grocery-add");
@@ -646,8 +736,9 @@ test.describe("offline grocery ticks: Family A parent", () => {
       });
       await expect(groceries).toContainText(`${before.shopping.total} to buy`);
       await page.goto(`/dashboard/lists/${listId}`);
-      await goOffline(page);
       const adds = page.getByRole("region", { name: "Grocery adds" });
+      await expect(adds).toHaveAttribute("data-queue-settled", "true");
+      await goOffline(page);
       await adds.getByRole("textbox").fill("Phone to shared board proof");
       await adds.getByRole("button", { name: "Add", exact: true }).click();
       await expect(page.getByTestId("queued-grocery-add")).toHaveAttribute(
@@ -1011,11 +1102,15 @@ test.describe("offline grocery ticks: Family A parent", () => {
     expect(del.status, del.body).toBe(200);
 
     await item.getByRole("checkbox").click();
-    await expect(item).toHaveAttribute("data-sync-state", "conflict");
-    await expect(item).toContainText("this item was removed");
-    await item
+    const conflict = conflictRow(page, itemId);
+    await expect(conflict).toContainText("this item was removed");
+    await conflict
       .getByRole("button", { name: "Discard change to Sync jam" })
       .click();
+    // Keep the canonical row locator across the state transition. The
+    // conflict-specific locator stops matching as soon as discard clears the
+    // queue state, which makes absence assertions fail before they can observe
+    // the settled row.
     await expect(item).not.toHaveAttribute("data-sync-state", /.+/);
     await expect(item.getByRole("checkbox")).toHaveAttribute(
       "aria-checked",
@@ -1046,10 +1141,11 @@ test.describe("offline grocery ticks: sign-out", () => {
     const itemId = fixture.items["Sync milk"];
     await page.goto(`/dashboard/lists/${fixture.listId}`);
     const item = row(page, itemId);
+    const adds = page.getByRole("region", { name: "Grocery adds" });
+    await expect(adds).toHaveAttribute("data-queue-settled", "true");
     await goOffline(page);
     await item.getByRole("checkbox").click();
     await expect(item).toHaveAttribute("data-sync-state", "pending");
-    const adds = page.getByRole("region", { name: "Grocery adds" });
     await adds.getByRole("textbox").fill("Signed-out queued grocery");
     await adds.getByRole("button", { name: "Add", exact: true }).click();
     await expect(page.getByTestId("queued-grocery-add")).toHaveAttribute(

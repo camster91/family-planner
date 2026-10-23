@@ -24,9 +24,7 @@ export const registerSchema = z.object({
 // Chores
 // Picture routines (#272). `icon` is a key of the built-in set; `routine` a
 // short label (empty clears); `routine_order` the step number. null clears.
-const choreIconSchema = z.enum(ROUTINE_ICON_KEYS, {
-  errorMap: () => ({ message: 'Choose a picture from the list' }),
-})
+const choreIconSchema = z.enum(ROUTINE_ICON_KEYS, { error: 'Choose a picture from the list' })
 const choreRoutineSchema = z
   .string()
   .max(200, `Routine name must be ${ROUTINE_NAME_MAX} characters or fewer`)
@@ -208,7 +206,7 @@ export const createListSchema = z.object({
   // bundles that show the old picker keep working until a version gate exists.
   type: z.enum(['grocery', 'todo', 'meal_plan', 'wishlist', 'shopping', 'custom']),
   // Accept null too (clients sometimes send null for optional fields); treat as undefined.
-  description: z.union([z.string().max(500).trim(), z.null()]).optional().transform(v => v ?? undefined),
+  description: z.union([z.string().max(500).trim(), z.null()]).transform(v => v ?? undefined).optional(),
 })
 
 const listItemAmount = z.number().finite().min(0).max(100000)
@@ -310,8 +308,16 @@ export const deleteListSchema = z.object({
 })
 
 // Messages (mark as read)
+// Keep explicit read batches bounded so a single PATCH cannot force an
+// unbounded database `IN` predicate. `markAll` remains the efficient path for
+// the full household inbox; the explicit limit covers clients that mark
+// selected rows from multiple pages at once.
+export const MESSAGE_READ_IDS_MAX = 1000
 export const markMessagesReadSchema = z.object({
-  messageIds: z.array(z.string().min(1)).optional(),
+  messageIds: z
+    .array(z.string().min(1))
+    .max(MESSAGE_READ_IDS_MAX, `messageIds must contain at most ${MESSAGE_READ_IDS_MAX} IDs`)
+    .optional(),
   markAll: z.boolean().optional(),
 })
 
@@ -439,92 +445,84 @@ export const updateProjectTaskSchema = z.object({
 
 // Shared: a string that parses to a real date (`new Date(x)` is not Invalid Date).
 const validDateString = (message: string) =>
-  z.string({ required_error: message, invalid_type_error: message }).refine((val) => !isNaN(Date.parse(val)), message)
+  z.string({ error: message }).refine((val) => !isNaN(Date.parse(val)), message)
 
 // Anniversaries
-const anniversaryType = z.enum(['birthday', 'anniversary', 'custom'], {
-  errorMap: () => ({ message: 'Invalid type' }),
-})
+const anniversaryType = z.enum(['birthday', 'anniversary', 'custom'], { error: 'Invalid type' })
 
 export const createAnniversarySchema = z.object(
   {
     name: z
-      .string({ required_error: 'name, type, and date are required', invalid_type_error: 'name must be a string' })
+      .string({ error: (issue) => issue.input === undefined ? 'name, type, and date are required' : 'name must be a string' })
       .trim()
       .min(1, 'name, type, and date are required')
       .max(200),
     type: anniversaryType,
     date: validDateString('date must be a valid date'),
-    notes: z.string({ invalid_type_error: 'notes must be a string' }).max(2000).nullable().optional(),
-    person_id: z.string({ invalid_type_error: 'person_id must be a string' }).nullable().optional(),
+    notes: z.string({ error: 'notes must be a string' }).max(2000).nullable().optional(),
+    person_id: z.string({ error: 'person_id must be a string' }).nullable().optional(),
   },
-  { invalid_type_error: 'Request body must be a JSON object' }
+  { error: 'Request body must be a JSON object' }
 )
 
 export const updateAnniversarySchema = z.object(
   {
     name: z
-      .string({ invalid_type_error: 'name must be a string' })
+      .string({ error: 'name must be a string' })
       .trim()
       .min(1, 'name cannot be empty')
       .max(200)
       .optional(),
     type: anniversaryType.optional(),
     date: validDateString('date must be a valid date').optional(),
-    notes: z.string({ invalid_type_error: 'notes must be a string' }).max(2000).nullable().optional(),
-    person_id: z.string({ invalid_type_error: 'person_id must be a string' }).nullable().optional(),
+    notes: z.string({ error: 'notes must be a string' }).max(2000).nullable().optional(),
+    person_id: z.string({ error: 'person_id must be a string' }).nullable().optional(),
   },
-  { invalid_type_error: 'Request body must be a JSON object' }
+  { error: 'Request body must be a JSON object' }
 )
 
 // Pickups
 export const createPickupSchema = z.object(
   {
     title: z
-      .string({ required_error: 'title and pickup_time required', invalid_type_error: 'title must be a string' })
+      .string({ error: (issue) => issue.input === undefined ? 'title and pickup_time required' : 'title must be a string' })
       .trim()
       .min(1, 'title and pickup_time required')
       .max(200),
-    location: z.string({ invalid_type_error: 'location must be a string' }).max(500).nullable().optional(),
+    location: z.string({ error: 'location must be a string' }).max(500).nullable().optional(),
     pickup_time: validDateString('pickup_time must be a valid date-time'),
-    assigned_to: z.string({ invalid_type_error: 'assigned_to must be a string' }).nullable().optional(),
-    notes: z.string({ invalid_type_error: 'notes must be a string' }).max(2000).nullable().optional(),
+    assigned_to: z.string({ error: 'assigned_to must be a string' }).nullable().optional(),
+    notes: z.string({ error: 'notes must be a string' }).max(2000).nullable().optional(),
   },
-  { invalid_type_error: 'Request body must be a JSON object' }
+  { error: 'Request body must be a JSON object' }
 )
 
 // Allowance
 export const createAllowanceSchema = z.object(
   {
     to_user_id: z
-      .string({
-        required_error: 'to_user_id and positive amount required',
-        invalid_type_error: 'to_user_id and positive amount required',
-      })
+      .string({ error: 'to_user_id and positive amount required' })
       .min(1, 'to_user_id and positive amount required'),
     amount: z
-      .number({
-        required_error: 'to_user_id and positive amount required',
-        invalid_type_error: 'to_user_id and positive amount required',
-      })
+      .number({ error: 'to_user_id and positive amount required' })
       .finite('to_user_id and positive amount required')
       .positive('to_user_id and positive amount required')
       .max(MAX_ALLOWANCE_AMOUNT, 'Amount too large')
       .refine((v) => TWO_DECIMALS.test(String(v)), 'Amount supports at most 2 decimal places'),
-    reason: z.string({ invalid_type_error: 'reason must be a string' }).max(500).nullable().optional(),
+    reason: z.string({ error: 'reason must be a string' }).max(500).nullable().optional(),
   },
-  { invalid_type_error: 'Request body must be a JSON object' }
+  { error: 'Request body must be a JSON object' }
 )
 
 // Shared: a JSON object body. A null, array or primitive body is a 400.
-const bodyObject = { invalid_type_error: 'Request body must be a JSON object' }
+const bodyObject = { error: 'Request body must be a JSON object' }
 
 // Optional free text: a string or null.
 // A web link the app will render as <a href>: only http(s), so a stored
 // `javascript:` or `data:` URL can never run in the app's origin. "" clears.
 const optionalHttpUrl = (field: string, max: number) =>
   z
-    .string({ invalid_type_error: `${field} must be a string` })
+    .string({ error: `${field} must be a string` })
     .trim()
     .max(max, `${field} must be ${max} characters or fewer`)
     .refine((v) => {
@@ -541,7 +539,7 @@ const optionalHttpUrl = (field: string, max: number) =>
 
 const optionalText = (field: string, max: number) =>
   z
-    .string({ invalid_type_error: `${field} must be a string` })
+    .string({ error: `${field} must be a string` })
     .max(max, `${field} must be ${max} characters or fewer`)
     .nullable()
     .optional()
@@ -563,7 +561,7 @@ export function parseTravelDate(value: string): Date | null {
 
 const travelDate = (field: string) =>
   z
-    .union([z.string(), z.null()], { errorMap: () => ({ message: `${field} must be a date (YYYY-MM-DD)` }) })
+    .union([z.string(), z.null()], { error: `${field} must be a date (YYYY-MM-DD)` })
     .optional()
     .transform((v, ctx) => {
       if (v === undefined) return undefined
@@ -579,11 +577,11 @@ const travelDate = (field: string) =>
 export const updateTravelSchema = z
   .object(
     {
-      travel_mode_active: z.boolean({ invalid_type_error: 'travel_mode_active must be true or false' }).optional(),
+      travel_mode_active: z.boolean({ error: 'travel_mode_active must be true or false' }).optional(),
       travel_start_date: travelDate('travel_start_date'),
       travel_end_date: travelDate('travel_end_date'),
       travel_destination: z
-        .string({ invalid_type_error: 'travel_destination must be a string' })
+        .string({ error: 'travel_destination must be a string' })
         .max(200, 'travel_destination must be 200 characters or fewer')
         .nullable()
         .optional()
@@ -603,7 +601,7 @@ export const createMealSchema = z.object(
     recipe_name: optionalText('recipe_name', 200),
     notes: optionalText('notes', 2000),
     cook_id: z
-      .string({ invalid_type_error: 'cook_id must be a string' })
+      .string({ error: 'cook_id must be a string' })
       .max(128, 'cook_id must be a user id')
       .nullable()
       .optional(),
@@ -613,7 +611,7 @@ export const createMealSchema = z.object(
 
 export const updateMealSchema = createMealSchema.extend({
   id: z
-    .string({ required_error: 'id is required', invalid_type_error: 'id must be a string' })
+    .string({ error: (issue) => issue.input === undefined ? 'id is required' : 'id must be a string' })
     .min(1, 'id is required')
     .max(128, 'id must be a meal id'),
 })
@@ -622,7 +620,7 @@ export const updateMealSchema = createMealSchema.extend({
 export const createLocationSchema = z.object(
   {
     label: z
-      .string({ required_error: 'label required', invalid_type_error: 'label must be a string' })
+      .string({ error: (issue) => issue.input === undefined ? 'label required' : 'label must be a string' })
       .trim()
       .min(1, 'label required')
       .max(100, 'label must be 100 characters or fewer'),
@@ -635,16 +633,14 @@ export const createLocationSchema = z.object(
 export const createSickDaySchema = z.object(
   {
     person_id: z
-      .string({ required_error: 'person_id and severity required', invalid_type_error: 'person_id must be a string' })
+      .string({ error: (issue) => issue.input === undefined ? 'person_id and severity required' : 'person_id must be a string' })
       .min(1, 'person_id and severity required')
       .max(128, 'person_id must be a user id'),
     severity: z.enum(['mild', 'moderate', 'severe'], {
-      errorMap: (issue) => ({
-        message:
-          issue.code === 'invalid_type' && issue.received === 'undefined'
-            ? 'person_id and severity required'
-            : 'severity must be one of: mild, moderate, severe',
-      }),
+      error: (issue) =>
+        issue.input === undefined
+          ? 'person_id and severity required'
+          : 'severity must be one of: mild, moderate, severe',
     }),
     symptoms: optionalText('symptoms', 2000),
   },
@@ -657,7 +653,7 @@ export const createSickDaySchema = z.object(
 export const WISHLIST_PRICE_MAX = 99999999.99
 const wishlistPrice = z
   .union([z.number(), z.string(), z.null()], {
-    errorMap: () => ({ message: 'approx_price must be a number' }),
+    error: 'approx_price must be a number',
   })
   .optional()
   .transform((v, ctx) => {
@@ -678,7 +674,7 @@ const wishlistPrice = z
 export const createWishlistItemSchema = z.object(
   {
     title: z
-      .string({ required_error: 'Title is required', invalid_type_error: 'Title is required' })
+      .string({ error: 'Title is required' })
       .trim()
       .min(1, 'Title is required')
       .max(200, 'Title must be 200 characters or fewer'),
@@ -695,7 +691,7 @@ export const updateWishlistItemSchema = createWishlistItemSchema.partial()
 // notification policy table in the route.
 const notificationField = (field: string, max: number) =>
   z
-    .string({ required_error: 'Missing required fields', invalid_type_error: `${field} must be a string` })
+    .string({ error: (issue) => issue.input === undefined ? 'Missing required fields' : `${field} must be a string` })
     .min(1, 'Missing required fields')
     .max(max, `${field} must be ${max} characters or fewer`)
 
@@ -716,20 +712,15 @@ const contactText = (field: string, max: number) =>
 const emergencyContactFields = {
   person_id: contactText('person_id', 128),
   person_name: z
-    .string({
-      required_error: 'person_name and relationship are required',
-      invalid_type_error: 'person_name must be a string',
-    })
+    .string({ error: (issue) => issue.input === undefined ? 'person_name and relationship are required' : 'person_name must be a string' })
     .trim()
     .min(1, 'person_name and relationship are required')
     .max(200, 'person_name must be 200 characters or fewer'),
   relationship: z.enum(['self', 'child', 'spouse', 'parent', 'other'], {
-    errorMap: (issue) => ({
-      message:
-        issue.code === 'invalid_type' && issue.received === 'undefined'
-          ? 'person_name and relationship are required'
-          : 'Invalid relationship',
-    }),
+    error: (issue) =>
+      issue.input === undefined
+        ? 'person_name and relationship are required'
+        : 'Invalid relationship',
   }),
   blood_type: contactText('blood_type', 20),
   allergies: contactText('allergies', 2000),
@@ -757,7 +748,7 @@ export const updateEmergencyContactSchema = createEmergencyContactSchema.partial
 // Pinned notes. `color` is not type-checked here: an unknown colour has always
 // fallen back to yellow in the route. `body` may be null (stored as "").
 const noteTitle = z
-  .string({ required_error: 'Title is required', invalid_type_error: 'Title is required' })
+  .string({ error: 'Title is required' })
   .trim()
   .min(1, 'Title is required')
   .max(200, 'Title must be 200 characters or fewer')
@@ -768,7 +759,7 @@ export const createNoteSchema = z.object({ title: noteTitle, body: noteBody, col
 export const updateNoteSchema = z.object(
   {
     id: z
-      .string({ required_error: 'Note ID is required', invalid_type_error: 'Note ID is required' })
+      .string({ error: 'Note ID is required' })
       .min(1, 'Note ID is required'),
     title: noteTitle.optional(),
     body: noteBody,
@@ -786,7 +777,7 @@ const handoffText = (field: string) => optionalText(field, 5000)
 
 const handoffFields = {
   sitter_name: z
-    .string({ required_error: 'Sitter name is required', invalid_type_error: 'Sitter name is required' })
+    .string({ error: 'Sitter name is required' })
     .trim()
     .min(1, 'Sitter name is required')
     .max(200, 'Sitter name must be 200 characters or fewer'),
@@ -814,7 +805,7 @@ export const WISHLIST_STATUSES = ['idle', 'on_the_way', 'received', 'denied'] as
 export const wishlistStatusSchema = z
   .object(
     {
-      status: z.enum(WISHLIST_STATUSES, { errorMap: () => ({ message: 'Invalid status' }) }),
+      status: z.enum(WISHLIST_STATUSES, { error: 'Invalid status' }),
       denied_reason: optionalText('denied_reason', 500),
     },
     bodyObject

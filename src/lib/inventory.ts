@@ -116,8 +116,8 @@ export function canWriteInventory(role: string | undefined | null): boolean {
 const optionalText = (max: number) =>
   z
     .union([z.string().max(max).trim(), z.null()])
-    .optional()
     .transform((v) => (v === '' ? null : v))
+    .optional()
 
 const dateOnlyField = (field: string) =>
   z

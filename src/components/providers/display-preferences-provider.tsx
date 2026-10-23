@@ -11,7 +11,7 @@ import {
 import {
   displaySnapshotSchema,
   type DisplaySnapshot,
-} from "@/lib/display-preferences-schema";
+} from "@/lib/display-preferences-snapshot-schema";
 
 type SyncState = "loading" | "ready" | "error" | "unsupported" | "forbidden";
 type SyncError = "offline" | "conflict" | "failed" | null;

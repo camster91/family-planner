@@ -1,6 +1,6 @@
 /** Partial local independent form; identity/revision never masquerade as a stack. */
 import { z } from "zod";
-import { queueOwnerSchema } from "@/lib/queue-owner-contract";
+import { queueOwnerClassicSchema as queueOwnerSchema } from "@/lib/queue-owner-classic";
 import {
   routinePartialStep,
   routinePartialSchedule,

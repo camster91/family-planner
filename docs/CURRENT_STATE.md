@@ -1,3 +1,56 @@
+## Web release shipped; bounded household follow-through — 2026-10-23
+
+PR #595 merged as `3691e131010ffa98ac7c5ade0f41c440261b99ea` from checked
+head52157152 with an identical source tree. Build/Test/fresh-runner container
+39990787419, browser/accessibility/visual and ordinary/expanded Settings
+39990787426, and unsigned Android39990787469 all passed. Coolify deployment594
+finished; public version/health and running OCI revision match the merged source.
+Live public phone/desktop journeys passed. This is web production verification,
+not native hardware/store, external delivery or real household acceptance.
+
+Current user scope is to close proved shipped issues, test core household flows
+and fix observed bugs; extra features remain later. Nine bounded issues are
+closed with evidence: #462/#461/#459/#458/#452/#447/#454/#536/#463. Additional isolated
+PostgreSQL cover-lifecycle/chore-save proof passes9cases, and real phone/desktop
+weekly create/edit/reload plus private list upload/overview/detail/foreign-file
+checks pass against the unchanged b284 application source.
+
+Household follow-through exposed strict selectors matching hidden streamed
+content in signup/routine parent review. The bounded QA repair scopes existing
+assertions to the accessible dashboard main and Get started region; app behavior,
+API effects, expectations, privacy checks and test policies are unchanged. The repaired original signup/routine flows pass9/9 setup/journey cases on
+phone390/desktop1366 without retries. Monthly history/empty-anchor deletion and
+four-duration snooze/reload/Show now/private-child checks pass7/7 setup/journey
+cases in the same isolated artifact. Older dated release-pending entries
+below remain historical, not current production state. Current release receipts
+and remaining original acceptance stay in #128 and the original issues.
+Notification snooze #463 additionally passes controlled expiry against its real
+PostgreSQL timestamp, persisted mark-read, and delete/Undo on phone and desktop;
+notification UI/API source is unchanged from the served merge.
+
+## Household validation security repair — 2026-10-23
+
+PR #598 also repairs the newly disclosed runtime Zod resource-exhaustion issue
+(GHSA-mrhx-c7xc-m3w5) by pinning patched4.6.6 and migrating the existing schemas
+without a legacy-v3 bypass. Declared bounded arrays reject excess length before
+walking their elements. Message read requests additionally enforce a256KiB body
+and1000 explicit IDs; mark-all behavior and authorization order are preserved.
+Independent source review found no concrete blocker. At `f8dcef98`, all three hosted
+gates pass, including 703 suites/7,002 unit tests, PostgreSQL checks, six browser
+viewports, unchanged loading limits, recovery rehearsal and the checked image on
+a fresh runner. Existing guarded skips remain unchanged. Fresh protected backup,
+81-table exact restore, repeat migrations and rollback-image verification also
+pass; production3691e131 has not been replaced.
+
+Final retry review reproduced a grocery-add readiness gap: going offline before
+secure queue-owner bootstrap completes leaves Add active while new changes are
+paused. The draft stays intact and no ownership check is bypassed. PR #598 is
+held for a bounded readiness/submit guard and affected verification. Two other
+retry diagnostics involve selectors matching canonical and recovery row copies,
+not duplicate database records. Source changes after `f8dcef98` need their own
+passing checks before the authorized merge and deployment. Extra features and
+provider/native-store activation remain deferred.
+
 ## Loading budget repaired; current main integrated — 2026-10-23
 
 Atad1657b1 all six original cold-start JavaScript budgets pass on phone390 and

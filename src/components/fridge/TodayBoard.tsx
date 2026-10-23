@@ -67,6 +67,18 @@ function createUseSoonRegion() {
 /** Keep the Today layout editor out of the board's initial JavaScript. */
 const LazyTodayLayoutEditor = React.lazy(() => import("./TodayLayoutEditor"));
 
+// Hardware-only behavior is needed only while a fridge surface is mounted.
+const LazyFridgeWakeLock = React.lazy(() => import("./FridgeWakeLock"));
+function FridgeWakeLockBoundary() {
+  return (
+    <LazyChunkBoundary fallback={null}>
+      <React.Suspense fallback={null}>
+        <LazyFridgeWakeLock />
+      </React.Suspense>
+    </LazyChunkBoundary>
+  );
+}
+
 function DeferredTodayLayoutEditor({
   available,
 }: {
@@ -201,40 +213,6 @@ async function fetchPersonBoardVersion(
   if (typeof body.version !== "string")
     throw new Error("board version missing");
   return body.version;
-}
-
-/** Ask the browser to keep the screen on while the board is shown in fridge mode (best effort). */
-function useWakeLock(enabled: boolean) {
-  React.useEffect(() => {
-    if (!enabled) return;
-    type Sentinel = { release: () => Promise<void> };
-    const nav = navigator as Navigator & {
-      wakeLock?: { request: (type: "screen") => Promise<Sentinel> };
-    };
-    if (!nav.wakeLock) return;
-    let sentinel: Sentinel | null = null;
-    let cancelled = false;
-    const acquire = async () => {
-      try {
-        if (document.visibilityState !== "visible") return;
-        const s = await nav.wakeLock!.request("screen");
-        if (cancelled) void s.release();
-        else sentinel = s;
-      } catch {
-        // Denied or unsupported (battery saver, WebView policy). The board still works.
-      }
-    };
-    void acquire();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void acquire();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      cancelled = true;
-      document.removeEventListener("visibilitychange", onVisible);
-      if (sentinel) void sentinel.release().catch(() => {});
-    };
-  }, [enabled]);
 }
 
 function BoardSkeleton() {
@@ -678,7 +656,6 @@ export default function TodayBoard({
     data.shopping,
     tileActions ?? personActions,
   );
-  useWakeLock(fridgeMode);
 
   // Calm display and night hours (#271): fridge mode only.
   const display: BoardDisplayData = data.display ?? DEFAULT_BOARD_DISPLAY;
@@ -783,6 +760,7 @@ export default function TodayBoard({
         data-mode={fridgeMode ? "fridge" : "app"}
         className="flex min-h-screen items-center justify-center bg-[var(--surface-grouped)] px-4 py-10 sm:px-6 lg:px-8"
       >
+        {fridgeMode && <FridgeWakeLockBoundary />}
         <section
           role="alert"
           aria-labelledby="today-board-compatibility-title"
@@ -876,6 +854,7 @@ export default function TodayBoard({
 
   return (
     <>
+      {fridgeMode && <FridgeWakeLockBoundary />}
       <div
         ref={boardRef}
         data-testid="today-board"

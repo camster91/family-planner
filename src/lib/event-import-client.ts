@@ -6,6 +6,10 @@
  * zone maths is the same pure Intl code the ICS import uses.
  */
 import { zonedWallTimeToUtc } from "@/lib/calendar-import/timezone";
+export {
+  IMPORT_UNDO_WINDOW_MS,
+  type ImportCommitResult,
+} from "@/lib/event-import-contract";
 
 /** Mirrors `EventSuggestion` in src/lib/event-import.ts (kept here so the page does not bundle the server module). */
 export interface ImportSuggestion {
@@ -47,16 +51,6 @@ export interface EventCreateBody {
 
 /** Low-confidence suggestions start unticked. */
 export const IMPORT_TICK_THRESHOLD = 0.5;
-/** Matches EVENT_IMPORT_UNDO_WINDOW_MS on the server. */
-export const IMPORT_UNDO_WINDOW_MS = 10 * 60 * 1000;
-
-/** What the commit route returns (201, or replayed with the same body). */
-export interface ImportCommitResult {
-  eventIds: string[];
-  count: number;
-  undoToken: string;
-  undoExpiresAt: string;
-}
 export const IMPORT_TEXT_MAX_CHARS = 20_000;
 export const IMPORT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 export const IMPORT_PDF_MAX_BYTES = 10 * 1024 * 1024;

@@ -44,6 +44,28 @@ describe("messages — two households", () => {
     expect(db.find("message", "msg-b")?.read_by).toEqual([]);
   });
 
+  it('refuses an explicit read batch above the documented limit before any write', async () => {
+    const res = await messages.PATCH(
+      req({
+        as: 'parentA',
+        body: { messageIds: Array.from({ length: 1001 }, (_, index) => `msg-${index}`) },
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it('refuses an oversized read body before any write', async () => {
+    const res = await messages.PATCH(
+      req({
+        as: 'parentA',
+        body: { messageIds: Array.from({ length: 1000 }, () => 'x'.repeat(300)) },
+      }),
+    );
+    expect(res.status).toBe(413);
+    expect(db.writes).toHaveLength(0);
+  });
+
   it("sends into the caller's family", async () => {
     const res = await messages.POST(req({ as: "childA", body: { content: "hi", family_id: "family-B" } }));
     expect(res.status).toBe(200);

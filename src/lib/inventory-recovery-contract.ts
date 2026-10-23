@@ -3,7 +3,7 @@ import { z } from "zod";
 import { inventoryIntakeInput } from "@/lib/inventory-intake-contract";
 import { inventoryChangeInput } from "@/lib/inventory-change-contract";
 import { restockInput } from "@/lib/inventory-restock-contract";
-import { queueOwnerSchema } from "@/lib/queue-owner-contract";
+import { queueOwnerClassicSchema as queueOwnerSchema } from "@/lib/queue-owner-classic";
 
 export const INVENTORY_RECOVERY_CONTRACT = "herewoven.inventory-recovery.v1";
 export const INVENTORY_RECOVERY_OWNER_HEADER = "X-Herewoven-Inventory-Owner";

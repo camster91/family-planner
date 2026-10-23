@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { Sparkles } from "lucide-react";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import { captureMessages, type CaptureMessage } from "@/i18n/capture";
 import { CaptureBox } from "./CaptureBox";
 
@@ -15,7 +15,7 @@ type CaptureAvailability = "available" | "unavailable" | "retry";
  * shared Dialog owns the actual overlay, focus and scroll boundary.
  */
 export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   const msg = (key: CaptureMessage) => t(key, undefined, captureMessages);
   const [open, setOpen] = React.useState(false);
   const [availability, setAvailability] = React.useState<

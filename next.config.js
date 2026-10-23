@@ -96,21 +96,39 @@ const nextConfig = {
     // features and modules used by another initial route stay with Next's
     // ordinary splitting. Styles keep their existing chunking and order.
     const initialSharedSource = /(?:[\\/]src[\\/]|[\\/]node_modules[\\/]lucide-react[\\/]dist[\\/]esm[\\/])/
+    // Next's small navigation shim and dynamic helpers are already eager in
+    // root/dashboard layouts but can be copied into hydration chunks. Admit
+    // only these files with the same proved initial-owner boundary below.
+    const initialFrameworkHelper = /[\\/]node_modules[\\/]next[\\/]dist[\\/](?:shared[\\/]lib[\\/](?:lazy-dynamic[\\/](?:dynamic-bailout-to-csr|preload-chunks|react-browser-bailout|loadable)\.js$|app-dynamic\.js$)|api[\\/](?:app-dynamic|navigation)\.js$|server[\\/]app-render[\\/](?:work-async-storage\.external|work-async-storage-instance|async-local-storage)\.js$)/
     const eligible = (module) => {
       const resource = module.nameForCondition?.()
-      return Boolean(resource && !/\.(?:css|scss|sass|less|styl)(?:$|\?)/i.test(resource) && initialSharedSource.test(resource))
+      return Boolean(resource && !/\.(?:css|scss|sass|less|styl)(?:$|\?)/i.test(resource) && (initialSharedSource.test(resource) || initialFrameworkHelper.test(resource)))
+    }
+    // Shared initial chunks can be unnamed. Their initial entrypoint groups,
+    // rather than a nullable chunk name, establish who already needs a module.
+    const initialOwners = (module, chunkGraph) => {
+      const chunks = Array.from(chunkGraph.getModuleChunksIterable(module)).filter(chunk => chunk.canBeInitial())
+      const owners = chunks.flatMap(chunk => Array.from(chunk.groupsIterable).filter(group => group.isInitial()).map(group => group.name))
+      if (!chunks.length || chunks.some(chunk => !Array.from(chunk.groupsIterable).some(group => group.isInitial())) || owners.some(owner => typeof owner !== 'string' || !owner)) return null
+      return owners
     }
     const inLayout = (module, chunkGraph, layout) => {
       if (!eligible(module)) return false
-      const chunks = Array.from(chunkGraph.getModuleChunksIterable(module))
-      if (!chunks.some(chunk => chunk.name === layout && chunk.canBeInitial())) return false
-      // Root is present on every route. Dashboard modules must not make a
-      // different initial route download dashboard controls.
-      return layout === 'app/layout' || chunks.every(chunk => !chunk.canBeInitial() || chunk.name?.startsWith('app/dashboard/'))
+      const owners = initialOwners(module, chunkGraph)
+      if (!owners?.includes(layout)) return false
+      return layout === 'app/layout' || owners.every(owner => owner.startsWith('app/dashboard/'))
+    }
+    const inBoardShell = (module, chunkGraph) => {
+      if (!eligible(module)) return false
+      const owners = initialOwners(module, chunkGraph)
+      // Both surfaces must already require every module in this shared chunk.
+      return Boolean(owners?.includes('app/dashboard/layout') && owners.includes('app/device/today/page') && owners.every(owner => owner.startsWith('app/dashboard/') || owner === 'app/device/today/page'))
     }
     const sharedLayoutGroup = (layout, name, priority) => ({
       test: (module, { chunkGraph }) => inLayout(module, chunkGraph, layout),
-      chunks: 'initial',
+      // Once layout membership is proved above, reuse that same module in
+      // hydration-loaded chunks too, rather than shipping a second copy.
+      chunks: 'all',
       minChunks: 1,
       minSize: 0,
       name,
@@ -123,6 +141,7 @@ const nextConfig = {
       cacheGroups: {
         ...splitChunks.cacheGroups,
         herewovenRootLayout: sharedLayoutGroup('app/layout', 'root-layout-shared', 20),
+        herewovenBoardShell: { ...sharedLayoutGroup('app/dashboard/layout', 'board-shell-shared', 15), test: (module, { chunkGraph }) => inBoardShell(module, chunkGraph) },
         herewovenDashboardLayout: sharedLayoutGroup('app/dashboard/layout', 'dashboard-layout-shared', 10),
       },
     }
