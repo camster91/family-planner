@@ -4,6 +4,7 @@ import * as React from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Sparkles, MessageSquareWarning } from "lucide-react";
+import { useHydrated } from "@/components/ui/use-hydrated";
 import { useTranslation } from "@/i18n";
 import {
   assistantShellMessages,
@@ -49,9 +50,12 @@ export default function AssistantHost({
 }) {
   const pathname = usePathname();
   const params = useSearchParams();
-  const { t } = useTranslation();
+  const { locale, t } = useTranslation();
+  const hydrated = useHydrated();
   const msg = (key: AssistantShellMessage) =>
-    t(key, undefined, assistantShellMessages);
+    hydrated || locale === "en"
+      ? t(key, undefined, assistantShellMessages)
+      : assistantShellMessages.en[key];
   const [tab, setTab] = React.useState<AssistantPanelTab | null>(null);
   const [panelLoaded, setPanelLoaded] = React.useState(false);
   const [panelBusy, setPanelBusy] = React.useState(false);

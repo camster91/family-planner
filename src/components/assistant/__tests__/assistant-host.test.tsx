@@ -1,7 +1,10 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
 import * as React from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -45,6 +48,49 @@ beforeEach(() => {
     configurable: true,
   });
   delete (window as any).SpeechRecognition;
+});
+it("keeps a late Spanish launcher hydration-safe and localizes after hydration", async () => {
+  const serverUi = (
+    <I18nProvider locale="en">
+      <React.Suspense fallback={null}>
+        <AssistantHost role="parent" />
+      </React.Suspense>
+    </I18nProvider>
+  );
+  const clientUi = (
+    <I18nProvider locale="es">
+      <React.Suspense fallback={null}>
+        <AssistantHost role="parent" />
+      </React.Suspense>
+    </I18nProvider>
+  );
+  const html = renderToString(serverUi);
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  const errors: string[] = [];
+  const recoverable: unknown[] = [];
+  const errorSpy = jest
+    .spyOn(console, "error")
+    .mockImplementation((...args: unknown[]) => {
+      errors.push(args.map(String).join(" "));
+    });
+  let root: ReturnType<typeof hydrateRoot> | undefined;
+  try {
+    await act(async () => {
+      root = hydrateRoot(container, clientUi, {
+        onRecoverableError: (error) => recoverable.push(error),
+      });
+    });
+    expect(errors).toEqual([]);
+    expect(recoverable).toEqual([]);
+    expect(container.textContent).toContain("Informar / Sugerir");
+    expect(container.textContent).toContain("Asistente de IA");
+  } finally {
+    errorSpy.mockRestore();
+    act(() => root?.unmount());
+    container.remove();
+  }
 });
 it("proposes an editable list and only writes after explicit confirm", async () => {
   const user = userEvent.setup(),

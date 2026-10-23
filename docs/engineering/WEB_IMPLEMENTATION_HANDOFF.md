@@ -473,3 +473,14 @@ frozen request/key are unchanged. The original failing browser assertions remain
 and must pass in consolidated QA; no new tests/build/browser were run for this
 repair. Controlled cook fixtures additionally supply the actual read-scope and
 strict comparison fields; Spanish capped counts use the locale's number format.
+
+## Assistant launcher hydration repair — 2026-10-23 UTC
+
+The adopted Capture ES browser journey exposed AssistantHost hydrating a deferred
+Suspense boundary after the ancestor's persisted locale had already switched to
+Spanish. Its server HTML was English. Launchers now use the existing per-consumer
+useHydrated boundary: preserve English for the actual hydration pass, then use
+the active scoped dictionary immediately afterward. Roles, panel lazy loading,
+provider behavior and permissions are unchanged. An existing-suite SSR-English/
+late-client-Spanish regression checks zero recoverable/console errors and final
+Spanish labels. Runtime acceptance still requires the repaired browser journey.
