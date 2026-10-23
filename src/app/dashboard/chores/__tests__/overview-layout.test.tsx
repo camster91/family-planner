@@ -83,7 +83,9 @@ it("shows routine context with daily work once and completes the exact routine o
   expect(
     screen.getByText("Now", { selector: "p" }).closest("section"),
   ).toHaveTextContent("Take recycling");
-  expect(screen.getAllByRole("checkbox", { name: "Pack bag" })).toHaveLength(1);
+  expect(
+    await screen.findAllByRole("checkbox", { name: "Pack bag" }),
+  ).toHaveLength(1);
   const routine = screen.getByRole("region", {
     name: "Morning reset · Alex · Oct 9",
   });
