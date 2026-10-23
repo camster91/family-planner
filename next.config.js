@@ -110,7 +110,9 @@ const nextConfig = {
     }
     const sharedLayoutGroup = (layout, name, priority) => ({
       test: (module, { chunkGraph }) => inLayout(module, chunkGraph, layout),
-      chunks: 'initial',
+      // Once layout membership is proved above, reuse that same module in
+      // hydration-loaded chunks too, rather than shipping a second copy.
+      chunks: 'all',
       minChunks: 1,
       minSize: 0,
       name,
