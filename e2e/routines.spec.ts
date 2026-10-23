@@ -259,6 +259,7 @@ test.describe("Family A parent", () => {
 
     await page.goto("/dashboard/chores");
     const queue = page
+      .getByRole("main", { name: /dashboard$/i })
       .locator("section")
       .filter({ has: page.getByText("To check", { exact: true }) });
     for (const [i, s] of STEPS.entries()) {

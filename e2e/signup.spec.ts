@@ -593,13 +593,16 @@ test.describe("new household sign-up journey", () => {
           page.getByRole("link", { name: "1 chore to check" }).first(),
         ).toBeVisible();
         // The child joined and a chore exists; only the event step is left.
-        await expect(page.getByTestId("get-started-progress")).toContainText(
-          "2 of 3 done",
-        );
+        await expect(
+          page
+            .getByRole("region", { name: "Get started", exact: true })
+            .getByTestId("get-started-progress"),
+        ).toContainText("2 of 3 done");
         await expectNoHorizontalOverflow(page, "Today board (one to check)");
 
         await page.goto("/dashboard/chores");
         const queue = page
+          .getByRole("main", { name: /dashboard$/i })
           .locator("section")
           .filter({ has: page.getByText("To check", { exact: true }) });
         await expect(queue.getByText(x.chore)).toBeVisible();
@@ -615,9 +618,11 @@ test.describe("new household sign-up journey", () => {
         await expect(
           page.getByText("Chore verified", { exact: true }).first(),
         ).toBeVisible();
-        await expect(page.getByText("To check", { exact: true })).toHaveCount(
-          0,
-        );
+        await expect(
+          page
+            .getByRole("main", { name: /dashboard$/i })
+            .getByText("To check", { exact: true }),
+        ).toHaveCount(0);
         await expectNoHorizontalOverflow(page, "chores page (verified)");
 
         const chore = await withDb((db) =>

@@ -1,3 +1,30 @@
+## Web release shipped; bounded household follow-through — 2026-10-23
+
+PR #595 merged as `3691e131010ffa98ac7c5ade0f41c440261b99ea` from checked
+head52157152 with an identical source tree. Build/Test/fresh-runner container
+39990787419, browser/accessibility/visual and ordinary/expanded Settings
+39990787426, and unsigned Android39990787469 all passed. Coolify deployment594
+finished; public version/health and running OCI revision match the merged source.
+Live public phone/desktop journeys passed. This is web production verification,
+not native hardware/store, external delivery or real household acceptance.
+
+Current user scope is to close proved shipped issues, test core household flows
+and fix observed bugs; extra features remain later. Seven bounded issues are
+closed with evidence: #462/#461/#459/#458/#452/#447/#454. Additional isolated
+PostgreSQL cover-lifecycle/chore-save proof passes9cases, and real phone/desktop
+weekly create/edit/reload plus private list upload/overview/detail/foreign-file
+checks pass against the unchanged b284 application source.
+
+Household follow-through exposed strict selectors matching hidden streamed
+content in signup/routine parent review. The bounded QA repair scopes existing
+assertions to the accessible dashboard main and Get started region; app behavior,
+API effects, expectations, privacy checks and test policies are unchanged. The repaired original signup/routine flows pass9/9 setup/journey cases on
+phone390/desktop1366 without retries. Monthly history/empty-anchor deletion and
+four-duration snooze/reload/Show now/private-child checks pass7/7 setup/journey
+cases in the same isolated artifact. Older dated release-pending entries
+below remain historical, not current production state. Current release receipts
+and remaining original acceptance stay in #128 and the original issues.
+
 ## Loading budget repaired; current main integrated — 2026-10-23
 
 Atad1657b1 all six original cold-start JavaScript budgets pass on phone390 and
