@@ -66,10 +66,142 @@ describe('CalendarSyncSection', () => {
     expect(container.innerHTML).toBe('')
   })
 
+  it("keeps a transient load failure visible with a retry action", async () => {
+    let attempts = 0;
+    const json = (status: number, data: unknown) =>
+      ({
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => data,
+      }) as Response;
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("/api/calendar/connections");
+      attempts += 1;
+      return attempts === 1
+        ? json(503, { error: "Unavailable" })
+        : json(200, {
+            providers: [
+              { id: "google", label: "Google Calendar" },
+              { id: "microsoft", label: "Outlook / Microsoft 365" },
+            ],
+            connections: [MINE],
+          });
+    }) as unknown as typeof fetch;
+
+    render(<CalendarSyncSection />);
+    expect(
+      await screen.findByRole("heading", { name: "Connected calendars" }),
+    ).toBeTruthy();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not load connected calendars. Try again.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Retry connected calendars" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Sync Google Calendar now" }),
+    ).toBeNull();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry connected calendars" }),
+    );
+    expect(
+      await screen.findByRole("button", {
+        name: "Choose calendar for Google Calendar",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Choose a calendar to start syncing."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(attempts).toBe(2);
+  });
+
+  it("keeps confirmed connection controls when a later refresh fails", async () => {
+    let attempts = 0;
+    const json = (status: number, data: unknown) =>
+      ({
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => data,
+      }) as Response;
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("/api/calendar/connections");
+      attempts += 1;
+      return attempts === 1
+        ? json(200, {
+            providers: [
+              { id: "google", label: "Google Calendar" },
+              { id: "microsoft", label: "Outlook / Microsoft 365" },
+            ],
+            connections: [
+              { ...MINE, calendar_id: "primary", calendar_name: "Home" },
+            ],
+          })
+        : json(503, { error: "Unavailable" });
+    }) as unknown as typeof fetch;
+
+    const view = render(
+      <CalendarSyncSection onProviderReturn={() => undefined} />,
+    );
+    expect(
+      await screen.findByRole("button", { name: "Sync Google Calendar now" }),
+    ).toBeTruthy();
+
+    // A provider-return callback identity change represents the settings host
+    // asking the section to refresh after it was already loaded.
+    view.rerender(<CalendarSyncSection onProviderReturn={() => undefined} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not load connected calendars. Try again.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Retry connected calendars" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Sync Google Calendar now" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Disconnect Google Calendar" }),
+    ).toBeDisabled();
+    expect(attempts).toBe(2);
+  });
+
+  it("treats a malformed response as a retryable load failure", async () => {
+    let attempts = 0;
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("/api/calendar/connections");
+      attempts += 1;
+      if (attempts === 1)
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ providers: null, connections: "not-a-list" }),
+        } as Response;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ providers: [], connections: [] }),
+      } as Response;
+    }) as unknown as typeof fetch;
+
+    render(<CalendarSyncSection />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not load connected calendars. Try again.",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry connected calendars" }),
+    );
+    expect(
+      await screen.findByText(
+        "Connect your own Google or Outlook calendar and events show up in both places.",
+      ),
+    ).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
   it('offers only providers not yet connected, lets the owner choose a calendar, sync and disconnect', async () => {
     const calls = mockApi()
     render(<CalendarSyncSection />)
-    expect(await screen.findByRole('heading', { name: 'Connected calendars' })).toBeTruthy()
+    expect(await screen.findByText('Choose a calendar to start syncing.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Connect Google Calendar/ })).toBeNull()
     expect(screen.getByRole('button', { name: /Connect Outlook/ })).toBeTruthy()
     expect(screen.getByText('Choose a calendar to start syncing.')).toBeTruthy()

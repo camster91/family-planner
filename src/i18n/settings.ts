@@ -95,6 +95,9 @@ export const settingsEnglish = {
   loading: "Loading settings...",
   profileUpdated: "Profile updated successfully!",
   profileFailed: "Failed to update profile. Please try again.",
+  profileLoadFailed:
+    "Could not load your profile. Retry before making changes.",
+  retryProfile: "Retry profile",
   passwordMismatch: "New passwords do not match",
   passwordShort: "New password must be at least 8 characters",
   passwordFailed: "Failed to change password",
@@ -251,6 +254,10 @@ export const settingsEnglish = {
   connectionSaveFailed: "Could not save that change",
   syncFailed: "Could not sync that calendar",
   connectionRemoveFailed: "Could not disconnect that calendar",
+  calendarConnectionsLoadFailed:
+    "Could not load connected calendars. Try again.",
+  retryCalendarConnections: "Retry connected calendars",
+  calendarConnectionsLoading: "Loading connected calendars…",
   calendarSaved: "Calendar saved. Syncing starts now.",
   syncedOne: "Synced: {inCount} change in, {outCount} out.",
   syncedMany: "Synced: {inCount} changes in, {outCount} out.",
@@ -359,6 +366,9 @@ export const settingsSpanish: Record<SettingsMessage, string> = {
   loading: "Cargando configuración...",
   profileUpdated: "¡Perfil actualizado!",
   profileFailed: "No se pudo actualizar el perfil. Vuelve a intentarlo.",
+  profileLoadFailed:
+    "No se pudo cargar tu perfil. Vuelve a intentarlo antes de hacer cambios.",
+  retryProfile: "Reintentar perfil",
   passwordMismatch: "Las contraseñas nuevas no coinciden",
   passwordShort: "La contraseña nueva debe tener al menos 8 caracteres",
   passwordFailed: "No se pudo cambiar la contraseña",
@@ -527,6 +537,10 @@ export const settingsSpanish: Record<SettingsMessage, string> = {
   connectionSaveFailed: "No se pudo guardar ese cambio",
   syncFailed: "No se pudo sincronizar ese calendario",
   connectionRemoveFailed: "No se pudo desconectar ese calendario",
+  calendarConnectionsLoadFailed:
+    "No se pudieron cargar los calendarios conectados. Vuelve a intentarlo.",
+  retryCalendarConnections: "Reintentar calendarios conectados",
+  calendarConnectionsLoading: "Cargando calendarios conectados…",
   calendarSaved: "Calendario guardado. La sincronización empieza ahora.",
   syncedOne: "Sincronizado: {inCount} cambio entrante, {outCount} salientes.",
   syncedMany:

@@ -350,6 +350,25 @@ describe('shared-tablet writes (#274)', () => {
       })
     })
 
+    it('keeps a committed add successful when the post-commit audit lookup fails, and replays it', async () => {
+      const k = key()
+      const lookup = jest
+        .spyOn(fakePrisma.deviceAuditEvent, 'findMany')
+        .mockRejectedValueOnce(new Error('audit lookup unavailable'))
+      try {
+        const first = await add.POST(postReq({ content: 'Audit recovery', actingMemberId: 'teen-a' }, { k }), params('list-a'))
+        expect(first.status).toBe(201)
+        expect(db.rows('idempotencyRecord').find((record) => record.key === k)).toMatchObject({ response_status: 201 })
+
+        const replay = await add.POST(postReq({ content: 'Audit recovery', actingMemberId: 'teen-a' }, { k }), params('list-a'))
+        expect(replay.status).toBe(201)
+        expect(replay.headers.get('Idempotency-Replayed')).toBe('true')
+        expect(db.rows('listItem').filter((item) => item.content === 'Audit recovery')).toHaveLength(1)
+      } finally {
+        lookup.mockRestore()
+      }
+    })
+
     it('replays with the same key: one row only', async () => {
       const k = key()
       await add.POST(postReq({ content: 'Eggs', actingMemberId: 'teen-a' }, { k }), params('list-a'))
@@ -361,17 +380,15 @@ describe('shared-tablet writes (#274)', () => {
 
     it('converges after a lock takeover: a committed run whose answer was never stored is found, not added again', async () => {
       const k = key()
-      // The first run commits the row, then storing its response fails (the process "dies").
-      const store = jest
-        .spyOn(fakePrisma.idempotencyRecord, 'updateMany')
-        .mockRejectedValueOnce(new Error('connection lost'))
       const first = await add.POST(postReq({ content: 'Eggs', actingMemberId: 'teen-a' }, { k }), params('list-a'))
-      store.mockRestore()
       expect(first.status).toBe(201)
       const firstBody = await first.json()
       const record = db.rows('idempotencyRecord').find((r) => r.key === k)!
-      expect(record.response_status ?? null).toBeNull()
       expect(db.find('listItem', firstBody.item.id)!.source_request_id).toBe(record.id)
+      // Simulate the legacy pre-atomic-receipt state: the first run committed
+      // its row but crashed before storing the response.
+      record.response_status = null
+      record.response_body = null
       // Simulate the first run dying before its audit row too.
       db.rows('deviceAuditEvent').splice(0)
 

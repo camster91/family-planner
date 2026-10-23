@@ -8,6 +8,8 @@
 
 jest.mock('next/server', () => require('@/__tests__/helpers/two-household').nextServerMock)
 
+import { Client } from 'pg'
+
 export {}
 
 const describeWithDatabase = process.env.RUN_DB_INTEGRATION === '1' ? describe : describe.skip
@@ -176,6 +178,33 @@ describeWithDatabase('shared-tablet writes against Postgres', () => {
     expect(retry.status).toBe(201)
     expect(await retry.json()).toEqual(firstBody)
     expect(await prisma.listItem.count({ where: { list_id: LIST, content: 'Butter' } })).toBe(1)
+  })
+
+  it('quick add serializes with list deletion and returns 404 instead of a foreign-key 500', async () => {
+    const holder = new Client({ connectionString: process.env.DATABASE_URL }); await holder.connect()
+    let requestPromise: Promise<any> | undefined
+    const k = key()
+    try {
+      // Hold the same list row lock used by the canonical list deletion path.
+      // The device request can still observe the pre-delete snapshot, but its
+      // locked write must wait and then re-check the list after the delete.
+      await holder.query('BEGIN')
+      await holder.query('SELECT "id" FROM "List" WHERE "id" = $1 FOR UPDATE', [LIST])
+      requestPromise = add.POST(request(access1, { content: 'Deleted while adding', actingMemberId: CHILD }, k), params(LIST))
+      for (let i = 0; i < 50; i++) {
+        if (await prisma.idempotencyRecord.count({ where: { key: k } })) break
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      }
+      expect(await prisma.idempotencyRecord.count({ where: { key: k } })).toBe(1)
+      await holder.query('DELETE FROM "List" WHERE "id" = $1', [LIST])
+      await holder.query('COMMIT')
+      expect((await requestPromise).status).toBe(404)
+      expect(await prisma.listItem.count({ where: { list_id: LIST } })).toBe(0)
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined); await holder.end()
+      await Promise.allSettled(requestPromise ? [requestPromise] : [])
+      await prisma.list.create({ data: { id: LIST, family_id: FAM, name: 'Groceries', type: 'grocery', created_by: PARENT } }).catch(() => undefined)
+    }
   })
 
   it('completes a chore due today and the same tablet can undo it; the other household cannot touch it', async () => {
