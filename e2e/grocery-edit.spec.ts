@@ -186,15 +186,23 @@ test.describe("grocery field edit conflicts", () => {
     ).toBeVisible();
     await capture(page, "offline-draft", info.project.name);
     await page.context().setOffline(false);
+    // BrowserContext#setOffline emits the online event asynchronously. Wait
+    // for the dialog's real connectivity guard before deleting the canonical
+    // row and submitting the removed-row race; otherwise the click can remain
+    // disabled until the one-minute test timeout even though the browser is
+    // already back online.
+    const save = page.getByRole("button", {
+      name: "Save changes",
+      exact: true,
+    });
+    await expect(save).toBeEnabled();
     expect(
       (await browserSend(page, "DELETE", `/api/lists/items/${itemId}`)).status,
     ).toBe(200);
     const result = page.waitForResponse((r) =>
       r.url().endsWith("/api/lists/items/edit"),
     );
-    await page
-      .getByRole("button", { name: "Save changes", exact: true })
-      .click();
+    await save.click();
     expect((await result).status()).toBe(404);
     await expect(
       page.getByText(

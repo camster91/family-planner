@@ -156,7 +156,7 @@ const steps = (page: Page) => morning(page).getByTestId("routine-step");
 const verificationRow = (queue: Locator, index: number) =>
   queue
     .locator("p")
-    .filter({ hasText: new RegExp(`Morning · step ${index + 1}(?: ·|$)`) })
+    .filter({ hasText: new RegExp(`Morning, step ${index + 1}(?: ·|$)`) })
     .locator("xpath=../..");
 
 async function tap(page: Page, index: number, path = "/api/chores/complete") {

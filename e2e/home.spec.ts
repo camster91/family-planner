@@ -147,7 +147,11 @@ test.describe("Family A parent", () => {
   }, testInfo) => {
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/dashboard\/today$/);
-    await expect(page.getByTestId("today-board")).toBeVisible();
+    // Next's streamed redirect can retain a hidden server segment alongside
+    // the mounted board. Assertions target the one a person can actually see.
+    const visibleBoard = page.locator('[data-testid="today-board"]:visible');
+    await expect(visibleBoard).toHaveCount(1);
+    await expect(visibleBoard).toBeVisible();
     // Household chores due today: Taylor 2 (recycling, vacuum), and one each
     // for the parent (spec-owned) and Casey (tidy bedroom, in progress).
     await expect(summary(page)).toHaveText(
