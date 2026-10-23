@@ -18,9 +18,9 @@ export const profileChoreCreateSchema = z
     frequency: z.enum(["once", "daily", "weekly", "monthly"]).default("once"),
     weekly_days: z.array(z.number().int().min(0).max(6)).max(7).default([]),
     photo_url: z.string().max(500).nullable().optional(),
-    icon: updateChoreSchema.innerType().shape.icon,
-    routine: updateChoreSchema.innerType().shape.routine,
-    routine_order: updateChoreSchema.innerType().shape.routine_order,
+    icon: updateChoreSchema.shape.icon,
+    routine: updateChoreSchema.shape.routine,
+    routine_order: updateChoreSchema.shape.routine_order,
   })
   .strict()
   .superRefine((value, context) => {

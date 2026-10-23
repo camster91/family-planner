@@ -13,25 +13,25 @@ type SessionUser = { id: string; email: string; role?: string; family_id?: strin
 const updateMedicationSchema = z
   .object(
     {
-      markDoseTaken: z.boolean({ invalid_type_error: 'markDoseTaken must be a boolean' }).optional(),
-      name: z.string({ invalid_type_error: 'name must be a string' }).trim().min(1, 'name is required').max(200).optional(),
-      dosage: z.string({ invalid_type_error: 'dosage must be a string' }).trim().min(1, 'dosage is required').max(200).optional(),
-      schedule: z.string({ invalid_type_error: 'schedule must be a string' }).trim().max(200).optional(),
+      markDoseTaken: z.boolean({ error: 'markDoseTaken must be a boolean' }).optional(),
+      name: z.string({ error: 'name must be a string' }).trim().min(1, 'name is required').max(200).optional(),
+      dosage: z.string({ error: 'dosage must be a string' }).trim().min(1, 'dosage is required').max(200).optional(),
+      schedule: z.string({ error: 'schedule must be a string' }).trim().max(200).optional(),
       next_dose_at: z
-        .string({ invalid_type_error: 'next_dose_at must be an ISO date-time or null' })
+        .string({ error: 'next_dose_at must be an ISO date-time or null' })
         .datetime({ offset: true, message: 'next_dose_at must be an ISO date-time or null' })
         .nullable()
         .optional(),
       // Hours from this dose to the next one, as the parent entered it.
       interval_hours: z
-        .number({ invalid_type_error: 'interval_hours must be a number' })
+        .number({ error: 'interval_hours must be a number' })
         .finite()
         .min(1, 'interval_hours must be between 1 and 48')
         .max(48, 'interval_hours must be between 1 and 48')
         .optional(),
-      notes: z.string({ invalid_type_error: 'notes must be a string' }).max(2000).nullable().optional(),
+      notes: z.string({ error: 'notes must be a string' }).max(2000).nullable().optional(),
     },
-    { invalid_type_error: 'Request body must be a JSON object' }
+    { error: 'Request body must be a JSON object' }
   )
   .refine((b) => !(b.interval_hours !== undefined && b.next_dose_at !== undefined), {
     message: 'Send next_dose_at or interval_hours, not both',

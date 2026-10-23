@@ -5,7 +5,8 @@ The web candidate is shipped through PR #595, protected merge
 Coolify deployment594 and version/health/runtime verification. Current requested
 work is issue closure and core household bug checks; extra features stay later.
 
-Closed after original-criteria review: #462, #461, #459, #458, #452, #447 and #454.
+Closed after original-criteria review: #462, #461, #459, #458, #452, #447, #454
+and #536.
 Each original issue retains its specific source, hosted and production evidence.
 The private-cover closure also uses a real phone/desktop upload/save/read/privacy
 journey and isolated PostgreSQL lifecycle proof (2 suites/9 cases including chore

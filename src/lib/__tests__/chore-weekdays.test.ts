@@ -27,6 +27,18 @@ it('rejects empty/duplicate/out-of-range or non-weekly choices while preserving 
   expect(updateChoreSchema.safeParse({choreId:'c',weekly_days:[1],frequency:'weekly'}).success).toBe(true)
   expect(updateChoreSchema.safeParse({choreId:'c',weekly_days:[1]}).success).toBe(false)
 })
+it('short-circuits an oversized bounded weekday array before inspecting malformed elements', () => {
+  const result = createChoreSchema.safeParse({
+    title: 'Trash',
+    assigned_to: 'kid',
+    due_date: '2026-10-12',
+    frequency: 'weekly',
+    weekly_days: Array.from({ length: 8 }, () => 'not-a-weekday'),
+  })
+  if (result.success) throw new Error('expected oversized weekday array to be refused')
+  expect(result.error.issues).toHaveLength(1)
+  expect(result.error.issues[0]).toMatchObject({ code: 'too_big', path: ['weekly_days'] })
+})
 it('expands a bounded four-week multi-day window and is idempotent', async () => {
   const original = { id:'t',family_id:'f',frequency:'weekly',weekly_days:[1,4],due_date:day('2026-10-12'),rotation_member_ids:[],title:'Trash',description:null,points:10,difficulty:'easy',assigned_to:'kid',created_by:'parent',icon:null,routine:null,routine_order:null }
   const rows: any[] = [{due_date:original.due_date}]

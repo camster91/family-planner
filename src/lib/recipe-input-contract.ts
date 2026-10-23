@@ -6,8 +6,8 @@ export const RECIPE_MAX_INGREDIENTS = 100;
 const optionalText = (max: number) =>
   z
     .union([z.string().max(max).trim(), z.null()])
-    .optional()
-    .transform((v) => (v === "" ? null : v));
+    .transform((v) => (v === "" ? null : v))
+    .optional();
 
 const minutes = z
   .union([

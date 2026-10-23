@@ -9,8 +9,8 @@ Live public phone/desktop journeys passed. This is web production verification,
 not native hardware/store, external delivery or real household acceptance.
 
 Current user scope is to close proved shipped issues, test core household flows
-and fix observed bugs; extra features remain later. Seven bounded issues are
-closed with evidence: #462/#461/#459/#458/#452/#447/#454. Additional isolated
+and fix observed bugs; extra features remain later. Eight bounded issues are
+closed with evidence: #462/#461/#459/#458/#452/#447/#454/#536. Additional isolated
 PostgreSQL cover-lifecycle/chore-save proof passes9cases, and real phone/desktop
 weekly create/edit/reload plus private list upload/overview/detail/foreign-file
 checks pass against the unchanged b284 application source.
@@ -24,6 +24,18 @@ four-duration snooze/reload/Show now/private-child checks pass7/7 setup/journey
 cases in the same isolated artifact. Older dated release-pending entries
 below remain historical, not current production state. Current release receipts
 and remaining original acceptance stay in #128 and the original issues.
+
+## Household validation security repair — 2026-10-23
+
+PR #598 also repairs the newly disclosed runtime Zod resource-exhaustion issue
+(GHSA-mrhx-c7xc-m3w5) by pinning patched4.6.6 and migrating the existing schemas
+without a legacy-v3 bypass. Declared bounded arrays reject excess length before
+walking their elements. Message read requests additionally enforce a256KiB body
+and1000 explicit IDs; mark-all behavior and authorization order are preserved.
+Independent source review found no concrete blocker. Type checking and the full
+existing unit suite pass:702 suites/6991 tests, with the existing guarded skips
+unchanged. Optimized build, loading budgets and hosted exact-candidate gates
+remain required before this repair replaces current production3691e131.
 
 ## Loading budget repaired; current main integrated — 2026-10-23
 

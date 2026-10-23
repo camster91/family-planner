@@ -8,8 +8,10 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { authorizeMessageActorInTx, createMessageEffect, MESSAGE_INCLUDE, toMessageResponse } from '@/lib/message-mutations'
+import { readBoundedJson, RequestBodyTooLargeError } from '@/lib/bounded-body'
 
 export const dynamic = 'force-dynamic'
+const MESSAGE_READ_BODY_MAX_BYTES = 256 * 1024
 
 // GET - List messages for current user's family
 export async function GET(request: NextRequest) {
@@ -136,11 +138,14 @@ export async function PATCH(request: NextRequest) {
     const gate = await featureGate(auth.user.family_id, 'messages')
     if (gate) return gate
 
-    let body: any
+    let body: unknown
     try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      body = await readBoundedJson(request, MESSAGE_READ_BODY_MAX_BYTES)
+    } catch (caught) {
+      return NextResponse.json(
+        { error: caught instanceof RequestBodyTooLargeError ? 'Request body too large' : 'Invalid JSON' },
+        { status: caught instanceof RequestBodyTooLargeError ? 413 : 400 },
+      )
     }
     const parsed = markMessagesReadSchema.safeParse(body)
     if (!parsed.success) {
