@@ -9,10 +9,8 @@ import {
 import { Sparkles, Undo2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { CaptureSheet } from "@/components/capture/CaptureSheet";
-import {
-  IMPORT_UNDO_WINDOW_MS,
-  type ImportCommitResult,
-} from "@/lib/event-import-client";
+import type { ImportCommitResult } from "@/lib/event-import-contract";
+import { IMPORT_UNDO_WINDOW_MS } from "@/lib/event-import-contract";
 import { CalendarPlanner } from "./CalendarPlanner";
 import type { PlanningView } from "@/lib/calendar-planning/view";
 
