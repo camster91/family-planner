@@ -1230,3 +1230,29 @@ the original refusal. No schema/client payload change, automatic retry, backgrou
 work or provider. See plans/import-review-ui.md for exact source and remaining
 review-snapshot, real PG/concurrency/deletion/replay/reconciliation/rollback and
 compatibility acceptance. Source cases authored/unrun; no QA/import executed.
+
+## Import reviewed-scope precondition — source 2026-10-24 (#104)
+
+Opt-in request `reviewProtocol: 1` adds `review: {protocol: 1, actorId, familyId}`
+to the existing import result, derived from the authenticated caller. A persisted
+request using that protocol must include strict `expectedScope: {actorId,
+familyId}`. Missing scope ->400 IMPORT_REVIEW_REQUIRED; either ID different from
+current authentication ->409 IMPORT_SCOPE_CHANGED before dispatcher/mapping
+reads. Scope never chooses a target or grants access. The writer still uses the
+authenticated original family and renews parent/mappings/session under locks.
+
+Legacy callers without reviewProtocol keep their original success response shape
+and existing write path; this is an explicit compatibility exception. Supplied
+expectedScope is always checked, including for legacy requests. Invalid protocol,
+scope shape/IDs refuse400. Opt-in success is private/no-store. This is an intent
+precondition, not a signed proof that source bytes or target state were reviewed.
+
+The new web requests protocol1, freezes returned actor/household in its exact
+reviewed persistence body and consumes local approval on a refusal as on other
+write outcomes. Scope IDs are excluded from its reconciliation JSON display.
+New web against an old server lacking metadata cannot enable persistence and
+shows a localized refresh/review message; it does not silently downgrade. Current
+API can serve legacy clients unchanged. No schema/store/secret/provider action
+or automatic retry added. Source cases authored/unrun; exact current/previous
+server/client, account/household switch, lifecycle/PG and original import
+reconciliation/rollback acceptance remain open.

@@ -100,4 +100,27 @@ describe("admin imports — two households, parent only", () => {
     expect((await res.json()).code).toBe("SESSION_CHANGED");
   });
 
+  it("returns reviewed actor/household only to opted-in previews", async () => {
+    const legacy = await POST(importReq("parentA", body()), params({ source: "familywall" }));
+    expect((await legacy.json()).review).toBeUndefined();
+    const scoped = await POST(importReq("parentA", { ...body(), reviewProtocol: 1 }), params({ source: "familywall" }));
+    expect((await scoped.json()).review).toEqual({ protocol: 1, actorId: "parent-a", familyId: "family-A" });
+    expect(scoped.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+  it("requires a scope for opted-in persistence before dispatch", async () => {
+    const res = await POST(importReq("parentA", { ...body(), dryRun: false, reviewProtocol: 1 }), params({ source: "familywall" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("IMPORT_REVIEW_REQUIRED");
+    expect(run).not.toHaveBeenCalled();
+  });
+  it.each([
+    { actorId: "parent-a", familyId: "family-B" },
+    { actorId: "parent-b", familyId: "family-A" },
+  ])("refuses a changed reviewed actor or household without importing", async expectedScope => {
+    const res = await POST(importReq("parentA", { ...body(), dryRun: false, reviewProtocol: 1, expectedScope }), params({ source: "familywall" }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("IMPORT_SCOPE_CHANGED");
+    expect(run).not.toHaveBeenCalled();
+  });
+
 });

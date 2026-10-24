@@ -1,5 +1,15 @@
 # Route and domain inventory (#148)
 
+### Import reviewed-scope source — 2026-10-24 (#104)
+
+New-web reviewProtocol1 freezes server-derived actor/household IDs into the
+reviewed persistence body. Missing/changed scope refuses before dispatch; IDs
+are a precondition, never access authority or family selection. Legacy response/
+write compatibility remains explicit, and new web refuses old-server metadata
+absence rather than downgrading. No signed/source/target-state receipt or stored
+review. IDs stay outside reconciliation display. Source fixtures adapted/unrun;
+all current/previous client/server/lifecycle/reconciliation acceptance deferred.
+
 ### Import writer authority source — 2026-10-24 (#104 / #136)
 
 All three persisted sources now share original-household/current-parent/mapped-

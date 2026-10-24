@@ -15,10 +15,17 @@ import { RequestBodyTooLargeError, readBoundedText } from "@/lib/bounded-body";
 export const dynamic = "force-dynamic";
 const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
 
+const scopeSchema = z.object({
+  actorId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+  familyId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+}).strict();
 const requestSchema = z.object({
   data: z.unknown(),
   identityMap: z.record(z.string(), z.string().min(1)).default({}),
   dryRun: z.boolean().default(true),
+  // Intent precondition only; current authentication remains authoritative.
+  reviewProtocol: z.literal(1).optional(),
+  expectedScope: scopeSchema.optional(),
 });
 
 export async function POST(
@@ -62,6 +69,12 @@ export async function POST(
     );
   }
 
+  if (parsed.data.reviewProtocol === 1 && !parsed.data.dryRun && !parsed.data.expectedScope)
+    return NextResponse.json({ error: "Review the current household before importing", code: "IMPORT_REVIEW_REQUIRED" }, { status: 400 });
+  const expected = parsed.data.expectedScope;
+  if (expected && (expected.actorId !== auth.user.id || expected.familyId !== auth.user.family_id))
+    return NextResponse.json({ error: "The reviewed account or household changed", code: "IMPORT_SCOPE_CHANGED" }, { status: 409 });
+
   const mappedUserIds = [...new Set(Object.values(parsed.data.identityMap))];
   if (mappedUserIds.length > 0) {
     const familyUsers = await prisma!.user.findMany({
@@ -91,8 +104,14 @@ export async function POST(
       startedBy: auth.user.id,
       sessionVersion: auth.payload.tv ?? 0,
     });
-    return NextResponse.json(result, {
+    return NextResponse.json({
+      ...result,
+      ...(parsed.data.reviewProtocol === 1 ? { review: {
+        protocol: 1, actorId: auth.user.id, familyId: auth.user.family_id,
+      } } : {}),
+    }, {
       status: parsed.data.dryRun ? 200 : 201,
+      headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {
     if (error instanceof ImportSessionChangedError)

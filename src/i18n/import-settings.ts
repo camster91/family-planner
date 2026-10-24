@@ -24,6 +24,8 @@ const en = {
   mappingInvalid: "Identity mapping must be valid JSON.",
   mappingObject: "Identity mapping must be a JSON object with user IDs as values.",
   previewRequired: "Validate the current file and identity mapping, review the preview, then approve the import.",
+  scopeChanged: "The account or household changed since this preview. Validate and review the import again.",
+  reviewUnsupported: "This server cannot confirm the reviewed household. Refresh the app before trying again.",
   failed: "Could not validate this import. Check the export and try again.",
   writeUnconfirmed: "The import result could not be confirmed. Review existing records before validating and importing again.",
   foreignMapping: "The identity map includes users outside this family. Review the mapping.",
@@ -55,6 +57,8 @@ const es: Record<keyof typeof en, string> = {
   mappingInvalid: "La correspondencia de identidades debe ser JSON válido.",
   mappingObject: "La correspondencia de identidades debe ser un objeto JSON con identificadores de usuario como valores.",
   previewRequired: "Valida el archivo y la correspondencia actuales, revisa la vista previa y aprueba la importación.",
+  scopeChanged: "La cuenta o el hogar han cambiado desde esta vista previa. Valida y revisa la importación de nuevo.",
+  reviewUnsupported: "Este servidor no puede confirmar el hogar revisado. Actualiza la app antes de volver a intentarlo.",
   failed: "No se pudo validar esta importación. Revisa la exportación e inténtalo de nuevo.",
   writeUnconfirmed: "No se pudo confirmar el resultado de la importación. Revisa los registros existentes antes de validar e importar de nuevo.",
   foreignMapping: "La correspondencia incluye usuarios ajenos a esta familia. Revísala.",
@@ -64,7 +68,7 @@ const es: Record<keyof typeof en, string> = {
   payloadTooLarge: "La solicitud de importación supera los 10 MB. Usa una exportación o correspondencia más pequeña.",
 };
 export type ImportSettingsError = "fileTooLarge" | "fileUnreadable" | "fileRequired" |
-  "mappingInvalid" | "mappingObject" | "previewRequired" | "failed" |
+  "mappingInvalid" | "mappingObject" | "previewRequired" | "scopeChanged" | "reviewUnsupported" | "failed" |
   "writeUnconfirmed" | "foreignMapping" | "identityChanged" | "sessionChanged" | "invalidExport" | "payloadTooLarge";
 const messages = { en, es };
 export function useImportSettingsText() {

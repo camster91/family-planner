@@ -44,15 +44,15 @@ No unverified feature is declared completed by source authorship.
 | #134 Projects overview | Web24-card keyset pages and opt-in API paging; one grouped task-count query per returned page | Legacy API remains unbounded; query plans, compatibility, isolation/concurrency and rendered acceptance remain unverified |
 | #141/#134 Notifications | Opt-in personal keyset API and older-page inbox reads; bounded timeout, exact retry, truthful loaded-state copy and old-server fallback | Original authorization/snooze/Undo/concurrency/rendered acceptance remains unverified; no delivery activation |
 | #134 Wishlist | Opt-in household/requester keyset API; web24-item explicit continuation; canonical target inspection for write recovery; loaded-only EN/ES state | Legacy unpaged API remains unbounded; UI fixtures adapted/unrun; role/feature/concurrency/compatibility/query/rendered acceptance unverified |
-| #104/#142 import form | Review-bound form and rehearsal guide; all persisted writers renew parent/household/mappings/session under locks; scoped failure accounting authored | Approved exports/maps and real reconciliation remain unavailable; server snapshot/lifecycle, repeat/concurrency/rollback and all QA remain open |
+| #104/#142 import form | Review-bound form plus opt-in actor/household precondition; locked writer renewal, scoped job accounting and rehearsal guide authored | Approved exports/maps and real reconciliation remain unavailable; server snapshot/lifecycle, repeat/concurrency/rollback and all QA remain open |
 
-Latest bounded source work renews import authority before job creation and again
-before effects in all three writers. Ordered user/household/row locks protect
-current parent, household, mappings and the internally bound web session version.
-Failure accounting only updates owned still-running jobs and does not replace
-the original error. See import-review-ui.md and API_CONTRACTS.md. Serial source
-cases are authored/unrun; no QA/test/build/browser, import, migration or release
-ran. Real lock/race, snapshot, reconciliation/replay/rollback acceptance stays open.
+Latest bounded source work binds new-web import persistence to the actor and
+household returned by its preview. Opt-in missing/changed scope refuses before
+dispatch; expected IDs grant no access. Old clients retain their legacy response,
+while new web cannot silently downgrade against an old server. No signature,
+source receipt, target epoch or stored review was added. Source cases are
+adapted/authored and unrun; no QA/test/build/browser, import, migration or release
+ran. See the import review plan/API contract for remaining acceptance.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -16,6 +16,11 @@ type Source = "chore-champs" | "meal-planner" | "budget-app";
 
 // Validate the response envelope before it can enable approval. Source plans
 // and diagnostic records remain literal; this does not certify reconciliation.
+const reviewSchema = z.object({
+  protocol: z.literal(1),
+  actorId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+  familyId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+}).strict();
 const resultSchema = z.object({
   plan: z.record(z.string(), z.unknown()),
   summary: z.object({
@@ -24,10 +29,13 @@ const resultSchema = z.object({
     skipped: z.array(z.object({ sourceModel: z.string(), sourceId: z.string(), reason: z.string() }).passthrough()),
   }).passthrough(),
   jobId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/).nullable(),
+  review: reviewSchema.optional(),
 }).passthrough();
 function responseError(body: unknown): ImportSettingsError | null {
   if (!body || typeof body !== "object") return null;
   const value = body as { code?: unknown; error?: unknown };
+  if (value.code === "IMPORT_SCOPE_CHANGED") return "scopeChanged";
+  if (value.code === "IMPORT_REVIEW_REQUIRED") return "previewRequired";
   if (value.code === "SESSION_CHANGED" || value.error === "Unauthorized") return "sessionChanged";
   if (value.code === "IDENTITY_CONFLICT") return "identityChanged";
   if (value.error === "Identity map contains users outside this family") return "foreignMapping";
@@ -112,7 +120,7 @@ export default function ImportsClient() {
       if (!parsedMap || Array.isArray(parsedMap) || typeof parsedMap !== "object" ||
         !Object.values(parsedMap).every(value => typeof value === "string" && value.length > 0))
         return setError("mappingObject");
-      body = JSON.stringify({ data: fileData, identityMap: parsedMap, dryRun: true });
+      body = JSON.stringify({ data: fileData, identityMap: parsedMap, dryRun: true, reviewProtocol: 1 });
       reviewed.current = null;
       setPreviewReady(false);
       setConfirmed(false);
@@ -150,10 +158,19 @@ export default function ImportsClient() {
         setError(dryRun ? "failed" : "writeUnconfirmed");
         return;
       }
-      setResult(parsed.data);
-      if (dryRun) {
+      if (dryRun && !parsed.data.review) {
+        setError("reviewUnsupported");
+        return;
+      }
+      // Review IDs belong to request control, not the reconciliation display.
+      const { review, ...report } = parsed.data;
+      setResult(report);
+      if (dryRun && review) {
         const payload = JSON.parse(body) as Record<string, unknown>;
-        reviewed.current = { version, source: selectedSource, body: JSON.stringify({ ...payload, dryRun: false }) };
+        reviewed.current = { version, source: selectedSource, body: JSON.stringify({
+          ...payload, dryRun: false,
+          expectedScope: { actorId: review.actorId, familyId: review.familyId },
+        }) };
         setPreviewReady(true);
       }
     } catch {

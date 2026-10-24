@@ -91,3 +91,20 @@ ordering, row/advisory interaction, held-lock removal/role/password changes,
 account/family deletion, actual replay/partial outcomes and older-client matrix
 remain unverified. Serial helper and API refusal cases are authored/unrun.
 No migration, import, dry run or QA occurred. Full #104 remains open.
+
+## Reviewed actor/household intent — source 2026-10-24
+
+The new web opts into reviewProtocol1 on its dry run. The server returns its
+current authenticated actor/household IDs as review metadata. The form freezes
+those IDs as expectedScope in the reviewed persistence request, without showing
+them as reconciliation data. The API compares them to current authentication
+before dispatch: missing protocol1 persistence scope refuses400; changed account
+or household refuses409. Underlying locked writer authority remains mandatory.
+An expected ID is a precondition, never authority to choose another family.
+
+No signature, source-payload receipt, stored review or target-content epoch is
+introduced. Manual privileged callers can still use the legacy no-protocol path;
+that compatibility exception is documented, not treated as completed server
+review coverage. The new web refuses to enable persistence against an old server
+without review metadata, preserving uncertainty instead of silently downgrading.
+Original real-data/PG/role/lock/old-client/reconciliation acceptance is deferred.

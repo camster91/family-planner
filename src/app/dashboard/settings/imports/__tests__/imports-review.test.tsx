@@ -5,7 +5,8 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import ImportsClient from "../ImportsClient";
 const originalFetch = global.fetch;
 afterEach(() => { global.fetch = originalFetch; });
-const preview = { plan: { fixture: true }, summary: { created: {}, reused: {}, skipped: [] }, jobId: null };
+const review = { protocol: 1, actorId: "fixture-parent", familyId: "fixture-family" };
+const preview = { review, plan: { fixture: true }, summary: { created: {}, reused: {}, skipped: [] }, jobId: null };
 const response = (body: unknown) => ({ ok: true, json: async () => body });
 function file(name: string, contents: () => Promise<string>) {
   const value = new File(["fixture"], name, { type: "application/json" });
@@ -35,7 +36,7 @@ it("uses the current reviewed payload and consumes approval on the first persist
   fireEvent.click(persist); fireEvent.click(persist);
   await screen.findByRole("heading", { name: "Import result" });
   expect(requests).toHaveLength(3);
-  expect(requests[2]).toEqual({ ...requests[1], dryRun: false });
+  expect(requests[2]).toEqual({ ...requests[1], dryRun: false, expectedScope: { actorId: review.actorId, familyId: review.familyId } });
   expect(requests[2].identityMap).toEqual({ "source-user": "fixture-user" });
   expect((screen.getByRole("checkbox") as HTMLInputElement).disabled).toBe(true);
 });
@@ -71,4 +72,16 @@ it("does not replace a later file selection with an older asynchronous file read
   fireEvent.click(screen.getByRole("button", { name: "Validate dry run" }));
   await screen.findByRole("heading", { name: "Reconciliation preview" });
   expect(JSON.parse(String((global.fetch as jest.Mock).mock.calls[0][1].body)).data).toEqual({ fixture: "current" });
+});
+
+it("refuses persistence when an older server omits reviewed scope metadata", async () => {
+  const legacy = { plan: preview.plan, summary: preview.summary, jobId: preview.jobId };
+  global.fetch = jest.fn(async () => response(legacy)) as unknown as typeof fetch;
+  render(<ImportsClient />);
+  choose(file("fixture.json", async () => '{"fixture":true}'));
+  await screen.findByText("fixture.json");
+  fireEvent.click(screen.getByRole("button", { name: "Validate dry run" }));
+  await screen.findByText(/This server cannot confirm the reviewed household/);
+  expect(screen.queryByRole("checkbox")).toBeNull();
+  expect(global.fetch).toHaveBeenCalledTimes(1);
 });
