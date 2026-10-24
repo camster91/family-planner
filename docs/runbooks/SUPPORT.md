@@ -114,3 +114,54 @@ was created without a parent; a worry about what a child can see.
 - [BACKUPS.md](BACKUPS.md) — backups, retention and restore
 - [INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md) — incident loop
 - `docs/product/ACCOUNT_DELETION.md` — how deletion works
+
+## Twenty anticipated support cases — #146
+
+This is a source-backed triage guide, not proof that a feature is enabled or a
+recovery journey has passed. Feature availability, role rules and current
+release configuration still apply. Never ask for passwords, tokens, invite/link
+codes, API keys, exports, private screenshots or household record contents.
+Use a case ID, approximate time, route template, public release/build identity,
+platform and a content-free description. Ask the adult/account owner to use
+canonical self-service actions; support must not impersonate them.
+
+| # | Problem | Safe first action | Escalation / boundary |
+| --- | --- | --- | --- |
+| 1 | Verification email did not arrive | Account owner checks spam and requests a fresh verification link; use the newest link | Record time and whether any message arrived, not address/token in GitHub. Widespread failure is SEV1; sending config belongs to #103 |
+| 2 | Password reset failed or expired | Request one fresh reset link and use the account owner's normal sign-in path | Never collect a password/reset link. Repeated or widespread failures go to the owner; do not reset an account from support |
+| 3 | Wrong account or sign-in confusion | Ask the person to confirm which account they intended to use, privately, through the app | Do not infer ownership from a name/email match or reveal whether another account exists; suspected takeover is SEV0 |
+| 4 | Invite expired or wrong household | A signed-in parent reviews pending invitations and explicitly revokes/reissues the intended invite | Do not paste invite codes or join a household to inspect it. An unknown member follows privacy incident handling |
+| 5 | Young family member has no email | Use name-only setup only when its current capability/gates are available | Never invent an email, password or User; unavailable profile setup is a capability issue under #480 |
+| 6 | Profile account link failed | Refresh the canonical profile-link review; check current same-household/role and verified-owner requirements | Revoke only unfinished links. Do not merge people or treat revoke/removal as standalone unlink; use #557 contract |
+| 7 | Google/Apple calendar not showing | Open Calendar connections and inspect the selected source/subscription state | Read-only subscription is distinct from provider write sync. Never ask for calendar credentials, secret feed URLs or OAuth tokens |
+| 8 | Duplicate or missing calendar event | Check viewed range/timezone/source filters and whether the event is local or connected | Do not delete repeated imports or edit provider records from support; preserve content-free source/range/request evidence for #124 |
+| 9 | Weekly chore is on the wrong day | Parent reviews chosen weekdays/start or monthly anchor in the canonical chore editor | Preserve occurrence history; do not bulk-delete a series to hide a recurrence problem; #450 owns schedule semantics |
+| 10 | Routine order/steps do not match | Parent opens the existing dated/future routine editor and reviews the exact affected scope | Do not substitute a label for stable routine/step identity. Preserve unknown-save request/recovery state |
+| 11 | Completed chore still waits for approval | Explain the existing parent-review state and direct the parent to the canonical review action | A child's completion is not parent approval. Do not approve on behalf of a parent or promise points before canonical verification |
+| 12 | Points or reward balance looks wrong | Review the app's own earned/claimed/approved states with the account owner | Never grant points, transfer awards or change a balance from support; a credit/Undo mismatch is a data-integrity case |
+| 13 | Groceries shortcut or count is confusing | Open the direct grocery destination; distinguish all shared lists from grocery lists and preview rows from total | Do not say clear from a short loaded preview. Pending tick/Undo and remaining items need canonical refresh/recovery |
+| 14 | Offline change is stuck or save is uncertain | Keep the original pending work; use the visible sync/recovery path after reconnect | Do not clear browser/app data, re-enter the operation with a new key or copy work to another account; escalate uncertain authority to #135/#564/#565 |
+| 15 | Recipe search/import failed | Keep the reviewed source attribution, try manual entry or another supported public source | Do not embed arbitrary publisher HTML or ask for private-page credentials. Provider failure must not block manual recipes |
+| 16 | Bulk-cooking portions/next prep looks wrong | Open the canonical prep session/dish and review recorded portion use and dates | Do not infer eaten quantities, nutrition or food safety. Preserve unknown operations and use supported correction/Undo |
+| 17 | Shared tablet lost, revoked or stuck | Parent uses the existing personal device revoke/re-pair flow | Profile selection/wake voice never proves a parent identity. Support does not pair/elevate/provision a device on the operator side |
+| 18 | Child/teen sees unexpected controls or another household | Stop using the affected path and report content-free route/release/request evidence | Cross-household exposure/takeover is SEV0; follow immediate stop/containment. Do not request private screenshots or broaden access to investigate |
+| 19 | Export or deletion is unclear | Direct the account owner to the existing private export/account/household deletion flow below | Explain last-parent and backup-retention boundaries; do not restore erased identity or perform operator deletion without exact authorization |
+| 20 | Notification missing, snoozed or too noisy | Check in-app unread/snoozed state, personal preferences and quiet hours | In-app state is distinct from actual email/push delivery. No provider/scheduler is activated by support; preserve snooze/Show now and disabled-provider behavior |
+
+## Response ownership
+
+| Responsibility | Owner and authority |
+| --- | --- |
+| Beta incident commander, severity/stop decision and response coordination | Cameron; use the established severity/containment runbook, not ad hoc access to household content |
+| First-line private support intake and case tracking | Cameron or a specifically designated support operator; no delegation/access is created by this document |
+| Source diagnosis, isolated repair and recovery/communication drafts | Codex; live account/provider/infrastructure actions and sending remain subject to existing exact authorization |
+| Canonical personal/household actions | The authenticated account owner/parent in the app; support cannot substitute for owner verification |
+| Production containment, credential/device changes, restore and rollout | The explicitly authorized operator; follow INCIDENT_RESPONSE.md and the relevant runbook, recording exact scope and evidence |
+| External/user communication, including privacy incidents | Cameron approves the content, audience and sending decision; agents prepare drafts only |
+
+Severity examples and the immediate cross-household stop/containment sequence
+remain in [INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md). No incident, support
+outreach, production containment, account recovery or device operation was run
+while preparing this guide. Public communication strategy, dedicated-support
+scaling thresholds, operator dashboards and actual recovery evidence remain
+separate unfinished #146 criteria.

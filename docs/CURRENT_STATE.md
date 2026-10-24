@@ -1,194 +1,62 @@
-## Standalone unlink design and recipe-detail localization — 2026-10-24
+# Current no-QA issue follow-through — 2026-10-24
 
-The source-backed `docs/plans/profile-account-unlink.md` now records the exact
-standalone unlink/rejoin gap under #557/#480: AccountLink plus LegacyMapping,
-future routine subjects, completion/Undo credit, active-profile eligibility and
-later account-erasure provenance must be reconciled atomically. Revoking a
-challenge, removing a member, or deleting AccountLink alone does not implement
-that outcome. The plan defines fresh owner/parent review, locked exact identity,
-stable receipts, domain-history/credit invariants, compatibility/rollback and
-adaptive UI. It explicitly leaves the writer, provenance/credit disposition and
-original acceptance unfinished; no unlink button, grant, schema or gate is added.
+## Source identity and boundaries
 
-Under #142, the recipe-detail route and its edit dialog now share 13 typed EN/ES
-copy keys for back/loading/not-found/error/retry/edit and meal/prep/food actions.
-Only their 16 corresponding now-translated inventory entries were removed from
-`untranslated-copy.json`; other inventory entries remain. This completes that
-bounded source-copy slice, not whole-app localization or rendered acceptance.
+Recovery checkout: `/Users/Cameron/Documents/Codex/2026-10-24/family-planner-recovery/repo`,
+branch `codex/issue-followthrough-recovered-20261024`, based on shipped-main
+`3b4e1046fee45e5924ac24b3498f0e2ef26b5669`. Local follow-through is **unpushed,
+unverified and unreleased**. Exact commits are in Git and programme issue #128;
+`../issue-followthrough-20261024.patch` and its receipt preserve the full local
+change series. Production has not been checked in this no-QA pass.
 
-40 issues remain. No QA, tests, build, lint, typecheck, browser, CI, push, merge,
-deploy, provider, account mutation or activation ran. Source remains local,
-unverified and unreleased. #557/#480/#142 remain open for genuine remaining work.
+The earlier checkout and unpublished commits f53b2df5/d403bb1e/648e6f27/5ada9688
+were not recovered. The selected connected behavior was reconstructed from the
+recorded direction/current source; original image assets remain unavailable.
+Earlier reported results belong to their exact old candidates and do not prove
+this tree. No QA, tests, build, lint, typecheck, browser, CI, push, merge, deploy,
+provider/scheduler activation, signing/provisioning or production data mutation
+ran. Authored regression source is not a passing result.
 
----
+## Current disposition
 
-## Help / Today / Add source reconstruction — 2026-10-24
+The earlier clearing pass reviewed68 and retired27 duplicate trackers after
+preserving complete requirements. The subsequent41-issue pass closed #566 for
+its complete planning deliverable only, leaving **40 genuine open issues**.
+Six documentation-only criteria are now reconciled in #134/#140/#146; all
+runtime/device/customer/production criteria remain separate and unchecked.
+No unverified feature is declared completed by source authorship.
 
-AssistantQuickStart reconstructs the selected three-section helper inside the
-existing lazy assistant panel. Help reuses the provider-free local AppGuide.
-Today opens existing plan/calendar/chores/lists/meals/inventory screens and keeps
-the existing food-planning/saved-work recovery disclosure. Add opens canonical
-role/feature-filtered event/chore/list editors, recipe discovery, meal planning,
-prep and notes. Parent-only chore creation remains parent-only. Unknown roles
-receive no shortcut entries. The existing non-chat AppGuide fallback is retained.
+| Issue / area | Current local work | Remaining boundary |
+| --- | --- | --- |
+| #470 summary mail | Original-family binding, User/household locks and bounded transport; daily claim retained | Concurrency/two-household acceptance; scheduler remains disabled |
+| #450 routines | Reviewed-start/viewer-day weekly/monthly defaults | Broader routine/recurrence/role/device acceptance |
+| #567 provider setup | Remove stale model/free-tier examples and misleading blank OpenAI hints; typed EN/ES prompts | Exact provider eligibility/privacy/transport decision; no activation |
+| #142 localization | Chore date/handoff hints and recipe detail/edit route copy in typed EN/ES; only corresponding inventory entries removed | Rest of localization and rendered/layout acceptance |
+| #372 product brand | Lowercase wordmark in Settings product heading and account/invite email wording/default sender label | Legal operator/copyright decision pending Cameron; overrides unchanged; no mail sent |
+| #499/#460 selected design | Compact Today controls, sibling calendar/chore cards, personal two-column composition, correct grocery totals and day-preserving dinner/recipe/prep links | Full accepted all-feature/role/device/rendered criteria remain |
+| #464 helper | Help/Today/Add shortcuts with existing role/feature filters and draft-aware navigation | Existing AI/voice/review/privacy/runtime criteria; no second write path |
+| #473 native contract | Per-platform capability/fallback matrix, support-window decision boundary and forward/rollback sequence | Actual supported binaries/old operations/hardware evidence and signing inputs |
+| #557/#480 identity | Existing gated linking source reconciled; standalone unlink/rejoin transaction/domain design prepared | Unlink writer, former-association provenance, credit/Undo and wider member-domain parity remain unfinished |
+| #564/#565 queue recovery | Existing source already implements retirement/generation and candidate retry; no duplicate engine added | Original storage fault/concurrency/lifecycle/rollback acceptance |
+| #566 finance | Complete source-reconciled plan retained in its completed issue and local plan | FIN-0–FIN-7 implementation remains #134/#499 with #104 source approval |
+| #146 support | Numbered20-case runbook and explicit response ownership; existing severity/stop procedure | Recovery/privacy/dashboard/backup, communications strategy and support scaling remain |
 
-Typed EN/ES copy distinguishes navigation from data retrieval or a saved action.
-No household fetch, provider request, private DTO, source proof or write is added.
-Buttons respect busy state; links recheck the current synchronous action lock
-and use the existing draft-aware router, closing only after navigation succeeds.
-The chat, voice, Today-context opt-in, explicit proposal confirmation, private
-reports and uncertain-action recovery paths remain separate. No duplicate
-chat-to-Capture transfer protocol or second action implementation is introduced.
+Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
+Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
+Native contract: `docs/architecture/NATIVE_API_COMPATIBILITY.md`.
+Finance plan: `docs/plans/finance-archive-product.md`.
 
-The selected connected experience is now reconstructed in source across compact
-Today controls, sibling cards, two-column personal layout, honest grocery totals,
-dinner/recipe/prep date context and the three-section helper. This does not
-recover the original missing commits/assets or apply their reported results to
-this tree. The original #499/#464/#460 acceptance remains open.
+## Documentation completion evidence
 
-40 issues remain. No QA, tests, build, lint, typecheck, browser, CI, push, merge,
-deployment, provider, scheduler or production action ran. All source is local,
-unverified and unreleased; no issue is closed merely because source is authored.
+Only source/document-definition criteria were checked. This is issue metadata
+reconciliation, not a QA run or validation of operating procedures:
+- #134: https://github.com/camster91/family-planner/issues/134#issuecomment-6390456598
+- #140: https://github.com/camster91/family-planner/issues/140#issuecomment-6390456925
+- #146: https://github.com/camster91/family-planner/issues/146#issuecomment-6390457242
 
----
-
-## Recipe and prep navigation day context — 2026-10-24
-
-The reconstructed meal-day helper now handles the internal meal route family.
-MealContextLink carries only a valid `start` calendar day from the current screen
-through Explore saved-recipe links, recipe back/not-found links, Plan a meal and
-Add to prep. Edited meal recipe navigation uses its edited day rather than the
-week start. Destination recipe/view queries and fragments remain intact; external
-publisher/inventory routes are unchanged and source query strings/proof values
-are not copied. A Suspense boundary avoids an active wrong-day link before route
-context is available. Existing grocery pending-click guards pass through the
-link; no recipe, meal, prep, provider or permission writes are added.
-
-MealViewNav already retains the selected start; meal/prep reuse already seeds
-editors from that start. This restores that route chain in source without a
-second planner, store or mutation path. The recorded helper Help/Today/Add
-follow-through still needs reconstruction. Current selected-plan status is in
-`docs/plans/simple-connected-experience-20261024.md`.
-
-40 issues remain. Regression source was authored/adapted, not run. No QA, tests,
-build, lint, typecheck, browser, CI, push, merge, deploy or provider action ran.
-Both the card/layout and route-context reconstructions remain unverified local
-source; no previous result or closed issue establishes their acceptance.
-
----
-
-## Selected Today card composition and context recovery — 2026-10-24
-
-Local source now reconstructs the selected sibling calendar/chore cards inside
-the existing personal NextUp slot. Calendar and chores have separate headings /
-empty states, with existing bounded counts, shared ChoreRow actions/paused-profile
-rules, owner names, completed/waiting counts and preparation/backlinks retained
-in source. The personal layout keeps two columns at desktop instead of switching
-to three. Saved ordering/hidden sections and the dedicated fridge grid remain
-separate. A calendar-only slot uses one column rather than an empty second card.
-
-Dinner links now carry the viewer calendar day into the existing Meals `start`
-query, including the empty Plan dinner card. Missing/invalid dates do not become
-guessed today; existing query/fragment context is preserved. A planned dinner can
-supply its own day when the caller has no viewer day. Recipe/prep continuation
-context and the earlier helper follow-through remain unfinished reconstruction.
-
-A concrete source bug in the grocery preview is repaired: a positive household
-open-item total with no loaded preview rows no longer says the list is clear.
-The total and direct grocery continuation remain visible. The canonical board
-query was already grocery-only; no query/data model change was needed.
-
-Existing tests were adapted and date-link / positive-total regression source was
-authored, **not executed**. 40 issues remain. No QA, tests, build, lint, typecheck,
-browser, CI, push, merge, deployment, scheduler, provider or production action ran.
-These changes are local, unverified and unreleased. Older evidence does not prove
-this reconstruction; #499/#460 and original acceptance remain open.
-
----
-
-## Compact Today controls and profile linking reconciliation — 2026-10-24
-
-The selected Glance and act direction is restored in
-`docs/plans/simple-connected-experience-20261024.md`, with reconstructed versus
-still-missing source listed explicitly. TodayControls now groups allowed event /
-chore creation in one Add disclosure, keeps Explore visible, and puts grocery,
-all-list and meal navigation in Today controls alongside refresh/settings.
-Existing role/feature restrictions, canonical destinations, 44px targets,
-Escape-to-summary focus, outside dismissal and offline refresh refusal remain
-in source. One disclosure closes the other. No feature or write permission is
-added. Existing regression source is adapted for the disclosures, not executed.
-The combined NextUp layout, desktop composition, meal context and helper
-follow-through still need recovery/reimplementation; do not claim the whole
-selected design is restored.
-
-#557/#480 source reconciliation is recorded in the existing profile activation
-plan: verified challenge/claim/approval source exists, but revoking an unfinished
-challenge is not a standalone unlink flow. Conflicting mappings stay refused;
-broader identity/domain/client acceptance stays open. No identity behavior or
-gate changed in this reconciliation.
-
-40 issues remain. No QA, tests, build, lint, typecheck, browser, CI, push, merge,
-deploy, provider or production action ran. Source remains local and unverified.
-
----
-
-## Branding and native compatibility source follow-through — 2026-10-24
-
-Local source now uses `PRODUCT_BRAND.wordmark` (lowercase herewoven) for the
-Settings product heading, verification/reset email wording, invitation subject /
-plain text, and the default mail sender display name. Addresses, tokens, session
-logic and provider configuration are unchanged; existing MAILGUN_FROM/FROM_EMAIL
-overrides still win. No email was sent. Legal page and copyright operator wording
-remain unchanged pending Cameron's legal-operator decision in #372. Product
-branding is not a legal identity decision. #372 stays open.
-
-The #473 per-platform capability/fallback matrix, supported-client decision
-boundary, forward/rollback sequence and ownership are now restored as authored
-contract in NATIVE_API_COMPATIBILITY.md and CROSS_DEVICE_ROADMAP.md. This is a
-new source reconstruction from the current checkout, not recovery of the absent
-original commit. The prior recovery note remains historical. No actual supported
-binary window is invented; current/previous client, older queued-operation and
-physical-device acceptance remain open.
-
-40 issues remain. No QA, tests, build, lint, typecheck, browser, CI, push, merge,
-deployment, signing/provisioning, provider activation or production mutation ran.
-All edits are local, unverified and unreleased. Existing genuine acceptance and
-external prerequisites stay open rather than being closed as unnecessary.
-
----
-
-## Recovered issue follow-through — 2026-10-24
-
-GitHub metadata confirms **40 open issues**, down from 41 after #566
-closed for its planning deliverable only. Complete plan: https://github.com/camster91/family-planner/issues/566#issuecomment-6389969195.
-Future FIN-0–FIN-7 implementation remains under #134/#499/#104.
-
-The prior checkout `/Users/Cameron/Documents/Codex/2026-10-07/rev/work/sick-days-sheets-499`
-is absent. A fresh checkout was recovered from shipped main `3b4e1046` at
-`/Users/Cameron/Documents/Codex/2026-10-24/family-planner-recovery/repo`.
-Prior unpublished commits `f53b2df5`, `d403bb1e`, `648e6f27`, `5ada9688`
-and their complete source trees have **not** been recovered. They are not part
-of this branch. Existing GitHub history/comments remain preserved.
-
-Restored bounded source work from the documented follow-through:
-- #470: expected household membership, user/household delivery locks and bounded
-  opt-in mail transport; daily claims and account-mail behavior retained.
-- #450: weekly/monthly defaults use reviewed start day, or viewer calendar day
-  when the editable start is absent/invalid. Invalid draft stays invalid.
-- #567: remove stale model/free-tier examples and misleading blank OpenAI setup
-  guidance; neutral EN/ES provider/model prompts. No provider decision/activation.
-- #142: translate chore date hints and nine handoff placeholders in EN/ES;
-  remove only those corresponding untranslated-copy inventory entries.
-- #566: full completed finance planning artifact restored from its issue comment.
-- #464/#460: reconcile historical documentation with existing source boundaries.
-
-Regression test source was authored, **not executed**. No QA, tests, build,
-lint, typecheck, browser, CI, push, merge, deployment, scheduler, provider call,
-production data or credentials change occurred. These edits are local and
-unverified. All affected application issues remain open. The prior #473 contract
-expansion was not recovered; its original compatibility/device acceptance stays
-open. Readiness and shipped status must not be inferred from authored source.
-
+Repeated recovery notes were consolidated here after preserving named backups in
+`../docs-before-status-consolidation-20261024/`; Git and #128 retain prior history.
+The unchanged older release/checkpoint notes below are historical evidence.
 
 ---
 
