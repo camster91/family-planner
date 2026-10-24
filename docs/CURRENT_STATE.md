@@ -44,15 +44,15 @@ No unverified feature is declared completed by source authorship.
 | #134 Projects overview | Web24-card keyset pages and opt-in API paging; one grouped task-count query per returned page | Legacy API remains unbounded; query plans, compatibility, isolation/concurrency and rendered acceptance remain unverified |
 | #141/#134 Notifications | Opt-in personal keyset API and older-page inbox reads; bounded timeout, exact retry, truthful loaded-state copy and old-server fallback | Original authorization/snooze/Undo/concurrency/rendered acceptance remains unverified; no delivery activation |
 | #134 Wishlist | Opt-in household/requester keyset API; web24-item explicit continuation; canonical target inspection for write recovery; loaded-only EN/ES state | Legacy unpaged API remains unbounded; UI fixtures adapted/unrun; role/feature/concurrency/compatibility/query/rendered acceptance unverified |
-| #104/#142 import form | Typed EN/ES semantic copy; generation-bound file reads, current-input preview and exact reviewed persistence body; consumed local approval | Approved exports/maps and real reconciliation remain unavailable; server snapshot/lifecycle, repeat/concurrency/rollback and all QA remain open |
+| #104/#142 import form | Typed EN/ES review-bound form; current-source migration rehearsal guide restored with input/provenance/repeat/rollback packet | Approved exports/maps and real reconciliation remain unavailable; server snapshot/lifecycle, repeat/concurrency/rollback and all QA remain open |
 
-Latest bounded source work localizes import settings and binds local review to
-the selected file/source/map. Stale file reads and duplicate submissions are
-guarded; persistence consumes approval and unknown outcomes remain explicit.
-Twelve owned copy records were removed; four literal labels/examples remain.
-See `docs/plans/import-review-ui.md` for the unchanged backend and remaining
-server/reconciliation boundaries. No scanner, QA/test/build/browser, CI,
-migration, import or release ran. Source cases are authored/unrun.
+Latest bounded planning work restores the missing #104 migration rehearsal guide
+from current import/backup/recovery source. It distinguishes fabricated CI from
+approved real-export reconciliation, and specifies exact input/map provenance,
+value/disposition/two-run comparisons, job lineage and rollback limits. The local
+form guard and unchanged server boundaries remain documented separately. No
+checksum calculation, fixture/real rehearsal, QA/test/build/browser, migration,
+import, CI or release ran; #104 acceptance remains open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

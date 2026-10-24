@@ -1,5 +1,7 @@
 # Runbooks
 
+- `../MIGRATION_REHEARSAL.md` — source/export approval, isolated real-export reconciliation, repeat/provenance/rollback evidence (#104); procedure only, no run or production authorization.
+
 - `RELEASE_AND_ROLLBACK.md`
 - `COOLIFY_DEPLOY.md` — existing protected-main Coolify source-build route, verified compose/Dockerfile recipe, health and revision checks, retained database/uploads, and rollback. Preserve the current application; deployment needs task-specific authorization. New setup, configuration changes and future immutable-image promotion require separate approval.
 - `INCIDENT_RESPONSE.md`

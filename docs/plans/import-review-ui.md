@@ -49,10 +49,10 @@ must not be presented as a completed migration or ownership proof.
 and SHA-256 provenance, an isolated restored-backup rehearsal, canonical value/
 count/balance/status comparisons, twice-run duplicate evidence, ImportedRecord/
 ImportJob verification, rollback/cutover evidence and recoverable source repos.
-The issue's historic docs/MIGRATION_REHEARSAL.md reference is absent from this
-recovery checkout; do not invent an executed run or copy old passing evidence.
-Prepare the actual operator rehearsal only from approved inputs and current
-backup/restore source. No real household import or erasure is authorized here.
+The referenced [migration rehearsal guide](../MIGRATION_REHEARSAL.md) has now
+been restored from current source; it records a procedure, not an executed run
+or old passing evidence. Prepare the actual operator rehearsal only from approved
+inputs and current backup/restore source. No real household import or erasure is authorized here.
 
 Source cases are authored for preview invalidation, exact reviewed persistence,
 double click/consumed review, unknown writes and out-of-order file reads. None
