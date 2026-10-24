@@ -13,6 +13,8 @@ export async function sendMail(options: {
   subject: string
   html: string
   text: string
+  /** Opt-in household delivery can bound its transport to a membership lock. */
+  signal?: AbortSignal
 }): Promise<void> {
   const apiKey = process.env.MAILGUN_API_KEY
   const domain = process.env.MAILGUN_DOMAIN || DEFAULT_DOMAIN
@@ -29,6 +31,7 @@ export async function sendMail(options: {
   const auth = Buffer.from(`api:${apiKey}`).toString('base64')
   const response = await fetch(`https://api.mailgun.net/v3/${domain}/messages`, {
     method: 'POST',
+    ...(options.signal ? { signal: options.signal } : {}),
     headers: {
       Authorization: `Basic ${auth}`,
       'Content-Type': 'application/x-www-form-urlencoded',

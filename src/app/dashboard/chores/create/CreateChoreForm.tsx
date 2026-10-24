@@ -792,7 +792,7 @@ export default function CreateChoreForm({
                   id="dueDate"
                   type={review ? "text" : "date"}
                   maxLength={80}
-                  placeholder={review ? "YYYY-MM-DD" : undefined}
+                  placeholder={review ? message("datePlaceholder") : undefined}
                   required
                   value={dueDate}
                   onChange={(e) => {
@@ -832,7 +832,7 @@ export default function CreateChoreForm({
                   className="input-apple"
                   type={review ? "text" : "date"}
                   maxLength={80}
-                  placeholder={review ? "YYYY-MM-DD" : undefined}
+                  placeholder={review ? message("datePlaceholder") : undefined}
                   value={weeklyStart}
                   min={todayKey ?? undefined}
                   aria-describedby={`${fieldId}-weekly-start-help`}

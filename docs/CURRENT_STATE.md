@@ -1,3 +1,38 @@
+## Recovered issue follow-through — 2026-10-24
+
+GitHub metadata confirms **40 open issues**, down from 41 after #566
+closed for its planning deliverable only. Complete plan: https://github.com/camster91/family-planner/issues/566#issuecomment-6389969195.
+Future FIN-0–FIN-7 implementation remains under #134/#499/#104.
+
+The prior checkout `/Users/Cameron/Documents/Codex/2026-10-07/rev/work/sick-days-sheets-499`
+is absent. A fresh checkout was recovered from shipped main `3b4e1046` at
+`/Users/Cameron/Documents/Codex/2026-10-24/family-planner-recovery/repo`.
+Prior unpublished commits `f53b2df5`, `d403bb1e`, `648e6f27`, `5ada9688`
+and their complete source trees have **not** been recovered. They are not part
+of this branch. Existing GitHub history/comments remain preserved.
+
+Restored bounded source work from the documented follow-through:
+- #470: expected household membership, user/household delivery locks and bounded
+  opt-in mail transport; daily claims and account-mail behavior retained.
+- #450: weekly/monthly defaults use reviewed start day, or viewer calendar day
+  when the editable start is absent/invalid. Invalid draft stays invalid.
+- #567: remove stale model/free-tier examples and misleading blank OpenAI setup
+  guidance; neutral EN/ES provider/model prompts. No provider decision/activation.
+- #142: translate chore date hints and nine handoff placeholders in EN/ES;
+  remove only those corresponding untranslated-copy inventory entries.
+- #566: full completed finance planning artifact restored from its issue comment.
+- #464/#460: reconcile historical documentation with existing source boundaries.
+
+Regression test source was authored, **not executed**. No QA, tests, build,
+lint, typecheck, browser, CI, push, merge, deployment, scheduler, provider call,
+production data or credentials change occurred. These edits are local and
+unverified. All affected application issues remain open. The prior #473 contract
+expansion was not recovered; its original compatibility/device acceptance stays
+open. Readiness and shipped status must not be inferred from authored source.
+
+
+---
+
 ## Web release shipped; bounded household follow-through — 2026-10-23
 
 PR #595 merged as `3691e131010ffa98ac7c5ade0f41c440261b99ea` from checked

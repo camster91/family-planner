@@ -120,7 +120,7 @@ export async function sendAccountMail(kind: AccountMailKind, options: Parameters
 
 export type OptInMailResult =
   | { sent: true }
-  | { sent: false; reason: 'opted_out' | 'unverified' | 'quiet_hours' | 'mail_not_configured' }
+  | { sent: false; reason: 'opted_out' | 'unverified' | 'quiet_hours' | 'mail_not_configured' | 'membership_changed' }
 
 /**
  * Opt-in email (O-40), e.g. the morning summary. Unlike account mail it is
@@ -133,22 +133,42 @@ export type OptInMailResult =
  * The address is the one on their row; callers cannot choose it. Throws only
  * when the provider fails.
  */
+// A provider request must finish before its membership locks can expire.
+const OPT_IN_MAIL_TRANSACTION_MS = 15_000
+const OPT_IN_MAIL_PROVIDER_MS = 10_000
+const OPT_IN_MAIL_MARGIN_MS = 2_000
+
 export async function sendOptInMail(
   kind: OptInMailKind,
-  options: { userId: string; subject: string; html: string; text: string },
+  options: { userId: string; familyId: string; subject: string; html: string; text: string },
   now: Date = new Date()
 ): Promise<OptInMailResult> {
   const column = OPT_IN_COLUMN[OPT_IN_MAIL_POLICY[kind]]
-  const row = (await prisma!.user.findUnique({
-    where: { id: options.userId },
-    select: { email: true, email_verified: true, [column]: true, ...QUIET_HOURS_SELECT },
-  })) as (Record<string, unknown> & { email?: string | null; email_verified?: boolean | null }) | null
-  if (!row || row[column] !== true) return { sent: false, reason: 'opted_out' }
-  if (row.email_verified !== true || !row.email) return { sent: false, reason: 'unverified' }
-  if (isInQuietHours(now, quietHoursFromRow(row as Parameters<typeof quietHoursFromRow>[0]))) {
-    return { sent: false, reason: 'quiet_hours' }
-  }
-  if (!isMailConfigured()) return { sent: false, reason: 'mail_not_configured' }
-  await sendMail({ to: row.email, subject: options.subject, html: options.html, text: options.text })
-  return { sent: true }
+  const deadline = Date.now() + OPT_IN_MAIL_TRANSACTION_MS - OPT_IN_MAIL_MARGIN_MS
+  return prisma!.$transaction(async tx => {
+    // Same order as removal/reassignment. Keep authorization valid through the
+    // bounded transport await; account verification/reset mail stays separate.
+    await lockUser(tx, options.userId)
+    await lockHousehold(tx, options.familyId)
+    const row = (await tx.user.findUnique({
+      where: { id: options.userId },
+      select: { family_id: true, email: true, email_verified: true, [column]: true, ...QUIET_HOURS_SELECT },
+    })) as (Record<string, unknown> & { family_id?: string | null; email?: string | null; email_verified?: boolean | null }) | null
+    if (!row || row.family_id !== options.familyId) return { sent: false, reason: 'membership_changed' }
+    if (row[column] !== true) return { sent: false, reason: 'opted_out' }
+    if (row.email_verified !== true || !row.email) return { sent: false, reason: 'unverified' }
+    if (isInQuietHours(now, quietHoursFromRow(row as Parameters<typeof quietHoursFromRow>[0]))) {
+      return { sent: false, reason: 'quiet_hours' }
+    }
+    if (!isMailConfigured()) return { sent: false, reason: 'mail_not_configured' }
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) throw new Error('Opt-in mail authorization deadline expired')
+    // An aborted remote request may already have been accepted. The caller's
+    // daily claim must remain consumed rather than replaying unknown outcomes.
+    await sendMail({
+      to: row.email, subject: options.subject, html: options.html, text: options.text,
+      signal: AbortSignal.timeout(Math.min(OPT_IN_MAIL_PROVIDER_MS, remaining)),
+    })
+    return { sent: true }
+  }, { timeout: OPT_IN_MAIL_TRANSACTION_MS })
 }

@@ -1,3 +1,128 @@
+## Recovered issue follow-through — 2026-10-24
+
+GitHub metadata confirms **40 open issues**, down from 41 after #566
+closed for its planning deliverable only. Complete plan: https://github.com/camster91/family-planner/issues/566#issuecomment-6389969195.
+Future FIN-0–FIN-7 implementation remains under #134/#499/#104.
+
+The prior checkout `/Users/Cameron/Documents/Codex/2026-10-07/rev/work/sick-days-sheets-499`
+is absent. A fresh checkout was recovered from shipped main `3b4e1046` at
+`/Users/Cameron/Documents/Codex/2026-10-24/family-planner-recovery/repo`.
+Prior unpublished commits `f53b2df5`, `d403bb1e`, `648e6f27`, `5ada9688`
+and their complete source trees have **not** been recovered. They are not part
+of this branch. Existing GitHub history/comments remain preserved.
+
+Restored bounded source work from the documented follow-through:
+- #470: expected household membership, user/household delivery locks and bounded
+  opt-in mail transport; daily claims and account-mail behavior retained.
+- #450: weekly/monthly defaults use reviewed start day, or viewer calendar day
+  when the editable start is absent/invalid. Invalid draft stays invalid.
+- #567: remove stale model/free-tier examples and misleading blank OpenAI setup
+  guidance; neutral EN/ES provider/model prompts. No provider decision/activation.
+- #142: translate chore date hints and nine handoff placeholders in EN/ES;
+  remove only those corresponding untranslated-copy inventory entries.
+- #566: full completed finance planning artifact restored from its issue comment.
+- #464/#460: reconcile historical documentation with existing source boundaries.
+
+Regression test source was authored, **not executed**. No QA, tests, build,
+lint, typecheck, browser, CI, push, merge, deployment, scheduler, provider call,
+production data or credentials change occurred. These edits are local and
+unverified. All affected application issues remain open. The prior #473 contract
+expansion was not recovered; its original compatibility/device acceptance stays
+open. Readiness and shipped status must not be inferred from authored source.
+
+### Current canonical issue directory
+
+<!-- issue-clearing-goal-20261024-current -->
+## Current issue directory after clearing goal — 2026-10-24
+
+Reviewed68; closed27 superseded trackers after preserving all original requirements;
+**40 distinct issues remain**. No QA, tests, build, lint, browser, CI, code change,
+provider activation or deployment ran in this goal. No unverified feature was
+declared completed. Older directories/checkpoints below are historical snapshots.
+Use the current table here and the transferred work packets in canonical issues.
+QA-related next actions below are retained future work, not activity authorized
+or performed by this no-QA goal. Real defects and external prerequisites remain.
+
+| Issue | Status | Owner | Next action |
+| --- | --- | --- | --- |
+| #567 — Evaluate Gemini-native family features and resolve provider eligibility | Provider decision pending | Cameron + Codex | Record an eligible provider/privacy approach before native Gemini transport work or activation. |
+| #565 — Retry recovered earlier queue stores without losing pending changes | Existing source; acceptance pending | Codex | Retain recovered-store fault/concurrency/rollback acceptance under #135/#473. |
+| #564 — Prevent stale pending-work resurrection after failed storage purge | Existing source; acceptance pending | Codex | Retain retirement/generation fault/concurrency/rollback acceptance under #135/#473. |
+| #563 — Prototype opt-in local fridge wake commands and platform voice actions | Deferred hardware feasibility | Cameron + Codex | Choose foreground/platform voice scope and target hardware before wake-word work. |
+| #557 — Verified account linking for email-free household profiles | Identity acceptance pending | Codex | Complete explicit verified linking expiry/replay/conflict/unlink/rollback after #480. |
+| #499 — All-feature UI/UX: onboarding, sheets, Today, Explore and role/device views | Integrated source; acceptance pending | Codex; Cameron product review | Use the selected Glance and act design and transferred UI/onboarding criteria; no additional design restart. |
+| #480 — Support email-free household profiles without granting login identity | Identity compatibility incomplete | Codex | Finish profile-domain compatibility and lifecycle without granting login authority to a profile. |
+| #473 — Define native web/API compatibility and all-device release capability contract | Contract work retained | Codex | Freeze the cross-device capability manifest, old-client window and rollback contract. |
+| #470 — Fix morning-summary household binding before enabling delivery | Local source repair; unverified; activation disabled | Codex; Cameron for later activation | Preserve two-household/concurrency acceptance and separate scheduler approval. |
+| #465 — Prepare iPhone app and shared native lifecycle and sharing foundation | Native iOS foundation retained | Codex; Cameron signing/hardware | Reconcile iOS lifecycle/share/offline source and required signing/device inputs. |
+| #464 — Family assistant: chat, app help, voice drafts and private feedback | Assistant source; acceptance pending | Codex | Keep Help/Today/Add and explicit canonical action review; absorb deterministic guide acceptance from #562. |
+| #460 — Explore online recipes, import readable previews and save household recipe box | Recipe source; acceptance pending | Codex | Reconcile the complete search/parse/save/reuse/grocery/prep journey with existing recovery and curation paths. |
+| #450 — Chores and routines: weekly schedules, recurring series and habit stacks | Routine source; acceptance pending | Codex | Own weekly days, repeat grouping and routine lifecycle together while preserving per-occurrence actions/history. |
+| #448 — Fix unreadable native dropdown options in dark mode app-wide | Distinct readability defect retained | Codex | Keep native dropdown light/dark/platform acceptance explicit; do not bury it as completed UI polish. |
+| #377 — Web launch and beta acceptance — consolidated release checklist | Launch acceptance; not a new QA run | Codex + Cameron | Use the current protected-main/Coolify route and preserve email, household, beta and recovery gates. |
+| #372 — Finish the Herewoven rename: legal pages, emails, Settings and the sender name | Legal/brand choice pending | Cameron | Choose legal entity/copyright and mail sender identity before modifying legal or sender copy. |
+| #363 — [Owner] Decide on Coolify Auto Deploy | Deployment policy choice pending | Cameron/operator | Record whether the existing Auto Deploy policy remains enabled; no setting change in this goal. |
+| #254 — [Data] Contract legacy meal/shopping tables (ADR-0007) — gated | Deferred destructive cleanup | Codex; Cameron approval | Wait for zero legacy use and retained recovery evidence before requesting explicit destructive cleanup approval. |
+| #146 — Operations and support: backups, proxy, mailbox and incident readiness | Operational prerequisites retained | Cameron/operator + Codex | Own recurring backups, support mailbox and trusted-proxy configuration as separate explicit operations. |
+| #145 — [Developer Platform] Harden CI/CD, environments, migrations and release automation | Release engineering retained | Codex | Keep actual CI/source/image/recovery identity contracts aligned with the current deployment route. |
+| #144 — [AI Quality] Add evaluation, grounding, cost and safety gates for household AI | AI quality gate retained | Codex | Preserve grounding/evaluation/cost/privacy criteria independently of AI product feature work. |
+| #142 — Localization: Settings, shared-device setup, dates, units and layouts | Localization source; acceptance pending | Codex | Own the transferred Settings and device-pairing locale matrix with original date/unit/native requirements. |
+| #141 — [Notifications] Build useful, restrained reminders, deep links and background delivery | Notification delivery work retained | Codex | Reconcile restrained reminders/deep links/background behavior; do not activate a scheduler here. |
+| #140 — [Analytics & Growth] Define privacy-safe activation, retention, experimentation and product learning | Deferred product learning | Codex + Cameron | Define privacy-safe activation/retention learning without inventing users or observations. |
+| #139 — [QA & Accessibility] Build automated journey, visual, accessibility and device-quality gates | Reusable quality programme retained | Codex | Keep reusable accessibility/visual/device infrastructure distinct from the final-candidate gate #105. |
+| #138 — Android and fridge app: lifecycle, shared sessions, builds and store readiness | Android release prerequisites retained | Codex; Cameron hardware/signing | Own transferred appliance/session/build requirements; unsigned CI is not hardware/store acceptance. |
+| #137 — [Reliability] Define SLOs, observability, performance budgets and scale tests for millions-ready growth | Reliability programme retained | Codex/operator | Keep observability/SLO/performance/scale acceptance distinct from ordinary release health. |
+| #136 — [Security & Privacy] Build a consumer-grade trust model for households, children and shared devices | Security/privacy programme retained | Codex | Keep direct authorization and private/shared boundaries explicit, including the separate #470 privacy defect. |
+| #135 — Sync and offline: safe queues, bundled startup recovery and multi-device behavior | Offline source; native/convergence acceptance pending | Codex; Cameron hardware | Own bundled startup/offline recovery and real-device acceptance transferred from #371/#466; retain #564/#565 as distinct defects. |
+| #134 — [Platform Architecture] Refactor backend domains, APIs and data contracts for long-term scale | Platform architecture retained | Codex | Reconcile canonical domain/API/index/retention contracts without a new backend or premature distributed rewrite. |
+| #128 — [Program] Fridge tablet household command centre — end-to-end roadmap | Canonical programme | Codex + Cameron | Use this reduced issue directory and the latest recorded next action; do not recreate superseded trackers. |
+| #125 — [Fridge Phase 7] Validate faster capture: barcode, receipt, recipe import and voice | Capture scope and acceptance retained | Codex + Cameron | Choose a bounded capture slice using observed friction and existing review/privacy contracts. |
+| #124 — Calendar interoperability and provider setup | Calendar/provider dependency retained | Codex; Cameron provider accounts | Own Google/Microsoft registration/callbacks/secrets and original interoperability/ICS acceptance. |
+| #123 — [Fridge Phase 5] Add grounded contextual AI with confirmation-gated actions | AI product source; acceptance pending | Codex | Keep grounded household proposals, explicit confirmation and recovery separate from provider eligibility and quality gates. |
+| #110 — [P2][Commercial] Validate packaging and price before implementing billing | Deferred commercial decision | Cameron/product | Use real beta evidence before pricing/provider/billing decisions; do not add billing code now. |
+| #108 — [P1][Beta] Run four weekly scorecards and five exit interviews | Waiting for beta cohort | Cameron + operations | Start four weekly scorecards and exit interviews only after the consented cohort exists. |
+| #107 — [P1][Beta] Recruit, consent, and onboard five design-partner households | Recruitment/consent input pending | Cameron | Separately authorize and consent five independent households; no external recruitment in this goal. |
+| #105 — Final release acceptance: privacy, notifications, mobile and live household smoke | Acceptance deferred; no QA in this goal | Codex/release owner | Retain the imported live-smoke checklist and original final-candidate criteria for the separately resumed acceptance phase. |
+| #104 — [P0][Migration] Reconcile approved ChoreChamps, Meal Planner, and Budget exports | Export/identity input pending | Cameron + Codex | Provide approved legacy exports/identity maps or explicitly record their disposition; never fabricate source data. |
+| #103 — [P0][Email] Configure and prove verification and password recovery delivery | Email provider/delivery input pending | Cameron/operator + Codex | Approve sender/domain/secret/test inbox and later prove real verification/recovery delivery through the runbook. |
+
+### Retired tracker map
+
+| Retired tracker | Canonical issue | Preserved requirements |
+| --- | --- | --- |
+| #84 | #377 | [Full original work packet](https://github.com/camster91/family-planner/issues/377#issuecomment-6389702111) |
+| #106 | #377 | [Full original work packet](https://github.com/camster91/family-planner/issues/377#issuecomment-6389705436) |
+| #120 | #138 | [Full original work packet](https://github.com/camster91/family-planner/issues/138#issuecomment-6389698188) |
+| #132 | #499 | [Full original work packet](https://github.com/camster91/family-planner/issues/499#issuecomment-6389702962) |
+| #133 | #499 | [Full original work packet](https://github.com/camster91/family-planner/issues/499#issuecomment-6389703791) |
+| #160 | #138 | [Full original work packet](https://github.com/camster91/family-planner/issues/138#issuecomment-6389698930) |
+| #242 | #138 | [Full original work packet](https://github.com/camster91/family-planner/issues/138#issuecomment-6389699608) |
+| #364 | #105 | [Full original work packet](https://github.com/camster91/family-planner/issues/105#issuecomment-6389706667) |
+| #365 | #146 | [Full original work packet](https://github.com/camster91/family-planner/issues/146#issuecomment-6389707437) |
+| #366 | #146 | [Full original work packet](https://github.com/camster91/family-planner/issues/146#issuecomment-6389708224) |
+| #367 | #146 | [Full original work packet](https://github.com/camster91/family-planner/issues/146#issuecomment-6389709082) |
+| #368 | #470 | [Full original work packet](https://github.com/camster91/family-planner/issues/470#issuecomment-6389709817) |
+| #369 | #124 | [Full original work packet](https://github.com/camster91/family-planner/issues/124#issuecomment-6389710704) |
+| #370 | #138 | [Full original work packet](https://github.com/camster91/family-planner/issues/138#issuecomment-6389711402) |
+| #371 | #135 | [Full original work packet](https://github.com/camster91/family-planner/issues/135#issuecomment-6389700523) |
+| #376 | #499 | [Full original work packet](https://github.com/camster91/family-planner/issues/499#issuecomment-6389704675) |
+| #443 | #142 | [Full original work packet](https://github.com/camster91/family-planner/issues/142#issuecomment-6389691634) |
+| #445 | #142 | [Full original work packet](https://github.com/camster91/family-planner/issues/142#issuecomment-6389692279) |
+| #446 | #499 | [Full original work packet](https://github.com/camster91/family-planner/issues/499#issuecomment-6389692952) |
+| #449 | #450 | [Full original work packet](https://github.com/camster91/family-planner/issues/450#issuecomment-6389693652) |
+| #451 | #450 | [Full original work packet](https://github.com/camster91/family-planner/issues/450#issuecomment-6389694249) |
+| #455 | #499 | [Full original work packet](https://github.com/camster91/family-planner/issues/499#issuecomment-6389694873) |
+| #456 | #499 | [Full original work packet](https://github.com/camster91/family-planner/issues/499#issuecomment-6389695537) |
+| #466 | #135 | [Full original work packet](https://github.com/camster91/family-planner/issues/135#issuecomment-6389701327) |
+| #560 | #499 | [Full original work packet](https://github.com/camster91/family-planner/issues/499#issuecomment-6389696132) |
+| #561 | #499 | [Full original work packet](https://github.com/camster91/family-planner/issues/499#issuecomment-6389696802) |
+| #562 | #464 | [Full original work packet](https://github.com/camster91/family-planner/issues/464#issuecomment-6389697525) |
+
+---
+
+
+---
+
 # Household follow-through — 2026-10-23
 
 The web candidate is shipped through PR #595, protected merge

@@ -1,6 +1,7 @@
 /** Authored for consolidated QA; no persistence or runtime activation. */
 import {
   firstRoutineOccurrence,
+  routineScheduleAnchorDay,
   nextRoutineOccurrence,
   normalizeRoutineSharedSchedule,
   routineResumeDay,
@@ -252,4 +253,15 @@ it("requires every omitted root to have an explicit stop or unstack decision", (
       ],
     }),
   ).toThrow(/Every original step/);
+});
+
+// Authored only; execution deferred by the user.
+it("chooses frequency defaults from the reviewed start instead of the current instant", () => {
+  const anchor = routineScheduleAnchorDay("2026-11-02", "America/Toronto", new Date("2026-10-24T12:00:00Z"));
+  expect(anchor.toISOString()).toBe("2026-11-02T00:00:00.000Z");
+  expect(anchor.getUTCDay()).toBe(1);
+  expect(anchor.getUTCDate()).toBe(2);
+});
+it.each([null, "", "2026-02-30", "invalid"])("uses the viewer day for invalid or absent editable start %s", (startsOn) => {
+  expect(routineScheduleAnchorDay(startsOn, "America/Toronto", new Date("2026-10-25T02:00:00Z")).toISOString()).toBe("2026-10-24T00:00:00.000Z");
 });

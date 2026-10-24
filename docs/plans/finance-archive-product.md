@@ -1,9 +1,10 @@
 # Preserved finance records to native household views
 
-2026-10-20 source reconciliation for #566; dependencies #104/#134/#499/#128.
-Status: delivery design authored, not promoted or accepted. This issue plans
-bounded delivery; it does not turn archived JSON into active finance features.
-No schema, backfill, account, bank, provider or live-data action was performed.
+2026-10-24 source reconciliation for #566; dependencies #104/#134/#499/#128.
+Status: bounded delivery design complete for planning review; no slice is
+promoted or accepted. This issue plans bounded delivery; it does not turn
+archived JSON into active finance features. No schema, backfill, account, bank,
+provider or live-data action was performed.
 
 ## Current source, not inferred product coverage
 
@@ -25,6 +26,36 @@ Archived source-model keys are exactly `accounts`, `bills`, `billPayments`,
 native model exists. Wishlist is already a native mapping, not another finance
 archive screen. `spendingPatterns` stays preserved reference data, not inferred
 advice or automatic budget rules.
+
+## Planning acceptance map — #566
+
+This map closes the planning questions in the issue without claiming code,
+import or release acceptance. The source inventory above is the authority for
+what exists today; the slices below are the only proposed promotion order.
+
+| #566 requirement | Reviewable design location | Explicit boundary / owner |
+| --- | --- | --- |
+| Inventory preserved models and current APIs | Current source table and the exact eleven archived keys above; FIN-0 | #104 must provide an approved export and identity map. Codex can prepare the report; Cameron decides whether the export is an approved source. |
+| Separate native views | FIN-1 through FIN-7 delivery table | Each slice has one bounded entry in Budget and one canonical target. No archive model becomes a screen by name alone. |
+| Parent-only visibility | Shared product/data rules; FIN-0 entry and every later slice | Only a fresh authenticated parent person session may read, preview, map, export or promote. Paired devices, teen/child, email-free profiles and shared AI are refused before parsing. |
+| Currency and dates | Shared rules and FIN-0 bridge | Explicit ISO currency and integer minor units; date-only values remain `YYYY-MM-DD` with source timestamp/timezone retained. Missing or conflicting semantics stay unresolved. No locale/USD inference or FX. |
+| Reconciliation and duplicate safety | Promotion steps 2–4 | Source identity is household + app + model + source ID + mapping version. A frozen hash/body/key is required; a replay reuses the original receipt and cannot create a second target. Counts and per-currency totals report unresolved/unknown separately. |
+| Provenance and history | Promotion steps 1–3 and 5 | Raw archive, source snapshot, mapping version/hash, accepted/reused/refused decision and reversal/correction history remain exportable. Imported evidence is not silently rewritten or merged. |
+| Export, erasure and departure | Promotion step 6 and current source table | Raw archive plus normalized targets, mapping/provenance, reversals and private receipt bytes are included in parent export and household erasure. A departing parent retains no household finance access. |
+| Archive promotion is not automatic | Shared rules, FIN-0 and promotion step 3 | There is no automatic archive-to-ledger conversion, bank sync, OCR, scheduler, advice or background queue. Every promotion requires a parent-reviewed mapping and explicit action. |
+| Adaptive UI and rollback | Delivery table, common Budget entry, promotion step 5 | Phone list/detail, tablet/fridge-safe summary, and desktop list/review panel use the existing rounded sheet pattern. Rollback hides new surfaces and stops promotions while preserving additive tables and readable archives. |
+
+The planning artifact is complete when this map, the source inventory and the
+bounded slice table are reviewed together. Implementation remains a separate
+issue/PR with its own schema, authorization, migration, rendered and release
+evidence; no future implementation may mark #566 complete from this document
+alone.
+
+**Planning disposition:** after this artifact is read back against #566's five
+acceptance bullets, #566 can close as a planning issue. FIN-0 through FIN-7,
+source-export identity (#104), platform/API scale (#134) and the all-feature
+UI/release work (#499/#128) remain the canonical follow-on work; closing the
+planning issue does not close or waive any of those implementation gates.
 
 ## Shared product and data rules
 

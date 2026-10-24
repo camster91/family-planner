@@ -57,10 +57,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-// Provider examples and the legacy app identity are literal data, not translated copy.
-const AI_URL_EXAMPLE =
-  "https://generativelanguage.googleapis.com/v1beta/openai";
-const AI_MODEL_EXAMPLE = "gemini-2.0-flash";
+// The legacy app identity is literal data, not translated copy.
 const LEGACY_APP_NAME = "Family Planner";
 
 // Settings is the default landing tab, so keep family-only controls out of
@@ -1153,7 +1150,7 @@ export default function SettingsClient({
                     id="aiBaseUrl"
                     value={aiBaseUrl}
                     onChange={(e) => setAiBaseUrl(e.target.value)}
-                    placeholder={AI_URL_EXAMPLE}
+                    placeholder={copy("providerUrlPlaceholder")}
                     className="input-field w-full text-sm"
                   />
                 </div>
@@ -1172,7 +1169,7 @@ export default function SettingsClient({
                     id="aiModel"
                     value={aiModel}
                     onChange={(e) => setAiModel(e.target.value)}
-                    placeholder={AI_MODEL_EXAMPLE}
+                    placeholder={copy("modelPlaceholder")}
                     className="input-field w-full text-sm"
                   />
                 </div>

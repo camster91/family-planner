@@ -10,11 +10,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/chores/create/CreateChoreForm.tsx",
-    "text": "YYYY-MM-DD",
-    "count": 2
-  },
-  {
     "file": "src/app/dashboard/emergency/page.tsx",
     "text": "@media print { @page { margin: 0.5in; size: letter; } body * { visibility: hidden; } .print-card, .print-card * { visibility: visible; } .print-card { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }",
     "count": 1
@@ -32,51 +27,6 @@
   {
     "file": "src/app/dashboard/handoff/page.tsx",
     "text": "@media print { @page { margin: 0.5in; size: letter; } body * { visibility: hidden; } .print-card, .print-card * { visibility: visible; } .print-card { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Allergies, medical info, emergency contacts...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "Any other notes for the sitter...",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Code word for emergencies: PINEAPPLE",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Dog: walk at 7pm, cat: no special care",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Emma: 8pm, Max: 8:30pm",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Grandma Jane, Uncle Bob",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Sarah",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Snacks in the pantry, fruit in the fridge",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/handoff/page.tsx",
-    "text": "e.g. Thermostat, TV codes, alarm code...",
     "count": 1
   },
   {

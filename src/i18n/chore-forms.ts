@@ -2,6 +2,7 @@ import type { Locale } from "./types";
 import type { RoutineIconKey } from "@/lib/routine-icons";
 
 export const choreFormsEnglish = {
+  datePlaceholder: "YYYY-MM-DD",
   back: "Chores",
   backToChores: "Back to Chores",
   sheetCloseLabel: "Close and return",
@@ -136,6 +137,7 @@ export const choreFormsEnglish = {
 export type ChoreFormMessage = keyof typeof choreFormsEnglish;
 
 export const choreFormsSpanish: Record<ChoreFormMessage, string> = {
+  datePlaceholder: "AAAA-MM-DD",
   back: "Tareas",
   backToChores: "Volver a tareas",
   sheetCloseLabel: "Cerrar y volver",

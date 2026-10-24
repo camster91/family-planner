@@ -6,6 +6,7 @@ import { formatWeeklyDays } from "@/lib/chore-weekdays";
 import {
   firstRoutineOccurrence,
   routineViewerDay,
+  routineScheduleAnchorDay,
 } from "@/lib/routine-schedule";
 import { Dialog } from "@/components/ui/dialog";
 import { WeeklyDaysPicker } from "@/components/chores/WeeklyDaysPicker";
@@ -62,6 +63,10 @@ export function RoutineScheduleEditor({
   onSave: (review: { at: Date; zone: string }) => void;
   onClose: () => void;
 }) {
+  const viewerZone = React.useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    [],
+  );
   const t = useRoutineScheduleText(),
     { locale } = useTranslation();
   const [stage, setStage] = React.useState(0),
@@ -126,13 +131,14 @@ export function RoutineScheduleEditor({
     });
   }
   function changeFrequency(frequency: RoutineSharedSchedule["frequency"]) {
+    const anchor = routineScheduleAnchorDay(draft.schedule.starts_on, viewerZone);
     onChange({
       ...draft,
       schedule: {
         ...draft.schedule,
         frequency,
-        weekly_days: frequency === "weekly" ? [new Date().getDay()] : [],
-        monthly_day: frequency === "monthly" ? new Date().getDate() : null,
+        weekly_days: frequency === "weekly" ? [anchor.getUTCDay()] : [],
+        monthly_day: frequency === "monthly" ? anchor.getUTCDate() : null,
       },
     });
   }

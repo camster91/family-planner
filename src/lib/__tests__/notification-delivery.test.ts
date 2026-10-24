@@ -13,7 +13,7 @@ import { deliverNotification, sendAccountMail, sendOptInMail } from '../notifica
 import { notificationServiceServer } from '../notifications-server'
 import { POST } from '@/app/api/notifications/route'
 import { isMailConfigured, sendMail } from '@/lib/mail'
-import { db, req, writesTo, USER_IDS } from '@/__tests__/helpers/two-household'
+import { db, req, writesTo, USER_IDS, FAMILY_A, FAMILY_B } from '@/__tests__/helpers/two-household'
 import { IN_APP_NOTIFICATION_TYPES } from '../notification-policy'
 
 const CHILD = USER_IDS.childA
@@ -166,7 +166,7 @@ describe('deliverNotification and quiet hours (#141, O-32)', () => {
 })
 
 describe('sendOptInMail (morning summary, O-40)', () => {
-  const mail = { userId: CHILD, subject: 'Your day', html: '<p>x</p>', text: 'x' }
+  const mail = { userId: CHILD, familyId: FAMILY_A, subject: 'Your day', html: '<p>x</p>', text: 'x' }
   const optIn = (extra: Record<string, unknown> = {}) =>
     Object.assign(db.find('user', CHILD)!, { morning_summary_enabled: true, ...extra })
 
@@ -184,7 +184,14 @@ describe('sendOptInMail (morning summary, O-40)', () => {
   it("goes to the member's own verified address, never one the caller picks", async () => {
     optIn()
     expect(await sendOptInMail('morning_summary', mail)).toEqual({ sent: true })
-    expect(sendMail).toHaveBeenCalledWith({ to: 'child-a@example.test', subject: 'Your day', html: '<p>x</p>', text: 'x' })
+    expect(sendMail).toHaveBeenCalledWith({ to: 'child-a@example.test', subject: 'Your day', html: '<p>x</p>', text: 'x', signal: expect.any(AbortSignal) })
+  })
+
+  // Authored only; execution deferred by the user.
+  it('refuses content from the original household after membership changes', async () => {
+    optIn({ family_id: FAMILY_B })
+    expect(await sendOptInMail('morning_summary', mail)).toEqual({ sent: false, reason: 'membership_changed' })
+    expect(sendMail).not.toHaveBeenCalled()
   })
 
   it('is not sent to an unverified address', async () => {
