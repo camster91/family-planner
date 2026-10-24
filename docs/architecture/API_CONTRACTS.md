@@ -1209,3 +1209,24 @@ the same failed cursor, child mine requests and target-read contradiction of
 page absence during delete recovery. None ran. Real query plans,
 concurrent changes, role/session/feature transitions, old/current server/client
 matrix, all write/recovery cases and rendered behavior remain unverified.
+
+## Legacy import authority renewal — source 2026-10-24 (#104)
+
+The existing parent-only POST /api/admin/imports/[source] success/body contract
+is unchanged. Dispatch now carries auth.payload.tv (legacy missing claim ->0)
+as an internal sessionVersion option to persisted importers; no client field
+controls it. All three writers renew original household/current-parent/mapped
+user authority under ordered User advisory locks, household lock and ordered
+User row locks before creating a job and again before canonical effects. A stale
+session returns401 with code SESSION_CHANGED; existing identity conflicts retain
+409 IDENTITY_CONFLICT. Core parent/shared-device guards still run before import.
+Internal non-HTTP callers can omit sessionVersion but not current parent/household
+and mapping validation. Pure dry-run plans remain non-writing, not review receipts.
+
+Operational failure updates are exact family/source/job + status running under
+household lock. They cannot recreate deleted jobs or overwrite completed status;
+fixed diagnostics avoid raw exception data and accounting failure does not hide
+the original refusal. No schema/client payload change, automatic retry, background
+work or provider. See plans/import-review-ui.md for exact source and remaining
+review-snapshot, real PG/concurrency/deletion/replay/reconciliation/rollback and
+compatibility acceptance. Source cases authored/unrun; no QA/import executed.

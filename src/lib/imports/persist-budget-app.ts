@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { lockImportAuthorityInTx, startImportJob, recordImportFailure } from "./import-authority";
 import { planBudgetAppImport, type BudgetAppImportPlan } from "./budget-app";
 
 const SOURCE_APP = "budget-app";
@@ -18,6 +19,7 @@ export async function importBudgetApp(
     familyId: string;
     startedBy: string;
     dryRun?: boolean;
+    sessionVersion?: number;
   },
 ): Promise<{
   plan: BudgetAppImportPlan;
@@ -32,19 +34,16 @@ export async function importBudgetApp(
   };
   if (options.dryRun !== false) return { plan, summary, jobId: null };
   if (!prisma) throw new Error("Database is not configured");
-  const job = await prisma.importJob.create({
-    data: {
-      family_id: options.familyId,
-      source_app: SOURCE_APP,
-      source_version: plan.sourceVersion,
-      status: "running",
-      dry_run: false,
-      started_by: options.startedBy,
-    },
-  });
+  const authority = {
+    familyId: options.familyId,
+    startedBy: options.startedBy,
+    sessionVersion: options.sessionVersion,
+  };
+  const job = await startImportJob(prisma, authority, SOURCE_APP, plan.sourceVersion);
   try {
     await prisma.$transaction(
       async (tx) => {
+        await lockImportAuthorityInTx(tx, authority);
         const prior = await tx.importedRecord.findMany({
           where: { family_id: options.familyId, source_app: SOURCE_APP },
         });
@@ -187,15 +186,7 @@ export async function importBudgetApp(
       { timeout: 60_000 },
     );
   } catch (error) {
-    await prisma.importJob.update({
-      where: { id: job.id },
-      data: {
-        status: "failed",
-        completed_at: new Date(),
-        error:
-          error instanceof Error ? error.message : "Unknown import failure",
-      },
-    });
+    await recordImportFailure(prisma, options.familyId, SOURCE_APP, job.id);
     throw error;
   }
   return { plan, summary, jobId: job.id };

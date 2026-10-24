@@ -6,6 +6,7 @@ import {
   runFamilyImport,
 } from "@/lib/imports/run-family-import";
 import { prisma } from "@/lib/prisma";
+import { ImportSessionChangedError } from "@/lib/imports/import-authority";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 import { HouseholdMemberIdentityConflict } from "@/lib/household-member-lifecycle";
@@ -88,11 +89,14 @@ export async function POST(
       dryRun: parsed.data.dryRun,
       familyId: auth.user.family_id,
       startedBy: auth.user.id,
+      sessionVersion: auth.payload.tv ?? 0,
     });
     return NextResponse.json(result, {
       status: parsed.data.dryRun ? 200 : 201,
     });
   } catch (error) {
+    if (error instanceof ImportSessionChangedError)
+      return NextResponse.json({ error: "Unauthorized", code: "SESSION_CHANGED" }, { status: 401 });
     if (error instanceof HouseholdMemberIdentityConflict)
       return NextResponse.json(
         { error: error.message, code: "IDENTITY_CONFLICT" },

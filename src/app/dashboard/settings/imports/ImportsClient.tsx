@@ -28,6 +28,7 @@ const resultSchema = z.object({
 function responseError(body: unknown): ImportSettingsError | null {
   if (!body || typeof body !== "object") return null;
   const value = body as { code?: unknown; error?: unknown };
+  if (value.code === "SESSION_CHANGED" || value.error === "Unauthorized") return "sessionChanged";
   if (value.code === "IDENTITY_CONFLICT") return "identityChanged";
   if (value.error === "Identity map contains users outside this family") return "foreignMapping";
   if (value.error === "Invalid source export") return "invalidExport";

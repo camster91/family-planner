@@ -130,6 +130,18 @@ reset or run cleanup suites against the real-export rehearsal copy.
     then rebuild/restore the forward rehearsal as needed to prove repeatability.
     Record every failure and discrepancy; absence of evidence stays Pending.
 
+## Current writer authority source (unverified)
+
+All three persisted importers now use `imports/import-authority.ts` before job
+creation and before effects: sorted User advisory locks, household lock and
+ordered current User row locks; current parent/household/mappings and the HTTP
+session generation are reread after waiting. Failure accounting updates only
+the owned still-running job, never recreating a deleted job or overwriting a
+completed result. This source coverage is not a signed dry-run receipt, real
+concurrency proof or source/target reconciliation result. The separate job and
+effect transactions still require original partial-outcome evidence. See
+[the exact contract](plans/import-review-ui.md). All execution remains deferred.
+
 ## Provenance and rollback limits
 
 `ImportJob` records source/version, household, actor, timestamps/status/summary;

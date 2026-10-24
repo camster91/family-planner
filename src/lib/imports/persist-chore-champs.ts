@@ -1,8 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { lockImportAuthorityInTx, startImportJob, recordImportFailure } from "./import-authority";
 import { choreAssigneeForCreateInTx } from "@/lib/chore-member-subject";
-import { lockHousehold } from "@/lib/household-lock";
-import { HouseholdMemberIdentityConflict } from "@/lib/household-member-lifecycle";
 import {
   planChoreChampsImport,
   type ChoreChampsImportPlan,
@@ -20,25 +19,6 @@ function increment(bucket: Record<string, number>, model: string) {
   bucket[model] = (bucket[model] ?? 0) + 1;
 }
 
-async function validateImportMembershipInTx(
-  tx: Prisma.TransactionClient,
-  familyId: string,
-  startedBy: string,
-  kidToUserId: Readonly<Record<string, string>>,
-) {
-  const actor = await tx.user.findFirst({
-    where: { id: startedBy, family_id: familyId, role: "parent" },
-    select: { id: true },
-  });
-  const mappedUserIds = [...new Set(Object.values(kidToUserId))];
-  const mappedUsers = await tx.user.findMany({
-    where: { id: { in: mappedUserIds }, family_id: familyId },
-    select: { id: true },
-  });
-  if (!actor || mappedUsers.length !== mappedUserIds.length)
-    throw new HouseholdMemberIdentityConflict();
-}
-
 export async function importChoreChamps(
   input: unknown,
   options: {
@@ -46,6 +26,7 @@ export async function importChoreChamps(
     startedBy: string;
     kidToUserId: Readonly<Record<string, string>>;
     dryRun?: boolean;
+    sessionVersion?: number;
   },
 ): Promise<{
   plan: ChoreChampsImportPlan;
@@ -68,36 +49,17 @@ export async function importChoreChamps(
   if (options.dryRun !== false) return { plan, summary, jobId: null };
   if (!prisma) throw new Error("Database is not configured");
 
-  const job = await prisma.$transaction(async (tx) => {
-    await lockHousehold(tx, options.familyId);
-    await validateImportMembershipInTx(
-      tx,
-      options.familyId,
-      options.startedBy,
-      options.kidToUserId,
-    );
-    return tx.importJob.create({
-      data: {
-        family_id: options.familyId,
-        source_app: SOURCE_APP,
-        source_version: plan.sourceVersion,
-        status: "running",
-        dry_run: false,
-        started_by: options.startedBy,
-      },
-    });
-  });
-
+  const authority = {
+    familyId: options.familyId,
+    startedBy: options.startedBy,
+    sessionVersion: options.sessionVersion,
+    mappedUserIds: Object.values(options.kidToUserId),
+  };
+  const job = await startImportJob(prisma, authority, SOURCE_APP, plan.sourceVersion);
   try {
     await prisma.$transaction(
       async (tx) => {
-        await lockHousehold(tx, options.familyId);
-        await validateImportMembershipInTx(
-          tx,
-          options.familyId,
-          options.startedBy,
-          options.kidToUserId,
-        );
+        await lockImportAuthorityInTx(tx, authority);
         const prior = await tx.importedRecord.findMany({
           where: { family_id: options.familyId, source_app: SOURCE_APP },
         });
@@ -421,15 +383,7 @@ export async function importChoreChamps(
       { timeout: 60_000 },
     );
   } catch (error) {
-    await prisma.importJob.update({
-      where: { id: job.id },
-      data: {
-        status: "failed",
-        completed_at: new Date(),
-        error:
-          error instanceof Error ? error.message : "Unknown import failure",
-      },
-    });
+    await recordImportFailure(prisma, options.familyId, SOURCE_APP, job.id);
     throw error;
   }
 

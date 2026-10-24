@@ -28,6 +28,7 @@ const en = {
   writeUnconfirmed: "The import result could not be confirmed. Review existing records before validating and importing again.",
   foreignMapping: "The identity map includes users outside this family. Review the mapping.",
   identityChanged: "Household identity records changed. Review the mapping and validate again.",
+  sessionChanged: "Sign in again, then validate and review the import before saving.",
   invalidExport: "This file does not match the selected app’s export format.",
   payloadTooLarge: "The import request exceeds 10 MB. Use a smaller export or mapping.",
 };
@@ -58,12 +59,13 @@ const es: Record<keyof typeof en, string> = {
   writeUnconfirmed: "No se pudo confirmar el resultado de la importación. Revisa los registros existentes antes de validar e importar de nuevo.",
   foreignMapping: "La correspondencia incluye usuarios ajenos a esta familia. Revísala.",
   identityChanged: "Las identidades del hogar han cambiado. Revisa la correspondencia y valida de nuevo.",
+  sessionChanged: "Vuelve a iniciar sesión y valida y revisa la importación antes de guardar.",
   invalidExport: "El archivo no coincide con el formato de exportación de la app seleccionada.",
   payloadTooLarge: "La solicitud de importación supera los 10 MB. Usa una exportación o correspondencia más pequeña.",
 };
 export type ImportSettingsError = "fileTooLarge" | "fileUnreadable" | "fileRequired" |
   "mappingInvalid" | "mappingObject" | "previewRequired" | "failed" |
-  "writeUnconfirmed" | "foreignMapping" | "identityChanged" | "invalidExport" | "payloadTooLarge";
+  "writeUnconfirmed" | "foreignMapping" | "identityChanged" | "sessionChanged" | "invalidExport" | "payloadTooLarge";
 const messages = { en, es };
 export function useImportSettingsText() {
   const { t } = useTranslation();

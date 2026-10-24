@@ -1,5 +1,19 @@
 # Route and domain inventory (#148)
 
+### Import writer authority source — 2026-10-24 (#104 / #136)
+
+All three persisted sources now share original-household/current-parent/mapped-
+user renewal at job creation and effects. User advisory locks precede household
+and current ordered User row locks; HTTP session generation is carried internally
+and rechecked after waiting. Stale session ->401; identity conflicts retain409.
+Internal compatibility callers still require current membership/parent/mappings.
+Failure accounting updates only owned family/source/running jobs with fixed
+content-free detail, preserving deleted/completed outcomes and the original
+error. No public body, parser/provenance/schema or scheduler change. Helper/API
+source cases are authored/unrun; exact PG locks, lifecycle, current/old clients,
+reconciliation/replay/rollback and release acceptance remain open. See the import
+review plan and API contract; no import or QA ran.
+
 ### Import form review/localization source — 2026-10-24 (#104 / #142)
 
 ImportsClient now uses typed EN/ES copy and semantic known/local failures,

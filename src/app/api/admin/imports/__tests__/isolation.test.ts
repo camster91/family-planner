@@ -23,6 +23,7 @@ jest.mock("@/lib/imports/run-family-import", () => ({
 import { GET } from "../route";
 import { POST } from "../[source]/route";
 import { runFamilyImport } from "@/lib/imports/run-family-import";
+import { ImportSessionChangedError } from "@/lib/imports/import-authority";
 import {
   db,
   req,
@@ -89,7 +90,14 @@ describe("admin imports — two households, parent only", () => {
     );
     expect(res.status).toBe(200);
     expect(run).toHaveBeenCalledWith(
-      expect.objectContaining({ familyId: "family-A", startedBy: "parent-a" }),
+      expect.objectContaining({ familyId: "family-A", startedBy: "parent-a", sessionVersion: 0 }),
     );
   });
+  it("returns an authentication refusal when the persisted importer renews a revoked session", async () => {
+    run.mockRejectedValueOnce(new ImportSessionChangedError());
+    const res = await POST(importReq("parentA", { ...body(), dryRun: false }), params({ source: "familywall" }));
+    expect(res.status).toBe(401);
+    expect((await res.json()).code).toBe("SESSION_CHANGED");
+  });
+
 });
