@@ -30,61 +30,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "Changes are only in memory. Keep this page open until they sync.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "Copy sync report",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "Queued changes are saved on this browser.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "queued changes.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "Refresh sync details",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "Report for support",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "successful sends,",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "Trouble syncing?",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "unsuccessful sends. Conflicts:",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "View counts of waiting changes, successful sends, failures and conflicts on this browser. No names, item text, account IDs or passwords are included. Nothing is sent automatically. Counts reset when this app session closes or you sign out; they are not a history of all your devices.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/help/SyncDiagnostics.tsx",
-    "text": "View sync details",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/inventory/InventoryClient.tsx",
     "text": "Open Food Facts · ODbL ↗",
     "count": 1

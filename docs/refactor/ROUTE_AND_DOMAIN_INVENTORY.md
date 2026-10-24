@@ -1,5 +1,18 @@
 # Route and domain inventory (#148)
 
+### Help sync diagnostics source — 2026-10-24 (#142 / #146)
+
+SyncDiagnostics now uses typed EN/ES keys for controls, descriptions, semantic
+clipboard/unavailable feedback and singular/plural count variants. Intl changes
+count display only; the existing content-free QueueDiagnostics JSON stays exact.
+Locale switches do not re-read, copy or send anything. Report/notice envelopes
+match the current owner during render; request generations invalidate delayed
+clipboard feedback after reload, owner change or unmount. No queue write/replay,
+provider, telemetry, permissions or export transport was added. Eleven owned
+migration records were removed by source edits; no scanner ran. Mounted-locale,
+report-byte, singular/memory and owner-change/late-copy source cases are authored
+and unrun. Original runtime/privacy/native/layout acceptance remains open.
+
 ### Recipe component localization source — 2026-10-24 (#142)
 
 RecipeDetail, RecipePicker and RecipeReuseLauncher now use typed scoped EN/ES
