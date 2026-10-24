@@ -1,5 +1,16 @@
 # Route and domain inventory (#148)
 
+### Recorded recipe localization source — 2026-10-24 (#142 / #460)
+
+PreparedRecipe history dialog now uses typed EN/ES keys for launch/title/summary,
+close/loading/refusal/retry, missing/unprepared evidence and captured-at copy.
+Captured-at rendering keeps the existing locale clock; stored timestamps and
+recipe snapshots remain unchanged. It still reads only the owned batch record,
+never substitutes today's canonical recipe, and retains generation/ID/schema/
+abort/explicit action boundaries. Eighteen owned migration records were removed;
+no scanner ran. Existing history cases remain unrun; mounted locale/value/
+layout and original history/localization acceptance remain open.
+
 ### Shared search/error copy source — 2026-10-24 (#142 / #136)
 
 SearchField default placeholder/clear/accessible name now use typed scoped EN/ES

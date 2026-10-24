@@ -32,7 +32,7 @@ No unverified feature is declared completed by source authorship.
 | #450 routines | Reviewed-start/viewer-day defaults; bounded per-series reads; gated household cursor with one-root claims and isolated failures authored | Broader routine/recurrence/role/device acceptance |
 | #134/#450 routine visibility | Internal ID/window-scoped metadata reads before visible caps; completed/verified history skips open-policy scan | Dense/undated helper work, PostgreSQL/date/root-join/query plans and original role/recurrence acceptance remain unverified |
 | #567 provider setup | Remove stale model/free-tier examples and misleading blank OpenAI hints; typed EN/ES prompts | Exact provider eligibility/privacy/transport decision; no activation |
-| #142 localization | Chore hints, recipe routes/components, sync diagnostics and shared search/error defaults in typed EN/ES; only owned inventory entries removed | Rest of localization and rendered/layout acceptance |
+| #142 localization | Chore hints, current/recorded recipe views, sync diagnostics and shared search/error defaults in typed EN/ES; only owned inventory entries removed | Rest of localization and rendered/layout acceptance |
 | #372 product brand | Lowercase wordmark in Settings product heading and account/invite email wording/default sender label | Legal operator/copyright decision pending Cameron; overrides unchanged; no mail sent |
 | #499/#460 selected design | Compact Today controls, sibling calendar/chore cards, personal two-column composition, correct grocery totals and day-preserving dinner/recipe/prep links | Full accepted all-feature/role/device/rendered criteria remain |
 | #464 helper | Help/Today/Add shortcuts with existing role/feature filters and draft-aware navigation | Existing AI/voice/review/privacy/runtime criteria; no second write path |
@@ -45,13 +45,13 @@ No unverified feature is declared completed by source authorship.
 | #141/#134 Notifications | Opt-in personal keyset API and older-page inbox reads; bounded timeout, exact retry, truthful loaded-state copy and old-server fallback | Original authorization/snooze/Undo/concurrency/rendered acceptance remains unverified; no delivery activation |
 | #134 Wishlist | Opt-in household/requester keyset API; web24-item explicit continuation; canonical target inspection for write recovery; loaded-only EN/ES state | Legacy unpaged API remains unbounded; UI fixtures adapted/unrun; role/feature/concurrency/compatibility/query/rendered acceptance unverified |
 
-Latest bounded source work localizes shared SearchField defaults and generic
-error-boundary recovery. Caller labels/custom fallbacks and explicit Retry stay
-available. The boundary no longer displays raw exceptions or passes their raw
-message/stack to its own logger; React/framework diagnostics are outside that
-claim. Four owned migration records were removed. No scanner, QA/test/build,
-browser, CI, migration, activation or release ran. Authored boundary cases are
-unrun; full runtime/role/device/privacy/compatibility acceptance stays deferred.
+Latest bounded source work moves recorded prepared-recipe dialog copy into the
+same typed EN/ES recipe presentation layer. Captured snapshots, timestamps,
+identity checks, fetch/cancel/retry and current-recipe separation stay canonical;
+locale changes alter display only. Eighteen owned migration records were removed.
+No scanner, QA/test/build/browser, CI, migration, activation or release ran.
+Existing history cases remain unrun; full runtime/layout/privacy/device acceptance
+remains deferred. Earlier completed source slices are summarized above.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
