@@ -640,6 +640,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'householdDevice', scope: { kind: 'family' }, why: 'paired tablets (and any elevation)' },
   { model: 'parentElevationPin', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'tablet PINs' },
   { model: 'responsibilityState', scope: { kind: 'family' }, why: 'consent and backup metadata before canonical targets/identities; compatibility-probed SQL' },
+  { model: 'choreTopUpCursor', scope: { kind: 'family' }, why: 'content-free foreground traversal position; compatibility-probed SQL' },
   { model: 'householdProfileLinkChallenge', scope: { kind: 'family' }, why: 'expiring profile-link proofs before identities; compatibility-probed SQL' },
   { model: 'aiUsageRequest', scope: { kind: 'family' }, why: 'content-free AI reservations, outcomes and accounting; compatibility-probed SQL' },
   { model: 'aiUsagePolicy', scope: { kind: 'family' }, why: 'household AI quota/pricing policy; compatibility-probed SQL' },

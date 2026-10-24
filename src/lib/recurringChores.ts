@@ -1,3 +1,5 @@
+import { isFairChoreTopUpEnabled } from "@/lib/chore-top-up-gates"
+import { topUpFairHouseholdSeries } from "@/lib/chore-top-up-cursor"
 import { isProfileChoreRecurrenceSupported } from '@/lib/profile-chore-gates'
 import { topUpScheduledOnceSteps } from '@/lib/routine-once-top-up'
 import { nextDueDate, startOfDay } from '@/lib/chore-recurrence-dates'
@@ -285,8 +287,9 @@ export const MAX_SERIES_PER_TOP_UP = 100
 
 /**
  * Attempt a bounded foreground top-up for a household, on read.
- * The first100 roots are selected in ID order. Fair continuation beyond that
- * batch is separate unfinished work; this cap is not a completeness guarantee.
+ * The default legacy path starts at the first100 IDs. The separately gated
+ * fair path resumes a household-owned attempted position across visits.
+ * Neither a bounded visit nor an inserted count proves every series is full.
  *
  * There is no scheduler (AGENTS.md: no cron without approval), so a series is
  * otherwise only extended when it is created, when one of its chores is
@@ -304,6 +307,9 @@ export async function topUpHouseholdSeries(familyId: string, now: Date = new Dat
   // Explicit once-only routine recovery has its own bounded pass. It neither
   // changes legacy once semantics nor consumes the repeating-template budget.
   const onceInserted = await topUpScheduledOnceSteps(prisma!, familyId, now, expandSeriesInTx)
+  if (isFairChoreTopUpEnabled()) {
+    return onceInserted + await topUpFairHouseholdSeries(prisma!, familyId, now, expandSeriesInTx)
+  }
   try {
     const templates = await prisma!.chore.findMany({
       where: { family_id: familyId, is_template: true, frequency: { not: 'once' } },

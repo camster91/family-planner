@@ -26,7 +26,7 @@ type Row = Record<string, any>
 
 function seedExtras() {
   const t = new Date('2026-09-01T00:00:00Z')
-  for (const model of ['householdProfileLinkChallenge', 'aiUsageRequest', 'aiUsagePolicy']) {
+  for (const model of ['choreTopUpCursor', 'householdProfileLinkChallenge', 'aiUsageRequest', 'aiUsagePolicy']) {
     db.rows(model).push(
       { id: `${model}-a`, family_id: FAMILY_A, user_id: 'parent-a' },
       { id: `${model}-b`, family_id: FAMILY_B, user_id: 'parent-b' },
@@ -170,7 +170,7 @@ describe('deletion plan', () => {
     const order = HOUSEHOLD_DELETION_PLAN.map((s) => s.model)
     expect(order[0]).toBe('deviceSession')
     expect(order[order.length - 1]).toBe('user')
-    for (const metadata of ['responsibilityState', 'householdProfileLinkChallenge', 'aiUsageRequest', 'aiUsagePolicy']) {
+    for (const metadata of ['responsibilityState', 'choreTopUpCursor', 'householdProfileLinkChallenge', 'aiUsageRequest', 'aiUsagePolicy']) {
       expect(order.indexOf(metadata)).toBeGreaterThan(order.indexOf('parentElevationPin'))
       expect(order.indexOf(metadata)).toBeLessThan(order.indexOf('householdMember'))
     }

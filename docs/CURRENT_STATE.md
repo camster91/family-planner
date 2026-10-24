@@ -29,7 +29,7 @@ No unverified feature is declared completed by source authorship.
 | Issue / area | Current local work | Remaining boundary |
 | --- | --- | --- |
 | #470 summary mail | Original-family binding, User/household locks and bounded transport; daily claim retained | Concurrency/two-household acceptance; scheduler remains disabled |
-| #450 routines | Reviewed-start/viewer-day defaults; per-series future read capped at its required window with explicit family scope | Broader routine/recurrence/role/device acceptance |
+| #450 routines | Reviewed-start/viewer-day defaults; bounded per-series reads; gated household cursor with one-root claims and isolated failures authored | Broader routine/recurrence/role/device acceptance |
 | #134/#450 routine visibility | Internal ID/window-scoped metadata reads before visible caps; completed/verified history skips open-policy scan | Dense/undated helper work, PostgreSQL/date/root-join/query plans and original role/recurrence acceptance remain unverified |
 | #567 provider setup | Remove stale model/free-tier examples and misleading blank OpenAI hints; typed EN/ES prompts | Exact provider eligibility/privacy/transport decision; no activation |
 | #142 localization | Chore date/handoff hints and recipe detail/edit route copy in typed EN/ES; only corresponding inventory entries removed | Rest of localization and rendered/layout acceptance |
@@ -44,13 +44,13 @@ No unverified feature is declared completed by source authorship.
 | #134 Projects overview | Web24-card keyset pages and opt-in API paging; one grouped task-count query per returned page | Legacy API remains unbounded; query plans, compatibility, isolation/concurrency and rendered acceptance remain unverified |
 | #141/#134 Notifications | Opt-in personal keyset API and older-page inbox reads; bounded timeout, exact retry, truthful loaded-state copy and old-server fallback | Original authorization/snooze/Undo/concurrency/rendered acceptance remains unverified; no delivery activation |
 
-Latest bounded source work covers routine ID/date-window visibility metadata,
-per-series recurrence reads capped at their required window, and explicit
-Projects/Notifications continuation. No policy/history/recurrence window or
-provider/scheduler activation changed. Fair repeating top-up beyond the first100
-roots, unpaged legacy reads and measured query/runtime acceptance remain open.
-Details are in `CORE_QUERY_PLAN.md` and `API_CONTRACTS.md`; no execution result
-is claimed.
+Latest bounded source work adds disabled-by-default fair repeating traversal:
+one household-owned attempted position, one committed root claim before each
+canonical effect, per-root failure isolation, and a bounded initiation budget.
+Additive schema/migration and household-deletion handling are authored only;
+no migration or flag activation occurred. The default legacy path still starts
+at the first100 roots. See `docs/plans/fair-chore-top-up.md`. Routine visibility,
+paging, performance, compatibility and original acceptance remain unverified.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { deleteOptionalHouseholdMetadataInTx } from "../account-deletion-optional";
 
 const cases = [
+  ["choreTopUpCursor", "ChoreTopUpCursor"],
   ["householdProfileLinkChallenge", "HouseholdProfileLinkChallenge"],
   ["aiUsageRequest", "AiUsageRequest"],
   ["aiUsagePolicy", "AiUsagePolicy"],

@@ -35,6 +35,7 @@ boundaries: `architecture/INVENTORY_RECOVERY.md`.
 | Account/auth | email, password hash/session/token | account owner/server | No | status only |
 | Household/member | name, role, avatar | household | limited/purposeful | pseudonymous IDs/role where needed |
 | Calendar | title/time/location/notes | household subject to role | purpose-limited; avoid sensitive details | action/status, not private text |
+| Foreground chore traversal (source only, default off) | `ChoreTopUpCursor`: one family ID and nullable attempted root ID per household | internal server only; never authorization/history/completion | No | None; fixed failure codes only |
 | Chores/tasks/rewards | assignment/status/photo | household/role | approved fields only | outcome/status |
 | Groceries/lists | item/quantity/check state | household | Yes for approved lists | action/status, avoid note text |
 | Meals/recipes | meal/recipe/ingredients | household | Yes | usage outcome, avoid free-form notes |
@@ -152,3 +153,12 @@ parent/household/session/feature and profile capability checks guard the unroute
 coordinator. No runtime endpoint, provider, schema execution, collection activation
 or new cache/offline action. Flags remain off; future adapter/action/lifecycle
 projections and consolidated acceptance remain required.
+
+## Internal foreground traversal metadata — 2026-10-24
+
+The additive ChoreTopUpCursor contains no user ID, content, credentials, media,
+prompts or timestamps. It is excluded from domain exports, shared DTOs and AI
+context. Whole-household erasure explicitly deletes it with a cascading Family
+FK as backstop; individual account removal preserves household progression.
+Migration/activation and runtime erasure acceptance remain deferred. See
+[the source contract](../plans/fair-chore-top-up.md).

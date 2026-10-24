@@ -70,7 +70,7 @@ Remaining source exceptions are real work, not a completed performance audit:
 | Legacy meal/list/item/project APIs | Older clients expect complete unpaged contracts | Identify supported consumers, migrate continuation and accept forward/rollback before changing defaults |
 | Undated/unfiltered routine visibility reads; dense date windows | A capped hidden-ID set would expose inactive/unsupported rows | Measure statement plans; design cursor/batched prefilter or equivalent safe SQL evaluation without changing policy semantics |
 | Household account/profile rosters | Attribution, assignee choices and compatibility need complete current membership | Audit consumers/cardinality and design explicit complete/continuing contract before a roster cap |
-| Recurrence foreground / explicit maintenance | Foreground once/repeating passes each select at most100 roots, but repeating roots always start in ID order; explicit expandAllRecurringChores remains a complete maintenance pass | Accept a fair continuation/failure contract beyond the repeating batch, and inspect relation/rotation work separately; do not confuse full maintenance with foreground recovery |
+| Recurrence foreground / explicit maintenance | Default repeating path starts at first100; gated one-root continuation source now authored; explicit expandAllRecurringChores remains a complete maintenance pass | Accept real cursor/concurrency/budget/rollback behavior and inspect relation/rotation work separately; no foreground completeness claim |
 | Wishlist and supporting collection screens | Current complete-family readers have no accepted continuation | Add bounded canonical read plus visible continuation, preserving role/feature/old-client behavior |
 | Export/deletion/reconciliation | Complete approved ownership/erasure coverage is intentional | Use separately scoped streaming/batching/recovery contracts; do not turn an incomplete collection page into a complete export/deletion claim |
 
@@ -108,12 +108,13 @@ concurrent unique-key behavior and PostgreSQL/query plans retain their original
 acceptance. No schema, effect protocol, window size, history, credit, membership,
 feature gate, scheduler or rollout setting changed.
 
-Known remaining source gap: repeating top-up always starts at the first100 IDs,
-so households beyond the batch do not yet have fair continuation. A cap is not a
-claim that every series was serviced. Prepare explicit bounded/fenced/retry
-semantics before introducing a durable cursor or read-side state; do not solve
-starvation with an unbounded pass, random selection or new scheduler. Rotation
-eligibility/relations and total SQL/duration still need their own measured audit.
+Fair continuation source is now authored behind two default-off acknowledgements.
+See [the exact contract](../plans/fair-chore-top-up.md): one committed attempted
+position per root, separate canonical idempotent effect, isolated failures,
+cyclic traversal and a 1,500 ms initiation budget. The additive table/migration
+is unapplied. Default legacy behavior retains first100 selection. Neither
+inserted count nor cursor means complete. PostgreSQL/concurrency/rollback,
+rotation eligibility/relations and total SQL/duration acceptance remain open.
 
 ## Index and retention work
 

@@ -340,3 +340,13 @@ in `member-relation-inventory.json` and `member-subject-inventory.json`.
 Unit evidence covers fixed scoped statements, missing-table compatibility, error
 propagation and two-household deletion/export. Real PostgreSQL FK/rollback and
 migration acceptance remain separate required checks; no live account was changed.
+
+## Optional foreground traversal metadata — source 2026-10-24
+
+`ChoreTopUpCursor` adds a content-free household attempted position. Existing
+authorized whole-household deletion probes its table and deletes its family row
+before profile/domain/Family deletion; absence supports rollback, while SQL
+failure aborts. Family ON DELETE CASCADE is a backstop. Individual account
+removal preserves this household-owned metadata. No authorization or export
+surface is added. Schema/migration and deletion fixture source are authored;
+no migration, erasure or QA has run.
