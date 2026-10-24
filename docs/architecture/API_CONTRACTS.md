@@ -1183,7 +1183,8 @@ Wishlist feature guards precede data reads. No writer permission changed.
 `GET /api/wishlist/[id]` adds one canonical household-scoped row read with the
 same guards and existing requester/status-changer projection and Decimal string
 serialization. Missing/foreign IDs return404, not foreign data. It is used only
-to inspect a mutation target independently of loaded pages; page absence cannot
+to inspect a mutation target absent from loaded pages; a present canonical
+collection row is reused without a redundant row query. Page absence cannot
 prove deletion or a failed save. Successful collection/row and missing-row
 responses are private/no-store. Existing writes/receipts are unchanged.
 
@@ -1202,8 +1203,9 @@ coverage. The new row inspection may fail against that older server, keeping
 recovery unresolved rather than inventing proof. No offline/backend copy,
 migration, index, background work or household write was introduced.
 
-No QA executed. Route/paging source cases are authored; original Wishlist UI
-fixtures using exact unpaged GET URLs need adoption of the new paged collection
-and row inspection reads before consolidated acceptance. Real query plans,
+No QA executed. Route/paging source cases and original Wishlist UI mock URL
+adoption are authored. New UI source cases cover explicit continuation, retrying
+the same failed cursor, child mine requests and target-read contradiction of
+page absence during delete recovery. None ran. Real query plans,
 concurrent changes, role/session/feature transitions, old/current server/client
 matrix, all write/recovery cases and rendered behavior remain unverified.

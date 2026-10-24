@@ -379,9 +379,10 @@ function WishlistContent() {
           if (cursor) seen.add(cursor)
           if (!cursor || !supported) break
         }
-        // Only a canonical row read can reconcile a target outside loaded
-        // pages. Collection-page absence never proves a delete or failed save.
-        if (options?.inspectId) {
+        // A present canonical collection row already provides the target.
+        // Only a separate row read can inspect absence outside loaded pages;
+        // page absence never proves a delete or failed save.
+        if (options?.inspectId && !nextItems.some(item => item.id === options.inspectId)) {
           const id = options.inspectId
           const { response, data } = await readWishlistResponse(`/api/wishlist/${encodeURIComponent(id)}`)
           if (requestId !== itemsRequestRef.current) return null
@@ -390,9 +391,7 @@ function WishlistContent() {
           else {
             const item = responseWishlistItem(data)
             if (!response.ok || !item || item.id !== id) throw new Error(t('wishlist.errorLoad'))
-            const index = nextItems.findIndex(row => row.id === id)
-            if (index < 0) nextItems = [item, ...nextItems]
-            else nextItems[index] = item
+            nextItems = [item, ...nextItems]
           }
         }
         if (requestId === itemsRequestRef.current) {

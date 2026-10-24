@@ -10,7 +10,9 @@ existing read/write permissions remain. New household-scoped GET/[id] inspects
 write targets so missing rows on a collection page never prove deletion/failure.
 EN/ES continuation, per-read timeout and stale/unmounted read suppression are
 authored. API_CONTRACTS.md records old-server fallback and remaining acceptance;
-source fixtures are authored/unrun and old UI GET mocks still need adoption.
+source fixtures and original UI GET mock URL adoption are authored/unrun.
+Present canonical page targets avoid a redundant row query; absent targets still
+require their owned row read before recovery can resolve.
 No schema/index/scheduler or new domain store.
 
 ### Routine visibility prefilter scope source — 2026-10-24 (#134/#450)
