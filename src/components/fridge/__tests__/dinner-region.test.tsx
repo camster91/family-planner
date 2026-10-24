@@ -74,3 +74,14 @@ describe('fridge dinner: linked recipe title and prep time (ADR-0007, #252)', ()
     expect(screen.getByTestId('dinner-tonight').textContent).toBe('Tofu stir-fryPrep 15 min')
   })
 })
+
+// Authored only; runtime/visual QA remains deferred.
+it('opens the viewed dinner day, including an empty planning card', () => {
+  render(<DinnerRegion day="2026-11-02" dinner={null} mealsEnabled mealsHref="/dashboard/meals" featuresHref={null} />)
+  expect(screen.getByRole('link', { name: 'Plan dinner' }).getAttribute('href')).toBe('/dashboard/meals?start=2026-11-02')
+  expect(screen.getByTestId('region-link-dinner').getAttribute('href')).toBe('/dashboard/meals?start=2026-11-02')
+})
+it('uses the existing dinner day when a caller does not supply the viewer day', () => {
+  render(<DinnerRegion dinner={{ id: 'fixture', day: '2026-11-03', recipeName: 'Soup', cookName: null }} mealsEnabled mealsHref="/dashboard/meals" featuresHref={null} />)
+  expect(screen.getByTestId('region-link-dinner').getAttribute('href')).toBe('/dashboard/meals?start=2026-11-03')
+})

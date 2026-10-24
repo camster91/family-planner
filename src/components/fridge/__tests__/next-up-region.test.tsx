@@ -78,7 +78,7 @@ it("caps the combined view, keeps room for both kinds, and exposes exact continu
   expect(screen.getByTestId("chore-done")).toHaveTextContent(
     "2 done · 1 waiting for a parent's check",
   );
-  expect(screen.getByRole("link", { name: "Calendar" })).toHaveAttribute(
+  expect(screen.getByTestId("region-link-today")).toHaveAttribute(
     "href",
     "/dashboard/calendar",
   );
@@ -138,13 +138,13 @@ it("keeps role/action restrictions and paused profile state on the shared chore 
 
 it("has a localized honest empty state without changing source data", () => {
   show({}, "es");
-  expect(screen.getByRole("heading", { name: "A continuación" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: /Hoy, abrir calendario/ })).toBeVisible();
   expect(
     screen.getByText(
-      "No hay más eventos ni tareas del hogar que mostrar aquí.",
+      "No hay nada más en el calendario hoy.",
     ),
   ).toBeVisible();
-  expect(screen.getByRole("link", { name: "Calendario" })).toHaveAttribute(
+  expect(screen.getByTestId("region-link-today")).toHaveAttribute(
     "href",
     "/dashboard/calendar",
   );

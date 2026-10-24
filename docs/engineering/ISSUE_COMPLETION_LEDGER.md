@@ -1,3 +1,32 @@
+## Selected Today card composition and context recovery — 2026-10-24
+
+Local source now reconstructs the selected sibling calendar/chore cards inside
+the existing personal NextUp slot. Calendar and chores have separate headings /
+empty states, with existing bounded counts, shared ChoreRow actions/paused-profile
+rules, owner names, completed/waiting counts and preparation/backlinks retained
+in source. The personal layout keeps two columns at desktop instead of switching
+to three. Saved ordering/hidden sections and the dedicated fridge grid remain
+separate. A calendar-only slot uses one column rather than an empty second card.
+
+Dinner links now carry the viewer calendar day into the existing Meals `start`
+query, including the empty Plan dinner card. Missing/invalid dates do not become
+guessed today; existing query/fragment context is preserved. A planned dinner can
+supply its own day when the caller has no viewer day. Recipe/prep continuation
+context and the earlier helper follow-through remain unfinished reconstruction.
+
+A concrete source bug in the grocery preview is repaired: a positive household
+open-item total with no loaded preview rows no longer says the list is clear.
+The total and direct grocery continuation remain visible. The canonical board
+query was already grocery-only; no query/data model change was needed.
+
+Existing tests were adapted and date-link / positive-total regression source was
+authored, **not executed**. 40 issues remain. No QA, tests, build, lint, typecheck,
+browser, CI, push, merge, deployment, scheduler, provider or production action ran.
+These changes are local, unverified and unreleased. Older evidence does not prove
+this reconstruction; #499/#460 and original acceptance remain open.
+
+---
+
 ## Compact Today controls and profile linking reconciliation — 2026-10-24
 
 The selected Glance and act direction is restored in

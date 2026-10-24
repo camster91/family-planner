@@ -12,10 +12,10 @@ original criteria. Use the current household/auth/backend and existing editors.
 | Requirement | Current source disposition | Remaining work |
 | --- | --- | --- |
 | Compact Today controls | Reconstructed: Add disclosure for allowed event/chore creation, Explore, Today controls with existing list/meal/refresh/settings destinations | Original role/device/keyboard/rendered acceptance is deferred |
-| Short sibling schedule and chore sections | Current recovered main still has a combined NextUpRegion | Restore the selected sibling hierarchy while retaining preparation links, per-occurrence completion, owner labels, continuation counts and hidden-section preferences |
-| Personal two-column composition | Current recovered main switches to three columns at desktop widths | Restore the selected personal composition without changing dedicated fridge grid or saved ordering |
-| Day-preserving dinner navigation | Earlier source is not recovered | Reconcile Today dinner/recipe/prep links against the actual viewed day; do not reset to browser today |
-| Honest grocery summary | Existing canonical grocery destination remains `/dashboard/lists/groceries` | Reconcile snapshot subset versus total counts; retain direct grocery versus all-list destinations and empty/multiple-list recovery |
+| Short sibling schedule and chore sections | Reconstructed source: separate calendar/chore Regions inside the existing NextUp slot, bounded rows, individual empty states, preparation/backlinks and original action callbacks | Later rendered/role/keyboard acceptance; source is unverified |
+| Personal two-column composition | Reconstructed source: personal grid stays two columns at tablet/desktop; schedule/chore pair spans the NextUp slot; dedicated fridge grid and saved order remain separate | Later responsive/layout acceptance; source is unverified |
+| Day-preserving dinner navigation | Reconstructed source: DinnerRegion receives the viewer calendar day, including empty dinner; mealDayHref preserves planner query/fragment and sets date-only start | Recipe/prep continuation context still needs reconstruction; later acceptance is deferred |
+| Honest grocery summary | Canonical board query is already grocery-only. Source repair uses the total, not loaded preview length, for clear-state wording; positive remaining totals retain continuation to `/dashboard/lists/groceries` | Later optimistic-preview/continuation/empty/multiple-list acceptance remains |
 | Connected meal context | Earlier follow-through is not recovered | Preserve selected meal day/week across recipe and prep navigation using existing canonical routes; no duplicate planner/store |
 | Helper: Help, Today and Add | Earlier follow-through is not recovered | Reconcile existing role/feature-filtered manual destinations and draft-aware navigation; preserve explicit AI proposal review and Capture ownership |
 
