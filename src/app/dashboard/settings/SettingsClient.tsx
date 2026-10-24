@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  lazy,
+  Suspense,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import LazyDeleteAccountDialog from "@/components/account/LazyDeleteAccountDialog";
@@ -218,6 +225,10 @@ export default function SettingsClient({
   const [profileLoadError, setProfileLoadError] =
     useState<SettingsFeedback | null>(null);
   const [activeSection, setActiveSection] = useState("settings-account");
+  // A provider-return callback may arrive after the lazy calendar section has
+  // mounted. Once the person explicitly chooses a tab, that late callback
+  // must not take them back to Family.
+  const hasExplicitSectionChoice = useRef(false);
   const [hasCalendarReturn, setHasCalendarReturn] = useState(false);
   const [familyContentMounted, setFamilyContentMounted] = useState(false);
   const [privacyContentMounted, setPrivacyContentMounted] = useState(false);
@@ -226,7 +237,8 @@ export default function SettingsClient({
   const privacyContentReady =
     privacyContentMounted || activeSection === "settings-privacy";
   const revealCalendarReturn = useCallback(() => {
-    if (isParent) setActiveSection("settings-family");
+    if (isParent && !hasExplicitSectionChoice.current)
+      setActiveSection("settings-family");
   }, [isParent]);
   useEffect(() => {
     const selectAnchor = () => {
@@ -664,6 +676,7 @@ export default function SettingsClient({
                 key={section}
                 aria-pressed={activeSection === id}
                 onClick={() => {
+                  hasExplicitSectionChoice.current = true;
                   setActiveSection(id);
                   window.history.replaceState(
                     window.history.state,

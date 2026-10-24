@@ -298,7 +298,9 @@ test.describe("Family A parent", () => {
     // The parent home redirects through the server-rendered dashboard route.
     // Wait for that navigation before evaluating fetch in its browser context.
     await expect(page).toHaveURL(/\/dashboard\/today$/);
-    await expect(page.locator("#main-content")).toBeVisible();
+    await expect(
+      page.getByRole("main", { name: "Herewoven dashboard", exact: true }),
+    ).toBeVisible();
     for (const path of [
       "/api/chores",
       "/api/events",
