@@ -8,7 +8,7 @@
  * Parent/teen edits use the canonical recipe PATCH; no deletion UI.
  */
 import * as React from "react";
-import Link from "next/link";
+import { MealContextLink as Link } from "@/components/meals/MealContextLink";
 import { useParams } from "next/navigation";
 import { ArrowLeft, BookOpen } from "lucide-react";
 import { FeatureGate } from "@/components/ui/feature-gate";

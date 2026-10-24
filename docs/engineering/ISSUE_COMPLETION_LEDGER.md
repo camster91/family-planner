@@ -1,3 +1,28 @@
+## Recipe and prep navigation day context — 2026-10-24
+
+The reconstructed meal-day helper now handles the internal meal route family.
+MealContextLink carries only a valid `start` calendar day from the current screen
+through Explore saved-recipe links, recipe back/not-found links, Plan a meal and
+Add to prep. Edited meal recipe navigation uses its edited day rather than the
+week start. Destination recipe/view queries and fragments remain intact; external
+publisher/inventory routes are unchanged and source query strings/proof values
+are not copied. A Suspense boundary avoids an active wrong-day link before route
+context is available. Existing grocery pending-click guards pass through the
+link; no recipe, meal, prep, provider or permission writes are added.
+
+MealViewNav already retains the selected start; meal/prep reuse already seeds
+editors from that start. This restores that route chain in source without a
+second planner, store or mutation path. The recorded helper Help/Today/Add
+follow-through still needs reconstruction. Current selected-plan status is in
+`docs/plans/simple-connected-experience-20261024.md`.
+
+40 issues remain. Regression source was authored/adapted, not run. No QA, tests,
+build, lint, typecheck, browser, CI, push, merge, deploy or provider action ran.
+Both the card/layout and route-context reconstructions remain unverified local
+source; no previous result or closed issue establishes their acceptance.
+
+---
+
 ## Selected Today card composition and context recovery — 2026-10-24
 
 Local source now reconstructs the selected sibling calendar/chore cards inside

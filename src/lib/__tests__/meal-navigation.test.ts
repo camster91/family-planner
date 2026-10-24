@@ -18,3 +18,12 @@ it("leaves unavailable and unrelated destinations alone", () => {
   expect(mealDayHref("https://example.test/dashboard/meals", "2026-11-02"))
     .toBe("https://example.test/dashboard/meals");
 });
+
+it("carries the same day through internal recipe and review destinations only", () => {
+  expect(mealDayHref("/dashboard/meals/recipes/fixture?cook=1", "2026-11-02"))
+    .toBe("/dashboard/meals/recipes/fixture?cook=1&start=2026-11-02");
+  expect(mealDayHref("/dashboard/meals/review", "2026-11-02"))
+    .toBe("/dashboard/meals/review?start=2026-11-02");
+  expect(mealDayHref("/dashboard/meals-copy", "2026-11-02"))
+    .toBe("/dashboard/meals-copy");
+});

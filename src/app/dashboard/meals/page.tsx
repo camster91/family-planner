@@ -8,6 +8,7 @@ import styles from "./meals-board.module.css";
 import Link from "next/link";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { usePathname, useSearchParams } from "next/navigation";
+import { MealContextLink } from "@/components/meals/MealContextLink";
 import { MealViewNav } from "@/components/meals/MealViewNav";
 import {
   mealCreateContext,
@@ -411,13 +412,13 @@ function MealModal({
             )}
           </div>
           {recipe && (
-            <Link
+            <MealContextLink day={date}
               href={`/dashboard/meals/recipes/${recipe.id}`}
               className="inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-[var(--accent-text)]"
             >
               <BookOpen className="w-4 h-4" aria-hidden="true" />
               <span>View recipe</span>
-            </Link>
+            </MealContextLink>
           )}
 
           <div>

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import { MealContextLink as Link } from "@/components/meals/MealContextLink";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { Dialog } from "@/components/ui/dialog";
 import { MealViewNav } from "@/components/meals/MealViewNav";

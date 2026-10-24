@@ -18,6 +18,7 @@ beforeEach(() => {
 });
 jest.mock("next/navigation", () => ({
   useParams: () => ({ id: mockRouteId }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 jest.mock("next/link", () => ({
   __esModule: true,
