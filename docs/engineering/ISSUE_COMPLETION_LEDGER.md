@@ -30,6 +30,7 @@ No unverified feature is declared completed by source authorship.
 | --- | --- | --- |
 | #470 summary mail | Original-family binding, User/household locks and bounded transport; daily claim retained | Concurrency/two-household acceptance; scheduler remains disabled |
 | #450 routines | Reviewed-start/viewer-day weekly/monthly defaults | Broader routine/recurrence/role/device acceptance |
+| #134/#450 routine visibility | Internal ID/window-scoped metadata reads before visible caps; completed/verified history skips open-policy scan | Dense/undated helper work, PostgreSQL/date/root-join/query plans and original role/recurrence acceptance remain unverified |
 | #567 provider setup | Remove stale model/free-tier examples and misleading blank OpenAI hints; typed EN/ES prompts | Exact provider eligibility/privacy/transport decision; no activation |
 | #142 localization | Chore date/handoff hints and recipe detail/edit route copy in typed EN/ES; only corresponding inventory entries removed | Rest of localization and rendered/layout acceptance |
 | #372 product brand | Lowercase wordmark in Settings product heading and account/invite email wording/default sender label | Legal operator/copyright decision pending Cameron; overrides unchanged; no mail sent |
@@ -43,7 +44,11 @@ No unverified feature is declared completed by source authorship.
 | #134 Projects overview | Web24-card keyset pages and opt-in API paging; one grouped task-count query per returned page | Legacy API remains unbounded; query plans, compatibility, isolation/concurrency and rendered acceptance remain unverified |
 | #141/#134 Notifications | Opt-in personal keyset API and older-page inbox reads; bounded timeout, exact retry, truthful loaded-state copy and old-server fallback | Original authorization/snooze/Undo/concurrency/rendered acceptance remains unverified; no delivery activation |
 
-Latest bounded implementation: Projects and Notifications paging source is
+Latest bounded implementation: routine visibility metadata now matches known
+IDs or the actual candidate date window before visible caps. History-only pages
+skip the open-row prefilter; no hidden set is truncated or policy rewritten.
+Static findings and remaining exceptions are in `CORE_QUERY_PLAN.md`.
+Projects and Notifications paging source is
 authored with scoped cursors, explicit continuation and EN/ES recovery.
 Notifications adds truthful loaded counts,15-second reads, exact older-page
 retry and old-server fallback. No QA or execution result is claimed. Protocol

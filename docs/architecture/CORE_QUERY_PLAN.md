@@ -1,6 +1,6 @@
 # Core collection query and compatibility plan — #134
 
-Source checkpoint2026-10-22. This is an execution plan and source inventory,
+Source checkpoint2026-10-24 (including unverified recovery-branch follow-through). This is an execution plan and source inventory,
 not measured SQL counts, an N+1 pass, a capacity result or production acceptance.
 Use together with OBSERVABILITY.md, API_CONTRACTS.md, SLO_AND_PERFORMANCE.md,
 the accepted modular-monolith ADR and the current web handoff. No new service,
@@ -17,6 +17,9 @@ provider, scheduler, index, infrastructure or destructive migration is authorize
 | Meal week | meal GET optional limit+1; web requests only explicit page depth | Range/family positions, refresh/Undo loaded-depth, duplicate slots and truthful partial weeks |
 | Today dinner | at most6 UTC-day queries, each2 dinner previews; at most201 ingredient lines per linked recipe | Count actual relation SQL, day/timezone edges, more-dinner signals, incomplete ingredient count withheld, shared omissions and cache/version parity |
 | Recipes and inventory | canonical list GET limit+1/offset | Offset churn, filters, nested detail reads, stable fallback and inventory completeness before ingredient claims |
+| Projects overview | Recovery source: web24+1 summaries and one grouped task-count query for returned IDs; API paging is opt-in | Current/previous client, cursor/status/family, concurrent changes, first/deep-page SQL plans and rendered recovery; legacy API remains unbounded |
+| Notifications | Recovery source: opt-in personal50+1 API pages; inbox explicitly loads older and labels partial coverage | Personal/paired auth, snooze/Undo/load races, exact retry/timeout, old-server fallback and actual SQL/index/rendered evidence |
+| Routine visibility prefilter | Recovery source: known-ID/date-window SQL before visible paging/caps; history-only pages skip open-row policy metadata | PostgreSQL inclusive/exclusive date boundaries, external-window root joins, role/profile rollback and helper/query parity; dense/default unscoped reads remain |
 | Grounded planning | bounded canonical source loaders and explicit incomplete/unknown holds | All-source coverage, locks/versions, allocations/timing, no model-invented identities, exact atomic outcomes/recovery |
 | AI reporting | reservation-before-dispatch, fixed content-free usage fields and bounded reports | Reservation concurrency/cost uncertainty, current authority, opt-out/erasure/export; real provider observations remain separate |
 
@@ -36,6 +39,44 @@ still use each legacy path. Future default changes require the existing native
 compatibility/version policy, an explicit advertised continuation contract and a
 measured deployment/rollback matrix. Retain the unbounded exceptions in #134
 until that migration is actually accepted.
+
+## Static helper findings and remaining exceptions — 2026-10-24
+
+Inspection of the canonical route/board readers identified a whole-household
+pre-read in `hiddenRoutineOccurrenceIds`. Previously, one-chore GET and Today
+windows could materialize metadata for every open scheduled occurrence before
+the visible row limit. The recovery source now accepts an internal ID/date scope:
+
+- One-chore GET supplies only its already-owned canonical ID.
+- Main Today board supplies its exact inclusive-start/exclusive-end window.
+- Personal home summary supplies its inclusive yesterday-through-tomorrow window.
+- Initial Chores supplies the earliest date from the actual open query branches.
+- Dated chore API supplies its validated from/to-exclusive bounds; completed and
+  verified history pages skip metadata because this policy never hides history.
+
+The root join remains household-scoped and is not date-filtered: a root outside
+the viewed window can still hide its selected inactive occurrence. Policy still
+runs **before** visible paging/caps and never limits the hidden set. No duplicate
+SQL policy, migration or write path was introduced. The unchanged policy keeps
+started/proof/history exceptions and rejects unsupported metadata as before.
+Raw nullable parameters use explicit timestamp/text-array casts; actual PostgreSQL
+and timezone/fixture acceptance remains unexecuted. Source binding tests and the
+fabricated SQL reader were adapted, not run.
+
+Remaining source exceptions are real work, not a completed performance audit:
+
+| Exception | Why not silently cap it | Next bounded action |
+| --- | --- | --- |
+| Legacy meal/list/item/project APIs | Older clients expect complete unpaged contracts | Identify supported consumers, migrate continuation and accept forward/rollback before changing defaults |
+| Undated/unfiltered routine visibility reads; dense date windows | A capped hidden-ID set would expose inactive/unsupported rows | Measure statement plans; design cursor/batched prefilter or equivalent safe SQL evaluation without changing policy semantics |
+| Household account/profile rosters | Attribution, assignee choices and compatibility need complete current membership | Audit consumers/cardinality and design explicit complete/continuing contract before a roster cap |
+| Recurrence top-up / legacy adoption helpers | A top-level series cap does not prove preceding helper work is bounded | Inspect adoption/expansion selection and idempotent continuation separately from display limits |
+| Wishlist and supporting collection screens | Current complete-family readers have no accepted continuation | Add bounded canonical read plus visible continuation, preserving role/feature/old-client behavior |
+| Export/deletion/reconciliation | Complete approved ownership/erasure coverage is intentional | Use separately scoped streaming/batching/recovery contracts; do not turn an incomplete collection page into a complete export/deletion claim |
+
+This is a static source refinement. No measured SQL/round-trip, EXPLAIN, load,
+capacity, N+1, rendered or production result is claimed, and #134's full audit
+criterion remains open.
 
 ## Index and retention work
 

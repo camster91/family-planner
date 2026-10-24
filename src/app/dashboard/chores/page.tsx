@@ -63,10 +63,14 @@ export default async function ChoresPage() {
     ...choreSubjectInclude,
     creator: { select: { name: true } },
   } as const;
-  const hiddenRoutineIds = familyId
-    ? await hiddenRoutineOccurrenceIds(prisma!, familyId)
-    : [];
   const queries = familyId ? currentChoreQueries(familyId) : null;
+  // Metadata can be scoped to the same open-row window before the page cap.
+  // Completed review/history rows are never hidden by this policy.
+  const hiddenRoutineIds = familyId && queries
+    ? await hiddenRoutineOccurrenceIds(prisma!, familyId, {
+        from: new Date(Math.min(...queries.open.where.OR.map(filter => filter.due_date.gte.getTime()))),
+      })
+    : [];
   const [open, awaitingCheck, history] = queries
     ? await Promise.all([
         prisma!.chore.findMany({

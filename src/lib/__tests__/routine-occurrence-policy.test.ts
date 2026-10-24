@@ -240,7 +240,7 @@ describe("routine occurrence read/action policy source", () => {
     expect(await hiddenRoutineOccurrenceIds(tx, "family-a")).toEqual([
       "fixture-root",
     ]);
-    expect(raw.mock.calls[0].slice(1)).toEqual(["family-a"]);
+    expect(raw.mock.calls[0].slice(1)).toEqual(["family-a", null, null, null, null, null, null, null, null]);
     raw.mockResolvedValueOnce([root()]);
     expect(
       await routineOccurrencePolicyInTx(tx, "family-a", "fixture-root"),
@@ -251,4 +251,28 @@ describe("routine occurrence read/action policy source", () => {
       "unsupported",
     );
   });
+});
+
+// Authored for the deferred QA pass; actual PostgreSQL/window acceptance remains.
+it("scopes hidden occurrence SQL before the visible page cap while retaining the root join", async () => {
+  const raw = jest.fn(async (..._args: unknown[]) => [] as RoutineOccurrenceSnapshot[]);
+  const tx = { $queryRaw: raw } as unknown as Prisma.TransactionClient;
+  const from = new Date("2026-10-23T00:00:00Z");
+  const through = new Date("2026-10-25T00:00:00Z");
+  const before = new Date("2026-10-26T00:00:00Z");
+  await hiddenRoutineOccurrenceIds(tx, "family-a", { ids: ["fixture-root", "fixture-root"], from, through, before });
+  const sql = (raw.mock.calls[0][0] as TemplateStringsArray).join("?");
+  expect(raw.mock.calls[0].slice(1)).toEqual(["family-a", ["fixture-root"], ["fixture-root"], from, from, through, through, before, before]);
+  expect(sql).toContain('c."id" = ANY(?::text[])');
+  expect(sql).toContain('c."due_date" >= ?::timestamp');
+  expect(sql).toContain('c."due_date" <= ?::timestamp');
+  expect(sql).toContain('c."due_date" < ?::timestamp');
+  expect(sql).toContain('r."family_id" = c."family_id"');
+  expect(sql).not.toContain("LIMIT");
+});
+it("does not read metadata for an explicitly empty selection", async () => {
+  const raw = jest.fn();
+  const tx = { $queryRaw: raw } as unknown as Prisma.TransactionClient;
+  expect(await hiddenRoutineOccurrenceIds(tx, "family-a", { ids: [] })).toEqual([]);
+  expect(raw).not.toHaveBeenCalled();
 });

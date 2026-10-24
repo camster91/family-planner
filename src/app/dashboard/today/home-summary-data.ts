@@ -119,7 +119,9 @@ export async function loadHomeSummary(
 ): Promise<HomeSummaryData> {
   const start = startOfTodayUTC(opts.now ?? new Date())
   const isParent = opts.role === 'parent'
-  const hiddenRoutineIds = await hiddenRoutineOccurrenceIds(db, opts.familyId)
+  const hiddenRoutineIds = await hiddenRoutineOccurrenceIds(db, opts.familyId, {
+    from: addUTCDays(start, -1), through: addUTCDays(start, 1),
+  })
   const [chores, profileCompatibilityProbe, members, toCheckCount] = await Promise.all([
     // Due dates are UTC-midnight date-only values: yesterday..tomorrow covers
     // "today" in any zone; the client picks the viewer's local day.

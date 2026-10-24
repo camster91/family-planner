@@ -100,7 +100,13 @@ async function handleGET(request: NextRequest) {
     const range = parseChoreDateRange(searchParams)
     if (!range.ok) return apiError(400, 'INVALID_QUERY', range.error, { requestId: getRequestId(request) })
 
-    const hiddenRoutineIds = await hiddenRoutineOccurrenceIds(prisma!, auth.user.family_id)
+    // Completed/verified history is never removed by the open-occurrence
+    // visibility policy, so those pages do not need its metadata scan.
+    const hiddenRoutineIds = status === 'completed' || status === 'verified'
+      ? []
+      : await hiddenRoutineOccurrenceIds(prisma!, auth.user.family_id, {
+          from: range.from, before: range.toExclusive,
+        })
     const where: Record<string, unknown> = { family_id: auth.user.family_id, id: { notIn: hiddenRoutineIds } }
     if (status) where.status = status
     if (assigned_to) where.assigned_to = assigned_to
@@ -185,7 +191,7 @@ async function getOneChore(id: string, familyId: string, request: NextRequest) {
       creator: { select: { id: true, name: true } },
     },
   })
-  if (!chore || (await hiddenRoutineOccurrenceIds(prisma!, familyId)).includes(id)) return choreJson({ error: 'Chore not found' }, { status: 404 })
+  if (!chore || (await hiddenRoutineOccurrenceIds(prisma!, familyId, { ids: [id] })).includes(id)) return choreJson({ error: 'Chore not found' }, { status: 404 })
   // A generated copy is stored as 'once'; the edit form shows its series' frequency.
   const template =
     chore.recurrence_id && chore.recurrence_id !== chore.id

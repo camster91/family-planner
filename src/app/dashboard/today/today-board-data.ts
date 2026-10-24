@@ -416,7 +416,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         })
       : undefined
 
-  const hiddenRoutineIds = await hiddenRoutineOccurrenceIds(db, familyId)
+  const hiddenRoutineIds = await hiddenRoutineOccurrenceIds(db, familyId, { from: windowStart, before: windowEnd })
   const choreWhere = {
     family_id: familyId,
     id: { notIn: hiddenRoutineIds },

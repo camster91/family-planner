@@ -922,10 +922,19 @@ export const fakePrisma: any = new Proxy(
           return db.rows('chore').filter(row => row.family_id === familyId && (row.id === choreId || (series && row.id === selected?.recurrence_id))).map(row => ({ routine_series_config: row.routine_series_config ?? null }))
         }
         if (sql.startsWith('SELECT c."id", c."recurrence_id", r."id" AS root_id')) {
-          const familyId = values[0], choreId = values[1]
+          const familyId = values[0], selection = values[1]
           const hiddenRead = sql.includes("c.\"status\" IN")
-          return db.rows('chore').filter(row => row.family_id === familyId &&
-            (choreId == null || row.id === choreId)).flatMap(row => {
+          const selected = Array.isArray(selection) ? selection : null
+          const choreId = typeof selection === 'string' ? selection : null
+          const from = hiddenRead ? values[3] as Date | null : null
+          const through = hiddenRead ? values[5] as Date | null : null
+          const before = hiddenRead ? values[7] as Date | null : null
+          return db.rows('chore').filter(row => {
+            if (row.family_id !== familyId || (choreId !== null && row.id !== choreId) ||
+              (selected !== null && !selected.includes(row.id))) return false
+            const when = row.due_date instanceof Date ? row.due_date.getTime() : Date.parse(String(row.due_date))
+            return (!from || when >= from.getTime()) && (!through || when <= through.getTime()) && (!before || when < before.getTime())
+          }).flatMap(row => {
               const root = db.find('chore', String(row.recurrence_id))
               const scopedRoot = root?.family_id === familyId ? root : null
               const own = row.routine_series_config ?? null, config = scopedRoot?.routine_series_config ?? null

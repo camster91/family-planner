@@ -67,11 +67,25 @@ export function routineOccurrencePolicy(
     : "scheduled";
 }
 type Reader = Pick<PrismaClient, "$queryRaw">;
-/** Filters execute before ordinary paging/caps. All joins stay household-scoped. */
+export type RoutineVisibilityReadScope = {
+  ids?: readonly string[];
+  from?: Date | null;
+  through?: Date | null;
+  before?: Date | null;
+};
+/** Filters execute before ordinary paging/caps. Scope must cover the caller's
+ * complete candidate set; never derive it from already-truncated result rows.
+ * Root metadata still joins independently of the occurrence's selected dates. */
 export async function hiddenRoutineOccurrenceIds(
   db: Reader,
   familyId: string,
+  scope: RoutineVisibilityReadScope = {},
 ): Promise<string[]> {
+  if (scope.ids?.length === 0) return [];
+  const selected = scope.ids ? [...new Set(scope.ids)] : null;
+  const from = scope.from ?? null;
+  const through = scope.through ?? null;
+  const before = scope.before ?? null;
   const rows = await db.$queryRaw<RoutineOccurrenceSnapshot[]>`
     SELECT c."id", c."recurrence_id", r."id" AS root_id, r."recurrence_id" AS root_recurrence_id,
       c."routine_series_config" AS own_config, r."routine_series_config" AS series_config,
@@ -79,6 +93,10 @@ export async function hiddenRoutineOccurrenceIds(
       c."completed_at", c."successor_id", c."member_subject_erased"
     FROM "Chore" c LEFT JOIN "Chore" r ON r."id" = c."recurrence_id" AND r."family_id" = c."family_id"
     WHERE c."family_id" = ${familyId} AND c."status" IN ('pending', 'in_progress', 'overdue')
+      AND (${selected}::text[] IS NULL OR c."id" = ANY(${selected}::text[]))
+      AND (${from}::timestamp IS NULL OR c."due_date" >= ${from}::timestamp)
+      AND (${through}::timestamp IS NULL OR c."due_date" <= ${through}::timestamp)
+      AND (${before}::timestamp IS NULL OR c."due_date" < ${before}::timestamp)
       AND (c."routine_series_config" IS NOT NULL OR r."routine_series_config" IS NOT NULL)`;
   return rows
     .filter((row) =>

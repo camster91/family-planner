@@ -1,5 +1,18 @@
 # Route and domain inventory (#148)
 
+### Routine visibility prefilter scope source — 2026-10-24 (#134/#450)
+
+`hiddenRoutineOccurrenceIds` now accepts internal occurrence IDs and inclusive /
+exclusive due-date bounds. Known chore GET, main Today window, personal home
+summary, initial Chores window and dated chore API narrow metadata before visible
+paging/caps; completed/verified history skips the open-occurrence scan. Root
+metadata joins remain independent of the occurrence window and household-scoped.
+No visible/hidden row cap, policy rewrite, schema, grant or write is introduced.
+The dense/unscoped/default helper path and recurrence/roster fanout remain explicit
+CORE_QUERY_PLAN work. Fabricated SQL/query-binding regression source is adapted,
+not run; PostgreSQL/window/role/profile/rollback acceptance remains deferred.
+
+
 ### Notifications older-page read source — 2026-10-24 (#134/#141)
 
 Existing GET `/api/notifications` adds opt-in scoped limit/cursor paging while
