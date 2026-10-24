@@ -2823,25 +2823,5 @@
     "file": "src/components/meals/RecipeCookingView.tsx",
     "text": "Vista previa. Solo cambian las cantidades de ingredientes; los pasos y tiempos conservan el texto original. La receta guardada no cambia.",
     "count": 1
-  },
-  {
-    "file": "src/components/ui/error-boundary.tsx",
-    "text": "An unexpected error occurred.",
-    "count": 1
-  },
-  {
-    "file": "src/components/ui/error-boundary.tsx",
-    "text": "Something went wrong",
-    "count": 1
-  },
-  {
-    "file": "src/components/ui/error-boundary.tsx",
-    "text": "Try Again",
-    "count": 1
-  },
-  {
-    "file": "src/components/ui/search-field.tsx",
-    "text": "Clear",
-    "count": 1
   }
 ]

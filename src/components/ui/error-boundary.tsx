@@ -2,6 +2,8 @@
 
 import { Component, ReactNode } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { useSharedControlsText } from '@/i18n/shared-controls'
+import { describeError, log } from '@/lib/logger'
 
 interface Props {
   children: ReactNode
@@ -10,7 +12,6 @@ interface Props {
 
 interface State {
   hasError: boolean
-  error?: Error
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -19,12 +20,13 @@ export class ErrorBoundary extends Component<Props, State> {
     this.state = { hasError: false }
   }
 
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error }
+  static getDerivedStateFromError(): State {
+    return { hasError: true }
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error boundary caught:', error, errorInfo)
+  componentDidCatch(error: Error) {
+    // Exception messages/stacks can contain household content or provider data.
+    log.error('ui.error_boundary', describeError(error))
   }
 
   render() {
@@ -33,24 +35,25 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback
       }
 
-      return (
-        <div className="flex flex-col items-center justify-center p-8 text-center">
-          <AlertTriangle className="w-12 h-12 text-warning-text mb-4" />
-          <h3 className="text-lg font-semibold text-foreground mb-2">Something went wrong</h3>
-          <p className="text-sm text-muted-foreground mb-4 max-w-md">
-            {this.state.error?.message || 'An unexpected error occurred.'}
-          </p>
-          <button
-            onClick={() => this.setState({ hasError: false, error: undefined })}
-            className="btn-primary flex items-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Try Again
-          </button>
-        </div>
-      )
+      return <DefaultErrorFallback onRetry={() => this.setState({ hasError: false })} />
     }
 
     return this.props.children
   }
+}
+
+/** Hook-based chrome keeps locale changes independent of the caught subtree. */
+function DefaultErrorFallback({ onRetry }: { onRetry: () => void }) {
+  const text = useSharedControlsText()
+  return (
+    <div role="alert" className="flex flex-col items-center justify-center p-8 text-center">
+      <AlertTriangle className="w-12 h-12 text-warning-text mb-4" aria-hidden="true" />
+      <h3 className="text-lg font-semibold text-foreground mb-2">{text('errorTitle')}</h3>
+      <p className="text-sm text-muted-foreground mb-4 max-w-md">{text('errorMessage')}</p>
+      <button type="button" onClick={onRetry} className="btn-primary min-h-11 flex items-center gap-2">
+        <RefreshCw className="w-4 h-4" aria-hidden="true" />
+        {text('tryAgain')}
+      </button>
+    </div>
+  )
 }

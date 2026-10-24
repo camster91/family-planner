@@ -1,5 +1,17 @@
 # Route and domain inventory (#148)
 
+### Shared search/error copy source — 2026-10-24 (#142 / #136)
+
+SearchField default placeholder/clear/accessible name now use typed scoped EN/ES
+keys; caller labels, controlled input values, submission and clear/focus behavior
+remain. ErrorBoundary generic title/message/Retry use the same scoped dictionary
+through a hook-based fallback. Raw caught exception messages are no longer UI
+copy, and componentDidCatch passes only describeError's redacted identity to the
+existing logger. This does not suppress framework/browser diagnostics. Custom
+fallbacks and explicit subtree retry remain. Four owned migration records were
+removed; no scanner ran. Localization/redaction/retry/custom-fallback source
+cases are authored/unrun. No rendered or broad privacy/release proof is claimed.
+
 ### Help sync diagnostics source — 2026-10-24 (#142 / #146)
 
 SyncDiagnostics now uses typed EN/ES keys for controls, descriptions, semantic
