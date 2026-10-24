@@ -1162,3 +1162,48 @@ pages, load/write races, timeout/unmount, old-server recovery and EN/ES
 keyboard/phone/tablet journeys remain unexecuted. Evaluate a user/created_at/id
 index against representative query plans before a separate migration; the row
 limit alone is not a bounded-DB-work or scale proof.
+
+## Wishlist continuation and row recovery — source 2026-10-24 (#134)
+
+`GET /api/wishlist` still returns the full `{items}` contract and original
+created-descending ordering when no paging arguments are present. This legacy
+exception remains explicitly unbounded. New opt-in `limit=1..100` returns at most
+limit rows plus `nextCursor: string | null`, reading limit+1 internally. Paged
+order is created_at DESC, id ASC. Cursor positions bind version, authenticated
+household and requester filter; lexical canonical base64url and strict tuple
+validation reject malformed/duplicate/cross-scope positions. They confer no
+access and do not choose household ownership.
+
+Optional `mine=true|false` requires limit. True filters requested_by to the
+current authenticated user **before** paging; false/absent retains household
+read scope. Duplicate/invalid mine, limit and cursor parameters refuse with400;
+cursor requires limit. The existing family authentication/shared-device and
+Wishlist feature guards precede data reads. No writer permission changed.
+
+`GET /api/wishlist/[id]` adds one canonical household-scoped row read with the
+same guards and existing requester/status-changer projection and Decimal string
+serialization. Missing/foreign IDs return404, not foreign data. It is used only
+to inspect a mutation target independently of loaded pages; page absence cannot
+prove deletion or a failed save. Successful collection/row and missing-row
+responses are private/no-store. Existing writes/receipts are unchanged.
+
+The web requests24 per page, server-filtered own wishes for child/teen and
+household wishes for parents. It loads more only on explicit action, keeps the
+same cursor on error, rejects repeated cursors, deduplicates concurrent-page IDs
+and re-reads only viewer-loaded depth after a write. Per-read body/transport
+has a15s timeout, generations suppress obsolete/unmounted read application, and
+background page refresh blocks concurrent continuation. These are authored
+controls, not measured latency or rendered behavior.
+
+Loaded-only summaries/empty copy, EN/ES continuation and guarded focus recovery
+avoid claiming unloaded data is absent. An older server that ignores paging
+retains its legacy response; missing continuation metadata is treated as unknown
+coverage. The new row inspection may fail against that older server, keeping
+recovery unresolved rather than inventing proof. No offline/backend copy,
+migration, index, background work or household write was introduced.
+
+No QA executed. Route/paging source cases are authored; original Wishlist UI
+fixtures using exact unpaged GET URLs need adoption of the new paged collection
+and row inspection reads before consolidated acceptance. Real query plans,
+concurrent changes, role/session/feature transitions, old/current server/client
+matrix, all write/recovery cases and rendered behavior remain unverified.

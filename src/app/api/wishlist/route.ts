@@ -13,6 +13,8 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { createWishlistItemSchema } from '@/lib/validations'
 
+import { parseWishlistPaging, encodeWishlistCursor, afterWishlistCursor } from '@/lib/wishlist-paging'
+
 export const dynamic = 'force-dynamic'
 
 // GET /api/wishlist - List wishlist items
@@ -24,23 +26,41 @@ export async function GET(request: NextRequest) {
     const gate = await featureGate(auth.user.family_id, 'wishlist')
     if (gate) return gate
 
+    const params = request.nextUrl.searchParams
+    const scope = {
+      familyId: auth.user.family_id,
+      requesterId: params.get('mine') === 'true' ? auth.user.id : null,
+    }
+    const paging = parseWishlistPaging(params, scope)
+    if (!paging.ok) return NextResponse.json({ error: paging.error }, { status: 400 })
     const items = await prisma!.wishlistItem.findMany({
-      where: { family_id: auth.user.family_id },
+      where: {
+        family_id: scope.familyId,
+        ...(paging.paged && scope.requesterId ? { requested_by: scope.requesterId } : {}),
+        ...(paging.paged && paging.cursor ? afterWishlistCursor(paging.cursor) : {}),
+      },
       include: {
         requester: { select: { id: true, name: true } },
         status_changer: { select: { id: true, name: true } },
       },
-      orderBy: { created_at: 'desc' },
+      orderBy: paging.paged ? [{ created_at: 'desc' }, { id: 'asc' }] : { created_at: 'desc' },
+      ...(paging.paged ? { take: paging.limit + 1 } : {}),
     })
 
     // Serialize Decimal to string for JSON
-    const serialized = items.map((item) => ({
+    const hasMore = paging.paged && items.length > paging.limit
+    const page = paging.paged ? items.slice(0, paging.limit) : items
+    const serialized = page.map((item) => ({
       ...item,
       approx_price:
         item.approx_price == null ? null : item.approx_price.toString(),
     }))
 
-    return NextResponse.json({ items: serialized })
+    return NextResponse.json({
+      items: serialized,
+      ...(paging.paged ? { nextCursor: hasMore && page.length
+        ? encodeWishlistCursor(scope, page[page.length - 1]) : null } : {}),
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (err) {
     logRouteError('GET /api/wishlist', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

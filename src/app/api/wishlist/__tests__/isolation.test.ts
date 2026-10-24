@@ -17,6 +17,7 @@ describe("wishlist — two households", () => {
   it("returns 401 to an unauthenticated caller on every handler", async () => {
     const statuses = [
       (await wishlist.GET(req())).status,
+      (await item.GET(req(), params({ id: "wish-a" }))).status,
       (await wishlist.POST(req({ body: { title: "x" } }))).status,
       (await item.PATCH(req({ body: { title: "x" } }), params({ id: "wish-a" }))).status,
       (await item.DELETE(req(), params({ id: "wish-a" }))).status,
@@ -31,7 +32,29 @@ describe("wishlist — two households", () => {
     expect(body.items.map((i: any) => i.id)).toEqual(["wish-a"]);
   });
 
+  it("reads one owned canonical item for recovery without a write", async () => {
+    const response = await item.GET(req({ as: "parentA" }), params({ id: "wish-a" }));
+    expect(response.status).toBe(200);
+    const body = await expectNoForeignData(response);
+    expect(body.item.id).toBe("wish-a");
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("filters a paged personal view before the row cap and never uses a supplied family", async () => {
+    const response = await wishlist.GET(req({ as: "childA", query: {
+      limit: "1", mine: "true", family_id: "family-B",
+    } }));
+    const body = await expectNoForeignData(response);
+    expect(body.items.map((row: any) => row.id)).toEqual(["wish-a"]);
+    expect(body.nextCursor).toBeNull();
+    const sibling = await wishlist.GET(req({ as: "teenA", query: { limit: "1", mine: "true" } }));
+    expect((await sibling.json()).items).toEqual([]);
+    expect(db.writes).toHaveLength(0);
+  });
+
   it("refuses to edit, delete or change status of another family's item", async () => {
+    await expectDenied(await item.GET(req({ as: "parentA" }), params({ id: "wish-b" })));
     await expectDenied(await item.PATCH(req({ as: "parentA", body: { title: "x" } }), params({ id: "wish-b" })));
     await expectDenied(await item.DELETE(req({ as: "parentA" }), params({ id: "wish-b" })));
     await expectDenied(await setStatus(req({ as: "parentA", body: { status: "received" } }), params({ id: "wish-b" })));

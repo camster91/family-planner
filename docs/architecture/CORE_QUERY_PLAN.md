@@ -18,6 +18,7 @@ provider, scheduler, index, infrastructure or destructive migration is authorize
 | Today dinner | at most6 UTC-day queries, each2 dinner previews; at most201 ingredient lines per linked recipe | Count actual relation SQL, day/timezone edges, more-dinner signals, incomplete ingredient count withheld, shared omissions and cache/version parity |
 | Recipes and inventory | canonical list GET limit+1/offset | Offset churn, filters, nested detail reads, stable fallback and inventory completeness before ingredient claims |
 | Projects overview | Recovery source: web24+1 summaries and one grouped task-count query for returned IDs; API paging is opt-in | Current/previous client, cursor/status/family, concurrent changes, first/deep-page SQL plans and rendered recovery; legacy API remains unbounded |
+| Wishlist | Recovery source: opt-in limit+1 with household/requester keyset; web24 per action, one-row mutation inspection and loaded-depth refresh | Old unpaged API remains complete/unbounded; requester filters/ties/concurrent changes, original UI fixture adoption and SQL/rendered acceptance |
 | Notifications | Recovery source: opt-in personal50+1 API pages; inbox explicitly loads older and labels partial coverage | Personal/paired auth, snooze/Undo/load races, exact retry/timeout, old-server fallback and actual SQL/index/rendered evidence |
 | Routine visibility prefilter | Recovery source: known-ID/date-window SQL before visible paging/caps; history-only pages skip open-row policy metadata | PostgreSQL inclusive/exclusive date boundaries, external-window root joins, role/profile rollback and helper/query parity; dense/default unscoped reads remain |
 | Grounded planning | bounded canonical source loaders and explicit incomplete/unknown holds | All-source coverage, locks/versions, allocations/timing, no model-invented identities, exact atomic outcomes/recovery |
@@ -67,11 +68,11 @@ Remaining source exceptions are real work, not a completed performance audit:
 
 | Exception | Why not silently cap it | Next bounded action |
 | --- | --- | --- |
-| Legacy meal/list/item/project APIs | Older clients expect complete unpaged contracts | Identify supported consumers, migrate continuation and accept forward/rollback before changing defaults |
+| Legacy meal/list/item/project/wishlist APIs | Older clients expect complete unpaged contracts | Identify supported consumers, migrate continuation and accept forward/rollback before changing defaults |
 | Undated/unfiltered routine visibility reads; dense date windows | A capped hidden-ID set would expose inactive/unsupported rows | Measure statement plans; design cursor/batched prefilter or equivalent safe SQL evaluation without changing policy semantics |
 | Household account/profile rosters | Attribution, assignee choices and compatibility need complete current membership | Audit consumers/cardinality and design explicit complete/continuing contract before a roster cap |
 | Recurrence foreground / explicit maintenance | Default repeating path starts at first100; gated one-root continuation source now authored; explicit expandAllRecurringChores remains a complete maintenance pass | Accept real cursor/concurrency/budget/rollback behavior and inspect relation/rotation work separately; no foreground completeness claim |
-| Wishlist and supporting collection screens | Current complete-family readers have no accepted continuation | Add bounded canonical read plus visible continuation, preserving role/feature/old-client behavior |
+| Supporting collection screens | Other complete-family readers still need individually scoped continuation | Audit each consumer and preserve role/feature/old-client behavior; Wishlist source now has opt-in web/API continuation, not acceptance |
 | Export/deletion/reconciliation | Complete approved ownership/erasure coverage is intentional | Use separately scoped streaming/batching/recovery contracts; do not turn an incomplete collection page into a complete export/deletion claim |
 
 This is a static source refinement. No measured SQL/round-trip, EXPLAIN, load,

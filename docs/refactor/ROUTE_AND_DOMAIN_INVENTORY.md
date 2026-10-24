@@ -1,5 +1,18 @@
 # Route and domain inventory (#148)
 
+### Wishlist bounded read source — 2026-10-24 (#134)
+
+Canonical GET now supports opt-in limit/cursor and current-user mine filtering
+before the cap, retaining the old complete unpaged response. Web reads24 wishes
+per explicit page, labels partial/unknown coverage, retries the same position
+and refreshes only viewer-loaded depth. Child/teen request only own wishes;
+existing read/write permissions remain. New household-scoped GET/[id] inspects
+write targets so missing rows on a collection page never prove deletion/failure.
+EN/ES continuation, per-read timeout and stale/unmounted read suppression are
+authored. API_CONTRACTS.md records old-server fallback and remaining acceptance;
+source fixtures are authored/unrun and old UI GET mocks still need adoption.
+No schema/index/scheduler or new domain store.
+
 ### Routine visibility prefilter scope source — 2026-10-24 (#134/#450)
 
 The ordinary recurrence expander also limits its future-occurrence read to the

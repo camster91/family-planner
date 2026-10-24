@@ -43,8 +43,13 @@ No unverified feature is declared completed by source authorship.
 | #146 support | Numbered20-case runbook and explicit response ownership; existing severity/stop procedure | Recovery/privacy/dashboard/backup, communications strategy and support scaling remain |
 | #134 Projects overview | Web24-card keyset pages and opt-in API paging; one grouped task-count query per returned page | Legacy API remains unbounded; query plans, compatibility, isolation/concurrency and rendered acceptance remain unverified |
 | #141/#134 Notifications | Opt-in personal keyset API and older-page inbox reads; bounded timeout, exact retry, truthful loaded-state copy and old-server fallback | Original authorization/snooze/Undo/concurrency/rendered acceptance remains unverified; no delivery activation |
+| #134 Wishlist | Opt-in household/requester keyset API; web24-item explicit continuation; canonical target inspection for write recovery; loaded-only EN/ES state | Legacy unpaged API remains unbounded; UI fixture adoption, role/feature/concurrency/compatibility/query/rendered acceptance unverified |
 
-Latest bounded source work adds disabled-by-default fair repeating traversal:
+Latest bounded source work adds Wishlist 24-item explicit continuation,
+server-side own-wish filtering and canonical row inspection for write recovery.
+Loaded counts do not imply full coverage; legacy clients retain their full
+unpaged response. See API_CONTRACTS.md; all acceptance remains deferred.
+The preceding source checkpoint adds disabled-by-default fair repeating traversal:
 one household-owned attempted position, one committed root claim before each
 canonical effect, per-root failure isolation, and a bounded initiation budget.
 Additive schema/migration and household-deletion handling are authored only;

@@ -16,6 +16,36 @@ import { updateWishlistItemSchema } from '@/lib/validations'
 
 export const dynamic = 'force-dynamic'
 
+// GET /api/wishlist/[id] - Canonical owned-row read for mutation recovery.
+// A row absent from a loaded collection page is not proof of deletion.
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
+    const gate = await featureGate(auth.user.family_id, 'wishlist')
+    if (gate) return gate
+    const { id } = await params
+    const item = await prisma!.wishlistItem.findFirst({
+      where: { id, family_id: auth.user.family_id },
+      include: {
+        requester: { select: { id: true, name: true } },
+        status_changer: { select: { id: true, name: true } },
+      },
+    })
+    const headers = { 'Cache-Control': 'private, no-store' }
+    if (!item) return NextResponse.json({ error: 'Not found' }, { status: 404, headers })
+    return NextResponse.json({ item: {
+      ...item, approx_price: item.approx_price == null ? null : item.approx_price.toString(),
+    } }, { headers })
+  } catch (err) {
+    logRouteError('GET /api/wishlist/[id]', err, getRequestId(request))
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 // PATCH /api/wishlist/[id] - Update a wishlist item (requester or parent)
 export async function PATCH(
   request: NextRequest,

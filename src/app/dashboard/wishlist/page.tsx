@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ExternalLink, Heart, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from '@/i18n'
+import { useWishlistPagingText } from '@/i18n/wishlist-paging'
 import { Dialog } from '@/components/ui/dialog'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { useMaybeToast } from '@/components/ui/toast'
@@ -77,6 +78,39 @@ function responseWishlistItem(value: unknown): WishlistItem | null {
 function responseWishlistItems(value: unknown): WishlistItem[] | null {
   if (!isRecord(value) || !Array.isArray(value.items)) return null
   return value.items.every(isWishlistItem) ? value.items : null
+}
+
+const WISHLIST_PAGE_SIZE = 24
+// Includes response-body decoding in the timeout. No timer may apply state.
+async function readWishlistResponse(url: string) {
+  const controller = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      (async () => {
+        const response = await fetch(url, { cache: 'no-store', signal: controller.signal })
+        const data: unknown = await response.json().catch(() => null)
+        return { response, data }
+      })(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => { controller.abort(); reject(new Error('Wishlist read timed out')) }, 15_000)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+    controller.abort()
+  }
+}
+function wishlistPage(data: unknown) {
+  const items = responseWishlistItems(data)
+  if (!items || !isRecord(data) || new Set(items.map(item => item.id)).size !== items.length) return null
+  const supported = 'nextCursor' in data
+  const cursor = supported ? data.nextCursor : null
+  if (supported && (items.length > WISHLIST_PAGE_SIZE ||
+    (cursor !== null && (typeof cursor !== 'string' || !/^[A-Za-z0-9_-]{1,1024}$/.test(cursor) || !items.length)))) return null
+  // An older server may ignore limit; retain compatibility but never infer
+  // completeness or load a fabricated continuation from missing metadata.
+  return { items, cursor: cursor as string | null, supported }
 }
 
 function sameApproxPrice(a: string | null, b: string | null): boolean {
@@ -246,9 +280,25 @@ function isHttpUrl(value: string): boolean {
 
 function WishlistContent() {
   const { t } = useTranslation()
+  const pagingText = useWishlistPagingText()
   const { addToast, removeToast } = useMaybeToast()
   const [items, setItems] = useState<WishlistItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [pagingSupported, setPagingSupported] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [authRetry, setAuthRetry] = useState(0)
+  const refreshingRef = useRef(false)
+  const [moreError, setMoreError] = useState(false)
+  const cursorRef = useRef<string | null>(null)
+  const mineRef = useRef(true)
+  const depthRef = useRef(1)
+  const loadingMoreRef = useRef(false)
+  const seenCursorsRef = useRef(new Set<string>())
+  const moreTriggerRef = useRef<HTMLButtonElement>(null)
+  const pageStatusRef = useRef<HTMLParagraphElement>(null)
+  const movePageFocusRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingItem, setEditingItem] = useState<WishlistItem | null>(null)
@@ -294,46 +344,141 @@ function WishlistContent() {
   }
 
   const fetchItems = useCallback(
-    async (options?: { showPageError?: boolean }) => {
+    async (options?: { showPageError?: boolean; inspectId?: string }) => {
       const showPageError = options?.showPageError ?? true
       const requestId = ++itemsRequestRef.current
+      const requestedDepth = depthRef.current
+      refreshingRef.current = true
+      setRefreshing(true)
+      loadingMoreRef.current = false
+      setLoadingMore(false)
+      setMoreError(false)
       try {
-        const res = await fetch('/api/wishlist')
-        if (!res.ok) throw new Error(t('wishlist.errorLoad'))
-        const data = await res.json()
-        const nextItems = responseWishlistItems(data)
-        if (!nextItems) throw new Error(t('wishlist.errorLoad'))
+        let cursor: string | null = null
+        let nextItems: WishlistItem[] = []
+        let supported = false
+        const seen = new Set<string>()
+        let pages = 0
+        // Re-read only the depth explicitly loaded by this viewer. Each
+        // canonical request is bounded; no automatic walk of every page.
+        for (let i = 0; i < requestedDepth; i++) {
+          const params = new URLSearchParams({ limit: String(WISHLIST_PAGE_SIZE), mine: String(mineRef.current) })
+          if (cursor) params.set('cursor', cursor)
+          const { response, data } = await readWishlistResponse(`/api/wishlist?${params}`)
+          if (requestId !== itemsRequestRef.current) return null
+          if (!response.ok) {
+            if ([400, 401, 403].includes(response.status)) { setItems([]); setError(t('wishlist.errorLoad')); cursorRef.current = null; setNextCursor(null) }
+            throw new Error(t('wishlist.errorLoad'))
+          }
+          const page = wishlistPage(data)
+          if (!page || (page.cursor && (page.cursor === cursor || seen.has(page.cursor)))) throw new Error(t('wishlist.errorLoad'))
+          nextItems = [...new Map([...nextItems, ...page.items].map(item => [item.id, item])).values()]
+          cursor = page.cursor
+          supported = page.supported
+          pages++
+          if (cursor) seen.add(cursor)
+          if (!cursor || !supported) break
+        }
+        // Only a canonical row read can reconcile a target outside loaded
+        // pages. Collection-page absence never proves a delete or failed save.
+        if (options?.inspectId) {
+          const id = options.inspectId
+          const { response, data } = await readWishlistResponse(`/api/wishlist/${encodeURIComponent(id)}`)
+          if (requestId !== itemsRequestRef.current) return null
+          if ([400, 401, 403].includes(response.status)) { setItems([]); setError(t('wishlist.errorLoad')); cursorRef.current = null; setNextCursor(null) }
+          if (response.status === 404) nextItems = nextItems.filter(item => item.id !== id)
+          else {
+            const item = responseWishlistItem(data)
+            if (!response.ok || !item || item.id !== id) throw new Error(t('wishlist.errorLoad'))
+            const index = nextItems.findIndex(row => row.id === id)
+            if (index < 0) nextItems = [item, ...nextItems]
+            else nextItems[index] = item
+          }
+        }
         if (requestId === itemsRequestRef.current) {
           setItems(nextItems)
           setError(null)
+          cursorRef.current = cursor
+          setNextCursor(cursor)
+          setPagingSupported(supported)
+          seenCursorsRef.current = seen
+          depthRef.current = Math.max(1, pages)
         }
         return nextItems
-      } catch (e: unknown) {
-        if (showPageError && requestId === itemsRequestRef.current) {
-          setError(e instanceof Error ? e.message : t('wishlist.errorLoad'))
-        }
+      } catch {
+        if (showPageError && requestId === itemsRequestRef.current) setError(t('wishlist.errorLoad'))
         return null
       } finally {
-        if (requestId === itemsRequestRef.current) setLoading(false)
+        if (requestId === itemsRequestRef.current) {
+          setLoading(false)
+          refreshingRef.current = false
+          setRefreshing(false)
+        }
       }
     },
     [t],
   )
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((res) => res.json().catch(() => null))
-      .then((data) => {
-        const role = data?.user?.role
-        if (data?.user) {
-          setUserId(typeof data.user.id === 'string' ? data.user.id : '')
-          if (role === 'parent' || role === 'child' || role === 'teen') {
-            setUserRole(role)
-          }
-        }
-      })
-      .finally(() => fetchItems())
-  }, [fetchItems])
+    let alive = true
+    void (async () => {
+      try {
+        const { response, data } = await readWishlistResponse('/api/auth/me')
+        if (!alive) return
+        const user = isRecord(data) && isRecord(data.user) ? data.user : null
+        const role = user?.role
+        if (!response.ok || !user || typeof user.id !== 'string' ||
+          (role !== 'parent' && role !== 'child' && role !== 'teen')) throw new Error()
+        mineRef.current = role !== 'parent'
+        setUserId(user.id)
+        setUserRole(role)
+        await fetchItems()
+      } catch {
+        if (alive) { setItems([]); setError(t('wishlist.errorLoad')); setLoading(false) }
+      }
+    })()
+    return () => { alive = false; itemsRequestRef.current++ }
+  }, [fetchItems, t, authRetry])
+
+  const loadMore = async () => {
+    const cursor = cursorRef.current
+    if (!cursor || loadingMoreRef.current || refreshingRef.current) return
+    const requestId = ++itemsRequestRef.current
+    loadingMoreRef.current = true
+    setLoadingMore(true)
+    setMoreError(false)
+    try {
+      const params = new URLSearchParams({ limit: String(WISHLIST_PAGE_SIZE), mine: String(mineRef.current), cursor })
+      const { response, data } = await readWishlistResponse(`/api/wishlist?${params}`)
+      if (requestId !== itemsRequestRef.current) return
+      if (!response.ok) {
+        if ([400, 401, 403].includes(response.status)) { setItems([]); setError(t('wishlist.errorLoad')); cursorRef.current = null; setNextCursor(null) }
+        throw new Error()
+      }
+      const page = wishlistPage(data)
+      if (!page || !page.supported || (page.cursor && (page.cursor === cursor || seenCursorsRef.current.has(page.cursor)))) throw new Error()
+      setItems(current => [...new Map([...current, ...page.items].map(item => [item.id, item])).values()])
+      if (page.cursor) seenCursorsRef.current.add(page.cursor)
+      cursorRef.current = page.cursor
+      setNextCursor(page.cursor)
+      depthRef.current++
+    } catch {
+      if (requestId === itemsRequestRef.current) setMoreError(true)
+    } finally {
+      if (requestId === itemsRequestRef.current) {
+        movePageFocusRef.current = true
+        loadingMoreRef.current = false
+        setLoadingMore(false)
+      }
+    }
+  }
+  useEffect(() => {
+    if (loadingMore || !movePageFocusRef.current) return
+    movePageFocusRef.current = false
+    const active = document.activeElement
+    if (active && active !== document.body && active !== moreTriggerRef.current) return
+    ;(nextCursor ? moreTriggerRef.current : pageStatusRef.current)?.focus({ preventScroll: true })
+  }, [loadingMore, nextCursor, moreError])
 
   const getMutationKey = (scope: string, body: string): string => {
     // These keys are ready for the canonical receipt API; until that API is
@@ -356,7 +501,7 @@ function WishlistContent() {
     deletedId?: string,
   ) => {
     const recovery = { kind, confirmed, deletedId }
-    const refreshed = await fetchItems({ showPageError: false })
+    const refreshed = await fetchItems({ showPageError: false, inspectId: deletedId ?? confirmed?.id })
     if (!refreshed) {
       refreshRecoveryRef.current = recovery
       setRefreshNotice(kind)
@@ -404,9 +549,9 @@ function WishlistContent() {
   }
 
   const retryRefresh = async () => {
-    const refreshed = await fetchItems({ showPageError: false })
-    if (!refreshed) return
     const recovery = refreshRecoveryRef.current
+    const refreshed = await fetchItems({ showPageError: false, inspectId: recovery?.deletedId ?? recovery?.confirmed?.id })
+    if (!refreshed) return
     if (!recovery) {
       setRefreshNotice(null)
       return
@@ -539,7 +684,7 @@ function WishlistContent() {
       deniedReason?: string,
       expected?: WishlistItem,
     ) => {
-      const refreshed = await fetchItems({ showPageError: false })
+      const refreshed = await fetchItems({ showPageError: false, inspectId: id })
       return Boolean(
         refreshed?.some((item) =>
           matchesStatus(item, id, status, deniedReason, expected),
@@ -861,6 +1006,7 @@ function WishlistContent() {
     setDeletingItem(null)
   }
 
+  const partial = !pagingSupported || nextCursor !== null
   const isParent = userRole === 'parent'
   const visibleItems = isParent
     ? items
@@ -922,7 +1068,7 @@ function WishlistContent() {
         </p>
         <button
           type="button"
-          onClick={() => void fetchItems()}
+          onClick={() => { setLoading(true); setError(null); setAuthRetry(current => current + 1) }}
           className="btn-filled min-h-11 rounded-xl px-5 text-body font-semibold"
         >
           {t('wishlist.retry')}
@@ -972,7 +1118,7 @@ function WishlistContent() {
         >
           <div className="card-apple p-4">
             <p className="text-caption-1 font-semibold uppercase tracking-wide text-label-tertiary">
-              {t('wishlist.totalLabel')}
+              {partial ? pagingText('loaded') : t('wishlist.totalLabel')}
             </p>
             <p className="mt-1 text-title-2 font-semibold text-label-primary">
               {t(visibleItems.length === 1 ? 'wishlist.totalSummaryOne' : 'wishlist.totalSummary', { count: visibleItems.length })}
@@ -980,7 +1126,7 @@ function WishlistContent() {
           </div>
           <div className="card-apple p-4">
             <p className="text-caption-1 font-semibold uppercase tracking-wide text-label-tertiary">
-              {t('wishlist.readyLabel')}
+              {partial ? pagingText('loadedReady') : t('wishlist.readyLabel')}
             </p>
             <p className="mt-1 text-title-2 font-semibold text-label-primary">
               {t(readyCount === 1 ? 'wishlist.readySummaryOne' : 'wishlist.readySummary', { count: readyCount })}
@@ -1022,10 +1168,10 @@ function WishlistContent() {
               />
             </div>
             <h2 className="text-title-2 font-semibold text-label-primary">
-              {t('wishlist.empty')}
+              {partial ? pagingText('emptyPage') : t('wishlist.empty')}
             </h2>
             <p className="mt-1 max-w-md text-subhead text-label-secondary">
-              {t(
+              {partial ? pagingText('partial') : t(
                 !isParent
                   ? 'wishlist.emptyMineSubtitle'
                   : 'wishlist.emptySubtitle',
@@ -1182,6 +1328,19 @@ function WishlistContent() {
             </section>
           ),
         )}
+        <div className="flex flex-col items-start gap-3">
+          <p ref={pageStatusRef} tabIndex={-1} role="status" className="text-footnote text-label-secondary">
+            {pagingText(partial ? 'partial' : 'complete')}
+          </p>
+          {moreError && <p role="alert" className="text-footnote text-danger-text">{pagingText('failed')}</p>}
+          {nextCursor && <button
+            ref={moreTriggerRef}
+            type="button"
+            disabled={loadingMore || refreshing}
+            onClick={() => void loadMore()}
+            className="btn-ghost min-h-11 rounded-xl px-4 text-body font-semibold disabled:opacity-50"
+          >{pagingText(loadingMore ? 'loading' : 'more')}</button>}
+        </div>
       </div>
 
       <Dialog
