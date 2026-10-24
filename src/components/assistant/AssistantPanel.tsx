@@ -37,6 +37,7 @@ import {
   type VoiceErrorCode,
 } from "@/i18n/assistant";
 import AppGuide from "./AppGuide";
+import { AssistantQuickStart } from "./AssistantQuickStart";
 import { MealPlanningReviewLinks } from "@/components/meals/planning/MealPlanningReviewLinks";
 import { useVoiceDraft } from "./use-voice-draft";
 import { LocalVoiceDraft } from "./LocalVoiceDraft";
@@ -933,18 +934,23 @@ export default function AssistantPanel({
         )}
         {tab === "chat" && (
           <div className="space-y-4">
-            <AppGuide
-              role={role}
-              disabled={busy}
-              canNavigate={() => !lock.current}
-              onNavigated={close}
-            />
-            {canChat && features.meals && (
-              <MealPlanningReviewLinks
+            {canChat ? (
+              <AssistantQuickStart
+                role={role}
+                features={features}
                 disabled={busy}
                 canNavigate={() => !lock.current}
                 onNavigated={close}
+                todayActions={features.meals ? (
+                  <MealPlanningReviewLinks
+                    disabled={busy}
+                    canNavigate={() => !lock.current}
+                    onNavigated={close}
+                  />
+                ) : undefined}
               />
+            ) : (
+              <AppGuide role={role} disabled={busy} canNavigate={() => !lock.current} onNavigated={close} />
             )}
             <p className="text-sm text-label-secondary">
               {msg(includeToday ? "chatIntroWithToday" : "chatIntro")}

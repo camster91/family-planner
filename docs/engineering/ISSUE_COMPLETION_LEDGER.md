@@ -1,3 +1,33 @@
+## Help / Today / Add source reconstruction — 2026-10-24
+
+AssistantQuickStart reconstructs the selected three-section helper inside the
+existing lazy assistant panel. Help reuses the provider-free local AppGuide.
+Today opens existing plan/calendar/chores/lists/meals/inventory screens and keeps
+the existing food-planning/saved-work recovery disclosure. Add opens canonical
+role/feature-filtered event/chore/list editors, recipe discovery, meal planning,
+prep and notes. Parent-only chore creation remains parent-only. Unknown roles
+receive no shortcut entries. The existing non-chat AppGuide fallback is retained.
+
+Typed EN/ES copy distinguishes navigation from data retrieval or a saved action.
+No household fetch, provider request, private DTO, source proof or write is added.
+Buttons respect busy state; links recheck the current synchronous action lock
+and use the existing draft-aware router, closing only after navigation succeeds.
+The chat, voice, Today-context opt-in, explicit proposal confirmation, private
+reports and uncertain-action recovery paths remain separate. No duplicate
+chat-to-Capture transfer protocol or second action implementation is introduced.
+
+The selected connected experience is now reconstructed in source across compact
+Today controls, sibling cards, two-column personal layout, honest grocery totals,
+dinner/recipe/prep date context and the three-section helper. This does not
+recover the original missing commits/assets or apply their reported results to
+this tree. The original #499/#464/#460 acceptance remains open.
+
+40 issues remain. No QA, tests, build, lint, typecheck, browser, CI, push, merge,
+deployment, provider, scheduler or production action ran. All source is local,
+unverified and unreleased; no issue is closed merely because source is authored.
+
+---
+
 ## Recipe and prep navigation day context — 2026-10-24
 
 The reconstructed meal-day helper now handles the internal meal route family.
