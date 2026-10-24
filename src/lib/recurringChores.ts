@@ -122,9 +122,13 @@ export async function expandSeriesInTx(
     horizon = next
   }
 
+  // Once the window is full, more future rows cannot change the decision.
+  // If fewer exist, this reads all of them, retaining the exact collision set.
   const upcoming = await tx.chore.findMany({
-    where: { recurrence_id: seriesId, due_date: { gte: today } },
+    where: { family_id: familyId, recurrence_id: seriesId, due_date: { gte: today } },
     select: { due_date: true },
+    orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
+    take: windowSize,
   })
   const needed = windowSize - upcoming.length
   if (needed <= 0) return 0
@@ -132,8 +136,8 @@ export async function expandSeriesInTx(
   // Latest date already in the series. Falling back to the template's own due
   // date means a brand-new series starts one interval after its first row.
   const latest = await tx.chore.findFirst({
-    where: { recurrence_id: seriesId },
-    orderBy: { due_date: 'desc' },
+    where: { family_id: familyId, recurrence_id: seriesId },
+    orderBy: [{ due_date: 'desc' }, { id: 'desc' }],
     select: { due_date: true, rotation_index: true },
   })
   const anchorDate = latest?.due_date ?? original.due_date
@@ -280,7 +284,9 @@ export async function expandAllRecurringChores(familyId: string, now: Date = new
 export const MAX_SERIES_PER_TOP_UP = 100
 
 /**
- * Keep every recurring series of a household topped up, on read.
+ * Attempt a bounded foreground top-up for a household, on read.
+ * The first100 roots are selected in ID order. Fair continuation beyond that
+ * batch is separate unfinished work; this cap is not a completeness guarantee.
  *
  * There is no scheduler (AGENTS.md: no cron without approval), so a series is
  * otherwise only extended when it is created, when one of its chores is

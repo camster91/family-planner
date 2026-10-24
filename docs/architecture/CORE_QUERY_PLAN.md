@@ -70,13 +70,50 @@ Remaining source exceptions are real work, not a completed performance audit:
 | Legacy meal/list/item/project APIs | Older clients expect complete unpaged contracts | Identify supported consumers, migrate continuation and accept forward/rollback before changing defaults |
 | Undated/unfiltered routine visibility reads; dense date windows | A capped hidden-ID set would expose inactive/unsupported rows | Measure statement plans; design cursor/batched prefilter or equivalent safe SQL evaluation without changing policy semantics |
 | Household account/profile rosters | Attribution, assignee choices and compatibility need complete current membership | Audit consumers/cardinality and design explicit complete/continuing contract before a roster cap |
-| Recurrence top-up / legacy adoption helpers | A top-level series cap does not prove preceding helper work is bounded | Inspect adoption/expansion selection and idempotent continuation separately from display limits |
+| Recurrence foreground / explicit maintenance | Foreground once/repeating passes each select at most100 roots, but repeating roots always start in ID order; explicit expandAllRecurringChores remains a complete maintenance pass | Accept a fair continuation/failure contract beyond the repeating batch, and inspect relation/rotation work separately; do not confuse full maintenance with foreground recovery |
 | Wishlist and supporting collection screens | Current complete-family readers have no accepted continuation | Add bounded canonical read plus visible continuation, preserving role/feature/old-client behavior |
 | Export/deletion/reconciliation | Complete approved ownership/erasure coverage is intentional | Use separately scoped streaming/batching/recovery contracts; do not turn an incomplete collection page into a complete export/deletion claim |
 
 This is a static source refinement. No measured SQL/round-trip, EXPLAIN, load,
 capacity, N+1, rendered or production result is claimed, and #134's full audit
 criterion remains open.
+
+## Recurrence read-window refinement — 2026-10-24
+
+Static follow-through inspected `topUpHouseholdSeries`, `topUpScheduledOnceSteps`
+and `expandSeriesInTx`. The foreground passes already select at most100 once
+roots and100 repeating roots separately. There is no legacy-adoption helper
+called ahead of that repeating selection in current source; the earlier broad
+inventory item was a question to inspect, not a proved extra adoption pass.
+`expandAllRecurringChores` is an explicit full maintenance operation, separate
+from bounded foreground top-up. No scheduler or full maintenance run was started.
+
+The ordinary per-series upcoming-occurrence read previously materialized every
+future row before computing `needed = windowSize - upcoming.length`. Recovery
+source now reads at most windowSize (daily7, weekly4 × selected-day count up to28,
+monthly3), with stable due-date/id ordering and an explicit household predicate.
+The latest-occurrence lookup is explicitly household-scoped as well.
+
+Source-equivalence rationale: when fewer than the required window exist, all
+rows are still read and the collision set/needed count is unchanged. When at
+least the window exists, either read yields needed <=0 and no insert. No future
+row is deleted or ignored to manufacture an extra occurrence. The later latest
+lookup still preserves the original monthly anchor and rotation position. The
+scheduled routine-definition branch remains separate and already selects only
+its computed bounded day set. This reasoning is not executed recurrence proof.
+
+Source cases for full daily/legacy-weekly/multi-weekday/monthly windows were
+added to existing tests, not run. Underfilled, history/rotation, profile rollback,
+concurrent unique-key behavior and PostgreSQL/query plans retain their original
+acceptance. No schema, effect protocol, window size, history, credit, membership,
+feature gate, scheduler or rollout setting changed.
+
+Known remaining source gap: repeating top-up always starts at the first100 IDs,
+so households beyond the batch do not yet have fair continuation. A cap is not a
+claim that every series was serviced. Prepare explicit bounded/fenced/retry
+semantics before introducing a durable cursor or read-side state; do not solve
+starvation with an unbounded pass, random selection or new scheduler. Rotation
+eligibility/relations and total SQL/duration still need their own measured audit.
 
 ## Index and retention work
 

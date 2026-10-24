@@ -2,6 +2,13 @@
 
 ### Routine visibility prefilter scope source — 2026-10-24 (#134/#450)
 
+The ordinary recurrence expander also limits its future-occurrence read to the
+required existing window and scopes upcoming/latest rows to the original family.
+A full window still returns no inserts; an underfilled window still reads every
+existing candidate. Once/repeating foreground passes each already cap roots100;
+fair repeating continuation beyond the first batch remains unfinished. No
+history deletion, window-size change or scheduler. Source cases authored only.
+
 `hiddenRoutineOccurrenceIds` now accepts internal occurrence IDs and inclusive /
 exclusive due-date bounds. Known chore GET, main Today window, personal home
 summary, initial Chores window and dated chore API narrow metadata before visible
