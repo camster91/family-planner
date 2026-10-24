@@ -3,6 +3,7 @@ import { readProjectOverview } from "@/lib/project-overview";
 import { parseProjectPaging, PROJECT_OVERVIEW_PAGE_SIZE } from "@/lib/project-paging";
 import { getServerUser } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { canRoleAccessPath } from "@/lib/kid-access";
 import type { ProjectCardData } from "@/components/projects/ProjectCard";
 import { FeatureOffState } from "@/components/ui/feature-gate";
 import { isFeatureEnabled, normalizeFeatures } from "@/lib/features";
@@ -17,6 +18,12 @@ import {
 
 export const dynamic = "force-dynamic";
 
+function canReadProjectRoute(role?: string) {
+  return (role === "parent" || role === "teen" || role === "child") &&
+    canRoleAccessPath(role, "/dashboard/projects");
+}
+
+
 async function ProjectsContent({
   familyId,
   isParent,
@@ -27,7 +34,7 @@ async function ProjectsContent({
   cursor?: string | string[];
 }) {
   const sessionUser = await getServerUser();
-  if (!sessionUser || (sessionUser.role !== "parent" && sessionUser.role !== "teen")) return null;
+  if (!sessionUser || !canReadProjectRoute(sessionUser.role)) return null;
   // Streaming can begin after the outer auth/gate read. Recheck its household
   // before any project data is read; an old cursor cannot choose a household.
   const current = await prisma!.user.findUnique({
@@ -86,7 +93,7 @@ export default async function ProjectsPage({ searchParams }: {
 } = {}) {
   const params = await searchParams;
   const sessionUser = await getServerUser();
-  if (!sessionUser) return null;
+  if (!sessionUser || !canReadProjectRoute(sessionUser.role)) return null;
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },

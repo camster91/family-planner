@@ -8,7 +8,8 @@ links. Canonical source is `project-overview.ts`; no project/task model or write
 is added. One grouped query counts task completion states for only returned
 project IDs, avoiding materializing completed task IDs or a per-card query.
 Streaming content rechecks current personal household and feature before reads;
-existing parent/teen route boundaries and parent-only creation remain in source.
+the existing canonical project-route role allowlist and parent-only creation
+remain in source. API read authorization retains its existing policy.
 Invalid/cross-household/filter cursors do not query projects or claim an empty
 household. EN/ES paging/error/empty-page copy is in project-overview dictionary.
 
