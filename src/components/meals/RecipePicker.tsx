@@ -15,6 +15,7 @@ import * as React from "react";
 import { Plus } from "lucide-react";
 import type { MealRecipeSummary } from "@/lib/meal-slots";
 import { useTranslation } from "@/i18n";
+import { useRecipePresentationText } from "@/i18n/recipe-presentation";
 
 // Creating a recipe is an explicit secondary action. Keep the full recipe
 // editor out of the picker chunk until that action is chosen.
@@ -56,6 +57,7 @@ export function RecipePicker({
   isMutationPending?: () => boolean;
 }) {
   const { t } = useTranslation();
+  const text = useRecipePresentationText();
   const selectId = React.useId();
   const statusId = React.useId();
   const [recipes, setRecipes] = React.useState<RecipeOption[]>(() =>
@@ -122,13 +124,13 @@ export function RecipePicker({
   };
 
   let status: React.ReactNode = null;
-  if (state === "loading") status = "Loading recipes…";
+  if (state === "loading") status = text("pickerLoading");
   else if (state === "error")
-    status = "Couldn’t load recipes. You can still save the meal by name.";
+    status = text("pickerFailed");
   else if (recipes.length === 0)
     status = canCreate
-      ? "No recipes yet. Create one with “New recipe”."
-      : "No recipes yet.";
+      ? text("pickerEmptyCreate")
+      : text("pickerEmpty");
 
   return (
     <div className="space-y-2" data-testid="recipe-picker">
@@ -136,7 +138,7 @@ export function RecipePicker({
         htmlFor={selectId}
         className="text-subhead text-label-secondary mb-1 block"
       >
-        Recipe (optional)
+        {text("pickerLabel")}
       </label>
       <div className="flex gap-2">
         <select
@@ -147,7 +149,7 @@ export function RecipePicker({
           aria-describedby={status ? statusId : undefined}
           className="min-w-0 flex-1 input-apple min-h-[44px]"
         >
-          <option value="">No recipe (just a name)</option>
+          <option value="">{text("noRecipe")}</option>
           {recipes.map((r) => (
             <option key={r.id} value={r.id}>
               {r.title}
@@ -165,7 +167,7 @@ export function RecipePicker({
             }}
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
-            <span>New recipe</span>
+            <span>{text("newRecipe")}</span>
           </button>
         )}
       </div>
@@ -184,7 +186,7 @@ export function RecipePicker({
               onClick={() => void load()}
               className="min-h-[44px] px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline"
             >
-              Try again
+              {text("retry")}
             </button>
           )}
         </div>

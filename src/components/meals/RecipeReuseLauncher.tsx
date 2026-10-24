@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { useTranslation } from "@/i18n";
+import { useRecipePresentationText } from "@/i18n/recipe-presentation";
 import type { RecipeOption } from "./RecipePicker";
 
 const summary = z.object({
@@ -24,8 +24,7 @@ export function RecipeReuseLauncher({
   onUse: (recipe: RecipeOption) => void;
   onDismiss: () => void;
 }) {
-  const { locale } = useTranslation();
-  const es = locale === "es";
+  const text = useRecipePresentationText();
   const [load, setLoad] = useState<{
     id: string;
     recipe?: RecipeOption;
@@ -73,26 +72,18 @@ export function RecipeReuseLauncher({
   return (
     <section
       className="card-apple p-4 space-y-3"
-      aria-label={es ? "Reutilizar receta guardada" : "Reuse saved recipe"}
+      aria-label={text("reuseLabel")}
     >
       {recipe ? (
         <>
           <p className="font-semibold break-words">{recipe.title}</p>
           <p className="text-subhead text-label-secondary">
-            {es
-              ? "Revisa el día y las porciones antes de guardar. Se usa la misma receta guardada."
-              : "Review the day and portions before saving. This uses the same saved recipe."}
+            {text("reuseReview")}
           </p>
         </>
       ) : (
         <p role={error ? "alert" : "status"}>
-          {error
-            ? es
-              ? "No pudimos cargar esta receta. Puede no estar disponible en tu hogar actual."
-              : "We could not load this recipe. It may be unavailable in your current household."
-            : es
-              ? "Cargando receta guardada…"
-              : "Loading saved recipe…"}
+          {text(error ? "reuseFailed" : "reuseLoading")}
         </p>
       )}
       <div className="flex flex-wrap gap-2">
@@ -102,13 +93,7 @@ export function RecipeReuseLauncher({
             className="btn-filled min-h-[44px]"
             onClick={() => onUse(recipe)}
           >
-            {kind === "prep"
-              ? es
-                ? "Usar en una preparación"
-                : "Use in a prep session"
-              : es
-                ? "Planificar esta receta"
-                : "Plan this recipe"}
+            {text(kind === "prep" ? "usePrep" : "useMeal")}
           </button>
         )}
         {error && (
@@ -117,7 +102,7 @@ export function RecipeReuseLauncher({
             className="btn-tinted min-h-[44px]"
             onClick={() => setAttempt((n) => n + 1)}
           >
-            {es ? "Reintentar" : "Try again"}
+            {text("retry")}
           </button>
         )}
         <button
@@ -125,7 +110,7 @@ export function RecipeReuseLauncher({
           className="btn-tinted min-h-[44px]"
           onClick={onDismiss}
         >
-          {es ? "Descartar" : "Dismiss"}
+          {text("dismiss")}
         </button>
       </div>
     </section>

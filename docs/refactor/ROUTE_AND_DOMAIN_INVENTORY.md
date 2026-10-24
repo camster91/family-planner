@@ -1,5 +1,16 @@
 # Route and domain inventory (#148)
 
+### Recipe component localization source — 2026-10-24 (#142)
+
+RecipeDetail, RecipePicker and RecipeReuseLauncher now use typed scoped EN/ES
+presentation keys instead of inline language branches/English-only picker copy.
+Loading/refusal/empty/retry/dismissal/explicit reuse, source/ingredient/method
+headings and accessible labels follow current locale/pseudolocale. Serving counts
+use Intl display; authored recipe text/units/URLs/identity and canonical requests
+are untouched. All28 owned untranslated-copy records were removed; no scanner
+ran. Mounted locale/no-reload/value-preservation and Spanish explicit-reuse
+cases are authored/unrun; human copy/layout/date/native acceptance remains open.
+
 ### Wishlist bounded read source — 2026-10-24 (#134)
 
 Canonical GET now supports opt-in limit/cursor and current-user mine filtering
