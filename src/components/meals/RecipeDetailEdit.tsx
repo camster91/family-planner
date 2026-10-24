@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRecipeDetailText } from "@/i18n/recipe-detail";
 import { Dialog } from "@/components/ui/dialog";
 import { RecipeEditor } from "./RecipeEditor";
 import type { RecipeDetailData } from "./RecipeDetail";
@@ -15,6 +16,7 @@ export function RecipeDetailEdit({
   role: string | null;
   onSaved: (recipe: RecipeDetailData) => void;
 }) {
+  const text = useRecipeDetailText();
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const savingRef = React.useRef(false);
@@ -35,14 +37,14 @@ export function RecipeDetailEdit({
         className="btn-tinted min-h-[44px]"
         onClick={() => setOpen(true)}
       >
-        Edit recipe
+        {text("edit")}
       </button>
       {open && (
         <Dialog
           open
-          title="Edit recipe"
+          title={text("edit")}
           onClose={saving ? undefined : close}
-          description="Changes apply to this recipe. Planned meals keep their saved name."
+          description={text("editDescription")}
         >
           <RecipeEditor
             initialRecipe={recipe}

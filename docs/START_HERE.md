@@ -55,6 +55,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Testing: `docs/testing/**`
 - Design: `design/**`, `BRAND.md` and the Warm Paper visual system `docs/product/BRAND.md`
 - Navigation and information architecture (one home, tabs, More, undo): `docs/product/NAVIGATION.md`
+- Standalone profile/account unlink and rejoin (#557/#480): `docs/plans/profile-account-unlink.md` (source-backed transaction/domain design; writer and acceptance remain unfinished).
 - Calendar interoperability source/acceptance (#124): `docs/product/CALENDAR_INTEROPERABILITY.md`
 - Product measurement and learning (#140): `docs/product/PRODUCT_MEASUREMENT.md`
 - Chores (parent check, picture routines for young kids, taking turns): `docs/product/CHORES.md`

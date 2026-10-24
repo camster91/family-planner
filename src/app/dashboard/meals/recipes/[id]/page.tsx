@@ -18,7 +18,7 @@ import { type RecipeDetailData } from "@/components/meals/RecipeDetail";
 import { RecipeCookingView } from "@/components/meals/RecipeCookingView";
 import { AddToGroceriesButton } from "@/components/meals/AddToGroceriesButton";
 import { RecipeDetailEdit } from "@/components/meals/RecipeDetailEdit";
-import { useTranslation } from "@/i18n";
+import { useRecipeDetailText } from "@/i18n/recipe-detail";
 import { RecipeCuration } from "@/components/meals/RecipeCuration";
 
 type Load =
@@ -36,8 +36,7 @@ export default function RecipePage() {
 }
 
 function RecipePageInner() {
-  const { locale } = useTranslation();
-  const es = locale === "es";
+  const detailText = useRecipeDetailText();
   const params = useParams<{ id: string }>();
   const id = params?.id;
   const [role, setRole] = React.useState<string | null>(null);
@@ -107,11 +106,11 @@ function RecipePageInner() {
         className="inline-flex min-h-[44px] items-center gap-1 text-subhead text-[var(--accent-text)]"
       >
         <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-        <span>Meals</span>
+        <span>{detailText("meals")}</span>
       </Link>
 
       {load.state === "loading" && (
-        <div className="space-y-4" role="status" aria-label="Loading recipe">
+        <div className="space-y-4" role="status" aria-label={detailText("loading")}>
           <Skeleton className="h-9 w-2/3" />
           <Skeleton className="h-4 w-1/3" />
           <div className="card-apple p-4 space-y-3">
@@ -127,11 +126,11 @@ function RecipePageInner() {
           icon={BookOpen}
           glyphColor="meals"
           headingLevel="h1"
-          title="Recipe not found"
-          description="It may have been deleted. Meals that used it keep their name."
+          title={detailText("notFound")}
+          description={detailText("notFoundDescription")}
           action={
             <Link href="/dashboard/meals" className="btn-tinted min-h-[44px]">
-              Back to meals
+              {detailText("back")}
             </Link>
           }
         />
@@ -142,15 +141,15 @@ function RecipePageInner() {
           icon={BookOpen}
           glyphColor="meals"
           headingLevel="h1"
-          title="Couldn’t load this recipe"
-          description="Check your connection and try again."
+          title={detailText("failed")}
+          description={detailText("failedDescription")}
           action={
             <button
               type="button"
               className="btn-tinted min-h-[44px]"
               onClick={() => void fetchRecipe()}
             >
-              Try again
+              {detailText("retry")}
             </button>
           }
         />
@@ -171,7 +170,7 @@ function RecipePageInner() {
                     aria-disabled={groceryPending}
                     className="btn-tinted min-h-[44px]"
                   >
-                    {es ? "Revisar alimentos usados" : "Review food used"}
+                    {detailText("reviewUsed")}
                   </Link>
                   <Link
                     href={`/dashboard/meals?recipe=${encodeURIComponent(load.recipe.id)}`}
@@ -179,7 +178,7 @@ function RecipePageInner() {
                     aria-disabled={groceryPending}
                     className="btn-filled min-h-[44px]"
                   >
-                    {es ? "Planificar comida" : "Plan a meal"}
+                    {detailText("planMeal")}
                   </Link>
                   <Link
                     href={`/dashboard/meals?view=bulk&recipe=${encodeURIComponent(load.recipe.id)}`}
@@ -187,7 +186,7 @@ function RecipePageInner() {
                     aria-disabled={groceryPending}
                     className="btn-tinted min-h-[44px]"
                   >
-                    {es ? "Añadir a una preparación" : "Add to prep"}
+                    {detailText("addPrep")}
                   </Link>
                 </>
               )}

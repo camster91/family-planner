@@ -220,6 +220,12 @@ Every item needs an explicit classification: account actor, member subject, memb
 
 ## Account linking and conversion
 
+The source-backed [standalone unlink/rejoin contract](profile-account-unlink.md)
+records why revoke, member removal and deletion of AccountLink alone do not
+implement completed-account unlink. Its erasure/credit/domain and client
+compatibility requirements remain unfinished implementation under #557.
+
+
 Linking is a separate parent-managed flow after the member and domain compatibility work. It must be verified by the intended account owner through a fresh authenticated personal session or an equivalent reviewed proof. A parent selecting a profile, possessing a name/email match, or holding a shared-device elevation is not proof of ownership.
 
 The transaction contract is:

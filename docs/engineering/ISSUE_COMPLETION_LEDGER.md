@@ -1,3 +1,27 @@
+## Standalone unlink design and recipe-detail localization — 2026-10-24
+
+The source-backed `docs/plans/profile-account-unlink.md` now records the exact
+standalone unlink/rejoin gap under #557/#480: AccountLink plus LegacyMapping,
+future routine subjects, completion/Undo credit, active-profile eligibility and
+later account-erasure provenance must be reconciled atomically. Revoking a
+challenge, removing a member, or deleting AccountLink alone does not implement
+that outcome. The plan defines fresh owner/parent review, locked exact identity,
+stable receipts, domain-history/credit invariants, compatibility/rollback and
+adaptive UI. It explicitly leaves the writer, provenance/credit disposition and
+original acceptance unfinished; no unlink button, grant, schema or gate is added.
+
+Under #142, the recipe-detail route and its edit dialog now share 13 typed EN/ES
+copy keys for back/loading/not-found/error/retry/edit and meal/prep/food actions.
+Only their 16 corresponding now-translated inventory entries were removed from
+`untranslated-copy.json`; other inventory entries remain. This completes that
+bounded source-copy slice, not whole-app localization or rendered acceptance.
+
+40 issues remain. No QA, tests, build, lint, typecheck, browser, CI, push, merge,
+deploy, provider, account mutation or activation ran. Source remains local,
+unverified and unreleased. #557/#480/#142 remain open for genuine remaining work.
+
+---
+
 ## Help / Today / Add source reconstruction — 2026-10-24
 
 AssistantQuickStart reconstructs the selected three-section helper inside the

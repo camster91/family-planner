@@ -270,76 +270,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Add to prep",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Añadir a una preparación",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Back to meals",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Check your connection and try again.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Couldn’t load this recipe",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "It may have been deleted. Meals that used it keep their name.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Loading recipe",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Meals",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Plan a meal",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Planificar comida",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Recipe not found",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Review food used",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Revisar alimentos usados",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/meals/recipes/[id]/page.tsx",
-    "text": "Try again",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
     "text": "Loading…",
     "count": 1
@@ -2988,16 +2918,6 @@
     "file": "src/components/meals/RecipeDetail.tsx",
     "text": "Receta original",
     "count": 1
-  },
-  {
-    "file": "src/components/meals/RecipeDetailEdit.tsx",
-    "text": "Changes apply to this recipe. Planned meals keep their saved name.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/RecipeDetailEdit.tsx",
-    "text": "Edit recipe",
-    "count": 2
   },
   {
     "file": "src/components/meals/RecipePicker.tsx",
