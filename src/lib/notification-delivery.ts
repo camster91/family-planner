@@ -145,7 +145,7 @@ export async function sendOptInMail(
 ): Promise<OptInMailResult> {
   const column = OPT_IN_COLUMN[OPT_IN_MAIL_POLICY[kind]]
   const deadline = Date.now() + OPT_IN_MAIL_TRANSACTION_MS - OPT_IN_MAIL_MARGIN_MS
-  return prisma!.$transaction(async tx => {
+  return prisma!.$transaction(async (tx): Promise<OptInMailResult> => {
     // Same order as removal/reassignment. Keep authorization valid through the
     // bounded transport await; account verification/reset mail stays separate.
     await lockUser(tx, options.userId)
