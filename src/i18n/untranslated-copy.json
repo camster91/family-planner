@@ -286,17 +286,7 @@
   },
   {
     "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
-    "text": "Back to settings",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
     "text": "Budget App",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
-    "text": "Choose the export file (.json, up to 10 MB)",
     "count": 1
   },
   {
@@ -306,57 +296,7 @@
   },
   {
     "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
-    "text": "Export file",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
-    "text": "I reviewed the created, reused, and skipped counts and approve writing these records to this family.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
-    "text": "Identity mapping",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
-    "text": "Import family apps",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
-    "text": "Map source child/user IDs to existing Family Planner user IDs, for example",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
     "text": "Meal Planner",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
-    "text": "Persist approved import",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
-    "text": "Reconciliation preview",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
-    "text": "Source application",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
-    "text": "Validate an export first, review skipped records, then explicitly approve persistence.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
-    "text": "Validate dry run",
     "count": 1
   },
   {

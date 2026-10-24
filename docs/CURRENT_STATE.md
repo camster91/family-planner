@@ -44,14 +44,15 @@ No unverified feature is declared completed by source authorship.
 | #134 Projects overview | Web24-card keyset pages and opt-in API paging; one grouped task-count query per returned page | Legacy API remains unbounded; query plans, compatibility, isolation/concurrency and rendered acceptance remain unverified |
 | #141/#134 Notifications | Opt-in personal keyset API and older-page inbox reads; bounded timeout, exact retry, truthful loaded-state copy and old-server fallback | Original authorization/snooze/Undo/concurrency/rendered acceptance remains unverified; no delivery activation |
 | #134 Wishlist | Opt-in household/requester keyset API; web24-item explicit continuation; canonical target inspection for write recovery; loaded-only EN/ES state | Legacy unpaged API remains unbounded; UI fixtures adapted/unrun; role/feature/concurrency/compatibility/query/rendered acceptance unverified |
+| #104/#142 import form | Typed EN/ES semantic copy; generation-bound file reads, current-input preview and exact reviewed persistence body; consumed local approval | Approved exports/maps and real reconciliation remain unavailable; server snapshot/lifecycle, repeat/concurrency/rollback and all QA remain open |
 
-Latest bounded source work moves recorded prepared-recipe dialog copy into the
-same typed EN/ES recipe presentation layer. Captured snapshots, timestamps,
-identity checks, fetch/cancel/retry and current-recipe separation stay canonical;
-locale changes alter display only. Eighteen owned migration records were removed.
-No scanner, QA/test/build/browser, CI, migration, activation or release ran.
-Existing history cases remain unrun; full runtime/layout/privacy/device acceptance
-remains deferred. Earlier completed source slices are summarized above.
+Latest bounded source work localizes import settings and binds local review to
+the selected file/source/map. Stale file reads and duplicate submissions are
+guarded; persistence consumes approval and unknown outcomes remain explicit.
+Twelve owned copy records were removed; four literal labels/examples remain.
+See `docs/plans/import-review-ui.md` for the unchanged backend and remaining
+server/reconciliation boundaries. No scanner, QA/test/build/browser, CI,
+migration, import or release ran. Source cases are authored/unrun.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -1,5 +1,17 @@
 # Route and domain inventory (#148)
 
+### Import form review/localization source — 2026-10-24 (#104 / #142)
+
+ImportsClient now uses typed EN/ES copy and semantic known/local failures,
+generation-bound file reads and a current-input preview. Exact reviewed JSON
+and source are frozen for explicit persistence; synchronous duplicate/edit guards
+and consumed local approval prevent accidental second submissions. Validated
+result envelopes gate preview/job display; unknown writes require fresh review.
+No backend authorization/transaction/importer change, live import or source data
+was introduced. Twelve owned copy records removed; four literal labels/examples
+remain. Source cases are authored/unrun. See `docs/plans/import-review-ui.md` for
+server lifecycle/snapshot, real exports/rehearsal/rollback and QA limits.
+
 ### Recorded recipe localization source — 2026-10-24 (#142 / #460)
 
 PreparedRecipe history dialog now uses typed EN/ES keys for launch/title/summary,
