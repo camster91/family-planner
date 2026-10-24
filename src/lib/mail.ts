@@ -1,7 +1,8 @@
+import { PRODUCT_BRAND } from '@/lib/brand'
 import { escapeHtml } from '@/lib/escape-html'
 import { brandedEmailHtml, emailButton } from '@/lib/email-layout'
 
-const DEFAULT_FROM = 'Family Planner <noreply@ashbi.ca>'
+const DEFAULT_FROM = `${PRODUCT_BRAND.wordmark} <noreply@ashbi.ca>`
 const DEFAULT_DOMAIN = 'ashbi.ca'
 
 export function isMailConfigured(): boolean {
@@ -60,7 +61,7 @@ export function familyInviteEmail(options: {
   const familyName = escapeHtml(options.familyName)
   const inviterName = escapeHtml(options.inviterName)
   const role = escapeHtml(options.role)
-  const subject = `${options.inviterName} invited you to ${options.familyName} on Family Planner`
+  const subject = `${options.inviterName} invited you to ${options.familyName} on ${PRODUCT_BRAND.wordmark}`
   const html = brandedEmailHtml([
     `<p>Hi,</p>`,
     `<p>${inviterName} invited you to join <strong>${familyName}</strong> as a <strong>${role}</strong>.</p>`,

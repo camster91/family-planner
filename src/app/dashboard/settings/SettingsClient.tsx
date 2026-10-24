@@ -1,4 +1,5 @@
 "use client";
+import { PRODUCT_BRAND } from "@/lib/brand";
 
 import {
   useState,
@@ -57,8 +58,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-// The legacy app identity is literal data, not translated copy.
-const LEGACY_APP_NAME = "Family Planner";
 
 // Settings is the default landing tab, so keep family-only controls out of
 // its startup graph. Each child retains its existing disclosure, state and
@@ -1280,12 +1279,12 @@ export default function SettingsClient({
 
       {/* App Info */}
       <div className="rounded-xl bg-muted p-5 text-sm text-muted-foreground">
-        <p className="font-semibold text-foreground">{LEGACY_APP_NAME}</p>
+        <p className="font-semibold text-foreground">{PRODUCT_BRAND.wordmark}</p>
         {build && <p>{copy("version", { build })}</p>}
         <p className="mt-1 text-label-tertiary">
           {copy("copyright", {
             year: new Date().getFullYear(),
-            brand: LEGACY_APP_NAME,
+            brand: PRODUCT_BRAND.legacyName,
           })}
         </p>
       </div>

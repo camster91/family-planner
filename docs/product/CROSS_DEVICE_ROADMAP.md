@@ -217,3 +217,20 @@ The Help app-details card uses the existing shared card, typography, disclosure 
 The report distinguishes installed binary platform/version/build/id and measured App/Network/Share plugin presence from the public loaded server version/commit/build timestamp. Plugin presence is not permission or feature readiness. No family/account identifier, raw exception, provider setting, automatic export or persistent report is included. Older App bridges, offline servers and /api/version 404 remain usable partial reports. /api/version retains its exact three-key response.
 
 This is support evidence only. It does not implement the versioned capability handshake, minimum-client policy, queued-write compatibility, or current/previous-client physical matrix required to close #473. Rollback removes the optional Help card and helper without a data migration or installed-shell change.
+
+## Current compatibility planning boundary — 2026-10-24
+
+The per-platform capability/fallback matrix, support-window decision boundary
+and forward/rollback sequence are in
+[Native, web and API compatibility](../architecture/NATIVE_API_COMPATIBILITY.md#per-platform-capability-and-fallback-contract--2026-10-24).
+This contract expansion is restored in the recovery checkout, not recovered
+from the absent unpublished branch. It does not complete #473: actual
+current/previous client compatibility, older queued work, lifecycle/household
+isolation and physical-device evidence remain unexecuted.
+
+Canonical retained execution: #138 Android/fridge (including retired #120/#242),
+#465 iOS, #135 offline/sync (including retired #371/#466), #473 cross-device
+compatibility, #499 adaptive UI, #480/#557 profile/linking, #563 local voice and
+#145 release automation. Older issue references above are historical work packets;
+closure of a redundant tracker does not mean its native acceptance passed.
+No QA, hardware, signing/store, provider, permission or production action ran.

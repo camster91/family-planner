@@ -1,3 +1,4 @@
+import { PRODUCT_BRAND } from '@/lib/brand'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendAccountMail } from '@/lib/notification-delivery'
@@ -174,7 +175,7 @@ export async function POST(request: NextRequest) {
       const html = brandedEmailHtml([
         '<h2>Verify Your Email</h2>',
         `<p>Hi ${escapeHtml(name)},</p>`,
-        '<p>Welcome to Family Planner! Please verify your email address to get started.</p>',
+        `<p>Welcome to ${escapeHtml(PRODUCT_BRAND.wordmark)}! Please verify your email address to get started.</p>`,
         `<p>${emailButton(verifyUrl, 'Verify Email')}</p>`,
         `<p>Or copy this link: ${escapeHtml(verifyUrl)}</p>`,
         '<p>This link expires in 24 hours. If you did not sign up, you can ignore this email.</p>',
@@ -183,9 +184,9 @@ export async function POST(request: NextRequest) {
       try {
         await sendAccountMail('email_verification', {
           to: email,
-          subject: 'Verify Your Family Planner Email',
+          subject: `Verify your ${PRODUCT_BRAND.wordmark} email`,
           html,
-          text: `Verify your Family Planner email: ${verifyUrl} - this link expires in 24 hours.`,
+          text: `Verify your ${PRODUCT_BRAND.wordmark} email: ${verifyUrl} - this link expires in 24 hours.`,
         })
       } catch (e) {
         // Registration must not fail if email delivery fails; surface it in logs.

@@ -1,3 +1,4 @@
+import { PRODUCT_BRAND } from '@/lib/brand'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
     const html = brandedEmailHtml([
       '<h2>Password Reset Request</h2>',
       `<p>Hi ${escapeHtml(user.name)},</p>`,
-      '<p>You requested a password reset for your Family Planner account.</p>',
+      `<p>You requested a password reset for your ${escapeHtml(PRODUCT_BRAND.wordmark)} account.</p>`,
       `<p>${emailButton(resetUrl, 'Reset Password')}</p>`,
       `<p>Or copy this link: ${escapeHtml(resetUrl)}</p>`,
       '<p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>',
@@ -69,9 +70,9 @@ export async function POST(request: NextRequest) {
     try {
       await sendAccountMail('password_reset', {
         to: user.email,
-        subject: 'Reset Your Family Planner Password',
+        subject: `Reset your ${PRODUCT_BRAND.wordmark} password`,
         html,
-        text: `Reset your Family Planner password: ${resetUrl} - this link expires in 1 hour.`,
+        text: `Reset your ${PRODUCT_BRAND.wordmark} password: ${resetUrl} - this link expires in 1 hour.`,
       })
     } catch (e) {
       // Never surface send failures to the caller (avoids enumeration/probing),

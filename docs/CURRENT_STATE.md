@@ -1,3 +1,28 @@
+## Branding and native compatibility source follow-through — 2026-10-24
+
+Local source now uses `PRODUCT_BRAND.wordmark` (lowercase herewoven) for the
+Settings product heading, verification/reset email wording, invitation subject /
+plain text, and the default mail sender display name. Addresses, tokens, session
+logic and provider configuration are unchanged; existing MAILGUN_FROM/FROM_EMAIL
+overrides still win. No email was sent. Legal page and copyright operator wording
+remain unchanged pending Cameron's legal-operator decision in #372. Product
+branding is not a legal identity decision. #372 stays open.
+
+The #473 per-platform capability/fallback matrix, supported-client decision
+boundary, forward/rollback sequence and ownership are now restored as authored
+contract in NATIVE_API_COMPATIBILITY.md and CROSS_DEVICE_ROADMAP.md. This is a
+new source reconstruction from the current checkout, not recovery of the absent
+original commit. The prior recovery note remains historical. No actual supported
+binary window is invented; current/previous client, older queued-operation and
+physical-device acceptance remain open.
+
+40 issues remain. No QA, tests, build, lint, typecheck, browser, CI, push, merge,
+deployment, signing/provisioning, provider activation or production mutation ran.
+All edits are local, unverified and unreleased. Existing genuine acceptance and
+external prerequisites stay open rather than being closed as unnecessary.
+
+---
+
 ## Recovered issue follow-through — 2026-10-24
 
 GitHub metadata confirms **40 open issues**, down from 41 after #566
