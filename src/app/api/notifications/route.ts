@@ -1,3 +1,4 @@
+import { parseNotificationPaging, afterNotificationCursor, encodeNotificationCursor } from "@/lib/notification-paging"
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateRequest, authenticateWithFamily, requireParent } from '@/lib/api-auth'
@@ -18,22 +19,31 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const unreadOnly = searchParams.get('unread') === 'true'
+    const includeSnoozed = searchParams.get('includeSnoozed') === 'true'
+    const scope = { userId, unreadOnly, includeSnoozed }
+    const paging = parseNotificationPaging(searchParams, scope)
+    if (!paging.ok) return NextResponse.json({ error: paging.error }, { status: 400 })
 
     const where: Record<string, unknown> = { user_id: userId }
-    if (searchParams.get('includeSnoozed') !== 'true') {
+    if (!includeSnoozed) {
       where.OR = [{ snoozed_until: null }, { snoozed_until: { lte: new Date() } }]
     }
     if (unreadOnly) {
       where.read = false
     }
 
-    const notifications = await prisma!.notification.findMany({
+    if (paging.paged && paging.cursor) where.AND = [afterNotificationCursor(paging.cursor)]
+    const rows = await prisma!.notification.findMany({
       where,
-      orderBy: { created_at: 'desc' },
-      take: 50,
+      orderBy: [{ created_at: 'desc' }, { id: 'asc' }],
+      take: paging.paged ? paging.limit + 1 : 50,
     })
-
-    return NextResponse.json({ notifications })
+    const notifications = paging.paged ? rows.slice(0, paging.limit) : rows
+    return NextResponse.json(paging.paged ? {
+      notifications,
+      nextCursor: rows.length > paging.limit
+        ? encodeNotificationCursor(scope, notifications[notifications.length - 1]) : null,
+    } : { notifications }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     logRouteError('GET /api/notifications', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

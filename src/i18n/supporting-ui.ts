@@ -5,6 +5,14 @@ import { useTranslation } from "@/i18n";
 
 const en = {
   notifications: "Notifications",
+  unreadShownCount: "{count} unread shown",
+  loadedNotifications: "Loaded notifications",
+  noMatchingLoaded: "No matching notifications loaded",
+  loadedScope: "Counts and filters apply to the notifications loaded here.",
+  allLoaded: "All notifications loaded.",
+  pagingUnavailable: "This server cannot load older notification pages yet. Refresh after the server is updated.",
+  loadOlder: "Load older notifications",
+  retryOlder: "Retry older notifications",
   caughtUp: "All caught up",
   unreadCount: "{count} unread",
   all: "All",
@@ -75,6 +83,14 @@ const en = {
 } as const;
 const es: Record<keyof typeof en, string> = {
   notifications: "Notificaciones",
+  unreadShownCount: "{count} sin leer mostradas",
+  loadedNotifications: "Notificaciones cargadas",
+  noMatchingLoaded: "No hay notificaciones coincidentes cargadas",
+  loadedScope: "Los recuentos y filtros corresponden a las notificaciones cargadas aquí.",
+  allLoaded: "Todas las notificaciones están cargadas.",
+  pagingUnavailable: "Este servidor aún no carga páginas de notificaciones anteriores. Actualiza cuando se haya actualizado el servidor.",
+  loadOlder: "Cargar notificaciones anteriores",
+  retryOlder: "Reintentar notificaciones anteriores",
   caughtUp: "Todo al día",
   unreadCount: "{count} sin leer",
   all: "Todas",

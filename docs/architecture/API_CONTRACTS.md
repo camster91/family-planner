@@ -1120,3 +1120,45 @@ additive migration. Current/previous client, concurrent paging/deletion,
 permission/feature changes, malformed cursor, large-household query plan and
 rendered keyboard/phone/tablet acceptance remain unexecuted. No runtime or scale
 result is claimed for this authored source.
+
+
+## Personal notification read paging — #134/#141, source 2026-10-24
+
+`GET /api/notifications?limit=50[&cursor=...][&unread=true|false][&includeSnoozed=true|false]`
+opts into stable created_at DESC/id ASC continuation. Limit is1–100. The bounded
+cursor carries its protocol, current authenticated user, both filter choices and
+position. Repeated paging/filter values, malformed/noncanonical/cross-user or
+changed-filter cursors are refused; a cursor without limit is invalid. A cursor
+is a read position, never authentication/household authority. The personal user
+predicate stays separate from the combined snooze-window and position predicates.
+
+Paged response is `{ notifications, nextCursor: string | null }`; no-limit
+callers keep their previous50-row `{ notifications }` response and snooze/unread
+behavior, without new required fields. Successful reads are private/no-store.
+No write, notification/provider policy, schema or offline allowlist changes.
+The original named personal/API authorization and paired-context boundaries
+remain the authority; paging metadata cannot grant account access.
+
+The web inbox requests50 at a time and explicitly loads older pages. It keeps
+loaded rows on an older-read failure, retains the exact continuation for retry,
+deduplicates IDs while retaining newer local read/snooze/Undo state, and filters
+pending deletes. Current-cycle guards discard late results after refresh/unmount.
+Reads settle after15 seconds even when abort is ignored; a late result has no
+state callback. Cycling/nonadvancing cursors and empty continuing pages are
+refused. Keyboard-initiated continuation preserves control/status focus without
+stealing focus from someone who moved elsewhere.
+
+Until all supported pages are loaded, unread/empty text and the scope hint refer
+to loaded notifications, not a complete caught-up inbox. A rolled-back server
+without nextCursor can still show its latest rows, but gets explicit unsupported
+paging/refresh copy rather than a false complete state. An unsupported older
+response never replaces loaded rows or silently discards the continuation.
+Counts remain a view of loaded rows, not fleet/delivery telemetry. A concurrent
+new notification is discovered on refresh, not by claiming a frozen snapshot.
+
+Original mark-read, snooze/expiry/Show now, deferred Delete/Undo and notification
+preference paths stay canonical. Fresh authorization, duplicate/overlapping
+pages, load/write races, timeout/unmount, old-server recovery and EN/ES
+keyboard/phone/tablet journeys remain unexecuted. Evaluate a user/created_at/id
+index against representative query plans before a separate migration; the row
+limit alone is not a bounded-DB-work or scale proof.

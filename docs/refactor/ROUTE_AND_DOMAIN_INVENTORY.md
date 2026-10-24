@@ -1,5 +1,18 @@
 # Route and domain inventory (#148)
 
+### Notifications older-page read source — 2026-10-24 (#134/#141)
+
+Existing GET `/api/notifications` adds opt-in scoped limit/cursor paging while
+retaining its legacy50-row shape. Existing web inbox requests50, loads older
+rows, retains exact retry state and local action state, and uses truthful loaded
+count/empty labels until completion. Missing old-server metadata has explicit
+unsupported/refresh copy. No write route/model/provider/permission is added.
+Canonical personal auth, preferences and snooze/mark/Delete/Undo remain in source.
+Typed EN/ES copy is in supporting-ui. Parser/API/inbox regression source is
+authored, not run; API_CONTRACTS records scope, timeout, recovery and remaining
+role/concurrency/rendered acceptance. No QA/build/CI/deployment action ran.
+
+
 ### Projects bounded overview source — 2026-10-24 (#134)
 
 Existing `/dashboard/projects` now reads24 project summaries plus a continuation

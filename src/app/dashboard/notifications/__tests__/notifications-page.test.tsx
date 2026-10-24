@@ -29,7 +29,7 @@ function mockFetch(answer: (method: string, url: string) => Answer) {
   return calls
 }
 
-const list = (): Answer => ({ status: 200, body: { notifications: [UNREAD, READ] } })
+const list = (): Answer => ({ status: 200, body: { notifications: [UNREAD, READ], nextCursor: null } })
 
 function renderPage() {
   return render(
@@ -221,11 +221,53 @@ it('keeps the row when snoozing fails',async()=>{
 })
 it('returns an expired snooze to unread without creating another notification',async()=>{
  jest.useFakeTimers({now:new Date('2026-10-09T12:00:00Z')})
- mockFetch(()=>({status:200,body:{notifications:[{...UNREAD,snoozed_until:new Date(Date.now()+60_000).toISOString()}]}}))
+ mockFetch(()=>({status:200,body:{notifications:[{...UNREAD,snoozed_until:new Date(Date.now()+60_000).toISOString()}],nextCursor:null}}))
  renderPage()
  await act(async()=>{})
  expect(screen.getByRole('button',{name:'Snoozed (1)'})).toBeTruthy()
  await act(async()=>{jest.advanceTimersByTime(60_000)})
  expect(screen.getByRole('button',{name:'Snoozed (0)'})).toBeTruthy()
  expect(screen.getByRole('button',{name:'Unread (1)'})).toBeTruthy()
+})
+
+// Source cases for the deferred QA pass; no execution claimed.
+it('loads older pages without duplicates or overwriting a locally marked-read row', async () => {
+  const older = { ...UNREAD, id: 'n3', title: 'Older chore', created_at: '2026-09-28T10:00:00.000Z' }
+  mockFetch((method, url) => method === 'PATCH'
+    ? { status: 200, body: { success: true } }
+    : new URL(url, 'http://localhost').searchParams.has('cursor')
+      ? { status: 200, body: { notifications: [UNREAD, older], nextCursor: null } }
+      : { status: 200, body: { notifications: [UNREAD, READ], nextCursor: 'cursor-a' } })
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Mark "Dishes done" as read' }))
+  await user.click(screen.getByRole('button', { name: 'Load older notifications' }))
+  await screen.findByRole('button', { name: 'Mark "Older chore" as read' })
+  expect(screen.getAllByTestId('notification-row')).toHaveLength(3)
+  expect(screen.queryByRole('button', { name: 'Mark "Dishes done" as read' })).toBeNull()
+  expect(screen.getByText('All notifications loaded.')).toBeTruthy()
+})
+it('retains the current page and exact continuation when an older read fails', async () => {
+  let fail = true
+  const calls = mockFetch((_, url) => new URL(url, 'http://localhost').searchParams.has('cursor')
+    ? fail ? { status: 503, body: { error: 'Older page unavailable' } }
+      : { status: 200, body: { notifications: [READ], nextCursor: null } }
+    : { status: 200, body: { notifications: [UNREAD], nextCursor: 'cursor-a' } })
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Load older notifications' }))
+  await screen.findByRole('alert')
+  expect(screen.getByRole('button', { name: 'Mark "Dishes done" as read' })).toBeTruthy()
+  fail = false
+  await user.click(screen.getByRole('button', { name: 'Retry older notifications' }))
+  await screen.findByText('Swim lesson')
+  const olderCalls = calls.filter(c => new URL(c.url, 'http://localhost').searchParams.has('cursor'))
+  expect(olderCalls.map(c => new URL(c.url, 'http://localhost').searchParams.get('cursor'))).toEqual(['cursor-a', 'cursor-a'])
+})
+it('does not claim caught-up or a complete empty inbox from legacy page metadata', async () => {
+  mockFetch(() => ({ status: 200, body: { notifications: [READ] } }))
+  renderPage()
+  await screen.findByText('Swim lesson')
+  expect(screen.queryByText('All caught up')).toBeNull()
+  expect(screen.getByText(/This server cannot load older notification pages yet/)).toBeTruthy()
 })
