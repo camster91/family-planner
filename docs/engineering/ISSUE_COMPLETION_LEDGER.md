@@ -1,3 +1,29 @@
+## Compact Today controls and profile linking reconciliation — 2026-10-24
+
+The selected Glance and act direction is restored in
+`docs/plans/simple-connected-experience-20261024.md`, with reconstructed versus
+still-missing source listed explicitly. TodayControls now groups allowed event /
+chore creation in one Add disclosure, keeps Explore visible, and puts grocery,
+all-list and meal navigation in Today controls alongside refresh/settings.
+Existing role/feature restrictions, canonical destinations, 44px targets,
+Escape-to-summary focus, outside dismissal and offline refresh refusal remain
+in source. One disclosure closes the other. No feature or write permission is
+added. Existing regression source is adapted for the disclosures, not executed.
+The combined NextUp layout, desktop composition, meal context and helper
+follow-through still need recovery/reimplementation; do not claim the whole
+selected design is restored.
+
+#557/#480 source reconciliation is recorded in the existing profile activation
+plan: verified challenge/claim/approval source exists, but revoking an unfinished
+challenge is not a standalone unlink flow. Conflicting mappings stay refused;
+broader identity/domain/client acceptance stays open. No identity behavior or
+gate changed in this reconciliation.
+
+40 issues remain. No QA, tests, build, lint, typecheck, browser, CI, push, merge,
+deploy, provider or production action ran. Source remains local and unverified.
+
+---
+
 ## Branding and native compatibility source follow-through — 2026-10-24
 
 Local source now uses `PRODUCT_BRAND.wordmark` (lowercase herewoven) for the

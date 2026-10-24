@@ -1,3 +1,31 @@
+## Current source follow-through — 2026-10-24
+
+The recovered main source includes gated profile setup, profile one-off /
+recurring chore and routine paths, plus the explicit account-link challenge
+flow (`profile-account-link.ts`, `/api/family/profile-links`, parent manager and
+owner-claim page). The older planning statements below are historical sequencing,
+not proof those paths are absent. Gates, dormant source and a readable manifest
+are not activation or acceptance evidence.
+
+The linking source issues an expiring hashed-token challenge; the intended
+account owner must be verified, belong to the same household/role and confirm a
+current password. A parent approves the exact claim under user/household locks.
+Names or email matches do not confer ownership. Stable member IDs, existing
+chore aliases, routine subject rewrite and receipt replay use canonical paths.
+Conflicting existing mappings are refused rather than guessed or merged.
+
+This does not complete #557/#480. Link revocation cancels an unfinished challenge;
+it is **not** an unlink action for a completed account. Completed identity removal
+uses the existing account/member lifecycle, while a distinct standalone unlink /
+rejoin flow and full per-domain treatment remain unfinished. Broader rotation,
+points/rewards and member-domain parity, actual rollback/current-previous-client
+behavior and original two-household/device acceptance remain open. Do not
+reinterpret a refused account conflict as permission to merge two people.
+No QA, tests, browser, migration/backfill, account mutation or activation ran in
+this source reconciliation. No profile or login account was created.
+
+---
+
 # Email-free profiles: compatibility and domain activation plan
 
 **Scope:** reopened #480, based on `5b996a5` (2026-10-11)
