@@ -51,6 +51,43 @@ interface RemoteCalendar {
   primary: boolean;
 }
 
+type LoadState = "loading" | "available" | "unavailable" | "failed";
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+function isProvider(value: unknown): value is Provider {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const provider = value as Partial<Provider>;
+  return typeof provider.id === "string" && typeof provider.label === "string";
+}
+
+function isConnection(value: unknown): value is Connection {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const connection = value as Partial<Connection>;
+  const owner = connection.owner;
+  return (
+    typeof connection.id === "string" &&
+    typeof connection.provider === "string" &&
+    typeof connection.provider_label === "string" &&
+    isNullableString(connection.calendar_id) &&
+    isNullableString(connection.calendar_name) &&
+    typeof connection.push_mode === "string" &&
+    typeof connection.status === "string" &&
+    isNullableString(connection.last_synced_at) &&
+    isNullableString(connection.last_error) &&
+    typeof connection.conflicts_count === "number" &&
+    Number.isFinite(connection.conflicts_count) &&
+    typeof owner === "object" &&
+    owner !== null &&
+    !Array.isArray(owner) &&
+    typeof owner.id === "string" &&
+    typeof owner.name === "string" &&
+    typeof connection.is_mine === "boolean"
+  );
+}
+
 const OUTCOMES: Record<string, { ok: boolean; key: SettingsMessage }> = {
   connected: { ok: true, key: "connected" },
   denied: { ok: false, key: "connectionDenied" },
@@ -108,7 +145,9 @@ export default function CalendarSyncSection({
 } = {}) {
   const copy = useSettingsCopy();
   const syncCopy = useCalendarSyncCopy();
-  const [available, setAvailable] = useState(false);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [loadBusy, setLoadBusy] = useState(false);
+  const [loadError, setLoadError] = useState<SettingsFeedback | null>(null);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   // Keeps "Last synced 3 min ago" current (#271).
@@ -124,23 +163,45 @@ export default function CalendarSyncSection({
   } | null>(null);
 
   const load = useCallback(async (): Promise<Connection[] | null> => {
+    setLoadBusy(true);
+    setLoadError(null);
     try {
       const res = await fetch("/api/calendar/connections");
-      if (!res.ok) {
-        setAvailable(false);
+      // A 404 is the intentional feature-off response. Other failures are
+      // transient and must leave the section mounted so a parent can retry.
+      if (res.status === 404) {
+        setProviders([]);
+        setConnections([]);
+        setLoadState("unavailable");
         return null;
       }
+      if (!res.ok) throw new Error("Calendar connections unavailable");
       const data = await res.json();
-      const list: Connection[] = Array.isArray(data.connections)
-        ? data.connections
-        : [];
-      setProviders(Array.isArray(data.providers) ? data.providers : []);
+      if (
+        !data ||
+        !Array.isArray(data.connections) ||
+        !data.connections.every(isConnection) ||
+        !Array.isArray(data.providers) ||
+        !data.providers.every(isProvider)
+      ) {
+        throw new Error("Calendar connections response was invalid");
+      }
+      const list: Connection[] = data.connections;
+      setProviders(data.providers);
       setConnections(list);
-      setAvailable(true);
+      setLoadState("available");
       return list;
     } catch {
-      setAvailable(false);
+      // Keep a previously confirmed list visible while showing the retry
+      // state. Its actions are disabled until the list is refreshed; a failed
+      // read is not evidence that the household has no connections.
+      setLoadState((current) =>
+        current === "available" ? "available" : "failed",
+      );
+      setLoadError(settingsFeedback("calendarConnectionsLoadFailed"));
       return null;
+    } finally {
+      setLoadBusy(false);
     }
   }, []);
 
@@ -326,12 +387,13 @@ export default function CalendarSyncSection({
     }
   };
 
-  if (!available) return null;
+  if (loadState === "unavailable") return null;
 
   const mineByProvider = new Set(
     connections.filter((c) => c.is_mine).map((c) => c.provider),
   );
   const connectable = providers.filter((p) => !mineByProvider.has(p.id));
+  const controlsDisabled = busy !== null || loadBusy || loadError !== null;
 
   return (
     <SettingsDisclosure
@@ -340,9 +402,34 @@ export default function CalendarSyncSection({
       title={copy("connectedCalendars")}
       description={copy("connectedDescription")}
       icon={<SettingsIcon icon={CalendarSync} tone="emerald" />}
-      forceOpen={Boolean(notice || error)}
+      forceOpen={Boolean(notice || error || loadError)}
     >
-      {connections.length === 0 ? (
+      {loadError && (
+        <div className="mb-4 space-y-3">
+          <p role="alert" className="text-sm text-danger-text">
+            <SettingsText feedback={loadError} />
+          </p>
+          <button
+            type="button"
+            className="btn-secondary min-h-[44px]"
+            disabled={loadBusy}
+            onClick={() => void load()}
+          >
+            {copy("retryCalendarConnections")}
+          </button>
+        </div>
+      )}
+
+      {loadBusy && loadState === "available" && (
+        <p role="status" className="text-sm text-muted-foreground mb-4">
+          {copy("calendarConnectionsLoading")}
+        </p>
+      )}
+      {loadState === "loading" || (loadBusy && loadState !== "available") ? (
+        <p role="status" className="text-sm text-muted-foreground mb-4">
+          {copy("calendarConnectionsLoading")}
+        </p>
+      ) : loadState === "failed" ? null : connections.length === 0 ? (
         <p className="text-sm text-muted-foreground mb-4">
           {copy("connectIntro")}
         </p>
@@ -418,7 +505,7 @@ export default function CalendarSyncSection({
                     type="button"
                     className="btn-primary inline-flex items-center min-h-[44px]"
                     disabled={
-                      busy !== null ||
+                      controlsDisabled ||
                       picking.calendars.length === 0 ||
                       !picking.value
                     }
@@ -467,7 +554,7 @@ export default function CalendarSyncSection({
                           name={`push-mode-${c.id}`}
                           value={opt.value}
                           checked={c.push_mode === opt.value}
-                          disabled={busy !== null}
+                          disabled={controlsDisabled}
                           onChange={() =>
                             patch(
                               c.id,
@@ -492,7 +579,7 @@ export default function CalendarSyncSection({
                   <button
                     type="button"
                     onClick={() => syncNow(c)}
-                    disabled={busy !== null}
+                    disabled={controlsDisabled}
                     className={BUTTON}
                     aria-label={copy("syncLabel", {
                       provider: c.provider_label,
@@ -509,7 +596,7 @@ export default function CalendarSyncSection({
                   <button
                     type="button"
                     onClick={() => connect(c.provider)}
-                    disabled={busy !== null}
+                    disabled={controlsDisabled}
                     className={BUTTON}
                   >
                     <Link2 className="w-4 h-4 mr-2" aria-hidden="true" />
@@ -522,7 +609,7 @@ export default function CalendarSyncSection({
                     <button
                       type="button"
                       onClick={() => openPicker(c)}
-                      disabled={busy !== null}
+                      disabled={controlsDisabled}
                       className={BUTTON}
                       aria-label={copy(
                         c.calendar_id
@@ -542,7 +629,7 @@ export default function CalendarSyncSection({
                     setError(null);
                     setDisconnecting(c);
                   }}
-                  disabled={busy !== null}
+                  disabled={controlsDisabled}
                   className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-[var(--danger-tint)] text-danger-text hover:bg-[var(--danger-tint)] disabled:opacity-60"
                   aria-label={copy("disconnectLabel", {
                     provider: c.provider_label,
@@ -564,7 +651,7 @@ export default function CalendarSyncSection({
               key={p.id}
               type="button"
               onClick={() => connect(p.id)}
-              disabled={busy !== null}
+              disabled={controlsDisabled}
               className="btn-primary inline-flex items-center min-h-[44px]"
             >
               <Link2 className="w-4 h-4 mr-2" aria-hidden="true" />
@@ -609,7 +696,7 @@ export default function CalendarSyncSection({
             },
           )}
           action={copy("disconnect")}
-          busy={busy !== null}
+          busy={busy !== null || loadBusy}
           error={error}
           onCancel={() => {
             setDisconnecting(null);

@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  lazy,
+  Suspense,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import LazyDeleteAccountDialog from "@/components/account/LazyDeleteAccountDialog";
@@ -84,6 +91,35 @@ const FAMILY_ANCHORS = new Set([
   "tablet-pin",
 ]);
 const PRIVACY_ANCHORS = new Set(["beta-metrics-switch"]);
+
+type UserProfilePayload = {
+  name: string;
+  email: string | null;
+  role: string;
+  age: number | null;
+};
+
+function readUserProfilePayload(value: unknown): UserProfilePayload | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const user = (value as { user?: unknown }).user;
+  if (!user || typeof user !== "object" || Array.isArray(user)) return null;
+
+  const profile = user as Record<string, unknown>;
+  if (
+    typeof profile.name !== "string" ||
+    (profile.email !== null && typeof profile.email !== "string") ||
+    typeof profile.role !== "string" ||
+    (profile.age !== null && typeof profile.age !== "number")
+  )
+    return null;
+
+  return {
+    name: profile.name,
+    email: profile.email,
+    role: profile.role,
+    age: profile.age,
+  };
+}
 
 /** Who is looking at Settings; decided on the server from the database role. */
 export type SettingsViewerRole = "parent" | "teen";
@@ -183,7 +219,16 @@ export default function SettingsClient({
   const copy = useSettingsCopy();
   const isParent = viewerRole === "parent";
   const [loading, setLoading] = useState(true);
+  const [profileLoadState, setProfileLoadState] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
+  const [profileLoadError, setProfileLoadError] =
+    useState<SettingsFeedback | null>(null);
   const [activeSection, setActiveSection] = useState("settings-account");
+  // A provider-return callback may arrive after the lazy calendar section has
+  // mounted. Once the person explicitly chooses a tab, that late callback
+  // must not take them back to Family.
+  const hasExplicitSectionChoice = useRef(false);
   const [hasCalendarReturn, setHasCalendarReturn] = useState(false);
   const [familyContentMounted, setFamilyContentMounted] = useState(false);
   const [privacyContentMounted, setPrivacyContentMounted] = useState(false);
@@ -192,7 +237,8 @@ export default function SettingsClient({
   const privacyContentReady =
     privacyContentMounted || activeSection === "settings-privacy";
   const revealCalendarReturn = useCallback(() => {
-    if (isParent) setActiveSection("settings-family");
+    if (isParent && !hasExplicitSectionChoice.current)
+      setActiveSection("settings-family");
   }, [isParent]);
   useEffect(() => {
     const selectAnchor = () => {
@@ -465,26 +511,36 @@ export default function SettingsClient({
   };
 
   const loadUserData = async () => {
-    setLoading(true);
+    // The first profile request controls the page-level loading shell. A
+    // retry happens after the Settings tree is mounted; keep its other
+    // sections mounted so one-shot OAuth feedback and drafts are not lost.
+    const showPageLoader = loading && profileLoadState === "loading";
+    if (showPageLoader) setLoading(true);
+    setProfileLoadState("loading");
+    setProfileLoadError(null);
     try {
       const res = await fetch("/api/users");
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      const profile = res.ok ? readUserProfilePayload(data) : null;
+      if (!profile) throw new Error("Invalid profile response");
 
-      if (res.ok && data.user) {
-        setName(data.user.name || "");
-        setEmail(data.user.email || "");
-        setRole(data.user.role || "");
-        setAge(data.user.age?.toString() || "");
-      }
+      setName(profile.name);
+      setEmail(profile.email ?? "");
+      setRole(profile.role);
+      setAge(profile.age === null ? "" : String(profile.age));
+      setProfileLoadState("ready");
     } catch (err) {
       console.error("Error loading user data:", err);
+      setProfileLoadState("error");
+      setProfileLoadError(settingsFeedback("profileLoadFailed"));
     } finally {
-      setLoading(false);
+      if (showPageLoader) setLoading(false);
     }
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (profileLoadState !== "ready") return;
     setSaving(true);
     setMessage(null);
 
@@ -591,6 +647,25 @@ export default function SettingsClient({
         </div>
       )}
 
+      {profileLoadState === "error" && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--danger-tint)] bg-[var(--danger-tint)] p-4 text-danger-text"
+        >
+          <SettingsText
+            feedback={profileLoadError ?? settingsFeedback("profileLoadFailed")}
+          />
+          <button
+            type="button"
+            onClick={() => void loadUserData()}
+            className="btn-secondary inline-flex min-h-[44px] items-center"
+          >
+            <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
+            {copy("retryProfile")}
+          </button>
+        </div>
+      )}
+
       <nav aria-label={copy("title")} className="flex flex-wrap gap-2">
         {(["account", ...(isParent ? ["family"] : []), "privacy"] as const).map(
           (section) => {
@@ -601,6 +676,7 @@ export default function SettingsClient({
                 key={section}
                 aria-pressed={activeSection === id}
                 onClick={() => {
+                  hasExplicitSectionChoice.current = true;
                   setActiveSection(id);
                   window.history.replaceState(
                     window.history.state,
@@ -645,6 +721,7 @@ export default function SettingsClient({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                disabled={profileLoadState !== "ready"}
                 className="input-field"
                 placeholder={copy("namePlaceholder")}
               />
@@ -666,6 +743,7 @@ export default function SettingsClient({
                 max="120"
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
+                disabled={profileLoadState !== "ready"}
                 className="input-field"
                 placeholder={copy("agePlaceholder")}
               />
@@ -688,7 +766,7 @@ export default function SettingsClient({
 
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || profileLoadState !== "ready"}
               className="btn-primary inline-flex items-center min-h-[44px]"
             >
               <Save className="w-4 h-4 mr-2" aria-hidden="true" />
