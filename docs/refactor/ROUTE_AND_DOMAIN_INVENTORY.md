@@ -1,5 +1,27 @@
 # Route and domain inventory (#148)
 
+### Projects bounded overview source — 2026-10-24 (#134)
+
+Existing `/dashboard/projects` now reads24 project summaries plus a continuation
+sentinel with deterministic created-at/id order and explicit older/newest page
+links. Canonical source is `project-overview.ts`; no project/task model or writer
+is added. One grouped query counts task completion states for only returned
+project IDs, avoiding materializing completed task IDs or a per-card query.
+Streaming content rechecks current personal household and feature before reads;
+existing parent/teen route boundaries and parent-only creation remain in source.
+Invalid/cross-household/filter cursors do not query projects or claim an empty
+household. EN/ES paging/error/empty-page copy is in project-overview dictionary.
+
+`GET /api/projects` opts into the same summary reader with `limit`/`cursor`;
+legacy callers without limit retain the full `{ projects }` response and status
+filter behavior. No legacy collection is silently truncated. That legacy path
+is intentionally still unbounded and remains migration work under #134; source
+paging is not proof the whole query audit is complete. No schema/index migration,
+public capability change, offline write or native activation is introduced.
+Cursor parser/summary regression source is authored, not run. No QA/tests/build/
+lint/typecheck/browser/CI/push/merge/deploy or production data action occurred.
+
+
 ### Restock UI/owned request extension — 2026-10-20
 
 New read-only body-based POST `/api/inventory/restock/review` avoids private draft

@@ -7,6 +7,12 @@ import type { Locale } from "@/i18n/types";
 /** Copy for the project overview, detail, and task interactions. */
 export const projectOverviewEnglish = {
   pageTitle: "Projects",
+  pageNavigation: "Project pages",
+  pageHint: "One page of projects, newest first.",
+  olderProjects: "Older projects",
+  newestProjects: "Newest projects",
+  invalidPage: "This project page could not be opened. Return to the newest projects.",
+  emptyPage: "No projects remain on this page. Return to the newest projects to refresh.",
   pageSubtitle: "Keep family goals and the next steps together",
   newProject: "New project",
   backToProjects: "Back to projects",
@@ -76,6 +82,12 @@ export type ProjectOverviewMessage = keyof typeof projectOverviewEnglish;
 
 export const projectOverviewSpanish: Record<ProjectOverviewMessage, string> = {
   pageTitle: "Proyectos",
+  pageNavigation: "Páginas de proyectos",
+  pageHint: "Una página de proyectos, los más recientes primero.",
+  olderProjects: "Proyectos anteriores",
+  newestProjects: "Proyectos más recientes",
+  invalidPage: "No se pudo abrir esta página. Vuelve a los proyectos más recientes.",
+  emptyPage: "Ya no hay proyectos en esta página. Vuelve a los más recientes para actualizar.",
   pageSubtitle: "Reúne los objetivos familiares y los siguientes pasos",
   newProject: "Nuevo proyecto",
   backToProjects: "Volver a proyectos",

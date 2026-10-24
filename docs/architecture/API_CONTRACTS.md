@@ -1085,3 +1085,38 @@ No new cached private DTO, automatic replay, schema/index or mutation authority.
 Legacy no-limit reads/version hashes stay unbounded, not silently truncated.
 Source authored only; compatibility/permission/sync/DB/rendered acceptance awaits
 consolidated QA, as detailed in WEB_IMPLEMENTATION_HANDOFF.md.
+
+
+## Project summary read paging — #134, source 2026-10-24
+
+`GET /api/projects?limit=24[&cursor=...][&status=active|completed|archived]`
+opts into additive summary paging. Limit is1–100; repeated limit/cursor/status
+parameters, malformed/noncanonical cursors, a cursor without limit, an unknown
+paged status or a cursor from a different current household/status scope returns
+400. Cursor contents are bounded protocol metadata and a read position, never
+authority: every request authenticates, derives its household and checks Projects.
+A cursor preserves creation timestamp/id position even if that row was deleted;
+it does not grant access to a supplied household or require a lookup by cursor ID.
+
+Paged response is `{ projects, nextCursor: string | null }`. Unpaged callers
+retain `{ projects }`, original invalid-status fallback and no truncation; that
+legacy read remains unbounded until explicitly migrated/retired. Responses are
+private/no-store. Stable paged order is created_at DESC, id ASC. A concurrent
+rename/status update is not a creation-order change; this is keyset continuation,
+not a transactionally frozen whole-household snapshot. Refresh newest for a fresh
+view after relevant changes.
+
+The web overview opts in at24 rows and offers older/newest navigation. Empty
+later pages and invalid positions have distinct copy rather than a false global
+empty state. Only the returned project IDs participate in one family-scoped task
+aggregate grouped by project_id/completed, yielding at most two counts per
+project. Total/completed counts share that aggregate statement; task IDs/bodies
+are not materialized for progress cards. Project detail/task writing is unchanged.
+
+Existing family/status/project-task indexes remain; no claim is made that limit
+alone bounds DB scan/sort work. Evaluate a family/created_at/id index and a
+status-prefixed variant against representative query plans before a separate
+additive migration. Current/previous client, concurrent paging/deletion,
+permission/feature changes, malformed cursor, large-household query plan and
+rendered keyboard/phone/tablet acceptance remain unexecuted. No runtime or scale
+result is claimed for this authored source.

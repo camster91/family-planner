@@ -40,6 +40,11 @@ No unverified feature is declared completed by source authorship.
 | #564/#565 queue recovery | Existing source already implements retirement/generation and candidate retry; no duplicate engine added | Original storage fault/concurrency/lifecycle/rollback acceptance |
 | #566 finance | Complete source-reconciled plan retained in its completed issue and local plan | FIN-0–FIN-7 implementation remains #134/#499 with #104 source approval |
 | #146 support | Numbered20-case runbook and explicit response ownership; existing severity/stop procedure | Recovery/privacy/dashboard/backup, communications strategy and support scaling remain |
+| #134 Projects overview | Web24-card keyset pages and opt-in API paging; one grouped task-count query per returned page | Legacy API remains unbounded; query plans, compatibility, isolation/concurrency and rendered acceptance remain unverified |
+
+Latest bounded implementation: Projects paging source is authored with strict
+scoped cursors, older/newest navigation and EN/ES recovery. No QA or execution
+result is claimed. Protocol detail is in `docs/architecture/API_CONTRACTS.md`.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

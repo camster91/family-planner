@@ -214,3 +214,30 @@ export function ProjectTaskDetails({
   if (details.length === 0) return null;
   return <span>{text("taskDetails", { details: details.join(" · ") })}</span>;
 }
+
+/** Explicit next-page navigation; no false whole-household empty state. */
+export function ProjectPageState({ invalid }: { invalid: boolean }) {
+  const text = useProjectOverviewText();
+  return (
+    <div className="space-y-3 rounded-2xl bg-surface-fill p-4">
+      <p role={invalid ? "alert" : "status"}>{text(invalid ? "invalidPage" : "emptyPage")}</p>
+      {invalid && <Link href="/dashboard/projects" prefetch={false} className="btn-tinted min-h-[44px] inline-flex items-center">{text("newestProjects")}</Link>}
+    </div>
+  );
+}
+export function ProjectPageNavigation({ nextCursor, hasEarlierPage }: {
+  nextCursor: string | null;
+  hasEarlierPage: boolean;
+}) {
+  const text = useProjectOverviewText();
+  if (!nextCursor && !hasEarlierPage) return null;
+  return (
+    <nav aria-label={text("pageNavigation")} className="space-y-3">
+      <p className="text-footnote text-label-secondary">{text("pageHint")}</p>
+      <div className="flex flex-wrap gap-2">
+        {hasEarlierPage && <Link href="/dashboard/projects" prefetch={false} className="btn-tinted min-h-[44px] inline-flex items-center">{text("newestProjects")}</Link>}
+        {nextCursor && <Link href={`/dashboard/projects?${new URLSearchParams({ cursor: nextCursor })}`} prefetch={false} className="btn-tinted min-h-[44px] inline-flex items-center">{text("olderProjects")}</Link>}
+      </div>
+    </nav>
+  );
+}
