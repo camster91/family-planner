@@ -102,6 +102,42 @@ canonical-link regression sources are authored/unrun. Device route inventory
 also records the new personal-only read. No API, browser, test, DB, provider or
 release execution occurred. Full #124/#139 acceptance remains open.
 
+## Explicit repeat-rule removal — 2026-10-24, source only
+
+The existing personal parent event editor now exposes a collapsed repeat-rule
+section only for a stored local repeating event. Ordinary title/time/location/
+notes saves continue to omit recurrence, preserving custom and unsupported rules.
+“Stop repeating” is an explicit draft choice with a warning; “Keep the saved
+repeat rule” cancels it before save. Saving removal sets recurrence to null and
+includes the exact originally read rule as `expected_recurrence`. Separate events,
+completed history and imported source records are not deleted or rewritten.
+The choice does not create a replacement daily/weekly/monthly rule or claim an
+in-app recurrence planner. Legacy rules above8,192 characters remain held for
+support review; other metadata edits preserve them.
+
+Canonical PATCH now delegates to `person-event-update.ts`. It locks the current
+User then household, renews token generation/current parent membership and
+household existence, locks the owned event, then re-reads source/range/rule before
+one scoped update. Subscription read-only and existing connected-event edit policy
+remain. The merged date-range check uses the locked current bounds. A stale
+reviewed rule returns409 `EVENT_RECURRENCE_CHANGED` before **any** metadata change.
+The EN/ES form retains its draft and asks the parent to reopen/review the event.
+The precondition is not persisted or used as authority.
+
+The review precondition is additive and optional for installed-client compatibility;
+when supplied it is accepted only with recurrence:null. Legacy PATCH bodies retain
+their absolute-field behavior. This is not whole-event optimistic concurrency or
+an idempotent receipt. Lost removal responses require canonical reinspection;
+retry can conflict once the original clear already committed. There is no automatic
+retry/replacement, post-save Undo, provider dispatch, new offline action or data
+migration. Read-only sources still use their original calendar controls.
+
+Authority/stale-rule/source/range unit cases and EN/ES preservation/removal/cancel/
+conflict UI cases are authored/unrun. Fake transactions establish no actual PG
+locking/rollback, cross-household concurrency or native/rendered acceptance. No
+API, DB, test, build, browser, provider or deployment was executed. Broader rule
+editing, complete semantic validation and all original #124 criteria remain open.
+
 ## Product modes and actual ownership
 
 | Mode | Current source behavior | Explicit limit |

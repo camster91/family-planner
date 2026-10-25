@@ -1577,3 +1577,19 @@ full feed/capacity/provider state, and concurrent groups are not a snapshot.
 Regression and device-inventory source authored/adapted but unrun. No QA/test/
 check/build/browser/CI/API/database/provider/push/merge/deploy ran. Canonical repair,
 role/isolation/rendered/native and original acceptance remain open.
+
+## Explicit repeat removal and locked event PATCH — 2026-10-24 (source only)
+
+Latest bounded source work adds explicit parent repeat-rule removal to the
+canonical event editor (#124). Ordinary edits omit recurrence; removal is a
+reviewed draft choice with pre-save cancellation and exact saved-rule precondition.
+Canonical PATCH now uses user/household/event locks and renews current parent,
+session, ownership, source/range and rule before one scoped update. Changed rules
+hold the entire metadata save; the EN/ES form retains its draft. Subscription
+read-only policy remains; optional precondition preserves legacy client bodies.
+No replacement schedule, generated-row deletion, post-save Undo, automatic retry,
+offline action or provider dispatch is introduced. This is not full event-version
+concurrency or an idempotent receipt. Regression source authored but unrun; fake
+transactions prove no PG locks/rollback. No QA/test/check/build/browser/CI/API/
+database/provider/push/merge/deploy ran. Broader repeat editing and original calendar/
+isolation/native/release acceptance remain open.

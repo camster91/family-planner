@@ -283,6 +283,11 @@ export const updateEventSchema = z.object({
   location: z.string().max(200).trim().nullable().optional(),
   event_type: z.enum(['school', 'sports', 'appointment', 'family', 'work', 'other']).optional(),
   recurrence: recurrenceSchema,
+  // Optional review precondition. It never supplies authority or replaces a rule.
+  expected_recurrence: z.string().max(8192).optional(),
+}).superRefine((value, ctx) => {
+  if (value.expected_recurrence !== undefined && value.recurrence !== null)
+    ctx.addIssue({ code: 'custom', path: ['expected_recurrence'], message: 'Repeat review only supports removing a rule' })
 })
 
 export const deleteEventSchema = z.object({

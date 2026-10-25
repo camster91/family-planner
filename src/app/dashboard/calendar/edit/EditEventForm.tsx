@@ -28,6 +28,10 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
   const [endTime, setEndTime] = useState('')
   const [duration, setDuration] = useState('')
   const [location, setLocation] = useState('')
+  const [hasRecurrence, setHasRecurrence] = useState(false)
+  const [removeRecurrence, setRemoveRecurrence] = useState(false)
+  const [canRemoveRecurrence, setCanRemoveRecurrence] = useState(false)
+  const originalRecurrence = useRef<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState<CalendarFormError | null>(null)
@@ -70,6 +74,10 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
     setEndTime('')
     setDuration('')
     setLocation('')
+    originalRecurrence.current = null
+    setCanRemoveRecurrence(false)
+    setHasRecurrence(false)
+    setRemoveRecurrence(false)
     setSource(null)
     setConfirmOpen(false)
     if (!eventId) {
@@ -100,6 +108,9 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
             setEndTime(format(end, 'HH:mm'))
           }
           setLocation(event.location || '')
+          originalRecurrence.current = typeof event.recurrence === 'string' ? event.recurrence : null
+          setHasRecurrence(typeof event.recurrence === 'string')
+          setCanRemoveRecurrence(typeof event.recurrence === 'string' && event.recurrence.length <= 8192)
           setSource(event.source ? { name: event.source.name } : null)
         } else if (res.status === 404) {
           setError({ key: 'notFound' })
@@ -162,12 +173,14 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           start_time: startDateTime,
           end_time: endDateTime,
           location: location || null,
+          // Omit by default: title/time edits must preserve even unfamiliar rules.
+          ...(removeRecurrence ? { recurrence: null, expected_recurrence: originalRecurrence.current } : {}),
         }),
       })
 
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error ? { raw: data.error } : { key: 'updateFailed' })
+        setError(data.code === 'EVENT_RECURRENCE_CHANGED' ? { key: 'repeatChanged' } : data.error ? { raw: data.error } : { key: 'updateFailed' })
         return
       }
 
@@ -329,6 +342,18 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           }
           setDuration(next)
         }} end={duration === '' ? undefined : eventFormRange({ startDate, startTime, endDate, endTime }, originalTimes.current ?? undefined, Number(duration))?.end} />
+
+        {hasRecurrence && isParent && <details className="rounded-xl border border-separator p-3">
+          <summary className="min-h-[44px] cursor-pointer font-medium">{message('repeatingEvent')}</summary>
+          <div className="space-y-3 pt-2">
+            <p className="text-subhead text-label-secondary">{message('repeatPreserved')}</p>
+            {removeRecurrence && <p role="status" className="text-subhead">{message('repeatRemovalPending')}</p>}
+            {canRemoveRecurrence ? <button type="button" className="btn-tinted min-h-[44px]" disabled={busy}
+              onClick={() => { if (!busy) setRemoveRecurrence(previous => !previous) }}>
+              {message(removeRecurrence ? 'keepRepeating' : 'stopRepeating')}
+            </button> : <p className="text-subhead">{message('repeatNeedsSupport')}</p>}
+          </div>
+        </details>}
 
         <EventFormDetails
           sectionRef={optionalDetailsRef}

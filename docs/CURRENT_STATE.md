@@ -52,18 +52,19 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work connects private parent recurrence-repair discovery
-(#124/#499). A lazy Settings EN/ES overlay reads100-event groups through a new
-personal-parent API, with paired-device refusal, current-family scope header,
-family-bound cursors, no-store and minimal affected-event DTOs. No token/raw rule
-leaves the server. The shared foreground/body bounds, generation/cancel ownership,
-exact-cursor retry and stale-household reload preserve current context. Existing
-local editor/source-calendar links retain mutation/read-only authority; no repair,
-provider or token action happens automatically. Group results do not verify the
-full feed/capacity/provider state, and concurrent groups are not a snapshot.
-Regression and device-inventory source authored/adapted but unrun. No QA/test/
-check/build/browser/CI/API/database/provider/push/merge/deploy ran. Canonical repair,
-role/isolation/rendered/native and original acceptance remain open.
+Latest bounded source work adds explicit parent repeat-rule removal to the
+canonical event editor (#124). Ordinary edits omit recurrence; removal is a
+reviewed draft choice with pre-save cancellation and exact saved-rule precondition.
+Canonical PATCH now uses user/household/event locks and renews current parent,
+session, ownership, source/range and rule before one scoped update. Changed rules
+hold the entire metadata save; the EN/ES form retains its draft. Subscription
+read-only policy remains; optional precondition preserves legacy client bodies.
+No replacement schedule, generated-row deletion, post-save Undo, automatic retry,
+offline action or provider dispatch is introduced. This is not full event-version
+concurrency or an idempotent receipt. Regression source authored but unrun; fake
+transactions prove no PG locks/rollback. No QA/test/check/build/browser/CI/API/
+database/provider/push/merge/deploy ran. Broader repeat editing and original calendar/
+isolation/native/release acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
