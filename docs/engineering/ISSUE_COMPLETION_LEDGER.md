@@ -52,18 +52,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work adds household-scoped Notes keyset paging (#134).
-Opt-in API pages use stable creation-time/ID order, one lookahead and a maximum
-of 100 rows; legacy requests retain their unbounded response shape. Web reads
-24 notes at a time with previous/older/newest controls, page-only EN/ES counts,
-exact failed-page retry and a 15-second fetch/body deadline. Generation/abort
-handling ignores superseded/unmounted reads; unknown page envelopes fail visibly.
-Existing write endpoints, permissions and draft/recovery behavior remain.
-Additive index schema/SQL source is unapplied. Cursor, household/permission,
-page-navigation/retry/old-server/body-timeout regression source authored/unrun;
-existing UI fixtures adapted. No QA/check/build/browser/API/database/native/
-provider/permission/release action ran. Query plans, index costs, compatibility,
-concurrency/isolation, rendered and original broader acceptance remain open.
+Latest bounded source work localizes remaining paired-tablet status/picker/
+action copy (#142): 14 typed EN/ES keys, plus reused errors. Actual member names,
+account/profile selection, requests, permissions, TTL/idle and wipe dependencies
+remain canonical. Action copy is read through latest refs, so locale changes no
+longer recreate the action object and its queued-write ownership set when other
+inputs are unchanged. Existing string ActionResult/server errors remain literal
+once emitted; no stored-message translation claim. Ten owned inventory records
+removed without scanning. Ownership/picker/locale regression source authored,
+unrun. No QA/check/build/browser/API/database/native/provider/permission/release
+ran. Full queue/lifecycle/privacy/locale/layout/runtime acceptance remains open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

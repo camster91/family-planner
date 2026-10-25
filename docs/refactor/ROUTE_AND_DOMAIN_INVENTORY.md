@@ -1,5 +1,24 @@
 # Route and domain inventory (#148)
 
+### Tablet status, subject-picker and action-copy source — 2026-10-24 (#142)
+
+Removed/unavailable screens, account picker title/instructions/accessibility
+label, chore-selection/confirmation and grocery/write feedback now use 14 new
+typed EN/ES device keys plus existing generic errors. Actual names and raw
+server/validation text remain literal. Status wipe effects and route links are
+unchanged. The board action memo no longer depends on translation callbacks or
+the translated paused string; its methods read current translation refs at
+invocation. With other inputs stable, language changes retain the action object,
+its queued-operation ownership set and current picker resolver. Existing account/
+profile protocol/authorization/TTL/idle/payload/key/recovery rules remain.
+ActionResult stays a string interface; an already emitted toast/error does not
+retranslate automatically. No stronger current-subject/provenance or concurrent
+snapshot-identity guarantee is implied. Ten owned inventory records removed
+without a scanner. Regression source for in-progress picker, stable actions and
+queued-operation failure tracking across language changes is authored/unrun.
+No QA/tests/check/build/browser/API/database/permission/provider/native/release
+ran. Original queue/lifecycle/privacy/locale-data/layout/runtime gates remain.
+
 ### Pinned Notes paging source — 2026-10-24 (#134)
 
 `note-paging.ts` defines an additive limit1–100 and household-bound versioned

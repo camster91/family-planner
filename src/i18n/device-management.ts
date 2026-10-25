@@ -2,6 +2,20 @@
 import { useCallback } from "react";
 import { useTranslation } from "@/i18n";
 export const deviceManagementEnglish = {
+  disconnectedTitle: "This tablet is disconnected",
+  disconnectedBody: "This tablet was disconnected from its household. A parent can pair it again.",
+  pairThisTablet: "Pair this tablet",
+  personalSignIn: "You can still sign in to {brand} with your own account.",
+  signIn: "Sign in",
+  accountPickerTitle: "Who's this?",
+  accountPickerDescription: "Pick your name so the family knows who made the change.",
+  pickerMembers: "Family members",
+  chooseChoreMember: "Choose the assigned family member, then try again.",
+  chooseGroceryAccount: "Choose a family account before updating groceries.",
+  parentWillCheck: "A parent will check it.",
+  actionNetwork: "Couldn't reach {brand}. Check the Wi-Fi and try again.",
+  actionRate: "Too many taps. Wait a minute, then try again.",
+  queuedChangesFull: "Too many changes are waiting for the Wi-Fi. Try again when it is back.",
   todayLoadFailed: "Today's board could not load",
   loadingTodayBoard: "Loading today's board",
   parentButton: "Parent",
@@ -215,6 +229,20 @@ export const deviceManagementEnglish = {
 } as const;
 export type DeviceMessage = keyof typeof deviceManagementEnglish;
 export const deviceManagementSpanish: Record<DeviceMessage, string> = {
+  disconnectedTitle: "Esta tableta está desconectada",
+  disconnectedBody: "Esta tableta se desconectó de su hogar. Un padre o una madre puede volver a vincularla.",
+  pairThisTablet: "Vincular esta tableta",
+  personalSignIn: "Aún puedes iniciar sesión en {brand} con tu propia cuenta.",
+  signIn: "Iniciar sesión",
+  accountPickerTitle: "¿Quién eres?",
+  accountPickerDescription: "Elige tu nombre para que la familia sepa quién hizo el cambio.",
+  pickerMembers: "Miembros de la familia",
+  chooseChoreMember: "Elige al miembro de la familia asignado e inténtalo de nuevo.",
+  chooseGroceryAccount: "Elige una cuenta familiar antes de actualizar la compra.",
+  parentWillCheck: "Un padre o una madre lo revisará.",
+  actionNetwork: "No se pudo conectar con {brand}. Comprueba el wifi e inténtalo de nuevo.",
+  actionRate: "Demasiados toques. Espera un minuto e inténtalo de nuevo.",
+  queuedChangesFull: "Hay demasiados cambios esperando al wifi. Inténtalo de nuevo cuando vuelva la conexión.",
   todayLoadFailed: "No se pudo cargar el panel de Hoy",
   loadingTodayBoard: "Cargando el panel de Hoy",
   parentButton: "Progenitor",

@@ -6,6 +6,7 @@ import { LogIn, TabletSmartphone, Unplug } from 'lucide-react'
 import { useDeviceClient } from './use-device-client'
 import { primaryButtonClass, screenCardClass } from './styles'
 import { PRODUCT_BRAND } from '@/lib/brand'
+import { useDeviceText } from '@/i18n/device-management'
 
 function ScreenShell({ children, testId }: { children: React.ReactNode; testId: string }) {
   return (
@@ -31,20 +32,21 @@ function useWipeOnMount() {
  * data, just the way back to pairing.
  */
 export function RemovedScreen() {
+  const text = useDeviceText()
   useWipeOnMount()
   return (
     <ScreenShell testId="device-removed">
       <Unplug className="h-12 w-12 text-label-secondary" aria-hidden="true" />
       <h1 className="mt-5 font-display text-[32px] font-bold leading-tight text-label-primary md:text-[40px]">
-        This tablet is disconnected
+        {text('disconnectedTitle')}
       </h1>
       <p className="mt-3 text-[19px] leading-snug text-label-secondary md:text-[21px]">
-        This tablet was disconnected from its household. A parent can pair it again.
+        {text('disconnectedBody')}
       </p>
       <div className="mt-8">
         <Link href="/device/pair" replace className={primaryButtonClass}>
           <TabletSmartphone className="h-5 w-5" aria-hidden="true" />
-          Pair this tablet
+          {text('pairThisTablet')}
         </Link>
       </div>
     </ScreenShell>
@@ -53,19 +55,20 @@ export function RemovedScreen() {
 
 /** Kill switch off (SHARED_DEVICE.md §7 "Unavailable"). */
 export function DeviceUnavailable() {
+  const text = useDeviceText()
   useWipeOnMount()
   return (
     <ScreenShell testId="device-unavailable">
       <h1 className="font-display text-[32px] font-bold leading-tight text-label-primary md:text-[40px]">
-        Tablet mode is not available right now.
+        {text('tabletUnavailable')}
       </h1>
       <p className="mt-3 text-[19px] leading-snug text-label-secondary md:text-[21px]">
-        You can still sign in to {PRODUCT_BRAND.name} with your own account.
+        {text('personalSignIn', { brand: PRODUCT_BRAND.name })}
       </p>
       <div className="mt-8">
         <Link href="/login" className={primaryButtonClass}>
           <LogIn className="h-5 w-5" aria-hidden="true" />
-          Sign in
+          {text('signIn')}
         </Link>
       </div>
     </ScreenShell>

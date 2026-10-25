@@ -670,56 +670,6 @@
     "count": 1
   },
   {
-    "file": "src/components/device/StatusScreens.tsx",
-    "text": "Pair this tablet",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/StatusScreens.tsx",
-    "text": "Sign in",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/StatusScreens.tsx",
-    "text": "Tablet mode is not available right now.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/StatusScreens.tsx",
-    "text": "This tablet is disconnected",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/StatusScreens.tsx",
-    "text": "This tablet was disconnected from its household. A parent can pair it again.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/StatusScreens.tsx",
-    "text": "with your own account.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/StatusScreens.tsx",
-    "text": "You can still sign in to",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/use-device-board-actions.tsx",
-    "text": "Family members",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/use-device-board-actions.tsx",
-    "text": "Pick your name so the family knows who made the change.",
-    "count": 1
-  },
-  {
-    "file": "src/components/device/use-device-board-actions.tsx",
-    "text": "Who's this?",
-    "count": 1
-  },
-  {
     "file": "src/components/fridge/ambient-cover.tsx",
     "text": "Next ·",
     "count": 1
