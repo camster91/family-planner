@@ -1,4 +1,4 @@
-import { refuseNoteRecoveryOwner } from "@/lib/note-create-recovery-server";
+import { refuseNoteRecoveryOwner, noteRecoveryAdopted } from "@/lib/note-create-recovery-server";
 import {
   assistantSourceGuard,
   AssistantSourceRefused,
@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       writeContext: { userId: auth.user.id, familyId: auth.user.family_id },
+      recoveryAdopted: noteRecoveryAdopted(),
       ...(paging.paged ? { nextCursor: hasMore && page.length
         ? encodeNoteCursor(auth.user.family_id, page[page.length - 1]) : null } : {}),
       notes: page.map((note) => ({

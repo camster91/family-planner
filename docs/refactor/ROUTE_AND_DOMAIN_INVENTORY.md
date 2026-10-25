@@ -1818,3 +1818,13 @@ owner proof on create/inspection enforce pause/continuity without changing legac
 no-header policy. Flags off/unmodified, adapter not initialized by the sheet.
 Persistence/recovered UI adoption remains next; injected cases authored/unrun, no
 storage/API/DB/test/build/browser/native/provider/release execution or acceptance.
+
+### Note sheet owned recovery adoption — 2026-10-25 (#135/#499)
+
+Server-advertised note recovery now lazily wires the sheet to the existing owner/
+CAS journal: persist-before-create, explicit restored review, receipt settlement,
+confirmed cleanup and exact repair. Non-adopted mounted policy remains; no flags
+activated or adopted-failure fallback. Older proof inspection stays read-only and
+send age remains24h. Known owner loss clears visible draft without journal erasure.
+Injected wiring/client cases authored/unrun; no storage/API/DB/QA/build/browser/
+native/provider/release run. Full persistence/fault/retirement/a11y acceptance open.

@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { noteCreateContext, makeNoteCreateIntent, postNoteCreate, type NoteCreateContext, type NoteCreateIntent, type NoteCreateDraft } from '@/lib/note-create-client'
+import { noteCreateContext, makeNoteCreateIntent, postNoteCreate, inspectNoteCreateReceipt, NOTE_CREATE_RETRY_MS, type NoteCreateOutcome, type NoteCreateContext, type NoteCreateIntent, type NoteCreateDraft } from '@/lib/note-create-client'
 import Link from 'next/link'
 import { Plus, StickyNote as NoteIcon } from 'lucide-react'
 import { useFeatureEnabled, useFeatures } from '@/components/providers/features-provider'
@@ -13,6 +13,10 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
+
+type NoteJournal = ReturnType<typeof import('@/lib/note-create-recovery-browser').browserNoteRecovery>
+type NoteEntry = import('@/lib/note-create-recovery-contract').NoteRecoveryEntry
+type PendingNoteCreate = { intent: NoteCreateIntent; draft: NoteCreateDraft; uncertain: boolean; terminal?: Extract<NoteCreateOutcome, { kind: 'confirmed' | 'removed' }> }
 
 interface Note {
   id: string
@@ -56,6 +60,10 @@ function isNoteList(value: unknown): value is Note[] {
     typeof note.title === 'string' && typeof note.body === 'string' && typeof note.color === 'string' && Object.hasOwn(noteColors, note.color) &&
     typeof note.created_at === 'string' && (note.updated_at === undefined || (typeof note.updated_at === 'string' && Number.isFinite(Date.parse(note.updated_at)))) && ['can_edit', 'can_delete'].every((key) => note[key] === undefined || typeof note[key] === 'boolean')) &&
     new Set(value.map((note) => note.id)).size === value.length
+}
+
+function isRecoveryOwnerChange(value: unknown) {
+  return Boolean(value && typeof value === 'object' && 'reason' in value && value.reason === 'OWNER_CHANGED')
 }
 
 type MutationError = { createRecovery?: boolean; current?: Note; action: 'save' | 'delete'; raw?: string; fallback: 'common.tryAgain' | 'common.networkError' }
@@ -131,15 +139,33 @@ function NotesPageInner() {
   const [formColor, setFormColor] = React.useState<'yellow' | 'pink' | 'blue' | 'green' | 'purple'>('yellow')
   const [saving, setSaving] = React.useState(false)
   const writeContext = React.useRef<NoteCreateContext | null>(null)
-  const pendingCreate = React.useRef<{ intent: NoteCreateIntent; draft: NoteCreateDraft; uncertain: boolean } | null>(null)
+  const pendingCreate = React.useRef<PendingNoteCreate | null>(null)
   const [createHeld, setCreateHeld] = React.useState(false)
   const mutationLock = React.useRef(false)
-  // Keep browser Back on this route while a note save/delete is in flight.
+  const recoveryJournal = React.useRef<NoteJournal | null>(null)
+  const recoveryModule = React.useRef<typeof import('@/lib/note-create-recovery-browser') | null>(null)
+  const [recoveryTarget, setRecoveryTarget] = React.useState<NoteCreateContext | null>(null)
+  const [recoveryState, setRecoveryState] = React.useState<'off' | 'loading' | 'ready' | 'blocked'>('off')
+  const [recoveredEntry, setRecoveredEntry] = React.useState<NoteEntry | null>(null)
+  const [recoveryAttempt, retryRecoveryInitialization] = React.useState(0)
+  const recoveryLock = React.useRef(false)
+  const saveButtonRef = React.useRef<HTMLButtonElement>(null)
+  const repairButtonRef = React.useRef<HTMLButtonElement>(null)
+  // Keep browser Back on this route while a note save/delete or explicit storage repair is in flight.
   // Dialog dismissal is disabled separately so Escape/backdrop/close cannot
   // clear a draft before the server answers.
-  usePendingFormNavigationController(saving)
+  usePendingFormNavigationController(saving || (recoveryState === 'loading' && recoveryLock.current))
   // Why the last save/delete failed; shown in the modal, which stays open.
   const [modalError, setModalError] = React.useState<MutationError | null>(null)
+
+  const clearPersonalSurface = React.useCallback(() => {
+    // A changed/revoked personal context must not display the previous draft.
+    // Its owned persistent journal is retained for the existing retirement rules.
+    writeContext.current = null; pendingCreate.current = null; recoveryJournal.current = null
+    setRecoveryTarget(null); setRecoveredEntry(null); setCreateHeld(false)
+    setNotes([]); setModalState(null); setSelectedNote(null); setViewingNote(null)
+    setFormTitle(''); setFormBody(''); setFormColor('yellow'); setModalError(null); setNotice(null)
+  }, [])
 
   const fetchNotes = React.useCallback(async (
     preserveError = false,
@@ -173,8 +199,11 @@ function NotesPageInner() {
       ])
       if (generation !== readGeneration.current || controller.signal.aborted) return false
       const { res, data } = result
+      if (res.status === 401 || res.status === 403) {
+        clearPersonalSurface(); setError('load'); return false
+      }
       if (res.status === 400 && data?.error === 'You must belong to a family') {
-        setNotes([])
+        clearPersonalSurface()
         setNextCursor(null)
         setPageCursor(null)
         setPageTrail([])
@@ -196,7 +225,15 @@ function NotesPageInner() {
           data.nextCursor !== cursor && !trail.includes(data.nextCursor)))) {
         throw new Error('Invalid notes page')
       }
-      writeContext.current = noteCreateContext(data.writeContext)
+      const nextContext = noteCreateContext(data.writeContext)
+      const previousContext = writeContext.current
+      if (previousContext && (!nextContext || previousContext.userId !== nextContext.userId || previousContext.familyId !== nextContext.familyId)) {
+        clearPersonalSurface()
+      }
+      writeContext.current = nextContext
+      setRecoveryTarget(previous => nextContext && (data.recoveryAdopted === true ||
+        (previous?.userId === nextContext.userId && previous.familyId === nextContext.familyId))
+        ? previous?.userId === nextContext.userId && previous.familyId === nextContext.familyId ? previous : nextContext : null)
       setError(null)
       setNotes(data.notes)
       setPageCursor(cursor)
@@ -214,7 +251,7 @@ function NotesPageInner() {
         setLoading(false)
       }
     }
-  }, [])
+  }, [clearPersonalSurface])
 
   React.useEffect(() => {
     void fetchNotes()
@@ -236,7 +273,63 @@ function NotesPageInner() {
     })
   }
 
+  const adoptRecoveredRows = React.useCallback((rows: NoteEntry[]) => {
+    setRecoveredEntry(rows[0] ?? null)
+    if (rows[0]) setCreateHeld(true)
+    setRecoveryState('ready')
+  }, [])
+  React.useEffect(() => {
+    if (!recoveryTarget) { recoveryJournal.current = null; setRecoveredEntry(null); setRecoveryState('off'); return }
+    let active = true
+    setRecoveryState('loading')
+    void (async () => {
+      try {
+        const module = await import('@/lib/note-create-recovery-browser')
+        if (!active) return
+        const journal = module.browserNoteRecovery(recoveryTarget)
+        recoveryModule.current = module; recoveryJournal.current = journal
+        const rows = await journal.initialize()
+        if (active) adoptRecoveredRows(rows)
+      } catch (cause) { if (active) {
+        if (isRecoveryOwnerChange(cause)) { clearPersonalSurface(); setError('load') } else setRecoveryState('blocked')
+      } }
+    })()
+    return () => { active = false }
+  }, [recoveryTarget, recoveryAttempt, adoptRecoveredRows, clearPersonalSurface])
+
+  const finishCreate = async (outcome: Extract<NoteCreateOutcome, { kind: 'confirmed' | 'removed' }>) => {
+    pendingCreate.current = null; setRecoveredEntry(null); setCreateHeld(false)
+    const refreshed = await fetchNotes()
+    setNotice(outcome.kind === 'removed' ? 'createRemoved' : refreshed ? 'saved' : 'savedRefreshFailed')
+    resetModal()
+  }
+  React.useEffect(() => {
+    if (recoveryState !== 'blocked' || modalState !== 'add') return
+    // Keep copying/reading focus; move only the disabled Save/body focus to recovery.
+    if (document.activeElement === saveButtonRef.current || document.activeElement === document.body)
+      repairButtonRef.current?.focus()
+  }, [recoveryState, modalState])
+
+  const repairRecovery = async () => {
+    if (recoveryLock.current || mutationLock.current) return
+    const journal = recoveryJournal.current
+    if (!journal) { retryRecoveryInitialization(value => value + 1); return }
+    recoveryLock.current = true; setRecoveryState('loading')
+    try {
+      const rows = journal.hasUncertainStorage() ? await journal.recoverStorage() : await journal.initialize()
+      adoptRecoveredRows(rows)
+      if (!rows.length && pendingCreate.current?.terminal) await finishCreate(pendingCreate.current.terminal)
+    } catch (cause) {
+      if (isRecoveryOwnerChange(cause)) { clearPersonalSurface(); setError('load') } else setRecoveryState('blocked')
+    } finally { recoveryLock.current = false }
+  }
+
   const openAddModal = () => {
+    if (recoveredEntry && recoveryModule.current) {
+      const intent = recoveryModule.current.noteIntentFromEntry(recoveredEntry)
+      const body = JSON.parse(intent.body) as NoteCreateDraft
+      pendingCreate.current = { intent, draft: { title: body.title, body: body.body, color: body.color }, uncertain: true }
+    }
     if (pendingCreate.current) {
       const draft = pendingCreate.current.draft
       setFormTitle(draft.title); setFormBody(draft.body); setFormColor(draft.color as Note['color'])
@@ -277,7 +370,10 @@ function NotesPageInner() {
   }
 
   const handleSave = async () => {
-    if (mutationLock.current || saving || loading || modalError?.current || !formTitle.trim()) return
+    if (mutationLock.current || recoveryLock.current || saving || loading || modalError?.current || !formTitle.trim()) return
+    if (modalState === 'add' && recoveryTarget && recoveryState !== 'ready') {
+      setModalError({ action: 'save', raw: t('notes.recoveryBlocked'), fallback: 'common.tryAgain' }); return
+    }
     mutationLock.current = true
 
     setSaving(true)
@@ -293,13 +389,33 @@ function NotesPageInner() {
           pendingCreate.current = { intent: makeNoteCreateIntent(payload, writeContext.current), draft: { ...payload }, uncertain: false }
         }
         const pending = pendingCreate.current
-        const outcome = await postNoteCreate(pending.intent, { recovery: pending.uncertain })
-        if (outcome.kind === 'removed') {
-          pendingCreate.current = null; setCreateHeld(false)
-          await fetchNotes(); setNotice('createRemoved'); resetModal(); return
+        let outcome: NoteCreateOutcome
+        const journal = recoveryTarget ? recoveryJournal.current : null
+        if (recoveryTarget) {
+          if (!journal || !recoveryModule.current) throw new Error('Owned note recovery unavailable')
+          const entry: NoteEntry = { kind: 'note-create', key: pending.intent.key, body: pending.intent.body, issuedAt: pending.intent.issuedAt }
+          const rows = await journal.snapshot()
+          if (!rows.some(row => row.key === entry.key && row.body === entry.body && row.issuedAt === entry.issuedAt)) await journal.stage(entry)
+          setRecoveredEntry(entry)
+          const inspected = await journal.inspect(entry.key, (row, context) => inspectNoteCreateReceipt(recoveryModule.current!.noteIntentFromEntry(row), context.owner?.scope))
+          if (inspected.state === 'present' || inspected.state === 'removed') outcome = { kind: inspected.state === 'present' ? 'confirmed' : 'removed', noteId: inspected.noteId }
+          else if (inspected.state === 'expired') outcome = { kind: 'refused', code: 'NOTE_RECOVERY_EXPIRED' }
+          else if (inspected.state === 'unissued') {
+            const age = Date.now() - entry.issuedAt
+            outcome = age < 0 || age > NOTE_CREATE_RETRY_MS ? { kind: 'refused', code: 'NOTE_RECOVERY_EXPIRED' }
+              : await journal.send(entry.key, true, (row, ownerScope) => postNoteCreate(recoveryModule.current!.noteIntentFromEntry(row), { ownerScope }))
+          } else outcome = { kind: 'unknown' }
+        } else outcome = await postNoteCreate(pending.intent, { recovery: pending.uncertain })
+        if (outcome.kind === 'refused' && ['NOTE_OWNER_CHANGED', 'NOTE_RECOVERY_OWNER_CHANGED'].includes(outcome.code)) {
+          clearPersonalSurface(); setError('load'); return
         }
-        if (outcome.kind !== 'confirmed') {
-          if (outcome.kind === 'unknown' || pending.uncertain || outcome.code === 'NOTE_RECOVERY_EXPIRED') {
+        if (outcome.kind === 'removed' || outcome.kind === 'confirmed') {
+          pending.terminal = outcome
+          if (journal) await journal.dismiss(pending.intent.key)
+          await finishCreate(outcome); return
+        }
+        {
+          if (outcome.kind === 'unknown' || pending.uncertain || journal || outcome.code === 'NOTE_RECOVERY_EXPIRED') {
             pending.uncertain = true; setCreateHeld(true)
             setModalError({ action: 'save', createRecovery: true, raw: outcome.kind === 'refused' && outcome.code === 'NOTE_RECOVERY_EXPIRED' ? t('notes.createExpired') : undefined, fallback: 'common.tryAgain' })
           } else {
@@ -308,9 +424,7 @@ function NotesPageInner() {
           }
           return
         }
-        pendingCreate.current = null; setCreateHeld(false)
-        const refreshed = await fetchNotes()
-        setNotice(refreshed ? 'saved' : 'savedRefreshFailed'); resetModal(); return
+
       } else if (modalState === 'edit' && selectedNote) {
         // Edit and delete live on /api/notes/[id]; /api/notes is GET/POST only.
         res = await fetch(`/api/notes/${encodeURIComponent(selectedNote.id)}`, {
@@ -335,10 +449,12 @@ function NotesPageInner() {
       const refreshed = await fetchNotes()
       setNotice(refreshed ? 'saved' : 'savedRefreshFailed')
       resetModal()
-    } catch {
+    } catch (cause) {
+      if (isRecoveryOwnerChange(cause)) { clearPersonalSurface(); setError('load'); return }
       // A transport failure is not evidence that a create rolled back.
       if (modalState === 'add' && pendingCreate.current) {
         pendingCreate.current.uncertain = true; setCreateHeld(true)
+        if (recoveryTarget) setRecoveryState('blocked')
         setModalError({ action: 'save', createRecovery: true, fallback: 'common.networkError' })
       } else setModalError({ action: 'save', fallback: 'common.networkError' })
     } finally {
@@ -395,6 +511,7 @@ function NotesPageInner() {
           type="button"
           className="btn-tinted"
           onClick={openAddModal}
+          disabled={saving || Boolean(recoveryTarget && recoveryState !== 'ready')}
           aria-label={t('notes.addNote')}
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
@@ -403,6 +520,14 @@ function NotesPageInner() {
       </div>
 
       {notice && <p role="status" className="card-apple px-4 py-3 text-subhead text-label-primary">{t(`notes.${notice}`)}</p>}
+
+      {recoveryTarget && (recoveryState === 'loading' || recoveryState === 'blocked' || recoveredEntry) && (
+        <section className="card-apple p-4 space-y-2" aria-label={t('notes.recoveryTitle')}>
+          <p role={recoveryState === 'blocked' ? 'alert' : 'status'}>{t(recoveryState === 'loading' ? 'notes.recoveryLoading' : recoveryState === 'blocked' ? 'notes.recoveryBlocked' : 'notes.recoveryAvailable')}</p>
+          {recoveryState === 'blocked' && <button type="button" className="btn-secondary min-h-[44px]" onClick={repairRecovery}>{t('notes.repairRecovery')}</button>}
+          {recoveredEntry && recoveryState === 'ready' && <button type="button" className="btn-tinted min-h-[44px]" onClick={openAddModal} disabled={saving}>{t('notes.reviewRecovery')}</button>}
+        </section>
+      )}
 
       {/* Content */}
       {error === 'household' ? (
@@ -606,9 +731,12 @@ function NotesPageInner() {
                   </div>
                 </section>
               )}
+              {modalState === 'add' && recoveryTarget && recoveryState === 'blocked' && (
+                <button ref={repairButtonRef} type="button" className="btn-secondary min-h-[44px]" onClick={repairRecovery} disabled={saving}>{t('notes.repairRecovery')}</button>
+              )}
               {modalError && !modalError.current && (
                 <p role="alert" className="text-footnote text-[var(--danger-text)]">
-                  {t(modalError.action === 'save' ? 'notes.errorSave' : 'notes.errorDelete')} {modalError.createRecovery ? modalError.raw ?? t('notes.createRecovery') : modalError.raw ?? t(modalError.fallback)}
+                  {t(modalError.action === 'save' ? 'notes.errorSave' : 'notes.errorDelete')} {modalError.createRecovery ? modalError.raw ?? t(recoveryTarget ? recoveryState === 'blocked' ? 'notes.recoveryBlocked' : 'notes.durableRecovery' : 'notes.createRecovery') : modalError.raw ?? t(modalError.fallback)}
                 </p>
               )}
             </div>
@@ -639,7 +767,8 @@ function NotesPageInner() {
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={saving || loading || Boolean(modalError?.current) || !formTitle.trim()}
+                  ref={saveButtonRef}
+                  disabled={saving || loading || Boolean(modalError?.current) || Boolean(modalState === 'add' && recoveryTarget && recoveryState !== 'ready') || !formTitle.trim()}
                   className="btn-primary"
                 >
                   {saving ? t('common.saving') : t('notes.save')}

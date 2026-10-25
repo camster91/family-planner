@@ -26,13 +26,14 @@ export type NoteCreateOutcome = { kind: "removed"; noteId: string } | { kind: "c
 export async function postNoteCreate(intent: NoteCreateIntent, options: { recovery?: boolean; ownerScope?: string } = {}): Promise<NoteCreateOutcome> {
   const age = Date.now() - intent.issuedAt;
   // Stay well inside the seven-day server key retention. A stale mounted page holds.
-  if (age < 0 || age > NOTE_CREATE_RETRY_MS) return { kind: "refused", code: "NOTE_RECOVERY_EXPIRED" };
+
   if (options.recovery) {
     const receipt = await inspectNoteCreateReceipt(intent, options.ownerScope);
     if (receipt.state === "present" || receipt.state === "removed")
       return { kind: receipt.state === "present" ? "confirmed" : "removed", noteId: receipt.noteId };
     if (receipt.state !== "unissued") return { kind: "unknown" };
   }
+  if (age < 0 || age > NOTE_CREATE_RETRY_MS) return { kind: "refused", code: "NOTE_RECOVERY_EXPIRED" };
   const result = await requestOwnedJson("/api/notes", { method: "POST", headers: {
     "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: intent.key,
     ...(options.ownerScope ? { [NOTE_CREATE_RECOVERY_OWNER_HEADER]: options.ownerScope } : {}),
@@ -55,8 +56,8 @@ export type NoteReceiptInspection = { state: "present" | "removed"; noteId: stri
   { state: "unissued" | "pending" | "expired" | "unavailable" | "unknown" };
 /** Shared read-only preflight for mounted recovery and the owned journal adapter. */
 export async function inspectNoteCreateReceipt(intent: NoteCreateIntent, ownerScope?: string): Promise<NoteReceiptInspection> {
-  const age = Date.now() - intent.issuedAt;
-  if (age < 0 || age > NOTE_CREATE_RETRY_MS) return { state: "expired" };
+  // Read-only inspection may still resolve an old committed request. Only sends
+  // have the shorter client window; server receipt expiry remains authoritative.
   const result = await requestOwnedJson("/api/notes/create/receipt", { method: "POST", headers: {
     "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: intent.key,
     ...(ownerScope ? { [NOTE_CREATE_RECOVERY_OWNER_HEADER]: ownerScope } : {}),

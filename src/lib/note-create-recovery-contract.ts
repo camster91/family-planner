@@ -27,7 +27,8 @@ export function noteEntryMatchesContext(entry: NoteRecoveryEntry, context: NoteR
   return parsed.success && parsed.data.expected_user_id === context.userId && parsed.data.expected_family_id === context.familyId;
 }
 export function noteIntentFromEntry(entry: NoteRecoveryEntry): NoteCreateIntent {
-  const value = noteRecoveryEntry.parse(entry);
+  // Shared journal snapshots add reviewRequired outside the durable entry DTO.
+  const value = noteRecoveryEntry.parse({ kind: entry.kind, key: entry.key, body: entry.body, issuedAt: entry.issuedAt });
   const body = request.parse(JSON.parse(value.body));
   return { key: value.key, body: value.body, issuedAt: value.issuedAt,
     context: { userId: body.expected_user_id, familyId: body.expected_family_id } };

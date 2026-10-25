@@ -602,3 +602,23 @@ persist-before-first-send, restored request review and exact terminal dismissal/
 storage recovery UI remain next; no restart persistence is claimed yet. Injected
 journal/owner cases authored only, all unrun; native process death/storage faults,
 logout/role/household retirement and actual durable outcomes remain acceptance.
+
+## Note sheet owned-journal adoption — 2026-10-25 (#135/#499, source only)
+
+The sheet now lazily adopts the existing note journal when the server advertises
+retained rollback readiness. New creates stage exact work before send; restored
+work is explicitly reviewed and inspected, with no automatic replay. Current
+presence/removal settles terminally, pending/unknown/expired holds, and only
+unissued within the24h window can use the original keyed writer. Read-only proof
+inspection remains possible after the shorter send window. Shared snapshot display
+metadata is removed only when rebuilding the strict original intent.
+
+Exact storage failures block new sends and expose explicit Retry recovery. Confirmed
+terminal results are retained while local cleanup is repaired; repairing alone
+never sends another create. Owner/permission loss clears the visible personal
+surface, preserving stored work for existing retirement controls. No adopted
+storage failure falls back to unowned or mounted-only sends. Non-adopted servers
+retain mounted behavior. Flags remain off/unmodified; rollback readiness must stay
+advertised until pending journals are reconciled. Source cases are injected/unrun,
+not browser/process-death/replica/retirement/physical-device acceptance. No API/DB/
+cache/storage initialization, QA/build/browser/native/provider/release occurred.

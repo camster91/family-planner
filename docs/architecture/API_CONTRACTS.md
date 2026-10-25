@@ -1449,3 +1449,44 @@ explicit storage-repair UI are next source work. Injected source cases cover exa
 reload, required review, post-write fault hold/repair, owner switch, immutable body,
 strict contract, namespace and readiness/proof pause. All unrun. No storage/DB/API/
 browser/native/permission/provider activation or acceptance is inferred.
+
+### Note journal sheet adoption — 2026-10-25 (#135/#499, local source)
+
+Notes GET adds recoveryAdopted from NOTE_CREATE_RECOVERY_ROLLBACK_READY. Once
+adopted, retain that rollback-readiness advertisement through a write pause so
+pending requests remain discoverable; clearing it before owned work is reconciled
+is not a supported rollback. No environment values changed. Current no-adoption/
+older servers keep mounted-only behavior without probing browser storage.
+
+The adopted sheet lazily initializes the note adapter after validated owner context.
+Restored entries appear as a generic Review saved request action, with no automatic
+open/send/dismiss. Opening restores exact original read-only fields. New requests
+are staged/verified before canonical create; every deliberate Save inspects the
+receipt under renewed journal ownership. Present/removed settle without another
+create, unissued may send exact saved bytes through the existing journal's renewed
+review/proof path, and pending/expired/unknown holds. Save/new-create is blocked
+during initialization/storage recovery. Context changes and known owner-loss
+refusals clear the old personal UI, retaining owned storage for retirement policy.
+
+Confirmed terminal results precede local dismissal. Failed dismissal/staging keeps
+recovery blocked and offers Retry recovery inside the sheet and on the page. The
+same controller repairs only its exact uncertain CAS transition; repair alone never
+sends a create. If repaired cleanup is empty and same-owner terminal proof remains,
+the sheet finishes rather than sending again. Legacy mounted intent handling stays
+separate when adoption is absent. No new queue/storage engine or automatic fallback
+from an adopted storage failure. Paused owner-matching reads/terminal cleanup use
+the shared journal's existing allow-paused semantics.
+
+Read-only receipt inspection may now recognize committed/unremoved requests after
+the shorter client send window; only sends require age0..24h. Server expiry still
+holds invalidated receipts. Internal reconstruction projects durable entry fields
+before strict validation because shared snapshots add reviewRequired display metadata;
+the durable contract still rejects unknown fields. EN/ES44px review/repair actions
+and focused recovery from disabled Save are authored. No rendered/a11y proof.
+
+Injected sheet cases cover restored-present/no-create, stage-before-write, post-write
+storage fault/explicit repair, terminal cleanup fault/no second send and owner-loss
+UI clearing without journal erasure. Client cases cover older read-only proof with
+no create. All source unrun. Real storage/replicas/reload/process-death, logout/
+retirement/multitab/paused flags, wire/lifecycle/long-text/accessibility/locale/native
+and disaster-restore acceptance remain open. Flags off; no initialization or run.

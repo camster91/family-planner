@@ -4,7 +4,7 @@
 // Notes (route inventory F-1): edit and delete go to /api/notes/[id]. They used
 // to PATCH/DELETE /api/notes, which only has GET and POST, so nothing changed.
 import * as React from 'react'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 let mockLocale: 'en' | 'es' = 'en'
@@ -32,6 +32,25 @@ jest.mock('@/components/providers/features-provider', () => ({
   useFeatures: () => ({ canManage: true }),
 }))
 
+let mockRecoveryAdopted = false
+let mockRecoveryRows: Array<{ kind: 'note-create'; key: string; body: string; issuedAt: number }> = []
+let mockFailStage = false, mockFailDismiss = false, mockUncertainStorage = false
+const mockJournal = {
+  initialize: jest.fn(async () => mockRecoveryRows),
+  snapshot: jest.fn(async () => mockRecoveryRows),
+  stage: jest.fn(async (entry) => { mockRecoveryRows = [entry]; if (mockFailStage) { mockUncertainStorage = true; throw new Error('Fixture stage fault') } }),
+  inspect: jest.fn(async (_key, inspect) => inspect(mockRecoveryRows[0], { owner: { scope: 'a'.repeat(64) } })),
+  send: jest.fn(async (_key, _review, send) => send(mockRecoveryRows[0], 'a'.repeat(64))),
+  dismiss: jest.fn(async () => { mockRecoveryRows = []; if (mockFailDismiss) { mockUncertainStorage = true; throw new Error('Fixture cleanup fault') } }),
+  hasUncertainStorage: () => mockUncertainStorage,
+  recoverStorage: jest.fn(async () => { mockUncertainStorage = false; return mockRecoveryRows }),
+}
+jest.mock('@/lib/note-create-recovery-browser', () => ({
+  browserNoteRecovery: () => mockJournal,
+  noteIntentFromEntry: (entry) => { const body = JSON.parse(entry.body); return { key: entry.key, body: entry.body, issuedAt: entry.issuedAt,
+    context: { userId: body.expected_user_id, familyId: body.expected_family_id } } },
+}))
+
 import NotesPage from '../page'
 
 type Call = { url: string; method: string; body: unknown }
@@ -45,6 +64,8 @@ let mutationReply: () => Promise<Response>
 
 beforeEach(() => {
   calls = []
+  mockRecoveryAdopted = false; mockRecoveryRows = []; mockFailStage = false; mockFailDismiss = false; mockUncertainStorage = false
+  Object.values(mockJournal).forEach(value => { if (jest.isMockFunction(value)) value.mockClear() })
   noteBody = 'abc'
   noteColor = 'yellow'
   noteUpdatedAt = undefined
@@ -61,6 +82,7 @@ beforeEach(() => {
         status: 200,
         json: async () => ({
           writeContext: { userId: 'account-a', familyId: 'family-a' },
+          recoveryAdopted: mockRecoveryAdopted,
           nextCursor: null,
           notes: [{
             id: 'n 1',
@@ -558,4 +580,61 @@ it('finishes removed-note recovery without recreating the original note', async 
   expect(calls.filter(call => call.method === 'POST' && call.url === '/api/notes')).toHaveLength(1);
   expect(calls.filter(call => call.url === '/api/notes/create/receipt')).toHaveLength(1);
   expect(screen.queryByLabelText('notes.noteTitle')).toBeNull();
+});
+
+function recoveredFixture() {
+  return { kind: 'note-create' as const, key: 'restored-note-fixture-key-001', issuedAt: Date.now(), body: JSON.stringify({
+    title: 'Restored request', body: 'Original stored content', color: 'yellow', expected_user_id: 'account-a', expected_family_id: 'family-a',
+  }) };
+}
+it('reviews a restored journal and settles present proof without another create', async () => {
+  mockRecoveryAdopted = true; mockRecoveryRows = [recoveredFixture()];
+  mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ state: 'present', noteId: 'saved-note' }) }) as Response;
+  const user = userEvent.setup(); render(<NotesPage />);
+  await user.click(await screen.findByRole('button', { name: 'notes.reviewRecovery' }));
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Restored request');
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).readOnly).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  expect(await screen.findByText('notes.saved')).toBeTruthy();
+  expect(calls.filter(call => call.url === '/api/notes' && call.method === 'POST')).toHaveLength(0);
+  expect(mockJournal.dismiss).toHaveBeenCalledWith('restored-note-fixture-key-001');
+});
+it.each(['stage', 'cleanup'])('holds an adopted %s fault and repairs without an automatic send', async fault => {
+  mockRecoveryAdopted = true; mockFailStage = fault === 'stage'; mockFailDismiss = fault === 'cleanup';
+  mutationReply = async () => calls[calls.length - 1].url.endsWith('/receipt')
+    ? ({ ok: true, status: 200, json: async () => ({ state: 'unissued' }) }) as Response
+    : ({ ok: true, status: 201, json: async () => {
+      // The request is already staged before the first application write.
+      expect(mockRecoveryRows).toHaveLength(1);
+      return { note: { id: 'saved-note', family_id: 'family-a', created_by: 'account-a' } };
+    } }) as Response;
+  const user = userEvent.setup(); render(<NotesPage />);
+  const add = await screen.findByRole('button', { name: 'notes.addNote' });
+  await waitFor(() => expect((add as HTMLButtonElement).disabled).toBe(false));
+  await user.click(add); await user.type(screen.getByLabelText('notes.noteTitle'), 'Durable request');
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  const dialog = screen.getByRole('dialog');
+  const repair = await within(dialog).findByRole('button', { name: 'notes.repairRecovery' });
+  expect(calls.filter(call => call.url === '/api/notes' && call.method === 'POST')).toHaveLength(fault === 'stage' ? 0 : 1);
+  mockFailStage = false; mockFailDismiss = false;
+  await user.click(repair);
+  expect(mockJournal.recoverStorage).toHaveBeenCalledTimes(1);
+  expect(calls.filter(call => call.url === '/api/notes' && call.method === 'POST')).toHaveLength(fault === 'stage' ? 0 : 1);
+  if (fault === 'stage') await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  expect(await screen.findByText('notes.saved')).toBeTruthy();
+  expect(calls.filter(call => call.url === '/api/notes' && call.method === 'POST')).toHaveLength(1);
+});
+
+it('clears the visible recovered draft on owner change without erasing its journal', async () => {
+  mockRecoveryAdopted = true; mockRecoveryRows = [recoveredFixture()];
+  const original = mockRecoveryRows[0];
+  const user = userEvent.setup(); render(<NotesPage />);
+  await user.click(await screen.findByRole('button', { name: 'notes.reviewRecovery' }));
+  mockJournal.inspect.mockRejectedValueOnce(Object.assign(new Error('Fixture owner changed'), { reason: 'OWNER_CHANGED' }));
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(screen.queryByDisplayValue('Original stored content')).toBeNull();
+  expect(mockRecoveryRows).toEqual([original]);
+  expect(mockJournal.dismiss).not.toHaveBeenCalled();
+  expect(calls.filter(call => call.url === '/api/notes' && call.method === 'POST')).toHaveLength(0);
 });

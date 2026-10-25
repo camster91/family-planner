@@ -54,19 +54,20 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) authors the note-create persistent
-recovery foundation around the existing owned request journal (#135/#499). A
-strict one-entry/96KiB contract retains exact body/key/issued time and owner fields;
-new personal context renews authority and returns a separate hashed note namespace.
-Journal-origin writes require matching supplied owner proof and existing/new explicit
-readiness gates; paused receipt reads can still verify matching proof. Legacy
-no-header mounted creates stay compatible. Browser/store adapters reuse existing
-CAS/leases/retirement/replica checks and inspect receipts before every send. No
-new queue engine, storage activation or page initialization. The sheet still uses
-mounted recovery; staged adoption and recovered-request UI remain next. Injected
-contract/owner/storage source authored only. No QA/test/check/build/browser/CI/API/
-DB/provider/native/push/merge/deploy ran; all flags remain untouched/default off.
-Real storage/reload/session/retirement/native and original acceptance remain open.
+Latest bounded source work (2026-10-25) adopts the note owned journal in the
+web sheet behind server-advertised recovery adoption (#135/#499). Canonical GET
+advertises retained rollback readiness; flags remain off/unmodified. Adopted creates
+stage exact work before sending, restored requests appear as an EN/ES review action,
+and pending/expired/owner/storage failures cannot become a new create. Current
+receipt inspection resolves present/removed; confirmed cleanup uses the shared
+journal, with explicit exact storage repair and retained terminal proof on failure.
+Owner loss clears visible private draft state without deleting owned storage.
+Read-only inspection can resolve older receipts; the24h send window remains.
+Non-adopted servers keep mounted recovery. Snapshot display metadata is stripped
+only at internal intent reconstruction. Injected sheet/storage/client source cases
+authored/adapted but unrun; no QA/test/check/build/browser/CI/API/DB/storage/native/
+provider/push/merge/deploy ran. Actual persistence/reload/retirement/physical device/
+fault/privacy/a11y and full acceptance remain open; no activation claimed.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -67,3 +67,11 @@ it.each(["pending", "expired", "unavailable", "unknown-mode"])("never recreates 
   expect(await postNoteCreate(makeNoteCreateIntent(draft, context, key), { recovery: true })).toEqual({ kind: "unknown" });
   expect(fetch).toHaveBeenCalledTimes(1);
 });
+
+it("can inspect an old committed request without permitting another create send", async () => {
+  const intent = makeNoteCreateIntent(draft, context, key); intent.issuedAt -= 2 * NOTE_DAY;
+  global.fetch = jest.fn(async () => reply(200, { state: "present", noteId: "note-a" }));
+  expect(await postNoteCreate(intent, { recovery: true })).toEqual({ kind: "confirmed", noteId: "note-a" });
+  expect(jest.mocked(fetch).mock.calls.map(call => call[0])).toEqual(["/api/notes/create/receipt"]);
+});
+const NOTE_DAY = 24 * 60 * 60 * 1000;

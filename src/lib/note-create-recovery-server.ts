@@ -5,6 +5,7 @@ import type { TokenPayload } from "./auth";
 import { personQueueOwner, isQueueOwnerRecoveryEnabled } from "./queue-owner-server";
 import { NOTE_CREATE_RECOVERY_OWNER_HEADER } from "./note-create-recovery-identity";
 type Current = { id: string; family_id: string; role: string };
+export function noteRecoveryAdopted() { return process.env.NOTE_CREATE_RECOVERY_ROLLBACK_READY === "1"; }
 export function noteRecoveryEnabled() {
   return isQueueOwnerRecoveryEnabled() && process.env.NOTE_CREATE_RECOVERY_ENABLED === "1" && process.env.NOTE_CREATE_RECOVERY_ROLLBACK_READY === "1";
 }
