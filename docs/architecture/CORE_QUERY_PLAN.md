@@ -146,6 +146,12 @@ existing erasure/recovery/export contracts. No cron or background work is added.
 
 ## Fabricated load model and acceptance record
 
+The explicit [capacity model](../testing/CAPACITY_MODEL.md) now defines synthetic
+cardinalities/skews, weighted household/event/grocery/inventory/task/AI traffic,
+role/device mixes, bounded local stages, stop rules and required evidence. This
+completes model definition only; no mixed runner or executed capacity result is
+claimed. #137 reproducibility/bottleneck and all broader runtime gates remain.
+
 Later QA uses two isolated households at minimum, then separate ordinary and
 skewed fixtures (many lists, many rows in one list, many meals in a single slot,
 long histories and dense equal dates). Include parent/teen/child and shared-device

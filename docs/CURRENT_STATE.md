@@ -22,7 +22,7 @@ ran. Authored regression source is not a passing result.
 The earlier clearing pass reviewed68 and retired27 duplicate trackers after
 preserving complete requirements. The subsequent41-issue pass closed #566 for
 its complete planning deliverable only, leaving **40 genuine open issues**.
-Ten documentation-only criteria are now reconciled in #134/#140/#146/#254/#563; all
+Eleven documentation-only criteria are now reconciled in #134/#140/#146/#254/#563; all
 runtime/device/customer/production criteria remain separate and unchecked.
 No unverified feature is declared completed by source authorship.
 
@@ -52,15 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work fixes calendar-feed Unicode folding (#124): UTF-8
-byte-aware lines preserve whole code points, including emoji; long RRULEs now
-fold too. Existing ASCII widths and canonical token/family/UID/time/range/cache
-behavior remain. Escaped text normalizes bare CR as well as CRLF/LF. Regression
-source authored/unrun. CORE_QUERY_PLAN now reflects current chore batching,
-project task/send and Notes paging, and records the unchanged2,000-row ICS cap
-as a truncation risk rather than complete export. No QA/check/build/browser/API/
-database/native/provider/permission/release ran. Query/N+1/large-feed/parser/
-provider/locale/device/compatibility and original #124/#134 acceptance stay open.
+Latest bounded planning work defines a fabricated capacity model (#134/#137):
+ordinary/skewed cardinalities, weighted household/event/grocery/inventory/task/AI
+traffic, role/device mixes, local stages, correctness/abort rules and required
+content-free evidence. The sequential baseline is explicitly not the mixed
+runner. Model definition completes only #134's load-model criterion; guarded
+builder/runner/reconciliation and actual reproducibility/capacity evidence remain
+unfinished. SLO notes now reflect existing default-off core-route wrappers rather
+than claiming source instrumentation is missing. No new telemetry or provider
+activation, QA/test/check/build/browser/CI/API/database/native/infrastructure/
+release action ran. All runtime, measured-bottleneck, recovery and original
+broader #134/#137 criteria remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
@@ -68,6 +70,12 @@ Native contract: `docs/architecture/NATIVE_API_COMPATIBILITY.md`.
 Finance plan: `docs/plans/finance-archive-product.md`.
 
 ## Documentation completion evidence
+
+#134's load-test-model criterion is defined by `docs/testing/CAPACITY_MODEL.md`.
+It covers the named traffic domains with explicit fixtures/mixes/stages and
+reporting/stop rules. This is model-definition evidence only; #137's reproducible
+runner, capacity results and drills remain unchecked. No workload was executed.
+
 
 #563's voice-mode documentation criterion is now defined in
 `docs/product/CROSS_DEVICE_ROADMAP.md`; source inspection and official reference

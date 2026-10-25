@@ -1,5 +1,19 @@
 # Route and domain inventory (#148)
 
+### Fabricated capacity-model definition — 2026-10-24 (#134/#137)
+
+`docs/testing/CAPACITY_MODEL.md` defines ordinary and three skewed datasets,
+weighted household/event/grocery/inventory/task/AI/notification traffic, explicit
+role/shared-device boundaries, bounded local stages, correctness/abort rules and
+content-free evidence. It distinguishes session/household/request units, offered
+and actual rates, closed-loop saturation, cold/warm builds and synthetic provider
+time. No production/provider traffic, scheduler or scale claim. The sequential
+baseline does not implement the mixed model. SLO prose now matches existing
+default-off core-route telemetry wrappers. #134 model definition is complete;
+guarded generator/runner/reconciler, reproducibility, measured bottleneck/capacity,
+recovery and all runtime acceptance remain unfinished. No QA/tests/check/build/
+browser/API/database/provider/telemetry/infrastructure/native/release ran.
+
 ### Calendar feed Unicode/source-plan follow-through — 2026-10-24 (#124/#134)
 
 ICS text and RRULE folding now counts UTF-8 bytes and iterates complete code

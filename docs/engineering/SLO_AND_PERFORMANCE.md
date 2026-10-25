@@ -6,6 +6,16 @@ This page says how fast and how reliable the app should be during the beta, what
 
 **Status: targets, not results.** No number on this page has been measured in production. The recorded API latency baseline is the local dev-server result in [`docs/testing/PERFORMANCE_BASELINE.md`](../testing/PERFORMANCE_BASELINE.md). Core JavaScript measurements use isolated production builds and are recorded separately in [INITIAL_JS_BUDGET.md](../testing/INITIAL_JS_BUDGET.md). Neither supplies production-deployment, physical-device or real-network performance results.
 
+## Current capacity planning boundary — 2026-10-24
+
+[CAPACITY_MODEL.md](../testing/CAPACITY_MODEL.md) defines fabricated cardinalities,
+role/device mixes, weighted core traffic, bounded local stages, safety/correctness
+stops and the evidence record for #134/#137. It is a planning artifact. The guarded
+mixed runner, dataset builder and actual reproducibility/capacity observations
+remain unfinished. Existing sequential `perf:baseline` does not run that model.
+No QA, workload, provider, telemetry activation or infrastructure/release change
+accompanies this update; the historical baseline remains bound to its old source.
+
 ## Words used here
 
 - **SLO** (service level objective): a goal we hold ourselves to, like "sign-in works 99% of the time".
@@ -78,7 +88,7 @@ Some failures are never "budget". A data leak between households, a lost write, 
 
 - **Uptime between deploys.** Nothing outside the VPS checks `/api/health`. If the site goes down at night, nobody knows until a family says so.
 - **Availability numbers.** We have no count of good vs. bad requests over 30 days. The SLO tables above cannot be scored yet.
-- **Latency of the key routes in production.** `GET /api/chores`, `/api/events`, `/api/lists`, `board-version`, `/dashboard/today` and login are not wrapped with `withRouteTelemetry`.
+- **Observed core-route latency in production.** Source now wraps chores/events/lists GET, family board-version GET, login POST, device Today GET and device Today/version GET with the default-off `withRouteTelemetry`. That source instrumentation is not proof of current production activation or collected timings. `/dashboard/today` rendering and other unwrapped handlers need separate coverage; no production latency result is established here.
 - **Client-side speed.** No Web Vitals (time to first paint, interaction delay) from real phones or the fridge tablet.
 - **Android crashes and ANRs** (app not responding).
 - **Wider client performance.** The automated core JavaScript gate covers Today, calendar, chores, lists, meals and settings in cold fixture contexts. Other dashboard routes, images, real-device/warm-launch/tap/network timings and production field performance still need their own evidence.
@@ -154,7 +164,7 @@ Issue #413 implements an automated cold-navigation gzip check for the six core d
 
 Remaining work needs its own scoped issue. None adds a cron job. Source implementation, local checks, protected merge and production acceptance remain distinct.
 
-1. Core-route timing adoption is the scoped #417 candidate: `GET /api/chores`, `/api/events`, `/api/lists`, `/api/family/board-version`, `POST /api/auth/login`, `GET /api/device/today` and `/api/device/today/version` use the existing default-off `withRouteTelemetry`. Actual-handler tests verify preserved responses/cookies and content-free fixed templates. See `OBSERVABILITY.md` for the command and exact fields. This supplies instrumentation only; production activation, representative production latency/history and the wider SLO criteria remain open.
+1. Core-route timing adoption exists in current source (historical #417/#418): `GET /api/chores`, `/api/events`, `/api/lists`, `/api/family/board-version`, `POST /api/auth/login`, `GET /api/device/today` and `/api/device/today/version` use the existing default-off `withRouteTelemetry`. Actual-handler tests verify preserved responses/cookies and content-free fixed templates. See `OBSERVABILITY.md` for the command and exact fields. This supplies instrumentation only; production activation, representative production latency/history and the wider SLO criteria remain open.
 2. Ask Cameron whether to turn on `ROUTE_TIMING_LOG=1` (maybe with `ROUTE_TIMING_SAMPLE_RATE=0.2`) in production. Environment change: needs approval.
 3. An outside uptime check of `/api/health` with an alert. Needs Cameron's approval for the provider (a free self-hosted or hosted pinger) and where alerts go.
 4. Keep more log history (larger rotation, or ship JSON lines to a self-hosted store) so a 30-day SLO can be scored.
