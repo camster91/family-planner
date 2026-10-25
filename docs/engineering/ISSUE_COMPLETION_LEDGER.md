@@ -52,18 +52,19 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work shares current User/household/session/known-role
-calendar authority across create, completed-create replay and edit (#134/#124).
-Normal creation now renews lifecycle authority before event/activity effects or
-private receipt reads, and normal keyed replay has the same renewal as AI-backed
-recovery. Parent/teen/child create and parent-only edit policy, key/hash/receipt
-semantics and optional beta counting remain. AI first effects retain source/lease
-verification; completed replay renews ownership without requiring fresh source.
-Outer idempotency claim/refusal ledger writes can precede the effect check. No new
-permissions, provider/offline action or activation. Regression/integration source
-authored/adapted but unrun; fake transactions prove no PG concurrency/rollback.
-No QA/test/check/build/browser/CI/API/database/provider/push/merge/deploy ran.
-Original isolation/calendar/native/release acceptance remains open.
+Latest bounded source work renews personal grocery item/capture authority
+(#134/#135). Current user/household/role/session/feature and explicit destination
+checks now cover normal/strict-grocery first effects and completed replay. Capture
+checks its receipt before default resolution, retaining parent/teen permission;
+ordinary existing-list adds still permit parent/teen/child. New-default item failure
+throws for transaction rollback. Canonical item/ingredient/section writes, queue
+owner/body/key/hash/expiry and separate device auth remain. No resolver or second
+item is run for completed capture recovery; explicit deleted/type-changed targets
+refuse. List/note container creates already had renewal and were left unchanged.
+Regression/route/integration source authored/adapted but unrun; no PG rollback or
+concurrency result is claimed. No QA/test/check/build/browser/CI/API/database/
+provider/push/merge/deploy ran. Original isolation/offline/device/release acceptance
+remains open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

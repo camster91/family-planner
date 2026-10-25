@@ -1608,3 +1608,19 @@ permissions, provider/offline action or activation. Regression/integration sourc
 authored/adapted but unrun; fake transactions prove no PG concurrency/rollback.
 No QA/test/check/build/browser/CI/API/database/provider/push/merge/deploy ran.
 Original isolation/calendar/native/release acceptance remains open.
+
+## Personal item/capture lifecycle renewal — 2026-10-24 (source only)
+
+Latest bounded source work renews personal grocery item/capture authority
+(#134/#135). Current user/household/role/session/feature and explicit destination
+checks now cover normal/strict-grocery first effects and completed replay. Capture
+checks its receipt before default resolution, retaining parent/teen permission;
+ordinary existing-list adds still permit parent/teen/child. New-default item failure
+throws for transaction rollback. Canonical item/ingredient/section writes, queue
+owner/body/key/hash/expiry and separate device auth remain. No resolver or second
+item is run for completed capture recovery; explicit deleted/type-changed targets
+refuse. List/note container creates already had renewal and were left unchanged.
+Regression/route/integration source authored/adapted but unrun; no PG rollback or
+concurrency result is claimed. No QA/test/check/build/browser/CI/API/database/
+provider/push/merge/deploy ran. Original isolation/offline/device/release acceptance
+remains open.

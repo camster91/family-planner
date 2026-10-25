@@ -9,7 +9,7 @@ import {
   idempotencyError,
   withIdempotency,
 } from "@/lib/idempotency";
-import { createPersonListItem } from "@/lib/person-list-item-create";
+import { createPersonListItem, authorizePersonListItemReplay } from "@/lib/person-list-item-create";
 import { apiError, logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 import { personQueueOwner, queueOwnerMatches } from "@/lib/queue-owner-server";
@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
         { error: "Grocery list not found" },
         { status: 404 },
       );
+    const actor = { familyId: auth.user.family_id, addedBy: auth.user.id, role: auth.user.role, generation: auth.payload?.tv ?? 0 };
     return await withIdempotency(
       prisma!,
       key,
@@ -85,10 +86,11 @@ export async function POST(request: NextRequest) {
         createPersonListItem(
           prisma!,
           { ...parsed.data, quantity: 1 },
-          { familyId: auth.user.family_id, addedBy: auth.user.id },
+          actor,
           recordId,
           { groceryOnly: true },
         ),
+      { beforeReplay: () => authorizePersonListItemReplay(prisma!, actor, parsed.data.listId, { groceryOnly: true }) },
     );
   } catch (error) {
     logRouteError(

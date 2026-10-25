@@ -672,3 +672,45 @@ Inventory/Today copy describes recorded matches, not confirmed real-world absenc
 or enough stock. All-matched recipes still offer explicit grocery review. No
 inventory decrement, quantity comparison, synonym engine or provider call added.
 Source tests/fixtures only; integrated QA and native acceptance remain deferred.
+
+## Personal item/capture lifecycle renewal — 2026-10-24 (#134/#135, source only)
+
+Generic item add, strict offline grocery add and captured-grocery creation now
+share current User/household locks, exact role/session generation, known-role and
+household/list-feature permission renewal inside their canonical effect. Existing
+parent/teen/child item-add permission remains; capture can resolve/create a list
+and retains its stronger parent/teen permission. Paired devices still call the
+existing shared `createListItem` through their separate device authority. No
+personal operation is added to the device allowlist.
+
+Every personal first effect checks authority before private receipt reads and
+item creation. Explicit destinations retain current family/type checks under a
+list lock, including completed replay and overlapping receipt takeover. Normal
+and strict-grocery routes now supply replay authorization; assistant-backed
+operations keep source ownership authorization and first-effect verification,
+with a lease/gate assertion after list-lock waits. Completed replay does not
+reverify expired source context or create another item. Generic missing/foreign
+outer-route status policy and the canonical item/ingredient/section write remain.
+
+Capture now delegates to `createCapturedGrocery`: authority then stable receipt
+lock/read precede default-list resolution. A completed/missing receipt cannot
+create another empty default list before returning. New list, item and successful
+receipt share the transaction; a failed item result after creating a new default
+throws to request whole-transaction rollback. The captured response remains a
+historical confirmed result if that item/list was later deleted; replay renews
+current family/role access and does not resolve/recreate a default list. Explicit
+list-target requests continue to refuse a deleted or no-longer-grocery target.
+
+Request bodies, queue owner headers/action namespaces, keys/hashes/expiry,
+source_request_id, successful HTTP JSON and no-key distinct-add behavior are
+unchanged. Internal actors now include current role and session generation; they
+are not client-supplied authority. Outer idempotency claim/refusal ledger writes
+can still precede effect authorization. No transport/provider/media/stock action,
+background dispatch, schema change or queue migration/activation was introduced.
+
+New decision/receipt/default-order/role/target tests and existing capture/keyed
+integration sources are authored/adapted, not executed. Callback fakes establish
+no actual Postgres lock/rollback/collision result. Source inspection found list/
+note **container** creation already renewed authority; no duplicate engine or
+rewrite was added there. Original runtime, offline/owner, two-household,
+rollback, mounted/device and full #134/#135 acceptance remain open.

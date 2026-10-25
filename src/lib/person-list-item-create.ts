@@ -1,92 +1,107 @@
+/** Canonical personal item creates. Actor/target authority, item and keyed response
+ * share a transaction. No-key adds remain distinct; device writes use their own auth. */
 import type { AssistantSourceGuard } from "./assistant-source-proof";
 import { lockUser, lockHousehold } from "./household-lock";
-/**
- * Person-session create effect for #135. The item and completed keyed response
- * commit together, so a lost response or a lock takeover cannot duplicate the
- * add or resurrect an item that someone has since deleted. No-key callers keep
- * making distinct deliberate adds. The route authenticates and checks ownership
- * before reading a stored response; this effect checks it again under a lock.
- */
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { createListItem, type NewListItem } from "@/lib/list-item-create";
-import type { EffectResult } from "@/lib/idempotency";
+import { createListItem, type NewListItem } from "./list-item-create";
+import { resolveDefaultGroceryListInTx } from "./grocery-from-recipe";
+import { canCreateList } from "./role-capabilities";
+import { isFeatureEnabled, normalizeFeatures } from "./features";
+import { isGroceryListType } from "./grocery-display";
+import type { EffectResult } from "./idempotency";
 
-type PersonListItemTx = Prisma.TransactionClient;
-
-export async function createPersonListItemInTx(
-  tx: PersonListItemTx,
-  input: NewListItem,
-  actor: { familyId: string; addedBy: string },
-  recordId: string | null,
-  options: { groceryOnly?: boolean; sourceGuard?: AssistantSourceGuard } = {},
-): Promise<EffectResult> {
-  if (options.sourceGuard) {
-    await lockUser(tx, actor.addedBy);
-    await lockHousehold(tx, actor.familyId);
-    await options.sourceGuard.authorize(tx);
-  }
-  if (recordId) {
-    // A takeover can overlap a slow original effect. Serialise them on the
-    // stable record, then recheck completion inside this transaction.
-    await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
-    const record = await tx.idempotencyRecord.findFirst({
-      where: {
-        id: recordId,
-        family_id: actor.familyId,
-        user_id: actor.addedBy,
-      },
-      select: { response_status: true, response_body: true },
-    });
-    if (!record) {
-      return {
-        status: 409,
-        body: {
-          error: {
-            code: "IDEMPOTENCY_IN_PROGRESS",
-            message: "Please retry this add.",
-            retryable: true,
-          },
-        },
-      };
-    }
-    if (record.response_status != null)
-      return { status: record.response_status, body: record.response_body };
-  }
-
-  await options.sourceGuard?.verify(tx);
-  // Also serialise placement and list deletion. A deleted/foreign list is
-  // never recreated; section lookup failures roll the entire add back.
-  await tx.$queryRaw`SELECT "id" FROM "List" WHERE "id" = ${input.listId} AND "family_id" = ${actor.familyId} FOR UPDATE`;
-  const result = await createListItem(tx, input, actor, {
-    sourceRequestId: recordId,
-    groceryOnly: options.groceryOnly,
-  });
-  if (!result.ok) {
-    return result.reason === "ingredient_not_found"
-      ? { status: 400, body: { error: "Ingredient not found" } }
-      : { status: 404, body: { error: "List not found" } };
-  }
-  // Normalise Dates exactly as the HTTP JSON response does before storing it.
-  const body = JSON.parse(
-    JSON.stringify({ success: true, item: result.item }),
-  ) as Prisma.InputJsonObject;
-  if (recordId) {
-    await tx.idempotencyRecord.update({
-      where: { id: recordId },
-      data: { response_status: 200, response_body: body },
-    });
-  }
-  return { status: 200, body };
+type Tx = Prisma.TransactionClient;
+type Db = Pick<PrismaClient, "$transaction">;
+export type PersonListItemActor = { familyId: string; addedBy: string; role: string; generation: number };
+type Options = { groceryOnly?: boolean; sourceGuard?: AssistantSourceGuard; requireListCreation?: boolean };
+async function authorize(tx: Tx, actor: PersonListItemActor, options: Options): Promise<EffectResult | null> {
+  await lockUser(tx, actor.addedBy);
+  await lockHousehold(tx, actor.familyId);
+  const user = await tx.user.findUnique({ where: { id: actor.addedBy },
+    select: { family_id: true, role: true, token_version: true } });
+  if (!user || user.family_id !== actor.familyId || user.role !== actor.role || user.token_version !== actor.generation)
+    return { status: 401, body: { error: "Unauthorized" } };
+  if (!["parent", "teen", "child"].includes(user.role) || (options.requireListCreation && !canCreateList(user.role)))
+    return { status: 403, body: { error: "This account cannot perform this list action" } };
+  await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id"=${actor.familyId} FOR SHARE`;
+  const family = await tx.family.findUnique({ where: { id: actor.familyId }, select: { features: true } });
+  if (!family) return { status: 404, body: { error: "Household not found" } };
+  if (!isFeatureEnabled(normalizeFeatures(family.features), "lists"))
+    return { status: 403, body: { error: "This feature is turned off for your family" } };
+  await options.sourceGuard?.authorize(tx);
+  return null;
 }
 
-export async function createPersonListItem(
-  db: Pick<PrismaClient, "$transaction">,
-  input: NewListItem,
-  actor: { familyId: string; addedBy: string },
-  recordId: string | null,
-  options: { groceryOnly?: boolean; sourceGuard?: AssistantSourceGuard } = {},
-): Promise<EffectResult> {
-  return db.$transaction((tx) =>
-    createPersonListItemInTx(tx, input, actor, recordId, options),
-  );
+async function replayTarget(tx: Tx, actor: PersonListItemActor, listId: string | null, options: Options): Promise<EffectResult | null> {
+  if (listId === null) return null; // Capture keeps a historical completed response, no default lookup.
+  await tx.$queryRaw`SELECT "id" FROM "List" WHERE "id"=${listId} AND "family_id"=${actor.familyId} FOR SHARE`;
+  const list = await tx.list.findFirst({ where: { id: listId, family_id: actor.familyId }, select: { type: true } });
+  return !list || (options.groceryOnly && !isGroceryListType(list.type))
+    ? { status: 404, body: { error: "List not found" } } : null;
+}
+/** Completed replay renews ownership, never re-verifies an expired AI source or writes a list. */
+export function authorizePersonListItemReplay(db: Db, actor: PersonListItemActor, listId: string | null, options: Options = {}) {
+  return db.$transaction(async tx => {
+    const denied = await authorize(tx, actor, options);
+    return denied ?? replayTarget(tx, actor, listId, options);
+  });
+}
+
+/** Check receipt BEFORE default-list resolution or any other effect. */
+async function withReceipt(tx: Tx, actor: PersonListItemActor, recordId: string | null, options: Options,
+  replayListId: string | null, effect: () => Promise<EffectResult>): Promise<EffectResult> {
+  const denied = await authorize(tx, actor, options);
+  if (denied) return denied;
+  if (recordId) {
+    await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id"=${recordId} FOR UPDATE`;
+    const record = await tx.idempotencyRecord.findFirst({
+      where: { id: recordId, family_id: actor.familyId, user_id: actor.addedBy },
+      select: { response_status: true, response_body: true },
+    });
+    if (!record) return { status: 409, body: { error: {
+      code: "IDEMPOTENCY_IN_PROGRESS", message: "Please retry this add.", retryable: true,
+    } } };
+    if (record.response_status != null) {
+      const targetDenied = await replayTarget(tx, actor, replayListId, options);
+      return targetDenied ?? { status: record.response_status, body: record.response_body };
+    }
+  }
+  await options.sourceGuard?.verify(tx);
+  const result = await effect();
+  if (recordId && result.status >= 200 && result.status < 300)
+    await tx.idempotencyRecord.update({ where: { id: recordId }, data: {
+      response_status: result.status,
+      response_body: JSON.parse(JSON.stringify(result.body)) as Prisma.InputJsonObject,
+    } });
+  return result;
+}
+async function add(tx: Tx, input: NewListItem, actor: PersonListItemActor, recordId: string | null, options: Options): Promise<EffectResult> {
+  await tx.$queryRaw`SELECT "id" FROM "List" WHERE "id"=${input.listId} AND "family_id"=${actor.familyId} FOR UPDATE`;
+  options.sourceGuard?.assertCurrent?.();
+  const result = await createListItem(tx, input, actor, { sourceRequestId: recordId, groceryOnly: options.groceryOnly });
+  if (!result.ok) return result.reason === "ingredient_not_found"
+    ? { status: 400, body: { error: "Ingredient not found" } }
+    : { status: 404, body: { error: "List not found" } };
+  return { status: 200, body: JSON.parse(JSON.stringify({ success: true, item: result.item })) };
+}
+/** Enter before receipt/list/default locks, or after already holding actor/household locks in order. */
+export function createPersonListItemInTx(tx: Tx, input: NewListItem, actor: PersonListItemActor,
+  recordId: string | null, options: Options = {}): Promise<EffectResult> {
+  return withReceipt(tx, actor, recordId, options, input.listId, () => add(tx, input, actor, recordId, options));
+}
+export function createPersonListItem(db: Db, input: NewListItem, actor: PersonListItemActor,
+  recordId: string | null, options: Options = {}): Promise<EffectResult> {
+  return db.$transaction(tx => createPersonListItemInTx(tx, input, actor, recordId, options));
+}
+/** Capture may create a default list. Its stronger permission and receipt precede that choice. */
+export function createCapturedGrocery(db: Db, input: { content: string; quantity: number },
+  actor: PersonListItemActor, recordId: string | null): Promise<EffectResult> {
+  const options = { groceryOnly: true, requireListCreation: true };
+  return db.$transaction(tx => withReceipt(tx, actor, recordId, options, null, async () => {
+    const list = await resolveDefaultGroceryListInTx(tx, actor.familyId, actor.addedBy);
+    const result = await add(tx, { ...input, listId: list.id }, actor, recordId, options);
+    if (list.created && result.status >= 400)
+      throw new Error("Captured grocery transaction could not complete");
+    return result;
+  }));
 }
