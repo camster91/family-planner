@@ -184,9 +184,24 @@ export async function dropMemberFromRotationsInTx(
     where: { family_id: familyId, rotation_member_ids: { has: memberId } },
     select: { id: true, rotation_member_ids: true, assigned_to: true, assigned_member_id: true, status: true },
   })
-  for (const template of templates) {
+  // Callers hold the household lifecycle lock. Resolve the distinct canonical
+  // replacements before this helper changes any rotation; many roots may share
+  // one replacement. Keep legacy account-only assignments account-only.
+  const plans = templates.map(template => {
     const removedAt = template.rotation_member_ids.indexOf(memberId)
     const rest = template.rotation_member_ids.filter((id) => id !== memberId)
+    const retainedHistory = template.assigned_member_id && ['completed', 'verified', 'approved'].includes(template.status)
+    const nextAssignee = !retainedHistory && template.assigned_to === memberId && rest.length > 0 ? rest[removedAt % rest.length] : null
+    return { template, removedAt, rest, nextAssignee }
+  })
+  const requiredCanonical = new Set(plans.flatMap(plan =>
+    plan.template.assigned_member_id && plan.nextAssignee ? [plan.nextAssignee] : []
+  ))
+  const canonicalAssignees = new Map<string, { assigned_to: string; assigned_member_id: string }>()
+  for (const userId of [...requiredCanonical].sort())
+    canonicalAssignees.set(userId, await canonicalChoreAssigneeInTx(tx, familyId, userId))
+
+  for (const { template, removedAt, rest, nextAssignee } of plans) {
     const series = { family_id: familyId, recurrence_id: template.id }
     if (removedAt === 0) {
       await tx.chore.updateMany({ where: { ...series, rotation_index: 0 }, data: { rotation_index: null } })
@@ -200,13 +215,9 @@ export async function dropMemberFromRotationsInTx(
     if (rest.length === 0) {
       await tx.chore.updateMany({ where: series, data: { rotation_index: null } })
     }
-    // A completed canonical template is also recorded history. Its rotation
-    // changes, but its accepted subject must not become another person's work.
-    const retainedHistory = template.assigned_member_id && ['completed', 'verified', 'approved'].includes(template.status)
-    const nextAssignee = !retainedHistory && template.assigned_to === memberId && rest.length > 0 ? rest[removedAt % rest.length] : null
     const assignee = nextAssignee
       ? template.assigned_member_id
-        ? await canonicalChoreAssigneeInTx(tx, familyId, nextAssignee)
+        ? canonicalAssignees.get(nextAssignee)!
         : { assigned_to: nextAssignee }
       : {}
     await tx.chore.update({

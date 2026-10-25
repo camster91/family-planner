@@ -390,3 +390,23 @@ this is not a bounded total transaction or measured performance result.
 An unrun regression source case asserts the two intended writes and absence of
 candidate/identity reads. #134 remains open; all runtime/concurrency/rollback
 acceptance is deferred with QA. No schema, API, flag or scheduler change.
+
+
+### Member-removal rotation identity preflight — 2026-10-25
+
+`dropMemberFromRotationsInTx` retains the complete household-scoped root read,
+then computes the same removal slot, remaining roster and replacement per root.
+It resolves each distinct required canonical replacement once in sorted account
+ID order before its own rotation updates. Existing member-removal and account-
+deletion callers hold the household lifecycle lock and surrounding transaction;
+this is not a new standalone authorization entry point or a claim that no caller
+effects precede this helper. A later failed mapping throws for transaction rollback.
+
+Legacy account-only roots remain account-only. Completed/verified/approved
+canonical roots retain their accepted subject. Empty/single remaining rosters,
+index shifts, row scoping and caller open-chore policies are unchanged. No mixed
+profile/account namespace, profile erasure/credit policy or migration is added.
+Two source cases cover shared mapping reuse with legacy/history preservation and
+late distinct-mapping refusal before helper writes; both are unrun. Full root
+reads/plans, per-root effects, lock duration and PostgreSQL/concurrency acceptance
+remain open under #134/#136. No QA, database operation or release ran.

@@ -1,7 +1,7 @@
 // Source cases authored UNRUN. No database/API operation was executed.
 jest.mock('@/lib/household-lock', () => ({ lockHousehold: jest.fn() }));
 jest.mock('@/lib/chore-member-subject', () => ({ canonicalChoreAssigneeInTx: jest.fn() }));
-import { applyRotationEditInTx } from '../chore-rotation';
+import { applyRotationEditInTx, dropMemberFromRotationsInTx } from '../chore-rotation';
 import { canonicalChoreAssigneeInTx } from '../chore-member-subject';
 const resolve = jest.mocked(canonicalChoreAssigneeInTx);
 const now = new Date('2026-10-25T12:00:00.000Z');
@@ -64,4 +64,46 @@ it('clears a rotation without reading candidates or resolving replacement assign
   expect(tx.chore.update).toHaveBeenCalledWith({ where: { id: 'root-a' }, data: { rotation_member_ids: [] } });
   expect(tx.chore.updateMany).toHaveBeenCalledTimes(1);
   expect(tx.chore.updateMany).toHaveBeenCalledWith({ where: { family_id: 'family-a', recurrence_id: 'root-a' }, data: { rotation_index: null } });
+});
+
+
+function removalTx() {
+  const root = { rotation_member_ids: ['leaving', 'user-a'], assigned_to: 'leaving', assigned_member_id: 'leaving-profile', status: 'pending' };
+  return { chore: {
+    findMany: jest.fn(async () => [
+      { ...root, id: 'first' }, { ...root, id: 'second' },
+      { ...root, id: 'legacy', assigned_member_id: null },
+      { ...root, id: 'history', status: 'completed' },
+    ]),
+    update: jest.fn(async (_args: any) => ({})),
+    updateMany: jest.fn(async (_args: any) => ({ count: 1 })),
+  } };
+}
+it('shares canonical replacement lookup across removal roots without migrating legacy or historical assignments', async () => {
+  const tx = removalTx();
+  expect(await dropMemberFromRotationsInTx(tx as any, 'family-a', 'leaving')).toBe(4);
+  expect(resolve).toHaveBeenCalledTimes(1);
+  expect(resolve).toHaveBeenCalledWith(tx, 'family-a', 'user-a');
+  const writes = tx.chore.update.mock.calls.map(call => call[0]);
+  expect(writes.slice(0, 2).map(write => write.data)).toEqual([
+    { rotation_member_ids: ['user-a'], assigned_to: 'user-a', assigned_member_id: 'member-for-user-a' },
+    { rotation_member_ids: ['user-a'], assigned_to: 'user-a', assigned_member_id: 'member-for-user-a' },
+  ]);
+  expect(writes[2].data).toEqual({ rotation_member_ids: ['user-a'], assigned_to: 'user-a' });
+  expect(writes[3].data).toEqual({ rotation_member_ids: ['user-a'] });
+});
+it('refuses all helper rotation effects if a later distinct replacement identity is unavailable', async () => {
+  const tx = removalTx();
+  tx.chore.findMany.mockResolvedValueOnce([
+    { id: 'first', rotation_member_ids: ['leaving', 'user-a'], assigned_to: 'leaving', assigned_member_id: 'profile-old', status: 'pending' },
+    { id: 'second', rotation_member_ids: ['leaving', 'user-b'], assigned_to: 'leaving', assigned_member_id: 'profile-old', status: 'pending' },
+  ]);
+  resolve.mockImplementation(async (_tx, _family, userId) => {
+    if (userId === 'user-b') throw new Error('Fixture unavailable replacement');
+    return { assigned_to: userId, assigned_member_id: 'profile-a' };
+  });
+  await expect(dropMemberFromRotationsInTx(tx as any, 'family-a', 'leaving')).rejects.toThrow('Fixture unavailable replacement');
+  expect(resolve.mock.calls.map(call => call[2])).toEqual(['user-a', 'user-b']);
+  expect(tx.chore.updateMany).not.toHaveBeenCalled();
+  expect(tx.chore.update).not.toHaveBeenCalled();
 });
