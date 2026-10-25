@@ -635,3 +635,25 @@ describe('getDeletionOptions', () => {
     })
   })
 })
+
+// Authored current/former-household erasure source case; runtime/PG QA deferred.
+it('erases former device parent references without replacing another parent or revoking their tablet', async () => {
+  db.reset()
+  seedExtras()
+  addSecondParent()
+  Object.assign(db.find('householdDevice', 'dev-b')!, {
+    confirmed_by: 'parent-a', revoked_by: 'parent-b', elevated_user_id: 'parent-a',
+    elevation_token_hash: 'fabricated-elevation', elevated_token_version: 0,
+    elevation_method: 'password', elevation_started_at: new Date('2026-10-25T00:00:00Z'),
+  })
+  Object.assign(db.find('devicePairing', 'pair-b')!, { confirmed_by: 'parent-a' })
+  await deleteMemberAccount('parent-a', deps().d)
+  expect(db.find('householdDevice', 'dev-b')).toMatchObject({
+    created_by: 'parent-b', confirmed_by: null, revoked_by: 'parent-b', revoked_at: null,
+    elevated_user_id: null, elevation_token_hash: null, elevated_token_version: null,
+    elevation_method: null, elevation_started_at: null, elevation_last_used_at: null, elevation_expires_at: null,
+  })
+  expect(db.find('devicePairing', 'pair-b')).toMatchObject({ created_by: 'parent-b', confirmed_by: null })
+  expect(db.find('deviceSession', 'dsess-b')).toMatchObject({ revoked_at: null })
+  expect(db.find('user', 'parent-b')).toBeDefined()
+})

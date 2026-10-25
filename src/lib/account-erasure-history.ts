@@ -6,7 +6,7 @@ export async function accountErasureHistoryHouseholds(
   tx: Prisma.TransactionClient,
   userId: string,
 ): Promise<string[]> {
-  const [messages, audits] = await Promise.all([
+  const [messages, audits, devices, pairings] = await Promise.all([
     tx.message.findMany({
       where: { OR: [{ sender_id: userId }, { read_by: { has: userId } }] },
       select: { family_id: true },
@@ -22,9 +22,17 @@ export async function accountErasureHistoryHouseholds(
       select: { family_id: true },
       distinct: ["family_id"],
     }),
+    tx.householdDevice.findMany({
+      where: { OR: [{ created_by: userId }, { confirmed_by: userId }, { revoked_by: userId }, { elevated_user_id: userId }] },
+      select: { family_id: true }, distinct: ["family_id"],
+    }),
+    tx.devicePairing.findMany({
+      where: { OR: [{ created_by: userId }, { confirmed_by: userId }] },
+      select: { family_id: true }, distinct: ["family_id"],
+    }),
   ]);
   return [
-    ...new Set([...messages, ...audits].map((row) => row.family_id)),
+    ...new Set([...messages, ...audits, ...devices, ...pairings].map((row) => row.family_id)),
   ].sort();
 }
 /** All households are already locked. Do not append a new departure in old households. */
@@ -60,5 +68,25 @@ export async function eraseRetainedAccountHistoryInTx(
     });
     await tx.$executeRaw`UPDATE "Message" SET "read_by" = array_remove("read_by", ${user.id})
       WHERE "family_id" = ${familyId} AND ${user.id} = ANY("read_by")`;
+    // Plain account identifiers do not participate in User cascades. Clear
+    // only this account's slots, including former households; pairing/device
+    // identity and other parents' overlays remain untouched.
+    await tx.devicePairing.updateMany({
+      where: { family_id: familyId, confirmed_by: user.id },
+      data: { confirmed_by: null },
+    });
+    for (const column of ["created_by", "confirmed_by", "revoked_by"] as const)
+      await tx.householdDevice.updateMany({
+        where: { family_id: familyId, [column]: user.id }, data: { [column]: null },
+      });
+    await tx.householdDevice.updateMany({
+      where: { family_id: familyId, elevated_user_id: user.id },
+      data: {
+        elevation_token_hash: null, elevated_user_id: null,
+        elevated_token_version: null, elevation_method: null,
+        elevation_started_at: null, elevation_last_used_at: null,
+        elevation_expires_at: null,
+      },
+    });
   }
 }

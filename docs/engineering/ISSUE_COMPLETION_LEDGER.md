@@ -54,16 +54,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) adds opt-in feedback summary responses
-(#464/#136). The personal panel requests X-Herewoven-Feedback-View:summary-v1.
-GET selects/projects only id/kind/title/status/created_at for the existing25-row
-own-user/household list; POST projects the same receipt only after unchanged
-ownership/session and exact-request checks. Details, pathname and owner/request
-IDs stay out of opted-in responses. No-header callers retain the original shape;
-older servers may ignore the header and the panel still projects display fields.
-No schema/permission changes or external forwarding. Source projection/legacy
-cases authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/
-merge/deploy ran. Runtime privacy/compatibility/replay and full acceptance open.
+Latest bounded source work (2026-10-25) reconciles retained device account
+references during erasure (#136/#450). Device/pairing actor/creator/elevation
+references now contribute historical households to the existing sorted lock set.
+Erasure clears only the exact account's plain actor slots and complete elevation
+overlay in each locked household, including detached/former contexts. Devices,
+sessions and other parents' references remain; completed pairing creator handover
+is scoped to the current household rather than transferring former requests to
+an unrelated successor. Source discovery/projection/former-household cases authored
+or adapted only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
+deploy ran. Real FK/locking/rollback/lifecycle and wider erasure acceptance open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

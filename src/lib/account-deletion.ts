@@ -513,13 +513,17 @@ async function handOverAndDetach(
     },
   })
   await tx.parentElevationPin.deleteMany({ where: { user_id: userId } })
+  // Device pairing handover belongs only to the current household. Former requests
+  // retain personal creator ownership for User erasure; never transfer them
+  // to a parent in a different household. Plain historic actor slots are
+  // cleared separately under all discovered household locks.
   // Pairing codes this member started and that were not finished.
-  await tx.devicePairing.deleteMany({ where: { created_by: userId, device_id: null } })
-  await tx.devicePairing.updateMany({ where: { created_by: userId }, data: { created_by: to } })
-  await tx.devicePairing.updateMany({ where: { confirmed_by: userId }, data: { confirmed_by: null } })
-  await tx.householdDevice.updateMany({ where: { created_by: userId }, data: { created_by: null } })
-  await tx.householdDevice.updateMany({ where: { confirmed_by: userId }, data: { confirmed_by: null } })
-  await tx.householdDevice.updateMany({ where: { revoked_by: userId }, data: { revoked_by: null } })
+  await tx.devicePairing.deleteMany({ where: { ...inFamily, created_by: userId, device_id: null } })
+  await tx.devicePairing.updateMany({ where: { ...inFamily, created_by: userId }, data: { created_by: to } })
+  await tx.devicePairing.updateMany({ where: { ...inFamily, confirmed_by: userId }, data: { confirmed_by: null } })
+  await tx.householdDevice.updateMany({ where: { ...inFamily, created_by: userId }, data: { created_by: null } })
+  await tx.householdDevice.updateMany({ where: { ...inFamily, confirmed_by: userId }, data: { confirmed_by: null } })
+  await tx.householdDevice.updateMany({ where: { ...inFamily, revoked_by: userId }, data: { revoked_by: null } })
   await tx.familyInvite.deleteMany({ where: { created_by: userId, accepted_at: null } })
   await tx.familyInvite.updateMany({ where: { created_by: userId }, data: { created_by: to } })
   await tx.calendarOAuthState.deleteMany({ where: { user_id: userId } })

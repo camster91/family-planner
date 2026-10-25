@@ -1958,3 +1958,16 @@ older servers may ignore the header and the panel still projects display fields.
 No schema/permission changes or external forwarding. Source projection/legacy
 cases authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/
 merge/deploy ran. Runtime privacy/compatibility/replay and full acceptance open.
+
+### Retained device actor erasure — 2026-10-25 (#136/#450)
+
+Account-erasure source reconciles retained device account
+references during erasure (#136/#450). Device/pairing actor/creator/elevation
+references now contribute historical households to the existing sorted lock set.
+Erasure clears only the exact account's plain actor slots and complete elevation
+overlay in each locked household, including detached/former contexts. Devices,
+sessions and other parents' references remain; completed pairing creator handover
+is scoped to the current household rather than transferring former requests to
+an unrelated successor. Source discovery/projection/former-household cases authored
+or adapted only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
+deploy ran. Real FK/locking/rollback/lifecycle and wider erasure acceptance open.
