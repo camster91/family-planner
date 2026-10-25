@@ -9,7 +9,6 @@ import {
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn() }),
 }));
-jest.mock("@/i18n", () => ({ useTranslation: () => ({ locale: "en" }) }));
 const outcome = (): FoodGroceryOutcomes => ({
   protocol: FOOD_GROCERY_OUTCOMES,
   ownerScope: "b".repeat(64),

@@ -5,7 +5,6 @@ import { FoodAiProposal } from "../FoodAiProposal";
 import { aiFixture } from "@/lib/food-planning/__tests__/ai-fixture";
 import { FOOD_AI, foodAiSuggestion } from "@/lib/food-planning/ai-contract";
 import { evaluateFoodAiProposal } from "@/lib/food-planning/ai-evaluation";
-jest.mock("@/i18n", () => ({ useTranslation: () => ({ locale: "en" }) }));
 function suggestion() {
   const { original, proposal } = aiFixture();
   return foodAiSuggestion.parse({

@@ -1,5 +1,20 @@
 # Route and domain inventory (#148)
 
+### Food-plan review presentation source — 2026-10-24 (#142 / #123)
+
+FoodPlanSummary and FoodGroceryOutcomesView use typed scoped presentation keys
+instead of inline language branches/pair picking. Domain hold/reason maps remain
+exhaustive over the canonical contract; saved recipe/stock/meal/list/event names,
+quantities, IDs, dates/instants and result/Undo state remain literal/canonical.
+Existing EN/ES wording is preserved; pseudolocale now follows the translation
+context. Internal detail pagination keeps its component/state identity; timing
+text hooks precede early return. Grocery expiry effects, confirmed/unknown/refused
+semantics, callback payloads and draft-aware list navigation are unchanged.
+Fifty-four owned migration records removed, no scanner run. Three affected test
+mocks use actual default translation context; assertions retained/unrun. No new
+QA/provider/write/permission/store or release action; rendered locale/reflow/
+privacy and original planning/grocery/Undo acceptance remain open.
+
 ### Join navigation recovery source — 2026-10-24 (#142)
 
 JoinFamilyPage now retains the selected internal destination when history release

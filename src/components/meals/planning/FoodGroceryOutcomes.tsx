@@ -3,6 +3,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 import { useTranslation } from "@/i18n";
+import { useFoodPlanningPresentationText } from "@/i18n/food-planning-presentation";
 import { formatScheduleInstant } from "@/lib/calendar-planning/schedule-form";
 import type {
   FoodGroceryOutcomes,
@@ -24,8 +25,8 @@ export function FoodGroceryOutcomesView({
   onUndo: (id: string) => void;
 }) {
   const router = useDraftAwareRouter();
-  const { locale } = useTranslation(),
-    es = locale === "es";
+  const { locale } = useTranslation();
+  const text = useFoodPlanningPresentationText();
   const [position, setPosition] = React.useState(0);
   const index = Math.min(
     position,
@@ -49,7 +50,7 @@ export function FoodGroceryOutcomesView({
   return (
     <section
       className="space-y-3 border-t border-[var(--separator)] pt-3"
-      aria-label={es ? "Resultados de la compra" : "Grocery results"}
+      aria-label={text("groceryResults")}
     >
       <button
         type="button"
@@ -57,65 +58,51 @@ export function FoodGroceryOutcomesView({
         disabled={busy}
         onClick={onRead}
       >
-        {es ? "Comprobar resultados de la compra" : "Read grocery results"}
+        {text("groceryRead")}
       </button>
       {readError && (
         <p role="status">
-          {es
-            ? "No se pudieron comprobar los detalles. El guardado de las comidas sigue confirmado."
-            : "Details could not be checked. The meal save is still confirmed."}
+          {text("groceryReadFailed")}
         </p>
       )}
       {row && (
         <>
           <p className="text-footnote text-label-secondary">
-            {es
-              ? "Recibo del añadido original, no el contenido actual de la lista. Deshacer solo afecta a esta compra, no a las comidas ni a la sesión."
-              : "Original add receipt, not the list’s current contents. Undo affects this grocery add only, not meals or the prep session."}
+            {text("groceryReceipt")}
           </p>
           {result ? (
             <>
               <p className="font-semibold break-words">{result.listName}</p>
               <p>
-                {es ? "Añadidos" : "Added"}: {result.createdCount} ·{" "}
-                {es ? "Ya estaban abiertos" : "Already open on list"}:{" "}
+                {text("groceryAdded")}: {result.createdCount} ·{" "}
+                {text("groceryAlreadyOpen")}:{" "}
                 {result.alreadyOnListCount}
               </p>
               {(result.possibleDuplicates.length > 0 ||
                 result.possibleDuplicatesTruncated) && (
                 <p>
-                  {es
-                    ? "Posibles coincidencias con texto libre"
-                    : "Possible free-text lookalikes"}
+                  {text("groceryLookalikes")}
                   : {result.possibleDuplicates.length}
                   {result.possibleDuplicatesTruncated ? "+" : ""}.{" "}
-                  {es
-                    ? "No se combinaron artículos. Revisa la lista."
-                    : "No items were merged. Review the list."}
+                  {text("groceryNoMerge")}
                 </p>
               )}
               <p className="text-footnote">
-                {es ? "Deshacer hasta" : "Undo until"}:{" "}
+                {text("groceryUndoUntil")}:{" "}
                 {formatScheduleInstant(result.undoExpiresAt, locale, "UTC")}
               </p>
               {undo === "unknown" && (
                 <p role="status">
-                  {es
-                    ? "Resultado de deshacer sin confirmar. Puede haber terminado. Solo reintenta el mismo añadido; los artículos marcados se conservan."
-                    : "Undo result unconfirmed; it may have finished. Retry this same add only. Checked items are preserved."}
+                  {text("groceryUndoUnknown")}
                 </p>
               )}
               {undo && undo !== "unknown" && (
                 <p role="status">
                   {undo.result.kind === "done"
-                    ? `${es ? "Esta respuesta confirma eliminados" : "This response confirms removed"}: ${undo.result.removedCount} · ${es ? "Marcados conservados" : "Checked items kept"}: ${undo.result.keptCheckedCount}`
+                    ? `${text("groceryRemoved")}: ${undo.result.removedCount} · ${text("groceryKept")}: ${undo.result.keptCheckedCount}`
                     : undo.result.code === "UNDO_WINDOW_EXPIRED"
-                      ? es
-                        ? "El plazo terminó. Revisa la lista por si un intento anterior hizo cambios."
-                        : "The Undo window closed. Review the list for any earlier changes."
-                      : es
-                        ? "No se pudo deshacer ahora. Los cambios de intentos anteriores siguen sin comprobar."
-                        : "Undo was refused now. Earlier attempts may still have changed the list."}
+                      ? text("groceryUndoExpired")
+                      : text("groceryUndoRefused")}
                 </p>
               )}
               {now < Date.parse(result.undoExpiresAt) &&
@@ -130,20 +117,14 @@ export function FoodGroceryOutcomesView({
                     onClick={() => onUndo(row.requestId)}
                   >
                     {undo === "unknown"
-                      ? es
-                        ? "Reintentar el mismo deshacer"
-                        : "Retry same Undo"
-                      : es
-                        ? "Deshacer este añadido"
-                        : "Undo this grocery add"}
+                      ? text("groceryRetryUndo")
+                      : text("groceryUndo")}
                   </button>
                 )}
             </>
           ) : (
             <p>
-              {es
-                ? "Detalles del añadido no disponibles; no significa que fallara."
-                : "Add details unavailable; this does not mean the add failed."}
+              {text("groceryUnavailable")}
             </p>
           )}
           <Link
@@ -157,7 +138,7 @@ export function FoodGroceryOutcomesView({
                 );
             }}
           >
-            {es ? "Abrir lista" : "Open list"}
+            {text("groceryOpen")}
           </Link>
           {outcome!.outcomes.length > 1 && (
             <div className="flex justify-between items-center gap-2">
@@ -167,7 +148,7 @@ export function FoodGroceryOutcomesView({
                 disabled={busy || index === 0}
                 onClick={() => setPosition(index - 1)}
               >
-                {es ? "Anterior" : "Previous add"}
+                {text("groceryPrevious")}
               </button>
               <span aria-live="polite">
                 {index + 1}/{outcome!.outcomes.length}
@@ -178,7 +159,7 @@ export function FoodGroceryOutcomesView({
                 disabled={busy || index + 1 === outcome!.outcomes.length}
                 onClick={() => setPosition(index + 1)}
               >
-                {es ? "Siguiente" : "Next add"}
+                {text("groceryNext")}
               </button>
             </div>
           )}
