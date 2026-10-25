@@ -3140,3 +3140,15 @@ level-up coalescing honors gamification without changing XP. Shared private poli
 parsing retains separate create/check acknowledgements, none enabled. Canonical
 verify/reject wiring/lock and legacy-sender replacement remain next; profile
 checks and all original runtime/QA/PG/privacy/release acceptance remain open.
+
+
+### Account check notification producers connected — 2026-10-25
+
+Separate default-off check mode records approval/return Activity and in-app
+terminal decision alongside canonical status/unchanged XP. Ordered participants
+and actual principal/Family locks precede writes; original-token or changed-
+assignee holds prevent late identity adoption. Existing default sender and
+profile/removed-subject rules remain; strict accepted notices skip legacy send.
+Five route source cases authored/unrun. Existing conditional-state API still
+needs versioned original-command/CAS across intervening completion cycles before
+rollout; wiring is not full dedupe/old-client/PG/QA acceptance. No data/release ran.

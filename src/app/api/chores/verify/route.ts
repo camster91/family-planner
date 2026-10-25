@@ -1,3 +1,4 @@
+import { choreCheckNotificationDispatchWindow, deliverChoreCheckNotificationEventInTx, lockChoreCheckNotificationParticipants } from "@/lib/chore-check-notification-event";
 import { choreJson } from "@/lib/chore-json";
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
@@ -83,8 +84,11 @@ export async function POST(request: NextRequest) {
     const familyError = requireFamilyMatch(chore.family_id, auth.user.family_id)
     if (familyError) return familyError
 
+    const notificationWindowMs = choreCheckNotificationDispatchWindow()
     if (decision === 'reject') {
-      return await rejectChore(auth.user, choreId, auth.user.family_id, verificationNotes, getRequestId(request))
+      return await rejectChore(auth.user, choreId, auth.user.family_id, verificationNotes, getRequestId(request), {
+        notificationWindowMs, tokenVersion: auth.payload.tv ?? 0, assigneeId: chore.assigned_to,
+      })
     }
 
     // Status change, activity and XP award commit together. Previously the
@@ -97,11 +101,13 @@ export async function POST(request: NextRequest) {
       // Everything below is re-read after acquiring it: the preflight row above
       // is only for the legacy not-found/family response and is not authority
       // for XP, activity text, or notifications.
-      await lockHousehold(tx, auth.user.family_id)
+      if (notificationWindowMs !== null) await lockChoreCheckNotificationParticipants(tx, auth.user.id, auth.user.family_id, chore.assigned_to)
+      else await lockHousehold(tx, auth.user.family_id)
       const caller = await tx.user.findUnique({
         where: { id: auth.user.id },
-        select: { id: true, name: true, role: true, family_id: true },
+        select: { id: true, name: true, role: true, family_id: true, token_version: true },
       })
+      if (notificationWindowMs !== null && caller && caller.token_version !== (auth.payload.tv ?? 0)) return { kind: 'unauthorized' as const }
       if (!caller || caller.family_id !== auth.user.family_id || caller.role !== 'parent') {
         return { kind: 'forbidden' as const }
       }
@@ -116,6 +122,7 @@ export async function POST(request: NextRequest) {
       if (!fresh || fresh.family_id !== auth.user.family_id) {
         return { kind: 'notFound' as const }
       }
+      if (notificationWindowMs !== null && fresh.assigned_to !== chore.assigned_to) return { kind: 'changed' as const }
       if (fresh.status === 'verified') {
         return { kind: 'alreadyVerified' as const }
       }
@@ -180,7 +187,7 @@ export async function POST(request: NextRequest) {
         return { kind: 'lost' as const }
       }
 
-      await tx.activity.create({
+      const activity = await tx.activity.create({
         data: {
           family_id: auth.user.family_id,
           user_id: caller.id,
@@ -195,13 +202,25 @@ export async function POST(request: NextRequest) {
         ? await awardChoreXP(assignee.id, fresh.difficulty || 'medium', fresh.points || 10, tx)
         : null
 
+      const notifiedInTx = notificationWindowMs !== null && assignee !== null
+      if (notifiedInTx && assignee && notificationWindowMs !== null) {
+        await deliverChoreCheckNotificationEventInTx(tx, { userId: caller.id, familyId: auth.user.family_id, role: 'parent', tokenVersion: auth.payload.tv ?? 0 }, {
+          choreId: fresh.id, generation: fresh.responsibility_generation, recipientId: assignee.id, title: fresh.title,
+          decision: 'approve', notes: verificationNotes || null, activityId: activity.id, activityAt: activity.created_at,
+          deliverBefore: new Date(activity.created_at.getTime() + notificationWindowMs),
+          levelUpNewLevel: xp?.levelUp ? xp.newLevel : null,
+        })
+      }
       return {
         kind: 'verified' as const,
+        notifiedInTx,
         xp,
         assignee: assignee ? { id: assignee.id, title: fresh.title, familyId: fresh.family_id } : null,
       }
     })
 
+    if (outcome.kind === 'unauthorized') return choreJson({ error: 'Unauthorized' }, { status: 401 })
+    if (outcome.kind === 'changed') return choreJson({ error: 'This chore changed. Review its current assignment before checking it.', code: 'CHORE_CHANGED', chore: await choreState(choreId) }, { status: 409 })
     if (outcome.kind === 'forbidden') {
       return choreJson({ error: 'Only parents can perform this action' }, { status: 403 })
     }
@@ -241,10 +260,10 @@ export async function POST(request: NextRequest) {
       await recordBetaMetric(prisma!, auth.user.family_id, 'chore_verified')
     }
 
-    // Notifications are sent only after the transaction commits, so a rolled-back
-    // verify never tells the child it succeeded. A notification failure must not
-    // turn a committed verify into a 500 (which would invite a pointless retry).
-    if (outcome.assignee) {
+    // Default mode retains the best-effort post-commit sender. Opted-in notices
+    // already committed atomically and skip this path; rolled-back rows never
+    // become visible and a second legacy sender cannot duplicate them.
+    if (outcome.assignee && !('notifiedInTx' in outcome && outcome.notifiedInTx === true)) {
       try {
         await notificationServiceServer.sendNotification({
           familyId: outcome.assignee.familyId,
@@ -320,18 +339,21 @@ async function rejectChore(
   choreId: string,
   familyId: string,
   notes: string | undefined,
-  requestId: string
+  requestId: string,
+  notification: { notificationWindowMs: number | null; tokenVersion: number; assigneeId: string | null },
 ) {
   const reason = notes ? notes : null
   const reopened = await prisma!.$transaction(async (tx) => {
     // Rejection has the same serialization boundary as approval/removal. The
     // initial route read cannot decide whether the member is still eligible or
     // whether the chore is still completed.
-    await lockHousehold(tx, familyId)
+    if (notification.notificationWindowMs !== null) await lockChoreCheckNotificationParticipants(tx, caller.id, familyId, notification.assigneeId)
+    else await lockHousehold(tx, familyId)
     const freshCaller = await tx.user.findUnique({
       where: { id: caller.id },
-      select: { id: true, name: true, role: true, family_id: true },
+      select: { id: true, name: true, role: true, family_id: true, token_version: true },
     })
+    if (notification.notificationWindowMs !== null && freshCaller && freshCaller.token_version !== notification.tokenVersion) return { kind: 'unauthorized' as const }
     if (!freshCaller || freshCaller.family_id !== familyId || freshCaller.role !== 'parent') {
       return { kind: 'forbidden' as const }
     }
@@ -343,6 +365,7 @@ async function rejectChore(
       },
     })
     if (!chore || chore.family_id !== familyId) return { kind: 'notFound' as const }
+    if (notification.notificationWindowMs !== null && chore.assigned_to !== notification.assigneeId) return { kind: 'changed' as const }
     if (chore.status === 'verified') return { kind: 'verified' as const }
 
     if (chore.assigned_to === null && chore.assigned_member_id != null) {
@@ -377,7 +400,7 @@ async function rejectChore(
       ...(assignee ? {} : { assigned_to: freshCaller.id }),
     })
     if (outcome !== 'reopened') return { kind: outcome as 'verified' | 'open' }
-    await tx.activity.create({
+    const activity = await tx.activity.create({
       data: {
         family_id: caller.family_id,
         user_id: freshCaller.id,
@@ -386,12 +409,23 @@ async function rejectChore(
         metadata: JSON.stringify({ choreId: chore.id }),
       },
     })
+    const notifiedInTx = notification.notificationWindowMs !== null && assignee !== null
+    if (notifiedInTx && assignee && notification.notificationWindowMs !== null) {
+      await deliverChoreCheckNotificationEventInTx(tx, { userId: freshCaller.id, familyId, role: 'parent', tokenVersion: notification.tokenVersion }, {
+        choreId: chore.id, generation: chore.responsibility_generation, recipientId: assignee.id, title: chore.title,
+        decision: 'reject', notes: reason, activityId: activity.id, activityAt: activity.created_at,
+        deliverBefore: new Date(activity.created_at.getTime() + notification.notificationWindowMs),
+      })
+    }
     return {
       kind: 'reopened' as const,
+      notifiedInTx,
       assignee: assignee ? { id: assignee.id, title: chore.title, familyId: chore.family_id } : null,
     }
   })
 
+  if (reopened.kind === 'unauthorized') return choreJson({ error: 'Unauthorized' }, { status: 401 })
+  if (reopened.kind === 'changed') return choreJson({ error: 'This chore changed. Review its current assignment before checking it.', code: 'CHORE_CHANGED' }, { status: 409 })
   if (reopened.kind === 'forbidden') {
     return choreJson({ error: 'Only parents can perform this action' }, { status: 403 })
   }
@@ -411,7 +445,7 @@ async function rejectChore(
     return choreJson({ success: true, alreadyOpen: true, chore: await choreState(choreId) })
   }
 
-  if (reopened.assignee) {
+  if (reopened.assignee && !('notifiedInTx' in reopened && reopened.notifiedInTx === true)) {
     try {
       await notificationServiceServer.sendNotification({
         familyId: reopened.assignee.familyId,

@@ -444,3 +444,41 @@ Source cases cover exact activity identity/category, approved coalescing and
 gamification-off omission, rejection provenance, changed/erased subject/status
 and mismatched activity/level. All unrun. No migration, DB/API/app import, QA,
 provider, flag/scheduler activation or release ran; #141 stays open.
+
+
+## Account approval/return producers connected — 2026-10-25
+
+`POST /api/chores/verify` now composes the account check adapter after a fresh
+successful approval or rejection and its canonical Activity. In the separate
+private check cohort, ordered actor/preflight-recipient User locks, household
+and actual User/Family row locks precede source writes. The chore is re-read;
+a changed assignee holds with409 instead of acquiring a new User late. Original
+session generation is rechecked before any transition. Event, terminal recipient
+decision/inbox, status, activity and (approval only) unchanged XP award share the
+canonical transaction. Failure aborts it; no external provider send is introduced.
+
+Only an actually eligible account assignee is notified. Profile-only checks and
+inactive/erased/removed-account rules retain their existing no-account-notice
+behavior; no fake login or positive profile-credit policy is inferred. An
+accepted account notice suppresses the old post-commit sender in that mode.
+Default mode preserves the existing best-effort sender and existing level-up
+message behavior. Strict-mode coalescing includes a valid visible level-up in
+one verification notice. Reverify/reject with unchanged terminal state invokes
+no new transition/notifier; a deliberate new completion/check gets a new Activity.
+
+Private check/admission gates and dispatch duration remain unconfigured/off.
+These endpoints still use their pre-existing conditional-state request contract,
+not a new exact-command receipt/CAS across intervening reject/recomplete cycles.
+A delayed old unversioned command cannot yet be distinguished from a new command
+after such a cycle. Versioned original-command/expected-state client negotiation
+and previous-client/rollback behavior are REAL remaining source/rollout work;
+do not claim this wiring finishes that contract or safely enables all old queued
+checks. No activation before that work and consolidated migration/privacy/PG QA.
+
+Five mocked route source cases are authored/unrun: accepted activity binding and
+same-state replay/legacy exclusion, distinct later rejection transition, revoked
+original generation, changed assignee hold and default sender preservation. The
+fake does not prove rollback/SQL/FK/concurrency. Real atomic failure, multi-device
+cycles, profile/credit compatibility, export/erasure, provider/native and all
+original acceptance remain. No QA, migration/generation, app/API/DB execution,
+provider, flag/scheduler change or release ran.

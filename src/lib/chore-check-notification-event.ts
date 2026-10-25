@@ -1,10 +1,11 @@
-/** Accepted account-chore check producer adapter, not yet wired into verify.
+/** Accepted account-chore check producer adapter for the default-off check cohort.
  * Caller owns the canonical check/XP/activity transaction and already holds
  * ordered actor/assignee User + household/actual row locks before chore writes.
  * Activity identity comes only from the fresh successful transition, never a
  * caller-supplied timestamp, unchanged edit epoch, old title or current status.
  */
 import type { Prisma } from "@prisma/client";
+import { lockUser, lockHousehold } from "@/lib/household-lock";
 import { normalizeFeatures, isFeatureEnabled } from "@/lib/features";
 import { eligibleChoreAssigneeInTx } from "@/lib/chore-member-subject";
 import { admitNotificationEventInTx, type NotificationEventActor } from "@/lib/notification-event-admission";
@@ -15,6 +16,19 @@ import { readPrivateNotificationDispatchWindow } from "@/lib/notification-event-
 
 export function choreCheckNotificationDispatchWindow() {
   return readPrivateNotificationDispatchWindow("CHORE_CHECK_NOTIFICATION_EVENTS_ENABLED", "CHORE_CHECK_NOTIFICATION_DISPATCH_MS");
+}
+/** Use preflight IDs only to acquire locks. The caller must re-read the chore
+ * and hold/refuse a changed assignee before any writes; never lock a newly
+ * discovered User after holding source/receipt rows.
+ */
+export async function lockChoreCheckNotificationParticipants(
+  tx: Prisma.TransactionClient, userId: string, familyId: string, assigneeId: string | null,
+) {
+  const ids = [...new Set([userId, ...(assigneeId ? [assigneeId] : [])])].sort();
+  for (const id of ids) await lockUser(tx, id);
+  await lockHousehold(tx, familyId);
+  await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ANY(${ids}::text[]) ORDER BY "id" FOR SHARE`;
+  await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${familyId} FOR SHARE`;
 }
 type Check = {
   choreId: string; generation: string; recipientId: string; title: string;

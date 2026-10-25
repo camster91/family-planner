@@ -54,13 +54,14 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): account chore-check notification
-adapter source now uses accepted Activity identity/time, not the edit epoch that
-excludes status. Locked canonical source/account/activity/level checks and an
-explicit event-to-category map preserve reward-vs-chore semantics. Optional
-opted-in level-up coalescing respects current gamification; no XP policy changes.
-Verify/reject transaction wiring and other producers remain. Source cases unrun;
-no QA, DB, migration/generation, build, browser, activation, push, merge or deploy.
+Latest bounded source work (2026-10-25): gated account approval/return
+notifications are now composed with their accepted Activity, status and unchanged
+XP transaction. Strict mode locks participants before writes, holds changed
+assignees/revoked sessions and skips the legacy sender; default mode is retained.
+Profile/removed-member policy is unchanged. Exact-command/CAS across intervening
+completion cycles is real remaining source work, alongside other producers and
+all acceptance. Mocked route cases unrun; no QA, DB, migration/generation, build,
+browser, activation, push, merge or deployment ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
