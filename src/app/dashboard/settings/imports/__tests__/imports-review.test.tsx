@@ -2,11 +2,14 @@
 // Deferred source cases only; no import, database or runtime acceptance ran.
 import * as React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import ImportsClient from "../ImportsClient";
+import RawImportsClient from "../ImportsClient";
+import { IMPORT_OWNER_HEADER, IMPORT_OWNER_PROTOCOL } from "@/lib/imports/import-owner-contract";
+const owner = { protocol: IMPORT_OWNER_PROTOCOL, actorId: "fixture-parent", familyId: "fixture-family", generation: 0 } as const;
+const ImportsClient = () => <RawImportsClient owner={owner} />;
 const originalFetch = global.fetch;
 afterEach(() => { global.fetch = originalFetch; });
 const review = { protocol: 1, actorId: "fixture-parent", familyId: "fixture-family" };
-const preview = { review, plan: { fixture: true }, summary: { created: {}, reused: {}, skipped: [] }, jobId: null };
+const preview = { review, originalOwner: owner, plan: { fixture: true }, summary: { created: {}, reused: {}, skipped: [] }, jobId: null };
 const response = (body: unknown) => ({ ok: true, json: async () => body });
 function file(name: string, contents: () => Promise<string>) {
   const value = new File(["fixture"], name, { type: "application/json" });
@@ -74,8 +77,9 @@ it("does not replace a later file selection with an older asynchronous file read
   expect(JSON.parse(String((global.fetch as jest.Mock).mock.calls[0][1].body)).data).toEqual({ fixture: "current" });
 });
 
-it("refuses persistence when an older server omits reviewed scope metadata", async () => {
-  const legacy = { plan: preview.plan, summary: preview.summary, jobId: preview.jobId };
+it.each(["review", "originalOwner"])("refuses persistence when a server omits %s metadata", async missing => {
+  const legacy: Record<string, unknown> = { ...preview };
+  delete legacy[missing];
   global.fetch = jest.fn(async () => response(legacy)) as unknown as typeof fetch;
   render(<ImportsClient />);
   choose(file("fixture.json", async () => '{"fixture":true}'));
@@ -158,4 +162,73 @@ describe('bounded import transport source (unrun)', () => {
     expect(decode).not.toHaveBeenCalled();
     expect(screen.queryByRole('checkbox')).toBeNull();
   });
+});
+
+it('uses only the strict endpoint with the original owner header', async () => {
+  global.fetch = jest.fn(async () => response(preview)) as unknown as typeof fetch;
+  render(<ImportsClient />);
+  choose(file('synthetic-owned.json', async () => '{"fixture":true}'));
+  await screen.findByText('synthetic-owned.json');
+  fireEvent.click(screen.getByRole('button', { name: 'Validate dry run' }));
+  await screen.findByRole('heading', { name: 'Reconciliation preview' });
+  const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+  expect(url).toBe('/api/admin/imports/chore-champs/owned');
+  expect(new Headers(init.headers).get(IMPORT_OWNER_HEADER)).toBe(JSON.stringify(owner));
+});
+it('keeps a file local if older server props lack original-owner support', async () => {
+  global.fetch = jest.fn() as unknown as typeof fetch;
+  render(<RawImportsClient />);
+  choose(file('synthetic-local.json', async () => '{"fixture":true}'));
+  await screen.findByText('synthetic-local.json');
+  expect((screen.getByRole('button', { name: 'Validate dry run' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+it('masks the old file and preview after a household or generation prop change instead of rebinding', async () => {
+  global.fetch = jest.fn(async () => response(preview)) as unknown as typeof fetch;
+  const { rerender } = render(<RawImportsClient owner={owner} />);
+  choose(file('synthetic-private.json', async () => '{"fixture":true}'));
+  await screen.findByText('synthetic-private.json');
+  rerender(<RawImportsClient owner={{ ...owner, generation: 1 }} />);
+  expect(screen.queryByText('synthetic-private.json')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Validate dry run' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Reload imports' })).toBeTruthy();
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+it('refuses a successful preview returned under a different original owner', async () => {
+  global.fetch = jest.fn(async () => response({ ...preview, originalOwner: { ...owner, familyId: 'other-family' } })) as unknown as typeof fetch;
+  render(<ImportsClient />);
+  choose(file('synthetic-mismatch.json', async () => '{"fixture":true}'));
+  await screen.findByText('synthetic-mismatch.json');
+  fireEvent.click(screen.getByRole('button', { name: 'Validate dry run' }));
+  await screen.findByRole('button', { name: 'Reload imports' });
+  expect(screen.queryByRole('checkbox')).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Reconciliation preview' })).toBeNull();
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+});
+
+it('holds a missing strict endpoint without sending any legacy fallback', async () => {
+  const decode = jest.fn();
+  global.fetch = jest.fn(async () => ({ ok: false, status: 404, json: decode })) as unknown as typeof fetch;
+  render(<ImportsClient />);
+  choose(file('synthetic-upgrade.json', async () => '{"fixture":true}'));
+  await screen.findByText('synthetic-upgrade.json');
+  fireEvent.click(screen.getByRole('button', { name: 'Validate dry run' }));
+  await screen.findByText(/This server cannot confirm the reviewed household/);
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+  expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe('/api/admin/imports/chore-champs/owned');
+  expect(decode).not.toHaveBeenCalled();
+  expect((screen.getByRole('button', { name: 'Validate dry run' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('retires a denied session before decoding an unreadable private reply', async () => {
+  const decode = jest.fn(async () => await new Promise(() => undefined));
+  global.fetch = jest.fn(async () => ({ ok: false, status: 401, json: decode })) as unknown as typeof fetch;
+  render(<ImportsClient />);
+  choose(file('synthetic-retired.json', async () => '{"fixture":true}'));
+  await screen.findByText('synthetic-retired.json');
+  fireEvent.click(screen.getByRole('button', { name: 'Validate dry run' }));
+  await screen.findByRole('button', { name: 'Reload imports' });
+  expect(decode).not.toHaveBeenCalled();
+  expect(screen.queryByText('synthetic-retired.json')).toBeNull();
+  expect(global.fetch).toHaveBeenCalledTimes(1);
 });

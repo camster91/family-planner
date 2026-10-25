@@ -180,6 +180,7 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
  * new private domain cannot silently inherit the combined-cookie gap (#510).
  */
 const PRIVATE_PERSON_ROUTES = [
+  { route: 'POST /api/admin/imports/[source]/owned', module: '../admin/imports/[source]/owned/route', method: 'POST', path: '/api/admin/imports/budget-app/owned' },
   { route: 'GET /api/budget/archive', module: '../budget/archive/route', method: 'GET', path: '/api/budget/archive' },
   {
     route: "GET /api/budget/categories",

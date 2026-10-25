@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getServerUser } from "@/lib/supabase/server";
+import { getServerActor } from "@/lib/supabase/server";
 import { isParentRole } from "@/lib/role-capabilities";
+import { IMPORT_OWNER_PROTOCOL } from "@/lib/imports/import-owner-contract";
 import ImportsClient from "./ImportsClient";
 
 export const metadata: Metadata = { title: "Import" };
@@ -13,8 +14,9 @@ export const dynamic = "force-dynamic";
  * checks the session role again, and the admin imports API refuses them.
  */
 export default async function ImportsSettingsPage() {
-  const user = await getServerUser();
+  const user = await getServerActor();
   if (!user) redirect("/login?redirect=/dashboard/settings/imports");
   if (!isParentRole(user.role)) redirect("/dashboard");
-  return <ImportsClient />;
+  if (!user.family_id) redirect("/dashboard");
+  return <ImportsClient owner={{ protocol: IMPORT_OWNER_PROTOCOL, actorId: user.id, familyId: user.family_id, generation: user.tokenVersion }} />;
 }

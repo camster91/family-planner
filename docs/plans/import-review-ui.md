@@ -191,3 +191,67 @@ server-outcome/reconciliation and original role/rollback acceptance stay open.
 No QA/tests/checks/scanner/build/browser/CI/API/DB/import/native/provider/push/
 merge/deploy ran. A bounded response envelope is not approved source or import
 completion evidence; #104 and #135 remain open.
+
+## Original-owner import path — 2026-10-25
+
+The parent Imports server page now captures getServerActor's original verified
+person, household and session generation, with a strict private marker
+`herewoven.import-owner.v1`. It serializes only this bounded control context to
+the client; no credential/token is added. The client freezes it on first mount
+and dispatches to POST `/api/admin/imports/[source]/owned` with
+X-Herewoven-Import-Owner, for BOTH initial dry run and explicit persistence.
+This prevents a file/map prepared under account A from silently becoming a
+preview/write for account B merely because the cookie changed before submission.
+
+A shared canonical HTTP handler preserves legacy request/response behavior at
+the existing URL. The owned URL requires exact bounded context before reading
+or parsing the source body, in addition to real current authenticated parent
+permission. A marker supplies no authority; paired devices/child/teen/foreign/
+malformed/stale-generation input cannot grant it. Supplied constraints also
+enforce on the legacy URL, while absent legacy fields remain supported. Strict
+callers require the existing explicit review protocol and prior scoped preview
+for persistence. There is no new source importer or alternate write engine:
+canonical per-adapter authority locks, source IDs/provenance and limits remain.
+
+Owned successes renew authentication and compare the SAME original parent/family/
+generation before returning private preview/receipt data, and echo originalOwner.
+A refusal after dispatch does not prove prior effects rolled back. The updated
+client requires the exact owner echo and matching review actor/family before
+applying data or arming approval. Internal owner/review controls are removed
+from its displayed reconciliation JSON. Unknown writes retain consumed approval
+and existing unconfirmed-outcome recovery; no automatic resubmission is added.
+
+An initial old-server page without owner props keeps file selection local and
+disables backend actions. Unsupported/missing strict endpoints have no legacy
+fallback. A response without required markers pauses backend use. Changed owner
+props or an authority refusal masks old filename/report/controls, retires pending
+responses and latches the form until explicit reload/reselection. Returning to
+an earlier account does not revive the old form. Reload is an explicit action;
+this is mounted memory, not durable draft/process-death recovery. Locale changes
+only re-render owned EN/ES pause/recovery copy. Already-served data cannot be
+revoked retroactively; actual cross-tab/contact/lifecycle behavior is acceptance
+work. No raw file/map/owner control is newly persisted in browser storage or AI.
+
+The old endpoint and protocol-1 review shape remain supported. A new client
+never assumes that an older legacy parser understands new preconditions; the
+strict URL is essential for that split-deploy boundary. This does not upgrade
+old installed clients' intent binding by assertion. Current/previous-client,
+proxy/rollback/cache, role/session/membership churn, unknown-server outcomes and
+canonical repeated/concurrent import acceptance still need the exact candidate.
+
+API/UI/paired-refusal source fixtures are authored/adapted for missing/stale/
+foreign/future owner context before body parsing, parent permission, renewed
+post-dispatch refusal, original header/strict path, missing old-server props,
+marker mismatch, owner-prop masking and no fallback. Existing duplicate and
+bounded-response cases remain. All are UNRUN. No QA/tests/checks/scanner/build/
+browser/CI/API/DB/import/native/provider/push/merge/deploy ran. #104/#136/#473 and
+original source approval/reconciliation/migration/release criteria remain open.
+
+The owned import scope remains a request precondition and current-authentication
+check, not cryptographic evidence that a dry run occurred, a server-issued exact
+source/target snapshot or source-export approval. Full hash/revision/expiry and
+reconciliation acceptance remain open. The masked form provides a labelled44px
+reload control and restores focus there only when removal left focus on body;
+otherwise it preserves the person's current connected navigation focus.401/403
+retire before private body decoding, and missing/malformed owner echoes cannot
+be interpreted as approval. These are source behaviors, not rendered acceptance.

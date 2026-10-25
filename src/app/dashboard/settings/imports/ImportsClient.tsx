@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
+import { IMPORT_OWNER_HEADER, importOwner, sameImportOwner, type ImportOwner } from "@/lib/imports/import-owner-contract";
 import { runOwnedForeground } from "@/lib/owned-request-http";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { duplicateSourceRows, type DuplicateSourceRow } from "@/lib/imports/source-identity-validation";
@@ -38,10 +39,12 @@ const resultSchema = z.object({
   }).passthrough(),
   jobId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/).nullable(),
   review: reviewSchema.optional(),
+  originalOwner: importOwner.optional(),
 }).passthrough();
 function responseError(body: unknown): ImportSettingsError | null {
   if (!body || typeof body !== "object") return null;
   const value = body as { code?: unknown; error?: unknown };
+  if (value.code === "IMPORT_OWNER_REQUIRED") return "reviewUnsupported";
   if (value.code === "IMPORT_SCOPE_CHANGED") return "scopeChanged";
   if (value.code === "IMPORT_REVIEW_REQUIRED") return "previewRequired";
   if (value.code === "SESSION_CHANGED" || value.error === "Unauthorized") return "sessionChanged";
@@ -52,8 +55,15 @@ function responseError(body: unknown): ImportSettingsError | null {
   return null;
 }
 
-export default function ImportsClient() {
+export default function ImportsClient({ owner: ownerInput = null }: { owner?: ImportOwner | null }) {
   const text = useImportSettingsText();
+  const suppliedOwner = importOwner.safeParse(ownerInput);
+  const suppliedOwnerKey = suppliedOwner.success ? JSON.stringify(suppliedOwner.data) : null;
+  const boundOwner = useRef<ImportOwner | null>(suppliedOwner.success ? suppliedOwner.data : null).current;
+  const boundOwnerKey = boundOwner ? JSON.stringify(boundOwner) : null;
+  const ownerChanged = suppliedOwnerKey !== boundOwnerKey;
+  const [authorityHold, setAuthorityHold] = useState<'scopeChanged' | 'sessionChanged' | 'reviewUnsupported' | null>(null);
+  const backendUnavailable = !boundOwner || authorityHold === 'reviewUnsupported';
   const [source, setSource] = useState<Source>("chore-champs");
   const [fileData, setFileData] = useState<unknown>(null);
   const [fileName, setFileName] = useState("");
@@ -72,6 +82,7 @@ export default function ImportsClient() {
   const operation = useRef(0);
   const pending = useRef(false);
   const activeRequest = useRef<AbortController | null>(null);
+  const reloadControl = useRef<HTMLButtonElement | null>(null);
   const fileReading = useRef(false);
   const reviewed = useRef<{ version: number; source: Source; body: string } | null>(null);
   useEffect(() => () => {
@@ -81,6 +92,25 @@ export default function ImportsClient() {
     activeRequest.current = null;
     reviewed.current = null;
   }, []);
+
+  useEffect(() => {
+    if (!ownerChanged) return;
+    // Never rebind the old file/map/review after an account or generation change.
+    operation.current++;
+    fileRequest.current++;
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    reviewed.current = null;
+    pending.current = false;
+    fileReading.current = false;
+    setPreviewReady(false); setConfirmed(false); setResult(null);
+    setLoading(false); setReading(false); setAuthorityHold('scopeChanged');
+  }, [ownerChanged]);
+
+  useEffect(() => {
+    if ((ownerChanged || authorityHold === 'scopeChanged' || authorityHold === 'sessionChanged') && document.activeElement === document.body)
+      reloadControl.current?.focus();
+  }, [ownerChanged, authorityHold]);
 
   const resetPreview = () => {
     reviewed.current = null;
@@ -122,6 +152,7 @@ export default function ImportsClient() {
 
   const runImport = async (dryRun: boolean) => {
     if (pending.current || fileReading.current || inputVersion !== revision.current) return;
+    if (!boundOwner || ownerChanged || authorityHold) return;
     setSourceDuplicates([]);
     if (!fileData) return setError("fileRequired");
     let body: string;
@@ -159,10 +190,12 @@ export default function ImportsClient() {
     setError(null);
     try {
       const outcome = await runOwnedForeground(async signal => {
-        const response = await fetch(`/api/admin/imports/${selectedSource}`, {
-          method: "POST", headers: { "Content-Type": "application/json" }, body,
+        const response = await fetch(`/api/admin/imports/${selectedSource}/owned`, {
+          method: "POST", headers: { "Content-Type": "application/json", [IMPORT_OWNER_HEADER]: JSON.stringify(boundOwner) }, body,
           signal, cache: "no-store", credentials: "same-origin",
         });
+        if (response.status === 401 || response.status === 403) return { kind: 'reply' as const, response, value: { code: response.status === 401 ? 'SESSION_CHANGED' : 'IMPORT_SCOPE_CHANGED' } };
+        if (response.status === 404) return { kind: 'reply' as const, response, value: { code: 'IMPORT_OWNER_REQUIRED' } };
         const value = await readBoundedJsonResponse(response, signal, IMPORT_RESPONSE_BYTES);
         return { kind: 'reply' as const, response, value };
       }, { signal: controller.signal, timeoutMs: dryRun ? IMPORT_PREVIEW_TIMEOUT_MS : IMPORT_WRITE_TIMEOUT_MS });
@@ -173,24 +206,39 @@ export default function ImportsClient() {
       }
       const { response, value } = outcome;
       if (!response.ok) {
+        const reason = responseError(value);
+        if (response.status === 401 || reason === 'sessionChanged') setAuthorityHold('sessionChanged');
+        else if (response.status === 403 || reason === 'scopeChanged') setAuthorityHold('scopeChanged');
+        else if (reason === 'reviewUnsupported') setAuthorityHold('reviewUnsupported');
         if (responseError(value) === 'invalidExport' && value && typeof value === 'object' && 'duplicateSourceIds' in value) {
           const rows = duplicateSourceRows.safeParse(value.duplicateSourceIds);
           if (rows.success) setSourceDuplicates(rows.data);
         }
-        setError(responseError(value) ?? (dryRun ? "failed" : "writeUnconfirmed"));
+        setError(!dryRun && ["scopeChanged", "sessionChanged", "reviewUnsupported"].includes(reason ?? "") ? "writeUnconfirmed" : reason ?? (dryRun ? "failed" : "writeUnconfirmed"));
         return;
+      }
+      const marker = importOwner.safeParse(value && typeof value === 'object' && 'originalOwner' in value ? value.originalOwner : null);
+      if (!marker.success) {
+        setAuthorityHold('reviewUnsupported'); setError(dryRun ? 'reviewUnsupported' : 'writeUnconfirmed'); return;
+      }
+      if (!sameImportOwner(marker.data, boundOwner)) {
+        setAuthorityHold('scopeChanged'); setError(dryRun ? 'scopeChanged' : 'writeUnconfirmed'); return;
       }
       const parsed = resultSchema.safeParse(value);
       if (!parsed.success || (dryRun ? parsed.data.jobId !== null : parsed.data.jobId === null)) {
         setError(dryRun ? "failed" : "writeUnconfirmed");
         return;
       }
-      if (dryRun && !parsed.data.review) {
-        setError("reviewUnsupported");
+      if (!parsed.data.review || !parsed.data.originalOwner) {
+        setAuthorityHold('reviewUnsupported');
+        setError(dryRun ? "reviewUnsupported" : "writeUnconfirmed");
         return;
       }
+      const { review, originalOwner: receiptOwner, ...report } = parsed.data;
+      if (!sameImportOwner(receiptOwner, boundOwner) || review.actorId !== boundOwner.actorId || review.familyId !== boundOwner.familyId) {
+        setAuthorityHold('scopeChanged'); setError(dryRun ? 'scopeChanged' : 'writeUnconfirmed'); return;
+      }
       // Review IDs belong to request control, not the reconciliation display.
-      const { review, ...report } = parsed.data;
       setResult(report);
       if (dryRun && review) {
         const payload = JSON.parse(body) as Record<string, unknown>;
@@ -208,6 +256,12 @@ export default function ImportsClient() {
       if (own === operation.current) { pending.current = false; setLoading(false); }
     }
   };
+
+  if (ownerChanged || authorityHold === 'scopeChanged' || authorityHold === 'sessionChanged') return <div role="alert" className="card space-y-3 p-5">
+    <h1 className="text-title-1">{text('title')}</h1><p>{text('ownerChanged')}</p>
+    <p>{text(writing ? 'writeUnconfirmed' : authorityHold === 'sessionChanged' ? 'sessionChanged' : 'scopeChanged')}</p>
+    <button ref={reloadControl} type="button" className="btn-primary min-h-[44px]" onClick={() => window.location.reload()}>{text('reloadImports')}</button>
+  </div>;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -306,6 +360,7 @@ export default function ImportsClient() {
           </div>
         )}
 
+        {backendUnavailable && error !== 'reviewUnsupported' && <p role="status" className="text-sm text-muted-foreground">{text('reviewUnsupported')}</p>}
         {error && (
           <div
             role="alert"
@@ -318,7 +373,7 @@ export default function ImportsClient() {
 
         <button
           type="button"
-          disabled={loading || reading || !fileData}
+          disabled={loading || reading || !fileData || backendUnavailable}
           onClick={() => void runImport(true)}
           className="btn-primary min-h-11 inline-flex items-center gap-2 disabled:opacity-50"
         >
@@ -343,7 +398,7 @@ export default function ImportsClient() {
             <input
               type="checkbox"
               checked={confirmed}
-              disabled={loading || !previewReady}
+              disabled={loading || !previewReady || backendUnavailable}
               onChange={(event) => {
                 if (pending.current || !reviewed.current || reviewed.current.version !== revision.current) return;
                 setConfirmed(event.target.checked);
@@ -354,7 +409,7 @@ export default function ImportsClient() {
           </label>
           <button
             type="button"
-            disabled={loading || !confirmed || !previewReady}
+            disabled={loading || !confirmed || !previewReady || backendUnavailable}
             onClick={() => void runImport(false)}
             className="btn-primary min-h-11 disabled:opacity-50"
           >

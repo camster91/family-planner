@@ -2,6 +2,8 @@
 import { useCallback } from "react";
 import { useTranslation } from "@/i18n";
 const en = {
+  ownerChanged: "Importing is paused because the account, household or sign-in changed. Reload this page and select the file again.",
+  reloadImports: "Reload imports",
   duplicateSourceId: "In {collection}, record {row} repeats an earlier source ID. Review the export before trying again.",
   back: "Back to settings",
   title: "Import family apps",
@@ -36,6 +38,8 @@ const en = {
   payloadTooLarge: "The import request exceeds 10 MB. Use a smaller export or mapping.",
 };
 const es: Record<keyof typeof en, string> = {
+  ownerChanged: "La importación está pausada porque cambió la cuenta, el hogar o el inicio de sesión. Recarga esta página y selecciona el archivo de nuevo.",
+  reloadImports: "Recargar importaciones",
   duplicateSourceId: "En {collection}, el registro {row} repite un ID de origen anterior. Revisa la exportación antes de volver a intentarlo.",
   back: "Volver a ajustes",
   title: "Importar apps familiares",

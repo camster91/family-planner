@@ -1699,3 +1699,17 @@ receipt inspection, durable recovery and upload-retry identity are still outside
 this mounted-send slice. Source time-boundary/API/UI fixtures are authored/adapted
 but unrun. QA, real lock/retention/clock/lifecycle behavior, compatibility and all
 release acceptance remain open. No runtime, database or external activation ran.
+
+Latest bounded source work (2026-10-25) binds the Imports form to original
+parent/account/household/session context (#104/#136). A strict owned endpoint
+requires the bounded marker before source-body parsing, reuses canonical legacy
+handlers/effects and renews original authority before private success echo. The
+client freezes context, requires matching owner/review replies, masks retired
+file/report controls and never falls back to a legacy write URL. Old-server
+missing support holds backend actions with EN/ES recovery; legacy contracts stay
+supported. API/UI/paired source cases are authored/adapted UNRUN. No QA/test/check/
+build/scanner/browser/CI/API/DB/import/native/provider/push/merge/deploy ran.
+39 issues remain open; full source/export/client/race/rollback acceptance and the
+pending unlink product-choice question remain unresolved.
+
+Full owned-import/legacy compatibility contract: docs/plans/import-review-ui.md.
