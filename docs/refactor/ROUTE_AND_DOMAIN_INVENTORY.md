@@ -1,5 +1,18 @@
 # Route and domain inventory (#148)
 
+### Food-plan picker/allocation copy source — 2026-10-24 (#142)
+
+FoodRecordPicker and FoodAllocationEditor use typed scoped EN/ES keys for recipe/
+account/list/event descriptions, search/selection/retry/coverage, portion/date/
+meal/cook/note fields and allocation actions. Existing translations are preserved;
+caller labels and household names, values, units, IDs and event times remain
+canonical. The picker read effect's dependencies/owner scope and page/search/
+selection bounds are unchanged; locale only changes display. Allocation totals,
+14-row cap, inherited cook, parent draft callbacks and field validation are
+unchanged. Sixty-eight owned migration records removed, no scanner run. No new
+copy-only tests, existing cases unrun; rendered/pseudolocale/selection/recovery/
+privacy and original planning acceptance remain open. No writes or activation.
+
 ### Food-plan review presentation source — 2026-10-24 (#142 / #123)
 
 FoodPlanSummary and FoodGroceryOutcomesView use typed scoped presentation keys
