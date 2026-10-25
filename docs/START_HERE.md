@@ -37,6 +37,8 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 
 ## Engineering references
 
+- Stable-profile rotation proposal (#480/#450): `docs/plans/profile-rotation-v1.md` (source-backed namespace/lifecycle/rollout contract; implementation and credit/retention decisions remain pending).
+
 - Current source screen directory (#499): `docs/product/SCREEN_ROUTE_MANIFEST.md` and adjacent JSON (82 page sources, 71 route patterns, 22 feature keys; documentation only, rendered/role/native acceptance remains open).
 
 - Retained localization baseline: `docs/testing/REMAINING_COPY_DISPOSITION.md` (#142 source disposition; literal/legal records retained, no new scanner or rendered acceptance).

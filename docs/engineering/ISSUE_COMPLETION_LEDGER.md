@@ -54,12 +54,12 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): rotation edits resolve required canonical
-participants once each before effects, under the existing household lock; missing
-identity refuses before template/row changes. Legacy assignment and turn/history
-rules remain. Profile rotation still needs a separate versioned ID contract; old
-User-ID arrays are not reinterpreted. Source cases authored UNRUN. No QA/checks/
-build/browser/CI/API/DB/provider/push/merge/deploy; #134/#450/#480 remain open.
+Latest bounded source work (2026-10-25): stable-profile rotation has a source-
+backed v2 namespace/lifecycle/rollout proposal through the canonical future-
+definition pipeline. Legacy account-ID storage is preserved. Profile-earned
+points/reward ownership and prior unlink-retention decisions remain unanswered;
+implementation/activation is not claimed. No QA/checks/build/browser/CI/API/DB/
+provider/push/merge/deploy; #480/#450/#557 remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -110,3 +110,12 @@ similar. Profile rotation still requires additive/versioned storage and strict
 capability/read/write/rollback handling with explicit active stable-member
 eligibility. It is not delivered by this query optimization. The unanswered
 standalone-unlink retention decision remains independent and unresolved.
+
+## Stable-profile rotation proposal — 2026-10-25
+
+`profile-rotation-v1.md` now specifies the current account-ID boundary, proposed
+versioned stable-member definitions, canonical generation/edit/history, short
+parent picker and strict rollback/role obligations. This is planning, not profile
+rotation code. Profile points/reward ownership has been asked explicitly and is
+unanswered; #557 former-login erasure/independent-profile retention is also still
+pending. No schema, capability, permission, data, credit or activation changed.

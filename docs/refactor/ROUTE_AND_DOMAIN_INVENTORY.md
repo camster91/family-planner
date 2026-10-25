@@ -2845,3 +2845,13 @@ similar. Profile rotation still requires additive/versioned storage and strict
 capability/read/write/rollback handling with explicit active stable-member
 eligibility. It is not delivered by this query optimization. The unanswered
 standalone-unlink retention decision remains independent and unresolved.
+
+## Profile rotation source contract — 2026-10-25
+
+The proposed v2 path is recorded in docs/plans/profile-rotation-v1.md: stable
+HouseholdMember IDs through the existing future-definition pipeline, separate
+from legacy User-ID rotations; atomic eligibility, future-only edits, immutable
+turn coordinates, own-step/shared-safe completion, credit/erasure and strict old-
+client rollback obligations. No new schema/code/flag or acceptance is implied.
+The new profile-points ownership question and existing unlink-retention question
+are unanswered. No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy.
