@@ -1,3 +1,4 @@
+import { parseMessagePaging, afterMessageCursor, encodeMessageCursor } from '@/lib/message-paging'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
@@ -26,8 +27,11 @@ export async function GET(request: NextRequest) {
     if (gate) return gate
 
     const { searchParams } = new URL(request.url)
-    const cursor = searchParams.get('cursor')
-    const rawLimit = searchParams.get('limit')
+    const modern = searchParams.has('paging')
+    const paging = modern ? parseMessagePaging(searchParams, auth.user.family_id) : null
+    if (paging && !paging.ok) return NextResponse.json({ error: paging.error, code: 'MESSAGES_INVALID_PAGE' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } })
+    const cursor = modern ? null : searchParams.get('cursor')
+    const rawLimit = modern ? null : searchParams.get('limit')
     let limit = 50
     if (rawLimit !== null && rawLimit !== '') {
       if (!/^\d+$/.test(rawLimit.trim())) {
@@ -37,7 +41,9 @@ export async function GET(request: NextRequest) {
       limit = Math.min(Math.max(parseInt(rawLimit, 10), 1), 100)
     }
 
+    if (paging?.ok) limit = paging.limit
     const where: Record<string, unknown> = { family_id: auth.user.family_id }
+    if (paging?.ok && paging.cursor) where.AND = [afterMessageCursor(paging.cursor)]
     if (cursor) {
       const before = new Date(cursor)
       if (Number.isNaN(before.getTime())) {
@@ -46,12 +52,17 @@ export async function GET(request: NextRequest) {
       where.created_at = { lt: before }
     }
 
-    const messages = await prisma!.message.findMany({
+    const rows = await prisma!.message.findMany({
       where,
       include: MESSAGE_INCLUDE,
-      orderBy: { created_at: 'desc' },
-      take: limit,
+      orderBy: modern ? [{ created_at: 'desc' }, { id: 'asc' }] : { created_at: 'desc' },
+      take: modern ? limit + 1 : limit,
     })
+    // Cursor position comes from the complete descending page before the DTO
+    // is reversed for chronological presentation. No pivot row lookup needed.
+    const messages = modern ? rows.slice(0, limit) : rows
+    const nextCursor = modern && rows.length > limit && messages.length
+      ? encodeMessageCursor(auth.user.family_id, messages[messages.length - 1]) : null
 
     const members = await prisma!.user.findMany({
       where: { family_id: auth.user.family_id },
@@ -68,7 +79,8 @@ export async function GET(request: NextRequest) {
       messages: messages.reverse().map(toMessageResponse), // Return in chronological order
       members,
       userId: auth.user.id,
-    })
+      ...(modern ? { nextCursor } : {}),
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     logRouteError('GET /api/messages', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

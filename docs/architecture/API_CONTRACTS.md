@@ -1618,3 +1618,20 @@ rendered/navigation and full reward acceptance remain open; no new DDL applied.
 Protocol: GET /api/rewards?limit=24[&status=available|claimed|approved|redeemed][&cursor=...] returns rewards plus nullable nextCursor. Duplicate/invalid paging and foreign household/status positions refuse400 REWARDS_INVALID_PAGE. GET ?rewardId=<id> is an exclusive exact-target filter returning the same rewards array shape with zero/one own-household row; it cannot combine with paging/status. Older servers may ignore the filter; clients still match the target and hold on absent/unreadable replies. This is not a write receipt or deletion tombstone. Legacy no-limit/no-target calls retain prior representation and ordering.
 
 Index follow-up is measured planning only: compare existing Reward family/status indexes with proposed family+created_at+id and family+status+created_at+id paths. No index/migration or latency result is implied. Reward history follows canonical erasure/retention; no time-based pruning is introduced.
+
+### Opt-in message history keysets — 2026-10-25 (#134)
+
+Message API source adds opt-in tie-safe message API
+continuation (#134). paging=keyset-v1 uses default50/max100 plus one lookahead,
+household-bound canonical timestamp/ID positions and no pivot lookup. The cursor
+is built before chronological DTO reversal; sender/pickup projection and complete
+current roster remain. Legacy no-mode timestamp reads/shape/order stay unchanged.
+Parser/foreign/tied/deleted-pivot/legacy source cases authored only. The current
+chat has not adopted the new mode: merge/refresh/scroll/exact retry and old-server
+handling remain the next source slice. No QA/test/check/build/browser/CI/API/DB/
+native/provider/push/merge/deploy ran. Relation/index/client/runtime acceptance
+remain open; no complete roster-size or whole-response bound is claimed.
+
+GET /api/messages?paging=keyset-v1[&limit=1..100][&cursor=...] returns the existing messages/members/userId plus nullable nextCursor. Invalid/duplicate mode/limit/cursor or another household position refuses400 MESSAGES_INVALID_PAGE. Page selection is created_at DESC/id ASC; the response reverses only that selected page for chronological display. Complete current-member roster and canonical sender/pickup masking remain. No mode retains the legacy timestamp-only API, including its tie limitation; no client adoption or read-snapshot guarantee is implied.
+
+Next source integration: latest/earlier client reads must validate explicit continuation, retain the exact failed cursor, preserve all loaded same-time messages during a latest merge, keep unsent text/attachments/unknown send keys, and retain scroll position/focus. Specify unknown/older-server recovery rather than inventing a cursor from timestamps. Later QA owns actual refresh/send/read/history races and query plans. Compare a proposed Message(family_id,created_at DESC,id ASC) index only after plan measurement; no DDL/retention change here.

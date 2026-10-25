@@ -107,3 +107,30 @@ describe("messages — two households", () => {
     expect(await first.json()).toEqual(await second.json());
   });
 });
+
+describe('opt-in message keysets (source only)', () => {
+  beforeEach(() => db.reset())
+  it('continues through tied timestamps after the pivot row is deleted without changing chronological DTOs', async () => {
+    const original = db.find('message', 'msg-a')!
+    for (const id of ['tie-a', 'tie-b', 'tie-c']) db.rows('message').push({ ...original, id, created_at: new Date('2026-10-25T12:00:00Z') })
+    const first = await (await messages.GET(req({ as: 'childA', query: { paging: 'keyset-v1', limit: '2' } }))).json()
+    expect(first.messages.map((row: any) => row.id)).toEqual(['tie-b', 'tie-a'])
+    expect(first.nextCursor).toBeTruthy()
+    await require('@/__tests__/helpers/two-household').fakePrisma.message.deleteMany({ where: { id: 'tie-b' } })
+    const next = await (await messages.GET(req({ as: 'childA', query: { paging: 'keyset-v1', limit: '2', cursor: first.nextCursor } }))).json()
+    expect(next.messages.map((row: any) => row.id)).toEqual(['msg-a', 'tie-c'])
+    expect(next.nextCursor).toBeNull()
+    expect(next.members.map((member: any) => member.id).sort()).toEqual(['child-a', 'parent-a', 'teen-a'])
+    expect(next.userId).toBe('child-a')
+    expect((await messages.GET(req({ as: 'childB', query: { paging: 'keyset-v1', limit: '2', cursor: first.nextCursor } }))).status).toBe(400)
+  })
+  it('retains legacy timestamp cursor shape and refuses an unknown paging mode', async () => {
+    const legacy = await (await messages.GET(req({ as: 'childA', query: { limit: '1' } }))).json()
+    expect(legacy.messages.map((row: any) => row.id)).toEqual(['msg-a'])
+    expect(legacy).not.toHaveProperty('nextCursor')
+    const before = await (await messages.GET(req({ as: 'childA', query: { cursor: legacy.messages[0].created_at } }))).json()
+    expect(before.messages).toEqual([])
+    expect((await messages.GET(req({ as: 'childA', query: { paging: 'unknown' } }))).status).toBe(400)
+    expect(db.writes).toHaveLength(0)
+  })
+})

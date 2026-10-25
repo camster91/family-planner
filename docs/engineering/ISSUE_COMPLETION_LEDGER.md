@@ -54,16 +54,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) completes reward-board foreground
-transport bounds (#135/#134): claim/approval now share15-second whole-request
-waits and256KiB JSON decode caps with existing exact target recovery. Missing/
-malformed/oversized replies retain original keys and review;408/409/425/429/5xx
-also retain keys rather than infer rollback. Parsed matched success still alone
-updates XP/claim/given state; no automatic replay or local point charge added.
-Existing localized error/review surfaces remain. Deadline/oversize exact-retry
-source cases authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/
-push/merge/deploy ran. Actual locking/replay/role/timeout/rendered and native
-lifecycle acceptance remain open; this is not release or durable-queue acceptance.
+Latest bounded source work (2026-10-25) adds opt-in tie-safe message API
+continuation (#134). paging=keyset-v1 uses default50/max100 plus one lookahead,
+household-bound canonical timestamp/ID positions and no pivot lookup. The cursor
+is built before chronological DTO reversal; sender/pickup projection and complete
+current roster remain. Legacy no-mode timestamp reads/shape/order stay unchanged.
+Parser/foreign/tied/deleted-pivot/legacy source cases authored only. The current
+chat has not adopted the new mode: merge/refresh/scroll/exact retry and old-server
+handling remain the next source slice. No QA/test/check/build/browser/CI/API/DB/
+native/provider/push/merge/deploy ran. Relation/index/client/runtime acceptance
+remain open; no complete roster-size or whole-response bound is claimed.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
