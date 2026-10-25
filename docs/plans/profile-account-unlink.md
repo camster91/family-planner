@@ -1,6 +1,6 @@
 # Completed profile/account unlink and rejoin — #557 / #480
 
-2026-10-24 source-backed design. Status: a dormant pure routine adapter is authored; the full implementation contract remains proposed;
+2026-10-24 source-backed design. Status: a dormant pure routine adapter and bounded transaction-reader helper are authored; the full implementation contract remains proposed;
 standalone unlink is **not implemented or activated**. No test, browser, migration,
 account mutation, provider call or production action ran. Keep #557 open.
 
@@ -107,14 +107,28 @@ previous revisions and unique sorted affected stack IDs, without mutating input
 order. `complete` is internal reader metadata, never a public request/owner proof.
 The planner cannot itself prove coverage, current role, family membership, owner
 proof or absence of subsequent edits; a ready plan is not an unlink receipt.
-No reader, transaction or HTTP/UI route consumes this source yet.
+`prepareRoutineSubjectUnlinkInTx` in `routine-subject-unlink-read.ts` now
+provides dormant transaction-reader preparation. It validates association bounds
+before reads, holds missing routine storage, and selects every non-null future
+root definition in the household, ordered by ID with limit1,001 and FOR UPDATE.
+There are no subject/protocol/state filters that could hide unknown future work.
+Above 1,000 roots it returns a held result with no prefix rewrites. The complete
+bounded inventory delegates to the existing pure planner; storage errors propagate.
+
+Its caller must already hold participant/household lifecycle locks and renew the
+exact association and owner proof. Row locks alone cannot prevent phantom roots;
+all future-definition writers must honor the household lock. The helper supplies
+no authority, transaction wrapper, mutation or receipt. No production transaction,
+HTTP/UI route or account command invokes it. Row count is bounded; aggregate JSON
+payload/lock-time/query-plan costs remain unmeasured. The full unlink writer,
+former-association provenance, domain/credit/Undo parity and activation remain open.
 
 Regression source covers exact/profile/paused/stopped/unrelated/erased subjects,
 conflicting/ambiguous aliases, unknown/malformed protocols, bounded IDs and
 revision exhaustion, plus batch completeness/foreign-root/duplicates/bounds/
-ordering/no-partial-result cases. It is authored and **unrun**. There is no call from existing
-identity transactions, endpoint, UI, database/schema change, permission change or
-activation. This adapter alone is not a standalone unlink implementation or
+ordering/no-partial-result cases. It is authored and **unrun**. The reader's scope, lookahead, absent-schema, unsupported metadata and failure
+cases are also authored/unrun. There is no call from existing identity
+transactions, endpoint, UI, database/schema change, permission change or activation. This adapter alone is not a standalone unlink implementation or
 proof of account/member-domain/credit parity.
 
 ## Erasure, credit and compatibility decisions still required

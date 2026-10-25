@@ -37,7 +37,7 @@ No unverified feature is declared completed by source authorship.
 | #499/#460 selected design | Compact Today controls, sibling calendar/chore cards, personal two-column composition, correct grocery totals and day-preserving dinner/recipe/prep links | Full accepted all-feature/role/device/rendered criteria remain |
 | #464 helper | Help/Today/Add shortcuts with existing role/feature filters and draft-aware navigation | Existing AI/voice/review/privacy/runtime criteria; no second write path |
 | #473 native contract | Per-platform capability/fallback matrix, support-window decision boundary and forward/rollback sequence | Actual supported binaries/old operations/hardware evidence and signing inputs |
-| #557/#480 identity | Existing gated linking reconciled; unlink/rejoin design plus dormant pure routine/batch preflight authored | Unlink writer, former-association provenance, credit/Undo and wider member-domain parity remain unfinished |
+| #557/#480 identity | Existing gated linking reconciled; unlink/rejoin design plus dormant pure routine/batch preflight and bounded reader authored | Unlink writer, former-association provenance, credit/Undo and wider member-domain parity remain unfinished |
 | #564/#565 queue recovery | Existing source already implements retirement/generation and candidate retry; no duplicate engine added | Original storage fault/concurrency/lifecycle/rollback acceptance |
 | #566 finance | Complete source-reconciled plan retained in its completed issue and local plan | FIN-0–FIN-7 implementation remains #134/#499 with #104 source approval |
 | #146 support | 20-case runbook, response ownership, communication strategy and support scaling triggers defined | Actual recovery/privacy/dashboard/backup, publishing and staffed operating evidence remain |
@@ -52,16 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work localizes remaining paired-tablet status/picker/
-action copy (#142): 14 typed EN/ES keys, plus reused errors. Actual member names,
-account/profile selection, requests, permissions, TTL/idle and wipe dependencies
-remain canonical. Action copy is read through latest refs, so locale changes no
-longer recreate the action object and its queued-write ownership set when other
-inputs are unchanged. Existing string ActionResult/server errors remain literal
-once emitted; no stored-message translation claim. Ten owned inventory records
-removed without scanning. Ownership/picker/locale regression source authored,
+Latest bounded source work adds dormant routine-unlink reader preparation
+(#557). After caller-owned lifecycle locks/authority, the helper selects every
+non-null household future root without subject/protocol/state filters, orders
+and locks rows, and uses a 1,001-row lookahead. Missing schema or oversized
+inventories hold; database errors propagate. Complete bounded inventories use
+the pure all-or-nothing planner. No existing identity transaction, endpoint/UI,
+account, schema or permission path calls the helper. Root-row locks do not
+replace the household lock protocol or prove a snapshot/owner proof. Scope,
+lookahead, unsupported/foreign/duplicate and failure regression source authored,
 unrun. No QA/check/build/browser/API/database/native/provider/permission/release
-ran. Full queue/lifecycle/privacy/locale/layout/runtime acceptance remains open.
+ran. Writer, provenance, credit/Undo and broader member-domain parity remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

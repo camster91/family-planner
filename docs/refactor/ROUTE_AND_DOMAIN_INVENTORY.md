@@ -1,5 +1,23 @@
 # Route and domain inventory (#148)
 
+### Dormant routine-unlink inventory reader — 2026-10-24 (#557/#480)
+
+`routine-subject-unlink-read.ts` adds transaction-scoped preparation, with no
+caller in production identity commands or routes. It validates bounded scope
+before reads and holds a missing routine column rather than treating it as no
+future work. The raw query selects every non-null household future root,
+ordered by ID, limited to 1,001 and row-locked. No subject/protocol/state filter
+can hide an unsupported definition. Over 1,000 roots holds without rewrites;
+otherwise the pure complete-inventory planner validates every returned row and
+holds any unsupported, foreign, duplicate or ambiguous definition. Storage errors
+propagate to abort the future transaction. No occurrence or earned-credit data
+is read/changed. Caller-owned participant/household locks and renewed association/
+owner proof remain mandatory; row locks do not prevent phantoms independently.
+A ready plan is not a receipt or authority. JSON payload/lock-time/query costs,
+writer/provenance/domain/credit/Undo/erasure and real concurrency acceptance
+remain open. Reader regression source authored/unrun. No QA/tests/check/build/
+browser/API/database/migration/native/provider/permission/release ran.
+
 ### Tablet status, subject-picker and action-copy source — 2026-10-24 (#142)
 
 Removed/unavailable screens, account picker title/instructions/accessibility
