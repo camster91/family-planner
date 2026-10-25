@@ -70,7 +70,7 @@ Unicode titles/content are fabricated; no publisher, real family or provider dat
 is fetched. Explicit Toronto DST and other semantic edge cases remain unsupported.
 
 The manifest deliberately returns `complete: false`. It names unsupported
-profiles/linking, pairing, inventory reviewed receipts/deleted targets, chores/routines, recipe-prep snapshots/receipts,
+profiles/linking, pairing, inventory reviewed receipts/deleted targets, profile chores/scheduled routines/credit, recipe-prep snapshots/receipts,
 project-calendar linked/deleted targets, notification delivery/shared activity and receipt/review/provider
 fixtures. Empty arrays do not substitute for these dimensions. Counts are
 construction expectations, not observations from a seeded/reconciled database.
@@ -223,3 +223,31 @@ cases cover profile counts, portion arithmetic, keys, date scope, ownership and
 insertion order; all unrun. Manifest remains incomplete with other required fixture
 and adoption/adapter/reconciliation gaps. No generator, DB/API, writer/seed/reset,
 load/QA/build/browser/native/provider/release execution occurred.
+
+## Account chore series construction — 2026-10-25 (version6, source only)
+
+`herewoven.capacity-rows.v6` reuses the existing FixtureChore factory for20 weekly
+roots plus200 dated copies in ordinary/calendar/food, or500 roots plus10,000
+copies in history. Roots count separately from occurrences: total Chore rows220
+or10,500. Each root references itself, has weekly frequency and a UTC weekday;
+copies retain the root ID, use once frequency and distinct later UTC-midnight
+weekly dates. Root rows precede copies. No duplicate `(recurrence_id,due_date)`
+key is intentionally generated. Every fourth root rotates between local parent/
+teen accounts with consistent indices; others use one of the four local accounts.
+
+Past occurrences include pending/completed/verified state, with appropriate
+completion/verification timestamps; future copies are pending. Created rows are
+labelled fabricated, have no photos, successor, profile subject, routine stack or
+private future definition. These are account-based legacy-compatible weekly
+series, not scheduled-routine/profile/credit fixtures. Actual read-triggered top-up,
+completion/verification/Undo/rotation transitions and their ledgers remain adapter
+and observed reconciliation work. Root-relative dates extend past the anchor's
+ordinary upcoming window, but no promise is made for a server with an unbound
+clock or later canonical workload actions. Expected row counts are initial only.
+
+Source integrity cases cover declared counts, local actors, root-before-copy,
+root/day uniqueness, date shape, rotation and status timestamps, all unrun. Manifest
+still declares profile chores, scheduled routines, credit history and other required
+dimensions unsupported, and complete:false. No generator, DB/API, writer/seed/reset,
+load/test/build/browser/native/provider or release execution occurred. #137 actual
+recurrence/clean-environment/capacity and broader #450/#480 acceptance remain open.

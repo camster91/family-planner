@@ -41,6 +41,11 @@ it("keeps every canonical reference inside its fabricated household", () => {
       expect(family.get(entry.row.added_by)).toBe(family.get(entry.row.list_id));
       if (entry.row.checked_by) expect(family.get(entry.row.checked_by)).toBe(family.get(entry.row.list_id));
     }
+    if (entry.table === "chores") {
+      expect(family.get(entry.row.created_by)).toBe(entry.row.family_id);
+      expect(family.get(entry.row.assigned_to!)).toBe(entry.row.family_id);
+      expect(entry.row.assigned_member_id).toBeNull();
+    }
     if (entry.table === "prepSessions") expect(family.get(entry.row.created_by!)).toBe(entry.row.family_id);
     if (entry.table === "mealBatches") {
       expect(family.get(entry.row.prep_session_id)).toBe(entry.row.family_id);
@@ -265,4 +270,40 @@ it.each(["ordinary", "calendar", "food", "history"] as const)("constructs %s mul
     expect(positions.get(row.batch_id)!).toBeLessThan(positions.get(row.id)!);
     if (row.meal_id) expect(positions.get(row.meal_id)!).toBeLessThan(positions.get(row.id)!);
   }
+});
+
+it.each(["ordinary", "calendar", "food", "history"] as const)("constructs %s account series without duplicate root/day keys", profile => {
+  const candidate = capacityPlan({ stage: "reference", profile });
+  const rows: Array<Extract<import("../dataset").CapacityDatasetRow, { table: "chores" }>["row"]> = [];
+  let familyId: string | null = null;
+  outer: for (const batch of capacityDatasetBatches(candidate, anchor)) {
+    for (const entry of batch) {
+      if (entry.table === "families") { if (familyId !== null) break outer; familyId = entry.row.id; }
+      if (entry.table === "chores") rows.push(entry.row);
+    }
+  }
+  const roots = new Map(rows.filter(row => row.is_template).map(row => [row.id, row]));
+  const count = CAPACITY_CARDINALITIES[profile];
+  expect(roots.size).toBe(count.choreRoots);
+  expect(rows.length - roots.size).toBe(count.choreOccurrences);
+  const keys = new Set<string>();
+  const seenRoots = new Set<string>();
+  const states = new Set<string>();
+  const date = (value: Date | string) => value instanceof Date ? value : new Date(value);
+  for (const row of rows) {
+    const root = roots.get(row.recurrence_id!)!;
+    expect(root).toBeDefined(); expect(row.family_id).toBe(familyId);
+    const key = `${row.recurrence_id}:${date(row.due_date).toISOString()}`;
+    expect(keys.has(key)).toBe(false); keys.add(key);
+    expect(date(row.due_date).getUTCHours()).toBe(0);
+    if (row.is_template) { seenRoots.add(row.id); expect(row.recurrence_id).toBe(row.id); expect(row.frequency).toBe("weekly"); }
+    else { expect(seenRoots.has(root.id)).toBe(true); expect(row.frequency).toBe("once"); }
+    if (Array.isArray(row.rotation_member_ids) && row.rotation_member_ids.length) {
+      expect(row.assigned_to).toBe(row.rotation_member_ids[row.rotation_index!]);
+    }
+    states.add(row.status!);
+    if (row.status === "pending") expect(row.completed_at).toBeNull();
+    if (row.status === "verified") expect(row.verified_at).not.toBeNull();
+  }
+  expect(states).toEqual(new Set(["pending", "completed", "verified"]));
 });

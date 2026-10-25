@@ -1762,3 +1762,12 @@ only for prepared sessions. Counts/local refs/keys/date/portion/insertion source
 cases authored/adapted; no execution. Recipe snapshots/review/replay receipts and
 other fixtures/adapters/observed reconciliation remain unsupported; manifest
 incomplete, no runtime/writer/DB/API/provider operation or acceptance claimed.
+
+### Dormant capacity account chore series — 2026-10-25 (#137)
+
+Dataset version6 reuses canonical account fixture rows for model-sized weekly
+roots/copies, local rotations and dated state snapshots. Initial counts/root-day/
+reference/order/state source cases authored only. Read-triggered top-up outcomes,
+profile/scheduled routine definitions, credit/history and broader fixtures/adapters/
+observed reconciliation remain unsupported/incomplete. No generator/writer/DB/API/
+QA/build/browser/provider/native/release run; full capacity/recurrence acceptance open.
