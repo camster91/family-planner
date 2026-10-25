@@ -1,5 +1,22 @@
 # Route and domain inventory (#148)
 
+### Barcode capture and cooking-preview copy — 2026-10-24 (#142)
+
+BarcodeFoodDialog now uses64 typed scoped EN/ES keys. Controlled local feedback
+stores key/params rather than a sentence captured by an old render; actual
+product names remain literal and display counts use locale formatting. Existing
+camera/visibility/permission lifecycle, metadata requests, ownership, exact intake
+request/key and uncertain-save/recovery behavior remain unchanged. Locale/text
+are not added to existing effect dependencies. Barcode formats, canonical samples
+and Open Food Facts/ODbL/CC BY-SA attributions stay literal and tracked. Recipe
+cooking-preview labels/help use four typed recipe keys, with original numeric
+draft validation, scale helper and reset dependencies retained. Seven owned recipe
+inventory records removed without scanning; barcode technical/licence records
+are retained. A typed-draft/semantic validation/locale/no-extra-action case is
+authored/unrun. No QA/test/check/build/browser/API/database/native/provider/
+permission/release ran. Full camera/stock/privacy/recovery/locale/layout/runtime
+acceptance remains open.
+
 ### Getting-started and routine-origin copy — 2026-10-24 (#142)
 
 GetStarted uses13 typed onboarding keys for three step labels/hints, progress,

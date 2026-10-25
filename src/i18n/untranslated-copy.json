@@ -623,40 +623,5 @@
     "file": "src/components/layout/DashboardFormSheets.tsx",
     "text": "Please wait for saving or uploading to finish.",
     "count": 1
-  },
-  {
-    "file": "src/components/meals/RecipeCookingView.tsx",
-    "text": "Choose a whole number from 1 to 100. Original amounts are shown.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/RecipeCookingView.tsx",
-    "text": "Cooking portions",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/RecipeCookingView.tsx",
-    "text": "Elige un número entero de 1 a 100. Se muestran las cantidades originales.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/RecipeCookingView.tsx",
-    "text": "Original ·",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/RecipeCookingView.tsx",
-    "text": "Porciones para cocinar",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/RecipeCookingView.tsx",
-    "text": "Preview only. Ingredient amounts change; directions and times keep their original text. The saved recipe stays unchanged.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/RecipeCookingView.tsx",
-    "text": "Vista previa. Solo cambian las cantidades de ingredientes; los pasos y tiempos conservan el texto original. La receta guardada no cambia.",
-    "count": 1
   }
 ]

@@ -1,5 +1,9 @@
 import { useTranslation } from "@/i18n";
 const en = {
+  cookingPortions: "Cooking portions",
+  cookingOriginal: "Original · {count}",
+  cookingPreview: "Preview only. Ingredient amounts change; directions and times keep their original text. The saved recipe stays unchanged.",
+  cookingInvalid: "Choose a whole number from 1 to 100. Original amounts are shown.",
   meals: "Meals",
   reviewUsed: "Review food used",
   planMeal: "Plan a meal",
@@ -15,6 +19,10 @@ const en = {
   editDescription: "Changes apply to this recipe. Planned meals keep their saved name.",
 } as const;
 const es: Record<keyof typeof en, string> = {
+  cookingPortions: "Porciones para cocinar",
+  cookingOriginal: "Original · {count}",
+  cookingPreview: "Vista previa. Solo cambian las cantidades de ingredientes; los pasos y tiempos conservan el texto original. La receta guardada no cambia.",
+  cookingInvalid: "Elige un número entero de 1 a 100. Se muestran las cantidades originales.",
   meals: "Comidas",
   reviewUsed: "Revisar alimentos usados",
   planMeal: "Planificar comida",
@@ -31,5 +39,5 @@ const es: Record<keyof typeof en, string> = {
 };
 export function useRecipeDetailText() {
   const { t } = useTranslation();
-  return (key: keyof typeof en) => t(key, undefined, { en, es });
+  return (key: keyof typeof en, params?: Record<string, string | number>) => t(key, params, { en, es });
 }

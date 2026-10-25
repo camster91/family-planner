@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Dialog } from "@/components/ui/dialog";
-import { useTranslation } from "@/i18n";
+import { useBarcodeFoodText, barcodeFeedback, type BarcodeFoodFeedback } from "@/i18n/barcode-food";
 import {
   normalizeFoodBarcode,
   type FoodBarcode,
@@ -59,10 +59,8 @@ export function BarcodeFoodDialog({
   onClose: () => void;
   onDone: (count: number) => void;
 }) {
-  const { locale } = useTranslation();
   const { intake: sendIntake } = useInventoryWrites();
-  const es = locale === "es";
-  const text = (en: string, spanish: string) => (es ? spanish : en);
+  const text = useBarcodeFoodText();
   const [context, setContext] = useState<IntakeContext | null>(
     initialContext ?? null,
   );
@@ -76,7 +74,7 @@ export function BarcodeFoodDialog({
   const [review, setReview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reading, setReading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<BarcodeFoodFeedback | null>(null);
   const [publicSuggestion, setPublicSuggestion] = useState<{
     rowId: string;
     product: FoodProductSummary;
@@ -111,12 +109,7 @@ export function BarcodeFoodDialog({
       })
       .catch(() => {
         if (live.current && active)
-          setMessage(
-            text(
-              "Could not check your household. Retry or add food manually.",
-              "No pudimos comprobar tu hogar. Reintenta o añade alimentos a mano.",
-            ),
-          );
+          setMessage(barcodeFeedback("contextFailed"));
       })
       .finally(() => {
         clearTimeout(timeout);
@@ -190,12 +183,7 @@ export function BarcodeFoodDialog({
       if (!live.current) return;
       if (publicLookup && data.product) {
         setPublicSuggestion({ rowId, product: data.product });
-        setMessage(
-          text(
-            "Product details found. Compare them with your draft and apply them explicitly.",
-            "Se encontraron datos. Compáralos con el borrador y aplícalos expresamente.",
-          ),
-        );
+        setMessage(barcodeFeedback("detailsFound"));
         return;
       }
       if (preserveDraft) {
@@ -212,14 +200,8 @@ export function BarcodeFoodDialog({
         );
         setMessage(
           data.product
-            ? text(
-                `Current household product: ${data.product.name}. Your edits are kept; review before saving again.`,
-                `Producto actual del hogar: ${data.product.name}. Se conservan tus cambios; revísalos antes de guardar.`,
-              )
-            : text(
-                "No household product is saved for this code. Your draft is kept.",
-                "No hay un producto guardado para este código. Se conserva el borrador.",
-              ),
+            ? barcodeFeedback("householdChanged", { name: data.product.name })
+            : barcodeFeedback("householdMissing"),
         );
       } else {
         setRows((previous) =>
@@ -247,20 +229,10 @@ export function BarcodeFoodDialog({
         );
       }
       if (!data.product)
-        setMessage(
-          text(
-            "No product details found. Enter the label details below.",
-            "No se encontraron datos. Introduce los datos de la etiqueta.",
-          ),
-        );
+        setMessage(barcodeFeedback("detailsMissing"));
     } catch {
       if (live.current)
-        setMessage(
-          text(
-            "Product details are unavailable. Your code and draft are kept; fill them in manually.",
-            "Los datos no están disponibles. Se conservan el código y el borrador; complétalos a mano.",
-          ),
-        );
+        setMessage(barcodeFeedback("detailsUnavailable"));
     } finally {
       clearTimeout(timeout);
       requests.current.delete(request);
@@ -283,21 +255,11 @@ export function BarcodeFoodDialog({
     if (found) {
       setSelected(found.id);
       setReview(true);
-      setMessage(
-        text(
-          "Already in review. Use +1 package or Separate lot deliberately.",
-          "Ya está en revisión. Usa +1 paquete o Lote separado expresamente.",
-        ),
-      );
+      setMessage(barcodeFeedback("alreadyReview"));
       return;
     }
     if (rowsRef.current.length >= 20) {
-      setMessage(
-        text(
-          "Review or save these 20 items before adding more.",
-          "Revisa o guarda estos 20 alimentos antes de añadir más.",
-        ),
-      );
+      setMessage(barcodeFeedback("rowLimit"));
       return;
     }
     const id = newIdempotencyKey();
@@ -358,12 +320,7 @@ export function BarcodeFoodDialog({
           !createInventorySchema.safeParse(item(row)).success,
       )
     ) {
-      setMessage(
-        text(
-          "Review every selected name, amount and date before saving.",
-          "Revisa todos los nombres, cantidades y fechas seleccionados antes de guardar.",
-        ),
-      );
+      setMessage(barcodeFeedback("reviewRequired"));
       return;
     }
     flight.current = true;
@@ -418,12 +375,7 @@ export function BarcodeFoodDialog({
             : value,
         );
         setRows(rowsRef.current);
-        setMessage(
-          text(
-            "Review the current household product or removed item before starting a new save. Your draft is kept.",
-            "Revisa el producto actual o el alimento eliminado antes de otro guardado. Se conserva el borrador.",
-          ),
-        );
+        setMessage(barcodeFeedback("sourceChanged"));
       } else if (result.kind === "unknown" || attempt.uncertain) {
         attempt.uncertain = true;
         rowsRef.current = rowsRef.current.map((value) =>
@@ -432,12 +384,7 @@ export function BarcodeFoodDialog({
         setRows(rowsRef.current);
       } else {
         attempts.current.delete(row.id);
-        setMessage(
-          text(
-            "A save was refused. Check account, household and any changed private product details. Your draft is kept.",
-            "Se rechazó un guardado. Revisa tu cuenta, hogar y los datos privados que hayan cambiado. Se conserva el borrador.",
-          ),
-        );
+        setMessage(barcodeFeedback("saveRefused"));
       }
     }
     if (!attempts.current.size) await navigation.releaseBeforeNavigation();
@@ -445,32 +392,27 @@ export function BarcodeFoodDialog({
     setSaving(false);
     if (!failed && !rowsRef.current.length) onDone(total.current);
     else if (failed)
-      setMessage(
-        text(
-          `${total.current} confirmed; ${failed} need attention. Unknown rows retry the same request.`,
-          `${total.current} confirmados; ${failed} necesitan revisión. Los inciertos reintentan la misma solicitud.`,
-        ),
-      );
+      setMessage(barcodeFeedback("partialResult", { confirmed: total.current, failed }));
   }
   return (
     <Dialog
       open={!suspended}
       variant="form"
-      title={text("Scan food", "Escanear alimentos")}
-      closeLabel={text("Close", "Cerrar")}
+      title={text("title")}
+      closeLabel={text("close")}
       onClose={locked ? undefined : close}
       className="sm:max-w-2xl"
     >
       <div className="space-y-4">
         {!context && (
           <div role="status">
-            <p>{text("Checking your household…", "Comprobando tu hogar…")}</p>
+            <p>{text("checking")}</p>
             <button
               type="button"
               className="btn-tinted min-h-[44px]"
               onClick={() => setContextAttempt((value) => value + 1)}
             >
-              {text("Retry", "Reintentar")}
+              {text("retry")}
             </button>
           </div>
         )}
@@ -486,7 +428,7 @@ export function BarcodeFoodDialog({
               setReview(false);
             }}
           >
-            {text("Add codes", "Añadir códigos")}
+            {text("addCodes")}
           </button>
           <button
             type="button"
@@ -497,20 +439,17 @@ export function BarcodeFoodDialog({
               setReview(true);
             }}
           >
-            {text(`Review (${rows.length})`, `Revisar (${rows.length})`)}
+            {text("reviewCount", { count: rows.length })}
           </button>
         </div>
         {message && (
           <p role="status" className="text-subhead">
-            {message}
+            {text(message.key, message.params)}
           </p>
         )}
         {unknown && (
           <p role="alert">
-            {text(
-              "Some items may already be saved. Values stay locked; retry to check the same saves before closing.",
-              "Puede que algunos alimentos ya estén guardados. Los valores quedan bloqueados; comprueba los mismos guardados antes de cerrar.",
-            )}
+            {text("uncertain")}
           </p>
         )}
         <video
@@ -519,15 +458,12 @@ export function BarcodeFoodDialog({
           playsInline
           hidden={!camera.active}
           className="w-full max-h-64 rounded-2xl object-cover"
-          aria-label={text("Barcode camera preview", "Vista previa de cámara")}
+          aria-label={text("cameraPreview")}
         />
         {!review ? (
           <div className="space-y-3">
             <p className="text-footnote text-label-secondary">
-              {text(
-                "Camera frames stay on this device. Unsupported or denied camera access always has typed entry.",
-                "Las imágenes de cámara permanecen en este dispositivo. Siempre puedes escribir el código si la cámara no está disponible.",
-              )}
+              {text("cameraPrivacy")}
             </p>
             <button
               type="button"
@@ -545,19 +481,16 @@ export function BarcodeFoodDialog({
               }}
             >
               {camera.active
-                ? text("Stop camera", "Detener cámara")
-                : text("Start camera", "Iniciar cámara")}
+                ? text("stopCamera")
+                : text("startCamera")}
             </button>
             {camera.error && (
               <p role="status">
-                {text(
-                  "Camera unavailable or stopped. Enter the printed code, or tap Start camera to try again.",
-                  "La cámara no está disponible o se detuvo. Escribe el código o pulsa Iniciar cámara.",
-                )}
+                {text("cameraUnavailable")}
               </p>
             )}
             <label className="block text-subhead">
-              {text("Printed barcode", "Código impreso")}
+              {text("printedCode")}
               <input
                 value={codeText}
                 maxLength={40}
@@ -568,7 +501,7 @@ export function BarcodeFoodDialog({
               />
             </label>
             <label className="block text-subhead">
-              {text("Code format", "Formato")}
+              {text("format")}
               <select
                 value={format}
                 className="input-field w-full min-h-[44px]"
@@ -578,12 +511,12 @@ export function BarcodeFoodDialog({
                 disabled={reading || locked}
               >
                 <option value="auto">
-                  {text("12, 13 or 14 digits", "12, 13 o 14 dígitos")}
+                  {text("standardDigits")}
                 </option>
                 <option value="ean_8">EAN-8</option>
                 <option value="upc_e">
                   UPC-E ·{" "}
-                  {text("all 8 printed digits", "los 8 dígitos impresos")}
+                  {text("eightDigits")}
                 </option>
               </select>
             </label>
@@ -594,22 +527,17 @@ export function BarcodeFoodDialog({
               onClick={() => {
                 const code = normalizeFoodBarcode(codeText, format);
                 if (!code)
-                  setMessage(
-                    text(
-                      "Check every digit and format. For 8 digits choose EAN-8 or UPC-E; a code does not supply expiry or stock count.",
-                      "Revisa los dígitos y el formato. Para 8 dígitos elige EAN-8 o UPC-E; el código no indica caducidad ni cantidad.",
-                    ),
-                  );
+                  setMessage(barcodeFeedback("invalidCode"));
                 else void add(code);
               }}
             >
-              {text("Add code to review", "Añadir código a revisión")}
+              {text("addCode")}
             </button>
           </div>
         ) : current ? (
           <div className="space-y-3">
             <label className="block text-subhead">
-              {text("Item in review", "Alimento en revisión")}
+              {text("currentItem")}
               <select
                 value={current.id}
                 className="input-field min-h-[44px] w-full"
@@ -628,18 +556,12 @@ export function BarcodeFoodDialog({
             </p>
             {current.code.restricted && (
               <p className="text-footnote">
-                {text(
-                  "This may be a retailer or variable-measure code. Review it manually; no weight, price or expiry is inferred.",
-                  "Puede ser un código local o de medida variable. Revísalo a mano; no se deducen peso, precio ni fecha.",
-                )}
+                {text("variableCode")}
               </p>
             )}
             {reading && (
               <p role="status">
-                {text(
-                  "Reading product details…",
-                  "Leyendo datos del producto…",
-                )}
+                {text("reading")}
               </p>
             )}
             {current.lookupAvailable && !current.code.restricted && (
@@ -649,10 +571,7 @@ export function BarcodeFoodDialog({
                 disabled={locked || reading}
                 onClick={() => void metadata(current.id, current.code, true)}
               >
-                {text(
-                  "Look up with Open Food Facts",
-                  "Buscar en Open Food Facts",
-                )}
+                {text("lookupPublic")}
               </button>
             )}
             <button
@@ -663,10 +582,7 @@ export function BarcodeFoodDialog({
                 void metadata(current.id, current.code, false, true)
               }
             >
-              {text(
-                "Refresh household product; keep my edits",
-                "Actualizar producto del hogar; conservar cambios",
-              )}
+              {text("refreshPrivate")}
             </button>
             {publicSuggestion?.rowId === current.id && (
               <aside className="rounded-xl bg-[var(--surface-fill)] p-3 space-y-2">
@@ -709,10 +625,7 @@ export function BarcodeFoodDialog({
                     setPublicSuggestion(null);
                   }}
                 >
-                  {text(
-                    "Use these details in my draft",
-                    "Usar estos datos en mi borrador",
-                  )}
+                  {text("applyDetails")}
                 </button>
                 <button
                   type="button"
@@ -720,15 +633,12 @@ export function BarcodeFoodDialog({
                   disabled={locked || reading}
                   onClick={() => setPublicSuggestion(null)}
                 >
-                  {text("Keep my details", "Conservar mis datos")}
+                  {text("keepDetails")}
                 </button>
               </aside>
             )}
             <p className="text-footnote text-label-secondary">
-              {text(
-                "Product details are suggestions. A lookup sends only the barcode. Package size is separate from your stock amount; confirm location and all dates.",
-                "Los datos son sugerencias. La búsqueda envía solo el código. El tamaño del paquete es distinto de tus existencias; confirma lugar y fechas.",
-              )}
+              {text("lookupPrivacy")}
             </p>
             {current.sourceUrl && (
               <a
@@ -745,10 +655,7 @@ export function BarcodeFoodDialog({
                 <Image
                   unoptimized
                   src={current.imageUrl}
-                  alt={text(
-                    "Product packaging from Open Food Facts",
-                    "Envase del producto de Open Food Facts",
-                  )}
+                  alt={text("productImage")}
                   width={96}
                   height={96}
                   referrerPolicy="no-referrer"
@@ -776,10 +683,10 @@ export function BarcodeFoodDialog({
                     update({ include: event.target.checked })
                   }
                 />
-                {text("Include in this save", "Incluir en este guardado")}
+                {text("include")}
               </label>
               <label className="block">
-                {text("Food name", "Nombre del alimento")}
+                {text("name")}
                 <input
                   value={current.name}
                   maxLength={200}
@@ -789,7 +696,7 @@ export function BarcodeFoodDialog({
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label>
-                  {text("Brand", "Marca")}
+                  {text("brand")}
                   <input
                     value={current.brand}
                     maxLength={120}
@@ -798,7 +705,7 @@ export function BarcodeFoodDialog({
                   />
                 </label>
                 <label>
-                  {text("Label package size", "Tamaño en la etiqueta")}
+                  {text("packageSize")}
                   <input
                     value={current.packageSize}
                     maxLength={80}
@@ -812,7 +719,7 @@ export function BarcodeFoodDialog({
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <label>
-                  {text("Stock amount", "Cantidad disponible")}
+                  {text("amount")}
                   <input
                     type="number"
                     min={0}
@@ -824,7 +731,7 @@ export function BarcodeFoodDialog({
                   />
                 </label>
                 <label>
-                  {text("Stock unit", "Unidad")}
+                  {text("unit")}
                   <input
                     value={current.unit}
                     maxLength={32}
@@ -834,7 +741,7 @@ export function BarcodeFoodDialog({
                 </label>
               </div>
               <label className="block">
-                {text("Storage", "Lugar")}
+                {text("storage")}
                 <select
                   value={current.location}
                   className="input-field w-full min-h-[44px]"
@@ -843,21 +750,21 @@ export function BarcodeFoodDialog({
                   }
                 >
                   <option value="fridge">
-                    {text("Fridge", "Refrigerador")}
+                    {text("fridge")}
                   </option>
                   <option value="freezer">
-                    {text("Freezer", "Congelador")}
+                    {text("freezer")}
                   </option>
-                  <option value="pantry">{text("Pantry", "Despensa")}</option>
+                  <option value="pantry">{text("pantry")}</option>
                 </select>
               </label>
               <details>
                 <summary className="min-h-[44px] cursor-pointer py-2">
-                  {text("Dates (optional)", "Fechas (opcionales)")}
+                  {text("dates")}
                 </summary>
                 <div className="grid grid-cols-2 gap-2">
                   <label>
-                    {text("Label date", "Fecha de etiqueta")}
+                    {text("labelDate")}
                     <input
                       type="date"
                       value={current.expires}
@@ -868,7 +775,7 @@ export function BarcodeFoodDialog({
                     />
                   </label>
                   <label>
-                    {text("Date means", "Significado")}
+                    {text("dateKind")}
                     <select
                       value={current.dateKind}
                       className="input-field w-full min-h-[44px]"
@@ -879,15 +786,15 @@ export function BarcodeFoodDialog({
                       }
                     >
                       <option value="best_before">
-                        {text("Best before", "Consumo preferente")}
+                        {text("bestBefore")}
                       </option>
                       <option value="use_by">
-                        {text("Use by", "Caducidad")}
+                        {text("useBy")}
                       </option>
                     </select>
                   </label>
                   <label>
-                    {text("Purchased", "Comprado")}
+                    {text("purchased")}
                     <input
                       type="date"
                       value={current.purchased}
@@ -898,7 +805,7 @@ export function BarcodeFoodDialog({
                     />
                   </label>
                   <label>
-                    {text("Opened", "Abierto")}
+                    {text("opened")}
                     <input
                       type="date"
                       value={current.opened}
@@ -918,10 +825,7 @@ export function BarcodeFoodDialog({
                     update({ remember: event.target.checked })
                   }
                 />
-                {text(
-                  "Remember these product details privately for our household",
-                  "Recordar estos datos solo para nuestro hogar",
-                )}
+                {text("remember")}
               </label>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -936,7 +840,7 @@ export function BarcodeFoodDialog({
                     update({ amount: String(Number(current.amount) + 1) })
                   }
                 >
-                  +1 {text("package", "paquete")}
+                  +1 {text("package")}
                 </button>
                 <button
                   type="button"
@@ -966,7 +870,7 @@ export function BarcodeFoodDialog({
                     setSelected(id);
                   }}
                 >
-                  {text("Separate dated lot", "Lote separado")}
+                  {text("separateLot")}
                 </button>
                 <button
                   type="button"
@@ -982,7 +886,7 @@ export function BarcodeFoodDialog({
                       );
                   }}
                 >
-                  {text("Remove draft", "Quitar borrador")}
+                  {text("removeDraft")}
                 </button>
               </div>
             </fieldset>
@@ -993,24 +897,15 @@ export function BarcodeFoodDialog({
               onClick={() => void save()}
             >
               {saving
-                ? text("Saving…", "Guardando…")
+                ? text("saving")
                 : unknown
-                  ? text(
-                      "Check the same saves",
-                      "Comprobar los mismos guardados",
-                    )
-                  : text(
-                      "Save selected reviewed items",
-                      "Guardar alimentos revisados",
-                    )}
+                  ? text("checkSaves")
+                  : text("saveSelected")}
             </button>
           </div>
         ) : (
           <p>
-            {text(
-              "No items in review. Add a code to start.",
-              "No hay alimentos en revisión. Añade un código.",
-            )}
+            {text("empty")}
           </p>
         )}
       </div>
