@@ -25,7 +25,9 @@ Oversized complete export remains unavailable. Identified malformed series now
 refuse the whole parse before reconciliation; concatenated calendar documents
 also refuse instead of silently reading the first. Existing cancellation/no-UID
 rules remain. The parser normalizes library errors and rejects invalid coverage
-options. These source changes and their regression cases are unrun. Broader
+options. These source changes and their regression cases are unrun. Overlong UIDs now refuse instead of truncating matching identity; duplicate
+master UIDs and duplicate resolved override identities also refuse before writes.
+Boundary/ambiguity/sync-preservation regression source is authored/unrun. Broader
 semantic/format validation, historical partial-import recovery, query/native/
 provider/error behavior and all original #124 acceptance remain open.
 

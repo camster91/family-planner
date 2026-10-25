@@ -275,6 +275,13 @@ describe("syncSubscription", () => {
     { label: "missing event start", tail: () => ics("BEGIN:VEVENT", "UID:assembly@school.test", "SUMMARY:SECRETBROKEN", "END:VEVENT") },
     { label: "broken rule", tail: () => ics("BEGIN:VEVENT", "UID:club@school.test", "DTSTART:20260921T153000Z", "RRULE:FREQ=NOTAFREQUENCY", "END:VEVENT") },
     { label: "second calendar document", tail: () => FEED_V1 + ics() },
+    { label: "overlong source UID", tail: () => ics("BEGIN:VEVENT", `UID:${"x".repeat(501)}`, "DTSTART:20260921T153000Z", "END:VEVENT") },
+    { label: "duplicate master UID", tail: () => ics(
+      "BEGIN:VEVENT", "UID:club@school.test", "DTSTART:20260921T153000Z", "SUMMARY:First", "END:VEVENT",
+      "BEGIN:VEVENT", "UID:club@school.test", "DTSTART:20260922T153000Z", "SUMMARY:Second", "END:VEVENT") },
+    { label: "duplicate recurrence identity", tail: () => ics(
+      "BEGIN:VEVENT", "UID:club@school.test", "RECURRENCE-ID:20260921T153000Z", "DTSTART:20260921T160000Z", "END:VEVENT",
+      "BEGIN:VEVENT", "UID:club@school.test", "RECURRENCE-ID:20260921T153000Z", "DTSTART:20260921T170000Z", "END:VEVENT") },
   ])("preserves imported events after $label", async ({ tail }) => {
     await syncSubscription("sub-a", FAMILY_A, {
       fetchImpl: fetchOnce(FEED_V1, { etag: '"complete"' }), assertUrl: allowAll, now: NOW,

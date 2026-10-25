@@ -253,13 +253,25 @@ function parseCompleteIcsFeed(text: string, options: ExpandOptions): ParsedFeed 
   // Group by UID: one master (no RECURRENCE-ID) plus its overrides.
   const masters = new Map<string, IcalComponent>();
   const overrides = new Map<string, IcalComponent[]>();
+  const overrideIdentities = new Set<string>();
   for (const vevent of root.getAllSubcomponents("vevent")) {
     const rawUid = vevent.getFirstPropertyValue("uid");
+    // IDs are matching authority, not display copy: truncation can merge two
+    // unrelated source events. Keep the prior supported length without cutting.
+    if (typeof rawUid === "string" && rawUid.length > UID_MAX) throw new IcsParseError();
     const uid = cleanText(typeof rawUid === "string" ? rawUid : null, UID_MAX);
     if (!uid) continue; // no stable identity -> cannot be imported idempotently
     if (vevent.hasProperty("recurrence-id")) {
+      const recurrenceId = vevent.getFirstPropertyValue("recurrence-id") as IcalTime | null;
+      if (!recurrenceId) throw new IcsParseError();
+      const instant = resolver.toInstant(recurrenceId, tzidOf(vevent, "recurrence-id"));
+      if (!Number.isFinite(instant.getTime())) throw new IcsParseError();
+      const key = `${uid}\u0000${instant.getTime()}`;
+      if (overrideIdentities.has(key)) throw new IcsParseError();
+      overrideIdentities.add(key);
       overrides.set(uid, [...(overrides.get(uid) ?? []), vevent]);
-    } else if (!masters.has(uid)) {
+    } else {
+      if (masters.has(uid)) throw new IcsParseError();
       masters.set(uid, vevent);
     }
   }

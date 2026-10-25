@@ -74,6 +74,21 @@ A fabricated multi-page read/update/delete/create/repeat case is authored/unrun;
 it does not model real database isolation. No API/database/migration/provider
 or release action is executed by these source changes.
 
+
+### Source identity ambiguity — unverified recovery source, 2026-10-24
+
+UIDs longer than the existing500-character supported bound now reject instead
+of being truncated as display text. A supported UID is retained at its full
+length. Duplicate master UIDs and duplicate UID/recurrence instants reject the
+whole parse; there is no implicit first/last winner. Override identities are
+resolved with the existing timezone resolver, so equivalent supported forms
+cannot silently replace each other. The existing invalid-feed path preserves
+last-complete events/validators on refusal. Cancellation/no-UID and ordinary
+supported recurring behavior remain; complete semantic/timezone/provider
+compatibility and historical collision recovery are unverified. Boundary,
+ambiguous-feed and sync-preservation source cases are authored/unrun. No live
+household/provider import, cleanup, QA or release is performed.
+
 ## Recurrence and window
 
 Occurrences are expanded in the window **now − 30 days to now + 180 days**. Only occurrences overlapping the window are stored. Guards: at most 3,000 occurrences per feed and 25,000 iterations per series (unbounded `FREQ=DAILY` from years ago still reaches the window; `FREQ=SECONDLY` abuse cannot spin). Current recovery source refuses capped expansion before reconciliation: `last_status` becomes `error` and a fixed message explains that existing events were kept. No occurrence create/update/delete or new ETag/Last-Modified is committed from a partial parse. This source change is unverified; previously accepted partial imports are not repaired automatically. `STATUS:CANCELLED` events or instances are not imported. An override whose master is missing is imported as a single event. `RANGE=THISANDFUTURE` is not supported and is treated as a single-instance override.

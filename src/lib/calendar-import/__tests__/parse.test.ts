@@ -406,3 +406,23 @@ it("refuses invalid coverage bounds rather than presenting an empty authoritativ
   expect(() => parseIcsFeed(cal(), { ...WINDOW, windowStart: new Date("invalid") })).toThrow(IcsParseError);
   expect(() => parseIcsFeed(cal(), { ...WINDOW, windowEnd: WINDOW.windowStart })).toThrow(IcsParseError);
 });
+
+// Authored/unrun: stable source identities cannot use display-text truncation
+// or an implicit first/last writer when a feed supplies conflicting definitions.
+it.each([
+  { label: "overlong source UID", body: cal("BEGIN:VEVENT", `UID:${"x".repeat(501)}`, "DTSTART:20260105T170000Z", "END:VEVENT") },
+  { label: "duplicate master UID", body: cal(
+    "BEGIN:VEVENT", "UID:duplicate@fixture.test", "DTSTART:20260105T170000Z", "SUMMARY:First", "END:VEVENT",
+    "BEGIN:VEVENT", "UID:duplicate@fixture.test", "DTSTART:20260106T170000Z", "SUMMARY:Second", "END:VEVENT") },
+  { label: "duplicate recurrence identity", body: cal(
+    "BEGIN:VEVENT", "UID:duplicate@fixture.test", "RECURRENCE-ID:20260105T170000Z", "DTSTART:20260105T180000Z", "END:VEVENT",
+    "BEGIN:VEVENT", "UID:duplicate@fixture.test", "RECURRENCE-ID:20260105T170000Z", "DTSTART:20260105T190000Z", "END:VEVENT") },
+])("refuses $label instead of adopting an ambiguous identity", ({ body }) => {
+  expect(() => parseIcsFeed(body, WINDOW)).toThrow(IcsParseError);
+});
+it("preserves a supported source UID at its full length", () => {
+  const uid = "x".repeat(500);
+  const result = parseIcsFeed(cal("BEGIN:VEVENT", `UID:${uid}`, "DTSTART:20260105T170000Z", "END:VEVENT"), WINDOW);
+  expect(result.occurrences).toHaveLength(1);
+  expect(result.occurrences[0].uid).toBe(uid);
+});

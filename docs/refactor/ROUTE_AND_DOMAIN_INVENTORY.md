@@ -1,5 +1,17 @@
 # Route and domain inventory (#148)
 
+### Calendar source-identity ambiguity refusal — 2026-10-24 (#124)
+
+The parser refuses UIDs above the existing500-character bound rather than
+truncating identity. Duplicate master UIDs and duplicate UID/resolved override
+instants also refuse; supported IDs remain literal at full length. The existing
+fixed invalid-feed path runs before event reconciliation, preserving prior events
+and validators. There is no first/last winner or automatic historical collision
+repair. Timezone resolution/cancellation/no-UID rules remain; broader semantic/
+provider/timezone/concurrency compatibility remains unverified. Boundary,
+duplicate-source and sync-preservation source cases are authored/unrun. No QA/
+tests/check/build/browser/API/database/native/provider/permission/release ran.
+
 ### Calendar-import reconciliation batches — 2026-10-24 (#134/#124)
 
 The canonical subscription reconcile now traverses all existing history in
