@@ -1267,3 +1267,46 @@ describe('bounded saved-capture status checks', () => {
     expect(window.localStorage.getItem(storageKey)).toContain(key);
   });
 });
+
+// Explicit retry transport source authored UNRUN; no API/provider writes ran.
+it('bounds a stalled saved-capture retry, ignores late success and preserves exact deliberate replay', async () => {
+  const key = 'capture-retry-deadline-12345678';
+  const storageKey = captureRecoveryStorageKey('user-a', 'family-a');
+  const body = JSON.stringify({ title: 'Dentist', event_type: 'other' });
+  window.localStorage.setItem(storageKey, JSON.stringify([{
+    version: 1, key, action: 'event.create', requestHash: 'a'.repeat(64), body,
+    title: 'Dentist', kind: 'event', createdAt: Date.now(), photo: false,
+  }]));
+  const posts: RequestInit[] = [];
+  let late!: (value: Response) => void;
+  let checks = 0;
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/capture') return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' });
+    if (String(url) === '/api/events') {
+      posts.push(init!);
+      return posts.length === 1 ? new Promise<Response>(resolve => { late = resolve; }) : json(201, {});
+    }
+    if (String(url) === '/api/capture/receipt') { checks++; return json(200, { state: 'committed', current: 'present' }); }
+    throw new Error('Unexpected capture request');
+  }) as typeof fetch;
+  const onSaved = jest.fn(); render(<CaptureBox onSaved={onSaved} />);
+  const retry = await screen.findByRole('button', { name: 'Retry Dentist' });
+  jest.useFakeTimers();
+  try {
+    fireEvent.click(retry); fireEvent.click(retry);
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await jest.advanceTimersByTimeAsync(45001); });
+    expect(screen.getByText(captureEnglish.couldNotSaveCapture)).toBeTruthy();
+    expect(posts).toHaveLength(1); expect(checks).toBe(0);
+    expect(window.localStorage.getItem(storageKey)).toContain(key);
+    expect(screen.getByRole('button', { name: 'Retry Dentist' })).toHaveProperty('disabled', false);
+    await act(async () => { late(json(201, {})); });
+    expect(onSaved).not.toHaveBeenCalled(); expect(checks).toBe(0);
+  } finally { jest.useRealTimers(); }
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Retry Dentist' }));
+  await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+  expect(posts).toHaveLength(2); expect(checks).toBe(1);
+  expect(posts[0].body).toBe(body); expect(posts[1].body).toBe(body);
+  expect(posts[1].headers).toEqual(posts[0].headers);
+});

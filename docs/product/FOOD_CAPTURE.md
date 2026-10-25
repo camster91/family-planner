@@ -361,3 +361,26 @@ proof. JSON-only bridges still allocate before post-decode size validation.
 Stalled-body/double-click/late-commit/exact next-check and oversized-header-before-
 decode cases are authored UNRUN. No QA/tests/checks/build/browser/CI/API/DB/provider/
 push/merge/deploy ran. #125/#135 acceptance and provider decisions remain open.
+
+## Bounded explicit capture recovery retries — 2026-10-25
+
+#125/#135 source: saved Capture retry dispatches now have a45second foreground
+abort race, explicit same-origin/no-store and the unchanged original envelope
+body/key. A synchronous retry controller shares exclusion with receipt checks;
+access clearing, availability renewal and unmount retire both lanes. Retired
+callbacks cannot change current recovery state. Replay response bodies are not
+needed: they are cancelled without buffering, and successful status still hands
+off to the existing bounded receipt/current-resource check before reporting a
+present saved item. A failed handoff before a check starts releases busy state.
+
+Timeout/network uncertainty retains the recovery envelope, releases controls and
+uses existing EN/ES could-not-save feedback. Late success cannot trigger a receipt
+check, discard the row or announce a save; no second request is automatic. The
+next deliberate retry preserves exact body/key. Existing retention-boundary
+receipt-first logic and terminal status policies are unchanged. This source does
+not prove server cancellation/rollback, full original session/restore authority,
+physical/native cancellation or bounded initial proposal-write behavior.
+
+Stalled dispatch/double-click/late success/exact deliberate replay plus required
+receipt confirmation source is authored UNRUN. No QA/tests/checks/build/browser/
+CI/API/DB/provider/push/merge/deploy ran. #125/#135 acceptance remains open.
