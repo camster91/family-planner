@@ -1,5 +1,20 @@
 # Route and domain inventory (#148)
 
+### Bulk-reuse and app-guide scoped copy — 2026-10-24 (#142)
+
+BulkCookingPanel's invalid/unprepared/full/unavailable reuse feedback, dismissal
+and food-review link now use six typed bulk keys. AppGuide's header, description,
+search/clear/placeholder and empty copy use six Help keys. Existing ordinary
+EN/ES wording remains; Help's translator now delegates to shared scoped copy
+with a stable callback, including pseudolocalization. Other HelpContent/guide
+consumers only render this copy; no locale-driven read effect is added. Role/
+feature filters, search draft, draft-aware links, prepared-reuse identity/state,
+recovery gates, actual names and date formatting stay canonical. Twenty owned
+inventory records removed without scanning; no new copy-only tests, existing
+cases unrun. No QA/test/check/build/browser/API/database/native/provider/
+permission/release ran. Broader layout/search/role/recovery/locale/runtime
+acceptance remains open.
+
 ### Recipe-to-grocery review/result copy — 2026-10-24 (#142)
 
 AddToGroceriesButton now uses typed scoped EN/ES controls, local review errors,

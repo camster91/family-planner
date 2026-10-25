@@ -2,6 +2,12 @@
 import { useTranslation } from "@/i18n";
 
 export const bulkCookingEnglish = {
+  reuseInvalid: "This portions link is invalid. No other dish was selected for reuse.",
+  reuseUnprepared: "This dish is not currently recorded as prepared. Review the session before reusing portions.",
+  reuseFull: "This dish has no unplanned portions. No meals were changed.",
+  reuseUnavailable: "The requested dish could not be checked. No other dish was opened.",
+  clearReuse: "Clear reuse request",
+  reviewFoodUsed: "Review food used",
   stockComparisonUnavailable:
     "Inventory comparison unavailable. Choose what you need.",
   stockPresenceOnly:
@@ -117,6 +123,12 @@ export const bulkCookingEnglish = {
 } as const;
 type Messages = Record<keyof typeof bulkCookingEnglish, string>;
 export const bulkCookingSpanish: Messages = {
+  reuseInvalid: "El enlace de porciones no es válido. No se ha elegido otro plato.",
+  reuseUnprepared: "El plato ya no figura como preparado. Revisa la sesión antes de reutilizar porciones.",
+  reuseFull: "Este plato no tiene porciones sin planificar. No se cambió ninguna comida.",
+  reuseUnavailable: "No se pudo comprobar el plato solicitado. No se abrió otro plato.",
+  clearReuse: "Quitar solicitud de reutilización",
+  reviewFoodUsed: "Revisar alimentos usados",
   stockComparisonUnavailable:
     "No se pudo comparar el inventario. Elige lo que necesitas.",
   stockPresenceOnly:

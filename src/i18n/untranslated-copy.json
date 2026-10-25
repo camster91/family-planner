@@ -540,46 +540,6 @@
     "count": 1
   },
   {
-    "file": "src/components/assistant/AppGuide.tsx",
-    "text": "Answers from herewoven Help. Works without an AI provider and does not read household records.",
-    "count": 1
-  },
-  {
-    "file": "src/components/assistant/AppGuide.tsx",
-    "text": "App guide · no AI needed",
-    "count": 1
-  },
-  {
-    "file": "src/components/assistant/AppGuide.tsx",
-    "text": "Calendarios, recetas, listas…",
-    "count": 1
-  },
-  {
-    "file": "src/components/assistant/AppGuide.tsx",
-    "text": "Calendars, recipes, lists…",
-    "count": 1
-  },
-  {
-    "file": "src/components/assistant/AppGuide.tsx",
-    "text": "Guía de la app · sin IA",
-    "count": 1
-  },
-  {
-    "file": "src/components/assistant/AppGuide.tsx",
-    "text": "No hay temas coincidentes disponibles para tu cuenta. Prueba una palabra más corta.",
-    "count": 1
-  },
-  {
-    "file": "src/components/assistant/AppGuide.tsx",
-    "text": "No matching topics are available for your account. Try a shorter word.",
-    "count": 1
-  },
-  {
-    "file": "src/components/assistant/AppGuide.tsx",
-    "text": "Respuestas de la ayuda de herewoven. Funciona sin proveedor de IA y no lee datos de tu hogar.",
-    "count": 1
-  },
-  {
     "file": "src/components/budget/TransactionForm.tsx",
     "text": "0.00",
     "count": 1
@@ -737,66 +697,6 @@
   {
     "file": "src/components/layout/DashboardFormSheets.tsx",
     "text": "Please wait for saving or uploading to finish.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/BulkCookingPanel.tsx",
-    "text": "Clear reuse request",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/BulkCookingPanel.tsx",
-    "text": "El enlace de porciones no es válido. No se ha elegido otro plato.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/BulkCookingPanel.tsx",
-    "text": "El plato ya no figura como preparado. Revisa la sesión antes de reutilizar porciones.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/BulkCookingPanel.tsx",
-    "text": "Este plato no tiene porciones sin planificar. No se cambió ninguna comida.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/BulkCookingPanel.tsx",
-    "text": "No se pudo comprobar el plato solicitado. No se abrió otro plato.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/BulkCookingPanel.tsx",
-    "text": "Quitar solicitud de reutilización",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/BulkCookingPanel.tsx",
-    "text": "Review food used",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/BulkCookingPanel.tsx",
-    "text": "Revisar alimentos usados",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/BulkCookingPanel.tsx",
-    "text": "The requested dish could not be checked. No other dish was opened.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/BulkCookingPanel.tsx",
-    "text": "This dish has no unplanned portions. No meals were changed.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/BulkCookingPanel.tsx",
-    "text": "This dish is not currently recorded as prepared. Review the session before reusing portions.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/BulkCookingPanel.tsx",
-    "text": "This portions link is invalid. No other dish was selected for reuse.",
     "count": 1
   },
   {

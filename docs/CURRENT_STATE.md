@@ -52,17 +52,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work localizes recipe-to-grocery review and results
-(#142). Typed EN/ES copy covers controls, local review feedback, confirmed add/
-duplicate details and Undo counts. Optional summary copy preserves the helpers'
-legacy English default and adds no runtime React import. Undo keeps its canonical
-result until render, so a locale change translates confirmed counts in place;
-review errors store semantic keys. Display numbers follow locale, while names,
-units, IDs, selected values, exact request/key, ownership, retry and Undo expiry
-remain canonical. Thirteen owned inventory records removed without scanning.
-Mounted-locale/confirmed-Undo regression source authored/unrun. No QA/check/build/
-browser/API/database/native/provider/permission/release ran. Transport/raw server
-errors and full food/recovery/locale/layout/runtime acceptance remain open.
+Latest bounded source work routes remaining bulk-reuse and local app-guide
+copy through typed EN/ES dictionaries (#142): six keys per surface replace
+inline language branches. Help text now uses shared scoped translation and
+pseudolocalization; its ordinary copy and role/feature-filtered destinations are
+unchanged. Existing prepared-reuse states/targets/recovery gates, literal names,
+date formatting, navigation and all request/effect dependencies remain canonical.
+Twenty owned inventory records removed without scanning. No new copy-only
+tests; existing cases unrun. No QA/check/build/browser/API/database/native/
+provider/permission/release ran. Other untranslated copy and full layout/search/
+role/recovery/locale/runtime acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

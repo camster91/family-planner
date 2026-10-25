@@ -57,7 +57,6 @@ export function BulkCookingPanel({
   const tBulk = useBulkCookingText();
   const locale = useDisplayLocale();
   const id = React.useId();
-  const es = locale.startsWith("es");
   const reuseKey =
     preparedReuse.state === "target"
       ? `${preparedReuse.target.sessionId}/${preparedReuse.target.batchId}`
@@ -444,21 +443,9 @@ export function BulkCookingPanel({
             className="space-y-2 rounded-xl border border-[var(--surface-separator)] p-3"
           >
             <p>
-              {preparedReuse.state === "invalid"
-                ? es
-                  ? "El enlace de porciones no es válido. No se ha elegido otro plato."
-                  : "This portions link is invalid. No other dish was selected for reuse."
-                : reuseProblem === "unprepared"
-                  ? es
-                    ? "El plato ya no figura como preparado. Revisa la sesión antes de reutilizar porciones."
-                    : "This dish is not currently recorded as prepared. Review the session before reusing portions."
-                  : reuseProblem === "full"
-                    ? es
-                      ? "Este plato no tiene porciones sin planificar. No se cambió ninguna comida."
-                      : "This dish has no unplanned portions. No meals were changed."
-                    : es
-                      ? "No se pudo comprobar el plato solicitado. No se abrió otro plato."
-                      : "The requested dish could not be checked. No other dish was opened."}
+              {tBulk(preparedReuse.state === "invalid" ? "reuseInvalid"
+                : reuseProblem === "unprepared" ? "reuseUnprepared"
+                  : reuseProblem === "full" ? "reuseFull" : "reuseUnavailable")}
             </p>
             {preparedReuse.state === "target" && (
               <button
@@ -476,7 +463,7 @@ export function BulkCookingPanel({
               disabled={loading}
               onClick={onDismissPreparedReuse}
             >
-              {es ? "Quitar solicitud de reutilización" : "Clear reuse request"}
+              {tBulk("clearReuse")}
             </button>
           </div>
         )}
@@ -592,9 +579,7 @@ export function BulkCookingPanel({
                           }}
                           href={`/dashboard/inventory?cookBatch=${encodeURIComponent(batch.id)}`}
                         >
-                          {locale.startsWith("es")
-                            ? "Revisar alimentos usados"
-                            : "Review food used"}
+                          {tBulk("reviewFoodUsed")}
                         </Link>
                       )}
                       <button
