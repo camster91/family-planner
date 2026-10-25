@@ -54,12 +54,12 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): unknown routine saves expose a read-only
-original-receipt check. Parent/session/family-renewed locked reader validates
-scope/action/key/hash/expiry/compact body, returns only confirmed stack ID or
-unknown, and never resaves or changes receipts. EN/ES UI retains uncertainty on
-missing/expired/error and ignores retired checks. Source cases authored UNRUN.
-No QA/checks/build/browser/CI/API/DB/provider/push/merge/deploy; #450/#135/#136 open.
+Latest bounded source work (2026-10-25): Capture saved-status checks now have
+15second/32KiB bounds and controller/epoch retirement on access renewal/clear or
+unmount. Timeout keeps recovery key/hash and releases controls; late success
+cannot discard rows or announce a save.401/403 bypass body decoding. Source cases
+authored UNRUN. No QA/checks/build/browser/CI/API/DB/provider/push/merge/deploy;
+#125/#135 remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

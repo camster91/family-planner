@@ -8,7 +8,7 @@ import '@testing-library/jest-dom'
 import * as React from 'react'
 import { webcrypto } from 'node:crypto'
 import { TextDecoder, TextEncoder } from 'node:util'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { LegacyCaptureBox as CaptureBox } from '../CaptureBox'
 import { I18nProvider } from '@/i18n'
@@ -1206,3 +1206,64 @@ it.each(['parent', 'teen'])('keeps task proposals out of the event create path f
   } else expect(link).not.toBeInTheDocument()
   expect(jest.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/api/events'))).toBe(false)
 })
+
+// Receipt transport source cases authored UNRUN; no application/provider requests.
+describe('bounded saved-capture status checks', () => {
+  afterEach(() => jest.useRealTimers());
+  function seedReceipt() {
+    const key = 'capture-bounded-receipt-12345678';
+    const storageKey = captureRecoveryStorageKey('user-a', 'family-a');
+    window.localStorage.setItem(storageKey, JSON.stringify([{
+      version: 1, key, action: 'event.create', requestHash: 'a'.repeat(64),
+      body: JSON.stringify({ title: 'Dentist', event_type: 'other' }),
+      title: 'Dentist', kind: 'event', createdAt: Date.now(), photo: false,
+    }]));
+    return { key, storageKey };
+  }
+  it('releases a stalled body, retains recovery and ignores a late committed reply', async () => {
+    const { key, storageKey } = seedReceipt();
+    let late!: (value: unknown) => void;
+    const checks: RequestInit[] = [];
+    global.fetch = jest.fn(async (url, init) => {
+      if (String(url) === '/api/capture') return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' });
+      if (String(url) === '/api/capture/receipt') {
+        checks.push(init!);
+        if (checks.length === 1) return { ok: true, status: 200, json: () => new Promise(resolve => { late = resolve; }) } as Response;
+        return json(200, { state: 'pending' });
+      }
+      throw new Error('Unexpected write during status check');
+    }) as typeof fetch;
+    const onSaved = jest.fn(); render(<CaptureBox onSaved={onSaved} />);
+    const control = await screen.findByRole('button', { name: 'Check status for Dentist' });
+    jest.useFakeTimers();
+    fireEvent.click(control); fireEvent.click(control);
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await jest.advanceTimersByTimeAsync(15001); });
+    expect(screen.getByText(captureEnglish.couldNotCheck)).toBeTruthy();
+    expect(checks).toHaveLength(1);
+    expect(window.localStorage.getItem(storageKey)).toContain(key);
+    expect(screen.getByRole('button', { name: 'Check status for Dentist' })).toHaveProperty('disabled', false);
+    await act(async () => { late({ state: 'committed', current: 'present' }); });
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(storageKey)).toContain(key);
+    jest.useRealTimers();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Check status for Dentist' }));
+    await screen.findByText(captureEnglish.stillProcessing);
+    expect(checks).toHaveLength(2);
+    expect(checks[1].headers).toEqual(checks[0].headers);
+  });
+  it('refuses a declared oversized receipt before decoding without discarding recovery', async () => {
+    const { key, storageKey } = seedReceipt();
+    const decode = jest.fn(async () => ({ state: 'committed', current: 'present' }));
+    global.fetch = jest.fn(async url => String(url) === '/api/capture'
+      ? json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+      : { ok: true, status: 200, headers: new Headers({ 'content-length': String(32 * 1024 + 1) }), json: decode } as Response) as typeof fetch;
+    render(<CaptureBox />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Check status for Dentist' }));
+    await screen.findByText(captureEnglish.couldNotCheck);
+    expect(decode).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(storageKey)).toContain(key);
+  });
+});

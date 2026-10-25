@@ -339,3 +339,25 @@ not executed. No QA/typecheck/lint/build/browser/native, schema/provider/account
 push, merge or deployment action occurred. This is matching transparency, not
 calibrated AI/OCR accuracy, quantity sufficiency or native acceptance. Next:
 bounded refresh and durable offline/native capability reconciliation.
+
+## Bounded saved-capture receipt checks — 2026-10-25
+
+#125/#135 source: CaptureBox saved-status checks now use a15second foreground
+abort race and32KiB bounded response decoder, same-origin credentials and
+no-store. A synchronous controller guard prevents duplicate checks before React
+state commits. Availability renewal, access-boundary clearing and unmount retire
+and abort the active check; epoch/controller checks prevent a retired result or
+finally from changing a newer recovery boundary.401/403 are handled before body
+decoding and retain the existing access-refusal/purge policy.
+
+Timeout/network/body/size uncertainty keeps the original recovery row and its
+key/hash, releases the busy control, and uses existing EN/ES could-not-check copy.
+A late committed body cannot retire the row or invoke onSaved. Only a fresh
+explicit check is sent; original terminal receipt-state handling is preserved.
+This is status-read transport/retirement, not provider/media processing, mutation
+retry changes, native physical cancellation or full original session/restore
+proof. JSON-only bridges still allocate before post-decode size validation.
+
+Stalled-body/double-click/late-commit/exact next-check and oversized-header-before-
+decode cases are authored UNRUN. No QA/tests/checks/build/browser/CI/API/DB/provider/
+push/merge/deploy ran. #125/#135 acceptance and provider decisions remain open.

@@ -269,6 +269,8 @@ export function LegacyCaptureBox({
   const [recoveryStorageBlocked, setRecoveryStorageBlocked] =
     React.useState(false);
   const recoveryMutationReady = React.useRef(false);
+  const receiptController = React.useRef<AbortController | null>(null);
+  const recoveryEpoch = React.useRef(0);
   const recoveryGuardFailure = React.useRef<CaptureMessage>(
     "recoveryAccessUnavailable",
   );
@@ -325,6 +327,8 @@ export function LegacyCaptureBox({
       readController.current?.abort();
       readController.current = null;
       availabilityController.current?.abort();
+      receiptController.current?.abort();
+      receiptController.current = null;
     };
   }, [cancelRead]);
   React.useEffect(
@@ -346,6 +350,11 @@ export function LegacyCaptureBox({
   const clearRecoveryBoundary = React.useCallback(
     (userId?: string, familyId?: string): boolean => {
       const knownIdentity = recoveryIdentity.current;
+      recoveryEpoch.current++;
+      receiptController.current?.abort();
+      receiptController.current = null;
+      setRecoveryBusyKey(null);
+      setRecoveryMessage(null);
       readController.current?.abort();
       readController.current = null;
       setReading(false);
@@ -594,6 +603,10 @@ export function LegacyCaptureBox({
       !controller.signal.aborted &&
       availabilityController.current === controller;
     recoveryMutationReady.current = false;
+    recoveryEpoch.current++;
+    receiptController.current?.abort();
+    receiptController.current = null;
+    setRecoveryBusyKey(null);
     setCheckingAvailability(true);
     try {
       const result = await runOwnedForeground(
@@ -791,26 +804,36 @@ export function LegacyCaptureBox({
   ) : null;
 
   async function checkRecovery(row: CaptureRecoveryEnvelope) {
-    if (!ensureRecoveryMutationReady()) return;
+    if (!ensureRecoveryMutationReady() || receiptController.current) return;
     if (!row.requestHash) {
       forgetRecovery(row.key);
       setRecoveryMessage(msg("statusUnavailable"));
       return;
     }
+    const controller = new AbortController();
+    const epoch = recoveryEpoch.current;
+    receiptController.current = controller;
+    const current = () => receiptController.current === controller && recoveryEpoch.current === epoch && recoveryMutationReady.current;
     setRecoveryBusyKey(row.key);
     setRecoveryMessage(null);
     try {
-      const response = await fetch("/api/capture/receipt", {
-        headers: {
-          "Idempotency-Key": row.key,
-          "X-Capture-Action": row.action,
-          "X-Capture-Request-Hash": row.requestHash,
-        },
-      });
-      const data = (await response.json().catch(() => ({}))) as {
-        state?: string;
-        current?: string;
-      };
+      const result = await runOwnedForeground(async signal => {
+        const response = await fetch("/api/capture/receipt", {
+          headers: {
+            "Idempotency-Key": row.key,
+            "X-Capture-Action": row.action,
+            "X-Capture-Request-Hash": row.requestHash!,
+          },
+          signal, credentials: "same-origin", cache: "no-store",
+        });
+        const data = response.status === 401 || response.status === 403
+          ? null : await readBoundedJsonResponse(response, signal, 32 * 1024);
+        return { kind: "reply" as const, response, data };
+      }, { signal: controller.signal, timeoutMs: 15000 });
+      if (!current()) return;
+      if (result.kind !== "reply") throw new Error("Unconfirmed receipt read");
+      const { response } = result;
+      const data = result.data as { state?: string; current?: string } | null;
       if (response.status === 401 || response.status === 403) {
         revokeCaptureAccess();
       } else if (!recoveryMutationReady.current) {
@@ -821,26 +844,26 @@ export function LegacyCaptureBox({
         setRecoveryMessage(msg("captureChanged"));
       } else if (!response.ok) {
         setRecoveryMessage(msg("couldNotCheck"));
-      } else if (data.state === "committed" && data.current === "present") {
+      } else if (data?.state === "committed" && data?.current === "present") {
         forgetRecovery(row.key);
         retireProposal(row.key);
         setSaved(msg("alreadyAdded", { title: titleFor(row) }));
         onSaved?.();
-      } else if (data.state === "committed" && data.current === "removed") {
+      } else if (data?.state === "committed" && data?.current === "removed") {
         forgetRecovery(row.key);
         retireProposal(row.key);
         setRecoveryMessage(msg("savedRemoved"));
-      } else if (data.state === "committed") {
+      } else if (data?.state === "committed") {
         forgetRecovery(row.key);
         retireProposal(row.key);
         setRecoveryMessage(msg("savedEarlier"));
-      } else if (data.state === "pending") {
+      } else if (data?.state === "pending") {
         setRecoveryMessage(msg("stillProcessing"));
-      } else if (data.state === "expired") {
+      } else if (data?.state === "expired") {
         forgetRecovery(row.key);
         retireProposal(row.key);
         setRecoveryMessage(msg("captureTooOld"));
-      } else if (data.state === "absent") {
+      } else if (data?.state === "absent") {
         // A missing receipt is terminal: the server can no longer prove that
         // this local envelope is the original write, so never keep offering a
         // same-key retry from an orphaned or pruned client row.
@@ -851,14 +874,17 @@ export function LegacyCaptureBox({
         setRecoveryMessage(msg("noSavedResult"));
       }
     } catch {
-      setRecoveryMessage(msg("couldNotCheck"));
+      if (current()) setRecoveryMessage(msg("couldNotCheck"));
     } finally {
-      setRecoveryBusyKey(null);
+      if (receiptController.current === controller) {
+        receiptController.current = null;
+        setRecoveryBusyKey(null);
+      }
     }
   }
 
   async function retryRecovery(row: CaptureRecoveryEnvelope) {
-    if (!ensureRecoveryMutationReady()) return;
+    if (!ensureRecoveryMutationReady() || receiptController.current) return;
     if (Date.now() - row.createdAt >= CAPTURE_RECOVERY_RETENTION_MS) {
       // A request may have started just before the client-side retry window
       // closed. Reconcile the authoritative receipt first so a committed
