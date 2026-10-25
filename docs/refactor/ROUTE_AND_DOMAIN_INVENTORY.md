@@ -1984,3 +1984,18 @@ other actors' requests and paired tablet sessions remain. Detached-account
 cleanup uses the same path. Exact-scope/current-versus-former source cases authored
 or adapted only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
 deploy ran. Real transaction/FK/concurrency and broader erasure acceptance open.
+
+### Household-local shared-content successors — 2026-10-25 (#136/#450)
+
+Account erasure/removal source preserves shared-content ownership in
+its original household during account erasure (#136/#450). Canonical creator/
+nullable columns move to one shared module, retaining existing exports. Identifier-
+only discovery adds every referenced household to sorted locks; ListItem/ProjectTask
+use List/Project ownership. Current erasure and ordinary removal scope updates to
+their household. Former/detached shared content chooses an existing local parent,
+then local member, in deterministic order and rechecks that successor before
+updates. Missing successor holds the transaction with NO_SUCCESSOR; personal
+subjects retain their existing cascade policy. No records move between households
+or grant roles. Source ownership/discovery/current/detached/no-successor cases
+authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
+deploy ran. Real FK/locking/rollback/query plans and wider erasure acceptance open.

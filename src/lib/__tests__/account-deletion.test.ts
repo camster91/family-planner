@@ -677,3 +677,31 @@ it('hands current accepted requests to the local successor and erases former cre
   expect(db.find('householdDevice', 'dev-b')).toMatchObject({ revoked_at: null })
   expect(db.find('deviceSession', 'dsess-b')).toMatchObject({ revoked_at: null })
 })
+
+it.each(['current', 'detached'] as const)('preserves former household content with that household successor for a %s account', async membership => {
+  db.reset()
+  seedExtras()
+  addSecondParent()
+  if (membership === 'detached') db.find('user', 'parent-a')!.family_id = null
+  db.find('list', 'list-b')!.created_by = 'parent-a'
+  db.find('listItem', 'item-b')!.added_by = 'parent-a'
+  db.find('listItem', 'item-b')!.checked_by = 'parent-a'
+  db.find('pinnedNote', 'note-b')!.created_by = 'parent-a'
+  await deleteMemberAccount('parent-a', deps().d)
+  expect(db.find('list', 'list-b')).toMatchObject({ family_id: FAMILY_B, created_by: 'parent-b' })
+  expect(db.find('listItem', 'item-b')).toMatchObject({ added_by: 'parent-b', checked_by: null })
+  expect(db.find('pinnedNote', 'note-b')).toMatchObject({ family_id: FAMILY_B, created_by: 'parent-b' })
+  expect(db.find('pinnedNote', 'note-a')).toMatchObject({ family_id: FAMILY_A, created_by: 'parent-a2' })
+  expect(db.find('user', 'parent-a')).toBeUndefined()
+  expect(db.find('user', 'parent-b')).toBeDefined()
+})
+it('refuses historical shared-content erasure when its household has no local successor', async () => {
+  db.reset()
+  seedExtras()
+  addSecondParent()
+  db.rows('family').push({ id: 'orphaned-history', name: 'Fabricated old household' })
+  db.rows('pinnedNote').push({ ...db.find('pinnedNote', 'note-a'), id: 'old-orphan-note', family_id: 'orphaned-history' })
+  await expect(deleteMemberAccount('parent-a', deps().d)).rejects.toMatchObject({ code: 'NO_SUCCESSOR', status: 409 })
+  expect(db.find('user', 'parent-a')).toBeDefined()
+  expect(db.find('pinnedNote', 'old-orphan-note')).toMatchObject({ created_by: 'parent-a', family_id: 'orphaned-history' })
+})
