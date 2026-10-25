@@ -76,24 +76,29 @@ function errorCode(body: unknown): string | null {
     : null;
 }
 
-function validAddResult(body: unknown): body is AddFromRecipeResult {
-  if (!body || typeof body !== "object") return false;
+const resultId = (value: unknown): value is string =>
+  typeof value === "string" && value.length > 0 && value.length <= 128;
+
+function validAddResult(body: unknown, expectedListId: string | undefined): body is AddFromRecipeResult {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
   const value = body as Partial<AddFromRecipeResult>;
-  return (
-    typeof value.requestId === "string" &&
-    value.requestId.length > 0 &&
-    typeof value.listId === "string" &&
-    typeof value.listName === "string" &&
-    Number.isInteger(value.createdCount) &&
-    value.createdCount! >= 0 &&
-    Number.isInteger(value.alreadyOnListCount) &&
-    value.alreadyOnListCount! >= 0 &&
-    Array.isArray(value.possibleDuplicates) &&
-    typeof value.possibleDuplicatesTruncated === "boolean" &&
-    (!("undoExpiresAt" in value) ||
-      (typeof value.undoExpiresAt === "string" &&
-        Number.isFinite(Date.parse(value.undoExpiresAt))))
-  );
+  if (!resultId(value.requestId) || !resultId(value.listId) ||
+    typeof value.listName !== "string" ||
+    !Number.isSafeInteger(value.createdCount) || value.createdCount! < 0 ||
+    !Number.isSafeInteger(value.alreadyOnListCount) || value.alreadyOnListCount! < 0 ||
+    !Number.isSafeInteger(value.createdCount! + value.alreadyOnListCount!) ||
+    !Array.isArray(value.possibleDuplicates) ||
+    typeof value.possibleDuplicatesTruncated !== "boolean") return false;
+  // The server normalizes ID whitespace but never substitutes another list
+  // for an explicit destination. Missing listId still permits its default list.
+  if (expectedListId !== undefined && value.listId !== expectedListId) return false;
+  const duplicates = value.possibleDuplicates;
+  if (duplicates.length > value.createdCount! || !duplicates.every(item =>
+    item !== null && typeof item === "object" && !Array.isArray(item) &&
+    resultId(item.ingredientId) && resultId(item.matchedItemId)) ||
+    new Set(duplicates.map(item => item.ingredientId)).size !== duplicates.length) return false;
+  return !("undoExpiresAt" in value) ||
+    (typeof value.undoExpiresAt === "string" && Number.isFinite(Date.parse(value.undoExpiresAt)));
 }
 
 function validUndoResult(body: unknown, requestId: string): body is UndoAddResult {
@@ -137,6 +142,7 @@ export async function postAddFromRecipe(
   sleep: (ms: number) => Promise<unknown> = wait,
 ): Promise<AddOutcome> {
   const frozenBody = JSON.stringify(request);
+  const expectedListId = request.listId?.trim();
   for (let attempt = 0; ; attempt++) {
     let res: Response;
     let body: unknown;
@@ -160,7 +166,7 @@ export async function postAddFromRecipe(
     if (res.ok) {
       // A committed write with a lost/truncated response is not a refusal.
       // Keep the original key so the next attempt can recover its replay.
-      if (!validAddResult(body))
+      if (!validAddResult(body, expectedListId))
         return {
           kind: "retry",
           message:

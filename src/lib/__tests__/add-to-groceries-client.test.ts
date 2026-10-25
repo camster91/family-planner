@@ -385,3 +385,47 @@ it.each([
     else expect(send.mock.calls[0][1]?.body).toBe(JSON.stringify({ requestId: "r1" }));
   } finally { jest.useRealTimers(); }
 });
+
+// Authored/unrun: a successful body must describe the reviewed destination
+// and valid summaries, otherwise the existing key remains recoverable.
+it.each([
+  { ...result, requestId: "" }, { ...result, listId: "" },
+  { ...result, createdCount: Number.MAX_SAFE_INTEGER + 1 },
+  { ...result, alreadyOnListCount: -1 },
+  { ...result, createdCount: Number.MAX_SAFE_INTEGER, alreadyOnListCount: 1 },
+  { ...result, possibleDuplicates: [null] },
+  { ...result, possibleDuplicates: [{ ingredientId: "i" }] },
+  { ...result, possibleDuplicates: [{ ingredientId: "i", matchedItemId: "" }] },
+  { ...result, createdCount: 0, possibleDuplicates: [{ ingredientId: "i", matchedItemId: "m" }] },
+  { ...result, possibleDuplicates: [{ ingredientId: "i", matchedItemId: "m1" }, { ingredientId: "i", matchedItemId: "m2" }] },
+])("keeps malformed add success %p unconfirmed", async body => {
+  const send = jest.fn(async () => response(201, body));
+  expect(await postAddFromRecipe({ recipeId: "rc" }, KEY, send)).toMatchObject({ kind: "retry" });
+  expect(send).toHaveBeenCalledTimes(1);
+});
+it("refuses a substituted explicit destination and recovers using the same original body/key", async () => {
+  let reply = { ...result, listId: "other-list" };
+  const send = jest.fn(async (_url: string, _init?: RequestInit) => response(201, reply));
+  const request = { recipeId: "rc", listId: "l1", ingredientIds: ["a", "b", "c"] };
+  expect(await postAddFromRecipe(request, KEY, send)).toMatchObject({ kind: "retry" });
+  reply = result;
+  expect(await postAddFromRecipe(request, KEY, send)).toMatchObject({ kind: "ok", result });
+  expect(send.mock.calls[1][1]?.body).toBe(send.mock.calls[0][1]?.body);
+  expect(new Headers(send.mock.calls[0][1]?.headers).get("Idempotency-Key")).toBe(KEY);
+  expect(new Headers(send.mock.calls[1][1]?.headers).get("Idempotency-Key")).toBe(KEY);
+});
+it("retains the canonical default-list and whitespace-normalized explicit-list contracts", async () => {
+  expect(await postAddFromRecipe({ recipeId: "rc" }, KEY, async () => response(201, result))).toMatchObject({ kind: "ok" });
+  expect(await postAddFromRecipe({ recipeId: "rc", listId: " l1 " }, KEY, async () => response(201, result))).toMatchObject({ kind: "ok" });
+});
+it("checks against the original destination even if the caller changes its object while waiting", async () => {
+  let release!: (response: Response) => void;
+  const delayed = new Promise<Response>(resolve => { release = resolve; });
+  const send = jest.fn(async (_url: string, _init?: RequestInit) => delayed);
+  const request = { recipeId: "rc", listId: "l1" };
+  const pending = postAddFromRecipe(request, KEY, send);
+  request.listId = "later-destination";
+  release(response(201, result));
+  expect(await pending).toMatchObject({ kind: "ok", result });
+  expect(JSON.parse(String(send.mock.calls[0][1]?.body)).listId).toBe("l1");
+});

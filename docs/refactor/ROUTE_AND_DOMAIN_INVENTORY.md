@@ -1,5 +1,20 @@
 # Route and domain inventory (#148)
 
+### Recipe-grocery add result matching — 2026-10-24 (#134)
+
+Add success now requires bounded nonempty receipt/list IDs, safe nonnegative
+counts with a safe sum, valid unique ingredient/matched-item preview IDs and no
+more preview entries than created items. An explicit destination must match the
+server-normalized original list captured before waiting; unspecified destination
+retains canonical default-list selection. Later caller mutation cannot change
+that expected target or the frozen request body. Existing optional expiry and
+idempotent replay/retry/owned recovery remain; malformed/foreign summaries use
+the prior unconfirmed retry classification. This is not owner/source proof or a
+full recipe snapshot/version receipt. Malformed/destination/caller-mutation and
+same-key recovery regression source authored/unrun. No QA/test/check/build/
+browser/API/database/native/provider/permission/release ran. Original replay/
+role/compatibility/concurrency/locale/runtime acceptance remains open.
+
 ### Recipe-grocery reply validation/deadline — 2026-10-24 (#134)
 
 Undo's browser helper now validates the exact original request ID and nonnegative

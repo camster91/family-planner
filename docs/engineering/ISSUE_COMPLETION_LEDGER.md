@@ -52,17 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work hardens recipe-grocery reply handling (#134).
-Undo success must match the original request ID and contain nonnegative safe
-integer counts. Malformed/missing/foreign successful replies remain unconfirmed
-and retryable, preserving owned recovery instead of reporting success. Both add
-and Undo now use a15s per-attempt fetch/body deadline with best-effort abort;
-late replies or timeout do not cancel presumed server effects or start a fresh
-intent. Exact bodies/keys, existing in-progress retry policy and server endpoints
-remain. Helper timeout/invalid-reply and UI same-Undo recovery cases authored/
-unrun. No QA/check/build/browser/API/database/native/provider/permission/release
-ran. Full replay/auth/concurrency/rollback/transport/locale/native/runtime
-acceptance stays open; fallback transport messages retain their string interface.
+Latest bounded source work validates recipe-grocery add reply identity/counts
+(#134). Empty/oversized IDs, unsafe/negative count summaries, malformed/duplicate
+preview entries and impossible preview counts remain unconfirmed. Explicit list
+results must match the original whitespace-normalized destination captured before
+the request; default-list and legacy absent-expiry behavior remain. The frozen
+body/key and existing retry/recovery paths are unchanged. Malformed/mismatched
+reply, same-body/key recovery, default/normalized list and caller-mutation cases
+are authored/unrun. No QA/check/build/browser/API/database/native/provider/
+permission/release ran. This is response matching, not an owner/source-proof or
+full recipe-snapshot protocol; original replay/authorization/compatibility/
+concurrency/locale/runtime acceptance remains open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
