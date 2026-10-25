@@ -149,6 +149,7 @@ model User {
   device_audit_events           DeviceAuditEvent[] @relation("DeviceAuditActor")
   // Offline sync (#162). Relation field only; no new User columns.
   idempotency_records           IdempotencyRecord[] @relation("IdempotencyRecordUser")
+  notification_recipient_decisions NotificationRecipientDecision[] @relation("NotificationRecipientUser")
   // Food inventory (#263). Relation field only; no new User columns.
   inventory_items_added         InventoryItem[]    @relation("InventoryItemAdder")
   // Inventory adjustments (#158/#121). Relation fields only; no new User columns.
@@ -266,6 +267,7 @@ model Family {
   shopping_lists     ShoppingList[]
   finance_records    FinancialArchiveRecord[]
   notification_event_occurrences NotificationEventOccurrence[]
+  notification_recipient_decisions NotificationRecipientDecision[]
   invites            FamilyInvite[]
   calendar_subscriptions CalendarSubscription[]
   calendar_connections   CalendarConnection[]
@@ -1075,6 +1077,7 @@ model Notification {
 
   // Relations
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  recipient_decisions NotificationRecipientDecision[]
 
   @@index([user_id])
   @@index([read])
@@ -2281,6 +2284,32 @@ model NotificationEventOccurrence {
   created_at DateTime @default(now())
   family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  recipient_decisions NotificationRecipientDecision[]
+
+  @@unique([id, family_id], map: "NotificationEventOccurrence_id_family_key")
   @@unique([family_id, occurrence_key], map: "NotificationEventOccurrence_family_key")
   @@index([family_id, id], map: "NotificationEventOccurrence_family_id_idx")
+}
+
+
+// #141 terminal in-app recipient decision; visible inbox deletion is not replay.
+model NotificationRecipientDecision {
+  id String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  family_id String
+  event_id String
+  slot Int
+  user_id String?
+  notification_id String?
+  status String // created | suppressed; null recipient is erased, never reassigned
+  quiet Boolean
+  created_at DateTime @default(now())
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  event NotificationEventOccurrence @relation(fields: [event_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction, map: "NotificationRecipientDecision_event_family_fkey")
+  user User? @relation("NotificationRecipientUser", fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  notification Notification? @relation(fields: [notification_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([event_id, slot], map: "NotificationRecipientDecision_event_slot_key")
+  @@index([family_id, id], map: "NotificationRecipientDecision_family_id_idx")
+  @@index([user_id], map: "NotificationRecipientDecision_user_idx")
+  @@index([notification_id], map: "NotificationRecipientDecision_notification_idx")
 }

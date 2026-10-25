@@ -70,13 +70,16 @@ export async function deliverNotification(input: NotificationInput, now: Date = 
           return { delivered: false, notification: null } as const
         }
       }
-      return deliverInTransaction(tx, input, now)
+      return deliverNotificationInTx(tx, input, now)
     })
   }
-  return deliverInTransaction(prisma!, input, now)
+  return deliverNotificationInTx(prisma!, input, now)
 }
 
-async function deliverInTransaction(db: Pick<NonNullable<typeof prisma>, 'user' | 'notification'>, input: NotificationInput, now: Date) {
+/** Internal primitive only. Caller must hold ordered User/household locks and
+ * freshly authorize sender/recipient/source; this does not authenticate callers.
+ */
+export async function deliverNotificationInTx(db: Pick<NonNullable<typeof prisma>, 'user' | 'notification'>, input: NotificationInput, now: Date) {
   const policy: NotificationPolicy = IN_APP_NOTIFICATION_POLICY[input.type]
   // One read of the recipient's own row: their category switch (unless ALWAYS)
   // and their quiet hours.

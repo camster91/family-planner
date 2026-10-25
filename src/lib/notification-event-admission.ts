@@ -66,7 +66,10 @@ export async function exportNotificationEvents(
     if (actor.role !== "parent" || !await currentActor(tx, actor)) return [];
     return tx.notificationEventOccurrence.findMany({
       where: { family_id: actor.familyId },
-      select: { id: true, envelope: true, created_at: true },
+      select: { id: true, envelope: true, created_at: true, recipient_decisions: {
+        select: { slot: true, user_id: true, status: true, notification_id: true, quiet: true, created_at: true },
+        orderBy: { slot: "asc" },
+      } },
       orderBy: { id: "asc" },
     });
   }, { timeout: 5000, maxWait: 5000 });

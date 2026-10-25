@@ -576,6 +576,7 @@ async function recordMemberLeft(tx: any, user: { id: string; role: string }, fam
 /** Rows that belong to the person alone (any household). */
 async function deletePersonalRows(tx: any, userId: string): Promise<void> {
   await tx.appFeedback.deleteMany({ where: { user_id: userId } })
+  await tx.notificationRecipientDecision.updateMany({ where: { user_id: userId }, data: { user_id: null } })
   await tx.notification.deleteMany({ where: { user_id: userId } })
   await tx.pushSubscription.deleteMany({ where: { user_id: userId } })
   await tx.activity.deleteMany({ where: { user_id: userId } })
@@ -675,6 +676,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'importedRecord', scope: { kind: 'family' }, why: 'import provenance' },
   { model: 'importJob', scope: { kind: 'family' }, why: 'import jobs' },
   { model: 'financialArchiveRecord', scope: { kind: 'family' }, why: 'archived finance records' },
+  { model: 'notificationRecipientDecision', scope: { kind: 'family' }, why: 'terminal notification recipient decisions' },
   { model: 'notificationEventOccurrence', scope: { kind: 'family' }, why: 'household notification occurrence evidence' },
   { model: 'message', scope: { kind: 'family' }, why: 'messages' },
   { model: 'messageAttachment', scope: { kind: 'family' }, why: 'message attachments' },

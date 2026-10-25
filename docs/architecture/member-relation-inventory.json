@@ -908,5 +908,20 @@
     ],
     "disposition": "retain-authenticated-actor",
     "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
+  },
+  {
+    "relation": "NotificationRecipientDecision.user",
+    "fields": [
+      "user_id"
+    ],
+    "kind": "account",
+    "migration": "Retain account-owned in-app delivery recipient identity; a selected HouseholdMember is not a session or notification mailbox. Household erasure deletes the decision; account erasure clears user_id while preserving the terminal event slot to prevent reassignment/replay.",
+    "evidence": [
+      "prisma/schema.prisma: model NotificationRecipientDecision",
+      "src/lib/notification-recipient-admission.ts",
+      "src/lib/account-deletion.ts"
+    ],
+    "disposition": "retain-account-delivery-recipient",
+    "remaining": "Dormant/unverified source. Complete producer/recipient provenance, original supported-client/retention windows, export/erasure/FK/PG concurrency and all acceptance before activation."
   }
 ]

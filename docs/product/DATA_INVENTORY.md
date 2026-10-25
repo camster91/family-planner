@@ -179,3 +179,18 @@ disposition. No time-based retention/pruning or delivery is activated; preserve
 the table on app rollback so visible inbox deletion cannot erase this evidence.
 Recipient terminal dedupe/dispatch, domain generation/transition provenance,
 accepted retention/old-client windows and all migration/lifecycle QA remain open.
+
+
+### Dormant terminal notification recipient slots — #141 / 2026-10-25
+
+`NotificationRecipientDecision` adds household/event/slot, nullable recipient User
+and visible Notification FKs, terminal created/suppressed status, quiet result
+and timestamp. It contains no title/message/token. Event+slot uniqueness preserves
+a terminal decision when the inbox row is deleted. Account erasure nulls the
+recipient link; occupied null slots cannot be adopted by another account. Current
+parent portability includes retained decisions; child/teen/shared/former-household
+exports do not. Explicit household erasure deletes them before occurrences. No
+automatic retention/pruning/provider activation exists. This is source User FK81
+in the member inventory: account delivery only, not an email-free profile login
+or a points/credit owner. All producer/roster, PG/FK/erasure/rollback and privacy
+acceptance remains deferred.

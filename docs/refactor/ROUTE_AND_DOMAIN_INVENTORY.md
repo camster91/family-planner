@@ -3076,3 +3076,16 @@ retroactively adopt old chores. Source cases authored/unrun. No existing produce
 uses it until N2 can atomically admit recipient decisions and replace legacy
 notification sending without a shadow-event double send. All PG/lifecycle/role/
 receipt/producer/dispatch acceptance remains; no QA/data/release action ran.
+
+
+### Notification N2 terminal recipient decisions — 2026-10-25
+
+Additive decision schema/SQL, unconnected primitive, central in-transaction policy
+export, parent portability and household/account erasure source are authored.
+Sorted original actor/recipient/household locks and source-before-event ordering
+retain current authority. Frozen event slots remember created/suppressed outcomes
+when visible notifications disappear; cleared recipient references cannot be
+adopted. User FK inventory source grows from80 to81, retaining old publication
+history and classifying the new slot as account delivery. Seven source cases
+authored/unrun. Producer/roster integration, actual DDL/FK/concurrency/lifecycle/
+rollback, privacy and original #141 acceptance remain; no QA/DB/release ran.

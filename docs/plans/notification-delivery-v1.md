@@ -243,3 +243,48 @@ sender must not later deliver twice. Existing fresh-mutation notification guards
 remain untouched. Wire the canonical effect+event+recipient decision+receipt
 together when N2 can replace the old send in one reviewed slice. No flag, schema,
 provider or deadline policy is activated; no QA/DB/release action ran.
+
+
+## N2 terminal in-app recipient primitive — 2026-10-25
+
+Additive `NotificationRecipientDecision` and sorted SQL now author one terminal
+recipient slot per occurrence, with same-household composite event FK and direct
+Family ownership. A frozen accepted slot (0–99) is not a recomputed roster
+position. Account recipient and visible Notification references use SET NULL:
+account erasure clears identifying User linkage while retaining the occupied
+slot, and deleting an inbox item cannot erase the decision and cause resend.
+No cleared/erased slot may be reassigned. A SQL update guard preserves slot,
+status/time/quiet and permits only nulling recipient/inbox links, never refilling
+or redirecting them. Household erasure deletes decisions
+before occurrences; parent portability includes them even while admission is off.
+
+The unconnected `admitNotificationRecipientInTx` is parent-only for the initial
+producer slice. It locks actor/recipient User IDs in sorted order, household and
+actual User rows, renews original generation/role/family plus recipient membership,
+parses the scoped event and requires a canonical same-transaction source/content/
+original-recipient guard. Source locks precede the event FOR UPDATE lock to match
+producer order. Existing created/suppressed decisions return without sending;
+null/mismatched recipients and unknown terminal states hold. New decisions call
+the existing central delivery primitive and record the result in the SAME caller
+transaction. Preference suppression is terminal; quiet hours retain in-app policy.
+A deadline crossed after writes throws for enclosing rollback. This is not a new
+provider/outbox queue, exactly-once external delivery or autonomous retry engine.
+
+`deliverNotificationInTx` is now the exported internal name of the existing
+central policy/row-create primitive; ordinary deliverNotification behavior is
+unchanged. All callers of this internal primitive must supply fresh canonical
+authority; it is not an endpoint or independent auth check. N2 restricts content
+lengths/type-to-event mapping and current allowlisted destinations. Future source
+guards must derive/compare the exact canonical content and recipient rather than
+passing arbitrary content or a cached DTO. No current producer invokes N2.
+
+The User FK inventory gains its81st source relationship, explicitly account-owned
+delivery, separate from profile membership/credit. Original80-row publication
+remains historical evidence, not acceptance of this addition. Account erasure
+explicitly nulls the recipient FK; departure leaves household-owned decisions
+accessible only through current-parent export and never grants former members
+access. A physical User deletion also nulls the FK. No message text, tokens or
+private payload is stored in the new decision table. Seven mocked source cases
+are authored/unrun. DDL/FK/SET NULL, concurrency, canonical source integration,
+export/erasure, rollback and all acceptance remain unverified. Producer wiring
+and the complete recipient-roster freeze contract still precede activation.
