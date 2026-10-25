@@ -172,3 +172,45 @@ retention/compatibility, all producers and N2–N5 remain unfinished. Existing
 reward and chore producers already guard some fresh-mutation notification
 fanout; this contract does not claim those paths previously had no retry guards.
 No QA, DB operation, provider/scheduler activation or release ran.
+
+
+## N1 dormant occurrence admission storage — 2026-10-25
+
+Additive `NotificationEventOccurrence` schema/migration and
+`notification-event-admission.ts` now author the internal record/reuse step.
+Admission requires the private default-off `NOTIFICATION_EVENT_ADMISSION_ENABLED=1`
+acknowledgement; no environment changed and no producer/endpoint invokes it.
+It locks original User then household, takes the actual User row FOR SHARE,
+checks original family/role/token version, and requires a caller-supplied
+canonical source guard in the same transaction before effects. The caller must
+follow that lifecycle order before its other source/receipt locks. That guard
+must lock/recheck accepted source generation/transition/role/feature; returning
+true from a cached DTO is not a valid integration.
+
+The private SHA-256 occurrence coordinate is unique per household. Insert-or-
+reuse then locked read compares the full strict immutable envelope; changed or
+unsupported evidence throws to abort the enclosing transaction. Deadline is
+checked before/after the source wait and after storage. This metadata row is
+not a visible Notification, delivery claim, suppressed-recipient decision or
+provider-send receipt, and contains no title/message/recipient credential.
+DDL makes ordinary updates immutable. Household FK cascade and explicit
+account-deletion inventory remove it on household erasure; individual departure
+does not transfer it or expose it to the former member. There is no User/profile
+FK or new member-owned field, and no guessed credit/identity policy.
+
+Parent account export now includes original envelope/id/created time after fresh
+original-session/family/parent checks. This portability read remains available
+with admission off, preserving rollback access; no child/teen/shared export.
+Full export intentionally keeps complete metadata, not a truncated UI page;
+large-export memory/latency is not bounded by this source. Rollback must retain
+the additive table and immutable evidence; do not drop it or invoke legacy send.
+No time-based pruning policy/scheduler exists. `scripts/migrate.js` discovers
+the new SQL through its existing sorted per-feature mechanism; it was not run.
+
+Six mocked source cases are authored/unrun for disabled gate, guarded insert,
+matching/conflicting replay, stale principal/source refusal, deadline while
+storage waits and retained parent export while off. Real DDL repeat/immutability,
+FK/erasure/export, concurrency/collision, rollback and isolation remain
+unverified. New Prisma types are ungenerated. N1 canonical producer transition
+persistence/adoption remains unfinished, and N2–N5 are not implemented by this
+primitive. Existing delivery and fresh-mutation fanout guards remain unchanged.

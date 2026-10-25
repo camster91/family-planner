@@ -3050,3 +3050,17 @@ create durable source generations, infer transitions from text/receipt keys,
 choose retention, replace existing summary claims or bypass fresh domain checks.
 Four source cases authored/unrun. N1 writer/schema/producers and N2–N5 remain
 unfinished in the canonical notification plan/#141; no QA/data/release action.
+
+
+### Notification N1 dormant admission/portability source — 2026-10-25
+
+Schema plus sorted per-feature SQL add immutable household occurrence metadata,
+scoped unique hash/full-envelope conflict protection and family cascade. Internal
+admission defaults off, rechecks original actor under lifecycle/actual User row
+locks and requires a canonical same-transaction source guard. No producer or
+dispatcher calls it. Parent portability renews original principal/household and
+is not hidden when admission is off; household erasure inventory is explicit.
+No User FK/member-owned slot or text/payload/credential field is introduced.
+Six source cases authored/unrun; DDL repeat/immutability, real transaction/FK/
+concurrency/rollback/export/isolation and new generated types remain unverified.
+N1 transition producer integration and N2–N5 remain open. No QA/DB/release ran.

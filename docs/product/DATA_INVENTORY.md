@@ -162,3 +162,20 @@ context. Whole-household erasure explicitly deletes it with a cascading Family
 FK as backstop; individual account removal preserves household progression.
 Migration/activation and runtime erasure acceptance remain deferred. See
 [the source contract](../plans/fair-chore-top-up.md).
+
+
+## Dormant notification occurrence metadata — #141 / 2026-10-25
+
+`NotificationEventOccurrence` is new additive, unverified internal evidence: a
+household FK, scoped hash, strict metadata envelope and insertion time. Envelope
+contains source/transition/generation identities and original dispatch instants,
+not message bodies, names, actor credentials or delivery payloads. No producer
+is connected; admission acknowledgement defaults off. Current original parent
+session only may export complete envelopes; teen/child/shared surfaces receive
+none. Household erasure explicitly enumerates the table and FK cascades it.
+Individual departure/account deletion does not reassign this household evidence
+or grant former-member access. No User/profile FK adds to #480's80 relationship
+disposition. No time-based retention/pruning or delivery is activated; preserve
+the table on app rollback so visible inbox deletion cannot erase this evidence.
+Recipient terminal dedupe/dispatch, domain generation/transition provenance,
+accepted retention/old-client windows and all migration/lifecycle QA remain open.

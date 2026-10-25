@@ -675,6 +675,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'importedRecord', scope: { kind: 'family' }, why: 'import provenance' },
   { model: 'importJob', scope: { kind: 'family' }, why: 'import jobs' },
   { model: 'financialArchiveRecord', scope: { kind: 'family' }, why: 'archived finance records' },
+  { model: 'notificationEventOccurrence', scope: { kind: 'family' }, why: 'household notification occurrence evidence' },
   { model: 'message', scope: { kind: 'family' }, why: 'messages' },
   { model: 'messageAttachment', scope: { kind: 'family' }, why: 'message attachments' },
   { model: 'notification', scope: { kind: 'members', column: 'user_id' }, why: 'notifications' },

@@ -1,3 +1,4 @@
+import { exportNotificationEvents } from "@/lib/notification-event-admission";
 import { exportAiUsage } from '@/lib/ai-usage-server'
 import { exportEventPreparation } from '@/lib/event-preparation/storage'
 import { exportWeeklyReset } from '@/lib/weekly-reset-storage'
@@ -527,7 +528,11 @@ export async function GET(request: NextRequest) {
       eventIds: events.map(row => row.id), choreIds: chores.map(row => row.id),
     })
     const aiUsage = await exportAiUsage(prisma!, userId, familyId, me?.role)
+    const notificationEvents = familyId && isParent
+      ? await exportNotificationEvents(prisma!, { userId, familyId, role: me!.role, tokenVersion: payload.tv ?? 0 })
+      : undefined
     const exportData = {
+      ...(notificationEvents === undefined ? {} : { notificationEvents }),
       ...(aiUsage === undefined ? {} : { aiUsage }),
       exportedAt: new Date().toISOString(),
       ...(eventPreparation === undefined ? {} : { eventPreparation }),

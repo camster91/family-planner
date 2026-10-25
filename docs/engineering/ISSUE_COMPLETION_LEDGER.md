@@ -54,13 +54,14 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): #141 now has an unconnected strict
-notification event envelope, scoped occurrence/recipient delivery coordinates,
-immutable-field comparison and exclusive dispatch-window predicate. Unknown
-versions hold and changed deadlines conflict; no text/actor proof is accepted.
-Canonical persisted generations/transitions, admission DDL/writer, producer
-migration and N2–N5 remain unfinished. Source cases authored/unrun; no QA,
-database, build, browser, provider/scheduler, push, merge or deployment ran.
+Latest bounded source work (2026-10-25): #141 dormant occurrence storage
+and transaction admission are authored with original actor locks/session checks,
+required canonical source guard, unique coordinate/full-envelope comparison and
+immutable DDL. Parent export and household erasure include metadata even when
+admission is off. Gate remains off; no producer/endpoint or dispatcher is wired.
+N1 transition integration/N2–N5 and all migration/lifecycle acceptance remain.
+Source cases unrun; no Prisma generation, QA, DB, build, browser, provider,
+scheduler, push, merge or deployment ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
