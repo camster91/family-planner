@@ -1,5 +1,20 @@
 # Route and domain inventory (#148)
 
+### Recipe-grocery reply validation/deadline — 2026-10-24 (#134)
+
+Undo's browser helper now validates the exact original request ID and nonnegative
+safe integer removed/kept counts. A malformed/missing/foreign2xx stays retryable
+and unconfirmed; the existing UI keeps its receipt/owned Undo path instead of
+claiming success. Add and Undo share a15s per-attempt fetch/body deadline. Abort
+is best effort; a timed-out server may still commit and a late body cannot
+replace the settled outcome. No timeout-driven fresh request or automatic Undo
+retry is added; Add's existing explicit in-progress retries/body/key remain.
+Server routes/auth/idempotency/expiry and transport string interfaces remain.
+Malformed/foreign replies, ignored-abort header/body stalls and UI same-Undo
+recovery regression source authored/unrun. No QA/test/check/build/browser/API/
+database/native/provider/permission/release ran. Actual replay/authorization/
+concurrency/rollback/transport/locale/native/runtime acceptance remains open.
+
 ### Dashboard fallback and landmark copy — 2026-10-24 (#142)
 
 Today/Budget/Activity missing-household presentation, signed-out shell, skip link,

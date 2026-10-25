@@ -715,3 +715,32 @@ it("translates mounted grocery review and confirmed Undo without another request
   expect(mockFetch).toHaveBeenCalledTimes(calls);
   expect(writes()).toHaveLength(2);
 });
+
+// Authored/unrun: a malformed 200 Undo remains owned until its same request
+// is confirmed; it cannot report success or issue another grocery add.
+it("keeps the original Undo request after an invalid successful reply", async () => {
+  const onUndone = jest.fn();
+  const onPendingChange = jest.fn();
+  let validUndo = false;
+  mockFetch.mockImplementation(async (url: string, init?: RequestInit) => ({
+    ok: true, status: 200, headers: new Headers(), json: async () => url.endsWith("undo-add")
+      ? validUndo ? { requestId: "request-a", removedCount: 1, keptCheckedCount: 0 } : {}
+      : init?.method === "POST" ? result : review,
+  }));
+  render(<AddToGroceriesButton recipeId="recipe-a" onUndone={onUndone} onPendingChange={onPendingChange} />);
+  fireEvent.click(screen.getByRole("button", { name: "Add ingredients to groceries" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add selected ingredients" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+  await screen.findByText("Could not confirm Undo. Try again to check the same request.");
+  expect(onUndone).not.toHaveBeenCalled();
+  expect(onPendingChange).toHaveBeenLastCalledWith(true);
+  validUndo = true;
+  fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+  await screen.findByText("Removed 1 item.");
+  expect(onUndone).toHaveBeenCalledTimes(1);
+  const undos = writes().filter(([url]) => url.endsWith("undo-add"));
+  expect(undos).toHaveLength(2);
+  expect(undos[0][1].body).toBe(JSON.stringify({ requestId: "request-a" }));
+  expect(undos[1][1].body).toBe(undos[0][1].body);
+  expect(writes().filter(([url]) => url.endsWith("from-recipe"))).toHaveLength(1);
+});

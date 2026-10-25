@@ -341,3 +341,47 @@ describe("toast copy", () => {
     ).toBe("Nothing left to remove.");
   });
 });
+
+// Authored/unrun: an untrusted successful Undo reply cannot release recovery.
+it.each([
+  null, {}, [],
+  { requestId: "other", removedCount: 1, keptCheckedCount: 0 },
+  { requestId: "r1", removedCount: -1, keptCheckedCount: 0 },
+  { requestId: "r1", removedCount: 1.5, keptCheckedCount: 0 },
+  { requestId: "r1", removedCount: 1, keptCheckedCount: "0" },
+  { requestId: "r1", removedCount: 1, keptCheckedCount: Number.MAX_SAFE_INTEGER + 1 },
+])("keeps malformed or foreign Undo success %p retryable", async body => {
+  const send = jest.fn(async () => response(200, body));
+  expect(await postUndoAdd("r1", send)).toMatchObject({ ok: false, retryable: true });
+  expect(send).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+  { action: "add", stage: "headers" }, { action: "add", stage: "body" },
+  { action: "undo", stage: "headers" }, { action: "undo", stage: "body" },
+])("retains uncertainty after a stalled $action $stage even when abort is ignored", async ({ action, stage }) => {
+  jest.useFakeTimers();
+  try {
+    let release!: (value: any) => void;
+    const delayed = new Promise<any>(resolve => { release = resolve; });
+    const good = action === "add" ? result : { requestId: "r1", removedCount: 1, keptCheckedCount: 0 };
+    const send = jest.fn(async (_url: string, _init?: RequestInit) => stage === "headers"
+      ? delayed : { ...response(200, good), json: () => delayed });
+    const pending = action === "add"
+      ? postAddFromRecipe({ recipeId: "rc" }, KEY, send)
+      : postUndoAdd("r1", send);
+    await Promise.resolve();
+    jest.advanceTimersByTime(15_000);
+    const outcome = await pending;
+    expect(outcome).toMatchObject(action === "add" ? { kind: "retry" } : { ok: false, retryable: true });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][1]?.signal?.aborted).toBe(true);
+    release(stage === "headers" ? response(200, good) : good);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(await pending).toBe(outcome);
+    expect(send).toHaveBeenCalledTimes(1);
+    if (action === "add") expect(new Headers(send.mock.calls[0][1]?.headers).get("Idempotency-Key")).toBe(KEY);
+    else expect(send.mock.calls[0][1]?.body).toBe(JSON.stringify({ requestId: "r1" }));
+  } finally { jest.useRealTimers(); }
+});

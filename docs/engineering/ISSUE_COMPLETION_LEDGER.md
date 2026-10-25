@@ -52,17 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work localizes dashboard fallback presentation (#142):
-Today/Budget/Activity no-household states, signed-out shell, skip link, main
-landmark name and shared form-sheet close/busy/draft fallbacks. Small client copy
-components retain server authentication/role/feature/read gates and existing
-links; the main element stays server-rendered with a localized labelled-by span.
-Fifteen scoped EN/ES keys preserve ordinary English copy, classes and headings.
-Fourteen owned inventory records removed without scanning. Existing shell
-assertions adapted and Spanish landmark source case authored/unrun. No QA/check/
-build/browser/API/database/native/provider/permission/release ran. Static route
-metadata and full hydration/navigation/accessibility/role/layout/runtime
-acceptance remain open.
+Latest bounded source work hardens recipe-grocery reply handling (#134).
+Undo success must match the original request ID and contain nonnegative safe
+integer counts. Malformed/missing/foreign successful replies remain unconfirmed
+and retryable, preserving owned recovery instead of reporting success. Both add
+and Undo now use a15s per-attempt fetch/body deadline with best-effort abort;
+late replies or timeout do not cancel presumed server effects or start a fresh
+intent. Exact bodies/keys, existing in-progress retry policy and server endpoints
+remain. Helper timeout/invalid-reply and UI same-Undo recovery cases authored/
+unrun. No QA/check/build/browser/API/database/native/provider/permission/release
+ran. Full replay/auth/concurrency/rollback/transport/locale/native/runtime
+acceptance stays open; fallback transport messages retain their string interface.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

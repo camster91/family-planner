@@ -96,6 +96,38 @@ function validAddResult(body: unknown): body is AddFromRecipeResult {
   );
 }
 
+function validUndoResult(body: unknown, requestId: string): body is UndoAddResult {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
+  const value = body as Partial<UndoAddResult>;
+  return value.requestId === requestId &&
+    Number.isSafeInteger(value.removedCount) && value.removedCount! >= 0 &&
+    Number.isSafeInteger(value.keptCheckedCount) && value.keptCheckedCount! >= 0;
+}
+
+class GroceryReplyTimeout extends Error {}
+/** Abort is best effort; a native bridge may ignore it or the server may commit. */
+async function postJsonWithinDeadline(url: string, init: RequestInit, fetchImpl: FetchLike) {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      (async () => {
+        const res = await fetchImpl(url, { ...init, signal: controller.signal });
+        const body: unknown = await res.json().catch(() => null);
+        return { res, body };
+      })(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new GroceryReplyTimeout());
+          controller.abort();
+        }, 15_000);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function postAddFromRecipe(
@@ -107,23 +139,24 @@ export async function postAddFromRecipe(
   const frozenBody = JSON.stringify(request);
   for (let attempt = 0; ; attempt++) {
     let res: Response;
+    let body: unknown;
     try {
-      res = await fetchImpl("/api/lists/items/from-recipe", {
+      ({ res, body } = await postJsonWithinDeadline("/api/lists/items/from-recipe", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           [IDEMPOTENCY_HEADER]: key,
         },
         body: frozenBody,
-      });
-    } catch {
+      }, fetchImpl));
+    } catch (error) {
       return {
         kind: "retry",
-        message:
-          "Could not reach the server. Check the connection and try again.",
+        message: error instanceof GroceryReplyTimeout
+          ? "Could not confirm the saved result. Try again to check the same request."
+          : "Could not reach the server. Check the connection and try again.",
       };
     }
-    const body = await res.json().catch(() => null);
     if (res.ok) {
       // A committed write with a lost/truncated response is not a refusal.
       // Keep the original key so the next attempt can recover its replay.
@@ -165,21 +198,28 @@ export async function postUndoAdd(
   fetchImpl: FetchLike = (input, init) => fetch(input, init),
 ): Promise<UndoOutcome> {
   let res: Response;
+  let body: unknown;
   try {
-    res = await fetchImpl("/api/lists/items/undo-add", {
+    ({ res, body } = await postJsonWithinDeadline("/api/lists/items/undo-add", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ requestId }),
-    });
-  } catch {
+    }, fetchImpl));
+  } catch (error) {
     return {
       ok: false,
-      message: "Could not reach the server. Try again.",
+      message: error instanceof GroceryReplyTimeout
+        ? "Could not confirm Undo. Try again to check the same request."
+        : "Could not reach the server. Try again.",
       retryable: true,
     };
   }
-  const body = await res.json().catch(() => null);
-  if (res.ok && body) return { ok: true, result: body as UndoAddResult };
+  if (res.ok) {
+    if (validUndoResult(body, requestId)) return { ok: true, result: body };
+    // A malformed successful reply cannot establish whether Undo committed.
+    return { ok: false, retryable: true,
+      message: "Could not confirm Undo. Try again to check the same request." };
+  }
   const retryable =
     res.status >= 500 ||
     (res.status === 409 && errorCode(body) === "UNDO_IN_PROGRESS");
