@@ -372,3 +372,39 @@ Strict-link, scoped reader and localized/focus source cases are authored/unrun.
 The screen directory gains one dated embedded context, not a new page pattern
 or measured visual coverage. No browser/rendered/accessibility/native, DB,
 migration, test/check/build or release execution ran. #141/#499 remain open.
+
+
+## Exact chore completion/Undo handoff — 2026-10-25
+
+The focus projection now explicitly carries canComplete only for currently open,
+reconciled account subjects (never profile-only/erased/archived account aliases).
+Child/teen focus remains own-account scoped. The card's optional Mark complete
+uses ChoresContent's EXISTING canonical completion handler, which now updates the
+matching focus state as well as loaded rows. It does not insert the target into
+paging, invent a second completion API/store or change the documented any-member
+completion policy. Parent edit and all action APIs retain their own authority.
+
+The shared completion lane has a synchronous per-ID busy guard, existing pending
+navigation protection, owned15-second/32KiB full reply read and mounted actor/
+household/role epoch retirement. Changing owner aborts outstanding owned reads;
+late replies/Undo cannot repaint a new owner. Cancellation is not server rollback
+or proof a write failed. A valid fresh completion offers the existing canonical
+Undo and updates the matching focused/loaded state; Undo's outer foreground wait
+is bounded too, without claiming physical cancellation of its legacy helper.
+No generic new offline journal, receipt or authenticated owner header is added.
+
+Already-completed responses may mean verified rather than completed. They now
+request canonical refresh without local status downgrade or a manufactured Undo.
+Unknown/refused focused completion or Undo keeps the focused fields, disables
+another action and offers explicit Check current chore (read only). A successful
+SSR projection re-admits supported current actions; no automatic write retry.
+Other routine/board callbacks retain support for canonical IDs outside loaded
+rows; the new focused capability does not restrict those existing callers.
+
+Direct source/card cases plus four mocked shared-handler cases are authored/
+unrun: unloaded exact target + one send/Undo, owner retirement, already-terminal
+refresh and uncertain-result read recovery. The earlier child action-handoff
+gap is now source-connected for this supported account case; profile actions,
+full current-resource/version/actor headers, multi-device status convergence,
+other notification domains/native and original rendered/privacy/PG/compatibility
+acceptance remain. No QA, app/API/DB/browser/migration or release execution ran.

@@ -60,3 +60,10 @@ this addition raises embedded source entries from15 to16, without a new page
 pattern. The server reader renews original actor/family/feature and canonical
 subject visibility. Child/teen target projection is own-account only. No measured
 frame, visual, Back/focus/native or privacy acceptance is established by the row.
+
+
+The focused context now includes an optional server-projected account completion
+capability and reuses the existing canonical handler/Undo even when its row is
+outside loaded board pages. Unknown/current-terminal outcomes require a fresh
+read. This source addition changes neither page counts nor accepted device,
+privacy, focus or rendered coverage. No new completion store/API is introduced.

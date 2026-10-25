@@ -6,7 +6,7 @@ import { normalizeFeatures, isFeatureEnabled } from "@/lib/features";
 import { choreSubjectInclude, readChoreSubject } from "@/lib/chore-profile";
 import { hiddenRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 export type ChoreNotificationFocus = {
-  id: string; title: string; description: string | null; dueDate: string;
+  id: string; title: string; description: string | null; dueDate: string; canComplete: boolean;
   status: "pending" | "in_progress" | "completed" | "verified" | "approved" | "overdue";
 };
 export function parseChoreFocusId(value: unknown): string | null {
@@ -48,6 +48,8 @@ export async function readChoreNotificationFocus(
     const statuses = ["pending", "in_progress", "completed", "verified", "approved", "overdue"] as const;
     const status = statuses.find(value => value === row.status);
     if (!status || !Number.isFinite(row.due_date.getTime())) return null;
-    return { id: row.id, title: row.title, description: row.description, dueDate: row.due_date.toISOString(), status };
+    return { id: row.id, title: row.title, description: row.description, dueDate: row.due_date.toISOString(), status,
+      canComplete: subject?.kind === "account" && !row.assigneeMember?.archived_at && ["pending", "in_progress", "overdue"].includes(status),
+    };
   }, { timeout: 5000, maxWait: 5000 });
 }

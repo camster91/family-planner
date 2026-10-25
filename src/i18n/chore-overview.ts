@@ -5,6 +5,9 @@ import { useTranslation } from "@/i18n";
 export const choreOverviewEnglish = {
   focusHeading: "From notification",
   focusDetails: "Details",
+  focusCompleting: "Marking done…",
+  focusRefresh: "Check current chore",
+  completeUnconfirmed: "This change could not be confirmed. Refresh to check the chore before trying again.",
   focusUnavailable: "This chore is unavailable. You can still open your chores.",
   focusAll: "Open chores",
   focusDue: "Due {date}",
@@ -85,6 +88,9 @@ export const choreOverviewSpanish: Record<
 > = {
   focusHeading: "Desde una notificación",
   focusDetails: "Detalles",
+  focusCompleting: "Marcando como hecha…",
+  focusRefresh: "Comprobar tarea actual",
+  completeUnconfirmed: "No se pudo confirmar el cambio. Actualiza para comprobar la tarea antes de reintentar.",
   focusUnavailable: "Esta tarea no está disponible. Puedes abrir tus tareas.",
   focusAll: "Abrir tareas",
   focusDue: "Para el {date}",

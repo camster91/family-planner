@@ -14,7 +14,7 @@ function setup(role = owner.role) {
 beforeEach(() => jest.mocked(hiddenRoutineOccurrenceIds).mockResolvedValue([]));
 it("returns only the focused minimal projection within the actor household", async () => {
   const { tx, db } = setup();
-  expect(await readChoreNotificationFocus(db as any, owner, row.id)).toEqual({ id: row.id, title: row.title, description: row.description, dueDate: row.due_date.toISOString(), status: "pending" });
+  expect(await readChoreNotificationFocus(db as any, owner, row.id)).toEqual({ id: row.id, title: row.title, description: row.description, dueDate: row.due_date.toISOString(), status: "pending", canComplete: true });
   expect(tx.chore.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: row.id, family_id: owner.familyId } }));
   expect(hiddenRoutineOccurrenceIds).toHaveBeenCalledWith(tx, owner.familyId, { ids: [row.id] });
 });

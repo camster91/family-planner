@@ -1017,7 +1017,7 @@
       "reviewEntryRoutes": [
         "/dashboard/chores?focus=<canonical-chore-id>"
       ],
-      "mapping": "2026-10-25 incremental source: read-only exact target, neutral unavailable fallback, own-account child/teen projection and current-parent edit link. No new page pattern; unverified/unrendered."
+      "mapping": "2026-10-25 incremental source: exact target with capability-gated canonical completion/Undo handoff, neutral unavailable fallback, own-account child/teen projection and current-parent edit link. No new page pattern; unverified/unrendered."
     }
   ]
 }

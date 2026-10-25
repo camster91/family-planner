@@ -3115,3 +3115,15 @@ new mutation authority. Directory adds one embedded source context (16 total),
 retaining dated base page/route counts. Source cases unrun. Child action handoff
 when the row is outside loaded board data, other domains, real privacy/layout/
 keyboard/native/compatibility/PG acceptance remain. No QA/data/release action.
+
+
+### Notification-focused chore action handoff — 2026-10-25
+
+Supported account focus now reuses existing completion/Undo with a server
+capability, no page hydration expansion or new mutation authority/store. Shared
+handler adds per-ID synchronous exclusion, owned15s/32KiB replies, mounted owner
+retirement and focused state reconciliation. Already-terminal/unknown outcomes
+need a current read, preserving status and avoiding invented Undo. Existing
+unloaded routine/board ID callers remain permitted. Source/card and four handler
+cases authored/unrun; full original-owner headers, version/convergence, profile,
+PG/role/device/rendered/compatibility acceptance remain. No QA/data/release ran.
