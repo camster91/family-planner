@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
+import { readRecipeJson } from "@/lib/recipe-read-client";
 import { Dialog } from "@/components/ui/dialog";
 import { RecipeDetail } from "@/components/meals/RecipeDetail";
 import { useTranslation } from "@/i18n";
@@ -49,20 +50,16 @@ export function PreparedRecipe({ batchId }: { batchId: string }) {
     setLoading(true);
     setFailed(false);
     setResult(null);
-    const deadline = setTimeout(() => controller.abort(), 10000);
     try {
-      const response = await fetch(
+      const parsed = reply.parse(await readRecipeJson(
         `/api/meals/bulk/${encodeURIComponent(batchId)}/recipe`,
-        { cache: "no-store", signal: controller.signal },
-      );
-      if (!response.ok) throw new Error();
-      const parsed = reply.parse(await response.json());
+        controller.signal, { timeoutMs: 10000 },
+      ));
       if (parsed.batchId !== batchId) throw new Error();
       if (own === generation.current) setResult(parsed);
     } catch {
       if (own === generation.current) setFailed(true);
     } finally {
-      clearTimeout(deadline);
       if (own === generation.current) setLoading(false);
     }
   }

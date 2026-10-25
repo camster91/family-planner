@@ -41,6 +41,7 @@ describe("recipe picker page read", () => {
     const pending = readRecipePickerPage("", 0, controller.signal,
       jest.fn(async () => new Promise<Response>(() => undefined)));
     const rejection = expect(pending).rejects.toThrow("Recipe page unavailable");
+    await Promise.resolve();
     controller.abort();
     await rejection;
   });

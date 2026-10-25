@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import { readRecipeJson } from "@/lib/recipe-read-client";
 import { useRecipePresentationText } from "@/i18n/recipe-presentation";
 import type { RecipeOption } from "./RecipePicker";
 
@@ -43,26 +44,19 @@ export function RecipeReuseLauncher({
     }
     let active = true;
     const controller = new AbortController();
-    const deadline = setTimeout(() => controller.abort(), 10000);
     void (async () => {
       try {
-        const response = await fetch(`/api/recipes/${encodeURIComponent(id)}`, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error();
-        const recipe = summary.parse((await response.json()).recipe);
+        const body = await readRecipeJson(`/api/recipes/${encodeURIComponent(id)}`,
+          controller.signal, { timeoutMs: 10000 });
+        const recipe = z.object({ recipe: summary }).parse(body).recipe;
         if (recipe.id !== id) throw new Error();
         if (active) setLoad({ id, recipe });
       } catch {
         if (active) setLoad({ id, error: true });
-      } finally {
-        clearTimeout(deadline);
       }
     })();
     return () => {
       active = false;
-      clearTimeout(deadline);
       controller.abort();
     };
   }, [id, attempt]);

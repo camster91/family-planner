@@ -60,6 +60,7 @@ it("drops a late response after the selected batch changes", async () => {
   ) as unknown as typeof fetch;
   const view = render(<PreparedRecipe batchId="fixture_old" />);
   fireEvent.click(screen.getByRole("button", { name: "Recipe used" }));
+  await act(async () => { await Promise.resolve(); });
   view.rerender(<PreparedRecipe batchId="fixture_new" />);
   await act(async () => {
     resolveFirst(response(recorded("fixture_old", "Old household fixture")));
@@ -76,4 +77,16 @@ it("refuses future record formats without a guessed current-recipe fallback", as
   await screen.findByRole("alert");
   expect(screen.queryByText("Future fixture")).toBeNull();
   expect(global.fetch).toHaveBeenCalledTimes(1);
+});
+it("offers explicit retry when a bridge ignores the history-read deadline", async () => {
+  jest.useFakeTimers();
+  try {
+    global.fetch = jest.fn(async () => new Promise<Response>(() => undefined)) as typeof fetch;
+    render(<PreparedRecipe batchId="fixture_batch" />);
+    fireEvent.click(screen.getByRole("button", { name: "Recipe used" }));
+    await act(async () => { await jest.advanceTimersByTimeAsync(10000); });
+    expect(screen.getByRole("alert")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  } finally { jest.useRealTimers(); }
 });

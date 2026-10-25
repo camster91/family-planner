@@ -43,6 +43,7 @@ describe("readGroceryReview", () => {
     const transport = jest.fn(async () => new Promise<Response>(() => undefined));
     const pending = readGroceryReview(params, controller.signal, transport);
     const rejected = expect(pending).rejects.toThrow("Grocery review unavailable");
+    await Promise.resolve();
     controller.abort();
     await rejected;
     expect(transport).toHaveBeenCalledTimes(1);

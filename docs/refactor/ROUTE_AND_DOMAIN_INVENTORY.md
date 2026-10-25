@@ -1477,3 +1477,17 @@ snapshot/keyset pagination, byte-bounded transport or backend index evidence.
 Regression source is authored/adapted but unrun. No QA/test/check/build/browser/
 CI/API/database/native/provider/push/merge/deploy ran. Full #460/#134 acceptance
 remains open.
+
+## Shared bounded recipe read transport — 2026-10-24 (source only)
+
+Latest bounded source work reuses shared runOwnedForeground and bounded JSON
+decoding for recipe picker, grocery review, saved-recipe reuse and prepared-recipe
+history reads (#460/#134). This replaces two duplicated deadline implementations;
+reuse/history now settle ignored-abort header/body stalls at their existing10s
+limit, picker/review retain15s. One1MiB response limit streams where supported;
+JSON-only bridges are checked after allocation, not pre-allocation protection.
+Canonical endpoint/schema/ID matching, stored history, selection and explicit
+retry remain; no write/provider/reimport or current-recipe history fallback.
+Regression source is authored/adapted but unrun. No QA/test/check/build/browser/
+CI/API/database/native/provider/push/merge/deploy ran. Original runtime/isolation/
+responsive/native and complete recipe acceptance remain open.
