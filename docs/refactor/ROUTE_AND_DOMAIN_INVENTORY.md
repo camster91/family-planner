@@ -3064,3 +3064,15 @@ No User FK/member-owned slot or text/payload/credential field is introduced.
 Six source cases authored/unrun; DDL repeat/immutability, real transaction/FK/
 concurrency/rollback/export/isolation and new generated types remain unverified.
 N1 transition producer integration and N2–N5 remain open. No QA/DB/release ran.
+
+
+### Notification N1 chore-birth source guard — 2026-10-25
+
+An internal source adapter composes dormant admission with the actual canonical
+new account-assigned chore's DB birth generation/time and fixed birth transition,
+explicit original deadline, current feature and locked source/material/erasure
+checks. It does not change generation semantics, invent profile credentials or
+retroactively adopt old chores. Source cases authored/unrun. No existing producer
+uses it until N2 can atomically admit recipient decisions and replace legacy
+notification sending without a shadow-event double send. All PG/lifecycle/role/
+receipt/producer/dispatch acceptance remains; no QA/data/release action ran.

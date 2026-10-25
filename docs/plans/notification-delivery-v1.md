@@ -214,3 +214,32 @@ FK/erasure/export, concurrency/collision, rollback and isolation remain
 unverified. New Prisma types are ungenerated. N1 canonical producer transition
 persistence/adoption remains unfinished, and N2–N5 are not implemented by this
 primitive. Existing delivery and fresh-mutation fanout guards remain unchanged.
+
+
+## N1 chore-creation source adapter — 2026-10-25
+
+`chore-create-notification-event.ts` now authors the first internal source guard.
+It takes only the actual newly created row from the canonical parent/account
+creation transaction and an explicit original reviewed dispatch deadline. The
+existing DB-generated `Chore.responsibility_generation` is reused only as immutable
+birth continuity, not consent/actor authority. Existing SQL preserves that
+generation across edits; this adapter never writes it or invents it from an ID.
+The fixed `created` transition is birth-only per source generation; later
+reassignment/recompletion needs its own accepted transition identity.
+
+The adapter requires current parent/account and matching creation family/creator,
+then composes generic admission with Family FOR SHARE/current chores feature and
+Chore FOR UPDATE checks. Generation, birth time, original account assignee,
+creator, pending status and erasure tombstone must still match. No retroactive
+series/history adoption or profile-as-login is allowed. Invalid local inputs or
+unavailable state hold; full generic admission still validates canonical dates,
+original principal, dispatch window and immutable event reuse.
+
+Source cases cover canonical identity derivation, changed assignee/generation/
+birth/status/erasure, disabled feature and unsupported local contexts; all unrun.
+This helper is intentionally not wired into `createPersonChore` yet: N2 recipient
+admission/dispatch is unfinished, and shadow recording followed by the legacy
+sender must not later deliver twice. Existing fresh-mutation notification guards
+remain untouched. Wire the canonical effect+event+recipient decision+receipt
+together when N2 can replace the old send in one reviewed slice. No flag, schema,
+provider or deadline policy is activated; no QA/DB/release action ran.
