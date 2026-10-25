@@ -52,17 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work couples personal list-item edits/ticks and their
-keyed successful HTTP response in one transaction (#135/#134). Current personal
-authority precedes the scoped receipt lock; a completed compatible response is
-returned before item/version lookup. Missing or malformed completed receipts hold
-without a second item write. Receipt storage failure escapes the transaction;
-first-result Dates retain existing best-effort section-trip tracking, while replay
-uses stored JSON and records no new trip. No-key/device entry, existing request
-hash/action/version/queue-owner policies and conflict responses remain. Regression
-and guarded disposable-PostgreSQL source authored but unrun. No QA/test/check/
-build/browser/CI/API/database/provider/native/push/merge/deploy ran. Real rollback,
-concurrency, queue/lifecycle/device and release acceptance remain open.
+Latest bounded source work renews authority for personal list-item deletion
+inside its transaction (#134/#135). Both REST and installed-client routes use
+one canonical wrapper: current User/session/role/household and list feature are
+checked before a household-scoped item lock and the existing delete primitive.
+Parent-only policy remains, and the delete predicate itself repeats household
+ownership. Missing/foreign/repeat delete remains404; installed-client deprecation
+headers and existing pre-auth/device refusals remain. No queue, tombstone schema,
+Undo, new permission or activation is introduced. Session-generation/role/family
+race source cases for both routes are authored but unrun. No QA/test/check/build/
+browser/CI/API/database/provider/native/push/merge/deploy ran. Actual transactional
+lifecycle contention, isolation, rollback and original issue acceptance stay open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

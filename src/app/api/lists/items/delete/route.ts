@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
-import { deleteHouseholdListItem } from '@/lib/list-item-delete'
+import { deletePersonListItem } from '@/lib/list-item-delete'
 import { DEPRECATED_SINCE_289, markDeprecated } from '@/lib/deprecation'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
  * DELETE /api/lists/items/delete?itemId=<id>. Deprecated (route inventory F-6,
  * #289): the web app calls `DELETE /api/lists/items/[id]`. Kept for installed
  * Android builds until the ADR-0004 old-client review; both routes delete
- * through `deleteHouseholdListItem`. Every response adds a `Deprecation`
+ * through `deletePersonListItem`. Every response adds a `Deprecation`
  * header (and a `Link` to the REST route when `itemId` is given); status codes
  * and bodies are those of the REST route.
  */
@@ -39,11 +39,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Another household's item is the same 404 as a missing one.
-    if (!(await deleteHouseholdListItem(prisma!, itemId, auth.user.family_id))) {
-      return markDeprecated(NextResponse.json({ error: 'Item not found' }, { status: 404 }), deprecated)
-    }
-
-    return markDeprecated(NextResponse.json({ success: true }), deprecated)
+    const result = await deletePersonListItem(prisma!, itemId, {
+      familyId: auth.user.family_id, addedBy: auth.user.id,
+      role: auth.user.role, generation: auth.payload?.tv ?? 0,
+    })
+    return markDeprecated(NextResponse.json(result.body, {
+      status: result.status, headers: { 'Cache-Control': 'private, no-store' },
+    }), deprecated)
   } catch (error) {
     logRouteError('DELETE /api/lists/items/delete', error, getRequestId(request))
     return markDeprecated(NextResponse.json({ error: 'Internal server error' }, { status: 500 }), deprecated)

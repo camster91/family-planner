@@ -1666,3 +1666,13 @@ tracking remains post-commit/best effort, and stored replay does not repeat it.
 Existing action/hash/key/queue-owner/version/body policies remain; no schema or
 activation. Regression/guarded PostgreSQL cases authored/unrun; issue acceptance
 and actual rollback/concurrency/lifecycle/browser/device proof remain open.
+
+### Personal list-item deletion lifecycle — 2026-10-24 (#134/#135)
+
+REST/deprecated item delete now delegate to `deletePersonListItem`; existing
+household delete remains the shared data primitive. Current actor/feature/parent
+checks, scoped row lock and deletion share one transaction; final delete predicate
+also includes household. Existing legacy wire/deprecation, missing/foreign404,
+repeat404 and device refusal policies remain. No queue/tombstone/schema/activation.
+Generation/role/family race regression source adapted/authored but unrun. All real
+isolation, lifecycle locking/rollback, native and issue acceptance remain open.

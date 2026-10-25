@@ -12,13 +12,13 @@ jest.mock('@/lib/feature-gate-server', () => ({ featureGate: (...args: unknown[]
 
 jest.mock('@/lib/list-item-delete', () => {
   const actual = jest.requireActual('@/lib/list-item-delete')
-  return { deleteHouseholdListItem: jest.fn(actual.deleteHouseholdListItem) }
+  return { deletePersonListItem: jest.fn(actual.deletePersonListItem) }
 })
 
 import { DELETE as deleteRest } from '../items/[id]/route'
 import { DELETE as deleteLegacy } from '../items/delete/route'
 import { GET as getItems } from '../items/route'
-import { deleteHouseholdListItem } from '@/lib/list-item-delete'
+import { deletePersonListItem } from '@/lib/list-item-delete'
 import { DEPRECATED_SINCE_289 } from '@/lib/deprecation'
 import {
   db,
@@ -36,7 +36,7 @@ const rest = (as: UserKey | null, id: string) =>
 const legacy = (as: UserKey | null, itemId: string) =>
   deleteLegacy(req({ as, method: 'DELETE', path: '/api/lists/items/delete', query: { itemId } }))
 
-const helper = deleteHouseholdListItem as jest.Mock
+const helper = deletePersonListItem as jest.Mock
 
 beforeEach(() => {
   db.reset()
@@ -46,6 +46,24 @@ beforeEach(() => {
 })
 
 describe('DELETE /api/lists/items/[id] — two households', () => {
+  it.each([
+    [rest, 'generation'], [legacy, 'generation'],
+    [rest, 'role'], [legacy, 'role'],
+    [rest, 'household'], [legacy, 'household'],
+  ] as const)('renews authority after the outer gate before deleting (%s, %s)', async (remove, change) => {
+    mockGate.mockImplementationOnce(async () => {
+      const current = db.find('user', 'parent-a')!;
+      if (change === 'generation') current.token_version = 1;
+      if (change === 'role') current.role = 'teen';
+      if (change === 'household') current.family_id = 'family-B';
+      return null;
+    });
+    const response = await remove('parentA', 'item-a');
+    expect(response.status).toBe(401);
+    expect(db.find('listItem', 'item-a')).toBeTruthy();
+    expect(writesTo('listItem')).toHaveLength(0);
+  });
+
   it('401 without a session, and writes nothing', async () => {
     expect((await rest(null, 'item-a')).status).toBe(401)
     expect(db.writes).toHaveLength(0)
@@ -78,10 +96,10 @@ describe('DELETE /api/lists/items/[id] — two households', () => {
     const res = await rest('parentA', 'item-a')
     expect(res.status).toBe(200)
     expect(await bodyOf(res)).toEqual({ success: true })
-    expect(helper).toHaveBeenCalledWith(expect.anything(), 'item-a', 'family-A')
+    expect(helper).toHaveBeenCalledWith(expect.anything(), 'item-a', { familyId: 'family-A', addedBy: 'parent-a', role: 'parent', generation: 0 })
     expect(db.find('listItem', 'item-a')).toBeFalsy()
     expect(db.find('listItem', 'item-b')).toBeTruthy()
-    expect(writesTo('listItem').map((w) => w.args.where)).toEqual([{ id: 'item-a' }])
+    expect(writesTo('listItem').map((w) => w.args.where)).toEqual([{ id: 'item-a', list: { family_id: 'family-A' } }])
     // A repeat is a plain 404: the row is gone.
     expect((await rest('parentA', 'item-a')).status).toBe(404)
   })
@@ -114,7 +132,7 @@ describe('DELETE /api/lists/items/delete (deprecated, kept for installed Android
     expect(ok.status).toBe(200)
     expect(await bodyOf(ok)).toEqual({ success: true })
     expect(helper).toHaveBeenCalledTimes(1)
-    expect(helper).toHaveBeenCalledWith(expect.anything(), 'item-a', 'family-A')
+    expect(helper).toHaveBeenCalledWith(expect.anything(), 'item-a', { familyId: 'family-A', addedBy: 'parent-a', role: 'parent', generation: 0 })
     expect(db.find('listItem', 'item-a')).toBeFalsy()
   })
 

@@ -591,7 +591,7 @@ review of installed Android clients (which builds still call the route, per requ
 | Route | Status | Contract |
 | --- | --- | --- |
 | `DELETE /api/lists/items/[id]` | New (REST form) | Parent only; `lists` feature on; the item's list must be in the caller's household. 200 `{ success: true }`; 401; 403 teen/child (`Only parents can perform this action`), lists off, or a paired shared device (`DEVICE_WRITE_NOT_ALLOWED`, before person auth); 404 `{ error: 'Item not found' }` for a missing item and for another household's item alike. Not idempotent-keyed: a repeat is 404. The web list page calls it. |
-| `DELETE /api/lists/items/delete?itemId=` | Deprecated, kept | Installed Android builds call it. Same helper (`deleteHouseholdListItem`) and the same answers as the REST route, plus 400 `Missing itemId`; `Link` names `/api/lists/items/<itemId>`. Change in #289: another household's item is now the same 404 as a missing one (was 403). A paired device with only its device cookie still gets 401, as before. |
+| `DELETE /api/lists/items/delete?itemId=` | Deprecated, kept | Installed Android builds call it. Same personal transactional helper (`deletePersonListItem`, delegating to `deleteHouseholdListItem`) and the same answers as the REST route, plus 400 `Missing itemId`; `Link` names `/api/lists/items/<itemId>`. Change in #289: another household's item is now the same 404 as a missing one (was 403). A paired device with only its device cookie still gets 401, as before. |
 | `GET /api/lists/items?listId=` | Deprecated, kept | No in-app caller (the list page reads on the server); only `e2e/`. Body unchanged (see "Grocery store sections"). |
 | `GET /api/admin/imports` | Kept (operator) | Parent only. `{ jobs: [{ id, source_app, source_version, status, dry_run, started_at, completed_at, summary, error }] }`, the caller's household's last 50 `ImportJob` rows, newest first. For operators checking an import (`POST /api/admin/imports/[source]`); no page calls it. |
 | `GET`/`POST /api/projects/[id]/tasks` | Wired | "Add task" on an active project's page posts `{ title (1–200), due_date?: 'YYYY-MM-DD', assigned_to?: user id }`; 201 `{ task }` (with `assignee`). Any household member. Since #289 the project and the assignee are looked up with the caller's household: another household's project, or a member of another household as assignee, is the same 404 as a missing one (was 403). 400 on a completed or archived project. |
@@ -1282,3 +1282,17 @@ isolation and paired-device tests are authored/adapted but unrun. No API/databas
 test/check/build/browser/native/provider or release was executed; mock transactions
 do not prove actual PostgreSQL isolation, rollback or deadlock behavior. Full
 #134/#136 acceptance remains open.
+
+### Personal list-item deletion authority — 2026-10-24 (#134/#135, local source)
+
+Both REST and deprecated installed-client delete routes now renew current personal
+session generation, role, household and list-feature permission under User then
+household locks in the canonical delete transaction. Parent-only authorization
+precedes a scoped item row lock and the shared delete primitive; its final delete
+predicate repeats list household ownership. Missing/foreign/repeated deletion is
+still404. Existing outer refusals and legacy deprecation headers remain; successful
+transactional responses use private/no-store. No offline queue, keyed receipt,
+tombstone/Undo/schema or new device permission. Generation/role/household-change
+race cases for both routes authored/unrun. PostgreSQL contention/rollback/isolation,
+installed-device and original full acceptance remain unverified; no execution or
+release occurred.
