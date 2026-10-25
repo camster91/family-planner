@@ -54,12 +54,12 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): personal board settings now bound
-read/search15s, save45s, deliberate photo upload90s and replies2MiB, with EN/ES
-uncertain-change feedback and explicit load retry. Transport generations retire
-old views/save/search/upload results and preserve custom tablet interface/error
-semantics. Source cases authored UNRUN. No QA/checks/build/browser/CI/API/DB/
-provider/push/merge/deploy; #499/#135 remain open.
+Latest bounded source work (2026-10-25): refreshed all39 open issue records and
+corrected stale40-row receipt metadata with named backup. Current directory now
+states five completed support-document criteria and separates unfinished unlink/
+profile domains, finance promotion, native/wake and screen evidence from deferred
+QA and external decisions. No issue closure, source-complete or acceptance claim.
+No QA/checks/build/browser/CI/API/DB/provider/push/merge/deploy ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
@@ -102,7 +102,7 @@ The unchanged older release/checkpoint notes below are historical evidence.
 | #565 — Retry recovered earlier queue stores without losing pending changes | Existing source; acceptance pending | Codex | Retain recovered-store fault/concurrency/rollback acceptance under #135/#473. |
 | #564 — Prevent stale pending-work resurrection after failed storage purge | Existing source; acceptance pending | Codex | Retain retirement/generation fault/concurrency/rollback acceptance under #135/#473. |
 | #563 — Prototype opt-in local fridge wake commands and platform voice actions | Deferred hardware feasibility | Cameron + Codex | Choose foreground/platform voice scope and target hardware before wake-word work. |
-| #557 — Verified account linking for email-free household profiles | Linking source; standalone unlink unfinished | Codex | Implement the source-backed unlink/rejoin domain/provenance/credit contract, then original ownership/replay/rollback acceptance. |
+| #557 — Verified account linking for email-free household profiles | Linking source; unlink policy/writer unfinished | Cameron field-ownership decision; Codex writer | Resolve former-login deletion versus independent-profile retention, then implement unlink/rejoin without guessing provenance/credit/erasure policy. |
 | #499 — All-feature UI/UX: onboarding, sheets, Today, Explore and role/device views | Connected UI source reconstructed; acceptance pending | Codex; Cameron product review | Use the selected Glance and act plan and canonical full-feature/role/device criteria; no new design restart. |
 | #480 — Support email-free household profiles without granting login identity | Identity compatibility incomplete | Codex | Finish profile-domain compatibility and lifecycle without granting login authority to a profile. |
 | #473 — Define native web/API compatibility and all-device release capability contract | Capability/fallback contract authored; acceptance pending | Codex | Retain current/previous-client, old-operation, forward/rollback and physical-device evidence before distribution. |
@@ -116,7 +116,7 @@ The unchanged older release/checkpoint notes below are historical evidence.
 | #372 — Finish the Herewoven rename: legal pages, emails, Settings and the sender name | Legal/brand choice pending | Cameron | Choose legal entity/copyright and mail sender identity before modifying legal or sender copy. |
 | #363 — [Owner] Decide on Coolify Auto Deploy | Deployment policy choice pending | Cameron/operator | Record whether the existing Auto Deploy policy remains enabled; no setting change in this goal. |
 | #254 — [Data] Contract legacy meal/shopping tables (ADR-0007) — gated | Deferred destructive cleanup | Codex; Cameron approval | Wait for zero legacy use and retained recovery evidence before requesting explicit destructive cleanup approval. |
-| #146 — Operations and support: backups, proxy, mailbox and incident readiness | Three documentation criteria complete; operations pending | Cameron/operator + Codex | Use the 20-case guide and incident ownership; retain recovery/privacy/dashboard/backup/communications/scaling work. |
+| #146 — Operations and support: backups, proxy, mailbox and incident readiness | Five documentation criteria complete; operations pending | Cameron/operator + Codex | Use the 20-case guide and incident ownership; retain recovery/privacy/dashboard/backup/communications/scaling work. |
 | #145 — [Developer Platform] Harden CI/CD, environments, migrations and release automation | Release engineering retained | Codex | Keep actual CI/source/image/recovery identity contracts aligned with the current deployment route. |
 | #144 — [AI Quality] Add evaluation, grounding, cost and safety gates for household AI | AI quality gate retained | Codex | Preserve grounding/evaluation/cost/privacy criteria independently of AI product feature work. |
 | #142 — Localization: Settings, shared-device setup, dates, units and layouts | Localization source; acceptance pending | Codex | Own the transferred Settings and device-pairing locale matrix with original date/unit/native requirements. |
@@ -137,6 +137,42 @@ The unchanged older release/checkpoint notes below are historical evidence.
 | #107 — [P1][Beta] Recruit, consent, and onboard five design-partner households | Recruitment/consent input pending | Cameron | Separately authorize and consent five independent households; no external recruitment in this goal. |
 | #104 — [P0][Migration] Reconcile approved ChoreChamps, Meal Planner, and Budget exports | Export/identity input pending | Cameron + Codex | Provide approved legacy exports/identity maps or explicitly record their disposition; never fabricate source data. |
 | #103 — [P0][Email] Configure and prove verification and password recovery delivery | Email provider/delivery input pending | Cameron/operator + Codex | Approve sender/domain/secret/test inbox and later prove real verification/recovery delivery through the runbook. |
+
+### Remaining scope and next gates — 2026-10-25
+
+The fresh GitHub read contains39 open records. The local receipt previously kept
+40 rows and an old remaining=40 alongside remainingOpenIssues=39; a named backup
+now preserves that old receipt, and all current fields/rows match the39-record
+snapshot beside the checkout. No issue was closed by this reconciliation.
+
+Unfinished implementation remains explicit, rather than being renamed QA:
+
+- #557: standalone unlink field ownership is awaiting Cameron's answer about
+  whether deleting a former login retains an independent active family profile.
+  The proposed former-association and dormant routine adapters do not implement
+  the final unlink writer. No erasure policy is inferred from elapsed time.
+- #480: the80-relationship disposition is published, but rotation, credit/points/
+  rewards and remaining member-owned domains still need bounded compatibility
+  work and policy/evidence. A selected profile never grants login authority.
+- #134/#499/#104: FIN-0 review/bridge foundations do not implement approved source
+  mapping/promotion or FIN-1–FIN-7. Preserve source approval, exact currency/date/
+  provenance and per-slice gates before any write/activation; no archive is
+  automatically turned into a native finance screen.
+- #563/#465/#138/#473: platform wake/native delivery requires its chosen hardware,
+  capability/privacy/signing inputs and original lifecycle/old-client proof.
+  Foreground phrase parsing/plans are not a physical wake detector or a signed
+  accepted application.
+- #499: source screen enumeration and selected composition are present; original
+  mockup assets are unavailable here and fine-grained frames/role/state/device
+  coverage are not complete. The dated manifest is not visual acceptance.
+
+The current no-QA instruction still defers tests/checks/build/browser/CI and
+release. Source-ready findings remain separate from those gates. Provider/legal/
+OAuth/sender/DNS/deployment-policy, approved exports, production restore, real
+consented beta and commercial evidence stay with their named owners. Do not turn
+an unverified candidate, missing owner input or planned future feature into a
+completed issue merely to reduce the count. Use each canonical issue's original
+criteria and the current local source checkpoint; no new duplicate tracker.
 
 ### Retired tracker map
 

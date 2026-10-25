@@ -54,12 +54,12 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): personal board settings now bound
-read/search15s, save45s, deliberate photo upload90s and replies2MiB, with EN/ES
-uncertain-change feedback and explicit load retry. Transport generations retire
-old views/save/search/upload results and preserve custom tablet interface/error
-semantics. Source cases authored UNRUN. No QA/checks/build/browser/CI/API/DB/
-provider/push/merge/deploy; #499/#135 remain open.
+Latest bounded source work (2026-10-25): refreshed all39 open issue records and
+corrected stale40-row receipt metadata with named backup. Current directory now
+states five completed support-document criteria and separates unfinished unlink/
+profile domains, finance promotion, native/wake and screen evidence from deferred
+QA and external decisions. No issue closure, source-complete or acceptance claim.
+No QA/checks/build/browser/CI/API/DB/provider/push/merge/deploy ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
