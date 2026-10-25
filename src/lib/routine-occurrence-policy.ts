@@ -75,6 +75,8 @@ export type RoutineVisibilityReadScope = {
 };
 /** Filters execute before ordinary paging/caps. Scope must cover the caller's
  * complete candidate set; never derive it from already-truncated result rows.
+ * An iterative visible-page reader may scope each candidate batch by ID only
+ * when it continues past hidden rows until its visible cap or true exhaustion.
  * Root metadata still joins independently of the occurrence's selected dates. */
 export async function hiddenRoutineOccurrenceIds(
   db: Reader,

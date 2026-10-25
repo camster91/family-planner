@@ -2,6 +2,7 @@ import {
   hiddenRoutineOccurrenceIds,
   scheduledOnceRoutineOccurrenceIds,
 } from "@/lib/routine-occurrence-policy";
+import { readVisibleChoreRows } from "@/lib/chore-visible-read";
 import { publicChoreData } from "@/lib/chore-public-data";
 import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
 import { getServerUser } from "@/lib/supabase/server";
@@ -13,6 +14,7 @@ import {
   omitChorePoints,
 } from "@/lib/gamification-visibility";
 import {
+  afterChoreCursor,
   CHORE_HISTORY_ORDER,
   CHORE_HISTORY_PAGE_SIZE,
   choreOrderBy,
@@ -64,21 +66,20 @@ export default async function ChoresPage() {
     creator: { select: { name: true } },
   } as const;
   const queries = familyId ? currentChoreQueries(familyId) : null;
-  // Metadata can be scoped to the same open-row window before the page cap.
-  // Completed review/history rows are never hidden by this policy.
-  const hiddenRoutineIds = familyId && queries
-    ? await hiddenRoutineOccurrenceIds(prisma!, familyId, {
-        from: new Date(Math.min(...queries.open.where.OR.map(filter => filter.due_date.gte.getTime()))),
-      })
-    : [];
   const [open, awaitingCheck, history] = queries
     ? await Promise.all([
-        prisma!.chore.findMany({
-          ...queries.open,
-          where: {
-            AND: [queries.open.where, { id: { notIn: hiddenRoutineIds } }],
-          },
-          include,
+        readVisibleChoreRows({
+          take: queries.open.take,
+          order: "desc",
+          read: (after, batchSize) => prisma!.chore.findMany({
+            where: after
+              ? { AND: [queries.open.where, afterChoreCursor(after, "desc")] }
+              : queries.open.where,
+            include,
+            orderBy: queries.open.orderBy,
+            take: batchSize,
+          }),
+          hidden: (ids) => hiddenRoutineOccurrenceIds(prisma!, familyId!, { ids }),
         }),
         prisma!.chore.findMany({ ...queries.awaitingCheck, include }),
         prisma!.chore.findMany({

@@ -1,8 +1,8 @@
 /**
  * Opt-in paging for `GET /api/chores` (provisional decision O-19).
  *
- * Without `limit` the route returns every chore exactly as before, so installed
- * Android builds are unaffected. With `?limit=N` (1–200) it returns at most N
+ * Without `limit` the legacy response shape remains, capped at the latest
+ * CHORE_UNPAGED_MAX visible chores. With `?limit=N` (1–200) it returns at most N
  * chores ordered by due date then id, plus `nextCursor` (an opaque string to
  * pass back as `?cursor=` for the next page, or null on the last page).
  * `?order=desc` (with `limit`) walks newest first instead; the default `asc`

@@ -5,6 +5,7 @@ import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { hiddenRoutineOccurrenceIds, scheduledOnceRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 import { refuseScheduledRoutineLegacyWrite, RoutineScheduleLegacyWriteError } from "@/lib/routine-schedule-legacy";
 import { choreJson } from "@/lib/chore-json";
+import { readVisibleChoreRows } from "@/lib/chore-visible-read";
 import { withRouteTelemetry } from '@/lib/route-telemetry'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -100,14 +101,7 @@ async function handleGET(request: NextRequest) {
     const range = parseChoreDateRange(searchParams)
     if (!range.ok) return apiError(400, 'INVALID_QUERY', range.error, { requestId: getRequestId(request) })
 
-    // Completed/verified history is never removed by the open-occurrence
-    // visibility policy, so those pages do not need its metadata scan.
-    const hiddenRoutineIds = status === 'completed' || status === 'verified'
-      ? []
-      : await hiddenRoutineOccurrenceIds(prisma!, auth.user.family_id, {
-          from: range.from, before: range.toExclusive,
-        })
-    const where: Record<string, unknown> = { family_id: auth.user.family_id, id: { notIn: hiddenRoutineIds } }
+    const where: Record<string, unknown> = { family_id: auth.user.family_id }
     if (status) where.status = status
     if (assigned_to) where.assigned_to = assigned_to
     if (range.from || range.toExclusive) {
@@ -122,22 +116,27 @@ async function handleGET(request: NextRequest) {
       assignee: { select: { id: true, name: true, avatar_url: true, family_id: true } },
       creator: { select: { id: true, name: true } },
     }
-    const rows = paging.paged
+    const order = paging.paged ? paging.order : 'desc'
+    const take = paging.paged ? paging.limit + 1 : CHORE_UNPAGED_MAX
+    // History bypasses the open-occurrence policy. Other reads fill the visible
+    // cap through bounded candidate+metadata batches, including undated ranges.
+    const candidates = status === 'completed' || status === 'verified'
       ? await prisma!.chore.findMany({
-          where,
-          include,
-          orderBy: choreOrderBy(paging.order),
-          take: paging.limit + 1,
+          where, include, orderBy: choreOrderBy(order), take,
         })
-      : // Unpaged: the latest CHORE_UNPAGED_MAX by due date, returned oldest first.
-        (
-          await prisma!.chore.findMany({
-            where,
+      : await readVisibleChoreRows({
+          take,
+          order,
+          read: (after, batchSize) => prisma!.chore.findMany({
+            where: after ? { AND: [where, afterChoreCursor(after, order)] } : where,
             include,
-            orderBy: [{ due_date: 'desc' }, { id: 'desc' }],
-            take: CHORE_UNPAGED_MAX,
-          })
-        ).reverse()
+            orderBy: choreOrderBy(order),
+            take: batchSize,
+          }),
+          hidden: (ids) => hiddenRoutineOccurrenceIds(prisma!, auth.user.family_id, { ids }),
+        })
+    // Installed unpaged clients still receive latest-visible rows oldest first.
+    const rows = paging.paged ? candidates : candidates.reverse()
 
     const hasMore = paging.paged && rows.length > paging.limit
     const chores = hasMore ? rows.slice(0, paging.limit) : rows

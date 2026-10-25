@@ -1,5 +1,26 @@
 # Route and domain inventory (#148)
 
+### Chore visibility before caps via bounded reads — 2026-10-24 (#134/#450)
+
+`chore-visible-read.ts` now fills visible caps/lookahead by iterating canonical
+candidate pages and ID-scoped `hiddenRoutineOccurrenceIds` reads. Both chores
+GET (dated/undated; paged/unpaged) and the SSR open/current reader use it. Every
+candidate and metadata batch is at most 200 IDs; visible retained rows remain
+bounded by the existing caps. Hidden rows do not consume the visible cap, and a
+hidden-only batch cannot end the page early. Errors propagate without a partial
+result. Database due-date/ID keysets keep the original public cursor and all
+household/status/assignee/date filters; private cursors only advance candidate
+reads. PostgreSQL retains ID tie collation; local checks reject repeated rows,
+backwards dates, invalid dates and oversized responses. Completed/verified API
+history retains its single bounded read; legacy responses remain latest-visible
+500 rows oldest first without a cursor. No public DTO/capability/write changes.
+Total work/latency can still grow across an all-hidden dense range. Today/other
+window/aggregate readers retain their current scoped helper; no full-query or
+latency acceptance is claimed. New unit source authored/unrun for dense hidden
+pages, ASC/DESC ties/continuation, legacy cap, all-hidden exhaustion, later read
+failure and protocol/bound guards. No QA/check/build/browser/DB/household/release
+ran. Original PostgreSQL query-plan/concurrency/isolation/recurrence criteria stay open.
+
 ### Dormant routine unlink batch preflight — 2026-10-24 (#557/#480)
 
 `prepareRoutineSubjectUnlinkBatch` now validates a supplied complete household
