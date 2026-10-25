@@ -363,3 +363,16 @@ is scoped to the current household rather than transferring former requests to
 an unrelated successor. Source discovery/projection/former-household cases authored
 or adapted only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
 deploy ran. Real FK/locking/rollback/lifecycle and wider erasure acceptance open.
+
+### Former invitation/pairing creator erasure — 2026-10-25 (#136/#450)
+
+Account-erasure source scopes invitation handover to the
+current household (#136/#450). Creator-owned invitations now join historical
+household discovery/ordered locks. Remaining creator-owned invitation/pairing
+requests are explicitly erased per locked household under their existing User
+Cascade policy, after current accepted/completed requests have been handed to
+the local successor. No former request transfers to another household's parent;
+other actors' requests and paired tablet sessions remain. Detached-account
+cleanup uses the same path. Exact-scope/current-versus-former source cases authored
+or adapted only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
+deploy ran. Real transaction/FK/concurrency and broader erasure acceptance open.

@@ -54,16 +54,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) reconciles retained device account
-references during erasure (#136/#450). Device/pairing actor/creator/elevation
-references now contribute historical households to the existing sorted lock set.
-Erasure clears only the exact account's plain actor slots and complete elevation
-overlay in each locked household, including detached/former contexts. Devices,
-sessions and other parents' references remain; completed pairing creator handover
-is scoped to the current household rather than transferring former requests to
-an unrelated successor. Source discovery/projection/former-household cases authored
+Latest bounded source work (2026-10-25) scopes invitation handover to the
+current household (#136/#450). Creator-owned invitations now join historical
+household discovery/ordered locks. Remaining creator-owned invitation/pairing
+requests are explicitly erased per locked household under their existing User
+Cascade policy, after current accepted/completed requests have been handed to
+the local successor. No former request transfers to another household's parent;
+other actors' requests and paired tablet sessions remain. Detached-account
+cleanup uses the same path. Exact-scope/current-versus-former source cases authored
 or adapted only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
-deploy ran. Real FK/locking/rollback/lifecycle and wider erasure acceptance open.
+deploy ran. Real transaction/FK/concurrency and broader erasure acceptance open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

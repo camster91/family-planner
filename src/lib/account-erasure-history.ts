@@ -6,7 +6,7 @@ export async function accountErasureHistoryHouseholds(
   tx: Prisma.TransactionClient,
   userId: string,
 ): Promise<string[]> {
-  const [messages, audits, devices, pairings] = await Promise.all([
+  const [messages, audits, devices, pairings, invites] = await Promise.all([
     tx.message.findMany({
       where: { OR: [{ sender_id: userId }, { read_by: { has: userId } }] },
       select: { family_id: true },
@@ -30,9 +30,12 @@ export async function accountErasureHistoryHouseholds(
       where: { OR: [{ created_by: userId }, { confirmed_by: userId }] },
       select: { family_id: true }, distinct: ["family_id"],
     }),
+    tx.familyInvite.findMany({
+      where: { created_by: userId }, select: { family_id: true }, distinct: ["family_id"],
+    }),
   ]);
   return [
-    ...new Set([...messages, ...audits, ...devices, ...pairings].map((row) => row.family_id)),
+    ...new Set([...messages, ...audits, ...devices, ...pairings, ...invites].map((row) => row.family_id)),
   ].sort();
 }
 /** All households are already locked. Do not append a new departure in old households. */
@@ -75,6 +78,11 @@ export async function eraseRetainedAccountHistoryInTx(
       where: { family_id: familyId, confirmed_by: user.id },
       data: { confirmed_by: null },
     });
+    // Current-household completed requests were handed to its successor
+    // before this step. Other creator-owned requests follow the existing User
+    // Cascade erasure policy explicitly, never a foreign-household handover.
+    await tx.devicePairing.deleteMany({ where: { family_id: familyId, created_by: user.id } });
+    await tx.familyInvite.deleteMany({ where: { family_id: familyId, created_by: user.id } });
     for (const column of ["created_by", "confirmed_by", "revoked_by"] as const)
       await tx.householdDevice.updateMany({
         where: { family_id: familyId, [column]: user.id }, data: { [column]: null },

@@ -657,3 +657,23 @@ it('erases former device parent references without replacing another parent or r
   expect(db.find('deviceSession', 'dsess-b')).toMatchObject({ revoked_at: null })
   expect(db.find('user', 'parent-b')).toBeDefined()
 })
+
+it('hands current accepted requests to the local successor and erases former creator requests without cross-household handover', async () => {
+  db.reset()
+  seedExtras()
+  addSecondParent()
+  const accepted = new Date('2026-10-24T12:00:00Z')
+  db.find('familyInvite', 'invite-a')!.accepted_at = accepted
+  db.find('devicePairing', 'pair-a')!.device_id = 'dev-a'
+  db.rows('familyInvite').push({ ...db.find('familyInvite', 'invite-a'), id: 'old-invite', family_id: FAMILY_B, token_hash: 'fabricated-old-invite' })
+  db.rows('devicePairing').push({ ...db.find('devicePairing', 'pair-a'), id: 'old-pair', family_id: FAMILY_B, code_hash: 'fabricated-old-pair', device_id: 'dev-b' })
+  await deleteMemberAccount('parent-a', deps().d)
+  expect(db.find('familyInvite', 'invite-a')).toMatchObject({ family_id: FAMILY_A, created_by: 'parent-a2' })
+  expect(db.find('devicePairing', 'pair-a')).toMatchObject({ family_id: FAMILY_A, created_by: 'parent-a2' })
+  expect(db.find('familyInvite', 'old-invite')).toBeUndefined()
+  expect(db.find('devicePairing', 'old-pair')).toBeUndefined()
+  expect(db.find('familyInvite', 'invite-b')).toMatchObject({ created_by: 'parent-b' })
+  expect(db.find('devicePairing', 'pair-b')).toMatchObject({ created_by: 'parent-b' })
+  expect(db.find('householdDevice', 'dev-b')).toMatchObject({ revoked_at: null })
+  expect(db.find('deviceSession', 'dsess-b')).toMatchObject({ revoked_at: null })
+})
