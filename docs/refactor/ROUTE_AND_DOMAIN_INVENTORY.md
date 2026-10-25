@@ -2244,3 +2244,17 @@ adapted, UNRUN. No QA/test/check/build/scanner/browser/CI/API/DB/native/provider
 push/merge/deploy ran.39 issues remain open; #566 planning closure is unchanged.
 
 Full FIN-0 source/remaining contract: docs/plans/finance-archive-product.md.
+
+Latest bounded source work (2026-10-25) extends default-off FIN-0 with one-record
+current-copy SHA-256 and recorded source-version details (#134/#499). The private
+reader renews the same parent owner, sizes/locks the exact archive row, transfers
+at most256KiB stored JSON text to Node for hashing, and never returns raw payload.
+Version tracing requires exact scoped source/target mapping and one completed
+non-dry-run same-household/app import job; unknown/ambiguous provenance is explicit.
+The EN/ES sheet loads details on demand with15second/32KiB bounds and exact-record/
+owner masking/retry. The fingerprint is not original-file proof or promotion
+approval; immutable source/money/date/receipt contracts remain open. Source cases
+are authored/adapted UNRUN. No QA/test/check/build/scanner/browser/CI/API/DB/native/
+provider/push/merge/deploy ran.39 issues remain open; no flag/storage was activated.
+
+Full current-copy and provenance limitations: docs/plans/finance-archive-product.md.

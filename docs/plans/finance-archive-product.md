@@ -224,3 +224,57 @@ private/shared/old-client, query-plan/isolation/concurrency, export/erasure and
 rollback acceptance. FIN-1–FIN-7 and source activation remain separate. No QA,
 tests, checks, scanner, browser, build, CI, API/DB request, migration, native,
 provider, push, merge or deployment ran.
+
+## FIN-0 current-copy fingerprint and recorded version — 2026-10-25
+
+The same gated read-only API now accepts an exclusive `recordId` query (no model/
+cursor/duplicate/extra parameters) for one exact parent-owned archive record.
+It renews the same original actor/family/generation/feature under the existing
+User -> household lifecycle locks. Missing and foreign-scope IDs share a generic
+RECORD_UNAVAILABLE result. No new write, storage, provider, URL fetch, schema,
+permission or environment activation is added.
+
+A metadata-first query takes a shared lock on the exact archive row and reads
+`octet_length(payload::text)`. Only a1..256KiB representation is transferred to
+Node, with the same size predicate in the body query and an exact UTF-8 byte
+length check before hashing. No prefix hash is returned. Oversized copies stay
+preserved and return too-large; absent/inconsistent/null body metadata returns
+unavailable. SHA-256 covers the CURRENT PostgreSQL JSON text representation,
+including that serializer's formatting, not original export-file bytes or an
+independently approved immutable source snapshot. It is a read-only inspection
+aid, not source validation, approval, money/date interpretation, optimistic
+version token, portable database-upgrade proof or a promotion receipt. No hash
+is persisted into ImportedRecord.checksum or substituted for missing provenance.
+SQL serialization/memory/locking/query latency remains unmeasured; the transfer
+cap does not bound PostgreSQL work on a large JSON value.
+
+Version metadata requires an exact scoped chain: archive family/app/model/source
+ID and canonical ID -> ImportedRecord family/app/model/source ID with target_model
+FinancialArchiveRecord and exact target_id -> ImportJob ID in the same family
+and source app. Only one matched completed non-dry-run job can contribute its
+recorded source_version. The query has a two-row ambiguity lookahead, bounded
+80-codepoint version text and a truncation marker. Missing/inconsistent/pending/
+dry-run provenance stays unavailable; multiple matches stay ambiguous. Neither
+the newest job, matching labels, another household nor a legacy nullable checksum
+supplies a guessed version. A completed import is not an approved #104 export.
+No starter account, raw job summary/error, source URL or raw payload is returned.
+
+The EN/ES source sheet loads details on demand with15second/32KiB response bounds.
+Close, record/page/filter replacement, unmount and original-owner changes abort
+or mask obsolete replies; a different record ID cannot supply the selected
+record's fingerprint/version. Detail failures retry the same exact record or
+refresh the collection. Access changes retire/mask the whole view; a missing
+record preserves explicit retry/refresh recovery. Copy distinguishes a stored
+fingerprint, recorded version, missing/ambiguous provenance and source approval.
+No raw JSON/HTML is rendered or sent to an assistant/provider.
+
+Source cases cover the known empty-object digest, no raw-body response, oversized
+payload refusal before body transfer, exact source/target/job household joins,
+missing/foreign records, pending/dangling/ambiguous provenance, matched sheet
+presentation and wrong-record detail refusal. They are authored/adapted UNRUN;
+no QA/tests/checks/scanner/build/browser/CI/API/DB/native/provider/push/merge/deploy
+ran. Full FIN-0 still needs immutable original source/version evidence, approved
+#104 identity/count reports, per-record schema/disposition and money/date mapping,
+Float/minor-unit compatibility and promotion provenance/receipt design, plus
+all actual frame/role/isolation/race/query-plan/serialization/rollback/export/
+erasure/native acceptance. The private gate remains default-off in source.

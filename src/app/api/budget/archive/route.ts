@@ -3,7 +3,7 @@ import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
 import { prisma } from '@/lib/prisma'
 import { FINANCE_ARCHIVE_OWNER_HEADER, financeArchiveOwner, type FinanceArchiveOwner } from '@/lib/finance-archive-contract'
-import { readFinanceArchivePage, parseArchivePaging, FinanceArchiveReadError, financeArchiveReviewEnabled } from '@/lib/finance-archive-read'
+import { readFinanceArchivePage, readFinanceArchiveDetails, parseArchivePaging, FinanceArchiveReadError, financeArchiveReviewEnabled } from '@/lib/finance-archive-read'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 export const dynamic = 'force-dynamic'
@@ -26,7 +26,13 @@ export async function GET(request: NextRequest) {
     } catch { return reply({ code: 'OWNER_CHANGED' }, 409) }
     const owner = { userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }
     if (expected.userId !== owner.userId || expected.familyId !== owner.familyId || expected.generation !== owner.generation) return reply({ code: 'OWNER_CHANGED' }, 409)
-    const page = parseArchivePaging(new URL(request.url).searchParams, owner.familyId)
+    const params = new URL(request.url).searchParams
+    if (params.has('recordId')) {
+      const id = params.get('recordId')!
+      if (params.getAll('recordId').length !== 1 || [...params.keys()].some(key => key !== 'recordId') || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) return reply({ code: 'INVALID_PAGE' }, 400)
+      return reply(await readFinanceArchiveDetails(prisma!, owner, id))
+    }
+    const page = parseArchivePaging(params, owner.familyId)
     return reply(await readFinanceArchivePage(prisma!, owner, page))
   } catch (error) {
     if (error instanceof FinanceArchiveReadError) return reply({ code: error.code }, error.code === 'INVALID_PAGE' ? 400 : error.code === 'OWNER_CHANGED' ? 409 : 404)

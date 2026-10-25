@@ -1,6 +1,6 @@
 /** Source cases only; unrun. Real SQL/query-plan/lock/privacy acceptance remains open. */
 import type { PrismaClient } from '@prisma/client'
-import { archiveCursor, parseArchivePaging, readFinanceArchivePage, FinanceArchiveReadError } from '../finance-archive-read'
+import { archiveCursor, parseArchivePaging, readFinanceArchivePage, readFinanceArchiveDetails, FinanceArchiveReadError } from '../finance-archive-read'
 jest.mock('../household-lock', () => ({ lockUser: jest.fn(async () => undefined), lockHousehold: jest.fn(async () => undefined) }))
 const owner = { userId: 'parent-a', familyId: 'family-a', generation: 3 }
 const savedFlag = process.env.FINANCE_ARCHIVE_REVIEW_ENABLED
@@ -45,4 +45,45 @@ it('returns metadata and explicit unknown-model counts with one bounded lookahea
   for (const [sql] of query.mock.calls) expect(sql.values).toContain(owner.familyId)
   expect(query.mock.calls[1][0].strings.join('?')).not.toMatch(/payload/)
   expect(query.mock.calls[1][0].strings.join('?')).toContain('LIMIT 25')
+})
+
+it('hashes one bounded stored JSON copy server-side and only exposes matched import version metadata', async () => {
+  const { db, query } = dbWith()
+  query.mockReset().mockResolvedValueOnce([{ bytes: 2 }]).mockResolvedValueOnce([{ body: '{}' }])
+    .mockResolvedValueOnce([{ job_present: true, completed: true, source_version: 'synthetic-v1', truncated: false }])
+  const result = await readFinanceArchiveDetails(db, owner, 'archive-a')
+  expect(result.fingerprint).toEqual({ state: 'available', bytes: 2, sha256: '44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a' })
+  expect(result.provenance).toEqual({ state: 'matched', sourceVersion: 'synthetic-v1', versionTruncated: false })
+  expect(result).not.toHaveProperty('body')
+  expect(result).not.toHaveProperty('payload')
+  const provenanceSql = query.mock.calls[2][0]
+  expect(provenanceSql.values).toEqual([owner.familyId, 'archive-a'])
+  expect(provenanceSql.strings.join('?')).toContain('j."family_id" = a."family_id"')
+  expect(provenanceSql.strings.join('?')).toContain('i."source_id" = a."source_id"')
+  expect(provenanceSql.strings.join('?')).toContain('i."target_id" = a."id"')
+})
+it('holds oversized JSON before body transfer without hashing a truncated prefix', async () => {
+  const { db, query } = dbWith()
+  query.mockReset().mockResolvedValueOnce([{ bytes: 262145 }]).mockResolvedValueOnce([])
+  expect((await readFinanceArchiveDetails(db, owner, 'archive-a')).fingerprint).toEqual({ state: 'too-large', bytes: 262145, sha256: null })
+  expect(query).toHaveBeenCalledTimes(2)
+  for (const [sql] of query.mock.calls) expect(sql.strings.join('?')).not.toContain('AS body')
+})
+it.each([
+  { rows: [{ job_present: false, completed: true, source_version: 'untrusted-version', truncated: false }], state: 'unavailable' },
+  { rows: [{ job_present: true, completed: false, source_version: 'untrusted-version', truncated: false }], state: 'unavailable' },
+  { rows: [{ job_present: true, completed: true, source_version: 'first', truncated: false }, { job_present: true, completed: true, source_version: 'second', truncated: false }], state: 'ambiguous' },
+])('does not guess source provenance when it is $state', async ({ rows, state }) => {
+  const { db, query } = dbWith()
+  query.mockReset().mockResolvedValueOnce([{ bytes: null }]).mockResolvedValueOnce(rows)
+  const result = await readFinanceArchiveDetails(db, owner, 'archive-a')
+  expect(result.provenance).toEqual({ state, sourceVersion: null, versionTruncated: false })
+  expect(result.fingerprint).toEqual({ state: 'unavailable', bytes: null, sha256: null })
+})
+it('uses the same unavailable result for missing or foreign-scope exact records', async () => {
+  const { db, query } = dbWith()
+  query.mockReset().mockResolvedValueOnce([])
+  await expect(readFinanceArchiveDetails(db, owner, 'absent-or-foreign')).rejects.toMatchObject({ code: 'RECORD_UNAVAILABLE' })
+  expect(query).toHaveBeenCalledTimes(1)
+  expect(query.mock.calls[0][0].values).toEqual([owner.familyId, 'absent-or-foreign'])
 })
