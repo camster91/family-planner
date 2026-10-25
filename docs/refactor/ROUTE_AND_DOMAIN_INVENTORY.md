@@ -1,5 +1,19 @@
 # Route and domain inventory (#148)
 
+### Food-plan launcher/AI/sheet copy source — 2026-10-24 (#142)
+
+`FoodPlanningLauncher.tsx`, `FoodAiProposal.tsx` and `FoodPlanningSheet.tsx`
+now use 120 typed EN/ES keys in route-owned `food-planning-entry.ts` and
+`food-planning-sheet.ts`. Existing language is retained; AI held-choice count
+uses scoped interpolation. Recovery/auth/role gating, sheet identity, owned
+navigation, requests, exact retries, confirmation/local-removal acknowledgement,
+quantities and callbacks remain canonical. Timing reads locale for formatting
+exact time choices; fold selection, wall-time resolution, departure interval
+and buffers remain untouched. No locale is added to an effect dependency.
+Thirty-four owned inventory records removed; no scanner or QA/check/build ran.
+Existing expiry/review callback cases remain unrun; no new copy-only tests.
+This source checkpoint does not establish full localization/AI/runtime acceptance.
+
 ### Food grocery-selection/save-details copy source — 2026-10-24 (#142)
 
 `FoodGroceryChoices.tsx` and `FoodSaveDetails.tsx` now use scoped typed EN/ES

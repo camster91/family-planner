@@ -3,7 +3,7 @@ import * as React from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 import { usePreparationActive } from "@/components/calendar/preparation/PreparationProvider";
-import { useTranslation } from "@/i18n";
+import { useFoodPlanningEntryText } from "@/i18n/food-planning-entry";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useFoodPlanningAccess } from "./FoodPlanningAccess";
 const Sheet = React.lazy(() => import("./FoodPlanningSheet"));
@@ -20,9 +20,8 @@ export function FoodPlanningLauncher({
     params = useSearchParams(),
     pathname = usePathname(),
     router = useDraftAwareRouter(),
-    preparing = usePreparationActive(),
-    { locale } = useTranslation(),
-    es = locale === "es";
+    preparing = usePreparationActive();
+  const text = useFoodPlanningEntryText();
   const location = params.get("foodPlan"),
     recovery = location === "recovery",
     requested = recovery || (location === "new" && access.enabled),
@@ -53,16 +52,10 @@ export function FoodPlanningLauncher({
           onClick={() => setOpen(true)}
         >
           {recovery
-            ? es
-              ? "Trabajo de comidas guardado"
-              : "Saved food work"
+            ? text("savedFoodWork")
             : mode === "prep"
-              ? es
-                ? "Planificar varios platos"
-                : "Plan several dishes"
-              : es
-                ? "Planificar varias comidas"
-                : "Plan several meals"}
+              ? text("severalDishes")
+              : text("severalMeals")}
         </button>
       )}
       {open && (
@@ -70,7 +63,7 @@ export function FoodPlanningLauncher({
           <React.Suspense
             fallback={
               <p role="status">
-                {es ? "Cargando planificador…" : "Loading planner…"}
+                {text("loadingPlanner")}
               </p>
             }
           >
