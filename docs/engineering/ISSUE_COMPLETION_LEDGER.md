@@ -54,18 +54,15 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) preserves shared-content ownership in
-its original household during account erasure (#136/#450). Canonical creator/
-nullable columns move to one shared module, retaining existing exports. Identifier-
-only discovery adds every referenced household to sorted locks; ListItem/ProjectTask
-use List/Project ownership. Current erasure and ordinary removal scope updates to
-their household. Former/detached shared content chooses an existing local parent,
-then local member, in deterministic order and rechecks that successor before
-updates. Missing successor holds the transaction with NO_SUCCESSOR; personal
-subjects retain their existing cascade policy. No records move between households
-or grant roles. Source ownership/discovery/current/detached/no-successor cases
-authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
-deploy ran. Real FK/locking/rollback/query plans and wider erasure acceptance open.
+Latest bounded source work (2026-10-25) completes translated recovery for
+historical shared-content ownership holds (#136/#142). The server returns409
+HISTORICAL_SUCCESSOR_REQUIRED only for a missing former-household successor;
+current-household NO_SUCCESSOR remains unchanged. The dialog renders owned EN/ES
+guidance, retains password/confirmation and does not claim deletion or replay it
+when locale changes. No former household name/ID is exposed. Existing older
+clients retain the generic server-text fallback. Locale/draft/no-replay source
+case authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/
+merge/deploy ran. Runtime rollback/compatibility/rendered and full acceptance open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

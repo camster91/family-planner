@@ -701,7 +701,7 @@ it('refuses historical shared-content erasure when its household has no local su
   addSecondParent()
   db.rows('family').push({ id: 'orphaned-history', name: 'Fabricated old household' })
   db.rows('pinnedNote').push({ ...db.find('pinnedNote', 'note-a'), id: 'old-orphan-note', family_id: 'orphaned-history' })
-  await expect(deleteMemberAccount('parent-a', deps().d)).rejects.toMatchObject({ code: 'NO_SUCCESSOR', status: 409 })
+  await expect(deleteMemberAccount('parent-a', deps().d)).rejects.toMatchObject({ code: 'HISTORICAL_SUCCESSOR_REQUIRED', status: 409 })
   expect(db.find('user', 'parent-a')).toBeDefined()
   expect(db.find('pinnedNote', 'old-orphan-note')).toMatchObject({ created_by: 'parent-a', family_id: 'orphaned-history' })
 })

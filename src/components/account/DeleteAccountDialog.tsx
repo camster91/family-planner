@@ -46,7 +46,7 @@ import {
 type Feedback =
   | {
       kind: "owned";
-      key: "noConnection" | "stillWorking" | "sessionEnded" | "nothingDeleted";
+      key: "noConnection" | "stillWorking" | "sessionEnded" | "nothingDeleted" | "historicalOwnerNeeded";
     }
   | { kind: "server"; text: string };
 
@@ -235,6 +235,8 @@ export default function DeleteAccountDialog({
     pendingRef.current = false;
     if (res.status === 401) {
       setError({ kind: "owned", key: "sessionEnded" });
+    } else if (res.status === 409 && data?.code === "HISTORICAL_SUCCESSOR_REQUIRED") {
+      setError({ kind: "owned", key: "historicalOwnerNeeded" });
     } else {
       const serverText =
         typeof data?.error === "string"

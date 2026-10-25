@@ -369,7 +369,7 @@ async function handOverHistoricalContentInTx(tx: any, userId: string, currentFam
     if (await needsHouseholdContentSuccessor(tx, familyId, userId)) {
       const successor = await tx.user.findFirst({ where: { family_id: familyId, role: 'parent', id: { not: userId } }, select: { id: true }, orderBy })
         ?? await tx.user.findFirst({ where: { family_id: familyId, id: { not: userId } }, select: { id: true }, orderBy })
-      if (!successor) throw new AccountDeletionError('NO_SUCCESSOR', 409, 'A former household needs a remaining member before your shared content can be preserved. Review that household before deleting your account.')
+      if (!successor) throw new AccountDeletionError('HISTORICAL_SUCCESSOR_REQUIRED', 409, 'A former household needs a remaining member before your shared content can be preserved. Review that household before deleting your account.')
       await handOverRetainedContentInTx(tx, familyId, userId, successor.id)
     }
     await clearHouseholdContentReferencesInTx(tx, familyId, userId)

@@ -1999,3 +1999,15 @@ subjects retain their existing cascade policy. No records move between household
 or grant roles. Source ownership/discovery/current/detached/no-successor cases
 authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
 deploy ran. Real FK/locking/rollback/query plans and wider erasure acceptance open.
+
+### Historical-content erasure hold response — 2026-10-25 (#136/#142)
+
+Account deletion source completes translated recovery for
+historical shared-content ownership holds (#136/#142). The server returns409
+HISTORICAL_SUCCESSOR_REQUIRED only for a missing former-household successor;
+current-household NO_SUCCESSOR remains unchanged. The dialog renders owned EN/ES
+guidance, retains password/confirmation and does not claim deletion or replay it
+when locale changes. No former household name/ID is exposed. Existing older
+clients retain the generic server-text fallback. Locale/draft/no-replay source
+case authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/
+merge/deploy ran. Runtime rollback/compatibility/rendered and full acceptance open.
