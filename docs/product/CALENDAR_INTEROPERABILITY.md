@@ -55,7 +55,8 @@ A malformed/ambiguous/unsupported stored rule refuses the entire feed with
 503/private-no-store `CALENDAR_FEED_INVALID_RULE`. No successful prefix, skipped
 series or one-off substitution is returned. Error text contains no stored rule,
 event identifier or token; stored data, event input schemas and identity are
-unchanged. Parent-facing identification/repair remains separate work. This is a
+unchanged. Parent-facing read-only identification is now authored below; canonical
+repair and its acceptance remain separate. This is a
 bounded parser/structure guard, not exhaustive cross-part recurrence semantics,
 Toronto/DST/provider acceptance or validation of every legacy rule format.
 
@@ -64,6 +65,42 @@ Reference inspected (read only):
 Its parser permits unknown parts and normalizes some interval values, so a parse
 alone is not the feed acceptance decision. Regression source is authored/unrun;
 no parser execution, QA, application/provider/database call or release ran.
+
+## Parent recurrence recovery — 2026-10-24, source only
+
+Settings → family → Calendar feed now has a lazy EN/ES “Review repeating events”
+overlay. It fetches only on a tap, uses the shared bounded foreground/JSON helper,
+and replaces each100-event diagnostic group rather than appending an ever-growing
+screen. Retry repeats the exact cursor; close/replacement/unmount cancels and
+invalidates ownership. A changed server-provided household scope remounts/clears
+the component. A stale expected-household response requires reloading Settings.
+
+`GET /api/calendar/feed/review` uses personal authentication/current parent role,
+including central paired-device refusal, and an explicit expected-household
+header. The header is a stale-context check, never authority. The current session
+supplies the actual household. An absent/malformed header refuses400; mismatch
+refuses409 before event reads. Opaque canonical cursors bind to that household;
+repeated/malformed/foreign cursors refuse. The endpoint selects101 candidate rows
+for100-row keyset groups, always private/no-store. Only affected event IDs, titles
+and local/connected/subscribed kind leave the server—never raw recurrence text,
+feed tokens, description, locations or provider credentials. No write method.
+
+Each group reports only its inspected count and unsupported rules. A clear group
+is not a complete feed check, count/byte capacity proof, provider/revocation test
+or snapshot of all roots. Concurrent edits can change later groups. Unusually
+wide legacy rule/title fields may still allocate during the DB read. Unsupported
+legacy DTO shapes fail the read instead of being presented as a clear result.
+
+Local events link to the existing `/dashboard/calendar/edit?id=...` editor;
+connected/subscribed events link to their Settings source controls and retain
+read-only ownership. There is no automatic rule replacement, deletion, save,
+provider call, connection activation or token rotation. Existing editor/source
+availability and repair semantics still require their original acceptance.
+
+Parent/role/household/cursor/minimal-DTO, changed-scope late response, EN/ES and
+canonical-link regression sources are authored/unrun. Device route inventory
+also records the new personal-only read. No API, browser, test, DB, provider or
+release execution occurred. Full #124/#139 acceptance remains open.
 
 ## Product modes and actual ownership
 

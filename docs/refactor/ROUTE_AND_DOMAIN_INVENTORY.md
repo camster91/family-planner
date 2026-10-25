@@ -1562,3 +1562,18 @@ rule repair and exhaustive cross-part/DST/provider semantics remain separate.
 Official parser source was read; no parser was executed. Regression source authored
 but unrun. No QA/test/check/build/browser/CI/API/database/provider/push/merge/deploy
 ran. Original calendar/isolation/native and all release acceptance remain open.
+
+## Parent recurrence repair discovery — 2026-10-24 (source only)
+
+Latest bounded source work connects private parent recurrence-repair discovery
+(#124/#499). A lazy Settings EN/ES overlay reads100-event groups through a new
+personal-parent API, with paired-device refusal, current-family scope header,
+family-bound cursors, no-store and minimal affected-event DTOs. No token/raw rule
+leaves the server. The shared foreground/body bounds, generation/cancel ownership,
+exact-cursor retry and stale-household reload preserve current context. Existing
+local editor/source-calendar links retain mutation/read-only authority; no repair,
+provider or token action happens automatically. Group results do not verify the
+full feed/capacity/provider state, and concurrent groups are not a snapshot.
+Regression and device-inventory source authored/adapted but unrun. No QA/test/
+check/build/browser/CI/API/database/provider/push/merge/deploy ran. Canonical repair,
+role/isolation/rendered/native and original acceptance remain open.

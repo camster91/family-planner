@@ -388,6 +388,7 @@ renders by `viewerRole`):
 | Delete Account | yes (household option when the only parent) | own account only | `DELETE /api/users`; household deletion is parent-only (403) |
 | AI capture key | yes | not rendered, not fetched | `/api/family/ai-settings`: parent only (403). The parent form is shown only with `CAPTURE_AI_SETTINGS_ENABLED` on, or when a key is already saved. |
 | Calendar feed link | yes | not rendered, not fetched | `/api/family/feed-token`: parent only (403) |
+| Recurrence export review | parent-only lazy Settings overlay | not rendered, not fetched | `/api/calendar/feed/review`: personal parent only; paired devices refused; expected household and cursor bound to current auth; no token/raw-rule DTO or writes |
 | Subscribed calendars, Connected calendars | yes | not rendered | `/api/calendar/subscriptions/**` add/edit/remove parent only; sync `PARENT_REQUIRED` |
 | Features, Import family apps, Recent changes links | yes | not rendered (pages redirect a teen) | `PATCH /api/family/features`, `/api/admin/imports`, `GET /api/audit`: parent only (403) |
 | Devices, Tablet PIN | yes (kill switch on) | not rendered; the server never reads PIN presence for a teen | `/api/family/devices/**`, `/api/users/elevation-pin`: `PARENT_REQUIRED` |

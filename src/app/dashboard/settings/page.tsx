@@ -66,6 +66,7 @@ export default async function SettingsPage({ searchParams = Promise.resolve({}) 
   return (
     <SettingsClient
       viewerRole={viewerRole}
+      calendarFeedReviewScope={parentFamilyId ?? undefined}
       sharedDevice={sharedDevice}
       betaMetrics={betaMetrics}
       calendarSync={viewerRole === 'parent' && isCalendarSyncEnabled()}

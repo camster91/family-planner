@@ -52,16 +52,18 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work adds a stored-recurrence feed guard (#124). Structural
-checks plus the existing lockedical.js parser refuse malformed/ambiguous/unsupported
-rules without expansion or normalization into a different interpretation. Supported
-rule order/values retain existing uppercase/prefix treatment. A bad rule holds the
-whole feed with503/no-store and a content-minimal code; no skipped series, successful
-prefix, one-off replacement, storage rewrite or input-schema change. Parent-facing
-rule repair and exhaustive cross-part/DST/provider semantics remain separate.
-Official parser source was read; no parser was executed. Regression source authored
-but unrun. No QA/test/check/build/browser/CI/API/database/provider/push/merge/deploy
-ran. Original calendar/isolation/native and all release acceptance remain open.
+Latest bounded source work connects private parent recurrence-repair discovery
+(#124/#499). A lazy Settings EN/ES overlay reads100-event groups through a new
+personal-parent API, with paired-device refusal, current-family scope header,
+family-bound cursors, no-store and minimal affected-event DTOs. No token/raw rule
+leaves the server. The shared foreground/body bounds, generation/cancel ownership,
+exact-cursor retry and stale-household reload preserve current context. Existing
+local editor/source-calendar links retain mutation/read-only authority; no repair,
+provider or token action happens automatically. Group results do not verify the
+full feed/capacity/provider state, and concurrent groups are not a snapshot.
+Regression and device-inventory source authored/adapted but unrun. No QA/test/
+check/build/browser/CI/API/database/provider/push/merge/deploy ran. Canonical repair,
+role/isolation/rendered/native and original acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -117,6 +117,7 @@ const PUBLIC_ROUTES: Record<string, number[]> = {
  * #253: shared devices stay read-only until #157 device writes exist).
  */
 const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
+  "GET /api/calendar/feed/review": [403],
   // Bulk prep records belong to signed-in planners, never paired device sessions.
   "GET /api/meals/bulk": [403],
   "POST /api/meals/bulk": [403],

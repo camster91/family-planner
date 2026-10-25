@@ -65,6 +65,7 @@ import {
 const LazyCalendarSubscriptionsSection = lazy(
   () => import("./CalendarSubscriptionsSection"),
 );
+const LazyCalendarFeedReview = lazy(() => import("./CalendarFeedReview"));
 const LazyCalendarSyncSection = lazy(() => import("./CalendarSyncSection"));
 const LazySharedDeviceSettings = lazy(() => import("./SharedDeviceSettings"));
 const LazyAiUsagePanel = lazy(() =>
@@ -204,6 +205,7 @@ export default function SettingsClient({
   calendarSync = false,
   aiCaptureSettings = false,
   aiUsage,
+  calendarFeedReviewScope,
 }: {
   viewerRole: SettingsViewerRole;
   sharedDevice: { hasPin: boolean } | null;
@@ -211,6 +213,7 @@ export default function SettingsClient({
   calendarSync?: boolean;
   aiCaptureSettings?: boolean;
   aiUsage?: { userId: string; familyId: string };
+  calendarFeedReviewScope?: string;
 }) {
   const copy = useSettingsCopy();
   const isParent = viewerRole === "parent";
@@ -1048,6 +1051,10 @@ export default function SettingsClient({
                 </button>
               </div>
             )}
+
+            {calendarFeedReviewScope && <Suspense fallback={<p role="status">{copy("loadingEllipsis")}</p>}>
+              <LazyCalendarFeedReview key={calendarFeedReviewScope} scope={calendarFeedReviewScope} />
+            </Suspense>}
 
             {feedError && (
               <p className="text-sm text-danger-text mt-3">
