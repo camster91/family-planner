@@ -328,3 +328,35 @@ it('holds manual refresh during the delete Undo window and enables it after Undo
   expect((screen.getByRole('button', { name: 'Refresh notifications' }) as HTMLButtonElement).disabled).toBe(false)
   expect(screen.getByRole('button', { name: 'Delete "Dishes done"' })).toBeTruthy()
 })
+
+it('keeps a concurrent mark-read result and retries the exact older cursor after rejecting a stale page', async () => {
+  let release!: () => void
+  let olderReads = 0
+  const urls: string[] = []
+  const older = { ...READ, id: 'n3', title: 'Older appointment' }
+  global.fetch = jest.fn(async (input, init) => {
+    const url = String(input)
+    if (init?.method === 'PATCH') return { ok: true, status: 200, json: async () => ({ success: true }) } as Response
+    urls.push(url)
+    if (!url.includes('cursor=')) return { ok: true, status: 200, json: async () => ({ notifications: [UNREAD], nextCursor: 'cursor-a' }) } as Response
+    const response = { ok: true, status: 200, json: async () => ({ notifications: [UNREAD, older], nextCursor: null }) } as Response
+    if (++olderReads === 1) return await new Promise<Response>(resolve => { release = () => resolve(response) })
+    return response
+  }) as typeof fetch
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Load older notifications' }))
+  await waitFor(() => expect(release).toBeDefined())
+  await user.click(screen.getByRole('button', { name: 'Mark "Dishes done" as read' }))
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Mark "Dishes done" as read' })).toBeNull())
+  await act(async () => release())
+  await screen.findByText('Notifications changed while loading. Refresh or retry to see the latest state.')
+  expect(screen.queryByText('Older appointment')).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Retry older notifications' }))
+  await screen.findByText('Older appointment')
+  expect(screen.queryByRole('button', { name: 'Mark "Dishes done" as read' })).toBeNull()
+  expect(urls.filter(url => url.includes('cursor='))).toEqual([
+    '/api/notifications?includeSnoozed=true&limit=50&cursor=cursor-a',
+    '/api/notifications?includeSnoozed=true&limit=50&cursor=cursor-a',
+  ])
+})

@@ -89,6 +89,7 @@ export default function NotificationsPage() {
   const deleting = useRef(new Set<string>());
   const [deleteBusy, setDeleteBusy] = useState(false);
   const loadSequence = useRef(0);
+  const writeEpoch = useRef(0);
   const activeRead = useRef<AbortController | null>(null);
   useEffect(() => {
     const tick = () => setNow(Date.now());
@@ -123,6 +124,7 @@ export default function NotificationsPage() {
 
   const loadNotifications = useCallback(async () => {
     const sequence = ++loadSequence.current;
+    const observedWriteEpoch = writeEpoch.current;
     activeRead.current?.abort();
     const controller = new AbortController();
     activeRead.current = controller;
@@ -139,7 +141,9 @@ export default function NotificationsPage() {
     try {
       const page = await readNotificationPage("/api/notifications?includeSnoozed=true&limit=50", text("invalidNotifications"), controller.signal);
       if (sequence !== loadSequence.current) return;
-      setNotifications(page.notifications.filter(n => !pending.current.has(n.id)));
+      if (observedWriteEpoch !== writeEpoch.current || snoozeLock.current || pending.current.size || deleting.current.size)
+        throw new NotificationPageError(text("notificationReadChanged"));
+      setNotifications(page.notifications);
       cursorRef.current = page.nextCursor;
       setNextCursor(page.nextCursor);
       setPagingSupported(page.pagingSupported);
@@ -154,18 +158,21 @@ export default function NotificationsPage() {
 
   const loadOlder = async () => {
     const cursor = cursorRef.current;
-    if (loading || olderLock.current || !cursor) return;
+    if (loading || olderLock.current || snoozeLock.current || pending.current.size || deleting.current.size || !cursor) return;
     olderLock.current = true;
     const controller = new AbortController();
     activeRead.current = controller;
     restoreOlderFocus.current = document.activeElement === olderTrigger.current;
     const sequence = loadSequence.current;
+    const observedWriteEpoch = writeEpoch.current;
     setLoadingOlder(true);
     setOlderError(null);
     try {
       const query = new URLSearchParams({ includeSnoozed: "true", limit: "50", cursor });
       const page = await readNotificationPage(`/api/notifications?${query}`, text("invalidNotifications"), controller.signal);
       if (sequence !== loadSequence.current || cursorRef.current !== cursor) return;
+      if (observedWriteEpoch !== writeEpoch.current || snoozeLock.current || pending.current.size || deleting.current.size)
+        throw new NotificationPageError(text("notificationReadChanged"));
       if (!page.pagingSupported) throw new NotificationPageError(text("pagingUnavailable"));
       if (page.nextCursor && (page.nextCursor === cursor || seenCursors.current.has(page.nextCursor)))
         throw new NotificationPageError(text("invalidNotifications"));
@@ -218,6 +225,7 @@ export default function NotificationsPage() {
         clearTimeout(timer);
         sendDelete(id, true).catch(() => undefined);
       });
+      if (waiting.size) writeEpoch.current++;
       waiting.clear();
       setDeleteBusy(deleting.current.size > 0);
     };
@@ -237,6 +245,7 @@ export default function NotificationsPage() {
     async (notificationId: string) => {
       if (snoozeLock.current) return;
       snoozeLock.current = true;
+      writeEpoch.current++;
       setSnoozePending(notificationId);
       try {
         const result = await writeNotification("/api/notifications", {
@@ -255,6 +264,7 @@ export default function NotificationsPage() {
       } catch {
         await failed(text("markFailed"));
       } finally {
+        writeEpoch.current++;
         snoozeLock.current = false;
         setSnoozePending(null);
       }
@@ -288,6 +298,7 @@ export default function NotificationsPage() {
         restore(item);
         await failed(text("deleteFailed"));
       } finally {
+        writeEpoch.current++;
         deleting.current.delete(item.id);
         setDeleteBusy(pending.current.size > 0 || deleting.current.size > 0);
       }
@@ -297,7 +308,8 @@ export default function NotificationsPage() {
 
   const handleDelete = useCallback(
     (item: NotificationItem) => {
-      if (snoozeLock.current || pending.current.has(item.id)) return;
+      if (snoozeLock.current || pending.current.has(item.id) || deleting.current.has(item.id)) return;
+      writeEpoch.current++;
       setNotifications((prev) => prev.filter((n) => n.id !== item.id));
       const timer = setTimeout(() => void commitDelete(item), DELETE_DELAY_MS);
       pending.current.set(item.id, { timer, item });
@@ -315,6 +327,7 @@ export default function NotificationsPage() {
             return;
           }
           clearTimeout(waiting.timer);
+          writeEpoch.current++;
           pending.current.delete(item.id);
           setDeleteBusy(pending.current.size > 0 || deleting.current.size > 0);
           restore(item);
@@ -330,6 +343,7 @@ export default function NotificationsPage() {
   ) => {
     if (snoozeLock.current) return;
     snoozeLock.current = true;
+    writeEpoch.current++;
     setSnoozePending(notification.id);
     try {
       const result = await writeNotification("/api/notifications/snooze", {
@@ -368,6 +382,7 @@ export default function NotificationsPage() {
     } catch {
       await failed(text("snoozeFailed"));
     } finally {
+      writeEpoch.current++;
       snoozeLock.current = false;
       setSnoozePending(null);
     }
@@ -669,7 +684,7 @@ export default function NotificationsPage() {
             )}
             {olderError && <p role="alert" className="text-subhead text-label-secondary">{olderError}</p>}
             {nextCursor && (
-              <button ref={olderTrigger} type="button" className="btn-tinted min-h-[44px]" disabled={loadingOlder || snoozePending !== null} aria-busy={loadingOlder} onClick={() => void loadOlder()}>
+              <button ref={olderTrigger} type="button" className="btn-tinted min-h-[44px]" disabled={loadingOlder || snoozePending !== null || deleteBusy} aria-busy={loadingOlder} onClick={() => void loadOlder()}>
                 {text(loadingOlder ? "loading" : olderError ? "retryOlder" : "loadOlder")}
               </button>
             )}
