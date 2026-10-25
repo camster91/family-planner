@@ -1462,3 +1462,18 @@ source covers header/body stalls, dismissal, pre-cancel and unsuccessful reads;
 it is authored but unrun. Response size is not bounded by this change.
 No QA/test/check/build/browser/API/database/native/provider/release ran.
 Original #134/#460 runtime, role/isolation and device acceptance remain open.
+
+## Recipe picker search and explicit pages — 2026-10-24 (source only)
+
+Latest bounded source work replaces the meal recipe picker's eager traversal
+of up to10,000 recipes with canonical full-library search and explicit24-row
+replacement pages (#460/#134). Search resets continuation; debounce, cancellation,
+fetch/body deadline and generation ownership bound pending reads. Current choice
+is pinned while browsing/searching; free-text meals and inline canonical create
+remain. Response validation rejects malformed/duplicate/oversized rows or invalid
+continuation; retry repeats the same page without replaying a save. EN/ES controls
+are typed. The existing offset API can shift under concurrent edits; this is not
+snapshot/keyset pagination, byte-bounded transport or backend index evidence.
+Regression source is authored/adapted but unrun. No QA/test/check/build/browser/
+CI/API/database/native/provider/push/merge/deploy ran. Full #460/#134 acceptance
+remains open.

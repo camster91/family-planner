@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 // Authored for deferred QA; no rendered/locale acceptance is claimed.
 import * as React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nProvider, useTranslation } from "@/i18n";
 import { RecipeDetail, type RecipeDetailData } from "../RecipeDetail";
 import { RecipePicker } from "../RecipePicker";
@@ -29,6 +29,7 @@ it("switches mounted recipe chrome and picker state without reloading or transla
   </I18nProvider>);
   const picker = await screen.findByRole("combobox", { name: "Recipe (optional)" });
   await screen.findByRole("option", { name: recipe.title });
+  await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
   fireEvent.click(screen.getByRole("button", { name: "Fixture language" }));
   expect(screen.getByRole("combobox", { name: "Receta (opcional)" })).toBe(picker);
   expect((picker as HTMLSelectElement).value).toBe(recipe.id);

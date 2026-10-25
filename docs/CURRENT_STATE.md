@@ -52,17 +52,18 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work adds a 15-second fetch-plus-body deadline to the
-read-only recipe-to-grocery preview (#134). Dismissal, replacement and unmount
-cancel the current read; a generation guard keeps late replies from replacing
-newer review state. Transport bridges ignoring abort still settle locally.
-Failures use the existing localized review error; retry is close/reopen, with
-no automatic replay or write. Canonical schema/recipe matching, household
-endpoint, reviewed payload, add key and Undo path are unchanged. Regression
-source covers header/body stalls, dismissal, pre-cancel and unsuccessful reads;
-it is authored but unrun. Response size is not bounded by this change.
-No QA/test/check/build/browser/API/database/native/provider/release ran.
-Original #134/#460 runtime, role/isolation and device acceptance remain open.
+Latest bounded source work replaces the meal recipe picker's eager traversal
+of up to10,000 recipes with canonical full-library search and explicit24-row
+replacement pages (#460/#134). Search resets continuation; debounce, cancellation,
+fetch/body deadline and generation ownership bound pending reads. Current choice
+is pinned while browsing/searching; free-text meals and inline canonical create
+remain. Response validation rejects malformed/duplicate/oversized rows or invalid
+continuation; retry repeats the same page without replaying a save. EN/ES controls
+are typed. The existing offset API can shift under concurrent edits; this is not
+snapshot/keyset pagination, byte-bounded transport or backend index evidence.
+Regression source is authored/adapted but unrun. No QA/test/check/build/browser/
+CI/API/database/native/provider/push/merge/deploy ran. Full #460/#134 acceptance
+remains open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
