@@ -30,15 +30,56 @@ type Status =
 
 const LOAD_ERROR = "Recent changes didn't load. Check your connection and try again."
 
-async function fetchPage(cursor: string | null): Promise<{ entries: ActivityEntry[]; nextCursor: string | null }> {
+function isActivityEntry(value: unknown): value is ActivityEntry {
+  if (!value || typeof value !== 'object') return false
+  const row = value as Record<string, unknown>
+  const actor = row.actor as Record<string, unknown> | null
+  return typeof row.id === 'string' && row.id.length > 0 &&
+    typeof row.action === 'string' &&
+    (row.actorKind === 'person' || row.actorKind === 'device') &&
+    (actor === null || (typeof actor === 'object' &&
+      typeof actor.id === 'string' && typeof actor.name === 'string')) &&
+    typeof row.summary === 'string' && typeof row.createdAt === 'string' &&
+    Number.isFinite(Date.parse(row.createdAt))
+}
+
+/** Validate the canonical envelope; malformed data is not a truthful empty history. */
+async function fetchPage(cursor: string | null, signal: AbortSignal): Promise<{ entries: ActivityEntry[]; nextCursor: string | null }> {
+  if (signal.aborted) throw new Error('Activity read cancelled')
   const params = new URLSearchParams({ limit: String(ACTIVITY_PAGE_SIZE) })
   if (cursor) params.set('cursor', cursor)
-  const res = await fetch(`/api/audit?${params.toString()}`, { headers: { Accept: 'application/json' }, cache: 'no-store' })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const body = await res.json()
-  return {
-    entries: Array.isArray(body?.entries) ? body.entries : [],
-    nextCursor: typeof body?.nextCursor === 'string' ? body.nextCursor : null,
+  const controller = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let abort: () => void = () => {}
+  try {
+    return await Promise.race([
+      (async () => {
+        const res = await fetch(`/api/audit?${params.toString()}`, {
+          headers: { Accept: 'application/json' }, cache: 'no-store', signal: controller.signal,
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const body: unknown = await res.json()
+        if (!body || typeof body !== 'object') throw new Error('Invalid activity page')
+        const page = body as Record<string, unknown>
+        if (!Array.isArray(page.entries) || page.entries.length > ACTIVITY_PAGE_SIZE ||
+          !page.entries.every(isActivityEntry) ||
+          new Set(page.entries.map((row) => row.id)).size !== page.entries.length ||
+          !(page.nextCursor === null || (typeof page.nextCursor === 'string' &&
+            page.nextCursor.length > 0 && page.nextCursor.length <= 200)) ||
+          (page.nextCursor !== null && (page.nextCursor === cursor || page.entries.length === 0)))
+          throw new Error('Invalid activity page')
+        return { entries: page.entries as ActivityEntry[], nextCursor: page.nextCursor as string | null }
+      })(),
+      new Promise<never>((_, reject) => {
+        abort = () => { controller.abort(); reject(new Error('Activity read cancelled')) }
+        signal.addEventListener('abort', abort, { once: true })
+        if (signal.aborted) abort()
+        timer = setTimeout(() => { controller.abort(); reject(new Error('Activity read timed out')) }, 15000)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+    signal.removeEventListener('abort', abort)
   }
 }
 
@@ -69,38 +110,69 @@ export default function ActivityClient() {
   const [status, setStatus] = React.useState<Status>({ kind: 'loading' })
   const [attempt, setAttempt] = React.useState(0)
 
+  const generation = React.useRef(0)
+  const pending = React.useRef(false)
+  const olderRead = React.useRef<AbortController | null>(null)
+  const usedCursors = React.useRef(new Set<string>())
+  const onlineRef = React.useRef(online)
+  onlineRef.current = online
+
   React.useEffect(() => {
-    // useOnline starts true for hydration, so also ask the browser directly.
-    if (!online || navigator.onLine === false) return
-    let cancelled = false
-    setStatus({ kind: 'loading' })
-    fetchPage(null)
-      .then((page) => {
-        if (!cancelled) setStatus({ kind: 'ready', ...page, more: 'idle' })
-      })
-      .catch(() => {
-        if (!cancelled) setStatus({ kind: 'error' })
-      })
+    const epoch = ++generation.current
+    olderRead.current?.abort()
+    olderRead.current = null
+    pending.current = false
+    usedCursors.current.clear()
+    const controller = new AbortController()
+    if (online && navigator.onLine !== false) {
+      setStatus({ kind: 'loading' })
+      fetchPage(null, controller.signal)
+        .then((page) => {
+          if (epoch === generation.current && !controller.signal.aborted && onlineRef.current && navigator.onLine !== false)
+            setStatus({ kind: 'ready', ...page, more: 'idle' })
+        })
+        .catch(() => {
+          if (epoch === generation.current && !controller.signal.aborted)
+            setStatus({ kind: 'error' })
+        })
+    }
     return () => {
-      cancelled = true
+      generation.current++
+      controller.abort()
+      olderRead.current?.abort()
     }
   }, [online, attempt])
 
   async function loadOlder() {
-    if (status.kind !== 'ready' || !status.nextCursor || status.more === 'loading') return
+    if (!onlineRef.current || navigator.onLine === false || pending.current ||
+      status.kind !== 'ready' || !status.nextCursor || status.more === 'loading') return
     const current = status
+    const cursor = current.nextCursor!
+    const epoch = generation.current
+    const controller = new AbortController()
+    olderRead.current = controller
+    pending.current = true
     setStatus({ ...current, more: 'loading' })
     try {
-      const page = await fetchPage(current.nextCursor)
-      const known = new Set(current.entries.map((e) => e.id))
+      const page = await fetchPage(cursor, controller.signal)
+      if (epoch !== generation.current || controller.signal.aborted || !onlineRef.current) return
+      if (page.nextCursor && usedCursors.current.has(page.nextCursor)) throw new Error('Activity cursor loop')
+      usedCursors.current.add(cursor)
+      const known = new Set(current.entries.map((entry) => entry.id))
       setStatus({
         kind: 'ready',
-        entries: [...current.entries, ...page.entries.filter((e) => !known.has(e.id))],
+        entries: [...current.entries, ...page.entries.filter((entry) => !known.has(entry.id))],
         nextCursor: page.nextCursor,
         more: 'idle',
       })
     } catch {
-      setStatus({ ...current, more: 'error' })
+      if (epoch === generation.current && !controller.signal.aborted && onlineRef.current)
+        setStatus({ ...current, more: 'error' })
+    } finally {
+      if (epoch === generation.current && olderRead.current === controller) {
+        olderRead.current = null
+        pending.current = false
+      }
     }
   }
 

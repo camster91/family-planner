@@ -1,5 +1,24 @@
 # Route and domain inventory (#148)
 
+### Recent changes read recovery source — 2026-10-24 (#134)
+
+`settings/activity/ActivityClient.tsx` now validates canonical 20-entry audit
+pages, nested actor/rendered fields, dates, duplicate IDs and explicit bounded
+cursor metadata. A malformed/missing envelope no longer falls back to a false
+empty history. Empty pages with continuation and repeated/visited cursors refuse.
+Fetch and body parsing share a 15-second deadline/abort; initial/older requests
+use generation checks and offline/unmount/reconnect cancellation. A synchronous
+pending guard blocks overlapping older reads. Older failure retains loaded rows
+and exact retry cursor; late superseded responses cannot replace the new epoch.
+Server parent/device gates, household scope, retention, public response shape,
+summary/actor content and API page size remain unchanged. No new provider,
+permission, API call or data mutation occurred during this source task.
+Regression cases authored/unrun for malformed pages, cursor retry, reconnect
+supersession and stalled body. No QA/test/check/build/browser/release ran.
+The separate hidden-routine helper's production call sites all now pass bounded
+ID scopes in source; that observation does not complete the full query audit.
+Original household/privacy/browser/concurrency/scale acceptance remains open.
+
 ### Today chore and compatibility-probe batching — 2026-10-24 (#134/#450)
 
 Today board and personal-summary chore reads now use `readVisibleChoreRows`;
