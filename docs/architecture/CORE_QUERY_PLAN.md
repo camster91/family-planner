@@ -357,3 +357,22 @@ similar. Profile rotation still requires additive/versioned storage and strict
 capability/read/write/rollback handling with explicit active stable-member
 eligibility. It is not delivered by this query optimization. The unanswered
 standalone-unlink retention decision remains independent and unresolved.
+
+## Rotation candidate read batches — 2026-10-25
+
+#134/#450 source: rotation edits now enumerate future pending candidates in500-row
+(date,id) keyset batches, with original household/root/status/tomorrow predicates
+on every read. Equal-date boundaries use ID ties; invalid/nonadvancing cursors
+throw before effects. The complete narrow plan is retained before canonical
+identity preflight and writes, so a prefix is never treated as the whole series.
+Turn ordering, manual-override eligibility, history and all-or-nothing outer
+transaction behavior remain. Canonical generation/completion already use the
+household lock retained here; this is not new cross-process proof.
+
+Per-read payload is bounded; total retained candidate/turn arrays, SQL/lock time
+and per-row effects remain proportional to the complete affected series. No
+capacity/fully bounded-memory claim, index/schema or data change. A501-row same-
+date boundary/tail/complete-turn source case is authored UNRUN; existing identity
+preflight/legacy/refusal cases remain. No QA/tests/checks/build/browser/CI/API/DB/
+provider/push/merge/deploy ran. #134/#450 remain open; profile rotation decisions
+and implementation remain separate.

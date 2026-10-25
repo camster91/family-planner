@@ -86,11 +86,23 @@ export async function applyRotationEditInTx(
   // copy a parent gave to someone by hand (its person is not the one its place
   // names) keeps that person too: the new order never undoes a hand pick.
   const oldRotation = template.rotation_member_ids ?? []
-  const pending = await tx.chore.findMany({
-    where: { family_id: familyId, recurrence_id: template.id, due_date: { gte: tomorrow }, status: 'pending' },
-    orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
-    select: { id: true, assigned_to: true, assigned_member_id: true, rotation_index: true },
-  })
+  const pending: Array<{ id: string; assigned_to: string | null; assigned_member_id: string | null; rotation_index: number | null }> = []
+  let after: { day: Date; id: string } | null = null
+  for (;;) {
+    const batch = await tx.chore.findMany({
+      where: { family_id: familyId, recurrence_id: template.id, due_date: { gte: tomorrow }, status: 'pending',
+        ...(after ? { OR: [{ due_date: { gt: after.day } }, { due_date: after.day, id: { gt: after.id } }] } : {}) },
+      orderBy: [{ due_date: 'asc' }, { id: 'asc' }], take: 500,
+      select: { id: true, assigned_to: true, assigned_member_id: true, rotation_index: true, due_date: true },
+    })
+    // Keep the complete atomic plan, but do not retain the extra paging dates.
+    pending.push(...batch.map(row => ({ id: row.id, assigned_to: row.assigned_to, assigned_member_id: row.assigned_member_id, rotation_index: row.rotation_index })))
+    if (batch.length < 500) break
+    const last = batch[batch.length - 1]
+    if (!Number.isFinite(last.due_date.getTime()) || (after && last.id === after.id && last.due_date.getTime() === after.day.getTime()))
+      throw new Error('Rotation candidate cursor did not advance')
+    after = { day: last.due_date, id: last.id }
+  }
   // In a series that already takes turns, every copy it planned has a place,
   // so a copy without one was set aside (a hand pick from an earlier edit)
   // and stays set aside. Only a series starting to take turns plans them all.

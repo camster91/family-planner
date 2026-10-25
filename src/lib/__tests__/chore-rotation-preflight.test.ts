@@ -38,3 +38,18 @@ it('does not migrate legacy account-only rows merely because rotation was edited
   expect(resolve).not.toHaveBeenCalled();
   expect((tx.chore.update.mock.calls as unknown as Array<[any]>)[1][0].data).not.toHaveProperty('assigned_member_id');
 });
+
+it('reads the complete future plan across a date/ID page boundary before effects', async () => {
+  const tx = txFor();
+  const rows = Array.from({ length: 501 }, (_, i) => ({ id: `chore-${String(i).padStart(4, '0')}`, assigned_to: i % 2 ? 'user-b' : 'user-a', assigned_member_id: `member-${i % 2}`, rotation_index: i % 2, due_date: new Date('2026-10-26T00:00:00.000Z') }));
+  tx.chore.findMany.mockResolvedValueOnce(rows.slice(0, 500)).mockResolvedValueOnce(rows.slice(500));
+  await applyRotationEditInTx(tx as any, 'root-a', 'family-a', ['user-b', 'user-a'], now);
+  const reads = tx.chore.findMany.mock.calls as unknown as Array<[any]>;
+  expect(reads).toHaveLength(2);
+  expect(reads[0][0]).toMatchObject({ where: { family_id: 'family-a', recurrence_id: 'root-a', status: 'pending' }, take: 500 });
+  expect(reads[1][0].where.OR).toEqual([{ due_date: { gt: rows[499].due_date } }, { due_date: rows[499].due_date, id: { gt: rows[499].id } }]);
+  const writes = tx.chore.update.mock.calls as unknown as Array<[any]>;
+  expect(writes).toHaveLength(502);
+  expect(writes[501][0]).toMatchObject({ where: { id: rows[500].id }, data: { rotation_index: 0, assigned_to: 'user-b' } });
+  expect(resolve).toHaveBeenCalledTimes(2);
+});
