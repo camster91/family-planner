@@ -1,5 +1,5 @@
 import { HouseholdPageState } from '@/components/layout/DashboardRecoveryCopy'
-import { getServerUser } from '@/lib/supabase/server'
+import { getServerActor } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import BudgetDashboard from '@/components/budget/BudgetDashboard'
@@ -61,11 +61,14 @@ export interface BudgetPageData {
 }
 
 export default async function BudgetPage() {
-  const sessionUser = await getServerUser()
+  const sessionUser = await getServerActor()
 
   if (!sessionUser) {
     redirect('/login')
   }
+
+  // Finance reads own their person/parent gate, independent of layout routing.
+  if (sessionUser.role !== 'parent') redirect('/dashboard')
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
@@ -74,16 +77,19 @@ export default async function BudgetPage() {
       family_id: true,
       name: true,
       role: true,
+      token_version: true,
       family: { select: { features: true } },
     },
   })
 
-  if (!user?.family_id) return <HouseholdPageState page="budget" />
+  if (!user || user.token_version !== sessionUser.tokenVersion) redirect('/login')
+  if (user.role !== 'parent' || user.family_id !== sessionUser.family_id) redirect('/dashboard')
+  if (!user.family_id) return <HouseholdPageState page="budget" />
 
   // Server-side gate (route inventory F-2): with Budget off, no transaction or
   // category is read, rendered or serialised. The APIs are gated the same way.
   if (!isFeatureEnabled(normalizeFeatures(user.family?.features), 'budget')) {
-    return <FeatureOffState featureKey="budget" canManage={sessionUser.role !== 'teen' && sessionUser.role !== 'child'} />
+    return <FeatureOffState featureKey="budget" canManage={true} />
   }
 
   const familyId = user.family_id
@@ -207,6 +213,20 @@ export default async function BudgetPage() {
       expenses: Math.round(mExpenses * 100) / 100,
       balance: Math.round((mIncome - mExpenses) * 100) / 100,
     })
+  }
+
+  // Async aggregates must not serialize into a retired parent/household session.
+  // This renews the original actor; it never adopts a newer account generation
+  // or switches the household whose rows were read. Runtime race acceptance is
+  // still required; this is a final authority check, not a lock-based snapshot.
+  const current = await prisma!.user.findUnique({
+    where: { id: sessionUser.id },
+    select: { family_id: true, role: true, token_version: true, family: { select: { features: true } } },
+  })
+  if (!current || current.token_version !== sessionUser.tokenVersion) redirect('/login')
+  if (current.role !== 'parent' || current.family_id !== familyId) redirect('/dashboard')
+  if (!isFeatureEnabled(normalizeFeatures(current.family?.features), 'budget')) {
+    return <FeatureOffState featureKey="budget" canManage={true} />
   }
 
   const data: BudgetPageData = {
