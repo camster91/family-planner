@@ -3,6 +3,12 @@ import { useCallback } from "react";
 import { useTranslation } from "@/i18n";
 // Entry/suggestion presentation only; suggestions never become saved commands here.
 export const foodPlanningEntryEnglish = {
+  planMeals: "Plan meals and prep",
+  savedMealPlanning: "Saved meal planning work",
+  savedBulkCooking: "Saved bulk cooking work",
+  planningSavedWork: "Planning and saved work",
+  continueBoundary: "Open the original feature to continue. Opening it does not submit anything or mark this step reviewed.",
+
   aiChoices: "AI meal choices",
   aiReview: "AI choices to review",
   aiBoundary: "Chosen from your saved household recipes. These are suggestions, not dietary or food-safety advice. Check your preferences and ingredient details. Nothing has been saved.",
@@ -19,6 +25,12 @@ export const foodPlanningEntryEnglish = {
   loadingPlanner: "Loading planner…",
 };
 export const foodPlanningEntrySpanish: Record<keyof typeof foodPlanningEntryEnglish, string> = {
+  planMeals: "Planificar comidas y preparación",
+  savedMealPlanning: "Trabajo de comidas guardado",
+  savedBulkCooking: "Cocina por lotes guardada",
+  planningSavedWork: "Planificación y trabajo guardado",
+  continueBoundary: "Abre la función original para continuar. No se envía nada ni se marca este paso como revisado.",
+
   aiChoices: "Opciones de comidas con IA",
   aiReview: "Opciones de IA para revisar",
   aiBoundary: "Elegidas de las recetas guardadas de tu hogar. Son sugerencias, no consejos dietéticos ni de seguridad alimentaria. Revisa tus preferencias e ingredientes. Aún no se ha guardado nada.",

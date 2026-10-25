@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useTranslation } from "@/i18n";
+import { useFoodPlanningEntryText } from "@/i18n/food-planning-entry";
 import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 import { useFoodPlanningAccess } from "./FoodPlanningAccess";
 /** Capability/role only; no local-store discovery, source reads or writes here. */
@@ -34,38 +34,33 @@ function Links({
   canNavigate: () => boolean;
   onNavigated?: () => void;
 }) {
-  const router = useDraftAwareRouter(),
-    { locale } = useTranslation(),
-    es = locale === "es";
+  const router = useDraftAwareRouter();
+  const text = useFoodPlanningEntryText();
   const links = [
     ...(enabled
       ? [
           {
             href: "/dashboard/meals?foodPlan=new",
-            label: es
-              ? "Planificar comidas y preparación"
-              : "Plan meals and prep",
+            label: text("planMeals"),
           },
         ]
       : []),
     {
       href: "/dashboard/meals?foodPlan=recovery",
-      label: es ? "Trabajo de comidas guardado" : "Saved meal planning work",
+      label: text("savedMealPlanning"),
     },
     {
       href: "/dashboard/meals?view=bulk&bulkWork=recovery",
-      label: es ? "Cocina por lotes guardada" : "Saved bulk cooking work",
+      label: text("savedBulkCooking"),
     },
   ];
   return (
     <details className="rounded-xl border border-[var(--surface-separator)] p-3">
       <summary className="min-h-[44px] py-2 cursor-pointer font-semibold">
-        {es ? "Planificación y trabajo guardado" : "Planning and saved work"}
+        {text("planningSavedWork")}
       </summary>
       <p className="text-footnote text-label-secondary">
-        {es
-          ? "Abre la función original para continuar. No se envía nada ni se marca este paso como revisado."
-          : "Open the original feature to continue. Opening it does not submit anything or mark this step reviewed."}
+        {text("continueBoundary")}
       </p>
       <div className="flex flex-wrap gap-2 mt-2">
         {links.map((link) => (

@@ -18,6 +18,7 @@ import { useMealCreation } from "@/components/meals/use-meal-creation";
 import { useBulkCookingText } from "@/i18n/bulk-cooking";
 import { useMealWeek } from "@/components/meals/use-meal-week";
 import { useMealWeekText } from "@/i18n/meal-week";
+import { useMealsPageText } from "@/i18n/meals-page";
 import { mealPrepListSchema, type MealPrepContext } from "@/lib/meal-batches";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { Plus, UtensilsCrossed, BookOpen, Refrigerator } from "lucide-react";
@@ -35,12 +36,11 @@ import { AddToGroceriesButton } from "@/components/meals/AddToGroceriesButton";
 import { useToast, useUndoToast } from "@/components/ui/toast";
 import { OFFLINE_MESSAGE, responseErrorMessage } from "@/lib/fetch-error";
 import {
-  MEAL_LABELS as mealLabels,
   MEAL_TYPES,
   buildDayPlans,
   getWeekDates,
   mealTitle,
-  recipeMeta,
+  formatMinutes,
   type DayPlan,
   type MealType,
   type PlannedMeal as MealSlot,
@@ -108,8 +108,8 @@ function MealModal({
   saving: boolean;
   isMealMutationPending: () => boolean;
 }) {
-  const { t, locale } = useTranslation();
-  const es = locale === "es";
+  const { t } = useTranslation();
+  const text = useMealsPageText();
   const creation = useMealCreation(mode === "add", onCreated);
   const tBulk = useBulkCookingText();
   const [date, setDate] = React.useState(
@@ -222,7 +222,7 @@ function MealModal({
       title={
         mode === "add"
           ? t("meals.addMeal")
-          : recipe_name || mealLabels[meal_type]
+          : recipe_name || text(meal_type)
       }
       testId="meal-modal"
       className="sm:max-w-md space-y-4"
@@ -230,12 +230,8 @@ function MealModal({
       {mode === "add" && !creation.ready && (
         <p role={creation.contextError ? "alert" : "status"}>
           {creation.contextError
-            ? es
-              ? "No pudimos comprobar tu hogar. El borrador se conserva."
-              : "We could not check your household. The draft is kept."
-            : es
-              ? "Comprobando hogar…"
-              : "Checking household…"}
+            ? text("householdFailed")
+            : text("checkingHousehold")}
         </p>
       )}
       {mode === "add" && creation.contextError && (
@@ -244,7 +240,7 @@ function MealModal({
           className="btn-tinted min-h-[44px]"
           onClick={creation.reloadContext}
         >
-          {es ? "Reintentar" : "Try again"}
+          {text("retry")}
         </button>
       )}
       {creation.error && <p role="alert">{creation.error}</p>}
@@ -255,9 +251,7 @@ function MealModal({
           rel="noopener noreferrer"
           className="inline-flex min-h-[44px] items-center text-[var(--accent-text)]"
         >
-          {es
-            ? "Revisar comidas en otra pestaña"
-            : "Review meals in another tab"}{" "}
+          {text("reviewOtherTab")}{" "}
           ↗
         </a>
       )}
@@ -268,7 +262,7 @@ function MealModal({
           disabled={creation.busy}
           onClick={() => void creation.retry()}
         >
-          {es ? "Comprobar el mismo guardado" : "Check the same save"}
+          {text("checkSave")}
         </button>
       )}
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -325,7 +319,7 @@ function MealModal({
               htmlFor={`${titleId}-type`}
               className="text-subhead text-label-secondary mb-1 block"
             >
-              Meal
+              {text("meal")}
             </label>
             <select
               id={`${titleId}-type`}
@@ -335,7 +329,7 @@ function MealModal({
             >
               {MEAL_TYPES.map((t) => (
                 <option key={t} value={t}>
-                  {mealLabels[t]}
+                  {text(t)}
                 </option>
               ))}
             </select>
@@ -381,7 +375,7 @@ function MealModal({
               htmlFor={`${titleId}-cook`}
               className="text-subhead text-label-secondary mb-1 block"
             >
-              Cook (optional)
+              {text("cook")}
             </label>
             <select
               id={`${titleId}-cook`}
@@ -390,9 +384,9 @@ function MealModal({
               className="w-full input-apple min-h-[44px]"
               disabled={membersLoading || membersError || saving}
             >
-              <option value="">Unassigned</option>
+              <option value="">{text("unassigned")}</option>
               {cookId && !members.some((member) => member.id === cookId) && (
-                <option value={cookId}>Current cook</option>
+                <option value={cookId}>{text("currentCook")}</option>
               )}
               {members.map((member) => (
                 <option key={member.id} value={member.id}>
@@ -402,12 +396,12 @@ function MealModal({
             </select>
             {membersLoading && (
               <p role="status" className="text-footnote text-label-secondary">
-                Loading household cooks…
+                {text("loadingCooks")}
               </p>
             )}
             {membersError && (
               <p role="status" className="text-footnote text-label-secondary">
-                Could not load cooks. The current assignment will be kept.
+                {text("cooksFailed")}
               </p>
             )}
           </div>
@@ -417,7 +411,7 @@ function MealModal({
               className="inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-[var(--accent-text)]"
             >
               <BookOpen className="w-4 h-4" aria-hidden="true" />
-              <span>View recipe</span>
+              <span>{text("viewRecipe")}</span>
             </MealContextLink>
           )}
 
@@ -443,7 +437,7 @@ function MealModal({
               htmlFor={`${titleId}-servings`}
               className="text-subhead text-label-secondary mb-1 block"
             >
-              Servings (optional)
+              {text("servings")}
             </label>
             <input
               id={`${titleId}-servings`}
@@ -457,7 +451,7 @@ function MealModal({
               disabled={busy}
             />
             <p className="text-footnote text-label-secondary">
-              Leave blank if not set. Otherwise, enter 1–100.
+              {text("servingsHint")}
             </p>
           </div>
           <div className="flex gap-2 pt-2">
@@ -495,7 +489,7 @@ function MealModal({
             />
             {servingsChanged && (
               <p role="status" className="text-footnote text-label-secondary">
-                Save servings before adding ingredients to groceries.
+                {text("saveServings")}
               </p>
             )}
           </div>
@@ -526,9 +520,9 @@ function supportedMealWeek(start: string): Date | null {
 }
 
 function MealsPageInner() {
-  const { t, locale } = useTranslation();
+  const { t } = useTranslation();
+  const text = useMealsPageText();
   const tWeek = useMealWeekText();
-  const es = locale === "es";
   // Food inventory (#263) is a separate, opt-in feature; link to it when on.
   const inventoryOn = useFeatureEnabled("inventory");
   const displayLocale = useDisplayLocale();
@@ -638,7 +632,7 @@ function MealsPageInner() {
     const editing = modal.meal;
     // Keep the dialog open on failure and say why: the server's reason (for
     // example a validation message) or the offline line.
-    const failTitle = "Couldn't save the meal";
+    const failTitle = text("saveFailed");
     setSaving(true);
     try {
       const res = await fetch(`/api/meals/${editing.id}`, {
@@ -752,15 +746,13 @@ function MealsPageInner() {
       addToast({
         type: "error",
         id: `meal-restore-${meal.id}`,
-        title: es
-          ? `No pudimos confirmar la restauración de ${mealTitle(meal)}`
-          : `Couldn't confirm restoring ${mealTitle(meal)}`,
-        message: es
-          ? "Puede haberse guardado. Comprueba la misma solicitud antes de añadir la comida otra vez."
-          : "The restore may have saved. Check the same request before adding the meal again.",
+        title: text("restoreUnconfirmed", {
+          name: mealTitle(meal, text("untitled")),
+        }),
+        message: text("restoreHint"),
         duration: 0,
         action: {
-          label: es ? "Comprobar restauración" : "Check same restore",
+          label: text("checkRestore"),
           onClick: () => void restoreMeal(meal, scope, key, issuedAt),
         },
       });
@@ -799,7 +791,7 @@ function MealsPageInner() {
       setModal(null);
       await fetchMeals();
       showUndo({
-        title: `Deleted ${mealTitle(meal)}`,
+        title: text("deleted", { name: mealTitle(meal, text("untitled")) }),
         onUndo: () => void restoreMeal(meal, undoScope, undoKey, undoIssuedAt),
       });
     } catch (err) {
@@ -807,7 +799,7 @@ function MealsPageInner() {
       addToast({
         type: "error",
         title: t("common.error"),
-        message: "The meal was not deleted. Try again.",
+        message: text("deleteFailed"),
       });
     } finally {
       mealMutationPending.current = false;
@@ -830,7 +822,7 @@ function MealsPageInner() {
               className="inline-flex min-h-[44px] items-center gap-1.5 text-subhead text-[var(--accent-text)]"
             >
               <Refrigerator className="w-4 h-4" aria-hidden="true" />
-              <span>What&apos;s in the fridge</span>
+              <span>{text("fridge")}</span>
             </Link>
           )}
         </div>
@@ -931,11 +923,11 @@ function MealsPageInner() {
                   })}
                 </>
               ) : (
-                "Unsupported week"
+                text("unsupportedWeek")
               )}
             </h2>
             <nav
-              aria-label="Meal planning weeks"
+              aria-label={text("weeks")}
               className="flex flex-wrap gap-2"
             >
               <button
@@ -944,14 +936,14 @@ function MealsPageInner() {
                 disabled={!previousWeek}
                 onClick={() => navigateWeek(-1)}
               >
-                Previous week
+                {text("previousWeek")}
               </button>
               <button
                 type="button"
                 className="btn-tinted min-h-[44px]"
                 onClick={() => navigateWeek(null)}
               >
-                Current week
+                {text("currentWeek")}
               </button>
               <button
                 type="button"
@@ -959,14 +951,14 @@ function MealsPageInner() {
                 disabled={!nextWeek}
                 onClick={() => navigateWeek(1)}
               >
-                Next week
+                {text("nextWeek")}
               </button>
             </nav>
           </div>
 
           {!anchor ? (
             <p role="alert" className="text-subhead text-label-secondary">
-              Choose a supported seven-day week, or return to the current week.
+              {text("weekHint")}
             </p>
           ) : loading ? (
             <div
@@ -998,14 +990,14 @@ function MealsPageInner() {
               icon={UtensilsCrossed}
               glyphColor="meals"
               title={t("meals.errorLoad")}
-              description="Check your connection and try again."
+              description={text("connectionHint")}
               action={
                 <button
                   type="button"
                   className="btn-tinted min-h-[44px]"
                   onClick={fetchMeals}
                 >
-                  Try again
+                  {text("retry")}
                 </button>
               }
             />
@@ -1112,9 +1104,8 @@ function DayCard({
   onEdit: (meal: MealSlot) => void;
 }) {
   const tBulk = useBulkCookingText();
-  const { locale } = useTranslation();
+  const text = useMealsPageText();
   const tWeek = useMealWeekText();
-  const es = locale === "es";
   const headingId = `meals-day-${day.dateKey}`;
   const otherId = `${headingId}-other`;
 
@@ -1133,7 +1124,7 @@ function DayCard({
   const renderSlots = (slots: DayPlan["slots"]) => (
     <ul className="divide-y divide-[var(--surface-separator)]">
       {slots.map((slot) => {
-        const label = mealLabels[slot.type];
+        const label = text(slot.type);
         if (slot.meals.length === 0) {
           return (
             <li
@@ -1144,7 +1135,10 @@ function DayCard({
               <button
                 type="button"
                 onClick={() => onAdd(day, slot.type)}
-                aria-label={`Add ${label.toLowerCase()}, ${day.longLabel}`}
+                aria-label={text("addMeal", {
+                  meal: label.toLowerCase(),
+                  day: day.longLabel,
+                })}
                 className={styles.emptySlot}
               >
                 <span>
@@ -1159,7 +1153,12 @@ function DayCard({
           );
         }
         return slot.meals.map((meal, i) => {
-          const meta = recipeMeta(meal.recipe);
+          const prep = formatMinutes(meal.recipe?.prep_time);
+          const meta = meal.recipe
+            ? prep
+              ? text("recipePrep", { time: prep })
+              : text("recipe")
+            : null;
           return (
             <li
               key={meal.id}
@@ -1175,7 +1174,7 @@ function DayCard({
                 className={styles.mealAction}
               >
                 <span className={styles.slotLabel}>{label}</span>
-                <span className={styles.mealTitle}>{mealTitle(meal)}</span>
+                <span className={styles.mealTitle}>{mealTitle(meal, text("untitled"))}</span>
                 {meal.batch_id && (
                   <span className={styles.meta}>{tBulk("fromBatch")}</span>
                 )}
@@ -1187,7 +1186,10 @@ function DayCard({
                 <button
                   type="button"
                   onClick={() => onAdd(day, slot.type)}
-                  aria-label={`Add another ${label.toLowerCase()}, ${day.longLabel}`}
+                  aria-label={text("addAnother", {
+                    meal: label.toLowerCase(),
+                    day: day.longLabel,
+                  })}
                   className={styles.addAnother}
                 >
                   <Plus className="w-5 h-5" aria-hidden="true" />
@@ -1226,7 +1228,7 @@ function DayCard({
         >
           {day.isToday ? (
             <span>
-              Today<span className={styles.dateLabel}>{day.longLabel}</span>
+              {text("today")}<span className={styles.dateLabel}>{day.longLabel}</span>
             </span>
           ) : (
             day.label

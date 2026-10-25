@@ -5,7 +5,6 @@ import { FoodPlanningAccess } from "../FoodPlanningAccess";
 import { MealPlanningReviewLinks } from "../MealPlanningReviewLinks";
 const mockPush = jest.fn();
 jest.mock("next/navigation", () => ({ useRouter: () => ({ push: mockPush }) }));
-jest.mock("@/i18n", () => ({ useTranslation: () => ({ locale: "en" }) }));
 afterEach(() => jest.clearAllMocks());
 it("omits personal recovery links for children", () => {
   render(

@@ -32,7 +32,7 @@ No unverified feature is declared completed by source authorship.
 | #450 routines | Reviewed-start/viewer-day defaults; bounded per-series reads; gated household cursor with one-root claims and isolated failures authored | Broader routine/recurrence/role/device acceptance |
 | #134/#450 routine visibility | Internal ID/window-scoped metadata reads before visible caps; completed/verified history skips open-policy scan | Dense/undated helper work, PostgreSQL/date/root-join/query plans and original role/recurrence acceptance remain unverified |
 | #567 provider setup | Remove stale model/free-tier examples and misleading blank OpenAI hints; typed EN/ES prompts | Exact provider eligibility/privacy/transport decision; no activation |
-| #142 localization | Chore/recipe/food-plan review and editors, sync/shared controls and household join copy in typed EN/ES; stale preview/navigation guards; only owned copy records removed | Rest of localization and rendered/layout acceptance |
+| #142 localization | Chore/recipe/Meals/food-plan review and editors, sync/shared controls and household join copy in typed EN/ES; stale preview/navigation guards; only owned copy records removed | Rest of localization and rendered/layout acceptance |
 | #372 product brand | Lowercase wordmark in Settings product heading and account/invite email wording/default sender label | Legal operator/copyright decision pending Cameron; overrides unchanged; no mail sent |
 | #499/#460 selected design | Compact Today controls, sibling calendar/chore cards, personal two-column composition, correct grocery totals and day-preserving dinner/recipe/prep links | Full accepted all-feature/role/device/rendered criteria remain |
 | #464 helper | Help/Today/Add shortcuts with existing role/feature filters and draft-aware navigation | Existing AI/voice/review/privacy/runtime criteria; no second write path |
@@ -48,15 +48,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work finishes typed EN/ES copy migration for the food-
-planning launcher, AI suggestion panel and sheet/recovery/timing controls.
-Two route-owned dictionaries hold 120 keys with existing wording; the held-
-choice count uses interpolation. Ownership, role/feature gates, draft/receipt
-state, one-minute expiry, signed-save review, exact retry, local removal and
-cooking-window/DST values remain canonical. Thirty-four owned copy inventory
-records removed; no scanner ran. No new tests for this copy-only migration;
-existing cases remain unrun. No QA/build/browser/provider/household write or
-release action ran. Full localization/rendered acceptance remains open.
+Latest bounded source work moves the Meals page's form/recovery/empty-state/
+week navigation/meal-type/accessibility labels into 39 typed EN/ES keys, and
+adds five food-planning recovery-link keys. Existing week-loading messages now
+use scoped translation for pseudolocalization. The meal-title helper accepts an
+optional display fallback, preserving its default for all existing consumers.
+Canonical names, meal types, dates, servings, weekly reads, mutations and exact
+restore keys remain unchanged. Thirty-five owned inventory records removed;
+no scanner ran. One locale-only test stub was removed; assertions and all
+existing tests remain unrun. No QA/build/browser/provider/household write or
+release action ran. Server/controller errors and full rendered acceptance
+remain outside this copy migration.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

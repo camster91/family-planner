@@ -1,5 +1,21 @@
 # Route and domain inventory (#148)
 
+### Meals page and recovery-link copy source — 2026-10-24 (#142)
+
+`dashboard/meals/page.tsx` now uses 39 scoped typed EN/ES keys for remaining
+page/form copy, visible meal-type labels, exact restore notices, accessible Add
+labels and empty-state/week controls. Five `food-planning-entry.ts` keys cover
+`MealPlanningReviewLinks`. `meal-week.ts` follows scoped translation rather
+than manual locale selection, so loaded-state copy can be pseudolocalized.
+`mealTitle` accepts an optional translated display fallback while retaining its
+old English default; existing nonblank source titles and all callers' stored
+values remain unchanged. Date boundaries/Intl dates, read effects, session
+errors/server refusals, payloads, household/cook/recipe IDs, quantities and
+restore idempotency bodies/keys remain canonical. No release/QA/scanner ran.
+Thirty-five owned copy inventory records removed. A locale-only review-link
+test stub was removed so existing assertions use default translation context;
+all cases remain unrun. This does not prove complete meal-flow localization.
+
 ### Food-plan launcher/AI/sheet copy source — 2026-10-24 (#142)
 
 `FoodPlanningLauncher.tsx`, `FoodAiProposal.tsx` and `FoodPlanningSheet.tsx`
