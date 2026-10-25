@@ -22,7 +22,7 @@ ran. Authored regression source is not a passing result.
 The earlier clearing pass reviewed68 and retired27 duplicate trackers after
 preserving complete requirements. The subsequent41-issue pass closed #566 for
 its complete planning deliverable only, leaving **40 genuine open issues**.
-Nine documentation-only criteria are now reconciled in #134/#140/#146/#254; all
+Ten documentation-only criteria are now reconciled in #134/#140/#146/#254/#563; all
 runtime/device/customer/production criteria remain separate and unchecked.
 No unverified feature is declared completed by source authorship.
 
@@ -46,13 +46,14 @@ No unverified feature is declared completed by source authorship.
 | #134 Wishlist | Opt-in household/requester keyset API; web24-item explicit continuation; canonical target inspection for write recovery; loaded-only EN/ES state | Legacy unpaged API remains unbounded; UI fixtures adapted/unrun; role/feature/concurrency/compatibility/query/rendered acceptance unverified |
 | #104/#142 import form | Review-bound form plus opt-in actor/household precondition; locked writer renewal, scoped job accounting and rehearsal guide authored | Approved exports/maps and real reconciliation remain unavailable; server snapshot/lifecycle, repeat/concurrency/rollback and all QA remain open |
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
+| #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded planning work defines public status/communication and support
-scaling triggers, plus backup-restore-only rollback for gated legacy contraction.
-Only those three documentation criteria are reconciled; all operational, release,
-restored-data and actual publishing/support acceptance remain separate. Runbook
-backups are retained beside the checkout. No QA/test/build/browser, incident,
-message, tooling/access purchase, backup/restore, DDL, CI or release ran.
+Latest bounded planning work separates #563 voice modes against current source
+and official Android/Apple references. Existing explicit Android phrase parsing
+is not a continuously listening wake detector; native/platform adapters and local
+wake have distinct delivery/evidence requirements. Only the documentation item
+is reconciled. No QA/test/build/browser, microphone permission/audio, provider,
+hardware/native/store, account, CI or release action ran. Go/no-go remains open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
@@ -60,6 +61,10 @@ Native contract: `docs/architecture/NATIVE_API_COMPATIBILITY.md`.
 Finance plan: `docs/plans/finance-archive-product.md`.
 
 ## Documentation completion evidence
+
+#563's voice-mode documentation criterion is now defined in
+`docs/product/CROSS_DEVICE_ROADMAP.md`; source inspection and official reference
+review do not establish any native/permission/hardware acceptance.
 
 Additional definition-only criteria on 2026-10-24: #146 public communication
 strategy and support scaling triggers in `docs/runbooks/SUPPORT.md`; #254

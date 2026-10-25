@@ -165,3 +165,11 @@ verification. Cameron owns hardware targets, the supported-binary decision,
 signing/distribution inputs and separately approved rollout/provisioning.
 No physical-device check, previous-client check, schema change, provider call,
 signing, provisioning or release execution occurred in this no-QA pass.
+
+
+Voice mode definition (2026-10-24, #563): see CROSS_DEVICE_ROADMAP.md's distinct
+web/Android/iOS tap-to-talk, Android system action, Apple App Intents/Shortcuts,
+explicit foreground phrase experiment and future local wake detector contracts.
+The existing Android prefix parser is not passive wake detection. This definition
+does not enable flags/permissions, establish recognizer readiness or satisfy
+physical-device/old-binary acceptance.
