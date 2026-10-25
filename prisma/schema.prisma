@@ -1008,6 +1008,8 @@ model Event {
   @@index([project_id])
   @@index([source_subscription_id, start_time])
   @@index([source_connection_id])
+  @@index([family_id, project_id, is_task, source_uid])
+  @@index([family_id, project_id, is_task, title])
 }
 
 model Message {
@@ -1301,6 +1303,7 @@ model ProjectTask {
   @@index([project_id])
   @@index([assigned_to])
   @@index([project_id, position, created_at, id])
+  @@index([project_id, id])
 }
 
 // Postgres-backed rate limiter (auth endpoints, etc.)

@@ -1,5 +1,24 @@
 # Route and domain inventory (#148)
 
+### Project calendar full-intent internal batches — 2026-10-24 (#134)
+
+`readProjectCalendarTaskBatch` reads at most 200 dated/incomplete tasks in private
+immutable-ID order, with project-household relation scope. Candidate UID and
+legacy-title grouped existence reads return at most one group per supplied key,
+not all historical event rows. Legacy null/empty UID matches retain old title
+semantics; modern UID matches do not block another task sharing its title.
+The endpoint advances after the last candidate, including an all-already-sent
+batch, and continues to true exhaustion inside the original single effect
+transaction. No partial commits, silent prefix cap or source-row snapshot claim.
+Current locked authority/all-day/timezone rules and full event success response
+remain. The response array, full-send total work and existing 30-second lock
+window are still not bounded by this internal batch change. Additive task-ID/
+modern-UID/legacy-title index schema/SQL source is authored/unapplied; query plans,
+index write costs and actual contention/rollback remain unverified. Regression
+source covers full multi-batch/repeat behavior, already-sent prefix continuation,
+exact candidate scope and empty exhaustion. No QA/test/check/build/browser,
+Prisma generation/migration/API/database/household/release action ran.
+
 ### Recent changes presentation localization — 2026-10-24 (#142)
 
 `ActivityClient.tsx` now uses 20 route-scoped typed EN/ES keys for history UI,

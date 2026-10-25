@@ -181,6 +181,34 @@ describe("send-to-calendar", () => {
     expect(writesTo("event").map((w) => w.args.data.source_uid)).toEqual(["project-task:task-a"]);
   });
 
+  // Authored/unrun. A batch boundary must not become a partial-send cap.
+  it("sends every eligible task across internal batches and remains repeat-safe", async () => {
+    for (let i = 0; i < 205; i++) addTask(`batch-${String(i).padStart(4, "0")}`, `Synthetic ${i}`);
+    const first = await bodyOf(await send({ timeZone: "UTC" }));
+    expect(first.eventsCreated).toBe(206);
+    expect(first.events).toHaveLength(206);
+    expect(new Set(eventsOfProjectA().map((event) => event.source_uid)).size).toBe(206);
+    const second = await bodyOf(await send({ timeZone: "UTC" }));
+    expect(second.eventsCreated).toBe(0);
+    expect(eventsOfProjectA()).toHaveLength(206);
+  });
+
+  it("continues past a complete already-sent batch to new tasks later in ID order", async () => {
+    for (let i = 0; i < 200; i++) {
+      const id = `batch-${String(i).padStart(4, "0")}`;
+      addTask(id, `Synthetic ${i}`);
+      db.rows("event").push({
+        id: `sent-${i}`, family_id: "family-A", project_id: "proj-a", is_task: true,
+        title: `Earlier ${i}`, source_uid: projectCalendar.projectTaskUid(id),
+        start_time: DUE, end_time: DUE, created_by: "parent-a", created_at: DUE,
+      });
+    }
+    const result = await bodyOf(await send({ timeZone: "UTC" }));
+    expect(result.eventsCreated).toBe(1);
+    expect(result.events[0].title).toBe(taskA().title);
+    expect(writesTo("event")).toHaveLength(1);
+  });
+
   it("another household's linked event does not block this household, and their project stays refused", async () => {
     db.rows("event").push({
       id: "foreign-linked", family_id: "family-B", title: "FOREIGN copy", description: null,
