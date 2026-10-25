@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { z } from "zod";
+import { useRecipeGroceriesText, type RecipeGroceriesMessage } from "@/i18n/recipe-groceries";
+import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { useBulkCookingText } from "@/i18n/bulk-cooking";
 import { Loader2, ShoppingCart, Undo2 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
@@ -16,6 +18,7 @@ import {
   undoRemainingMs,
   type AddFromRecipeRequest,
   type AddFromRecipeResult,
+  type UndoAddResult,
 } from "@/lib/add-to-groceries-client";
 
 /** Matches the server's undo window (ADR-0007 O-5), so Undo is not offered after it closes. */
@@ -99,7 +102,7 @@ type Status =
   | { kind: "adding" }
   | { kind: "added"; result: AddFromRecipeResult; notice?: string }
   | { kind: "undoing"; result: AddFromRecipeResult }
-  | { kind: "undone"; message: string }
+  | { kind: "undone"; result: UndoAddResult }
   | { kind: "error"; message: string; retryable: boolean };
 
 export interface AddToGroceriesButtonProps extends AddFromRecipeRequest {
@@ -130,7 +133,7 @@ export function AddToGroceriesButton({
   listId,
   servings,
   ingredientIds,
-  label = "Add ingredients to groceries",
+  label,
   className,
   disabled = false,
   onAdded,
@@ -138,10 +141,14 @@ export function AddToGroceriesButton({
   onPendingChange,
 }: AddToGroceriesButtonProps) {
   const tBulk = useBulkCookingText();
+  const text = useRecipeGroceriesText();
+  const locale = useDisplayLocale();
+  const number = (value: number) => new Intl.NumberFormat(locale).format(value);
+  const summaryCopy = { text, number };
   const [reviewOpen, setReviewOpen] = React.useState(false);
   const [review, setReview] = React.useState<GroceryReview | null>(null);
   const [reviewError, setReviewError] = React.useState<
-    string | { kind: "prepared-batch" } | null
+    RecipeGroceriesMessage | { kind: "prepared-batch" } | null
   >(null);
   const [destination, setDestination] = React.useState("");
   const [selected, setSelected] = React.useState<string[]>([]);
@@ -206,7 +213,7 @@ export function AddToGroceriesButton({
         intent.servings < 1 ||
         intent.servings > 100)
     ) {
-      setReviewError("Servings must be a whole number from 1 to 100.");
+      setReviewError("servingsInvalid");
       return;
     }
     try {
@@ -228,7 +235,7 @@ export function AddToGroceriesButton({
       }
       if (intent.listId && !data.lists.some((l) => l.id === intent.listId)) {
         setReviewError(
-          "The chosen grocery list is unavailable. Close and choose another list.",
+          "listUnavailable",
         );
         return;
       }
@@ -245,7 +252,7 @@ export function AddToGroceriesButton({
       );
     } catch {
       if (sequence === reviewSequence.current)
-        setReviewError("Could not load ingredients. Close and try again.");
+        setReviewError("loadFailed");
     }
   };
 
@@ -329,14 +336,14 @@ export function AddToGroceriesButton({
     uncertainUndo.current = false;
     setUndoOpen(false);
     await release();
-    setStatus({ kind: "undone", message: summarizeUndo(outcome.result) });
+    setStatus({ kind: "undone", result: outcome.result });
     mutationInFlight.current = false;
     onUndone?.();
   };
 
   const shown =
     status.kind === "added" || status.kind === "undoing" ? status : null;
-  const summary = shown ? summarizeAdd(shown.result) : null;
+  const summary = shown ? summarizeAdd(shown.result, summaryCopy) : null;
   const canUndo = shown !== null && (undoOpen || owned);
 
   return (
@@ -361,27 +368,28 @@ export function AddToGroceriesButton({
           <ShoppingCart className="w-4 h-4" aria-hidden="true" />
         )}
         <span>
-          {status.kind === "error" && status.retryable ? "Try again" : label}
+          {status.kind === "error" && status.retryable ? text("retry") : label ?? text("add")}
         </span>
       </button>
 
       <Dialog
         open={reviewOpen}
         onClose={closeReview}
-        title="Review grocery ingredients"
+        title={text("title")}
+        closeLabel={text("close")}
       >
-        {!review && !reviewError && <p role="status">Loading ingredients…</p>}
+        {!review && !reviewError && <p role="status">{text("loading")}</p>}
         {reviewError && (
           <p role="alert">
             {typeof reviewError === "string"
-              ? reviewError
+              ? text(reviewError)
               : tBulk("preparedGroceries")}
           </p>
         )}
         {review && (
           <div className="space-y-4">
             <p className="font-semibold break-words">{review.title}</p>
-            <p>For {review.targetServings} servings</p>
+            <p>{text("servings", { count: number(review.targetServings) })}</p>
             {review.inventory.state === "unavailable" ? (
               <p>{tBulk("stockComparisonUnavailable")}</p>
             ) : (
@@ -391,9 +399,9 @@ export function AddToGroceriesButton({
               </p>
             )}
             <label className="block">
-              Destination list
+              {text("destination")}
               <select
-                aria-label="Destination list"
+                aria-label={text("destination")}
                 className="input-apple min-h-[44px] w-full"
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
@@ -404,15 +412,15 @@ export function AddToGroceriesButton({
                   </option>
                 ))}
                 {review.lists.length === 0 && (
-                  <option value="">Create Groceries when added</option>
+                  <option value="">{text("createList")}</option>
                 )}
               </select>
             </label>
             {review.listsTruncated && (
-              <p>Showing the first 100 grocery lists.</p>
+              <p>{text("firstLists")}</p>
             )}
             {review.ingredients.length === 0 && (
-              <p>This recipe has no ingredients to add.</p>
+              <p>{text("empty")}</p>
             )}
             <div className="space-y-2">
               {review.ingredients.map((i) => (
@@ -434,11 +442,11 @@ export function AddToGroceriesButton({
                   <span>
                     {i.name}{" "}
                     <span className="text-label-secondary">
-                      {Math.round(
+                      {number(Math.round(
                         ((i.amount * review.targetServings) /
                           review.baseServings) *
                           100,
-                      ) / 100}
+                      ) / 100)}
                       {i.unit ? ` ${i.unit}` : ""}
                     </span>
                     {review.inventory.state === "available" && (
@@ -471,7 +479,7 @@ export function AddToGroceriesButton({
               disabled={busy || disabled || selected.length === 0}
               onClick={add}
             >
-              Add selected ingredients
+              {text("addSelected")}
             </button>
           </div>
         )}
@@ -480,7 +488,7 @@ export function AddToGroceriesButton({
           className="btn-tinted min-h-[44px] mt-3"
           onClick={closeReview}
         >
-          Cancel
+          {text("cancel")}
         </button>
       </Dialog>
 
@@ -508,7 +516,7 @@ export function AddToGroceriesButton({
                 className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center gap-1 rounded-lg text-subhead font-semibold text-[var(--accent)] active:bg-[var(--surface-fill)]"
               >
                 <Undo2 className="w-4 h-4" aria-hidden="true" />
-                Undo
+                {text("undo")}
               </button>
             )}
           </div>
@@ -519,7 +527,7 @@ export function AddToGroceriesButton({
           </p>
         )}
         {status.kind === "undone" && (
-          <p className="text-subhead text-label-secondary">{status.message}</p>
+          <p className="text-subhead text-label-secondary">{summarizeUndo(status.result, summaryCopy)}</p>
         )}
         {status.kind === "error" && (
           <p className="text-subhead text-[var(--danger-text)]">
@@ -528,8 +536,7 @@ export function AddToGroceriesButton({
         )}
         {status.kind === "error" && status.retryable && (
           <p className="text-subhead text-label-secondary">
-            This request may already be saved. Try again checks the same
-            ingredients and destination; resolve it before starting another add.
+            {text("uncertain")}
           </p>
         )}
       </div>

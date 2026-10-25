@@ -8,6 +8,7 @@
  * `409 IDEMPOTENCY_IN_PROGRESS` retried with the same key replays the first
  * result instead of adding twice. Not offline-queued (O-10).
  */
+import type { RecipeGroceriesText } from "@/i18n/recipe-groceries";
 import { IDEMPOTENCY_HEADER } from "@/lib/idempotency-key";
 
 export interface AddFromRecipeRequest {
@@ -209,11 +210,22 @@ export function undoRemainingMs(
 const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;
 
 /** Toast copy: what was added, what was already there, what may be a duplicate. */
-export function summarizeAdd(result: AddFromRecipeResult): {
+type SummaryCopy = { text: RecipeGroceriesText; number: (value: number) => string };
+export function summarizeAdd(result: AddFromRecipeResult, copy?: SummaryCopy): {
   title: string;
   details: string[];
 } {
   const { createdCount, alreadyOnListCount, listName } = result;
+  if (copy) {
+    const { text, number } = copy;
+    const countItems = (count: number) => text(count === 1 ? "itemOne" : "itemMany", { count: number(count) });
+    const title = createdCount > 0 ? text(createdCount === 1 ? "addedOne" : "addedMany", { items: countItems(createdCount), list: listName }) : text("alreadyAll", { list: listName });
+    const details: string[] = [];
+    if (createdCount > 0 && alreadyOnListCount > 0) details.push(text("already", { items: countItems(alreadyOnListCount) }));
+    const count = result.possibleDuplicates.length;
+    if (count > 0) details.push(text(result.possibleDuplicatesTruncated ? "duplicateMore" : count === 1 ? "duplicateOne" : "duplicateMany", { count: number(count) }));
+    return { title, details };
+  }
   const title =
     createdCount > 0
       ? `Added ${items(createdCount)} to ${listName}`
@@ -234,7 +246,15 @@ export function summarizeAdd(result: AddFromRecipeResult): {
   return { title, details };
 }
 
-export function summarizeUndo(result: UndoAddResult): string {
+export function summarizeUndo(result: UndoAddResult, copy?: SummaryCopy): string {
+  if (copy) {
+    const { text, number } = copy;
+    const countItems = (count: number) => text(count === 1 ? "itemOne" : "itemMany", { count: number(count) });
+    return text("undone", {
+      removed: result.removedCount === 0 ? text("removedNone") : text(result.removedCount === 1 ? "removedOne" : "removedMany", { items: countItems(result.removedCount) }),
+      kept: result.keptCheckedCount > 0 ? text("kept", { items: countItems(result.keptCheckedCount) }) : "",
+    });
+  }
   const removed =
     result.removedCount === 0
       ? "Nothing left to remove"

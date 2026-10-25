@@ -11,6 +11,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { I18nProvider, useTranslation } from "@/i18n";
 import { AddToGroceriesButton } from "../AddToGroceriesButton";
 
 const review = {
@@ -682,3 +683,35 @@ it.each([
     ).toBeInTheDocument();
   },
 );
+
+// Authored/unrun: locale presentation changes must not issue another read or
+// mutation, and a confirmed Undo must retain structured counts for re-render.
+it("translates mounted grocery review and confirmed Undo without another request", async () => {
+  function Language() {
+    const { setLocale } = useTranslation();
+    return <><button onClick={() => setLocale("es")}>Spanish copy</button><button onClick={() => setLocale("en")}>English copy</button></>;
+  }
+  mockFetch.mockImplementation(async (url: string, init?: RequestInit) => ({
+    ok: true, status: init?.method === "POST" ? 201 : 200,
+    headers: new Headers(), json: async () => url.endsWith("undo-add")
+      ? { requestId: "request-a", removedCount: 1, keptCheckedCount: 1 }
+      : init?.method === "POST" ? result : review,
+  }));
+  render(<I18nProvider locale="en"><Language /><AddToGroceriesButton recipeId="recipe-a" /></I18nProvider>);
+  fireEvent.click(screen.getByRole("button", { name: "Add ingredients to groceries" }));
+  await screen.findByRole("combobox", { name: "Destination list" });
+  const reads = mockFetch.mock.calls.length;
+  fireEvent.click(screen.getByRole("button", { name: "Spanish copy" }));
+  expect(screen.getByRole("dialog", { name: "Revisar ingredientes para la compra" })).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Lista de destino" })).toHaveValue("list-a");
+  expect(screen.getByText("Tomato soup")).toBeInTheDocument();
+  expect(mockFetch).toHaveBeenCalledTimes(reads);
+  fireEvent.click(screen.getByRole("button", { name: "Añadir ingredientes seleccionados" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Deshacer" }));
+  await screen.findByText("Se eliminó 1 artículo (1 artículo con marca de completado; sin eliminar).");
+  const calls = mockFetch.mock.calls.length;
+  fireEvent.click(screen.getByRole("button", { name: "English copy" }));
+  expect(screen.getByText("Removed 1 item (1 item already ticked, kept).")).toBeInTheDocument();
+  expect(mockFetch).toHaveBeenCalledTimes(calls);
+  expect(writes()).toHaveLength(2);
+});

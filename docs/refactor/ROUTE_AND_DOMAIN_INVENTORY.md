@@ -1,5 +1,22 @@
 # Route and domain inventory (#148)
 
+### Recipe-to-grocery review/result copy — 2026-10-24 (#142)
+
+AddToGroceriesButton now uses typed scoped EN/ES controls, local review errors,
+confirmed add/already-on-list/duplicate summaries and structured Undo results.
+Numbers use the display locale; recipe/list/ingredient names and units stay
+literal. Local review errors retain semantic keys until render. Undo retains its
+server result instead of a preformatted sentence. Summary helpers accept optional
+presentation copy and retain their legacy English default; their copy-type import
+is erased, so no runtime React/translation dependency enters the transport helper.
+Existing review sequence, selected/destination values, exact mutation request/key,
+owned navigation, retry, callbacks and Undo deadlines remain. Transport/server
+error strings are unchanged and may remain English. Thirteen owned copy inventory
+records removed without scanning. Mounted locale/review/confirmed Undo/no-extra-
+request regression source authored/unrun. No QA/test/check/build/browser/API/
+database/native/provider/permission/release ran. Original locale/layout/recovery/
+food and runtime acceptance remains open.
+
 ### Calendar source-identity ambiguity refusal — 2026-10-24 (#124)
 
 The parser refuses UIDs above the existing500-character bound rather than
