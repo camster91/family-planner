@@ -2340,3 +2340,16 @@ build/scanner/browser/CI/API/DB/import/native/provider/push/merge/deploy ran.
 pending unlink product-choice question remain unresolved.
 
 Full owned-import/legacy compatibility contract: docs/plans/import-review-ui.md.
+
+Latest bounded source work (2026-10-25) gives local import File.text a15second
+owned read deadline and abort on replacement/unmount/owner retirement (#104/#135).
+Current generation checks prevent late text from reaching parse or reviving old
+file/approval state. The existing10MiB metadata cap is supplemented by decoded
+UTF-8 checks before JSON.parse; failure clears picker value for same-file retry.
+Physical native I/O cancellation, pre-allocation protection and preemptible CPU
+parsing are not claimed. Source cases are authored/adapted UNRUN; no QA/test/check/
+build/scanner/browser/CI/API/DB/import/native/provider/push/merge/deploy ran.
+39 issues remain open; approved exports/reconciliation/native/rendered acceptance
+and the pending unlink product-choice question remain unresolved.
+
+Local file read/recovery limits: docs/plans/import-review-ui.md.

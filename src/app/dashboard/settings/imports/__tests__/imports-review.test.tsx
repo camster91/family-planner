@@ -232,3 +232,38 @@ it('retires a denied session before decoding an unreadable private reply', async
   expect(screen.queryByText('synthetic-retired.json')).toBeNull();
   expect(global.fetch).toHaveBeenCalledTimes(1);
 });
+describe('owned file read recovery source (unrun)', () => {
+  afterEach(() => jest.useRealTimers());
+  it('releases a stalled read, ignores its late contents and permits selecting the same file again', async () => {
+    jest.useFakeTimers();
+    let finish!: (text: string) => void;
+    const read = jest.fn().mockImplementationOnce(() => new Promise<string>(resolve => { finish = resolve; })).mockResolvedValue('{"fixture":"current"}');
+    const selected = file('synthetic-retry.json', read);
+    global.fetch = jest.fn() as unknown as typeof fetch;
+    render(<ImportsClient />);
+    choose(selected);
+    await waitFor(() => expect(finish).toBeDefined());
+    await act(async () => { jest.advanceTimersByTime(15_000); });
+    await screen.findByText(/That file could not be read/);
+    expect(screen.queryByText('Reading export file…')).toBeNull();
+    expect(screen.queryByText('synthetic-retry.json')).toBeNull();
+    await act(async () => { finish('{"fixture":"late-old"}'); });
+    expect(screen.queryByText('synthetic-retry.json')).toBeNull();
+    choose(selected);
+    await screen.findByText('synthetic-retry.json');
+    expect(read).toHaveBeenCalledTimes(2);
+    expect((screen.getByRole('button', { name: 'Validate dry run' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+  it('checks decoded UTF-8 size even if bridge file metadata understated it', async () => {
+    global.fetch = jest.fn() as unknown as typeof fetch;
+    render(<ImportsClient />);
+    // A fabricated text-only bridge reports a tiny File but yields >10MiB UTF-8.
+    const text = JSON.stringify({ fixture: '€'.repeat(Math.floor(10 * 1024 * 1024 / 3) + 1) });
+    choose(file('synthetic-overflow.json', async () => text));
+    await screen.findByText('Export files must be 10 MB or smaller.');
+    expect(screen.queryByText('synthetic-overflow.json')).toBeNull();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+});

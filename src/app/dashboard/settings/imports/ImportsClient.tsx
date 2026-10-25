@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { IMPORT_OWNER_HEADER, importOwner, sameImportOwner, type ImportOwner } from "@/lib/imports/import-owner-contract";
 import { runOwnedForeground } from "@/lib/owned-request-http";
-import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
+import { abortable, readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { duplicateSourceRows, type DuplicateSourceRow } from "@/lib/imports/source-identity-validation";
 import { useImportSettingsText, type ImportSettingsError } from "@/i18n/import-settings";
 import Link from "next/link";
@@ -16,6 +16,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+const IMPORT_FILE_TIMEOUT_MS = 15_000;
+const IMPORT_FILE_BYTES = 10 * 1024 * 1024;
 const IMPORT_PREVIEW_TIMEOUT_MS = 15_000;
 // Existing canonical effect transactions allow60s, plus job/auth/transport work.
 const IMPORT_WRITE_TIMEOUT_MS = 90_000;
@@ -79,6 +81,8 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
   const [inputVersion, setInputVersion] = useState(0);
   const revision = useRef(0);
   const fileRequest = useRef(0);
+  const activeFileRead = useRef<AbortController | null>(null);
+  const fileInput = useRef<HTMLInputElement | null>(null);
   const operation = useRef(0);
   const pending = useRef(false);
   const activeRequest = useRef<AbortController | null>(null);
@@ -87,6 +91,8 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
   const reviewed = useRef<{ version: number; source: Source; body: string } | null>(null);
   useEffect(() => () => {
     fileRequest.current++;
+    activeFileRead.current?.abort();
+    activeFileRead.current = null;
     operation.current++;
     activeRequest.current?.abort();
     activeRequest.current = null;
@@ -98,6 +104,8 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
     // Never rebind the old file/map/review after an account or generation change.
     operation.current++;
     fileRequest.current++;
+    activeFileRead.current?.abort();
+    activeFileRead.current = null;
     activeRequest.current?.abort();
     activeRequest.current = null;
     reviewed.current = null;
@@ -125,24 +133,48 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
   const handleFile = async (file: File | undefined) => {
     if (pending.current) return;
     const request = ++fileRequest.current;
+    activeFileRead.current?.abort();
+    activeFileRead.current = null;
     resetPreview();
     setFileData(null);
     setFileName("");
     fileReading.current = Boolean(file);
     setReading(Boolean(file));
     if (!file) return;
+    const controller = new AbortController();
+    activeFileRead.current = controller;
     try {
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > IMPORT_FILE_BYTES) {
         setError("fileTooLarge");
+        if (fileInput.current) fileInput.current.value = "";
         return;
       }
-      const data: unknown = JSON.parse(await file.text());
+      const contents = await runOwnedForeground(signal => abortable(file.text(), signal), {
+        signal: controller.signal, timeoutMs: IMPORT_FILE_TIMEOUT_MS,
+      });
       if (request !== fileRequest.current) return;
+      if (typeof contents !== 'string') {
+        setError('fileUnreadable');
+        if (fileInput.current) fileInput.current.value = "";
+        return;
+      }
+      // Metadata can be incomplete on bridges; refuse decoded overflow BEFORE
+      // JSON.parse. A text-only bridge has already allocated the source string.
+      if (contents.length > IMPORT_FILE_BYTES || new Blob([contents]).size > IMPORT_FILE_BYTES) {
+        setError('fileTooLarge');
+        if (fileInput.current) fileInput.current.value = "";
+        return;
+      }
+      const data: unknown = JSON.parse(contents);
       setFileData(data);
       setFileName(file.name);
     } catch {
-      if (request === fileRequest.current) setError("fileUnreadable");
+      if (request === fileRequest.current) {
+        setError("fileUnreadable");
+        if (fileInput.current) fileInput.current.value = "";
+      }
     } finally {
+      if (activeFileRead.current === controller) activeFileRead.current = null;
       if (request === fileRequest.current) {
         fileReading.current = false;
         setReading(false);
@@ -323,6 +355,7 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
             </span>
           </label>
           <input
+            ref={fileInput}
             id="importFile"
             className="sr-only"
             type="file"

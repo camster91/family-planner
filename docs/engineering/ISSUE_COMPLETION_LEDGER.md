@@ -54,17 +54,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) binds the Imports form to original
-parent/account/household/session context (#104/#136). A strict owned endpoint
-requires the bounded marker before source-body parsing, reuses canonical legacy
-handlers/effects and renews original authority before private success echo. The
-client freezes context, requires matching owner/review replies, masks retired
-file/report controls and never falls back to a legacy write URL. Old-server
-missing support holds backend actions with EN/ES recovery; legacy contracts stay
-supported. API/UI/paired source cases are authored/adapted UNRUN. No QA/test/check/
+Latest bounded source work (2026-10-25) gives local import File.text a15second
+owned read deadline and abort on replacement/unmount/owner retirement (#104/#135).
+Current generation checks prevent late text from reaching parse or reviving old
+file/approval state. The existing10MiB metadata cap is supplemented by decoded
+UTF-8 checks before JSON.parse; failure clears picker value for same-file retry.
+Physical native I/O cancellation, pre-allocation protection and preemptible CPU
+parsing are not claimed. Source cases are authored/adapted UNRUN; no QA/test/check/
 build/scanner/browser/CI/API/DB/import/native/provider/push/merge/deploy ran.
-39 issues remain open; full source/export/client/race/rollback acceptance and the
-pending unlink product-choice question remain unresolved.
+39 issues remain open; approved exports/reconciliation/native/rendered acceptance
+and the pending unlink product-choice question remain unresolved.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

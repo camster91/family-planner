@@ -255,3 +255,35 @@ reload control and restores focus there only when removal left focus on body;
 otherwise it preserves the person's current connected navigation focus.401/403
 retire before private body decoding, and missing/malformed owner echoes cannot
 be interpreted as approval. These are source behaviors, not rendered acceptance.
+
+## Bounded local file read and retry — 2026-10-25
+
+The local File.text wait now has its own15second owned foreground deadline and
+abort race. A new selection aborts/retire the earlier read; unmount and original-
+owner retirement do likewise. Only the current file generation can apply data,
+filename, errors or read completion. A timed-out/retired underlying promise cannot
+later enter JSON.parse or revive its old filename/preview. This does not assert
+that a browser/native provider physically cancels File.text or frees its buffers.
+
+The existing10MiB File.size precheck remains. After text arrives, UTF-16 code-unit
+length supplies a cheap lower bound, followed by the actual UTF-8 Blob byte size;
+either decoded overflow refuses before JSON.parse. This catches incomplete or
+understated bridge metadata without pretending to provide streaming/pre-allocation
+protection for a text-only bridge. Size-check allocation and synchronous bounded
+JSON.parse/map/body serialization are not preemptible by a timer. Raw token/
+source-number preservation and immutable original-export evidence remain separate
+work; parsing behavior and approved-source requirements are unchanged.
+
+Failure clears the actual picker value, selected data/name and approval state so
+the person can choose the same source file again. Input replacement does not let
+an older finally handler clear the newer read's busy/ownership state. Existing
+EN/ES file-unreadable/too-large feedback is retained. Reading/selecting files
+never dispatches an API import, writes browser storage or arms persistence by
+itself; the strict original-owner preview/approval contract still applies.
+
+Authored/unrun source cases cover stalled-read release, late contents ignored,
+same-file reselection and UTF-8 overflow despite understated File metadata. The
+existing late older-file replacement case remains. Actual picker/browser/native
+read/abort/memory/background/process-death and original rendered/role/import
+acceptance are still deferred. No QA/tests/checks/scanner/build/browser/CI/API/DB/
+import/migration/native/provider/push/merge/deploy ran. #104/#135 remain open.
