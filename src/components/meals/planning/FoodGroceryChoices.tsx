@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import { useTranslation } from "@/i18n";
+import { useFoodPlanningInputsText } from "@/i18n/food-planning-inputs";
 import { formatRecipeAmount } from "@/lib/recipe-scaling";
 import type { FoodCandidate } from "@/lib/food-planning/contract";
 import type { FoodEditorDraft } from "@/lib/food-planning/editor";
@@ -22,29 +23,25 @@ export function FoodGroceryChoices({
   onChange: (value: Selection) => void;
   onFailure: (error: unknown) => void;
 }) {
+  const text = useFoodPlanningInputsText();
   const { locale } = useTranslation(),
-    es = locale === "es",
     [page, setPage] = React.useState(0),
     last = Math.max(0, Math.ceil(choice.ingredients.length / 5) - 1),
     current = Math.min(page, last);
   return (
     <details>
       <summary className="min-h-[44px] py-3 cursor-pointer font-semibold">
-        {es
-          ? "Añadir ingredientes a la compra (opcional)"
-          : "Add ingredients to groceries (optional)"}{" "}
+        {text("groceryOptional")}{" "}
         · {selection.ingredientIds.length}
       </summary>
       <div className="space-y-3">
         <p className="text-footnote text-label-secondary">
-          {es
-            ? "No se añade nada por defecto. Selecciona ingredientes y una lista. Se usan cantidades completas de receta, no déficits estimados; revisa las cantidades exactas antes de guardar."
-            : "Nothing is added by default. Select ingredients and a list. Adds use full recipe quantities, not estimated shortfalls; review exact amounts before saving."}
+          {text("grocerySelectionBoundary")}
         </p>
         <FoodRecordPicker
           kind="lists"
-          label={es ? "Lista de destino" : "Target list"}
-          emptyLabel={es ? "Elegir lista" : "Choose a list"}
+          label={text("targetList")}
+          emptyLabel={text("chooseList")}
           values={selection.listId ? [selection.listId] : []}
           context={context}
           disabled={disabled}
@@ -53,9 +50,7 @@ export function FoodGroceryChoices({
         />
         {selection.ingredientIds.length > 0 && !selection.listId && (
           <p role="status">
-            {es
-              ? "Elige una lista antes de revisar el guardado."
-              : "Choose a list before reviewing the save."}
+            {text("chooseListBeforeSave")}
           </p>
         )}
         <ul className="space-y-2">
@@ -84,9 +79,7 @@ export function FoodGroceryChoices({
                   <span>
                     {line.name} ·{" "}
                     {line.required === null
-                      ? es
-                        ? "cantidad por revisar"
-                        : "amount to review"
+                      ? text("amountToReview")
                       : formatRecipeAmount(line.required, line.unit, locale)}
                   </span>
                 </label>
@@ -101,7 +94,7 @@ export function FoodGroceryChoices({
               disabled={current === 0}
               onClick={() => setPage(current - 1)}
             >
-              {es ? "Anteriores" : "Previous ingredients"}
+              {text("previousIngredients")}
             </button>
             <span aria-live="polite">
               {current + 1}/{last + 1}
@@ -112,7 +105,7 @@ export function FoodGroceryChoices({
               disabled={current === last}
               onClick={() => setPage(current + 1)}
             >
-              {es ? "Siguientes" : "Next ingredients"}
+              {text("nextIngredients")}
             </button>
           </div>
         )}

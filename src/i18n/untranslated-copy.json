@@ -1670,76 +1670,6 @@
     "count": 1
   },
   {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "Add ingredients to groceries (optional)",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "amount to review",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "Añadir ingredientes a la compra (opcional)",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "Anteriores",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "cantidad por revisar",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "Choose a list before reviewing the save.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "Elige una lista antes de revisar el guardado.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "Lista de destino",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "Next ingredients",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "No se añade nada por defecto. Selecciona ingredientes y una lista. Se usan cantidades completas de receta, no déficits estimados; revisa las cantidades exactas antes de guardar.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "Nothing is added by default. Select ingredients and a list. Adds use full recipe quantities, not estimated shortfalls; review exact amounts before saving.",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "Previous ingredients",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "Siguientes",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodGroceryChoices.tsx",
-    "text": "Target list",
-    "count": 1
-  },
-  {
     "file": "src/components/meals/planning/FoodPlanningLauncher.tsx",
     "text": "Cargando planificador…",
     "count": 1
@@ -1907,26 +1837,6 @@
   {
     "file": "src/components/meals/planning/FoodPlanningSheet.tsx",
     "text": "Viaje (min)",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodSaveDetails.tsx",
-    "text": "Anteriores",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodSaveDetails.tsx",
-    "text": "Next details",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodSaveDetails.tsx",
-    "text": "Previous details",
-    "count": 1
-  },
-  {
-    "file": "src/components/meals/planning/FoodSaveDetails.tsx",
-    "text": "Siguientes",
     "count": 1
   },
   {

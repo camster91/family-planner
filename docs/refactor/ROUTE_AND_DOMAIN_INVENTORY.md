@@ -1,5 +1,16 @@
 # Route and domain inventory (#148)
 
+### Food grocery-selection/save-details copy source — 2026-10-24 (#142)
+
+`FoodGroceryChoices.tsx` and `FoodSaveDetails.tsx` now use scoped typed EN/ES
+`food-planning-inputs.ts` keys. Existing selection and exact-command review
+remain canonical: no ingredient default changes, estimated-shortage arithmetic,
+write/review callbacks, cook inheritance, source names, dates or quantities
+changed. Five-row detail paging retains component identity and state; its copy
+now follows translation context directly. Eighteen owned inventory records
+removed; no scanner/check/test/build/browser ran. This is local source work,
+not rendered, localization, household-write or release acceptance.
+
 ### Food-plan picker/allocation copy source — 2026-10-24 (#142)
 
 FoodRecordPicker and FoodAllocationEditor use typed scoped EN/ES keys for recipe/
