@@ -1,16 +1,17 @@
+import { readRewardNotificationFocus } from "@/lib/reward-notification-focus"
 import { parseRewardPaging, readRewardPage } from '@/lib/reward-paging'
 import { Suspense } from 'react'
-import { getServerUser } from '@/lib/supabase/server'
+import { getServerUser, getServerActor } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { FeatureOffState } from '@/components/ui/feature-gate'
 import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
 import RewardsBoard, { type RewardCard } from './RewardsBoard'
-import { RewardsNoFamilyState, RewardsPageHeader, RewardsPagingFailure } from '@/components/rewards/RewardsPageHeader'
+import { RewardsNoFamilyState, RewardsPageHeader, RewardsPagingFailure, RewardNotificationUnavailable } from '@/components/rewards/RewardsPageHeader'
 
 export const dynamic = 'force-dynamic'
 
 interface RewardsPageProps {
-  searchParams: Promise<{ tab?: string; cursor?: string | string[] }>
+  searchParams: Promise<{ tab?: string; cursor?: string | string[]; focus?: string | string[] }>
 }
 
 async function RewardsContent({
@@ -18,13 +19,15 @@ async function RewardsContent({
   familyId,
   canViewAnalytics,
   cursor,
+  focus,
 }: {
   userId: string;
   familyId: string;
   canViewAnalytics: boolean;
   cursor?: string | string[];
+  focus?: string | string[];
 }) {
-  const sessionUser = await getServerUser()
+  const sessionUser = await getServerActor()
   if (!sessionUser || sessionUser.id !== userId) return null
   const params = new URLSearchParams({ limit: '24' })
   if (Array.isArray(cursor)) return <RewardsPagingFailure />
@@ -50,9 +53,18 @@ async function RewardsContent({
     claimedByName: r.claimer?.name ?? null,
   }))
 
+  const notificationFocus = focus !== undefined ? {
+    target: sessionUser.family_id === familyId && sessionUser.role === user.role
+      ? await readRewardNotificationFocus(prisma!, { userId, familyId, role: user.role, tokenVersion: sessionUser.tokenVersion }, focus).catch(() => null)
+      : null,
+  } : undefined
+  // Failed focus authority must not serialize the earlier shelf/balance reads.
+  if (notificationFocus && !notificationFocus.target) return <RewardNotificationUnavailable />
+
   return (
     <div className="space-y-8">
       <RewardsBoard
+        notificationFocus={notificationFocus}
         rewards={cards}
         userXp={userXp}
         isParent={isParent}
@@ -95,6 +107,7 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
 
   const familyId = user?.family_id
   if (!familyId) {
+    if (params.focus !== undefined) return <RewardNotificationUnavailable />
     return (
       <div className="space-y-6">
         <RewardsPageHeader className="px-4" />
@@ -108,6 +121,7 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
   // Server-side gate (#248): with Rewards off, or Points & streaks off (which
   // Rewards needs), no XP balance or reward cost is rendered or serialised.
   if (!isFeatureEnabled(normalizeFeatures(user?.family?.features), 'rewards')) {
+    if (params.focus !== undefined) return <RewardNotificationUnavailable />
     return <FeatureOffState featureKey="rewards" canManage={sessionUser.role !== 'teen' && sessionUser.role !== 'child'} />
   }
 
@@ -125,7 +139,7 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
       />
       <div className="mx-auto mt-6 w-full max-w-[1440px] px-4 sm:px-6 lg:px-8">
         <Suspense fallback={<RewardsSkeleton />}>
-          <RewardsContent userId={sessionUser.id} familyId={familyId} canViewAnalytics={canViewAnalytics} cursor={params.cursor} />
+          <RewardsContent userId={sessionUser.id} familyId={familyId} canViewAnalytics={canViewAnalytics} cursor={params.cursor} focus={params.focus} />
         </Suspense>
       </div>
     </div>

@@ -3,6 +3,11 @@ import { useTranslation } from './index'
 
 /** Copy for the rewards shelf and its small, recoverable mutations. */
 export const rewardsEnglish = {
+  focusHeading: 'Reward from your notification',
+  focusDescription: 'This is the current reward. It is shown separately from this page’s history.',
+  focusUnavailable: 'This reward is not available here. Open rewards to see your current choices.',
+  focusAll: 'Open rewards',
+  focusToday: 'Open Today',
   pageTitle: 'Rewards',
   pageSubtitle: 'Use the points you earn to claim rewards',
   noFamilyTitle: 'No family set up',
@@ -64,6 +69,11 @@ export const rewardsEnglish = {
 } as const
 
 export const rewardsSpanish: Record<keyof typeof rewardsEnglish, string> = {
+  focusHeading: 'Recompensa de tu notificación',
+  focusDescription: 'Esta es la recompensa actual. Se muestra aparte del historial de esta página.',
+  focusUnavailable: 'Esta recompensa no está disponible aquí. Abre recompensas para ver tus opciones actuales.',
+  focusAll: 'Abrir recompensas',
+  focusToday: 'Abrir Hoy',
   pageTitle: 'Recompensas',
   pageSubtitle: 'Usa los puntos que ganas para reclamar recompensas',
   noFamilyTitle: 'Aún no hay una familia',

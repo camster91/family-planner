@@ -1,3 +1,4 @@
+import { rewardNotificationDestination } from "@/lib/notification-destination"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
@@ -110,6 +111,7 @@ export async function POST(request: NextRequest) {
             title: `${user?.name ?? 'Someone'} claimed a reward!`,
             message: `${user?.name ?? 'Someone'} claimed "${reward.name}" for ${chargedCost} points.`,
             type: 'reward',
+            actionUrl: rewardNotificationDestination(rewardId),
           })
         }
       } catch (err) {

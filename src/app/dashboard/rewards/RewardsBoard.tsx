@@ -104,6 +104,7 @@ type Recovery = {
  */
 export default function RewardsBoard({
   rewards,
+  notificationFocus,
   userXp,
   isParent,
   currentUserId,
@@ -111,6 +112,7 @@ export default function RewardsBoard({
   pageInfo,
 }: {
   rewards: RewardCard[]
+  notificationFocus?: { target: RewardCard | null }
   userXp: number
   isParent: boolean
   currentUserId: string
@@ -122,6 +124,10 @@ export default function RewardsBoard({
   const { addToast } = useMaybeToast()
   const rewardsText = useRewardsText()
   const [localRewards, setLocalRewards] = React.useState(rewards)
+  const [focusedReward, setFocusedReward] = React.useState(notificationFocus?.target ?? null)
+  const focusRef = React.useRef<HTMLElement>(null)
+  React.useEffect(() => setFocusedReward(notificationFocus?.target ?? null), [notificationFocus?.target])
+  React.useEffect(() => { if (notificationFocus !== undefined) focusRef.current?.focus() }, [notificationFocus?.target?.id])
   const [localXp, setLocalXp] = React.useState(userXp)
   const [confirming, setConfirming] = React.useState<RewardCard | null>(null)
   const [claiming, setClaiming] = React.useState(false)
@@ -134,12 +140,14 @@ export default function RewardsBoard({
   React.useEffect(() => setLocalRewards(rewards), [rewards])
   React.useEffect(() => setLocalXp(userXp), [userXp])
 
-  const claimable = localRewards.filter((reward) => reward.status === 'available' && reward.active !== false)
-  const pendingReview = localRewards.filter((reward) => reward.status === 'claimed')
+  // A focused record is presented once, independent of the current page cap.
+  const pageRewards = localRewards.filter(row => row.id !== focusedReward?.id)
+  const claimable = pageRewards.filter((reward) => reward.status === 'available' && reward.active !== false)
+  const pendingReview = pageRewards.filter((reward) => reward.status === 'claimed')
   // Retired rewards remain visible in the family history, but cannot re-enter
   // the claim shelf. This keeps past choices auditable without offering stale
   // actions.
-  const familyRewards = localRewards.filter((reward) =>
+  const familyRewards = pageRewards.filter((reward) =>
     (reward.status === 'available' && reward.active === false) ||
     !['available', 'claimed'].includes(reward.status),
   )
@@ -155,6 +163,7 @@ export default function RewardsBoard({
   }
 
   const applyReward = (next: RewardCard) => {
+    setFocusedReward(current => current?.id === next.id ? next : current)
     setLocalRewards((current) => current.map((reward) => reward.id === next.id ? next : reward))
   }
 
@@ -315,6 +324,19 @@ export default function RewardsBoard({
 
   return (
     <div className="space-y-8">
+      {notificationFocus !== undefined && <section ref={focusRef} tabIndex={-1} aria-label={rewardsText('focusHeading')}
+        data-testid="notification-reward-focus" className="space-y-3 rounded-[var(--radius-xl)] border border-[var(--separator)] p-4 outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
+        <h2 className="section-header">{rewardsText('focusHeading')}</h2>
+        <p className="text-footnote text-label-secondary">{rewardsText(focusedReward ? 'focusDescription' : 'focusUnavailable')}</p>
+        {focusedReward && <ul><RewardRow reward={focusedReward} currentUserId={currentUserId} isParent={isParent}
+          approving={approving === focusedReward.id} onApprove={() => void approve(focusedReward)} rewardsText={rewardsText}
+          recovery={recoveryFor('approve', focusedReward.id)}
+          onRetry={() => { const recovery = recoveryFor('approve', focusedReward.id); if (recovery) void retryRecovery(recovery) }}
+          onCheckStatus={() => { const recovery = recoveryFor('approve', focusedReward.id); if (recovery) void checkStatus(recovery) }} /></ul>}
+        <Link href="/dashboard/rewards" className="btn-plain inline-flex min-h-[44px] items-center"
+          aria-disabled={claiming || approving !== null || recoveries.length > 0}
+          onClick={event => { if (claiming || approving !== null || recoveries.length > 0) event.preventDefault() }}>{rewardsText('focusAll')}</Link>
+      </section>}
       {isParent && localRewards.length > 0 && (
         <div className="flex justify-end">
           <Link href="/dashboard/rewards/create" className="btn-tinted min-h-[44px] w-full justify-center sm:w-auto">
@@ -353,11 +375,11 @@ export default function RewardsBoard({
 
       {pendingReview.length > 0 && <section aria-labelledby="pending-rewards-heading" className="space-y-3"><div><h2 id="pending-rewards-heading" className="section-header">{rewardsText('claimed')}</h2><p className="text-footnote text-label-secondary">{isParent ? rewardsText('reviewHint') : rewardsText('waiting')}</p></div><ul className="space-y-3">{pendingReview.map((reward) => { const recovery = recoveryFor('approve', reward.id); return <RewardRow key={reward.id} reward={reward} currentUserId={currentUserId} isParent={isParent} approving={approving === reward.id} onApprove={() => approve(reward)} rewardsText={rewardsText} recovery={recovery} onRetry={() => recovery && void retryRecovery(recovery)} onCheckStatus={() => recovery ? void checkStatus(recovery) : undefined} /> })}</ul></section>}
 
-      <section aria-labelledby="family-rewards-heading"><div className="mb-3"><h2 id="family-rewards-heading" className="section-header">{rewardsText(pageInfo ? 'shownFamily' : 'allFamily')}</h2></div>{localRewards.length === 0 ? <EmptyState icon={Gift} glyphColor="rewards" illustration={ILLUSTRATIONS.rewards} headingLevel="h3" title={rewardsText(pageInfo?.older ? 'pageEmpty' : 'noRewards')} description={pageInfo?.older ? rewardsText('pageEmptyHint') : isParent ? rewardsText('createFirst') : rewardsText('askParent')} action={isParent ? <Link href="/dashboard/rewards/create" className="btn-tinted bg-tint-rewards text-white min-h-[44px] px-5 py-2 text-base font-medium">{rewardsText('createReward')}</Link> : undefined} /> : familyRewards.length > 0 ? <ul className="space-y-3">{familyRewards.map((reward) => { const recovery = recoveryFor('approve', reward.id); return <RewardRow key={reward.id} reward={reward} currentUserId={currentUserId} isParent={isParent} approving={approving === reward.id} onApprove={() => approve(reward)} rewardsText={rewardsText} recovery={recovery} onRetry={() => recovery && void retryRecovery(recovery)} onCheckStatus={() => recovery ? void checkStatus(recovery) : undefined} /> })}</ul> : null}</section>
+      <section aria-labelledby="family-rewards-heading"><div className="mb-3"><h2 id="family-rewards-heading" className="section-header">{rewardsText(pageInfo ? 'shownFamily' : 'allFamily')}</h2></div>{localRewards.length === 0 && !focusedReward ? <EmptyState icon={Gift} glyphColor="rewards" illustration={ILLUSTRATIONS.rewards} headingLevel="h3" title={rewardsText(pageInfo?.older ? 'pageEmpty' : 'noRewards')} description={pageInfo?.older ? rewardsText('pageEmptyHint') : isParent ? rewardsText('createFirst') : rewardsText('askParent')} action={isParent ? <Link href="/dashboard/rewards/create" className="btn-tinted bg-tint-rewards text-white min-h-[44px] px-5 py-2 text-base font-medium">{rewardsText('createReward')}</Link> : undefined} /> : familyRewards.length > 0 ? <ul className="space-y-3">{familyRewards.map((reward) => { const recovery = recoveryFor('approve', reward.id); return <RewardRow key={reward.id} reward={reward} currentUserId={currentUserId} isParent={isParent} approving={approving === reward.id} onApprove={() => approve(reward)} rewardsText={rewardsText} recovery={recovery} onRetry={() => recovery && void retryRecovery(recovery)} onCheckStatus={() => recovery ? void checkStatus(recovery) : undefined} /> })}</ul> : null}</section>
 
       {recoveries.filter(recovery => recovery.kind === 'claim'
         ? confirming?.id !== recovery.reward.id && !claimable.some(row => row.id === recovery.reward.id)
-        : ![...pendingReview, ...familyRewards].some(row => row.id === recovery.reward.id)
+        : focusedReward?.id !== recovery.reward.id && ![...pendingReview, ...familyRewards].some(row => row.id === recovery.reward.id)
       ).map(recovery => <RecoveryNotice key={`${recovery.kind}:${recovery.reward.id}`} recovery={recovery} rewardsText={rewardsText} onRetry={() => void retryRecovery(recovery)} onCheckStatus={() => void checkStatus(recovery)} />)}
 
       {pageInfo && (pageInfo.older || pageInfo.nextCursor) && (

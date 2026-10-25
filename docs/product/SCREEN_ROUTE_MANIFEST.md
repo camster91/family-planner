@@ -6,7 +6,7 @@ browser, rendering, test scanner, provider, CI or release action ran.
 
 [SCREEN_ROUTE_MANIFEST.json](SCREEN_ROUTE_MANIFEST.json) records82 physical
 `src/app/**/page.tsx` sources,71 distinct route patterns, all22 literal feature
-keys/entry destinations from `src/lib/features.ts`, and17 named embedded surfaces (the original15 plus dated chore-focus and parent-review source additions).
+keys/entry destinations from `src/lib/features.ts`, and18 named embedded surfaces (the original15 plus dated chore-focus, parent-review and reward-focus source additions).
 These are counts of source records, not measured screen/frame/acceptance coverage.
 
 ## How the records relate
@@ -86,3 +86,15 @@ it now belongs in embeddedSurfaces, matching the already documented16th source.
 This is source-directory correction, not a rendered coverage result. No page,
 route or feature count changed. EN/ES, keyboard/focus/Back, late-owner/privacy,
 old-client/restore and native acceptance remain unperformed.
+
+
+## Reward claim/approval focus — 2026-10-25
+
+The18th embedded source is a focused RewardRow on the existing Rewards route.
+The server authorizes one current claim/approval independently of the24-row page;
+children/teens require their own account claim and parents the current household.
+A failed original-session/role/feature/target read returns neutral navigation
+without the earlier shelf/balance data. Valid focus reuses canonical approval,
+receipt keys and recovery, removes its loaded duplicate and keeps paging counts
+about the page. EN/ES, semantic focus and source cases are authored/unrun. No new
+page, route pattern, provider/native delivery or rendered acceptance is claimed.

@@ -879,7 +879,7 @@
       "screenFamily": "terms"
     }
   ],
-  "incrementalSourceNote": "2026-10-25: chore focus and gated owned parent review added to the original15 embedded surfaces (now17). Focus entry moved from remaining evidence to the embedded surface list. Base page/route/feature snapshot retained; no rendered acceptance.",
+  "incrementalSourceNote": "2026-10-25: chore focus, gated owned parent review and reward claim/approval focus added to the original15 embedded surfaces (now18). Base page/route/feature snapshot retained; no rendered acceptance.",
   "embeddedSurfaces": [
     {
       "screen": "onboarding",
@@ -1020,6 +1020,14 @@
         "/dashboard/chores"
       ],
       "mapping": "2026-10-25 incremental source: default-off parent capability, rounded review, frozen original retry, explicit changed-version adoption and local discard warning. No rendered or role/device acceptance."
+    },
+    {
+      "screen": "notification-reward-focus",
+      "source": "src/app/dashboard/rewards/RewardsBoard.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/rewards?focus=<canonical-reward-id>"
+      ],
+      "mapping": "2026-10-25 source: role-aware current claim/approval focus outside shelf paging, shared canonical approval/recovery and neutral fallback. Unverified/unrendered."
     }
   ],
   "remaining": [

@@ -54,16 +54,15 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): the default-off original-parent chore
-review capability and compact rounded UI are connected to the canonical owned
-endpoint. Initial detail reads capture a review version; first send freezes notes,
-decision and version for exact retries. Explicit current reads do not renew an
-old command; adopting a different completed version requires a separate action.
-Access refusals mask private review data. Deliberate local discard warns that it
-cannot cancel server work; no durable queue/receipt claim. Legacy mode remains
-when the gate is off. EN/ES and regression sources authored, all unrun. Directory
-now records17 embedded sources. All runtime, rollout/restore/old-client and wider
-notification work remain; no QA, activation, push, merge or deployment ran.
+Latest bounded source work (2026-10-25): exact reward claim/approval notification
+links and role-aware focus source are connected. Fresh original-session/household/
+Rewards authority is renewed under locks; children/teens require their own claim.
+The focused card sits outside the24-row page, deduplicates its loaded counterpart
+and reuses existing approval/idempotency/recovery. Failed focus returns neutral
+navigation without serializing earlier shelf/balance reads. EN/ES and source cases
+are authored/unrun; directory now18 embedded sources. Durable reward event/recipient
+admission and broader notification/native/restore/role/concurrency/rendered work
+remain. No QA, activation, push, merge or deployment ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

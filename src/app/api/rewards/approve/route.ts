@@ -1,3 +1,4 @@
+import { rewardNotificationDestination } from "@/lib/notification-destination"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
@@ -81,6 +82,7 @@ export async function POST(request: NextRequest) {
           title: 'Reward Approved!',
           message: `Your parent approved "${reward.name}". Enjoy your reward!`,
           type: 'reward',
+            actionUrl: rewardNotificationDestination(rewardId),
         })
       } catch (err) {
         logRouteError('POST /api/rewards/approve (notification)', err, getRequestId(request))

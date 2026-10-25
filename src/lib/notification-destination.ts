@@ -11,8 +11,19 @@ export function choreNotificationFocusId(value: unknown): string | null {
   const id = value.slice(CHORE_FOCUS_PREFIX.length);
   return MEMBER_ID_PATTERN.test(id) ? id : null;
 }
-export function notificationDestination(value: unknown): "/dashboard/today" | `/dashboard/chores?focus=${string}` | null {
+const REWARD_FOCUS_PREFIX = "/dashboard/rewards?focus=";
+export function rewardNotificationDestination(id: string): `/dashboard/rewards?focus=${string}` | null {
+  return typeof id === "string" && MEMBER_ID_PATTERN.test(id) ? `${REWARD_FOCUS_PREFIX}${id}` : null;
+}
+export function rewardNotificationFocusId(value: unknown): string | null {
+  if (typeof value !== "string" || !value.startsWith(REWARD_FOCUS_PREFIX)) return null;
+  const id = value.slice(REWARD_FOCUS_PREFIX.length);
+  return MEMBER_ID_PATTERN.test(id) ? id : null;
+}
+export function notificationDestination(value: unknown): "/dashboard/today" | `/dashboard/chores?focus=${string}` | `/dashboard/rewards?focus=${string}` | null {
   if (value === "/dashboard/today") return value;
   const choreId = choreNotificationFocusId(value);
-  return choreId ? choreNotificationDestination(choreId) : null;
+  if (choreId) return choreNotificationDestination(choreId);
+  const rewardId = rewardNotificationFocusId(value);
+  return rewardId ? rewardNotificationDestination(rewardId) : null;
 }

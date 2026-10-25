@@ -19,3 +19,11 @@ it("admits only canonical plain-ID chore focus links", () => {
 it.each(["/dashboard/chores?focus=", "/dashboard/chores?focus=fixture&extra=1", "/dashboard/chores?focus=fixture#token", "/dashboard/chores?focus=%66ixture", "/dashboard/chores?focus=a/b", "/dashboard/chores?focus=a?focus=b", "/dashboard/chores?focus=" + "a".repeat(129)])("rejects ambiguous focus destinations (%s)", value => {
   expect(notificationDestination(value)).toBeNull();
 });
+
+// Authored UNRUN: reward links are exact plain canonical IDs, never URL input.
+it("admits a canonical reward focus without an arbitrary action URL", () => {
+  expect(notificationDestination("/dashboard/rewards?focus=fixture-reward_01")).toBe("/dashboard/rewards?focus=fixture-reward_01");
+});
+it.each(["/dashboard/rewards?focus=", "/dashboard/rewards?focus=fixture&extra=1", "/dashboard/rewards?focus=fixture#private", "/dashboard/rewards?focus=%66ixture", "/dashboard/rewards?focus=a/b", "/dashboard/rewards?focus=a?focus=b", "/dashboard/rewards?focus=" + "a".repeat(129)])("rejects ambiguous reward destinations (%s)", value => {
+  expect(notificationDestination(value)).toBeNull();
+});

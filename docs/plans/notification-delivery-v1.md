@@ -24,9 +24,10 @@ No provider, scheduler, schema, data, permission or release setting changes here
   special existing at-most-one-attempt behavior and #470 authority repair. It is
   not an atomic general outbox, delivered-mail receipt or proof that a failed
   recipient can be retried without a separate reviewed contract.
-- `notification-destination.ts` deliberately accepts only `/dashboard/today`.
-  Exact chore/event/list/recipe destinations and native cold-start resolution are
-  unfinished, not completed by a stored arbitrary action URL.
+- At the initial inventory, `notification-destination.ts` accepted only
+  `/dashboard/today`. Dated source sections below add exact chore and reward
+  focus. Event/list/recipe and native cold-start resolution remain unfinished;
+  an arbitrary stored action URL is never authority.
 
 In-app paging, read/snooze/Undo recovery and typed preferences are existing source
 candidates. Their presence does not complete #141's upstream event, provider,
@@ -612,3 +613,42 @@ CAS/rollback, durable outcome/restore and supported old-client acceptance remain
 Other event producers/recipient recovery/provider/native N1–N5 work remains open.
 No flag, provider, scheduler, migration, generation, QA/build/browser or release
 was activated. This connection is source progress, not acceptance or #141 closure.
+
+
+## Exact reward claim and approval destination — 2026-10-25
+
+The shared destination allowlist now admits only
+`/dashboard/rewards?focus=<plain-canonical-ID>` for reward focus, with no encoding
+aliases, extra query keys, fragments, schemes or arbitrary nested URLs. Existing
+fresh reward-claim parent notifications and approval claimant notifications now
+store that exact pointer. Their existing after-commit best-effort sends and
+fresh-mutation/idempotency behavior are unchanged. This does NOT add durable
+reward event admission, recipient roster freezing or dispatch recovery. New
+reward-creation notices remain unchanged and do not pretend to be claim focus.
+
+The exact server read renews original current account role/family/session and
+effective Rewards/Points feature under User/household and actual User/Family
+row locks, then locks one household Reward row. Parents can inspect household
+claim history; child/teen targets require their own claimed_by account. Only
+claimed/approved/redeemed lifecycle states are supported. No related account
+names, unrelated reward history, actor DTO or XP balance are in the focused
+projection. Absent/foreign/unsupported/disabled/revoked reads return a neutral
+unavailable view with permitted ordinary navigation. A failed focus returns
+before serializing the earlier shelf/balance reads. This is not a rewrite of
+normal unlinked Rewards SSR authorization.
+
+The focused card is separate from the24-row shelf/history page and removes its
+same-ID duplicate there. It uses the existing RewardRow, canonical approve
+handler, original idempotency key and recovery controls; no new mutation engine,
+XP calculation, approval receipt policy or personal/profile account is added.
+Confirmed state updates both focused and loaded-page representations. Page
+counts/cursors remain about the original page. The focused region receives
+keyboard focus and uses typed EN/ES copy. Existing action-origin/retirement and
+whole-application privacy/native acceptance are not established by this source.
+
+Authored unrun cases cover strict links, one-household projection, child/teen
+claim predicates, original-session revocation, missing/disabled/malformed neutral
+fallback. Real two-household SQL, concurrent membership/feature/claim changes,
+focus/Back/cold-warm/locale/device/rendered and complete #141 acceptance remain.
+No QA, provider/native/scheduler activation, DB action, generation, migration,
+build/browser/CI or release ran. #141 remains open.
