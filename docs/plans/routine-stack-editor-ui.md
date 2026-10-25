@@ -25,3 +25,29 @@ views remain completion-focused and do not receive this editor entrypoint.
 
 Rendered six-size and database acceptance remain release-owner gates; this
 slice is covered by focused component tests and source checks only.
+
+## Routine editor bounded request recovery — 2026-10-25
+
+#450/#135 source: the current-occurrence editor now wraps candidate/read/paging
+requests in a15second foreground deadline and4MiB response budget; explicit save
+replies have45seconds/64KiB (canonical compact write receipts remain8KiB). Shared
+abort racing and streamed bounded JSON decoding replace direct unbounded fetch/
+response.json. Caller read aborts remain connected; component lifetime abort now
+also covers paging/saves. Unmount retires the caller even if a native bridge
+ignores AbortSignal. Valid status/code parsing and X-Member-Protocol2, same-origin
+credentials and no-store behavior are retained.
+
+Timeout/network/abort/oversize/malformed JSON cannot confirm a write or turn an
+uncertain save into a definitive rejection. The existing unknown-save state
+retains immutable serialized bytes and key, locks draft edits, and offers only
+a deliberate same-packet Retry; no request is retried automatically. A late
+underlying success cannot navigate or refresh after its caller timed out. Initial
+load failure uses existing EN/ES retry copy. A deadline does not prove server
+cancellation/rollback; JSON-only bridges retain only post-decode size checks,
+not preallocation protection. Parsing CPU is not preemptible. Persisted restart/
+process-death journals and cross-scope response ownership remain separate work.
+
+Stalled initial load/late data, stalled save/late success/exact deliberate retry
+and oversized declared reply before decoding source cases are authored UNRUN.
+No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy ran. Existing
+browser/native/role/idempotency/history and original #450/#135 acceptance remain.

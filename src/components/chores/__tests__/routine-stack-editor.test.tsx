@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import * as React from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 import { ROUTINE_NAME_MAX } from "@/lib/routine-icons";
@@ -945,4 +945,64 @@ it("keeps sheet content below the dialog title heading", async () => {
   expect(
     within(dialog).queryByRole("heading", { name: "Steps", level: 2 }),
   ).toBeNull();
+});
+
+// Bounded request recovery source cases authored UNRUN.
+describe('routine editor bounded transport', () => {
+  afterEach(() => jest.useRealTimers());
+  it('releases stalled initial loading and ignores a late retired response', async () => {
+    let late!: (value: unknown) => void;
+    fetchMock.mockImplementation(() => new Promise(resolve => { late = resolve; }));
+    jest.useFakeTimers();
+    renderEditor();
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await jest.advanceTimersByTimeAsync(15001); });
+    expect(screen.getByText("We couldn't load the routine choices. Try again.")).toBeTruthy();
+    await act(async () => { late(await response(candidates)); });
+    expect(screen.queryByText('Pack lunches')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('releases a stalled save into unknown recovery, ignores late success and retries exact bytes/key', async () => {
+    let late!: (value: unknown) => void;
+    const posts: RequestInit[] = [];
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/candidates')) return response(candidates);
+      posts.push(init!);
+      return posts.length === 1 ? new Promise(resolve => { late = resolve; }) : response(saveResponse);
+    });
+    const user = userEvent.setup();
+    renderEditor();
+    await screen.findByText('Pack lunches');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    jest.useFakeTimers();
+    fireEvent.click(screen.getByRole('button', { name: 'Save routine' }));
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await jest.advanceTimersByTimeAsync(45001); });
+    expect(screen.getByText(/could not confirm whether/i)).toBeTruthy();
+    expect(screen.getByLabelText('Routine name')).toHaveProperty('disabled', true);
+    expect(posts).toHaveLength(1);
+    expect(refresh).not.toHaveBeenCalled();
+    await act(async () => { late(await response(saveResponse)); });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    jest.useRealTimers();
+    await user.click(screen.getByRole('button', { name: 'Retry save' }));
+    await waitFor(() => expect(posts).toHaveLength(2));
+    expect(posts[1].body).toBe(posts[0].body);
+    expect(posts[1].headers).toEqual(posts[0].headers);
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+  it('refuses an oversized declared save response before decoding and keeps unknown recovery', async () => {
+    const decode = jest.fn(async () => saveResponse);
+    fetchMock.mockImplementation((input: RequestInfo | URL) => String(input).includes('/candidates') ? response(candidates) : Promise.resolve({ ok: true, status: 200, headers: new Headers({ 'content-length': String(64 * 1024 + 1) }), json: decode }));
+    const user = userEvent.setup();
+    renderEditor();
+    await screen.findByText('Pack lunches');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(screen.getByRole('button', { name: 'Save routine' }));
+    expect(await screen.findByText(/could not confirm whether/i)).toBeTruthy();
+    expect(decode).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Retry save' })).toBeTruthy();
+  });
 });

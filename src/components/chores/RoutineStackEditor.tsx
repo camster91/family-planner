@@ -5,6 +5,8 @@ import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draf
 import { useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { Dialog } from "@/components/ui/dialog";
+import { runOwnedForeground } from "@/lib/owned-request-http";
+import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { toDateOnlyLocal } from "@/lib/dates";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { ROUTINE_NAME_MAX } from "@/lib/routine-icons";
@@ -325,13 +327,19 @@ async function requestJson<T>(
     Object.assign(headers, init.headers);
   }
   headers["X-Member-Protocol"] = "2";
-  const response = await fetch(url, {
-    ...init,
-    headers,
-    credentials: "same-origin",
-    cache: "no-store",
-  });
-  const body = (await response.json().catch(() => null)) as unknown;
+  const writing = (init?.method ?? "GET").toUpperCase() !== "GET";
+  const result = await runOwnedForeground(async (signal) => {
+    const response = await fetch(url, {
+      ...init, headers, credentials: "same-origin", cache: "no-store", signal,
+    });
+    const body = await readBoundedJsonResponse(response, signal,
+      writing ? 64 * 1024 : 4 * 1024 * 1024);
+    return { kind: "reply" as const, response, body };
+  }, { signal: init?.signal, timeoutMs: writing ? 45000 : 15000 });
+  // Network/timeout/abort/oversize/malformed JSON is uncertainty. In particular,
+  // it must not release a save packet as though the server refused its write.
+  if (result.kind !== "reply") throw new Error(fallback);
+  const { response, body } = result;
   if (!response.ok) {
     throw new RoutineEditorRequestError(
       response.status,
@@ -479,6 +487,15 @@ export default function RoutineStackEditor({
   const [discardAction, setDiscardAction] = React.useState<
     "close" | "reload" | null
   >(null);
+  const lifetimeController = React.useRef<AbortController | null>(null);
+  React.useEffect(() => {
+    const controller = new AbortController();
+    lifetimeController.current = controller;
+    return () => {
+      controller.abort();
+      if (lifetimeController.current === controller) lifetimeController.current = null;
+    };
+  }, []);
   const labelRef = React.useRef<HTMLInputElement>(null);
   const discardCancelRef = React.useRef<HTMLButtonElement>(null);
   const idempotencyKeyRef = React.useRef<string | null>(null);
@@ -818,7 +835,7 @@ export default function RoutineStackEditor({
       url.searchParams.set("cursor", nextCursor);
       const result = await requestJson<ParsedCandidates>(
         url.toString(),
-        undefined,
+        { signal: lifetimeController.current?.signal },
         msg("loadError"),
         (body) => candidatesResponseSchema.parse(body),
       );
@@ -937,6 +954,7 @@ export default function RoutineStackEditor({
           "/api/chores/stacks",
           {
             method: "POST",
+            signal: lifetimeController.current?.signal,
             headers: {
               "Content-Type": "application/json",
               [IDEMPOTENCY_HEADER]: packet.key,
