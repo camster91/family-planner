@@ -2978,3 +2978,24 @@ access refusal stopping later rows and a thrown send retaining exact retry/busy
 recovery. All unrun. Upload/preparation/body bounds and original photo/provider,
 role, native, rendered and PostgreSQL acceptance remain separate. No QA, app/DB
 execution, provider activation or release ran; #125/#135 remain open.
+
+
+### Photo preparation/upload/reply foreground bounds — 2026-10-25 (#125/#135)
+
+The existing60-second photo timeout now races the complete prepare→upload→decode
+job with `runOwnedForeground`, not only fetch cancellation. Image preparation
+must still own the live sheet and an unexpired signal before starting an upload;
+a late bitmap/toBlob continuation cannot initiate a provider request. Uploads
+retain the existing8MiB prepared-file limit, document protocol and explicit
+review-only route. Same-origin/no-store are explicit and replies are256KiB capped.
+Current401/403 return existing access-review/default translated feedback without
+awaiting an error body; other usable error messages keep their prior mapping.
+
+The current sheet renders existing retry UI on timeout, malformed or oversized
+success. Retired work cannot populate suggestions. Four source cases cover stalled
+body/late success, late bitmap preparation/no upload, stalled refusal body and
+oversized declaration; all are unrun. The original local image decode/canvas may
+continue physically and synchronous CPU/allocations are not preempted. JSON-only
+bridge protection is post-parse. No promise of provider cancellation, raw media
+retention proof, stock save, native hardware or full identity acceptance is made.
+No QA, app/database/provider execution or release ran. #125/#135 remain open.
