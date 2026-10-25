@@ -52,17 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work resolves the remaining ordinary list-cover caption
-in the tracked copy baseline (#142): image alt text now uses the literal list
-name without an English suffix; URL/dimensions/layout and household gate remain.
-REMAINING_COPY_DISPOSITION classifies100 retained records/103 occurrences as
-legal, source/protocol, licence/barcode, numeric/unit/input examples and print CSS.
-Records/guards are retained rather than waived. This is baseline disposition,
-not a fresh scan or proof of complete app translation; untracked inline/API/
-metadata/provider copy remains. No new copy-only tests; existing cases unrun.
-No QA/check/build/browser/API/database/native/provider/permission/release ran.
-Original #142 locale-data/layout/store claims and #372 legal/operator acceptance
-remain open.
+Latest bounded source work adds a 15-second fetch-plus-body deadline to the
+read-only recipe-to-grocery preview (#134). Dismissal, replacement and unmount
+cancel the current read; a generation guard keeps late replies from replacing
+newer review state. Transport bridges ignoring abort still settle locally.
+Failures use the existing localized review error; retry is close/reopen, with
+no automatic replay or write. Canonical schema/recipe matching, household
+endpoint, reviewed payload, add key and Undo path are unchanged. Regression
+source covers header/body stalls, dismissal, pre-cancel and unsuccessful reads;
+it is authored but unrun. Response size is not bounded by this change.
+No QA/test/check/build/browser/API/database/native/provider/release ran.
+Original #134/#460 runtime, role/isolation and device acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

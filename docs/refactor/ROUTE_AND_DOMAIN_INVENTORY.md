@@ -1448,3 +1448,17 @@ lot selection opens the existing amount-used editor and stock/recovery/Undo
 write path. No auto allocation, conversion, separate stock model or atomic
 recipe-consumption ledger. Source tests authored/unrun; acceptance deferred.
 See `../architecture/COOKING_STOCK_REVIEW.md`.
+
+## Grocery review read recovery — 2026-10-24 (source only)
+
+Latest bounded source work adds a 15-second fetch-plus-body deadline to the
+read-only recipe-to-grocery preview (#134). Dismissal, replacement and unmount
+cancel the current read; a generation guard keeps late replies from replacing
+newer review state. Transport bridges ignoring abort still settle locally.
+Failures use the existing localized review error; retry is close/reopen, with
+no automatic replay or write. Canonical schema/recipe matching, household
+endpoint, reviewed payload, add key and Undo path are unchanged. Regression
+source covers header/body stalls, dismissal, pre-cancel and unsuccessful reads;
+it is authored but unrun. Response size is not bounded by this change.
+No QA/test/check/build/browser/API/database/native/provider/release ran.
+Original #134/#460 runtime, role/isolation and device acceptance remain open.

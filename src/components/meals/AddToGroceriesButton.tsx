@@ -9,6 +9,7 @@ import { Loader2, ShoppingCart, Undo2 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
+import { readGroceryReview } from "@/lib/grocery-review-client";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import {
   postAddFromRecipe,
@@ -153,6 +154,11 @@ export function AddToGroceriesButton({
   const [destination, setDestination] = React.useState("");
   const [selected, setSelected] = React.useState<string[]>([]);
   const reviewSequence = React.useRef(0);
+  const reviewController = React.useRef<AbortController | null>(null);
+  React.useEffect(() => () => {
+    reviewSequence.current++;
+    reviewController.current?.abort();
+  }, []);
   const reviewedRequest = React.useRef<AddFromRecipeRequest | null>(null);
   const [status, setStatus] = React.useState<Status>({ kind: "idle" });
   // The payload and key are inseparable until a definite answer.
@@ -190,12 +196,17 @@ export function AddToGroceriesButton({
 
   const closeReview = () => {
     reviewSequence.current++;
+    reviewController.current?.abort();
+    reviewController.current = null;
     setReviewOpen(false);
   };
   const openReview = async () => {
     if (busy || disabled || mutationInFlight.current || ownedRef.current)
       return;
     const sequence = ++reviewSequence.current;
+    reviewController.current?.abort();
+    const controller = new AbortController();
+    reviewController.current = controller;
     const intent = {
       recipeId,
       mealId,
@@ -220,12 +231,9 @@ export function AddToGroceriesButton({
       const params = new URLSearchParams({ recipeId });
       if (mealId) params.set("mealId", mealId);
       if (batchId) params.set("batchId", batchId);
-      const response = await fetch(
-        `/api/lists/items/from-recipe/review?${params}`,
-        { cache: "no-store" },
+      const data = groceryReviewSchema.parse(
+        await readGroceryReview(params, controller.signal),
       );
-      if (!response.ok) throw new Error("Review unavailable");
-      const data = groceryReviewSchema.parse(await response.json());
       if (data.recipeId !== intent.recipeId)
         throw new Error("Mismatched recipe");
       if (sequence !== reviewSequence.current) return;
@@ -253,6 +261,9 @@ export function AddToGroceriesButton({
     } catch {
       if (sequence === reviewSequence.current)
         setReviewError("loadFailed");
+    } finally {
+      if (reviewController.current === controller)
+        reviewController.current = null;
     }
   };
 
