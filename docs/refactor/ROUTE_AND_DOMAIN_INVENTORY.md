@@ -1734,3 +1734,13 @@ deleted targets and other missing dimensions remain explicit; incomplete manifes
 and no-runtime/no-writer boundaries remain. Integrity source authored/adapted only;
 no dataset/load/DB/API/test/build/browser/native/provider/release execution. Actual
 adoption/adapters/reconciliation/reproducibility and full acceptance remain open.
+
+### Dormant capacity personal history rows — 2026-10-25 (#137)
+
+Dataset version4 adds notes/wishlist/inbox/audit model counts and canonical local
+references, note/wish/read/snooze/tie variations, fixed audit vocabulary and safe
+Today links. Text is fabricated; no external URLs/prices or actual notification
+fanout. Shared activity/delivery and other required dimensions remain unsupported;
+manifest incomplete. No writer/import-time/DB/provider operation. Integrity source
+authored/adapted only; no generator/test/load/build/browser/native/release run.
+Guarded adoption/adapters/observed reconciliation and full capacity stay open.

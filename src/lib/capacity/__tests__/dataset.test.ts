@@ -41,6 +41,20 @@ it("keeps every canonical reference inside its fabricated household", () => {
       expect(family.get(entry.row.added_by)).toBe(family.get(entry.row.list_id));
       if (entry.row.checked_by) expect(family.get(entry.row.checked_by)).toBe(family.get(entry.row.list_id));
     }
+    if (entry.table === "notes") expect(family.get(entry.row.created_by)).toBe(entry.row.family_id);
+    if (entry.table === "wishlistItems") {
+      expect(family.get(entry.row.requested_by)).toBe(entry.row.family_id);
+      if (entry.row.status_changed_by) expect(family.get(entry.row.status_changed_by)).toBe(entry.row.family_id);
+      expect(entry.row.link).toBeNull();
+    }
+    if (entry.table === "auditLogs") {
+      expect(family.get(entry.row.actor_user_id!)).toBe(entry.row.family_id);
+      expect(entry.row.target_id).toBe(entry.row.family_id);
+    }
+    if (entry.table === "notifications") {
+      expect(family.get(entry.row.user_id)).toBe(`fx_capacity_v1_${entry.row.id.split("_")[3]}_family_0`);
+      expect([null, "/dashboard/today"]).toContain(entry.row.action_url);
+    }
     if (entry.table === "projects") expect(family.get(entry.row.created_by)).toBe(entry.row.family_id);
     if (entry.table === "projectTasks" && entry.row.assigned_to)
       expect(family.get(entry.row.assigned_to)).toBe(family.get(entry.row.project_id));
@@ -164,4 +178,32 @@ it.each(["ordinary", "calendar", "food", "history"] as const)("constructs %s pro
   expect([...projects.values()].reduce((sum, project) => sum + project.tasks, 0))
     .toBe(counts.largestProjectTasks + (counts.projects - 2) * 5);
   expect(tied).toBe(true); expect(missingDate).toBe(true);
+});
+
+it.each(["ordinary", "calendar", "food", "history"] as const)("builds %s personal histories with exact declared counts and tied keys", profile => {
+  const candidate = capacityPlan({ stage: "reference", profile });
+  const counts: Record<string, number> = {};
+  const noticeUsers = new Set<string>();
+  const wishStates = new Set<string>();
+  const created = new Set<number>();
+  let tied = false;
+  let familyId: string | null = null;
+  outer: for (const batch of capacityDatasetBatches(candidate, anchor)) {
+    for (const entry of batch) {
+      if (entry.table === "families") { if (familyId !== null) break outer; familyId = entry.row.id; }
+      counts[entry.table] = (counts[entry.table] ?? 0) + 1;
+      if (entry.table === "wishlistItems") wishStates.add(entry.row.status!);
+      if (entry.table === "notifications") {
+        noticeUsers.add(entry.row.user_id);
+        const at = entry.row.created_at instanceof Date ? entry.row.created_at.getTime() : Date.parse(String(entry.row.created_at));
+        tied ||= created.has(at); created.add(at);
+      }
+    }
+  }
+  const expected = CAPACITY_CARDINALITIES[profile];
+  expect(counts.notes).toBe(expected.notes); expect(counts.wishlistItems).toBe(expected.wishlist);
+  expect(counts.notifications).toBe(expected.notifications); expect(counts.auditLogs).toBe(expected.audit);
+  expect(noticeUsers.size).toBe(4);
+  expect(wishStates).toEqual(new Set(["idle", "on_the_way", "received", "denied"]));
+  expect(tied).toBe(true);
 });

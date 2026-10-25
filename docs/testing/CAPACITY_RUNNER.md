@@ -71,7 +71,7 @@ is fetched. Explicit Toronto DST and other semantic edge cases remain unsupporte
 
 The manifest deliberately returns `complete: false`. It names unsupported
 profiles/linking, pairing, inventory reviewed receipts/deleted targets, chores/routines, prep/history,
-project-calendar linked/deleted targets, notes/wishlist/notifications/audit and receipt/review/provider
+project-calendar linked/deleted targets, notification delivery/shared activity and receipt/review/provider
 fixtures. Empty arrays do not substitute for these dimensions. Counts are
 construction expectations, not observations from a seeded/reconciled database.
 A declared Toronto zone is metadata, not evidence of database/application zone
@@ -167,3 +167,31 @@ server/database/provider binding, canonical workload adapters and observed outco
 reconciliation remain required. Manifest stays complete:false. No generator,
 writer, seed/reset, DB/API, load test, QA/build/browser/native/provider or release
 was executed; this source does not complete #137 reproducibility or capacity.
+
+## Personal history construction — 2026-10-25 (version4, source only)
+
+`herewoven.capacity-rows.v4` adds type-only canonical PinnedNote, WishlistItem,
+Notification and AuditLog rows. Notes/wishlist/notices/audits per household are
+30/30/100/300 for ordinary/calendar,100/100/500/1,000 for food-heavy and
+500/500/5,000/10,000 for history-heavy. These are household totals; inbox rows are
+distributed across four existing fabricated accounts, not copied in full to every
+account. Notes vary color/pinned state, wishes cover idle/on_the_way/received/
+denied with parent decision references, and inbox history covers read/unread,
+future/expired/no snooze and the existing safe Today destination. Future snoozes
+are unread. Wishlist prices/external links and arbitrary notification URLs remain
+null; text is labelled fabricated. Audit history uses the fixed
+board_settings.changed/person/family vocabulary, a fixed safe summary and local
+parent/household references. Tied timestamps exercise canonical ID tie ordering.
+
+All parents precede dependents within the existing200-row batches. These rows
+represent preloaded synthetic histories; they do not prove that a real setting
+change or notification event occurred, bypass a delivery preference, or exercise
+permission/fanout/deduplication. Live workload fanout must still go through the
+isolated canonical writer/fake delivery adapter required by CAPACITY_MODEL.md.
+Activity is a separate canonical model and remains unsupported rather than being
+substituted with AuditLog. The manifest explicitly retains notification delivery/
+shared activity and remaining fixture/adoption/adapter gaps; complete stays false.
+
+Count/locality/status/tie integrity source is updated but unrun. No builder,
+writer, seed/reset, DB/API/load, test/build/browser/native/provider or release
+was run. Observed reconciliation and #137 full acceptance remain required.

@@ -8,17 +8,17 @@ import {
 } from "../fixtures/dataset";
 import { CAPACITY_MODEL_VERSION, type CapacityPlan, type CapacityProfile } from "./model";
 
-export const CAPACITY_DATASET_VERSION = "herewoven.capacity-rows.v3";
+export const CAPACITY_DATASET_VERSION = "herewoven.capacity-rows.v4";
 export const CAPACITY_CARDINALITIES = {
-  ordinary: { projects: 6, largestProjectTasks: 40, activeStock: 100, adjustments: 300, events: 100, recurringEvents: 10, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
-  calendar: { projects: 6, largestProjectTasks: 40, activeStock: 100, adjustments: 300, events: 2400, recurringEvents: 100, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
-  food: { projects: 6, largestProjectTasks: 40, activeStock: 2000, adjustments: 10000, events: 100, recurringEvents: 10, lists: 20, largestListItems: 2000, recipes: 200, recipeLines: 40, meals: 365 },
-  history: { projects: 20, largestProjectTasks: 2000, activeStock: 500, adjustments: 10000, events: 500, recurringEvents: 100, lists: 8, largestListItems: 250, recipes: 100, recipeLines: 20, meals: 365 },
+  ordinary: { notes: 30, wishlist: 30, notifications: 100, audit: 300, projects: 6, largestProjectTasks: 40, activeStock: 100, adjustments: 300, events: 100, recurringEvents: 10, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
+  calendar: { notes: 30, wishlist: 30, notifications: 100, audit: 300, projects: 6, largestProjectTasks: 40, activeStock: 100, adjustments: 300, events: 2400, recurringEvents: 100, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
+  food: { notes: 100, wishlist: 100, notifications: 500, audit: 1000, projects: 6, largestProjectTasks: 40, activeStock: 2000, adjustments: 10000, events: 100, recurringEvents: 10, lists: 20, largestListItems: 2000, recipes: 200, recipeLines: 40, meals: 365 },
+  history: { notes: 500, wishlist: 500, notifications: 5000, audit: 10000, projects: 20, largestProjectTasks: 2000, activeStock: 500, adjustments: 10000, events: 500, recurringEvents: 100, lists: 8, largestListItems: 250, recipes: 100, recipeLines: 20, meals: 365 },
 } as const;
 export const CAPACITY_UNSUPPORTED_DIMENSIONS = [
   "email-free-profiles-and-links", "paired-shared-devices", "inventory-reviewed-receipts-and-deleted-targets",
   "chore-roots-occurrences-and-routines", "prep-sessions-and-history", "project-calendar-linked-and-deleted-targets",
-  "notes-wishlist-notifications-audit", "receipts-review-undo-and-provider-fakes",
+  "notification-delivery-fanout-and-shared-activity-history", "receipts-review-undo-and-provider-fakes",
   "toronto-dst-and-special-semantic-cases",
 ] as const;
 
@@ -27,7 +27,11 @@ type CapacityInventoryItem = Omit<Prisma.InventoryItemCreateManyInput, "id"> & {
 type CapacityInventoryAdjustment = Omit<Prisma.InventoryAdjustmentCreateManyInput, "id"> & { id: string };
 type CapacityProject = Omit<Prisma.ProjectCreateManyInput, "id"> & { id: string };
 type CapacityProjectTask = Omit<Prisma.ProjectTaskCreateManyInput, "id"> & { id: string };
-type RowMap = { projects: CapacityProject; projectTasks: CapacityProjectTask; inventoryItems: CapacityInventoryItem; inventoryAdjustments: CapacityInventoryAdjustment; families: FixtureFamily; users: FixtureUser; events: FixtureEvent;
+type CapacityNote = Omit<Prisma.PinnedNoteCreateManyInput, "id"> & { id: string };
+type CapacityWish = Omit<Prisma.WishlistItemCreateManyInput, "id"> & { id: string };
+type CapacityNotification = Omit<Prisma.NotificationCreateManyInput, "id"> & { id: string };
+type CapacityAudit = Omit<Prisma.AuditLogCreateManyInput, "id"> & { id: string };
+type RowMap = { notes: CapacityNote; wishlistItems: CapacityWish; notifications: CapacityNotification; auditLogs: CapacityAudit; projects: CapacityProject; projectTasks: CapacityProjectTask; inventoryItems: CapacityInventoryItem; inventoryAdjustments: CapacityInventoryAdjustment; families: FixtureFamily; users: FixtureUser; events: FixtureEvent;
   lists: FixtureList; listItems: FixtureListItem; recipes: FixtureRecipe;
   ingredients: FixtureIngredient; recipeIngredients: FixtureRecipeIngredient; familyMeals: FixtureFamilyMeal };
 export type CapacityDatasetRow = { [K in keyof RowMap]: { table: K; row: RowMap[K] } }[keyof RowMap];
@@ -67,6 +71,7 @@ export function capacityDatasetManifest(plan: CapacityPlan, anchor: string) {
         recipes: count.recipes, ingredients: count.recipeLines,
         recipeIngredients: count.recipes * count.recipeLines, familyMeals: count.meals,
         inventoryItems: count.activeStock + CAPACITY_FINISHED_STOCK, inventoryAdjustments: count.adjustments,
+        notes: count.notes, wishlistItems: count.wishlist, notifications: count.notifications, auditLogs: count.audit,
         projects: count.projects, projectTasks: count.largestProjectTasks + (count.projects - 2) * 5,
       }, recurringEvents: count.recurringEvents };
     }),
@@ -92,6 +97,43 @@ function* householdRows(ordinal: number, profile: CapacityProfile, anchor: strin
     yield { table: "users", row: { ...original, id: idFor(ordinal, "user", index), family_id: familyId,
       name: `Capacity ${role} ${ordinal}-${index}`, email: `capacity.${ordinal}.${index}@example.test`,
       xp: 0, level: 1, streak: 0, best_streak: 0 } };
+  }
+  const historyTime = (index: number) => {
+    const key = tiedKey(index);
+    return new Date(time - (key % 300) * DAY - Math.floor(key / 300) * 1000);
+  };
+  for (let index = 0; index < count.notes; index++) {
+    const at = historyTime(index);
+    yield { table: "notes", row: { id: idFor(ordinal, "note", index), family_id: familyId,
+      created_by: idFor(ordinal, "user", index % 4), title: `Capacity note ${tiedKey(index)} – 家庭`,
+      body: "Fabricated household note", color: (["yellow", "pink", "blue", "green", "purple"] as const)[index % 5],
+      pinned: index % 4 !== 0, created_at: at, updated_at: at } };
+  }
+  for (let index = 0; index < count.wishlist; index++) {
+    const at = historyTime(index);
+    const status = (["idle", "on_the_way", "received", "denied"] as const)[index % 4];
+    yield { table: "wishlistItems", row: { id: idFor(ordinal, "wish", index), family_id: familyId,
+      requested_by: idFor(ordinal, "user", index % 4), title: `Capacity wish ${tiedKey(index)} – café`,
+      link: null, description: "Fabricated wish", approx_price: null, status,
+      denied_reason: status === "denied" ? "Fabricated fixture decision" : null,
+      status_changed_at: status === "idle" ? null : at, status_changed_by: status === "idle" ? null : parentId,
+      created_at: at, updated_at: at } };
+  }
+  for (let index = 0; index < count.notifications; index++) {
+    const at = historyTime(index);
+    // Preloaded inbox history, not a delivery event or permission bypass.
+    yield { table: "notifications", row: { id: idFor(ordinal, "notice", index),
+      user_id: idFor(ordinal, "user", index % 4), title: `Capacity notification ${tiedKey(index)}`,
+      message: "Fabricated inbox history", type: "system", read: index % 7 === 0 ? false : index % 3 === 0,
+      action_url: index % 5 === 0 ? "/dashboard/today" : null,
+      snoozed_until: index % 7 === 0 ? new Date(time + DAY) : index % 7 === 1 ? new Date(time - DAY) : null,
+      created_at: at } };
+  }
+  for (let index = 0; index < count.audit; index++) {
+    yield { table: "auditLogs", row: { id: idFor(ordinal, "audit", index), family_id: familyId,
+      actor_user_id: parentId, actor_kind: "person", action: "board_settings.changed",
+      target_type: "family", target_id: familyId, summary: "Capacity fixture board settings changed.",
+      created_at: historyTime(index) } };
   }
   for (let index = 0; index < count.projects; index++) {
     const projectId = idFor(ordinal, "project", index);

@@ -52,17 +52,18 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) adds canonical project/task rows to the
-dormant capacity builder (#137). Dataset version3 constructs the model's project
-and largest-task counts, five tasks per other nonempty project and one deliberately
-empty archived project per household. Parent/teen/unassigned subjects stay local;
-active/completed/archived project states, fully completed project tasks, missing/
-date-only due dates and tied position/created keys are fabricated. Parent-before-
-dependent order and200-row batches remain. Linked/deleted project-calendar targets,
-other missing fixture dimensions, writer/adapters and actual reconciliation remain
-unfinished; manifest stays incomplete. Integrity source authored/adapted but unrun.
-No builder/seed/reset/DB/API/load/test/check/build/browser/CI/provider/native/push/
-merge/deploy execution occurred. Full reproducibility/capacity acceptance stays open.
+Latest bounded source work (2026-10-25) adds canonical notes, wishlists, personal
+inbox history and household audit rows to the dormant capacity builder (#137).
+Dataset version4 matches each profile's declared row counts, with household-local
+creators/requesters/recipients/audit actors, pinned/unpinned notes, four wishlist
+states, read/future/expired snooze history and tied creation keys. Future snoozes
+are unread. Text is fabricated, external links/prices are absent and only the
+canonical Today action path is present. Notification rows are preload history,
+not delivery events; no fanout/permission/provider behavior is claimed. Shared
+activity history, delivery fanout and other missing dimensions remain unsupported;
+manifest stays incomplete. Integrity source authored/adapted but unrun. No builder,
+writer/seed/reset, DB/API/load/test/check/build/browser/CI/provider/native/push/
+merge/deploy ran. Adoption/adapters/reconciliation and full acceptance stay open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
