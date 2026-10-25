@@ -32,7 +32,7 @@ No unverified feature is declared completed by source authorship.
 | #450 routines | Reviewed-start/viewer-day defaults; bounded per-series reads; gated household cursor with one-root claims and isolated failures authored | Broader routine/recurrence/role/device acceptance |
 | #134/#450 routine visibility | API/SSR/Today/probe candidate+metadata batches before caps; other reads scoped; history skips open policy | Remaining core-query audit, dense-range latency, PostgreSQL/date/root-join plans and original acceptance remain unverified |
 | #567 provider setup | Remove stale model/free-tier examples and misleading blank OpenAI hints; typed EN/ES prompts | Exact provider eligibility/privacy/transport decision; no activation |
-| #142 localization | Chore/recipe/Meals/food-plan, board/activity/device entry and shared controls and household join copy in typed EN/ES; stale preview/navigation guards; only owned copy records removed | Rest of localization and rendered/layout acceptance |
+| #142 localization | Chore/recipe/Meals/food-plan, board/activity/device/palette and shared controls and household join copy in typed EN/ES; stale preview/navigation guards; only owned copy records removed | Rest of localization and rendered/layout acceptance |
 | #372 product brand | Lowercase wordmark in Settings product heading and account/invite email wording/default sender label | Legal operator/copyright decision pending Cameron; overrides unchanged; no mail sent |
 | #499/#460 selected design | Compact Today controls, sibling calendar/chore cards, personal two-column composition, correct grocery totals and day-preserving dinner/recipe/prep links | Full accepted all-feature/role/device/rendered criteria remain |
 | #464 helper | Help/Today/Add shortcuts with existing role/feature filters and draft-aware navigation | Existing AI/voice/review/privacy/runtime criteria; no second write path |
@@ -51,18 +51,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work localizes DeviceTodayScreen and snapshot recovery
-(#142): 16 typed EN/ES keys plus reused device labels. Loading/cache/actor/
-parent/rename/remove copy and snapshot errors follow locale at render; semantic
-feedback preserves the hook's string-or-null error interface. Actual names,
-labels, requests, metadata, secrets, cache/protocol/authorization gates, purge,
-expiry and all existing effect/memo dependencies remain unchanged. Elevated
-server/validation text stays literal; the board-settings transport preserves
-its prior English string error interface without a locale-driven identity change.
-Seventeen owned inventory records removed without a scanner. No new copy-only
-tests; existing cases unrun. No QA/check/build/browser/native/provider/permission/
-API/database/household/release ran. Remaining tablet/transport copy and original
-cache/device/native/privacy/layout/locale-data/runtime acceptance stay open.
+Latest bounded source work localizes command-palette controls (#142): 11 typed
+EN/ES keys, literal query interpolation, and 14 owned inventory records removed.
+Arrow keys now traverse the current role/feature-filtered destinations; Tab wraps
+inside the panel, and IME Enter does not submit search. Existing draft-aware
+routing and role/feature filters remain canonical. Device text now uses shared
+scoped translation, retaining locale-aware numbers and default English transport
+helpers while supporting pseudolocalization. Keyboard regression source authored
+and the Spanish selector adapted, all unrun. No QA/check/build/browser/API/
+database/native/provider/permission/release ran. Original modal-stack, focus,
+responsive/layout, locale-data and runtime acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

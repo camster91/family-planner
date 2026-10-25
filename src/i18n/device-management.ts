@@ -446,13 +446,11 @@ function format(value: string, params?: Record<string, string | number>) {
 export const englishDeviceText: DeviceText = (key, params) =>
   format(deviceManagementEnglish[key], params);
 export function useDeviceText(): DeviceText {
-  const { locale } = useTranslation();
+  const { locale, t } = useTranslation();
   return useCallback(
     (key, params) =>
-      format(
-        (locale === "es" ? deviceManagementSpanish : deviceManagementEnglish)[
-          key
-        ],
+      t(
+        key,
         params
           ? Object.fromEntries(
               Object.entries(params).map(([name, value]) => [
@@ -463,7 +461,8 @@ export function useDeviceText(): DeviceText {
               ]),
             )
           : undefined,
+        { en: deviceManagementEnglish, es: deviceManagementSpanish },
       ),
-    [locale],
+    [locale, t],
   );
 }

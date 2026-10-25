@@ -1,5 +1,21 @@
 # Route and domain inventory (#148)
 
+### Command-palette localization and keyboard source — 2026-10-24 (#142)
+
+CommandPalette now uses 11 typed scoped EN/ES keys for dialog/input labels,
+query/search/empty states and keyboard hints. User queries remain literal.
+Arrow keys focus the current role/feature-filtered destination buttons with
+wraparound; Tab/Shift+Tab wrap within the panel, and composing Enter does not
+submit household search. Native button activation, draft-aware routing, existing
+focus-return and Escape handling remain. This does not replace the modal host
+or establish nested-dialog accessibility. Destination targets have a 44px minimum
+height. Device text now delegates to shared scoped translation for pseudo-copy
+while retaining numeric formatting and pure English transport defaults.
+Fourteen owned inventory records removed without scanning. Keyboard cases
+are authored/unrun; existing Spanish input selector adapted. No QA/tests/checks/
+build/browser/API/database/native/permission/provider/release ran. Original
+focus/modal-stack/reflow/locale-data/runtime acceptance remains open.
+
 ### Device Today and snapshot feedback copy — 2026-10-24 (#142)
 
 DeviceTodayScreen and its rename/remove dialogs now use typed EN/ES device copy,
