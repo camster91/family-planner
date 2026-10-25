@@ -22,7 +22,7 @@ ran. Authored regression source is not a passing result.
 The earlier clearing pass reviewed68 and retired27 duplicate trackers after
 preserving complete requirements. The subsequent41-issue pass closed #566 for
 its complete planning deliverable only, leaving **40 genuine open issues**.
-Six documentation-only criteria are now reconciled in #134/#140/#146; all
+Nine documentation-only criteria are now reconciled in #134/#140/#146/#254; all
 runtime/device/customer/production criteria remain separate and unchecked.
 No unverified feature is declared completed by source authorship.
 
@@ -40,19 +40,19 @@ No unverified feature is declared completed by source authorship.
 | #557/#480 identity | Existing gated linking source reconciled; standalone unlink/rejoin transaction/domain design prepared | Unlink writer, former-association provenance, credit/Undo and wider member-domain parity remain unfinished |
 | #564/#565 queue recovery | Existing source already implements retirement/generation and candidate retry; no duplicate engine added | Original storage fault/concurrency/lifecycle/rollback acceptance |
 | #566 finance | Complete source-reconciled plan retained in its completed issue and local plan | FIN-0–FIN-7 implementation remains #134/#499 with #104 source approval |
-| #146 support | Numbered20-case runbook and explicit response ownership; existing severity/stop procedure | Recovery/privacy/dashboard/backup, communications strategy and support scaling remain |
+| #146 support | 20-case runbook, response ownership, communication strategy and support scaling triggers defined | Actual recovery/privacy/dashboard/backup, publishing and staffed operating evidence remain |
 | #134 Projects overview | Web24-card keyset pages and opt-in API paging; one grouped task-count query per returned page | Legacy API remains unbounded; query plans, compatibility, isolation/concurrency and rendered acceptance remain unverified |
 | #141/#134 Notifications | Opt-in personal keyset API and older-page inbox reads; bounded timeout, exact retry, truthful loaded-state copy and old-server fallback | Original authorization/snooze/Undo/concurrency/rendered acceptance remains unverified; no delivery activation |
 | #134 Wishlist | Opt-in household/requester keyset API; web24-item explicit continuation; canonical target inspection for write recovery; loaded-only EN/ES state | Legacy unpaged API remains unbounded; UI fixtures adapted/unrun; role/feature/concurrency/compatibility/query/rendered acceptance unverified |
 | #104/#142 import form | Review-bound form plus opt-in actor/household precondition; locked writer renewal, scoped job accounting and rehearsal guide authored | Approved exports/maps and real reconciliation remain unavailable; server snapshot/lifecycle, repeat/concurrency/rollback and all QA remain open |
+| #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 
-Latest bounded source work adds explicit household-join navigation recovery.
-When history release refuses/throws, a localized Continue retries only the same
-destination through the existing guard. Successful joining stays latched; no join,
-auth lookup or token acceptance is replayed by that control. Attempt generations
-still discard unmounted results. Source cases are authored/unrun; no scanner,
-QA/test/build/browser, household mutation, CI or release ran. Actual navigation,
-role/token/privacy/client and original localization acceptance remain open.
+Latest bounded planning work defines public status/communication and support
+scaling triggers, plus backup-restore-only rollback for gated legacy contraction.
+Only those three documentation criteria are reconciled; all operational, release,
+restored-data and actual publishing/support acceptance remain separate. Runbook
+backups are retained beside the checkout. No QA/test/build/browser, incident,
+message, tooling/access purchase, backup/restore, DDL, CI or release ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
@@ -60,6 +60,12 @@ Native contract: `docs/architecture/NATIVE_API_COMPATIBILITY.md`.
 Finance plan: `docs/plans/finance-archive-product.md`.
 
 ## Documentation completion evidence
+
+Additional definition-only criteria on 2026-10-24: #146 public communication
+strategy and support scaling triggers in `docs/runbooks/SUPPORT.md`; #254
+backup-restore-only rollback in `docs/runbooks/MEALS_GROCERIES_BACKFILL.md`.
+Their execution/readiness criteria remain unchecked. Exact mutation receipts
+are retained in the recovery packet beside this checkout.
 
 Only source/document-definition criteria were checked. This is issue metadata
 reconciliation, not a QA run or validation of operating procedures:

@@ -46,3 +46,11 @@ Operational logs/notes should use request IDs, family/user pseudonymous identifi
 
 ## Approval boundary
 Incident analysis/containment planning can be prepared by agents, but production access/credential changes, account modifications, public communication and destructive data actions require appropriate explicit approval unless an established emergency mechanism already authorizes that exact action.
+
+## Communication and coverage definitions
+
+Use [SUPPORT.md](SUPPORT.md#public-status-and-communication-strategy--defined-2026-10-24)
+for approved-channel planning, severity-based draft/update targets, publication
+readiness and support scaling triggers. Those definitions do not establish a
+live status surface, staffing, sent notices or actual incident/recovery evidence.
+External communication and production actions retain the approval boundary above.

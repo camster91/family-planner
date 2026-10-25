@@ -68,3 +68,37 @@ The production image contains only `scripts/migrate.js`, not this script. Run it
 ## Out of scope
 
 Dropping or rewriting the legacy tables and `ImportedRecord` targets is ADR-0007 child E, which needs its own approval and a verified backup.
+
+
+## Separate legacy-table contraction rollback contract — #254
+
+Defined 2026-10-24; no contraction, backup or restore was executed. This section
+applies only to the separately gated ADR-0007 table contraction and does not
+change the backfill's existing partial reversal above.
+
+Rollback after dropping MealPlan, MealPlanEntry, ShoppingList or ShoppingItem is
+**backup restore only**. Reverting application code, recreating empty tables,
+re-running the old CREATE statements or reversing the canonical backfill cannot
+recover their deleted contents or prior ImportedRecord target mappings. Do not
+present an additive migration as an inverse for destructive DDL.
+
+Before considering contraction, require the exact reviewed pre-drop database
+backup (including legacy rows, schema and provenance mappings), its identity/hash,
+a successful isolated restore and forward-compatibility rehearsal, and Cameron's
+explicit approval for the drop and its rollback/loss boundary. Retain the matching
+pre-contraction application artifact and any required uploads/config. The
+operator's approved recovery sequence restores that complete backup to the
+explicit target and uses a schema-compatible retained artifact; application-only
+rollback against the contracted database is not a supported recovery plan.
+
+A pre-drop restore may discard legitimate later writes. Define the approved
+cutover/write window and recovery point before dropping anything; preserve any
+post-cutover evidence for separately reviewed reconciliation. Do not improvise
+merges of restored/live rows or remove import jobs as Undo. Follow BACKUPS.md,
+RELEASE_AND_ROLLBACK.md and ../MIGRATION_REHEARSAL.md for the actual target and
+rehearsal evidence. This definition authorizes none of those operations.
+
+All other #254 prerequisites remain: accepted earlier ADR work deployed, approved
+reconciled backfill, a release cycle with no legacy reads/writes, exact provenance
+retargeting, restored-copy counts unchanged, two migration rehearsals and old
+export re-import producing zero duplicates. They are unperformed/unverified here.
