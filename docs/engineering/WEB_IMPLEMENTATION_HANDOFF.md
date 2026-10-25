@@ -545,3 +545,27 @@ protection. Physical cancellation, full original-owner/session authority, saved
 attempts, provider/privacy and native/role/rendered behavior retain their separate
 acceptance. Existing canonical save/recovery and request keys are unchanged.
 No QA/test/build/browser/CI/database operation or release ran; issues stay open.
+
+
+### Barcode reviewed-save sequence retirement — 2026-10-25 (#125/#135)
+
+The mounted barcode tray now advances a local epoch on suspension/resumption
+and unmount. A save checks that epoch before each canonical send, after every
+awaited outcome and after navigation release. A retired send keeps the original
+row request/body/key marked uncertain, even if a late response says confirmed;
+it cannot advance to the next reviewed row, count completion or call onDone.
+An explicit resumed retry reconciles the same request through the existing intake
+path. A current access refusal also stops the multi-row sequence. This local
+epoch is cancellation intent, not authenticated server identity or rollback.
+
+Unexpected transport rejection becomes unknown, and finally releases the local
+busy lane. A later PRODUCT_CHANGED refusal cannot discard an earlier unknown
+request; exact retry stays locked. The existing matching removed-item receipt
+outcome remains terminal. Normal current confirmations retain their original
+count/removal behavior. Completion waits for successful navigation release.
+Three source cases cover suspension/resume across a delayed result with unchanged
+retry, current access refusal stopping later rows and throw→product-conflict
+uncertainty. All are unrun. Whole batch atomicity is not introduced: earlier
+confirmed rows stay saved, unsent rows stay drafts, the in-flight send may commit.
+Existing optional durable recovery readiness and owner/receipt/device/provider
+acceptance remain separate. No data operation, QA or release ran.

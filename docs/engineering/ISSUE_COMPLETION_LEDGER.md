@@ -54,13 +54,14 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): barcode product-detail reads now
-bound fetch/body work to10 seconds and64KiB, skipping refusal bodies and retiring
-callbacks after close/suspension. Shared inventory-intake context reads use the
-existing15-second foreground/16KiB bound. Codes/drafts and canonical save/retry
-paths remain intact. Source cases are authored/unrun; this is not a full scanner
-ownership, native cancellation, provider or rendered acceptance claim. No QA,
-database, build, browser, push, merge or deployment ran.
+Latest bounded source work (2026-10-25): barcode multi-row saves now stop
+on suspension/unmount or an access refusal, retain exact uncertain requests, and
+suppress retired completion/navigation callbacks. Unexpected send throws become
+unknown; a later product conflict cannot erase earlier uncertainty. Busy state
+is released in finally and navigation release must succeed before completion.
+Source cases authored/unrun; no server rollback, full-owner/native acceptance or
+durable recovery when disabled is inferred. No QA, database, build, browser,
+push, merge or deployment ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -17,6 +17,7 @@ import {
   makeInventoryIntakeIntent,
   type IntakeContext,
   type IntakeIntent,
+  type IntakeOutcome,
 } from "@/lib/inventory-intake-client";
 import { createInventorySchema } from "@/lib/inventory";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
@@ -86,7 +87,11 @@ export function BarcodeFoodDialog({
   const requests = useRef(new Set<AbortController>());
   const live = useRef(true);
   const suspendedRef = useRef(suspended);
-  suspendedRef.current = suspended;
+  const sheetEpoch = useRef(0);
+  if (suspendedRef.current !== suspended) {
+    sheetEpoch.current++;
+    suspendedRef.current = suspended;
+  }
   const attempts = useRef(
     new Map<string, { intent: IntakeIntent; uncertain: boolean }>(),
   );
@@ -98,6 +103,7 @@ export function BarcodeFoodDialog({
     live.current = true;
     return () => {
       live.current = false;
+      sheetEpoch.current++;
       requests.current.forEach((request) => request.abort());
     };
   }, []);
@@ -337,72 +343,96 @@ export function BarcodeFoodDialog({
     setSaving(true);
     setMessage(null);
     let failed = 0;
-    for (const row of chosen) {
-      let attempt = attempts.current.get(row.id);
-      if (!attempt) {
-        attempt = {
-          intent: makeInventoryIntakeIntent(
-            item(row),
-            context,
-            newIdempotencyKey(),
-            {
-              barcode: row.code.gtin,
-              brand: row.brand.trim() || null,
-              package_size: row.packageSize.trim() || null,
-              origin: row.origin,
-              remember: row.remember,
-              base_revision: row.baseRevision,
-            },
-          ),
-          uncertain: false,
-        };
-        attempts.current.set(row.id, attempt);
+    const epoch = sheetEpoch.current;
+    const currentSave = () => live.current && !suspendedRef.current && sheetEpoch.current === epoch;
+    const keepUncertain = (rowId: string, attempt: { intent: IntakeIntent; uncertain: boolean }) => {
+      attempt.uncertain = true;
+      rowsRef.current = rowsRef.current.map(value => value.id === rowId ? { ...value, uncertain: true } : value);
+      if (live.current) setRows(rowsRef.current);
+    };
+    try {
+      for (const row of chosen) {
+        if (!currentSave()) return;
+        let attempt = attempts.current.get(row.id);
+        if (!attempt) {
+          attempt = {
+            intent: makeInventoryIntakeIntent(
+              item(row),
+              context,
+              newIdempotencyKey(),
+              {
+                barcode: row.code.gtin,
+                brand: row.brand.trim() || null,
+                package_size: row.packageSize.trim() || null,
+                origin: row.origin,
+                remember: row.remember,
+                base_revision: row.baseRevision,
+              },
+            ),
+            uncertain: false,
+          };
+          attempts.current.set(row.id, attempt);
+        }
+        let result: IntakeOutcome;
+        try {
+          result = await sendIntake(attempt.intent);
+        } catch {
+          // An unexpected transport throw cannot prove that this request failed.
+          result = { kind: "unknown" };
+        }
+        if (!currentSave()) {
+          keepUncertain(row.id, attempt);
+          return;
+        }
+        const accessChanged = result.kind === "refused" && result.accessChanged;
+        if (accessChanged) onVerifyAccess?.();
+        if (result.kind === "confirmed") {
+          attempts.current.delete(row.id);
+          total.current++;
+          rowsRef.current = rowsRef.current.filter(
+            (value) => value.id !== row.id,
+          );
+          setRows(rowsRef.current);
+          continue;
+        }
+        failed++;
+        if (
+          result.kind === "removed" ||
+          (result.kind === "refused" && result.code === "PRODUCT_CHANGED" && !attempt.uncertain)
+        ) {
+          attempts.current.delete(row.id);
+          rowsRef.current = rowsRef.current.map((value) =>
+            value.id === row.id
+              ? {
+                  ...value,
+                  uncertain: false,
+                  ...(result.kind === "removed" ? { include: false } : {}),
+                }
+              : value,
+          );
+          setRows(rowsRef.current);
+          setMessage(barcodeFeedback("sourceChanged"));
+        } else if (result.kind === "unknown" || attempt.uncertain) {
+          keepUncertain(row.id, attempt);
+        } else {
+          attempts.current.delete(row.id);
+          setMessage(barcodeFeedback("saveRefused"));
+        }
+        // Do not send the next reviewed row after a fresh access refusal.
+        if (accessChanged) return;
       }
-      const result = await sendIntake(attempt.intent);
-      if (result.kind === "refused" && result.accessChanged) onVerifyAccess?.();
-      if (result.kind === "confirmed") {
-        attempts.current.delete(row.id);
-        total.current++;
-        rowsRef.current = rowsRef.current.filter(
-          (value) => value.id !== row.id,
-        );
-        setRows(rowsRef.current);
-        continue;
+      if (!currentSave()) return;
+      if (!attempts.current.size) {
+        const released = await navigation.releaseBeforeNavigation();
+        if (!released || !currentSave()) return;
       }
-      failed++;
-      if (
-        result.kind === "removed" ||
-        (result.kind === "refused" && result.code === "PRODUCT_CHANGED")
-      ) {
-        attempts.current.delete(row.id);
-        rowsRef.current = rowsRef.current.map((value) =>
-          value.id === row.id
-            ? {
-                ...value,
-                uncertain: false,
-                ...(result.kind === "removed" ? { include: false } : {}),
-              }
-            : value,
-        );
-        setRows(rowsRef.current);
-        setMessage(barcodeFeedback("sourceChanged"));
-      } else if (result.kind === "unknown" || attempt.uncertain) {
-        attempt.uncertain = true;
-        rowsRef.current = rowsRef.current.map((value) =>
-          value.id === row.id ? { ...value, uncertain: true } : value,
-        );
-        setRows(rowsRef.current);
-      } else {
-        attempts.current.delete(row.id);
-        setMessage(barcodeFeedback("saveRefused"));
-      }
+      if (!failed && !rowsRef.current.length) onDone(total.current);
+      else if (failed)
+        setMessage(barcodeFeedback("partialResult", { confirmed: total.current, failed }));
+    } finally {
+      flight.current = false;
+      if (live.current) setSaving(false);
     }
-    if (!attempts.current.size) await navigation.releaseBeforeNavigation();
-    flight.current = false;
-    setSaving(false);
-    if (!failed && !rowsRef.current.length) onDone(total.current);
-    else if (failed)
-      setMessage(barcodeFeedback("partialResult", { confirmed: total.current, failed }));
   }
   return (
     <Dialog
