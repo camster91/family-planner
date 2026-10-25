@@ -52,17 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work validates recipe-grocery add reply identity/counts
-(#134). Empty/oversized IDs, unsafe/negative count summaries, malformed/duplicate
-preview entries and impossible preview counts remain unconfirmed. Explicit list
-results must match the original whitespace-normalized destination captured before
-the request; default-list and legacy absent-expiry behavior remain. The frozen
-body/key and existing retry/recovery paths are unchanged. Malformed/mismatched
-reply, same-body/key recovery, default/normalized list and caller-mutation cases
-are authored/unrun. No QA/check/build/browser/API/database/native/provider/
-permission/release ran. This is response matching, not an owner/source-proof or
-full recipe-snapshot protocol; original replay/authorization/compatibility/
-concurrency/locale/runtime acceptance remains open.
+Latest bounded source work resolves the remaining ordinary list-cover caption
+in the tracked copy baseline (#142): image alt text now uses the literal list
+name without an English suffix; URL/dimensions/layout and household gate remain.
+REMAINING_COPY_DISPOSITION classifies100 retained records/103 occurrences as
+legal, source/protocol, licence/barcode, numeric/unit/input examples and print CSS.
+Records/guards are retained rather than waived. This is baseline disposition,
+not a fresh scan or proof of complete app translation; untracked inline/API/
+metadata/provider copy remains. No new copy-only tests; existing cases unrun.
+No QA/check/build/browser/API/database/native/provider/permission/release ran.
+Original #142 locale-data/layout/store claims and #372 legal/operator acceptance
+remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

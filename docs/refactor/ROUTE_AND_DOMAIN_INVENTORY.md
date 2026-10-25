@@ -1,5 +1,18 @@
 # Route and domain inventory (#148)
 
+### Remaining tracked copy disposition and list cover — 2026-10-24 (#142)
+
+List-detail image alt now uses the actual list name instead of appending English
+“list image”; its read gate/URL/dimensions/layout remain unchanged. One owned
+record is removed. `REMAINING_COPY_DISPOSITION.md` classifies100 retained records/
+103 recorded occurrences:75 legal records,4 source/mapping records,7 licence/
+barcode records,12 numeric/unit/input examples and2 print-CSS records. These are
+retained, with guard configuration unchanged. No new scan, exhaustive translation
+claim or legal content change. Other inline/API/metadata/provider copy and all
+original locale-data/layout/store/runtime criteria remain open, as does #372's
+operator/legal decision. No new copy-only tests; existing cases unrun. No QA/test/
+check/build/browser/API/database/native/provider/permission/release ran.
+
 ### Recipe-grocery add result matching — 2026-10-24 (#134)
 
 Add success now requires bounded nonempty receipt/list IDs, safe nonnegative

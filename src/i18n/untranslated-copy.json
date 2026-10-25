@@ -25,11 +25,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/lists/[listId]/page.tsx",
-    "text": "list image",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/settings/imports/ImportsClient.tsx",
     "text": "{\"source-id\":\"family-user-id\"}",
     "count": 1

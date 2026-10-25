@@ -37,6 +37,9 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 
 ## Engineering references
 
+- Retained localization baseline: `docs/testing/REMAINING_COPY_DISPOSITION.md` (#142 source disposition; literal/legal records retained, no new scanner or rendered acceptance).
+
+
 - Legacy import rehearsal: `docs/MIGRATION_REHEARSAL.md` — restored current-source procedure for #104; fixture acceptance, approved real-export rehearsal and production cutover remain separate and unperformed.
 
 - Current implementation-to-QA handoff: `docs/engineering/WEB_IMPLEMENTATION_HANDOFF.md` (source coverage only; runtime acceptance and release remain).

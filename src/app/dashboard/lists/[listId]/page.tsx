@@ -140,7 +140,7 @@ export default async function ListDetailPage({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={list.image_url}
-            alt={`${list.name} list image`}
+            alt={list.name}
             width={640}
             height={200}
             className="w-full max-h-48 object-contain rounded-xl bg-[var(--surface-fill)]"
