@@ -27,6 +27,7 @@ const en = {
     "The notification response could not be read. Try again.",
   offline:
     "Check your connection and try again. Your notifications are unchanged.",
+  notificationWriteUncertain: "The change could not be confirmed. Refresh notifications before trying again.",
   markFailed: "Couldn't mark it as read",
   deleteFailed: "Couldn't delete the notification",
   snoozeFailed: "Couldn't change snooze",
@@ -107,6 +108,7 @@ const es: Record<keyof typeof en, string> = {
     "No se pudo leer la respuesta de notificaciones. Inténtalo de nuevo.",
   offline:
     "Comprueba la conexión e inténtalo de nuevo. Tus notificaciones no han cambiado.",
+  notificationWriteUncertain: "No se pudo confirmar el cambio. Actualiza las notificaciones antes de volver a intentarlo.",
   markFailed: "No se pudo marcar como leída",
   deleteFailed: "No se pudo eliminar la notificación",
   snoozeFailed: "No se pudo cambiar la pausa",

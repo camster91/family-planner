@@ -1524,3 +1524,16 @@ JSON. Exact-cursor retry, target inspection and mutation behavior remain. Source
 cases for oversize/account refusal authored only. No QA/test/check/build/browser/
 CI/API/DB/native/provider/push/merge/deploy ran. Rendered recovery, fault/timeout,
 role/privacy, old-server compatibility and full acceptance remain open.
+
+### Notification foreground reply bounds — 2026-10-25 (#141)
+
+Notification web source bounds foreground notification mark,
+snooze and delayed-delete requests through the shared15-second deadline/32KiB
+JSON decoder (#141). Success requires an explicit success:true acknowledgment;
+snooze also validates its date. Missing/malformed/oversized replies keep read/
+snooze state or restore the locally hidden delete row without claiming server
+rollback. EN/ES copy calls the outcome unconfirmed. Existing Undo delay and page-
+exit keepalive dispatch remain separate/unchanged; no write replay/delivery or
+scheduler added. Source oversize cases authored only. No QA/test/check/build/
+browser/CI/API/DB/native/provider/push/merge/deploy ran. Actual lifecycle, races,
+role/privacy, timeout/Undo and full acceptance remain open.

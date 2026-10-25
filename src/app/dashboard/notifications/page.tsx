@@ -9,7 +9,7 @@ import { InsetList } from "@/components/ui/list-row";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MOTION } from "@/lib/brand-illustrations";
 import { useToast, useUndoToast, UNDO_TOAST_MS } from "@/components/ui/toast";
-import { responseErrorMessage } from "@/lib/fetch-error";
+import { requestOwnedJson } from "@/lib/owned-request-http";
 import { cn } from "@/lib/utils";
 import { useSupportingText } from "@/i18n/supporting-ui";
 import { readNotificationPage, NotificationPageError, type NotificationItem } from "@/lib/notification-read-client";
@@ -56,6 +56,16 @@ function sendDelete(notificationId: string, keepalive = false) {
   });
 }
 
+/** Foreground only: page-exit keepalive dispatch retains its separate lifecycle. */
+async function writeNotification(path: string, init: RequestInit) {
+  const result = await requestOwnedJson(path, init, 32 * 1024);
+  if (result.kind === "unknown") throw new Error("Notification outcome unknown");
+  return result;
+}
+function succeeded(body: unknown): body is Record<string, unknown> {
+  return Boolean(body && typeof body === "object" && "success" in body && body.success === true);
+}
+
 export default function NotificationsPage() {
   const text = useSupportingText();
   const displayLocale = useDisplayLocale();
@@ -98,11 +108,12 @@ export default function NotificationsPage() {
   );
 
   const failed = useCallback(
-    async (title: string, res?: Response) => {
+    async (title: string, body?: unknown) => {
       addToast({
         type: "error",
         title,
-        message: res ? await responseErrorMessage(res) : text("offline"),
+        message: body && typeof body === "object" && "error" in body && typeof body.error === "string" && body.error.trim()
+          ? body.error : text("notificationWriteUncertain"),
       });
     },
     [addToast, text],
@@ -225,15 +236,16 @@ export default function NotificationsPage() {
       snoozeLock.current = true;
       setSnoozePending(notificationId);
       try {
-        const res = await fetch("/api/notifications", {
+        const result = await writeNotification("/api/notifications", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ notificationId }),
         });
-        if (!res.ok) {
-          await failed(text("markFailed"), res);
+        if (!result.response.ok) {
+          await failed(text("markFailed"), result.body);
           return;
         }
+        if (!succeeded(result.body)) { await failed(text("markFailed")); return; }
         setNotifications((prev) =>
           prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n)),
         );
@@ -259,10 +271,13 @@ export default function NotificationsPage() {
     async (item: NotificationItem) => {
       pending.current.delete(item.id);
       try {
-        const res = await sendDelete(item.id);
-        if (!res.ok) {
+        const result = await writeNotification("/api/notifications", {
+          method: "DELETE", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notificationId: item.id }),
+        });
+        if (!result.response.ok || !succeeded(result.body)) {
           restore(item);
-          await failed(text("deleteFailed"), res);
+          await failed(text("deleteFailed"), result.body);
         }
       } catch {
         restore(item);
@@ -307,18 +322,18 @@ export default function NotificationsPage() {
     snoozeLock.current = true;
     setSnoozePending(notification.id);
     try {
-      const res = await fetch("/api/notifications/snooze", {
+      const result = await writeNotification("/api/notifications/snooze", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notificationId: notification.id, minutes }),
       });
-      if (!res.ok) {
-        await failed(text("snoozeFailed"), res);
+      if (!result.response.ok) {
+        await failed(text("snoozeFailed"), result.body);
         return;
       }
-      const body = await res.json();
+      const body = result.body;
       if (
-        !body ||
+        !succeeded(body) ||
         !("snoozed_until" in body) ||
         (body.snoozed_until !== null &&
           (typeof body.snoozed_until !== "string" ||
@@ -327,10 +342,11 @@ export default function NotificationsPage() {
         await failed(text("snoozeFailed"));
         return;
       }
+      const snoozedUntil = body.snoozed_until as string | null;
       setNotifications((prev) =>
         prev.map((n) =>
           n.id === notification.id
-            ? { ...n, snoozed_until: body.snoozed_until, read: false }
+            ? { ...n, snoozed_until: snoozedUntil, read: false }
             : n,
         ),
       );

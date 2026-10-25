@@ -54,15 +54,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) moves all four Wishlist writes onto
-the existing shared15-second foreground deadline and256KiB JSON cap (#135).
-Missing/malformed/oversized replies enter the existing action-specific uncertain
-paths, retaining original mutation keys and drafts/confirmation. Status failures
-still inspect canonical state through bounded reads; no automatic write replay or
-rollback is inferred. Definitive refusal and matched-success validation remain.
-JSON-only bridges retain post-parse bounds. Exact-key oversized-delete source
-coverage authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/
-push/merge/deploy ran. Real timeout/retry/concurrency/role and full acceptance open.
+Latest bounded source work (2026-10-25) bounds foreground notification mark,
+snooze and delayed-delete requests through the shared15-second deadline/32KiB
+JSON decoder (#141). Success requires an explicit success:true acknowledgment;
+snooze also validates its date. Missing/malformed/oversized replies keep read/
+snooze state or restore the locally hidden delete row without claiming server
+rollback. EN/ES copy calls the outcome unconfirmed. Existing Undo delay and page-
+exit keepalive dispatch remain separate/unchanged; no write replay/delivery or
+scheduler added. Source oversize cases authored only. No QA/test/check/build/
+browser/CI/API/DB/native/provider/push/merge/deploy ran. Actual lifecycle, races,
+role/privacy, timeout/Undo and full acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

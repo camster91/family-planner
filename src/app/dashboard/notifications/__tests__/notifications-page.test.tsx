@@ -284,3 +284,20 @@ it('offers the canonical summary destination and withholds arbitrary stored link
   expect(screen.queryByRole('link', { name: 'Open "Swim lesson"' })).toBeNull();
   expect(calls.every(call => call.method === 'GET')).toBe(true);
 });
+
+// Authored source cases only; QA remains deferred.
+it.each(['mark', 'snooze'] as const)('keeps the notification and releases controls after an oversized %s reply', async action => {
+  const decode = jest.fn(async () => ({ success: true, snoozed_until: null }))
+  global.fetch = jest.fn(async (_input, init) => init?.method === 'PATCH'
+    ? ({ ok: true, status: 200, headers: new Headers({ 'content-length': '65536' }), json: decode })
+    : ({ ok: true, status: 200, json: async () => ({ notifications: [UNREAD], nextCursor: null }) })) as unknown as typeof fetch
+  const user = userEvent.setup()
+  renderPage()
+  if (action === 'mark') await user.click(await screen.findByRole('button', { name: 'Mark "Dishes done" as read' }))
+  else await user.selectOptions(await screen.findByRole('combobox', { name: 'Snooze "Dishes done"' }), '15')
+  await screen.findByText('The change could not be confirmed. Refresh notifications before trying again.')
+  expect(decode).not.toHaveBeenCalled()
+  expect(screen.getByTestId('notification-row').textContent).toContain('Unread: Dishes done')
+  expect((screen.getByRole('button', { name: 'Mark "Dishes done" as read' }) as HTMLButtonElement).disabled).toBe(false)
+  expect((screen.getByRole('combobox', { name: 'Snooze "Dishes done"' }) as HTMLSelectElement).disabled).toBe(false)
+})
