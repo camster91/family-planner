@@ -1781,3 +1781,14 @@ in the same EN/ES sheet; explicit choice changes local review only, Save recheck
 Legacy no-version clients/delete remain compatible. No schema/queue/receipt/merge
 or new permission. Server/schema/mounted source authored/adapted only; no tests/
 DB/API/browser/build/native/provider/release run or full acceptance claimed.
+
+### Mounted note create exact request — 2026-10-25 (#134/#135/#499)
+
+Notes GET supplies personal writeContext; POST paired optional owner expectations
+refuse mismatch before claiming a key. Web mounted creates now reuse canonical
+keyed POST with frozen body/owner, shared15s/256KiB foreground bounds and24h hold.
+Unknown outcomes retain read-only original drafts through sheet Cancel/reopen;
+explicit retry reuses bytes/key and confirmed replies match family/creator. No
+persistent journal/navigation/process-death/removal guarantee or new queue/schema/
+permission. Pure/route/mounted source authored/adapted only, no execution; original
+storage/fault/native/PG and broad acceptance remain open.

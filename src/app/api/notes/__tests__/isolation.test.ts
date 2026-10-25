@@ -187,3 +187,21 @@ describe("notes — two households", () => {
   });
 
 });
+
+// Authored only: bound creates refuse a moved owner before key/effect work.
+it('reports the personal write context and refuses different account/household expectations', async () => {
+  db.reset();
+  const context = (await (await notes.GET(req({ as: 'parentA' }))).json()).writeContext;
+  expect(context).toEqual({ userId: 'parent-a', familyId: 'family-A' });
+  db.writes.splice(0);
+  for (const expected of [
+    { expected_user_id: 'parent-b', expected_family_id: 'family-A' },
+    { expected_user_id: 'parent-a', expected_family_id: 'family-B' },
+  ]) {
+    const response = await notes.POST(req({ as: 'parentA', body: { title: 'Bound draft', ...expected } }));
+    expect(response.status).toBe(409);
+    expect((await response.json()).error.code).toBe('NOTE_OWNER_CHANGED');
+  }
+  expect((await notes.POST(req({ as: 'parentA', body: { title: 'Incomplete owner', expected_user_id: 'parent-a' } }))).status).toBe(400);
+  expect(db.writes).toHaveLength(0);
+});

@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
     const page = paging.paged ? notes.slice(0, paging.limit) : notes;
 
     return NextResponse.json({
+      writeContext: { userId: auth.user.id, familyId: auth.user.family_id },
       ...(paging.paged ? { nextCursor: hasMore && page.length
         ? encodeNoteCursor(auth.user.family_id, page[page.length - 1]) : null } : {}),
       notes: page.map((note) => ({
@@ -96,6 +97,9 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+    if (parsed.data.expected_user_id !== undefined &&
+      (parsed.data.expected_user_id !== auth.user.id || parsed.data.expected_family_id !== auth.user.family_id))
+      return NextResponse.json({ error: { code: "NOTE_OWNER_CHANGED", retryable: false } }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
     const { key, error: keyError } = readIdempotencyKey(request);
     if (keyError) return keyError;
     const actor = {

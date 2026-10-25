@@ -1349,3 +1349,35 @@ draft-close policy; no automatic merge, idempotent receipt or destructive Undo.
 Server/schema/mounted comparison-choice cases authored/unrun. No PG/concurrency,
 unknown-outcome, browser/long-text/locale/device or release acceptance is inferred;
 notes create recovery and broader async/membership boundaries remain separate.
+
+### Mounted note-create request binding — 2026-10-25 (#134/#135/#499, local source)
+
+Notes GET now adds `writeContext: {userId,familyId}` for the authenticated personal
+session. It grants no permission; existing household/feature/device read policy
+remains. POST accepts paired optional expected_user_id/expected_family_id, both
+1..128 characters. Supplying only one gets400. A mismatched pair gets private/
+no-store409 NOTE_OWNER_CHANGED before key claiming or create/replay effect. Current
+transaction authority still renews session/role/family/feature normally. Legacy
+unbound bodies remain accepted; no new server key namespace or table.
+
+The sheet's new client freezes normalized title/body/color and expected owner in
+one exact body with a secure Idempotency-Key. It reuses canonical POST, whose note
+and exact keyed response already commit together. The shared owned HTTP helper
+bounds fetch/body wait15 seconds and response256KiB (JSON-only bridges are bounded
+after allocation). Only a successful note ID with the expected family/creator is
+confirmed. Network/deadline/5xx/in-progress or malformed success remains uncertain.
+An uncertain intent remains read-only and retains key/body across sheet Cancel/
+reopen on the same mounted page. A deliberate Save retries those exact bytes; no
+automatic retry. The immediate request latch prevents overlapping note mutations.
+After an uncertain result, later refusals retain the held intent. A fresh definitive
+client refusal before uncertainty releases it for ordinary editing. A24-hour wall-
+clock window (also refusing backwards time) prevents sending stale mounted intents
+near the server's seven-day retention. Expired requests hold for manual review.
+
+This is mounted recovery only: no storage/journal, reload/navigation/process-death
+persistence or canonical item-removed receipt inspection. Leaving the page loses
+the in-memory intent. The UI tells the person to keep the page open; it does not
+claim all #135 exactly-once acceptance. Older servers missing writeContext hold
+new creates until refreshed/updated; browsing/edit legacy bodies remain compatible.
+No offline queue/device capability/provider/schema change. Pure/route/mounted source
+cases authored/unrun; real fault/PG/native/owner/storage acceptance remains open.

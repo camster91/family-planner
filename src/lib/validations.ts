@@ -759,7 +759,13 @@ const noteTitle = z
   .max(200, 'Title must be 200 characters or fewer')
 const noteBody = optionalText('body', 10000)
 
-export const createNoteSchema = z.object({ title: noteTitle, body: noteBody, color: z.unknown().optional() }, bodyObject)
+export const createNoteSchema = z.object({
+  title: noteTitle, body: noteBody, color: z.unknown().optional(),
+  expected_user_id: z.string().min(1).max(128).optional(),
+  expected_family_id: z.string().min(1).max(128).optional(),
+}, bodyObject).refine(value => (value.expected_user_id === undefined) === (value.expected_family_id === undefined), {
+  message: 'Both note owner fields are required together',
+})
 
 export const updateNoteSchema = z.object(
   {

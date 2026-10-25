@@ -50,7 +50,7 @@ beforeEach(() => {
   noteUpdatedAt = undefined
   mockLocale = 'en'
   notePermissions = { can_edit: true, can_delete: true }
-  mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ success: true }) }) as Response
+  mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ note: { id: 'new-note', family_id: 'family-a', created_by: 'account-a' } }) }) as Response
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
@@ -60,6 +60,7 @@ beforeEach(() => {
         ok: true,
         status: 200,
         json: async () => ({
+          writeContext: { userId: 'account-a', familyId: 'family-a' },
           nextCursor: null,
           notes: [{
             id: 'n 1',
@@ -238,7 +239,7 @@ describe('failures are shown in the modal, which stays open with the text', () =
     expect((screen.getByRole('button', { name: 'notes.save' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('a save that cannot reach the server says to check the connection', async () => {
+  it('an uncertain create retains its exact-request recovery draft', async () => {
     mutationReply = async () => {
       throw new TypeError('Failed to fetch')
     }
@@ -248,7 +249,7 @@ describe('failures are shown in the modal, which stays open with the text', () =
     await user.type(screen.getByLabelText('notes.noteTitle'), 'Dentist')
     await user.click(screen.getByRole('button', { name: 'notes.save' }))
 
-    expect((await screen.findByRole('alert')).textContent).toBe('notes.errorSave common.networkError')
+    expect((await screen.findByRole('alert')).textContent).toBe('notes.errorSave notes.createRecovery')
     expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Dentist')
   })
 
@@ -519,4 +520,24 @@ it.each([true, false])('reviews saved content before re-saving a conflicting dra
   const writes = calls.filter(call => call.method === 'PATCH');
   expect(writes[0].body).toEqual(expect.objectContaining({ expected_updated_at: noteUpdatedAt }));
   expect(writes[1].body).toEqual(expect.objectContaining({ expected_updated_at: current.updated_at, title: keepDraft ? 'My draft' : current.title }));
+});
+
+it('retries an uncertain create with the same bytes/key and keeps that draft on reopen', async () => {
+  const user = userEvent.setup();
+  mutationReply = async () => { throw new TypeError('Fixture lost response') };
+  render(<NotesPage />);
+  await user.click(await screen.findByRole('button', { name: 'notes.addNote' }));
+  await user.type(screen.getByLabelText('notes.noteTitle'), 'Original create');
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  expect((await screen.findByRole('alert')).textContent).toContain('notes.createRecovery');
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).readOnly).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'notes.cancel' }));
+  await user.click(screen.getByRole('button', { name: 'notes.addNote' }));
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Original create');
+  mutationReply = async () => ({ ok: true, status: 201, json: async () => ({ note: { id: 'created-note', family_id: 'family-a', created_by: 'account-a' } }) }) as Response;
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  await waitFor(() => expect(calls.filter(call => call.method === 'POST')).toHaveLength(2));
+  const posts = jest.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST');
+  expect(posts[0][1]?.body).toBe(posts[1][1]?.body);
+  expect(new Headers(posts[0][1]?.headers).get('Idempotency-Key')).toBe(new Headers(posts[1][1]?.headers).get('Idempotency-Key'));
 });

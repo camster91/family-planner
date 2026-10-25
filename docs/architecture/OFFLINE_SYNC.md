@@ -553,3 +553,19 @@ merge, queue operation or new permission. Legacy unversioned behavior remains;
 this is not offline note support or note-create exactly-once recovery. Timestamp
 versions advance monotonically for content writes. Authored cases unrun; actual
 locking/convergence/network/native acceptance remains open, no activation/run.
+
+## Mounted note-create uncertainty — 2026-10-25 (#135, local source)
+
+New web note creates use one secure key/exact normalized body bound to the GET
+writeContext's account/household. Optional POST expectations refuse context changes
+before receipt work, while current authority still renews in the canonical create
+transaction. Uncertain responses preserve the original request/draft and permit
+only deliberate identical retry; cancelled sheets reopen that intent while their
+page stays mounted. Shared request deadlines/body bounds and a24-hour safe retry
+window apply. No optimistic note is invented from an uncertain response.
+
+This does not persist across navigation/reload/native restart, add a note queue,
+inspect removal after completed receipt or enable background sends. The existing
+owned-request journal is not replaced or forked; persistent adoption/recovery and
+all actual failure/restart/lifecycle acceptance remain future work. Legacy unbound
+API callers retain their old behavior. Source cases authored/adapted only; no run.

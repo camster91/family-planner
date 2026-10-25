@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { noteCreateContext, makeNoteCreateIntent, postNoteCreate, type NoteCreateContext, type NoteCreateIntent, type NoteCreateDraft } from '@/lib/note-create-client'
 import Link from 'next/link'
 import { Plus, StickyNote as NoteIcon } from 'lucide-react'
 import { useFeatureEnabled, useFeatures } from '@/components/providers/features-provider'
@@ -57,7 +58,7 @@ function isNoteList(value: unknown): value is Note[] {
     new Set(value.map((note) => note.id)).size === value.length
 }
 
-type MutationError = { current?: Note; action: 'save' | 'delete'; raw?: string; fallback: 'common.tryAgain' | 'common.networkError' }
+type MutationError = { createRecovery?: boolean; current?: Note; action: 'save' | 'delete'; raw?: string; fallback: 'common.tryAgain' | 'common.networkError' }
 
 /** The server's `error` text, or null when the body has none. */
 async function serverError(res: Response): Promise<string | null> {
@@ -129,6 +130,10 @@ function NotesPageInner() {
   const [formBody, setFormBody] = React.useState('')
   const [formColor, setFormColor] = React.useState<'yellow' | 'pink' | 'blue' | 'green' | 'purple'>('yellow')
   const [saving, setSaving] = React.useState(false)
+  const writeContext = React.useRef<NoteCreateContext | null>(null)
+  const pendingCreate = React.useRef<{ intent: NoteCreateIntent; draft: NoteCreateDraft; uncertain: boolean } | null>(null)
+  const [createHeld, setCreateHeld] = React.useState(false)
+  const mutationLock = React.useRef(false)
   // Keep browser Back on this route while a note save/delete is in flight.
   // Dialog dismissal is disabled separately so Escape/backdrop/close cannot
   // clear a draft before the server answers.
@@ -191,6 +196,7 @@ function NotesPageInner() {
           data.nextCursor !== cursor && !trail.includes(data.nextCursor)))) {
         throw new Error('Invalid notes page')
       }
+      writeContext.current = noteCreateContext(data.writeContext)
       setError(null)
       setNotes(data.notes)
       setPageCursor(cursor)
@@ -231,6 +237,12 @@ function NotesPageInner() {
   }
 
   const openAddModal = () => {
+    if (pendingCreate.current) {
+      const draft = pendingCreate.current.draft
+      setFormTitle(draft.title); setFormBody(draft.body); setFormColor(draft.color as Note['color'])
+      setSelectedNote(null); setModalError({ action: 'save', createRecovery: true, fallback: 'common.tryAgain' })
+      setModalState('add'); return
+    }
     setNotice(null)
     setFormTitle('')
     setFormBody('')
@@ -265,7 +277,8 @@ function NotesPageInner() {
   }
 
   const handleSave = async () => {
-    if (saving || loading || modalError?.current || !formTitle.trim()) return
+    if (mutationLock.current || saving || loading || modalError?.current || !formTitle.trim()) return
+    mutationLock.current = true
 
     setSaving(true)
     setModalError(null)
@@ -273,11 +286,27 @@ function NotesPageInner() {
       const payload = { title: formTitle.trim(), body: formBody.trim(), color: formColor }
       let res: Response
       if (modalState === 'add') {
-        res = await fetch('/api/notes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
+        if (!pendingCreate.current) {
+          if (!writeContext.current) {
+            setModalError({ action: 'save', raw: t('notes.createContextUnavailable'), fallback: 'common.tryAgain' }); return
+          }
+          pendingCreate.current = { intent: makeNoteCreateIntent(payload, writeContext.current), draft: { ...payload }, uncertain: false }
+        }
+        const pending = pendingCreate.current
+        const outcome = await postNoteCreate(pending.intent)
+        if (outcome.kind !== 'confirmed') {
+          if (outcome.kind === 'unknown' || pending.uncertain || outcome.code === 'NOTE_RECOVERY_EXPIRED') {
+            pending.uncertain = true; setCreateHeld(true)
+            setModalError({ action: 'save', createRecovery: true, raw: outcome.kind === 'refused' && outcome.code === 'NOTE_RECOVERY_EXPIRED' ? t('notes.createExpired') : undefined, fallback: 'common.tryAgain' })
+          } else {
+            pendingCreate.current = null; setCreateHeld(false)
+            setModalError({ action: 'save', raw: outcome.message, fallback: 'common.tryAgain' })
+          }
+          return
+        }
+        pendingCreate.current = null; setCreateHeld(false)
+        const refreshed = await fetchNotes()
+        setNotice(refreshed ? 'saved' : 'savedRefreshFailed'); resetModal(); return
       } else if (modalState === 'edit' && selectedNote) {
         // Edit and delete live on /api/notes/[id]; /api/notes is GET/POST only.
         res = await fetch(`/api/notes/${encodeURIComponent(selectedNote.id)}`, {
@@ -303,9 +332,13 @@ function NotesPageInner() {
       setNotice(refreshed ? 'saved' : 'savedRefreshFailed')
       resetModal()
     } catch {
-      // Network failure: keep the modal and what was typed.
-      setModalError({ action: 'save', fallback: 'common.networkError' })
+      // A transport failure is not evidence that a create rolled back.
+      if (modalState === 'add' && pendingCreate.current) {
+        pendingCreate.current.uncertain = true; setCreateHeld(true)
+        setModalError({ action: 'save', createRecovery: true, fallback: 'common.networkError' })
+      } else setModalError({ action: 'save', fallback: 'common.networkError' })
     } finally {
+      mutationLock.current = false
       setSaving(false)
     }
   }
@@ -319,7 +352,8 @@ function NotesPageInner() {
   }
 
   const handleDelete = async () => {
-    if (saving || loading || !selectedNote) return
+    if (mutationLock.current || saving || loading || !selectedNote) return
+    mutationLock.current = true
 
     setSaving(true)
     setModalError(null)
@@ -339,6 +373,7 @@ function NotesPageInner() {
     } catch {
       setModalError({ action: 'delete', fallback: 'common.networkError' })
     } finally {
+      mutationLock.current = false
       setSaving(false)
     }
   }
@@ -497,6 +532,8 @@ function NotesPageInner() {
                 <input
                   id="note-title"
                   type="text"
+                  maxLength={200}
+                  readOnly={saving || (modalState === 'add' && createHeld)}
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
                   className="input-apple w-full"
@@ -511,6 +548,8 @@ function NotesPageInner() {
                 </label>
                 <textarea
                   id="note-body"
+                  maxLength={10000}
+                  readOnly={saving || (modalState === 'add' && createHeld)}
                   value={formBody}
                   onChange={(e) => setFormBody(e.target.value)}
                   className="input-apple w-full min-h-[100px] resize-none"
@@ -529,6 +568,7 @@ function NotesPageInner() {
                       key={opt.key}
                       type="button"
                       onClick={() => setFormColor(opt.key)}
+                      disabled={saving || (modalState === 'add' && createHeld)}
                       className={cn(
                         'inline-flex h-11 w-11 items-center justify-center rounded-full transition-transform focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]',
                         formColor === opt.key ? 'scale-110 ring-2 ring-offset-2 ring-[var(--accent)]' : ''
@@ -564,7 +604,7 @@ function NotesPageInner() {
               )}
               {modalError && !modalError.current && (
                 <p role="alert" className="text-footnote text-[var(--danger-text)]">
-                  {t(modalError.action === 'save' ? 'notes.errorSave' : 'notes.errorDelete')} {modalError.raw ?? t(modalError.fallback)}
+                  {t(modalError.action === 'save' ? 'notes.errorSave' : 'notes.errorDelete')} {modalError.createRecovery ? modalError.raw ?? t('notes.createRecovery') : modalError.raw ?? t(modalError.fallback)}
                 </p>
               )}
             </div>

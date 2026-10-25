@@ -1,0 +1,43 @@
+/** Exact mounted-note create intent. No storage, background replay or second write path. */
+import { newIdempotencyKey, isValidIdempotencyKey, IDEMPOTENCY_HEADER } from "./idempotency-key";
+import { requestOwnedJson } from "./owned-request-http";
+export type NoteCreateContext = { userId: string; familyId: string };
+export type NoteCreateDraft = { title: string; body: string; color: string };
+export type NoteCreateIntent = { key: string; body: string; context: NoteCreateContext; issuedAt: number };
+export function noteCreateContext(value: unknown): NoteCreateContext | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  return typeof row.userId === "string" && row.userId.length > 0 && row.userId.length <= 128 &&
+    typeof row.familyId === "string" && row.familyId.length > 0 && row.familyId.length <= 128
+    ? { userId: row.userId, familyId: row.familyId } : null;
+}
+export function makeNoteCreateIntent(draft: NoteCreateDraft, context: NoteCreateContext, key = newIdempotencyKey()): NoteCreateIntent {
+  const title = draft.title.trim(), body = draft.body.trim();
+  if (!isValidIdempotencyKey(key) || !title || title.length > 200 || body.length > 10000 ||
+    !["yellow", "pink", "blue", "green", "purple"].includes(draft.color) || !noteCreateContext(context))
+    throw new Error("Invalid note draft");
+  return { key, context: { ...context }, issuedAt: Date.now(), body: JSON.stringify({ title, body, color: draft.color,
+    expected_user_id: context.userId, expected_family_id: context.familyId }) };
+}
+export type NoteCreateOutcome = { kind: "confirmed"; noteId: string } | { kind: "unknown" } |
+  { kind: "refused"; code: string; message?: string };
+export async function postNoteCreate(intent: NoteCreateIntent): Promise<NoteCreateOutcome> {
+  const age = Date.now() - intent.issuedAt;
+  // Stay well inside the seven-day server key retention. A stale mounted page holds.
+  if (age < 0 || age > 24 * 60 * 60 * 1000) return { kind: "refused", code: "NOTE_RECOVERY_EXPIRED" };
+  const result = await requestOwnedJson("/api/notes", { method: "POST", headers: {
+    "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: intent.key,
+  }, body: intent.body }, 256 * 1024);
+  if (result.kind !== "reply") return { kind: "unknown" };
+  const value = result.body as { note?: { id?: unknown; family_id?: unknown; created_by?: unknown }; error?: unknown } | null;
+  if (result.response.ok) {
+    const note = value?.note;
+    return note && typeof note.id === "string" && note.id.length > 0 && note.id.length <= 128 &&
+      note.family_id === intent.context.familyId && note.created_by === intent.context.userId
+      ? { kind: "confirmed", noteId: note.id } : { kind: "unknown" };
+  }
+  const error = value?.error;
+  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "NOTE_CREATE_REFUSED";
+  if (result.response.status >= 500 || result.response.status === 408 || code === "IDEMPOTENCY_IN_PROGRESS") return { kind: "unknown" };
+  return { kind: "refused", code, ...(typeof error === "string" ? { message: error } : {}) };
+}
