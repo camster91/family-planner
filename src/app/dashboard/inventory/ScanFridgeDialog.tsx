@@ -36,6 +36,7 @@ import {
   makeInventoryIntakeIntent,
   type IntakeContext,
   type IntakeIntent,
+  type IntakeOutcome,
 } from "@/lib/inventory-intake-client";
 import { createInventorySchema } from "@/lib/inventory";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
@@ -244,13 +245,22 @@ export function ScanFridgeDialog({
   const scanningRef = React.useRef(false);
   const photoRequest = React.useRef<AbortController | null>(null);
   const photoGeneration = React.useRef(0);
-  React.useEffect(
-    () => () => {
+  const live = React.useRef(true);
+  const suspendedRef = React.useRef(suspended);
+  const saveEpoch = React.useRef(0);
+  if (suspendedRef.current !== suspended) {
+    saveEpoch.current++;
+    suspendedRef.current = suspended;
+  }
+  React.useEffect(() => {
+    live.current = true;
+    return () => {
+      live.current = false;
+      saveEpoch.current++;
       photoGeneration.current++;
       photoRequest.current?.abort();
-    },
-    [],
-  );
+    };
+  }, []);
   React.useEffect(() => {
     if (!suspended) return;
     photoGeneration.current++;
@@ -457,93 +467,109 @@ export function ScanFridgeDialog({
     }
     addingRef.current = true;
     setAdding(true);
-    let added = 0,
-      failed = 0;
-    for (const row of selectedRows) {
-      let attempt = attempts.current.get(row.key);
-      if (!attempt) {
-        attempt = {
-          intent: makeInventoryIntakeIntent(
-            {
-              name: row.name.trim(),
-              location: row.location,
-              amount: row.amount.trim() === "" ? null : Number(row.amount),
-              unit: row.unit.trim() || null,
-              expires_on: row.expiresOn || null,
-              date_kind: row.dateKind,
-            },
-            context,
-            row.idempotencyKey,
-            undefined,
-            row.document
-              ? { package_size: row.packageSize.trim() || null }
-              : undefined,
-          ),
-          uncertain: false,
-        };
-        attempts.current.set(row.key, attempt);
+    let failed = 0;
+    const epoch = saveEpoch.current;
+    const currentSave = () => live.current && !suspendedRef.current && saveEpoch.current === epoch;
+    const keepUncertain = (rowKey: string, attempt: { intent: IntakeIntent; uncertain: boolean }) => {
+      attempt.uncertain = true;
+      if (live.current) setRows(previous => previous.map(value => value.key === rowKey
+        ? { ...value, uncertain: true, error: feedback("intakeUnknown") } : value));
+    };
+    try {
+      for (const row of selectedRows) {
+        if (!currentSave()) return;
+        let attempt = attempts.current.get(row.key);
+        if (!attempt) {
+          attempt = {
+            intent: makeInventoryIntakeIntent(
+              {
+                name: row.name.trim(),
+                location: row.location,
+                amount: row.amount.trim() === "" ? null : Number(row.amount),
+                unit: row.unit.trim() || null,
+                expires_on: row.expiresOn || null,
+                date_kind: row.dateKind,
+              },
+              context,
+              row.idempotencyKey,
+              undefined,
+              row.document
+                ? { package_size: row.packageSize.trim() || null }
+                : undefined,
+            ),
+            uncertain: false,
+          };
+          attempts.current.set(row.key, attempt);
+        }
+        let outcome: IntakeOutcome;
+        try {
+          outcome = await sendIntake(attempt.intent);
+        } catch {
+          outcome = { kind: "unknown" };
+        }
+        if (!currentSave()) {
+          keepUncertain(row.key, attempt);
+          return;
+        }
+        const accessChanged = outcome.kind === "refused" && outcome.accessChanged;
+        if (accessChanged) onVerifyAccess?.();
+        if (outcome.kind === "confirmed") {
+          attempts.current.delete(row.key);
+          addedCountRef.current++;
+          setAddedCount(addedCountRef.current);
+          setRows((previous) =>
+            previous.filter((value) => value.key !== row.key),
+          );
+          continue;
+        }
+        failed++;
+        if (outcome.kind === "removed") {
+          attempts.current.delete(row.key);
+          setRows((previous) =>
+            previous.map((value) =>
+              value.key === row.key
+                ? {
+                    ...value,
+                    include: false,
+                    uncertain: false,
+                    idempotencyKey: newIdempotencyKey(),
+                    error: feedback("intakeRemoved"),
+                  }
+                : value,
+            ),
+          );
+          continue;
+        }
+        if (outcome.kind === "unknown" || attempt.uncertain) {
+          keepUncertain(row.key, attempt);
+        } else {
+          attempts.current.delete(row.key);
+          setRows((previous) =>
+            previous.map((value) =>
+              value.key === row.key
+                ? {
+                    ...value,
+                    idempotencyKey: newIdempotencyKey(),
+                    error: feedback("intakeRefused"),
+                  }
+                : value,
+            ),
+          );
+        }
+        if (accessChanged) return;
       }
-      const outcome = await sendIntake(attempt.intent);
-      if (outcome.kind === "refused" && outcome.accessChanged)
-        onVerifyAccess?.();
-      if (outcome.kind === "confirmed") {
-        attempts.current.delete(row.key);
-        added++;
-        setRows((previous) =>
-          previous.filter((value) => value.key !== row.key),
-        );
-        continue;
+      if (!currentSave()) return;
+      const total = addedCountRef.current;
+      if (!attempts.current.size) {
+        const released = await navigation.releaseBeforeNavigation();
+        if (!released || !currentSave()) return;
       }
-      failed++;
-      if (outcome.kind === "removed") {
-        attempts.current.delete(row.key);
-        setRows((previous) =>
-          previous.map((value) =>
-            value.key === row.key
-              ? {
-                  ...value,
-                  include: false,
-                  uncertain: false,
-                  idempotencyKey: newIdempotencyKey(),
-                  error: feedback("intakeRemoved"),
-                }
-              : value,
-          ),
-        );
-        continue;
-      }
-      if (outcome.kind === "unknown" || attempt.uncertain) {
-        attempt.uncertain = true;
-        setRows((previous) =>
-          previous.map((value) =>
-            value.key === row.key
-              ? { ...value, uncertain: true, error: feedback("intakeUnknown") }
-              : value,
-          ),
-        );
-      } else {
-        attempts.current.delete(row.key);
-        setRows((previous) =>
-          previous.map((value) =>
-            value.key === row.key
-              ? {
-                  ...value,
-                  idempotencyKey: newIdempotencyKey(),
-                  error: feedback("intakeRefused"),
-                }
-              : value,
-          ),
-        );
-      }
+      if (!failed) report(photoAddedFeedback(total));
+      else setAddError(partialScanFeedback(total, failed));
+    } finally {
+      addingRef.current = false;
+      if (live.current) setAdding(false);
     }
-    const total = addedCountRef.current + added;
-    addedCountRef.current = total;
-    setAddedCount(total);
-    if (!attempts.current.size) await navigation.releaseBeforeNavigation();
-    addingRef.current = false;
-    setAdding(false);
-    if (!failed) report(photoAddedFeedback(total));
-    else setAddError(partialScanFeedback(total, failed));
   };
 
   /** The only way out (Escape or Close): report anything already added so the page reloads. */

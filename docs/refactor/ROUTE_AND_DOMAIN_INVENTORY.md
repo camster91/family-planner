@@ -2955,3 +2955,26 @@ uncertainty. All are unrun. Whole batch atomicity is not introduced: earlier
 confirmed rows stay saved, unsent rows stay drafts, the in-flight send may commit.
 Existing optional durable recovery readiness and owner/receipt/device/provider
 acceptance remain separate. No data operation, QA or release ran.
+
+
+### Photo reviewed-save sequence retirement — 2026-10-25 (#125/#135)
+
+`ScanFridgeDialog` now checks its mounted save epoch before each canonical intake,
+after each outcome and after navigation release. Suspension/resumption/unmount
+retires the sequence; the sent row keeps its original immutable body/key marked
+unknown and later rows are not sent. Late outcomes cannot count success or report
+completion. A fresh access refusal also stops subsequent rows. Unexpected send
+throws become unknown, and finally releases the local busy lane. Existing
+matching removed-item outcomes and sticky unknown retry policy remain intact.
+
+Each current confirmation updates the accumulated count immediately, so already
+accepted rows are counted when a later row is interrupted. A resumed explicit
+retry checks the same sent request; existing receipts retain duplicate behavior.
+Only successful navigation release in the current sheet may report completion.
+This is not all-or-nothing batch saving, server identity proof or rollback of an
+already sent request. Optional durable recovery remains separately gated.
+Three source cases cover earlier confirmation plus delayed suspension/resume,
+access refusal stopping later rows and a thrown send retaining exact retry/busy
+recovery. All unrun. Upload/preparation/body bounds and original photo/provider,
+role, native, rendered and PostgreSQL acceptance remain separate. No QA, app/DB
+execution, provider activation or release ran; #125/#135 remain open.
