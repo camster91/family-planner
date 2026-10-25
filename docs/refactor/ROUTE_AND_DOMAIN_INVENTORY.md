@@ -1,5 +1,21 @@
 # Route and domain inventory (#148)
 
+### Getting-started and routine-origin copy — 2026-10-24 (#142)
+
+GetStarted uses13 typed onboarding keys for three step labels/hints, progress,
+Hide/Undo and accessibility copy. The onboarding hook now delegates to shared
+scoped translation with optional params and a stable callback; outside-provider
+English fallback remains. RoutineOriginEntry uses four scoped routine keys,
+preserving actual source labels/day IDs, origin URLs, copiedAt values and date
+formatting. Parent eligibility, household storage key/visibility hydration,
+completion facts, Hide/Undo callbacks and all fetch/effect dependencies remain.
+No request, identity or household adoption is introduced by translation. An
+already emitted Undo toast keeps the existing string contract. Fifteen owned
+copy inventory records removed without scanning. No new copy-only tests;
+existing cases unrun. No QA/test/check/build/browser/API/database/native/provider/
+permission/release ran. Original onboarding/role/recovery/locale/layout/runtime
+acceptance remains open.
+
 ### Bulk-reuse and app-guide scoped copy — 2026-10-24 (#142)
 
 BulkCookingPanel's invalid/unprepared/full/unavailable reuse feedback, dismissal

@@ -52,16 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work routes remaining bulk-reuse and local app-guide
-copy through typed EN/ES dictionaries (#142): six keys per surface replace
-inline language branches. Help text now uses shared scoped translation and
-pseudolocalization; its ordinary copy and role/feature-filtered destinations are
-unchanged. Existing prepared-reuse states/targets/recovery gates, literal names,
-date formatting, navigation and all request/effect dependencies remain canonical.
-Twenty owned inventory records removed without scanning. No new copy-only
-tests; existing cases unrun. No QA/check/build/browser/API/database/native/
-provider/permission/release ran. Other untranslated copy and full layout/search/
-role/recovery/locale/runtime acceptance remain open.
+Latest bounded source work localizes the parent getting-started card and
+routine-origin presentation (#142). Thirteen onboarding keys cover step labels,
+progress, Hide/Undo copy and accessible state; four routine keys replace inline
+language branches. Onboarding now uses shared scoped translation with params and
+pseudolocalization, retaining English fallback outside a provider. Existing
+parent/card eligibility, household storage keys, Hide/Undo callbacks, canonical
+source labels/IDs/routes and date formatting remain. Fifteen owned inventory
+records removed without scanning. No new copy-only tests; existing cases unrun.
+No QA/check/build/browser/API/database/native/provider/permission/release ran.
+Other copy and original role/onboarding/recovery/locale/layout/runtime acceptance
+remain open; an already emitted toast retains its existing string interface.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

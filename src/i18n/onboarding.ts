@@ -1,9 +1,23 @@
 "use client";
 
+import { useCallback } from "react";
 import { useTranslation } from "@/i18n";
 import type { Locale } from "./types";
 
 export const onboardingEnglish = {
+  setupInviteTitle: "Invite your family",
+  setupInviteHint: "Send a link or share your family code",
+  setupChoreTitle: "Add your first chore",
+  setupChoreHint: "Pick a job and who does it",
+  setupEventTitle: "Add an event",
+  setupEventHint: "Put something on the family calendar",
+  setupHidden: "Get started hidden",
+  setupProgress: "{done} of {total} done. A few steps to set up your household.",
+  setupHideLabel: "Hide get started",
+  setupHide: "Hide",
+  setupSteps: "Setup steps",
+  setupTodo: "To do: ",
+  setupDone: "Done",
   welcomeTitle: "Welcome to Herewoven",
   welcomeDescription:
     "Create a shared place for your household. You can add people now or come back later.",
@@ -62,6 +76,19 @@ export const onboardingEnglish = {
 } as const;
 
 export const onboardingSpanish = {
+  setupInviteTitle: "Invita a tu familia",
+  setupInviteHint: "Envía un enlace o comparte el código familiar",
+  setupChoreTitle: "Añade tu primera tarea",
+  setupChoreHint: "Elige una tarea y quién la hace",
+  setupEventTitle: "Añade un evento",
+  setupEventHint: "Pon algo en el calendario familiar",
+  setupHidden: "Primeros pasos ocultos",
+  setupProgress: "{done} de {total} completados. Unos pasos para configurar tu hogar.",
+  setupHideLabel: "Ocultar primeros pasos",
+  setupHide: "Ocultar",
+  setupSteps: "Pasos de configuración",
+  setupTodo: "Pendiente: ",
+  setupDone: "Completado",
   welcomeTitle: "Te damos la bienvenida a Herewoven",
   welcomeDescription:
     "Crea un lugar compartido para tu hogar. Puedes añadir personas ahora o volver más tarde.",
@@ -129,6 +156,7 @@ export const onboardingMessages: Record<
 };
 
 export function useOnboardingText() {
-  const { locale } = useTranslation();
-  return (key: OnboardingMessage) => onboardingMessages[locale][key];
+  const { t } = useTranslation();
+  return useCallback((key: OnboardingMessage, params?: Record<string, string | number>) =>
+    t(key, params, onboardingMessages), [t]);
 }
