@@ -1574,3 +1574,16 @@ bodies on uncertainty. JSON-only bridges retain post-parse bounds. Oversize chat
 report source cases authored only. No QA/test/check/build/browser/CI/API/DB/native/
 provider/push/merge/deploy ran. Actual timeout, grounding, private identity, action/
 report concurrency and rendered/lifecycle acceptance remain open.
+
+### Opt-in private feedback summary — 2026-10-25 (#464/#136)
+
+Feedback API/panel source adds opt-in feedback summary responses
+(#464/#136). The personal panel requests X-Herewoven-Feedback-View:summary-v1.
+GET selects/projects only id/kind/title/status/created_at for the existing25-row
+own-user/household list; POST projects the same receipt only after unchanged
+ownership/session and exact-request checks. Details, pathname and owner/request
+IDs stay out of opted-in responses. No-header callers retain the original shape;
+older servers may ignore the header and the panel still projects display fields.
+No schema/permission changes or external forwarding. Source projection/legacy
+cases authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/
+merge/deploy ran. Runtime privacy/compatibility/replay and full acceptance open.

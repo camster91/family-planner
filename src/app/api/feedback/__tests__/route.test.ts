@@ -134,3 +134,28 @@ it.each([null, { token_version: 1 }])(
     expect(prisma!.appFeedback.upsert).not.toHaveBeenCalled();
   },
 );
+
+// Source assertions authored only; API/DB/QA execution remains deferred.
+const summaryRequest = () => ({ ...req(), headers: new Headers({ 'X-Herewoven-Feedback-View': 'summary-v1' }) }) as unknown as NextRequest;
+it('projects opted-in report summaries without details, pathname, owner or request identifiers', async () => {
+  const row = { ...draft, id: 'receipt', user_id: 'user-a', family_id: 'family-a', request_id: draft.requestId, status: 'received', created_at: new Date('2026-10-25T12:00:00Z') };
+  (prisma!.appFeedback.findMany as jest.Mock).mockResolvedValueOnce([row]);
+  const response = await GET(summaryRequest());
+  expect(response.status).toBe(200);
+  expect(JSON.parse(await response.text())).toEqual({ reports: [{ id: 'receipt', kind: draft.kind, title: draft.title, status: 'received', created_at: '2026-10-25T12:00:00.000Z' }] });
+  expect(prisma!.appFeedback.findMany).toHaveBeenCalledWith(expect.objectContaining({
+    where: { user_id: 'user-a', family_id: 'family-a' }, take: 25,
+    select: { id: true, kind: true, title: true, status: true, created_at: true },
+  }));
+});
+it('returns only a summary receipt after the original ownership and exact-body checks', async () => {
+  (prisma!.appFeedback.upsert as jest.Mock).mockImplementationOnce(async ({ create }) => ({ ...create, id: 'receipt', status: 'received', created_at: new Date('2026-10-25T12:00:00Z') }));
+  const response = await POST(summaryRequest());
+  expect(response.status).toBe(201);
+  expect(JSON.parse(await response.text())).toEqual({ report: { id: 'receipt', kind: draft.kind, title: draft.title, status: 'received', created_at: '2026-10-25T12:00:00.000Z' } });
+});
+it('preserves the legacy report representation without the summary opt-in', async () => {
+  const response = await POST(req());
+  expect(response.status).toBe(201);
+  expect((await response.json()).report).toMatchObject({ details: draft.details, page: draft.page, user_id: 'user-a', family_id: 'family-a', request_id: draft.requestId });
+});

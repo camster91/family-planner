@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { FEEDBACK_VIEW_HEADER, FEEDBACK_SUMMARY_VIEW } from "@/lib/feedback-response-contract";
 import { requestOwnedJson, runOwnedForeground } from "@/lib/owned-request-http";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import Link from "next/link";
@@ -381,7 +382,7 @@ export default function AssistantPanel({
     setReportsLoading(true);
     setReportsLoadFailed(false);
     try {
-      const result = await requestOwnedJson("/api/feedback", { method: "GET" }, 512 * 1024);
+      const result = await requestOwnedJson("/api/feedback", { method: "GET", headers: { [FEEDBACK_VIEW_HEADER]: FEEDBACK_SUMMARY_VIEW } }, 512 * 1024);
       if (result.kind === "unknown" || !result.response.ok) throw new Error("Reports unavailable");
       const rows = reportRows(result.body);
       if (!rows) throw new Error("Invalid reports");
@@ -821,7 +822,7 @@ export default function AssistantPanel({
     try {
       const result = await requestOwnedJson("/api/feedback", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", [FEEDBACK_VIEW_HEADER]: FEEDBACK_SUMMARY_VIEW },
         body: JSON.stringify(pendingReport),
       }, 64 * 1024);
       if (result.kind === "unknown") throw new AssistantCopyError("reportSaveFailed");

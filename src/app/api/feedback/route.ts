@@ -1,3 +1,4 @@
+import { FEEDBACK_VIEW_HEADER, FEEDBACK_SUMMARY_VIEW } from "@/lib/feedback-response-contract";
 import {
   boundedRequestText,
   RequestBodyTooLarge,
@@ -21,17 +22,25 @@ const schema = z
       .max(300),
   })
   .strict();
+const summaryFields = { id: true, kind: true, title: true, status: true, created_at: true } as const;
+function wantsSummary(request: NextRequest) {
+  return request.headers?.get(FEEDBACK_VIEW_HEADER) === FEEDBACK_SUMMARY_VIEW;
+}
+function reportSummary(report: { id: string; kind: string; title: string; status: string; created_at: Date }) {
+  return { id: report.id, kind: report.kind, title: report.title, status: report.status, created_at: report.created_at };
+}
 export async function GET(request: NextRequest) {
   const [auth, error] = await authenticateWithFamily(request);
   if (error) return error;
   try {
     const reports = await prisma!.appFeedback.findMany({
       where: { user_id: auth.user.id, family_id: auth.user.family_id },
-      orderBy: { created_at: "desc" },
+      orderBy: [{ created_at: "desc" }, { id: "asc" }],
       take: 25,
+      ...(wantsSummary(request) ? { select: summaryFields } : {}),
     });
     return NextResponse.json(
-      { reports },
+      { reports: wantsSummary(request) ? reports.map(reportSummary) : reports },
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch {
@@ -122,7 +131,7 @@ export async function POST(request: NextRequest) {
       );
     const report = result.report;
     return NextResponse.json(
-      { report },
+      { report: wantsSummary(request) ? reportSummary(report) : report },
       { status: 201, headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {
