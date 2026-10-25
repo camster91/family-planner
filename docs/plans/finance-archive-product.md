@@ -366,3 +366,44 @@ unknown/transfer/signed Float values and leap/date/timestamp refusal. They are
 authored UNRUN. No QA/tests/checks/scanner/build/browser/CI/API/DB/native/provider/
 push/merge/deploy ran. This completes only a bounded parser source step; FIN-0,
 all-domain native finance and original acceptance remain open.
+
+## Existing Budget import cent-precision guard — 2026-10-25
+
+The existing `src/lib/imports/budget-app.ts` adapter now uses the exact decimal
+parser as a precision guard on its established cents /100 -> legacy Float
+mapping. This is a first server-side consumer of readFinanceDecimal; it does not
+connect archive promotion, currency selection or a new native ledger. Using USD
+for the established two-digit target check is not evidence that the original
+export declared USD. That original source-currency/mapping decision is still
+unresolved under #104/FIN-0; there is no new denomination or FX behavior.
+
+Known numeric cent fields must be safe integers and not negative zero. Transaction
+amount and wishlist price must additionally round-trip from the existing Float
+major-unit spelling back to the exact original minor integer. For example, a
+safe integer source at the JavaScript integer boundary can still lose a cent
+when divided into Float major units; the guard refuses that conversion rather
+than preserving rounded target data as if it matched. These are schema failures
+before plan construction/import-job creation/persistence. The existing route's
+validation recovery remains in use; there is no rounding, source coercion,
+automatic correction, partial import or fallback to an unchecked writer.
+
+Metadata-only category dailyCap retains a safe integer directly and does not
+need a Float-major roundtrip; nullable caps remain valid. Valid ordinary mapped
+amounts, retained original cents, signed legacy transaction handling, zero source
+values, nonnegative wishlist policy and existing source/target/mapping identities
+remain unchanged. Signed imported legacy values are not thereby approved for
+new native finance promotion: the separate review candidate still holds signed/
+transfer ambiguity. No stored accepted row/history is rewritten or repaired.
+
+Passthrough advanced archive payloads still have no approved monetary schema.
+This known-field guard does not recover original bytes or unsafe numeric tokens
+already parsed into JavaScript in an untyped archive value, nor does it prove
+source/export/identity/currency/date reconciliation. Immutable approved source
+and exact per-model mappings remain required before native promotion.
+
+Pure planner regression source covers ordinary/negative/zero retained cents,
+unsafe source integers, safe-integer-but-lossy Float conversion, wishlist policy
+and large safe metadata-only/null daily caps. It imports no persistence/DB module
+and is authored UNRUN. No QA/tests/checks/scanner/build/browser/CI/API/DB/import/
+migration/native/provider/push/merge/deploy ran. This guard changes source-input
+refusal behavior only; no approved export was supplied or accepted by this pass.

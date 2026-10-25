@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { readFinanceDecimal } from "@/lib/finance-values";
 
 const dateValue = z
   .union([z.string(), z.date()])
@@ -14,6 +15,20 @@ const dateValue = z
     return date;
   });
 const archiveRecord = z.object({ id: z.string().min(1) }).passthrough();
+// Known source cent fields must survive JS parsing exactly. Passthrough archive
+// payloads remain untyped and are NOT approved monetary schemas by this guard.
+const sourceIntegerCents = z.number().int().refine(
+  value => Number.isSafeInteger(value) && !Object.is(value, -0),
+  'Source cents must be a safe integer',
+);
+// Existing legacy mapping uses cents /100 into Float. Refuse a lossy target;
+// the fixed USD parser here checks that established two-digit numeric bridge,
+// not the original source currency or approval. No new denomination is inferred.
+const legacyFloatCents = sourceIntegerCents.refine(value => {
+  const candidate = readFinanceDecimal(String(value / 100), 'USD');
+  return candidate.kind === 'value' && candidate.value.minorUnits === String(value);
+}, 'Source cents cannot be represented exactly by the existing budget');
+
 
 export const budgetAppExportSchema = z.object({
   version: z.string().min(1),
@@ -25,7 +40,7 @@ export const budgetAppExportSchema = z.object({
         icon: z.string().nullish(),
         color: z.string().nullish(),
         type: z.string().default("expense"),
-        dailyCap: z.number().int().nullish(),
+        dailyCap: sourceIntegerCents.nullish(),
         parentId: z.string().nullish(),
         rules: z.string().nullish(),
         createdAt: dateValue,
@@ -36,7 +51,7 @@ export const budgetAppExportSchema = z.object({
     .array(
       z.object({
         id: z.string().min(1),
-        amount: z.number().int(),
+        amount: legacyFloatCents,
         description: z.string(),
         date: dateValue,
         type: z.string().default("expense"),
@@ -62,7 +77,7 @@ export const budgetAppExportSchema = z.object({
       z.object({
         id: z.string().min(1),
         name: z.string().min(1),
-        price: z.number().int().nonnegative(),
+        price: legacyFloatCents.refine(value => value >= 0, 'Price must be nonnegative'),
         link: z.string().nullish(),
         priority: z.string().default("medium"),
         purchased: z.boolean().default(false),

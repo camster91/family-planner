@@ -2285,3 +2285,17 @@ No QA/test/check/build/scanner/browser/CI/API/DB/native/provider/push/merge/depl
 ran.39 issues remain open; the archive view is still default-off in source.
 
 Exact-value limitations and remaining connection: docs/plans/finance-archive-product.md.
+
+Latest bounded source work (2026-10-25) connects the exact decimal parser to
+the existing Budget import adapter (#104/#134) as a cent-precision guard. Known
+numeric cents must be safe integers; mapped transaction/wishlist values must
+survive the existing Float-major conversion exactly. Unsafe/lossy inputs refuse
+before planning or persistence. Daily caps stay exact metadata-only integers;
+valid ordinary/signed/zero legacy behavior and nullable caps remain unchanged.
+No stored history, currency/FX, archive promotion or approval changes. Pure source
+regressions are authored UNRUN; no QA/test/check/build/scanner/browser/CI/API/DB/
+import/native/provider/push/merge/deploy ran.39 issues remain open. Unlink's active
+profile disposition after former-account erasure is awaiting Cameron's pending
+product-choice question; no dependent identity/storage writer is implemented.
+
+Legacy guard scope/compatibility limits: docs/plans/finance-archive-product.md.

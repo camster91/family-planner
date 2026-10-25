@@ -54,17 +54,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) adds pure proposed FIN-0 money/date
-bridge primitives (#134). Minor units are exact bounded strings/BigInt; decimal
-text requires explicit finite currency/scale and refuses rounding/coercion. The
-legacy USD Float bridge returns only review candidates, checks retained cents,
-and holds unknown/transfer/signed/unsafe/conflicting values or CAD relabeling.
-Canonical date-only parsing preserves input days; timestamps/locale dates require
-mapping. No production consumer, schema/import/Float/currency/ledger mutation or
-activation is added. Source cases are authored UNRUN; approved source/mapping,
-whole-record/storage/receipt/client/rollback and all QA acceptance stay open.
-No QA/test/check/build/scanner/browser/CI/API/DB/native/provider/push/merge/deploy
-ran.39 issues remain open; the archive view is still default-off in source.
+Latest bounded source work (2026-10-25) connects the exact decimal parser to
+the existing Budget import adapter (#104/#134) as a cent-precision guard. Known
+numeric cents must be safe integers; mapped transaction/wishlist values must
+survive the existing Float-major conversion exactly. Unsafe/lossy inputs refuse
+before planning or persistence. Daily caps stay exact metadata-only integers;
+valid ordinary/signed/zero legacy behavior and nullable caps remain unchanged.
+No stored history, currency/FX, archive promotion or approval changes. Pure source
+regressions are authored UNRUN; no QA/test/check/build/scanner/browser/CI/API/DB/
+import/native/provider/push/merge/deploy ran.39 issues remain open. Unlink's active
+profile disposition after former-account erasure is awaiting Cameron's pending
+product-choice question; no dependent identity/storage writer is implemented.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
