@@ -174,3 +174,36 @@ it("refuses unsupported all-source payloads and oversize queries before publishe
   }
   expect(mockFetch).not.toHaveBeenCalled();
 });
+
+// Authority-wait regression source authored UNRUN; no provider traffic executed.
+it.each([['preview', 'family_id', 'family-B'], ['discover', 'family_id', 'family-B'], ['preview', 'role', 'child'], ['discover', 'role', 'teen'], ['preview', 'token_version', 1], ['discover', 'token_version', 1]])('refuses %s results after %s changes during a publisher wait', async (mode, field, value) => {
+  mockFetch.mockImplementation(async () => {
+    db.find('user', 'parent-a')![field] = value;
+    return { notModified: false, body: '<script type="application/ld+json">{"@type":"Recipe","name":"Fixture soup"}</script><a href="/recipes/soup">Fixture soup</a>' };
+  });
+  const response = await (mode === 'preview' ? POST : discover)(req({ as: 'parentA', method: 'POST', body: mode === 'preview' ? { url: 'https://example.org/soup' } : { query: 'rice', source: 'BBC Good Food' } }));
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ code: 'RECIPE_SCOPE_CHANGED' });
+  expect(response.headers.get('cache-control')).toBe('private, no-store');
+  expect(mockFetch).toHaveBeenCalledTimes(1);
+  expect(db.writes).toHaveLength(0);
+});
+it('refuses preview when Meals becomes disabled during the publisher wait', async () => {
+  mockFetch.mockImplementation(async () => {
+    (featureGate as jest.Mock).mockResolvedValue(new (require('next/server').NextResponse)('', { status: 403 }));
+    return { notModified: false, body: '<script type="application/ld+json">{"@type":"Recipe","name":"Fixture soup"}</script>' };
+  });
+  const response = await POST(req({ as: 'parentA', method: 'POST', body: { url: 'https://example.org/soup' } }));
+  expect(response.status).toBe(403);
+  expect(mockFetch).toHaveBeenCalledTimes(1);
+  expect(db.writes).toHaveLength(0);
+});
+it('does not contact a publisher after the original role changes during rate limiting', async () => {
+  (checkRateLimit as jest.Mock).mockImplementationOnce(async () => {
+    db.find('user', 'parent-a')!.role = 'child';
+    return { allowed: true };
+  });
+  const response = await POST(req({ as: 'parentA', method: 'POST', body: { url: 'https://example.org/soup' } }));
+  expect(response.status).toBe(409);
+  expect(mockFetch).not.toHaveBeenCalled();
+});

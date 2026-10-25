@@ -2373,3 +2373,24 @@ lossless source-number parsing, original-byte evidence, CPU/allocation preemptio
 a source approval or reconciliation acceptance. Valid nonambiguous requests keep
 the existing owner/preview/write path. No tests/checks/build/browser/CI/DB/import/
 migration/provider/push/merge/deploy ran. #104 remains open.
+
+## Recipe publisher-wait authority renewal — 2026-10-25
+
+#460 source follow-through: discovery and recipe-link preview freeze the initial
+server-authenticated person, family, role and session generation. Both renew the
+same original request after bounded body/rate-limit waits before publisher work,
+and after publisher work before returning results. A changed scope/role/generation
+refuses409 RECIPE_SCOPE_CHANGED; revoked/missing sessions retain authentication
+refusals. Meals is checked again on each renewal. Fixed publisher fan-out, SSRF
+transport, extraction, public source attribution, rate limits, role differences
+(child discovery allowed; preview parent/teen only), and canonical save paths
+are preserved. No client-supplied actor/family field can rebind this read.
+
+These are point-in-time reads, not row locks, cancellation of already-sent public
+queries, native lifecycle/retired-screen proof or permission to transmit household
+content. Existing old-route response shapes remain unchanged for valid callers.
+All responses keep private/no-store via existing wrappers. Source regression
+cases for family/role/generation changes during publisher waits, disabled Meals,
+and pre-dispatch role retirement are authored UNRUN. No QA/tests/checks/browser/
+provider requests/DB/CI/build/import/push/merge/deploy ran. #460/#136 acceptance
+and broader original-owner UI/native lifecycle evidence remain open.

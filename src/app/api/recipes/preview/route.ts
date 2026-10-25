@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
+import { renewRecipeDiscoveryAuthority } from "@/lib/recipe-discovery-authority";
 import { featureGate } from "@/lib/feature-gate-server";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { canEditRecipe } from "@/lib/recipes";
@@ -15,6 +16,10 @@ export const runtime = "nodejs";
 async function preview(request: NextRequest) {
   const [auth, error] = await authenticateWithFamily(request);
   if (error) return error;
+  const original = Object.freeze({
+    actorId: auth.user.id, familyId: auth.user.family_id,
+    role: auth.user.role, generation: auth.payload.tv ?? 0,
+  });
   const gate = await featureGate(auth.user.family_id, "meals");
   if (gate) return gate;
   if (!canEditRecipe(auth.user.role))
@@ -51,6 +56,8 @@ async function preview(request: NextRequest) {
       { error: "Use a public HTTPS recipe link." },
       { status: 400 },
     );
+  const beforeFetch = await renewRecipeDiscoveryAuthority(request, original);
+  if (beforeFetch) return beforeFetch;
   try {
     // Shared transport pins public DNS addresses, validates each redirect,
     // caps response bytes and enforces a timeout. No cookies or credentials.
@@ -59,6 +66,8 @@ async function preview(request: NextRequest) {
       userAgent: "Herewoven-RecipePreview/1.0",
       maxBytes: 2 * 1024 * 1024,
     });
+    const afterFetch = await renewRecipeDiscoveryAuthority(request, original);
+    if (afterFetch) return afterFetch;
     const recipe = page.notModified
       ? null
       : extractOnlineRecipe(page.body, url);
