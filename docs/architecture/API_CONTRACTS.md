@@ -1413,3 +1413,39 @@ queue/storage schema, device permission or persistent journal is added.
 Server/client/mounted/device-inventory source authored/adapted only. No real API/DB/
 locking/fault/restart/native/privacy/browser/test/build/release execution occurred.
 Persistent adoption/reload/process-death and full #135 acceptance remain open.
+
+### Note-create owned recovery foundation — 2026-10-25 (#135/#499, local source)
+
+GET /api/notes/recovery is personal-only, rate-limited240/minute by account,
+private/no-store and uses current User/session/role/household/notes-feature renewal.
+It returns herewoven.note-create-recovery.v1, enabled, userId/familyId and a nullable
+person owner. The note owner preserves the existing generation/household retirement
+fields but hashes a note-specific namespace from the actual current session owner;
+it is continuity metadata, never a credential. No token/PIN/draft is returned.
+
+Readiness requires existing QUEUE_OWNER_RECOVERY_ENABLED and
+QUEUE_OWNER_RECOVERY_ROLLBACK_READY plus NOTE_CREATE_RECOVERY_ENABLED and
+NOTE_CREATE_RECOVERY_ROLLBACK_READY, all exactly1. No values were activated.
+POST notes and receipt inspection accept optional X-Herewoven-Note-Owner. When
+supplied, the exact current note scope must match or409 NOTE_RECOVERY_OWNER_CHANGED
+before claiming/reading a receipt; journal-origin creates additionally refuse with
+NOTE_RECOVERY_PAUSED while gates are off. Matching receipt inspection remains
+possible during a write pause. Legacy no-header requests retain existing policy.
+
+The strict note contract holds one note-create entry with original key/body/issuedAt,
+not an editable/offline-action queue. Body is at most64KiB and journal96KiB, with
+owner-bound title/body/color only; unknown fields/legacy-unbound entries refuse.
+The store wraps createOwnedRequestJournal, reusing CAS/leases, replica verification,
+uncertain-storage recovery, explicit review, owner/retirement and keep-until-dismiss
+semantics. Browser adoption uses only ownedQueueLocation in the note namespace;
+there is no unowned storage fallback or import-time work. Context is renewed by
+canonical GET. Before every send it inspects the original receipt; only unissued
+inside the client window is eligible. Present/removed must be resolved separately
+through inspection and confirmed dismissal. No background send or automatic erasure.
+
+This is an uninitialized foundation. The current sheet has not adopted the adapter;
+persist-before-first-send, recovered-request discovery/inspection/dismissal and
+explicit storage-repair UI are next source work. Injected source cases cover exact
+reload, required review, post-write fault hold/repair, owner switch, immutable body,
+strict contract, namespace and readiness/proof pause. All unrun. No storage/DB/API/
+browser/native/permission/provider activation or acceptance is inferred.

@@ -54,17 +54,19 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) consolidates final-candidate acceptance
-tracker #105 into canonical launch tracker #377. The complete original #105 body
-and full imported #364 live-smoke packet are preserved, read back and linked at
-https://github.com/camster91/family-planner/issues/377#issuecomment-6400519982.
-#105 is closed as duplicate/not-planned tracking only; #377 and every unfinished
-parent/teen/child/privacy/notification/viewport/a11y/Android/live-smoke/offline/theme/
-screenshot/log/P0-P1 criterion remain open. #139 still owns reusable QA infrastructure.
-No code/runtime acceptance was inferred from this metadata closure. Named issue
-body/packet backups and a read-back receipt sit beside this checkout. No QA/tests/
-checks/build/browser/CI/API application/database/provider/native/push/merge/deploy
-ran. Remaining issue count is39; genuine implementation/owner/acceptance work remains.
+Latest bounded source work (2026-10-25) authors the note-create persistent
+recovery foundation around the existing owned request journal (#135/#499). A
+strict one-entry/96KiB contract retains exact body/key/issued time and owner fields;
+new personal context renews authority and returns a separate hashed note namespace.
+Journal-origin writes require matching supplied owner proof and existing/new explicit
+readiness gates; paused receipt reads can still verify matching proof. Legacy
+no-header mounted creates stay compatible. Browser/store adapters reuse existing
+CAS/leases/retirement/replica checks and inspect receipts before every send. No
+new queue engine, storage activation or page initialization. The sheet still uses
+mounted recovery; staged adoption and recovered-request UI remain next. Injected
+contract/owner/storage source authored only. No QA/test/check/build/browser/CI/API/
+DB/provider/native/push/merge/deploy ran; all flags remain untouched/default off.
+Real storage/reload/session/retirement/native and original acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

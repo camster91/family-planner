@@ -585,3 +585,20 @@ persistent journal or navigation/reload/native restart guarantee. An absent key
 is not a restored-database exactly-once guarantee. No new queue/scheduler/device
 permission. Source cases unrun; real locks, races, deletion/owner changes, fault/
 restore and lifecycle acceptance remain open.
+
+## Note-create journal foundation — 2026-10-25 (#135, source only)
+
+The note adapter now wraps the existing owned exact-request journal; it does not
+add another queue or migrate legacy unowned notes. Separate current-session note
+owner scopes share household/generation retirement. One strict64KiB request fits
+inside a96KiB journal; bytes/key/issuedAt and owner expectations remain immutable.
+Every send requires renewed context, verified storage baseline, explicit recovered
+review and unissued receipt inspection. Paused matching-owner inspection/dismissal
+remains possible; expired/changed/unknown work holds. New readiness gates and the
+existing queue adoption gates remain off/unmodified.
+
+The current note sheet still uses mounted recovery. Adapter initialization,
+persist-before-first-send, restored request review and exact terminal dismissal/
+storage recovery UI remain next; no restart persistence is claimed yet. Injected
+journal/owner cases authored only, all unrun; native process death/storage faults,
+logout/role/household retirement and actual durable outcomes remain acceptance.

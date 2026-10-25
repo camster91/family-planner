@@ -1,3 +1,4 @@
+import { refuseNoteRecoveryOwner } from "@/lib/note-create-recovery-server";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { refusePairedDevice } from "@/lib/device-route";
@@ -16,6 +17,8 @@ export async function POST(request: NextRequest) {
     if (refused) { refused.headers.set("Cache-Control", "private, no-store"); return refused; }
     const [auth, error] = await authenticateWithFamily(request);
     if (error) { error.headers.set("Cache-Control", "private, no-store"); return error; }
+    const ownerRefusal = refuseNoteRecoveryOwner(request, auth.payload, auth.user);
+    if (ownerRefusal) return ownerRefusal;
     const { key, error: keyError } = readIdempotencyKey(request);
     if (keyError) return keyError;
     if (!key) return idempotencyError("IDEMPOTENCY_KEY_REQUIRED");

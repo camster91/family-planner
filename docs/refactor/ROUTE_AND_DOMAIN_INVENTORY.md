@@ -1809,3 +1809,12 @@ into [canonical #377](https://github.com/camster91/family-planner/issues/377#iss
 closure. Every unmet criterion remains open; #139 reusable QA infrastructure is
 separate. No application source, test/check/build/browser/CI/DB/API/provider/native
 or release operation ran. Original issue histories and named backups retained.
+
+### Note owned journal foundation — 2026-10-25 (#135/#499)
+
+Strict one-request note contract/store/browser adapter reuses the owned CAS journal
+and note-specific current-session namespace. New personal context GET and optional
+owner proof on create/inspection enforce pause/continuity without changing legacy
+no-header policy. Flags off/unmodified, adapter not initialized by the sheet.
+Persistence/recovered UI adoption remains next; injected cases authored/unrun, no
+storage/API/DB/test/build/browser/native/provider/release execution or acceptance.

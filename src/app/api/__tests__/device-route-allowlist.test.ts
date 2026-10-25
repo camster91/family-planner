@@ -169,6 +169,7 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   "GET /api/notes": [403],
   "POST /api/notes": [403],
   "POST /api/notes/create/receipt": [403],
+  "GET /api/notes/recovery": [403],
   "PATCH /api/notes/[id]": [403],
   "DELETE /api/notes/[id]": [403],
 };
@@ -747,6 +748,7 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "GET /api/notes",
   "POST /api/notes",
   "POST /api/notes/create/receipt",
+  "GET /api/notes/recovery",
   "GET /api/notifications",
   "POST /api/notifications",
   "PATCH /api/notifications",

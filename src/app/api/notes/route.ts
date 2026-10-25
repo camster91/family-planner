@@ -1,3 +1,4 @@
+import { refuseNoteRecoveryOwner } from "@/lib/note-create-recovery-server";
 import {
   assistantSourceGuard,
   AssistantSourceRefused,
@@ -100,6 +101,8 @@ export async function POST(request: NextRequest) {
     if (parsed.data.expected_user_id !== undefined &&
       (parsed.data.expected_user_id !== auth.user.id || parsed.data.expected_family_id !== auth.user.family_id))
       return NextResponse.json({ error: { code: "NOTE_OWNER_CHANGED", retryable: false } }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    const ownerRefusal = refuseNoteRecoveryOwner(request, auth.payload, auth.user, true);
+    if (ownerRefusal) return ownerRefusal;
     const { key, error: keyError } = readIdempotencyKey(request);
     if (keyError) return keyError;
     const actor = {

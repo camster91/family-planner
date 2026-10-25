@@ -1,6 +1,8 @@
+import { NOTE_CREATE_RECOVERY_OWNER_HEADER } from "./note-create-recovery-identity";
 /** Exact mounted-note create intent. No storage, background replay or second write path. */
 import { newIdempotencyKey, isValidIdempotencyKey, IDEMPOTENCY_HEADER } from "./idempotency-key";
 import { requestOwnedJson } from "./owned-request-http";
+export const NOTE_CREATE_RETRY_MS = 24 * 60 * 60 * 1000;
 export type NoteCreateContext = { userId: string; familyId: string };
 export type NoteCreateDraft = { title: string; body: string; color: string };
 export type NoteCreateIntent = { key: string; body: string; context: NoteCreateContext; issuedAt: number };
@@ -21,24 +23,19 @@ export function makeNoteCreateIntent(draft: NoteCreateDraft, context: NoteCreate
 }
 export type NoteCreateOutcome = { kind: "removed"; noteId: string } | { kind: "confirmed"; noteId: string } | { kind: "unknown" } |
   { kind: "refused"; code: string; message?: string };
-export async function postNoteCreate(intent: NoteCreateIntent, options: { recovery?: boolean } = {}): Promise<NoteCreateOutcome> {
+export async function postNoteCreate(intent: NoteCreateIntent, options: { recovery?: boolean; ownerScope?: string } = {}): Promise<NoteCreateOutcome> {
   const age = Date.now() - intent.issuedAt;
   // Stay well inside the seven-day server key retention. A stale mounted page holds.
-  if (age < 0 || age > 24 * 60 * 60 * 1000) return { kind: "refused", code: "NOTE_RECOVERY_EXPIRED" };
+  if (age < 0 || age > NOTE_CREATE_RETRY_MS) return { kind: "refused", code: "NOTE_RECOVERY_EXPIRED" };
   if (options.recovery) {
-    const inspected = await requestOwnedJson("/api/notes/create/receipt", { method: "POST", headers: {
-      "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: intent.key,
-    }, body: intent.body }, 32 * 1024);
-    if (inspected.kind !== "reply" || !inspected.response.ok) return { kind: "unknown" };
-    const receipt = inspected.body as { state?: unknown; noteId?: unknown } | null;
-    if ((receipt?.state === "present" || receipt?.state === "removed") && typeof receipt.noteId === "string" && receipt.noteId.length > 0 && receipt.noteId.length <= 128)
+    const receipt = await inspectNoteCreateReceipt(intent, options.ownerScope);
+    if (receipt.state === "present" || receipt.state === "removed")
       return { kind: receipt.state === "present" ? "confirmed" : "removed", noteId: receipt.noteId };
-    // Only a missing receipt may proceed through the original keyed writer;
-    // pending/expired/malformed/unsupported inspection never becomes a fresh key.
-    if (receipt?.state !== "unissued") return { kind: "unknown" };
+    if (receipt.state !== "unissued") return { kind: "unknown" };
   }
   const result = await requestOwnedJson("/api/notes", { method: "POST", headers: {
     "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: intent.key,
+    ...(options.ownerScope ? { [NOTE_CREATE_RECOVERY_OWNER_HEADER]: options.ownerScope } : {}),
   }, body: intent.body }, 256 * 1024);
   if (result.kind !== "reply") return { kind: "unknown" };
   const value = result.body as { note?: { id?: unknown; family_id?: unknown; created_by?: unknown }; error?: unknown } | null;
@@ -52,4 +49,23 @@ export async function postNoteCreate(intent: NoteCreateIntent, options: { recove
   const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "NOTE_CREATE_REFUSED";
   if (result.response.status >= 500 || result.response.status === 408 || code === "IDEMPOTENCY_IN_PROGRESS") return { kind: "unknown" };
   return { kind: "refused", code, ...(typeof error === "string" ? { message: error } : {}) };
+}
+
+export type NoteReceiptInspection = { state: "present" | "removed"; noteId: string } |
+  { state: "unissued" | "pending" | "expired" | "unavailable" | "unknown" };
+/** Shared read-only preflight for mounted recovery and the owned journal adapter. */
+export async function inspectNoteCreateReceipt(intent: NoteCreateIntent, ownerScope?: string): Promise<NoteReceiptInspection> {
+  const age = Date.now() - intent.issuedAt;
+  if (age < 0 || age > NOTE_CREATE_RETRY_MS) return { state: "expired" };
+  const result = await requestOwnedJson("/api/notes/create/receipt", { method: "POST", headers: {
+    "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: intent.key,
+    ...(ownerScope ? { [NOTE_CREATE_RECOVERY_OWNER_HEADER]: ownerScope } : {}),
+  }, body: intent.body }, 32 * 1024);
+  if (result.kind !== "reply" || !result.response.ok) return { state: "unknown" };
+  const receipt = result.body as { state?: unknown; noteId?: unknown } | null;
+  if ((receipt?.state === "present" || receipt?.state === "removed") && typeof receipt.noteId === "string" && receipt.noteId.length > 0 && receipt.noteId.length <= 128)
+    return { state: receipt.state, noteId: receipt.noteId };
+  if (receipt?.state === "unissued" || receipt?.state === "pending" || receipt?.state === "expired" || receipt?.state === "unavailable")
+    return { state: receipt.state };
+  return { state: "unknown" };
 }
