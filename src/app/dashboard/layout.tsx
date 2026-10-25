@@ -11,7 +11,7 @@ import ResponsibilityProvider from "@/components/responsibility/ResponsibilityPr
 import { responsibilityReady } from "@/lib/responsibility-owner";
 import AssistantHost from "@/components/assistant/AssistantHost";
 import { ReactNode } from "react";
-import { PRODUCT_BRAND } from "@/lib/brand";
+import { SignedOutDashboard, DashboardSkipLink, DashboardMainLabel } from "@/components/layout/DashboardRecoveryCopy";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import DashboardNav, { TabBar } from "@/components/layout/DashboardNav";
@@ -45,20 +45,7 @@ export default async function DashboardLayout({
     family_id?: string | null;
   } | null;
 
-  if (!sessionUser) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">
-            Not Authenticated
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            Please sign in to access the dashboard.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (!sessionUser) return <SignedOutDashboard />;
 
   // Look up the role (don't trust the JWT for this — do a fresh DB read so
   // role changes take effect immediately and the layout is the source of truth).
@@ -154,12 +141,7 @@ export default async function DashboardLayout({
                 >
                   <div data-dashboard-background>
                     {/* Skip-to-content link for keyboard users (WCAG 2.4.1) */}
-                    <a
-                      href="#main-content"
-                      className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-full focus:bg-[var(--tint-family)] focus:text-white focus:text-subhead focus:font-semibold focus:shadow-[var(--shadow-lg)]"
-                    >
-                      Skip to main content
-                    </a>
+                    <DashboardSkipLink />
 
                     {/* Apple HIG top bar nav */}
                     <DashboardNav user={navUser} />
@@ -168,8 +150,9 @@ export default async function DashboardLayout({
                     <main
                       id="main-content"
                       className="pt-16 pb-[max(5rem,var(--phone-tab-bar-height,0px))] md:pb-8"
-                      aria-label={`${PRODUCT_BRAND.name} dashboard`}
+                      aria-labelledby="dashboard-main-label"
                     >
+                      <DashboardMainLabel />
                       {/* "You're offline" (O-41): sticky under the top bar, above the tab bar's area. */}
                       <OfflineBanner className="top-16" />
                       <div className="w-full px-4 sm:px-6 lg:px-8 py-5 md:py-6">

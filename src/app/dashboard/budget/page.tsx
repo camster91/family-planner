@@ -1,3 +1,4 @@
+import { HouseholdPageState } from '@/components/layout/DashboardRecoveryCopy'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
@@ -77,16 +78,7 @@ export default async function BudgetPage() {
     },
   })
 
-  if (!user?.family_id) {
-    return (
-      <div className="text-center py-16">
-        <h2 className="text-xl font-semibold text-foreground">No Family Yet</h2>
-        <p className="text-muted-foreground mt-2">
-          Join or create a family to start tracking your budget.
-        </p>
-      </div>
-    )
-  }
+  if (!user?.family_id) return <HouseholdPageState page="budget" />
 
   // Server-side gate (route inventory F-2): with Budget off, no transaction or
   // category is read, rendered or serialised. The APIs are gated the same way.

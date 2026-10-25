@@ -1,15 +1,5 @@
 [
   {
-    "file": "src/app/dashboard/budget/page.tsx",
-    "text": "Join or create a family to start tracking your budget.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/budget/page.tsx",
-    "text": "No Family Yet",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/emergency/page.tsx",
     "text": "@media print { @page { margin: 0.5in; size: letter; } body * { visibility: hidden; } .print-card, .print-card * { visibility: visible; } .print-card { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }",
     "count": 1
@@ -35,38 +25,8 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/layout.tsx",
-    "text": "dashboard",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/layout.tsx",
-    "text": "Not Authenticated",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/layout.tsx",
-    "text": "Please sign in to access the dashboard.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/layout.tsx",
-    "text": "Skip to main content",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/lists/[listId]/page.tsx",
     "text": "list image",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/activity/page.tsx",
-    "text": "Join or create a household to see its recent changes.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/activity/page.tsx",
-    "text": "Recent changes",
     "count": 1
   },
   {
@@ -107,26 +67,6 @@
   {
     "file": "src/app/dashboard/sick-days/page.tsx",
     "text": "98.6",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/today/page.tsx",
-    "text": "Create a household",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/today/page.tsx",
-    "text": "Join or create a household to see today&apos;s plans here.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/today/page.tsx",
-    "text": "Join with a code",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/today/page.tsx",
-    "text": "Today",
     "count": 1
   },
   {
@@ -562,16 +502,6 @@
   {
     "file": "src/components/inventory/BarcodeFoodDialog.tsx",
     "text": "UPC-E ·",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardFormSheets.tsx",
-    "text": "Close to return. Unsaved changes will be cleared.",
-    "count": 1
-  },
-  {
-    "file": "src/components/layout/DashboardFormSheets.tsx",
-    "text": "Please wait for saving or uploading to finish.",
     "count": 1
   }
 ]

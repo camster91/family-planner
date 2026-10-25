@@ -1,5 +1,21 @@
 # Route and domain inventory (#148)
 
+### Dashboard fallback and landmark copy — 2026-10-24 (#142)
+
+Today/Budget/Activity missing-household presentation, signed-out shell, skip link,
+main accessible name and shared FormSheet fallback instructions use15 scoped
+core EN/ES keys. Small presentation-only client components receive only a static
+page kind; original server session/role/feature/read gates and household fields
+remain on the server. Main stays a server element and references one localized
+screen-reader span by ID. Classes, heading levels, original Today create/join
+links and custom sheet labels/descriptions stay canonical. FormSheet's busy/back/
+inert/scroll/owned-navigation behavior is unchanged. Fourteen owned inventory
+records removed without scanning. Existing shell assertions now follow the
+labelled-by reference; Spanish name/skip-target case authored/unrun. No QA/test/
+check/build/browser/API/database/native/provider/permission/release ran. Static
+route metadata and original hydration/navigation/role/accessibility/layout/runtime
+acceptance remain open.
+
 ### Calm-screen, weather and preference status copy — 2026-10-24 (#142)
 
 AmbientCover uses typed Today keys for accessible time, next-event prefix,

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { HouseholdPageState } from "@/components/layout/DashboardRecoveryCopy";
 import { after } from "next/server";
 import { getServerUser } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
@@ -62,24 +62,7 @@ export default async function TodayBoardPage({
   const params = await searchParams;
   const fridgeMode = params.mode === "fridge";
 
-  if (!user?.family_id) {
-    return (
-      <div className="mx-auto max-w-lg py-16 text-center">
-        <h1 className="text-title-1 text-label-primary">Today</h1>
-        <p className="mt-3 text-body text-label-secondary">
-          Join or create a household to see today&apos;s plans here.
-        </p>
-        <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-          <Link href="/dashboard" className="btn-filled">
-            Create a household
-          </Link>
-          <Link href="/join" className="btn-plain">
-            Join with a code
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  if (!user?.family_id) return <HouseholdPageState page="today" />;
 
   const familyId = user.family_id;
   // Subscribed calendars (#232): refresh stale feeds after the response is sent,

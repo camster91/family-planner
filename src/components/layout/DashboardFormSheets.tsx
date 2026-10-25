@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
+import { useDashboardFrameText } from "@/i18n/dashboard-frame";
 import { Dialog } from "@/components/ui/dialog";
 import CreateListForm from "@/app/dashboard/lists/create/CreateListForm";
 import CreateChoreForm from "@/app/dashboard/chores/create/CreateChoreForm";
@@ -20,7 +21,7 @@ export function FormSheet({
   busy = false,
   children,
   description,
-  closeLabel = "Close and return",
+  closeLabel,
 }: {
   title: string;
   busy?: boolean;
@@ -28,6 +29,7 @@ export function FormSheet({
   description?: string;
   closeLabel?: string;
 }) {
+  const text = useDashboardFrameText();
   const router = useRouter();
   const navigation = usePendingFormNavigationController(busy);
   const close = async () => {
@@ -55,12 +57,12 @@ export function FormSheet({
         title={title}
         variant="form"
         onClose={busy ? undefined : () => void close()}
-        closeLabel={closeLabel}
+        closeLabel={closeLabel ?? text("sheetClose")}
         description={
           description ??
           (busy
-            ? "Please wait for saving or uploading to finish."
-            : "Close to return. Unsaved changes will be cleared.")
+            ? text("sheetBusy")
+            : text("sheetDraft"))
         }
       >
         {children}

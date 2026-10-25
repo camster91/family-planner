@@ -52,16 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work localizes calm-screen/weather labels and account
-preference status (#142). Six Today keys cover time/next/tonight/wake/high/low;
-the calm weather summary reuses the main board's existing locale mapping. Ten
-scoped preference keys replace inline language branches for load/save/conflict/
-recovery/quiet copy. Existing focus/wake/dimming/photo effects, weather values/
-units/attribution, provider state, switch eligibility and save/refresh callbacks
-remain. Ten owned inventory records removed without scanning. No new copy-only
-tests; existing cases unrun. No QA/check/build/browser/API/database/native/
-provider/permission/release ran. Remaining copy and original shared-device/
-preferences/recovery/locale/layout/runtime acceptance remain open.
+Latest bounded source work localizes dashboard fallback presentation (#142):
+Today/Budget/Activity no-household states, signed-out shell, skip link, main
+landmark name and shared form-sheet close/busy/draft fallbacks. Small client copy
+components retain server authentication/role/feature/read gates and existing
+links; the main element stays server-rendered with a localized labelled-by span.
+Fifteen scoped EN/ES keys preserve ordinary English copy, classes and headings.
+Fourteen owned inventory records removed without scanning. Existing shell
+assertions adapted and Spanish landmark source case authored/unrun. No QA/check/
+build/browser/API/database/native/provider/permission/release ran. Static route
+metadata and full hydration/navigation/accessibility/role/layout/runtime
+acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
