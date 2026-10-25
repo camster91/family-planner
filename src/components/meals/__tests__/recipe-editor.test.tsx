@@ -482,3 +482,18 @@ it("keeps an existing ingredient ID for a normalized equivalent name", async () 
     { ingredient_id: "i1", amount: 2, unit: null, note: null },
   ]);
 });
+
+// Authored UNRUN with the recipe request-budget change.
+it('keeps the recipe draft and explains a known oversized-request refusal', async () => {
+  const user = userEvent.setup();
+  const created = jest.fn();
+  global.fetch = jest.fn(async () => ({ ok: false, status: 413, json: async () => ({ error: { code: 'RECIPE_REQUEST_TOO_LARGE' } }) }) as Response) as typeof fetch;
+  render(<RecipeEditor onCreated={created} onCancel={jest.fn()} />);
+  await user.type(await screen.findByLabelText('Recipe name'), 'Fixture soup');
+  await user.click(screen.getByRole('button', { name: 'Save recipe' }));
+  expect(screen.getByRole('alert').textContent).toBe('This recipe request is too large. Shorten the text and try again. Your draft is still here.');
+  expect((screen.getByLabelText('Recipe name') as HTMLInputElement).value).toBe('Fixture soup');
+  expect((screen.getByRole('button', { name: 'Save recipe' }) as HTMLButtonElement).disabled).toBe(false);
+  expect(created).not.toHaveBeenCalled();
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+});

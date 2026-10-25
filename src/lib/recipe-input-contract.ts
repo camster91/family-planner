@@ -2,6 +2,9 @@
 import { z } from "zod";
 import { recipeSourceField } from "@/lib/recipe-curation-contract";
 export const RECIPE_MAX_INGREDIENTS = 100;
+// Accommodates all bounded fields/100 ingredient lines even with JSON escapes.
+// This transport budget also bounds whitespace/unknown fields before validation.
+export const RECIPE_WRITE_MAX_BYTES = 1024 * 1024;
 
 const optionalText = (max: number) =>
   z

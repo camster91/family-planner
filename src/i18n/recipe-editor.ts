@@ -3,6 +3,7 @@ import { useTranslation } from "@/i18n";
 
 /** Recipe-editor controls and recovery copy. Recipe content stays verbatim. */
 export const recipeEditorEnglish = {
+  requestTooLarge: "This recipe request is too large. Shorten the text and try again. Your draft is still here.",
   draftRecoveryUnavailable:
     "Saved-work recovery is not enabled here. Saved stores have not been checked. Return to Meals or try again later.",
   draftReviewTitle: "Saved recipe work",
@@ -103,6 +104,7 @@ export const recipeEditorEnglish = {
 export type RecipeEditorMessage = keyof typeof recipeEditorEnglish;
 
 export const recipeEditorSpanish: Record<RecipeEditorMessage, string> = {
+  requestTooLarge: "La solicitud de receta es demasiado grande. Acorta el texto y vuelve a intentarlo. Tu borrador sigue aquí.",
   draftRecoveryUnavailable:
     "La recuperación no está habilitada aquí. No se han consultado los almacenes guardados. Vuelve a Comidas o inténtalo más tarde.",
   draftReviewTitle: "Trabajo de recetas guardado",

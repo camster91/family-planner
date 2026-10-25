@@ -218,3 +218,35 @@ describe('recipes — two households, roles and gate', () => {
     expect(db.writes).toHaveLength(0)
   })
 })
+
+// Request budget source cases authored UNRUN; no database/provider action ran.
+describe('recipe write body budget', () => {
+  beforeEach(() => { db.reset(); mockGate.mockReset(); mockGate.mockResolvedValue(null); });
+  it.each(['create', 'edit'])('rejects declared oversized %s before invoking a decoder or writing', async mode => {
+    const request = req({ as: 'parentA', method: mode === 'create' ? 'POST' : 'PATCH', headers: { 'content-length': String(1024 * 1024 + 1) }, body: { title: 'Fixture soup' } });
+    request.json = jest.fn(async () => ({ title: 'Fixture soup' }));
+    const response = await (mode === 'create' ? recipes.POST(request) : recipe.PATCH(request, P('recipe-a')));
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: { code: 'RECIPE_REQUEST_TOO_LARGE' } });
+    expect(request.json).not.toHaveBeenCalled();
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(db.writes).toHaveLength(0);
+  });
+  it.each(['create', 'edit'])('bounds chunked UTF-8 %s with no declared length before JSON/schema/write work', async mode => {
+    const request = req({ as: 'parentA', method: mode === 'create' ? 'POST' : 'PATCH' });
+    const cancel = jest.fn();
+    request.body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"title":"'));
+        controller.enqueue(new TextEncoder().encode('é'.repeat(600000)));
+      },
+      cancel,
+    });
+    request.json = jest.fn();
+    const response = await (mode === 'create' ? recipes.POST(request) : recipe.PATCH(request, P('recipe-a')));
+    expect(response.status).toBe(413);
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(request.json).not.toHaveBeenCalled();
+    expect(db.writes).toHaveLength(0);
+  });
+});

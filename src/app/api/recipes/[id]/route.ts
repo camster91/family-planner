@@ -1,3 +1,5 @@
+import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
+import { RECIPE_WRITE_MAX_BYTES } from "@/lib/recipe-input-contract";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily } from "@/lib/api-auth";
@@ -75,8 +77,13 @@ export async function PATCH(request: NextRequest, context: Context) {
 
     let body: unknown;
     try {
-      body = await request.json();
-    } catch {
+      body = await readBoundedJson(request, RECIPE_WRITE_MAX_BYTES);
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError)
+        return NextResponse.json(
+          { error: { code: "RECIPE_REQUEST_TOO_LARGE" } },
+          { status: 413, headers: { "Cache-Control": "private, no-store" } },
+        );
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
     const parsed = updateRecipeSchema.safeParse(body);

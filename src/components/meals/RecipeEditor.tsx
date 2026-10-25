@@ -333,6 +333,12 @@ function RecipeEditorForm({
       existingRecipe?: { id?: unknown; title?: unknown };
     } | null;
     if (!res.ok) {
+      // A prior unknown attempt stays unknown even if this retry is refused.
+      if (res.status === 413 && data?.error?.code === "RECIPE_REQUEST_TOO_LARGE" && !uncertainRef.current) {
+        creationAttempt.current = null;
+        setError(text("requestTooLarge"));
+        return;
+      }
       if (
         data?.error?.code === "RECIPE_SOURCE_EXISTS" &&
         typeof data.existingRecipe?.id === "string" &&

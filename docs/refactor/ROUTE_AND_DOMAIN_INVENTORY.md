@@ -2394,3 +2394,27 @@ cases for family/role/generation changes during publisher waits, disabled Meals,
 and pre-dispatch role retirement are authored UNRUN. No QA/tests/checks/browser/
 provider requests/DB/CI/build/import/push/merge/deploy ran. #460/#136 acceptance
 and broader original-owner UI/native lifecycle evidence remain open.
+
+## Canonical recipe write request budget — 2026-10-25
+
+#460/#134 source: POST /api/recipes and PATCH /api/recipes/[id] now use the
+existing shared bounded JSON reader with an explicit1MiB UTF-8 request budget.
+The limit accommodates canonical20,000-character instructions, description and
+100 bounded ingredient lines including JSON escapes; it does not raise schema
+limits. Declared overflow refuses before decoding. Streamed/chunked overflow
+stops before parsing/schema/transaction work even without Content-Length. The
+legacy JSON-only bridge has a post-decode bound, not preallocation protection.
+Existing authentication, role/Meals/review gates stay before body reads. No
+idempotency receipt or recipe/ingredient write is created for rejected bodies.
+
+Oversize returns413 RECIPE_REQUEST_TOO_LARGE, private/no-store. The editor keeps
+all draft fields and shows typed EN/ES shortening guidance for a known refusal.
+A previously uncertain attempt remains uncertain even if a retry receives413;
+the new response does not prove the earlier attempt absent. Ordinary valid
+request/receipt/revision/save contracts remain unchanged. Invalid syntax keeps
+its400 shape. Arbitrary whitespace/unknown-field expansion beyond the transport
+budget is unsupported. No body deadline/CPU preemption is claimed here.
+
+Declared-size and chunked UTF-8 route regression cases are authored UNRUN. No
+QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy ran. Full #460
+save/retry/isolation and #134 resource/load acceptance remain open.
